@@ -1,0 +1,342 @@
+diff --git a/products/data_warehouse/backend/facade/api.py b/products/data_warehouse/backend/facade/api.py
+index 82a7c440b1f7..74e34d46095a 100644
+--- a/products/data_warehouse/backend/facade/api.py
++++ b/products/data_warehouse/backend/facade/api.py
+@@ -32,6 +32,7 @@
+     "is_cdc_enabled_for_team": "logic.data_load.service",
+     "cdc_extraction_schedule_has_running_action": "logic.data_load.service",
+     "is_cdc_extraction_schedule_paused": "logic.data_load.service",
++    "is_external_data_schedule_paused": "logic.data_load.service",
+     "is_custom_source_ai_builder_enabled_for_team": "logic.data_load.service",
+     "pause_cdc_extraction_schedule": "logic.data_load.service",
+     "pause_external_data_schedule": "logic.data_load.service",
+diff --git a/products/data_warehouse/backend/logic/data_load/service.py b/products/data_warehouse/backend/logic/data_load/service.py
+index ca44767c2f97..a7fbdf8ebd16 100644
+--- a/products/data_warehouse/backend/logic/data_load/service.py
++++ b/products/data_warehouse/backend/logic/data_load/service.py
+@@ -231,6 +231,22 @@ async def a_external_data_workflow_exists(id: str) -> bool:
+     return await a_schedule_exists(temporal, schedule_id=id)
+ 
+ 
++@async_to_sync
++async def is_external_data_schedule_paused(id: str) -> bool:
++    """Whether a schema's extraction schedule exists and is currently paused.
++
++    A missing schedule reads as not paused — there is nothing to resume.
++    """
++    temporal = await async_connect()
++    try:
++        desc = await a_describe_schedule(temporal, schedule_id=id)
++    except temporalio.service.RPCError as e:
++        if e.status == temporalio.service.RPCStatusCode.NOT_FOUND:
++            return False
++        raise
++    return desc.schedule.state.paused
++
++
+ def pause_external_data_schedule(id: str):
+     temporal = sync_connect()
+     try:
+diff --git a/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py b/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py
+index d787af5201e6..e52447281a2b 100644
+--- a/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py
++++ b/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py
+@@ -13,7 +13,12 @@
+ 
+ from posthog.api.utils import action
+ 
+-from products.data_warehouse.backend.facade.api import delete_cdc_extraction_schedule
++from products.data_warehouse.backend.facade.api import (
++    delete_cdc_extraction_schedule,
++    is_external_data_schedule_paused,
++    pause_external_data_schedule,
++    unpause_external_data_schedule,
++)
+ from products.warehouse_sources.backend.facade.models import (
+     DataWarehouseTable,
+     ExternalDataJob,
+@@ -462,6 +467,34 @@ def disable_cdc(self, request: Request, *arg: Any, **kwargs: Any):
+         # every CDC schema — editor on the source isn't enough when a table is locked below it.
+         self._assert_can_write_schemas(cdc_schemas)
+         cdc_schema_ids = [schema.id for schema in cdc_schemas]
++        # The bulk update below bypasses update_should_sync, which is what pauses a table's schedule, so
++        # without this every former CDC table keeps syncing, and billing, on its old schedule. It runs
++        # first: a failed pause then fails the request while CDC still reads as enabled, so a retry
++        # repeats the whole disable instead of returning already_disabled.
++        paused_by_this_request: list[str] = []
++        try:
++            for schema_id in cdc_schema_ids:
++                # A schedule that was already paused (sync off, or a broken source) has to stay
++                # paused if this request rolls back, so only track the ones we pause ourselves.
++                already_paused = is_external_data_schedule_paused(str(schema_id))
++                pause_external_data_schedule(str(schema_id))
++                if not already_paused:
++                    paused_by_this_request.append(str(schema_id))
++        except Exception as e:
++            # Nothing else has changed yet, so undo our pauses: leaving them would stop the syncs
++            # of tables that still read as CDC-enabled, and no retry resumes them.
++            for schedule_id in paused_by_this_request:
++                try:
++                    unpause_external_data_schedule(schedule_id)
++                except Exception as resume_error:
++                    base.capture_exception(resume_error, {"source_id": str(instance.id)})
++            base.capture_exception(e, {"source_id": str(instance.id)})
++            return Response(
++                status=status.HTTP_503_SERVICE_UNAVAILABLE,
++                data={
++                    "message": "Couldn't pause the table syncs, so CDC is still on. Try disabling it again in a minute."
++                },
++            )
+         running_jobs = ExternalDataJob.objects.filter(
+             pipeline_id=instance.pk,
+             team_id=instance.team_id,
+diff --git a/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py b/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py
+index 19dee2f0ecfc..04738c5c2496 100644
+--- a/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py
++++ b/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py
+@@ -8,10 +8,11 @@
+ 
+ - ``source.status = ERROR`` — the source-level "something is wrong" signal.
+ - per-CDC-schema ``sync_type_config["cdc_broken"]`` plus ``status=FAILED`` / friendly ``latest_error``.
+-- the Temporal extraction schedule is paused so it stops firing against a resource that is gone.
++- the Temporal extraction schedule and each marked table's schedule are paused so they stop firing
++  against a resource that is gone.
+ 
+-Clearing ``cdc_broken`` and unpausing the schedule (done by ``repair_cdc`` / ``disable_cdc``)
+-restores operation — see the recovery contract in those API actions.
++Clearing ``cdc_broken`` and unpausing the schedules (done by ``repair_cdc``) restores operation — see
++the recovery contract in that API action.
+ """
+ 
+ from __future__ import annotations
+@@ -99,7 +100,7 @@ def mark_cdc_broken(
+             )
+ 
+     if pause:
+-        _pause_schedule(source, log)
++        _pause_schedules(source, cdc_schemas, log)
+ 
+     # Breakage often originates outside a run (the lag sweeper), so no FAILED job row exists.
+     # The failure digest email needs one: its schema query requires a failed job newer than the
+@@ -186,15 +187,22 @@ def _schedule_failure_digest(source: ExternalDataSource, log: typing.Any) -> Non
+         log.warning("cdc_broken_digest_schedule_failed", exc_info=True)
+ 
+ 
+-def _pause_schedule(source: ExternalDataSource, log: typing.Any) -> None:
+-    try:
+-        # Deferred: data_load.service participates in the CDC schedule<->workflow import cycle.
+-        from products.data_warehouse.backend.facade.api import pause_cdc_extraction_schedule
++def _pause_schedules(source: ExternalDataSource, cdc_schemas: list[ExternalDataSchema], log: typing.Any) -> None:
++    # Deferred: data_load.service participates in the CDC schedule<->workflow import cycle.
++    from products.data_warehouse.backend.facade.api import pause_cdc_extraction_schedule, pause_external_data_schedule
+ 
++    # Best-effort: a failed pause must not block persisting the broken state.
++    try:
+         pause_cdc_extraction_schedule(str(source.id))
+     except Exception:
+-        # Best-effort: a failed pause must not block persisting the broken state.
+         log.warning("cdc_broken_pause_schedule_failed", exc_info=True)
++    # A table's schedule would otherwise keep firing against a source with no slot, and every tick
++    # would record a failed or billing-blocked job until someone repairs the source.
++    for schema in cdc_schemas:
++        try:
++            pause_external_data_schedule(str(schema.id))
++        except Exception:
++            log.warning("cdc_broken_pause_table_schedule_failed", schema_id=str(schema.id), exc_info=True)
+ 
+ 
+ def _notify(source: ExternalDataSource, message: str, log: typing.Any) -> None:
+diff --git a/products/warehouse_sources/backend/temporal/data_imports/cdc/tests/test_broken.py b/products/warehouse_sources/backend/temporal/data_imports/cdc/tests/test_broken.py
+index a055439bf978..cda30ca7fbf3 100644
+--- a/products/warehouse_sources/backend/temporal/data_imports/cdc/tests/test_broken.py
++++ b/products/warehouse_sources/backend/temporal/data_imports/cdc/tests/test_broken.py
+@@ -2,7 +2,7 @@
+ from contextlib import contextmanager
+ 
+ import pytest
+-from unittest.mock import patch
++from unittest.mock import call, patch
+ 
+ from products.warehouse_sources.backend.models.external_data_job import ExternalDataJob
+ from products.warehouse_sources.backend.models.external_data_schema import ExternalDataSchema
+@@ -39,18 +39,21 @@ def _mocked_boundaries():
+     # their source modules, since broken.py imports the schedule/notification helpers lazily.
+     with (
+         patch("products.data_warehouse.backend.logic.data_load.service.pause_cdc_extraction_schedule") as mock_pause,
++        patch(
++            "products.data_warehouse.backend.logic.data_load.service.pause_external_data_schedule"
++        ) as mock_table_pause,
+         patch("products.data_warehouse.backend.facade.tasks.schedule_external_data_failure_digest") as mock_digest,
+         patch("products.notifications.backend.facade.api.create_notification") as mock_notify,
+         patch("posthoganalytics.capture") as mock_capture,
+     ):
+-        yield mock_pause, mock_digest, mock_notify, mock_capture
++        yield mock_pause, mock_digest, mock_notify, mock_capture, mock_table_pause
+ 
+ 
+ def test_persists_broken_state_on_source_and_schemas(team):
+     source = _source(team)
+     schema = _cdc_schema(team, source)
+ 
+-    with _mocked_boundaries() as (mock_pause, mock_digest, mock_notify, mock_capture):
++    with _mocked_boundaries() as (mock_pause, mock_digest, mock_notify, mock_capture, _table_pause):
+         mark_cdc_broken(source, "auto_dropped_critical_lag", "lag too high", lag_mb=4096.0)
+ 
+     source.refresh_from_db()
+@@ -94,7 +97,7 @@ def test_re_marking_reports_once_per_reason(team, second_reason, expects_new_evi
+     source = _source(team)
+     schema = _cdc_schema(team, source)
+ 
+-    with _mocked_boundaries() as (_pause, mock_digest, _notify, _capture):
++    with _mocked_boundaries() as (_pause, mock_digest, _notify, _capture, _table_pause):
+         mark_cdc_broken(source, "critical_lag_self_managed", "lag too high", pause=False)
+         mark_cdc_broken(source, second_reason, "still broken", pause=False)
+ 
+@@ -109,7 +112,7 @@ def test_visibility_jobs_can_be_disabled_for_in_run_callers(team):
+     source = _source(team)
+     schema = _cdc_schema(team, source)
+ 
+-    with _mocked_boundaries() as (_pause, mock_digest, _notify, _capture):
++    with _mocked_boundaries() as (_pause, mock_digest, _notify, _capture, _table_pause):
+         mark_cdc_broken(source, "slot_missing", "slot gone", create_visibility_jobs=False)
+ 
+     assert not ExternalDataJob.objects.filter(schema=schema).exists()
+@@ -119,12 +122,14 @@ def test_visibility_jobs_can_be_disabled_for_in_run_callers(team):
+ @pytest.mark.parametrize("pause", [True, False])
+ def test_pause_flag_controls_schedule_pause(team, pause):
+     source = _source(team)
+-    _cdc_schema(team, source)
++    active = _cdc_schema(team, source)
++    _cdc_schema(team, source, name="sync_off", should_sync=False)
+ 
+-    with _mocked_boundaries() as (mock_pause, _digest, _notify, _capture):
++    with _mocked_boundaries() as (mock_pause, _digest, _notify, _capture, mock_table_pause):
+         mark_cdc_broken(source, "critical_lag_self_managed", "msg", pause=pause)
+ 
+     assert mock_pause.called is pause
++    assert mock_table_pause.call_args_list == ([call(str(active.id))] if pause else [])
+ 
+ 
+ def test_only_active_cdc_schemas_are_marked(team):
+diff --git a/products/warehouse_sources/backend/tests/api/test_external_data_source.py b/products/warehouse_sources/backend/tests/api/test_external_data_source.py
+index 0eeb3716e7e2..4207f1259a91 100644
+--- a/products/warehouse_sources/backend/tests/api/test_external_data_source.py
++++ b/products/warehouse_sources/backend/tests/api/test_external_data_source.py
+@@ -7,7 +7,7 @@
+ 
+ import time_machine
+ from posthog.test.base import APIBaseTest
+-from unittest.mock import MagicMock, Mock, PropertyMock, patch
++from unittest.mock import MagicMock, Mock, PropertyMock, call, patch
+ 
+ from django.conf import settings
+ from django.db import connection
+@@ -11236,7 +11236,14 @@ def test_disable_cdc_noops_when_cdc_not_enabled(self) -> None:
+         "products.warehouse_sources.backend.temporal.data_imports.sources.postgres.cdc.adapter.PostgresCDCAdapter.cleanup_resources",
+         return_value=None,
+     )
+-    def test_disable_cdc_clears_cdc_keys_and_pauses_schemas(self, _cleanup) -> None:
++    @patch(
++        "products.warehouse_sources.backend.presentation.views.external_data_source.change_data_capture.is_external_data_schedule_paused",
++        return_value=False,
++    )
++    @patch(
++        "products.warehouse_sources.backend.presentation.views.external_data_source.change_data_capture.pause_external_data_schedule"
++    )
++    def test_disable_cdc_clears_cdc_keys_and_pauses_schemas(self, mock_pause_schedule, _is_paused, _cleanup) -> None:
+         source = _make_postgres_source(self.team.pk, self.user, cdc_enabled=True)
+ 
+         cdc_schema = ExternalDataSchema.objects.create(
+@@ -11276,6 +11283,92 @@ def test_disable_cdc_clears_cdc_keys_and_pauses_schemas(self, _cleanup) -> None:
+         non_cdc_schema.refresh_from_db()
+         assert non_cdc_schema.sync_type == ExternalDataSchema.SyncType.INCREMENTAL
+         assert non_cdc_schema.should_sync is True
++        mock_pause_schedule.assert_called_once_with(str(cdc_schema.id))
++
++    @patch(
++        "products.warehouse_sources.backend.temporal.data_imports.sources.postgres.cdc.adapter.PostgresCDCAdapter.cleanup_resources",
++        return_value=None,
++    )
++    @patch(
++        "products.warehouse_sources.backend.presentation.views.external_data_source.change_data_capture.unpause_external_data_schedule"
++    )
++    @patch(
++        "products.warehouse_sources.backend.presentation.views.external_data_source.change_data_capture.is_external_data_schedule_paused",
++        return_value=False,
++    )
++    @patch(
++        "products.warehouse_sources.backend.presentation.views.external_data_source.change_data_capture.pause_external_data_schedule",
++        side_effect=RuntimeError("temporal unavailable"),
++    )
++    def test_disable_cdc_changes_nothing_when_a_table_schedule_cannot_be_paused(
++        self, _pause, _is_paused, mock_unpause, cleanup
++    ) -> None:
++        source = _make_postgres_source(self.team.pk, self.user, cdc_enabled=True)
++        cdc_schema = ExternalDataSchema.objects.create(
++            name="cdc_table",
++            team_id=self.team.pk,
++            source_id=source.pk,
++            sync_type=ExternalDataSchema.SyncType.CDC,
++            should_sync=True,
++        )
++
++        response = self.client.post(
++            f"/api/environments/{self.team.pk}/external_data_sources/{source.pk}/disable_cdc/",
++        )
++
++        assert response.status_code == 503, response.content
++        cleanup.assert_not_called()
++        source.refresh_from_db()
++        assert "cdc_enabled" in (source.job_inputs or {})
++        cdc_schema.refresh_from_db()
++        assert cdc_schema.sync_type == ExternalDataSchema.SyncType.CDC
++        assert cdc_schema.should_sync is True
++        # No pause succeeded, so there is nothing to resume.
++        mock_unpause.assert_not_called()
++
++    @patch(
++        "products.warehouse_sources.backend.temporal.data_imports.sources.postgres.cdc.adapter.PostgresCDCAdapter.cleanup_resources",
++        return_value=None,
++    )
++    @patch(
++        "products.warehouse_sources.backend.presentation.views.external_data_source.change_data_capture.unpause_external_data_schedule"
++    )
++    def test_disable_cdc_resumes_only_the_schedules_it_paused_when_a_later_pause_fails(
++        self, mock_unpause, _cleanup
++    ) -> None:
++        source = _make_postgres_source(self.team.pk, self.user, cdc_enabled=True)
++        for name in ("cdc_one", "cdc_two", "cdc_three"):
++            ExternalDataSchema.objects.create(
++                name=name,
++                team_id=self.team.pk,
++                source_id=source.pk,
++                sync_type=ExternalDataSchema.SyncType.CDC,
++                should_sync=True,
++            )
++
++        pause_attempts: list[str] = []
++
++        def fake_is_paused(schedule_id: str) -> bool:
++            # The first table reached stands in for a schedule that was paused before the request.
++            return not pause_attempts
++
++        def fake_pause(schedule_id: str) -> None:
++            pause_attempts.append(schedule_id)
++            if len(pause_attempts) == 3:
++                raise RuntimeError("temporal unavailable")
++
++        view = "products.warehouse_sources.backend.presentation.views.external_data_source.change_data_capture"
++        with (
++            patch(f"{view}.is_external_data_schedule_paused", side_effect=fake_is_paused),
++            patch(f"{view}.pause_external_data_schedule", side_effect=fake_pause),
++        ):
++            response = self.client.post(
++                f"/api/environments/{self.team.pk}/external_data_sources/{source.pk}/disable_cdc/",
++            )
++
++        assert response.status_code == 503, response.content
++        # The first table was already paused and the third never paused, so only the second resumes.
++        assert mock_unpause.call_args_list == [call(pause_attempts[1])]
+ 
+     @patch("products.warehouse_sources.backend.presentation.views.external_data_source.base.purge_buffer_prefix")
+     @patch(

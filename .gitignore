@@ -1,0 +1,5 @@
+node_modules/
+bench/repos/
+bench/runs/
+*.log
+worktrees/

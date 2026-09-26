@@ -1,0 +1,87 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index baa6ca56b7..9696408612 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,6 +7,10 @@
+ 
+ ## Unreleased: mitmproxy next
+ 
++- Bracket IPv6 target literals in the `CONNECT` request and `Host` header sent
++  to an upstream proxy (`--mode upstream`), producing a valid `[2001:db8::1]:443`
++  authority per RFC 3986 instead of the malformed `2001:db8::1:443`.
++  ([#8326](https://github.com/mitmproxy/mitmproxy/pull/8326), @gaurav0107)
+ - mitmweb: Fix an infinite update cycle in the event log by only recomputing the virtual-scroll window in `componentDidUpdate` when the event list or `rowHeight` actually change.
+   ([#8312](https://github.com/mitmproxy/mitmproxy/pull/8312), @hexbinoct)
+ - Remove the unused `msgpack` dependency. The msgpack contentview is
+diff --git a/mitmproxy/proxy/layers/http/_upstream_proxy.py b/mitmproxy/proxy/layers/http/_upstream_proxy.py
+index f40b26ce6e..d97c918539 100644
+--- a/mitmproxy/proxy/layers/http/_upstream_proxy.py
++++ b/mitmproxy/proxy/layers/http/_upstream_proxy.py
+@@ -1,3 +1,4 @@
++import ipaddress
+ import time
+ from logging import DEBUG
+ 
+@@ -50,9 +51,17 @@ def start_handshake(self) -> layer.CommandGenerator[None]:
+             return (yield from super().start_handshake())
+         assert self.conn.address
+         flow = http.HTTPFlow(self.context.client, self.tunnel_connection)
+-        authority = (
+-            self.conn.address[0].encode("idna") + f":{self.conn.address[1]}".encode()
+-        )
++        host = self.conn.address[0]
++        try:
++            is_ipv6 = isinstance(ipaddress.ip_address(host), ipaddress.IPv6Address)
++        except ValueError:
++            is_ipv6 = False
++        if is_ipv6:
++            # RFC 3986 §3.2.2: IPv6 literals in an authority must be bracketed.
++            host_bytes = b"[" + host.encode() + b"]"
++        else:
++            host_bytes = host.encode("idna")
++        authority = host_bytes + f":{self.conn.address[1]}".encode()
+         headers = http.Headers()
+         if self.context.options.http_connect_send_host_header:
+             headers.insert(0, b"Host", authority)
+diff --git a/test/mitmproxy/proxy/layers/http/test_http.py b/test/mitmproxy/proxy/layers/http/test_http.py
+index 91085e79c0..7803c72081 100644
+--- a/test/mitmproxy/proxy/layers/http/test_http.py
++++ b/test/mitmproxy/proxy/layers/http/test_http.py
+@@ -939,6 +939,37 @@ def test_upstream_proxy(tctx, redirect, domain, scheme):
+     assert playbook
+ 
+ 
++def test_upstream_proxy_ipv6(tctx):
++    """
++    Regression test for #8309: the CONNECT request (and Host header) sent to an
++    upstream proxy must bracket IPv6 target literals per RFC 3986 §3.2.2 /
++    RFC 7230 §5.4, i.e. ``[2001:db8::1]:443`` rather than ``2001:db8::1:443``.
++    The unbracketed form is a malformed authority that downstream proxies
++    reject.
++    """
++    server = Placeholder(Server)
++    tctx.client.proxy_mode = ProxyMode.parse("upstream:http://proxy:8080")
++    playbook = Playbook(http.HttpLayer(tctx, HTTPMode.upstream), hooks=False)
++    assert (
++        playbook
++        >> DataReceived(
++            tctx.client,
++            b"CONNECT [2001:db8::1]:443 HTTP/1.1\r\nHost: [2001:db8::1]:443\r\n\r\n",
++        )
++        << SendData(tctx.client, b"HTTP/1.1 200 Connection established\r\n\r\n")
++        >> DataReceived(tctx.client, b"GET / HTTP/1.1\r\nHost: [2001:db8::1]\r\n\r\n")
++        << layer.NextLayerHook(Placeholder())
++        >> reply_next_layer(lambda ctx: http.HttpLayer(ctx, HTTPMode.transparent))
++        << OpenConnection(server)
++        >> reply(None)
++        << SendData(
++            server,
++            b"CONNECT [2001:db8::1]:443 HTTP/1.1\r\nHost: [2001:db8::1]:443\r\n\r\n",
++        )
++    )
++    assert server().address == ("proxy", 8080)
++
++
+ @pytest.mark.parametrize("mode", ["regular", "upstream"])
+ @pytest.mark.parametrize("close_first", ["client", "server"])
+ def test_http_proxy_tcp(tctx, mode, close_first):

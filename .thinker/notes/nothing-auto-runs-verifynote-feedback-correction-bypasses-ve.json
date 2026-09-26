@@ -1,0 +1,48 @@
+{
+  "id": "nothing-auto-runs-verifynote-feedback-correction-bypasses-ve",
+  "title": "Nothing auto-runs verifyNote; feedback correction bypasses verification",
+  "kind": "gotcha",
+  "answers": [
+    "Why do stale notes stay stale?",
+    "Does any hook re-verify notes automatically?",
+    "Can a note be changed without hash/LLM check?"
+  ],
+  "body": "Stale notes remain stale (still served, down-ranked 0.6) until someone runs `cli.js verify` or `check --verify`. The `hook stop` hook only distills new notes; it does not verify.\nAlso src/ops.js:feedback: repeated negative feedback drops confidence below 0.3 → status 'invalid'; a correction passed to feedback overwrites body and bumps `verified` directly with no hash or LLM check.",
+  "applies": "Applies to the current CLI/hook wiring; if a hook or post-commit is changed to pass --verify, verification would run automatically.",
+  "tags": [
+    "staleness",
+    "hooks",
+    "feedback"
+  ],
+  "deps": [
+    {
+      "path": "src/ops.js",
+      "symbol": "feedback",
+      "hash": "sha256:00e9ec0992e125519c913afc",
+      "line": 236,
+      "missing": false
+    },
+    {
+      "path": "src/ops.js",
+      "symbol": "verifyNote",
+      "hash": "sha256:b5db8b06b99f1bbe240e4c57",
+      "line": 204,
+      "missing": false
+    },
+    {
+      "path": "src/cli.js",
+      "hash": "sha256:b343d613c8a5c8c8fa45ff64",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "8c1552c5-1ea2-4551-946c-25fea13d296d"
+  },
+  "created": "2026-09-26T09:33:10.434Z",
+  "verified": "2026-09-26T09:33:10.434Z",
+  "verifiedCommit": null,
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0
+}

@@ -1,0 +1,17 @@
+{
+  "name": "thinker",
+  "version": "0.1.0",
+  "description": "Cache of understanding for coding agents: dependency-keyed notes served over MCP",
+  "type": "module",
+  "bin": {
+    "thinker": "./src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "zod": "^4.6.5"
+  }
+}

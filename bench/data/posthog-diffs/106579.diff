@@ -1,0 +1,784 @@
+diff --git a/products/error_tracking/backend/logic/assignees.py b/products/error_tracking/backend/logic/assignees.py
+new file mode 100644
+index 000000000000..2f0803bc3cbd
+--- /dev/null
++++ b/products/error_tracking/backend/logic/assignees.py
+@@ -0,0 +1,77 @@
++"""Issue assignee values for lifecycle events and alert notifications.
++
++The Temporal lifecycle activities import this module, so it must not import the
++Temporal package: that package loads every workflow module, which would make an
++import cycle with logic/lifecycle_events.py.
++"""
++
++import json
++from typing import Any
++from uuid import UUID
++
++from django.db.models import Exists, OuterRef
++
++from posthog.dataclasses import frozen
++from posthog.models.organization import OrganizationMembership
++
++from products.error_tracking.backend.models import ErrorTrackingIssueAssignment
++
++
++def assignee_property(assignee: dict[str, Any]) -> str:
++    # Wire-compatible with cymbal's `Assignee` serialization on created/reopened events
++    # (compact serde JSON, adjacently tagged, numeric user ids and string role ids), so
++    # exact-match filters on the assignee property behave the same across all events.
++    assignee_id = int(assignee["id"]) if assignee["type"] == "user" else str(assignee["id"])
++    return json.dumps({"type": assignee["type"], "id": assignee_id}, separators=(",", ":"))
++
++
++@frozen
++class ResolvedAssignee:
++    property_value: str
++    name: str | None
++    email: str | None
++
++    def display_properties(self) -> dict[str, str]:
++        properties: dict[str, str] = {}
++        if self.name:
++            properties["assignee_name"] = self.name
++        if self.email:
++            properties["assignee_email"] = self.email
++        return properties
++
++
++def resolve_current_assignee(issue_id: UUID | str) -> ResolvedAssignee | None:
++    assignment = (
++        ErrorTrackingIssueAssignment.objects.filter(issue_id=issue_id)
++        .select_related("user", "role")
++        .only("user__first_name", "user__last_name", "user__email", "role__name")
++        .annotate(
++            user_is_member=Exists(
++                OrganizationMembership.objects.filter(
++                    user_id=OuterRef("user_id"), organization_id=OuterRef("issue__team__organization_id")
++                )
++            )
++        )
++        .first()
++    )
++    if assignment is None:
++        return None
++    if assignment.user is not None:
++        user = assignment.user
++        property_value = assignee_property({"type": "user", "id": user.id})
++        # Removing a member from the organization does not clear their assignments. Keep a
++        # former member's name and email out of events that go to the organization's destinations.
++        if not assignment.user_is_member:
++            return ResolvedAssignee(property_value=property_value, name=None, email=None)
++        return ResolvedAssignee(
++            property_value=property_value,
++            name=user.get_full_name() or user.email,
++            email=user.email,
++        )
++    if assignment.role is not None:
++        return ResolvedAssignee(
++            property_value=assignee_property({"type": "role", "id": assignment.role_id}),
++            name=assignment.role.name,
++            email=None,
++        )
++    return None
+diff --git a/products/error_tracking/backend/logic/issue_mutations.py b/products/error_tracking/backend/logic/issue_mutations.py
+index 2446a3230f82..dc802a0a6483 100644
+--- a/products/error_tracking/backend/logic/issue_mutations.py
++++ b/products/error_tracking/backend/logic/issue_mutations.py
+@@ -19,6 +19,7 @@
+ from products.access_control.backend.facade.api import role_belongs_to_organization
+ from products.cohorts.backend.facade.api import cohort_exists_for_team
+ from products.error_tracking.backend.logic import ErrorTrackingIssueNotFoundError, get_issue
++from products.error_tracking.backend.logic.assignees import assignee_property
+ from products.error_tracking.backend.logic.lifecycle_events import (
+     ISSUE_ASSIGNED_EVENT,
+     ISSUE_MERGED_EVENT,
+@@ -26,7 +27,6 @@
+     ISSUE_UNASSIGNED_EVENT,
+     STATUS_CHANGE_EVENTS,
+     PendingLifecycleEvent,
+-    assignee_property,
+     prepare_issue_lifecycle_event,
+     produce_issue_lifecycle_event_on_commit,
+     produce_issue_lifecycle_events_on_commit,
+diff --git a/products/error_tracking/backend/logic/lifecycle_events.py b/products/error_tracking/backend/logic/lifecycle_events.py
+index 207f99094ab6..9fb5e1979d82 100644
+--- a/products/error_tracking/backend/logic/lifecycle_events.py
++++ b/products/error_tracking/backend/logic/lifecycle_events.py
+@@ -6,7 +6,6 @@
+ events see the full picture.
+ """
+ 
+-import json
+ import uuid
+ import dataclasses
+ from typing import Any, Optional
+@@ -18,11 +17,11 @@
+ from posthog.cdp.internal_events import InternalEventEvent, InternalEventPerson, produce_internal_event
+ from posthog.models.user import User
+ 
++from products.error_tracking.backend.logic.assignees import resolve_current_assignee
+ from products.error_tracking.backend.models import (
+     ErrorTrackingAlert,
+     ErrorTrackingAlertThread,
+     ErrorTrackingIssue,
+-    ErrorTrackingIssueAssignment,
+     ErrorTrackingIssueFingerprintV2,
+ )
+ from products.error_tracking.backend.temporal.alerts.types import AlertDeliveryWorkflowInputs
+@@ -55,25 +54,6 @@ def status_label(status: str) -> str:
+         return status
+ 
+ 
+-def assignee_property(assignee: dict[str, Any]) -> str:
+-    # Wire-compatible with cymbal's `Assignee` serialization on created/reopened events
+-    # (compact serde JSON, adjacently tagged, numeric user ids and string role ids), so
+-    # exact-match filters on the assignee property behave the same across all events.
+-    assignee_id = int(assignee["id"]) if assignee["type"] == "user" else str(assignee["id"])
+-    return json.dumps({"type": assignee["type"], "id": assignee_id}, separators=(",", ":"))
+-
+-
+-def _current_assignee_property(issue: ErrorTrackingIssue) -> Optional[str]:
+-    assignment = ErrorTrackingIssueAssignment.objects.filter(issue_id=issue.id).only("user_id", "role_id").first()
+-    if assignment is None:
+-        return None
+-    if assignment.user_id:
+-        return assignee_property({"type": "user", "id": assignment.user_id})
+-    if assignment.role_id:
+-        return assignee_property({"type": "role", "id": assignment.role_id})
+-    return None
+-
+-
+ def _issue_fingerprint_for_links(issue: ErrorTrackingIssue) -> Optional[str]:
+     # Existing Error Tracking destination templates expect `fingerprint`. Manual
+     # transitions have no triggering exception, so include one currently attached
+@@ -119,7 +99,12 @@ def prepare_issue_lifecycle_event(
+     # falls back to the issue's latest exception instead of an empty window around
+     # the mutation.
+     fingerprint = _issue_fingerprint_for_links(issue)
+-    current_assignee = _current_assignee_property(issue)
++    current_assignee = resolve_current_assignee(issue.id)
++    assignee_properties: dict[str, str] = (
++        {"assignee": current_assignee.property_value, **current_assignee.display_properties()}
++        if current_assignee is not None
++        else {}
++    )
+     issue_id = str(issue.id)
+     # The notification id names both the internal event and the alert delivery
+     # workflow, so redelivered starts and retries stay idempotent per transition.
+@@ -135,7 +120,7 @@ def prepare_issue_lifecycle_event(
+         "severity": issue.severity,
+         "status": status_label(status if status is not None else issue.status),
+         **({"fingerprint": fingerprint} if fingerprint is not None else {}),
+-        **({"assignee": current_assignee} if current_assignee is not None else {}),
++        **assignee_properties,
+         **(extra_properties or {}),
+     }
+     internal_event = InternalEventEvent(event=event, distinct_id=issue_id, properties=properties, uuid=notification_id)
+diff --git a/products/error_tracking/backend/temporal/lifecycle/side_effects.py b/products/error_tracking/backend/temporal/lifecycle/side_effects.py
+index 3dd43c24fe19..d5d945efe676 100644
+--- a/products/error_tracking/backend/temporal/lifecycle/side_effects.py
++++ b/products/error_tracking/backend/temporal/lifecycle/side_effects.py
+@@ -14,6 +14,7 @@
+ )
+ from posthog.models import Team
+ 
++from products.error_tracking.backend.logic.assignees import resolve_current_assignee
+ from products.error_tracking.backend.temporal.alerts.dispatch import start_alert_delivery_workflow
+ from products.error_tracking.backend.temporal.alerts.types import AlertDeliveryWorkflowInputs
+ from products.error_tracking.backend.temporal.lifecycle.event_properties import (
+@@ -88,6 +89,18 @@ def _status_property(
+     return _STATUS_LABELS.get(status, status) if humanize_status else status
+ 
+ 
++def _assignee_display_properties(inputs: IssueLifecycleWorkflowInputs) -> dict[str, str]:
++    if inputs.assignee is None:
++        return {}
++    resolved = resolve_current_assignee(inputs.issue_id)
++    # Cymbal snapshots the assignee at ingestion, and the issue can be reassigned before
++    # this activity runs. Names for a different assignee would contradict `assignee`,
++    # so leave them out in that case.
++    if resolved is None or resolved.property_value != inputs.assignee:
++        return {}
++    return resolved.display_properties()
++
++
+ def _normalize_timestamp(value: str) -> datetime:
+     timestamp = parse_datetime(value)
+     if timestamp is None:
+@@ -189,6 +202,7 @@ def produce_issue_lifecycle_internal_event(
+         properties["status"] = status_property
+     if inputs.assignee is not None:
+         properties["assignee"] = inputs.assignee
++        properties.update(_assignee_display_properties(inputs))
+     if extra_properties is not None:
+         properties.update(extra_properties)
+ 
+diff --git a/products/error_tracking/backend/temporal/lifecycle/test/test_side_effects.py b/products/error_tracking/backend/temporal/lifecycle/test/test_side_effects.py
+index a78a22d8749d..fb9da964a9b5 100644
+--- a/products/error_tracking/backend/temporal/lifecycle/test/test_side_effects.py
++++ b/products/error_tracking/backend/temporal/lifecycle/test/test_side_effects.py
+@@ -1,4 +1,5 @@
+ import copy
++from collections.abc import Iterator
+ 
+ import pytest
+ from unittest.mock import AsyncMock, MagicMock, patch
+@@ -8,6 +9,7 @@
+ from posthog.cdp.internal_events import InternalEventEvent
+ from posthog.helpers.tiktoken_encoding import LLM_TOKEN_COUNT_PROXY_MODEL, get_tiktoken_encoding_for_model
+ 
++from products.error_tracking.backend.logic.assignees import ResolvedAssignee
+ from products.error_tracking.backend.temporal.lifecycle.issue_created.types import (
+     IssueCreatedSnapshot,
+     IssueCreatedWorkflowInputs,
+@@ -28,6 +30,17 @@
+     produce_issue_lifecycle_internal_event,
+ )
+ 
++ASSIGNEE = '{"type":"user","id":1}'
++
++
++@pytest.fixture(autouse=True)
++def resolve_assignee() -> Iterator[MagicMock]:
++    with patch(
++        "products.error_tracking.backend.temporal.lifecycle.side_effects.resolve_current_assignee",
++        return_value=None,
++    ) as resolve:
++        yield resolve
++
+ 
+ def _inputs() -> IssueReopenedWorkflowInputs:
+     return IssueReopenedWorkflowInputs(
+@@ -44,7 +57,7 @@ def _inputs() -> IssueReopenedWorkflowInputs:
+         fingerprint="fingerprint",
+         event_uuid="01982721-5e00-7000-8000-000000000003",
+         event_timestamp="2026-07-21T12:05:00Z",
+-        assignee='{"type":"user","id":1}',
++        assignee=ASSIGNEE,
+     )
+ 
+ 
+@@ -98,8 +111,9 @@ def capture_event(_team_id: int, event: InternalEventEvent) -> MagicMock:
+     assert sent_events[0].properties["severity"] == "critical"
+ 
+ 
+-def test_oversized_internal_event_retries_without_exception_properties() -> None:
++def test_oversized_internal_event_retries_without_exception_properties(resolve_assignee: MagicMock) -> None:
+     inputs = _inputs()
++    resolve_assignee.return_value = ResolvedAssignee(property_value=ASSIGNEE, name="Jane Doe", email="jane@example.com")
+     event_properties = {"$exception_list": [{"type": "TypeError", "value": "boom"}]}
+     oversized_result = MagicMock()
+     oversized_result.get.side_effect = KafkaException(KafkaError(KafkaError.MSG_SIZE_TOO_LARGE))  # type: ignore[attr-defined]
+@@ -151,6 +165,8 @@ def capture_event(_team_id: int, event: InternalEventEvent) -> MagicMock:
+         "exception_props": event_properties,
+         "status": "Pending Release",
+         "assignee": inputs.assignee,
++        "assignee_name": "Jane Doe",
++        "assignee_email": "jane@example.com",
+         "attempt": 2,
+     }
+     assert sent_events[1].properties == {
+@@ -245,7 +261,55 @@ def test_alert_inputs_mirror_the_internal_event_and_key_the_exception_by_its_own
+         _inputs(), event="$error_tracking_issue_reopened", exception_timestamp=_inputs().event_timestamp
+     )
+     assert reopened.status == "Pending Release"
+-    assert reopened.assignee == '{"type":"user","id":1}'
++    assert reopened.assignee == ASSIGNEE
++
++
++@pytest.mark.parametrize(
++    "resolved, expected_names",
++    [
++        (
++            ResolvedAssignee(property_value=ASSIGNEE, name="Jane Doe", email="jane@example.com"),
++            {"assignee_name": "Jane Doe", "assignee_email": "jane@example.com"},
++        ),
++        (ResolvedAssignee(property_value='{"type":"role","id":"r1"}', name="Backend", email=None), {}),
++        (None, {}),
++    ],
++    ids=["same_assignee", "reassigned_since_ingestion", "unassigned_since_ingestion"],
++)
++def test_internal_event_names_the_assignee_only_while_it_matches_the_snapshot(
++    resolve_assignee: MagicMock, resolved: ResolvedAssignee | None, expected_names: dict[str, str]
++) -> None:
++    resolve_assignee.return_value = resolved
++    sent_events: list[InternalEventEvent] = []
++
++    def capture_event(_team_id: int, event: InternalEventEvent) -> MagicMock:
++        sent_events.append(copy.deepcopy(event))
++        return MagicMock()
++
++    with (
++        patch(
++            "products.error_tracking.backend.temporal.lifecycle.side_effects.Team.objects.get",
++            return_value=MagicMock(),
++        ),
++        patch(
++            "products.error_tracking.backend.temporal.lifecycle.side_effects.fetch_event_properties",
++            return_value={},
++        ),
++        patch(
++            "products.error_tracking.backend.temporal.lifecycle.side_effects.produce_internal_event",
++            side_effect=capture_event,
++        ),
++        patch("products.error_tracking.backend.temporal.lifecycle.side_effects.flush_internal_events_producer"),
++    ):
++        produce_issue_lifecycle_internal_event(
++            _inputs(), event="$error_tracking_issue_reopened", exception_timestamp=_inputs().event_timestamp
++        )
++
++    properties = sent_events[0].properties
++    assert properties["assignee"] == ASSIGNEE
++    assert {key: value for key, value in properties.items() if key in ("assignee_name", "assignee_email")} == (
++        expected_names
++    )
+ 
+ 
+ def test_dispatch_raises_so_the_activity_retries() -> None:
+diff --git a/products/error_tracking/backend/tests/api/test_error_tracking_api.py b/products/error_tracking/backend/tests/api/test_error_tracking_api.py
+index b48257632c5d..655081969843 100644
+--- a/products/error_tracking/backend/tests/api/test_error_tracking_api.py
++++ b/products/error_tracking/backend/tests/api/test_error_tracking_api.py
+@@ -19,6 +19,7 @@
+ from posthog.models import Team, User
+ from posthog.models.activity_logging.activity_log import ActivityLog
+ from posthog.models.integration import Integration
++from posthog.models.organization import OrganizationMembership
+ from posthog.models.scoping import team_scope
+ from posthog.models.utils import uuid7
+ from posthog.settings import (
+@@ -773,8 +774,15 @@ def test_issue_bulk_set_status_produces_lifecycle_events_only_for_transitions(se
+         assert event.properties["status"] == "Resolved"
+         assert event.properties["previous_status"] == "Active"
+ 
+-    def test_issue_assign_produces_lifecycle_internal_event(self):
++    @parameterized.expand([("user", "Jane"), ("user_without_name", ""), ("role", "Jane")])
++    def test_issue_assign_produces_lifecycle_internal_event(self, case, first_name):
++        assignee_type = "role" if case == "role" else "user"
+         issue = self.create_issue()
++        self.user.first_name = first_name
++        self.user.last_name = "Doe" if first_name else ""
++        self.user.save()
++        role = Role.objects.create(name="Backend", organization=self.organization)
++        assignee_id = self.user.id if assignee_type == "user" else str(role.id)
+ 
+         with (
+             patch("products.error_tracking.backend.logic.lifecycle_events.produce_internal_event") as mock_produce,
+@@ -782,7 +790,7 @@ def test_issue_assign_produces_lifecycle_internal_event(self):
+         ):
+             response = self.client.patch(
+                 f"/api/environments/{self.team.id}/error_tracking/issues/{issue.id}/assign",
+-                data={"assignee": {"id": self.user.id, "type": "user"}},
++                data={"assignee": {"id": assignee_id, "type": assignee_type}},
+             )
+ 
+         assert response.status_code == 200, response.json()
+@@ -791,8 +799,44 @@ def test_issue_assign_produces_lifecycle_internal_event(self):
+         assert event.event == "$error_tracking_issue_assigned"
+         assert event.distinct_id == str(issue.id)
+         # Byte-identical to cymbal's compact serde output so exact-match filters work.
+-        assert event.properties["assignee"] == f'{{"type":"user","id":{self.user.id}}}'
+-        assert json.loads(event.properties["assignee"]) == {"type": "user", "id": self.user.id}
++        user_assignee = f'{{"type":"user","id":{self.user.id}}}'
++        expected_properties = {
++            "user": {"assignee": user_assignee, "assignee_name": "Jane Doe", "assignee_email": self.user.email},
++            "user_without_name": {
++                "assignee": user_assignee,
++                "assignee_name": self.user.email,
++                "assignee_email": self.user.email,
++            },
++            "role": {"assignee": f'{{"type":"role","id":"{role.id}"}}', "assignee_name": "Backend"},
++        }[case]
++        assert {key: value for key, value in event.properties.items() if key.startswith("assignee")} == (
++            expected_properties
++        )
++        assert json.loads(event.properties["assignee"]) == {"type": assignee_type, "id": assignee_id}
++
++    def test_issue_lifecycle_event_omits_former_member_assignee_details(self):
++        issue = self.create_issue()
++        former_member = User.objects.create_and_join(self.organization, "former@example.com", "password", "Former")
++        self.client.patch(
++            f"/api/environments/{self.team.id}/error_tracking/issues/{issue.id}/assign",
++            data={"assignee": {"id": former_member.id, "type": "user"}},
++        )
++        OrganizationMembership.objects.filter(user=former_member, organization=self.organization).delete()
++
++        with (
++            patch("products.error_tracking.backend.logic.lifecycle_events.produce_internal_event") as mock_produce,
++            self.captureOnCommitCallbacks(execute=True),
++        ):
++            response = self.client.patch(
++                f"/api/environments/{self.team.id}/error_tracking/issues/{issue.id}",
++                data={"status": "resolved"},
++            )
++
++        assert response.status_code == 200, response.json()
++        properties = mock_produce.call_args.kwargs["event"].properties
++        assert properties["assignee"] == f'{{"type":"user","id":{former_member.id}}}'
++        assert "assignee_name" not in properties
++        assert "assignee_email" not in properties
+ 
+     def test_issue_unassign_produces_lifecycle_internal_event(self):
+         issue = self.create_issue()
+diff --git a/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md b/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md
+index 5e6b2fc988b7..6d8aac789d9e 100644
+--- a/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md
++++ b/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md
+@@ -92,6 +92,20 @@ detector is running.
+ and `{project.name}`. The alert's own metadata is exposed as `{source.url}` and `{source.name}` —
+ useful for "manage this alert" links inside the message body.
+ 
++**Assignee** properties are present only when the issue has an assignee.
++On an unassigned issue the keys are missing, so a test run against an unassigned issue does not show them.
++
++- `event.properties.assignee` — a JSON string such as `{"type":"user","id":1234}`, not an object, so `event.properties.assignee.id` does not work.
++  Use it for "is set" / "is not set" filters.
++- `event.properties.assignee_name` — the user's full name (their email when they have no name), or the role name.
++- `event.properties.assignee_email` — user assignees only.
++
++The event keeps `assignee` but leaves out `assignee_name` and `assignee_email` in two cases: the assigned user has left the organization, or the issue was reassigned before the alert went out.
++So a missing name does not mean the issue is unassigned.
++
++To show the assignee in a message, use `{event.properties.assignee_name ?? (event.properties.assignee ? 'Assigned' : 'Unassigned')}`.
++To alert only on unassigned issues, add the property filter `assignee` **is not set**.
++
+ **Deep-link shape** for the issue page (used by the canonical block templates):
+ 
+ ```text
+diff --git a/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_paths_query_runner.new_events_schema.ambr b/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_paths_query_runner.new_events_schema.ambr
+index 7ad05023e1bf..b124854ac9bb 100644
+--- a/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_paths_query_runner.new_events_schema.ambr
++++ b/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_paths_query_runner.new_events_schema.ambr
+@@ -45,7 +45,7 @@
+ # name: TestMarketingAnalyticsAttributionPathsQueryRunner.test_attribution_paths_sql_1_source[new_events_schema]
+   '''
+   WITH person_arrays AS (
+-    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS person_id, arraySlice(arraySort(groupArrayIf(tuple(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_19)s)), coalesce(accurateCastOrNull(events.properties.revenue, 'Float64'), 0.0)), and(equals(events.event, %(hogql_val_20)s), greaterOrEquals(toTimeZone(events.timestamp, %(hogql_val_21)s), toDateTime(%(hogql_val_22)s, %(hogql_val_23)s)), lessOrEquals(toTimeZone(events.timestamp, %(hogql_val_24)s), toDateTime64(%(hogql_val_25)s, 6, %(hogql_val_26)s))))), -500) AS conversions, countIf(and(equals(events.event, %(hogql_val_27)s), greaterOrEquals(toTimeZone(events.timestamp, %(hogql_val_28)s), toDateTime(%(hogql_val_29)s, %(hogql_val_30)s)), lessOrEquals(toTimeZone(events.timestamp, %(hogql_val_31)s), toDateTime64(%(hogql_val_32)s, 6, %(hogql_val_33)s)))) AS conversion_count, arraySlice(arraySort(groupUniqArrayIf(tuple(toUnixTimestamp(events__session.`$start_timestamp`), if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_34)s)), events__session.`$entry_utm_source`, %(hogql_val_35)s)), [%(hogql_val_36)s, %(hogql_val_37)s, %(hogql_val_38)s]), %(hogql_val_39)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_40)s)), events__session.`$entry_utm_source`, %(hogql_val_41)s)), [%(hogql_val_42)s, %(hogql_val_43)s, %(hogql_val_44)s, %(hogql_val_45)s, %(hogql_val_46)s, %(hogql_val_47)s, %(hogql_val_48)s, %(hogql_val_49)s]), %(hogql_val_50)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_51)s)), events__session.`$entry_utm_source`, %(hogql_val_52)s)), [%(hogql_val_53)s]), %(hogql_val_54)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_55)s)), events__session.`$entry_utm_source`, %(hogql_val_56)s)), [%(hogql_val_57)s, %(hogql_val_58)s, %(hogql_val_59)s, %(hogql_val_60)s, %(hogql_val_61)s, %(hogql_val_62)s, %(hogql_val_63)s, %(hogql_val_64)s, %(hogql_val_65)s]), %(hogql_val_66)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_67)s)), events__session.`$entry_utm_source`, %(hogql_val_68)s)))))), and(and(equals(events.event, %(hogql_val_69)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(toUnixTimestamp(events__session.`$start_timestamp`), minus(conv_bounds.first_conversion, 345600)), lessOrEquals(toUnixTimestamp(events__session.`$start_timestamp`), conv_bounds.last_conversion)))), -500) AS touchpoints 
++    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS person_id, arraySlice(arraySort(groupArrayIf(tuple(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_19)s)), coalesce(accurateCastOrNull(events.properties.revenue, 'Float64'), 0.0)), and(equals(events.event, %(hogql_val_20)s), greaterOrEquals(toTimeZone(events.timestamp, %(hogql_val_21)s), toDateTime(%(hogql_val_22)s, %(hogql_val_23)s)), lessOrEquals(toTimeZone(events.timestamp, %(hogql_val_24)s), toDateTime64(%(hogql_val_25)s, 6, %(hogql_val_26)s))))), -500) AS conversions, countIf(and(equals(events.event, %(hogql_val_27)s), greaterOrEquals(toTimeZone(events.timestamp, %(hogql_val_28)s), toDateTime(%(hogql_val_29)s, %(hogql_val_30)s)), lessOrEquals(toTimeZone(events.timestamp, %(hogql_val_31)s), toDateTime64(%(hogql_val_32)s, 6, %(hogql_val_33)s)))) AS conversion_count, arraySlice(arraySort(groupUniqArrayIf(tuple(toUnixTimestamp(events__session.`$start_timestamp`), if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_34)s)), events__session.`$entry_utm_source`, %(hogql_val_35)s)), [%(hogql_val_36)s, %(hogql_val_37)s, %(hogql_val_38)s]), %(hogql_val_39)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_40)s)), events__session.`$entry_utm_source`, %(hogql_val_41)s)), [%(hogql_val_42)s, %(hogql_val_43)s, %(hogql_val_44)s, %(hogql_val_45)s, %(hogql_val_46)s, %(hogql_val_47)s, %(hogql_val_48)s, %(hogql_val_49)s]), %(hogql_val_50)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_51)s)), events__session.`$entry_utm_source`, %(hogql_val_52)s)), [%(hogql_val_53)s]), %(hogql_val_54)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_55)s)), events__session.`$entry_utm_source`, %(hogql_val_56)s)), [%(hogql_val_57)s, %(hogql_val_58)s, %(hogql_val_59)s, %(hogql_val_60)s, %(hogql_val_61)s, %(hogql_val_62)s, %(hogql_val_63)s, %(hogql_val_64)s, %(hogql_val_65)s]), %(hogql_val_66)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_67)s)), events__session.`$entry_utm_source`, %(hogql_val_68)s)), [%(hogql_val_69)s, %(hogql_val_70)s, %(hogql_val_71)s]), %(hogql_val_72)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_73)s)), events__session.`$entry_utm_source`, %(hogql_val_74)s))))))), and(and(equals(events.event, %(hogql_val_75)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(toUnixTimestamp(events__session.`$start_timestamp`), minus(conv_bounds.first_conversion, 345600)), lessOrEquals(toUnixTimestamp(events__session.`$start_timestamp`), conv_bounds.last_conversion)))), -500) AS touchpoints 
+     FROM events_json AS events LEFT JOIN (
+       SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_0)s)) AS `$start_timestamp`, nullIf(nullIf(argMinMerge(raw_sessions.initial_utm_source), %(hogql_val_1)s), %(hogql_val_2)s) AS `$entry_utm_source`, raw_sessions.session_id_v7 AS session_id_v7 
+       FROM raw_sessions 
+@@ -67,7 +67,7 @@
+         SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id) 
+       WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_14)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_15)s, %(hogql_val_16)s)), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_17)s, 6, %(hogql_val_18)s))) 
+       GROUP BY if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id)) AS conv_bounds ON equals(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), conv_bounds.person_id) 
+-    WHERE and(equals(events.team_id, 420), or(and(equals(events.event, %(hogql_val_70)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_71)s, %(hogql_val_72)s)), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_73)s, 6, %(hogql_val_74)s))), and(equals(events.event, %(hogql_val_75)s), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_76)s, %(hogql_val_77)s), toIntervalSecond(345600))), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_78)s, 6, %(hogql_val_79)s)), greaterOrEquals(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_80)s)), minus(conv_bounds.first_conversion, 345600))))) 
++    WHERE and(equals(events.team_id, 420), or(and(equals(events.event, %(hogql_val_76)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_77)s, %(hogql_val_78)s)), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_79)s, 6, %(hogql_val_80)s))), and(equals(events.event, %(hogql_val_81)s), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_82)s, %(hogql_val_83)s), toIntervalSecond(345600))), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_84)s, 6, %(hogql_val_85)s)), greaterOrEquals(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_86)s)), minus(conv_bounds.first_conversion, 345600))))) 
+     GROUP BY if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) 
+     HAVING greater(length(conversions), 0)), per_conversion_path AS MATERIALIZED (
+     SELECT i, person_arrays.conversion_count AS conversion_count, (person_arrays.conversions[i]).2 AS conv_value, arrayFilter(t -> and(ifNull(lessOrEquals(t.1, (person_arrays.conversions[i]).1), 0), ifNull(greaterOrEquals(t.1, minus((person_arrays.conversions[i]).1, 345600)), 0)), person_arrays.touchpoints) AS tps, arrayMap(t -> t.2, tps) AS path_full, length(path_full) AS orig_len, arraySlice(path_full, -10) AS path, ifNull(greater(orig_len, 10), 0) AS truncated 
+@@ -254,7 +254,7 @@
+       FROM cached_session_conversions) AS c LEFT JOIN (
+       SELECT d.person_id AS person_id, arraySlice(arraySort(groupUniqArray(tuple(d.session_ts, d.session_dim))), -500) AS touchpoints 
+       FROM (
+-        SELECT conv.conv_person_id AS person_id, toUnixTimestamp(cached_sessions.start_timestamp) AS session_ts, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_39)s)), cached_sessions.utm_source, %(hogql_val_40)s)), [%(hogql_val_41)s, %(hogql_val_42)s, %(hogql_val_43)s]), %(hogql_val_44)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_45)s)), cached_sessions.utm_source, %(hogql_val_46)s)), [%(hogql_val_47)s, %(hogql_val_48)s, %(hogql_val_49)s, %(hogql_val_50)s, %(hogql_val_51)s, %(hogql_val_52)s, %(hogql_val_53)s, %(hogql_val_54)s]), %(hogql_val_55)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_56)s)), cached_sessions.utm_source, %(hogql_val_57)s)), [%(hogql_val_58)s]), %(hogql_val_59)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_60)s)), cached_sessions.utm_source, %(hogql_val_61)s)), [%(hogql_val_62)s, %(hogql_val_63)s, %(hogql_val_64)s, %(hogql_val_65)s, %(hogql_val_66)s, %(hogql_val_67)s, %(hogql_val_68)s, %(hogql_val_69)s, %(hogql_val_70)s]), %(hogql_val_71)s, if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_72)s)), cached_sessions.utm_source, %(hogql_val_73)s))))) AS session_dim, conv.first_conversion AS first_conversion, conv.last_conversion AS upper_bound 
++        SELECT conv.conv_person_id AS person_id, toUnixTimestamp(cached_sessions.start_timestamp) AS session_ts, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_39)s)), cached_sessions.utm_source, %(hogql_val_40)s)), [%(hogql_val_41)s, %(hogql_val_42)s, %(hogql_val_43)s]), %(hogql_val_44)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_45)s)), cached_sessions.utm_source, %(hogql_val_46)s)), [%(hogql_val_47)s, %(hogql_val_48)s, %(hogql_val_49)s, %(hogql_val_50)s, %(hogql_val_51)s, %(hogql_val_52)s, %(hogql_val_53)s, %(hogql_val_54)s]), %(hogql_val_55)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_56)s)), cached_sessions.utm_source, %(hogql_val_57)s)), [%(hogql_val_58)s]), %(hogql_val_59)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_60)s)), cached_sessions.utm_source, %(hogql_val_61)s)), [%(hogql_val_62)s, %(hogql_val_63)s, %(hogql_val_64)s, %(hogql_val_65)s, %(hogql_val_66)s, %(hogql_val_67)s, %(hogql_val_68)s, %(hogql_val_69)s, %(hogql_val_70)s]), %(hogql_val_71)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_72)s)), cached_sessions.utm_source, %(hogql_val_73)s)), [%(hogql_val_74)s, %(hogql_val_75)s, %(hogql_val_76)s]), %(hogql_val_77)s, if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_78)s)), cached_sessions.utm_source, %(hogql_val_79)s)))))) AS session_dim, conv.first_conversion AS first_conversion, conv.last_conversion AS upper_bound 
+         FROM resolved_cached_sessions AS cached_sessions INNER JOIN (
+           SELECT cached_session_conversions.conv_person_id AS conv_person_id, cached_session_conversions.first_conversion AS first_conversion, cached_session_conversions.last_conversion AS last_conversion 
+           FROM cached_session_conversions) AS conv ON equals(cached_sessions.person_id, conv.conv_person_id) 
+diff --git a/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_table_query_runner.new_events_schema.ambr b/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_table_query_runner.new_events_schema.ambr
+index feba086c4ad6..104ad0531dd3 100644
+--- a/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_table_query_runner.new_events_schema.ambr
++++ b/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_table_query_runner.new_events_schema.ambr
+@@ -65,7 +65,7 @@
+ # name: TestMarketingAnalyticsAttributionQueryRunner.test_attribution_table_sql_1_source[new_events_schema]
+   '''
+   WITH influenced_reach AS (
+-    SELECT if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_8)s)), events__session.`$entry_utm_source`, %(hogql_val_9)s)), [%(hogql_val_10)s, %(hogql_val_11)s, %(hogql_val_12)s]), %(hogql_val_13)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_14)s)), events__session.`$entry_utm_source`, %(hogql_val_15)s)), [%(hogql_val_16)s, %(hogql_val_17)s, %(hogql_val_18)s, %(hogql_val_19)s, %(hogql_val_20)s, %(hogql_val_21)s, %(hogql_val_22)s, %(hogql_val_23)s]), %(hogql_val_24)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_25)s)), events__session.`$entry_utm_source`, %(hogql_val_26)s)), [%(hogql_val_27)s]), %(hogql_val_28)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_29)s)), events__session.`$entry_utm_source`, %(hogql_val_30)s)), [%(hogql_val_31)s, %(hogql_val_32)s, %(hogql_val_33)s, %(hogql_val_34)s, %(hogql_val_35)s, %(hogql_val_36)s, %(hogql_val_37)s, %(hogql_val_38)s, %(hogql_val_39)s]), %(hogql_val_40)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_41)s)), events__session.`$entry_utm_source`, %(hogql_val_42)s))))) AS breakdown_value, uniq(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id)) AS visitors 
++    SELECT if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_8)s)), events__session.`$entry_utm_source`, %(hogql_val_9)s)), [%(hogql_val_10)s, %(hogql_val_11)s, %(hogql_val_12)s]), %(hogql_val_13)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_14)s)), events__session.`$entry_utm_source`, %(hogql_val_15)s)), [%(hogql_val_16)s, %(hogql_val_17)s, %(hogql_val_18)s, %(hogql_val_19)s, %(hogql_val_20)s, %(hogql_val_21)s, %(hogql_val_22)s, %(hogql_val_23)s]), %(hogql_val_24)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_25)s)), events__session.`$entry_utm_source`, %(hogql_val_26)s)), [%(hogql_val_27)s]), %(hogql_val_28)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_29)s)), events__session.`$entry_utm_source`, %(hogql_val_30)s)), [%(hogql_val_31)s, %(hogql_val_32)s, %(hogql_val_33)s, %(hogql_val_34)s, %(hogql_val_35)s, %(hogql_val_36)s, %(hogql_val_37)s, %(hogql_val_38)s, %(hogql_val_39)s]), %(hogql_val_40)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_41)s)), events__session.`$entry_utm_source`, %(hogql_val_42)s)), [%(hogql_val_43)s, %(hogql_val_44)s, %(hogql_val_45)s]), %(hogql_val_46)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_47)s)), events__session.`$entry_utm_source`, %(hogql_val_48)s)))))) AS breakdown_value, uniq(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id)) AS visitors 
+     FROM events_json AS events LEFT OUTER JOIN (
+       SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id 
+       FROM person_distinct_id_overrides 
+@@ -77,21 +77,21 @@
+       FROM raw_sessions 
+       WHERE and(equals(raw_sessions.team_id, 420), greaterOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), minus(minus(toDateTime(%(hogql_val_3)s, %(hogql_val_4)s), toIntervalSecond(345600)), toIntervalDay(3))), lessOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), plus(toDateTime64(%(hogql_val_5)s, 6, %(hogql_val_6)s), toIntervalDay(3)))) 
+       GROUP BY raw_sessions.session_id_v7) AS events__session ON equals(toUInt128(accurateCastOrNull(events.properties.`$session_id`, %(hogql_val_7)s)), events__session.session_id_v7) 
+-    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_43)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_44)s, %(hogql_val_45)s), toIntervalSecond(345600))), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_46)s, 6, %(hogql_val_47)s))) 
++    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_49)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_50)s, %(hogql_val_51)s), toIntervalSecond(345600))), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_52)s, 6, %(hogql_val_53)s))) 
+     GROUP BY breakdown_value), person_arrays AS (
+-    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS person_id, arraySlice(arraySort(groupArrayIf(tuple(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_67)s)), coalesce(accurateCastOrNull(events.properties.revenue, 'Float64'), 0.0)), and(equals(events.event, %(hogql_val_68)s), greaterOrEquals(toTimeZone(events.timestamp, %(hogql_val_69)s), toDateTime(%(hogql_val_70)s, %(hogql_val_71)s)), lessOrEquals(toTimeZone(events.timestamp, %(hogql_val_72)s), toDateTime64(%(hogql_val_73)s, 6, %(hogql_val_74)s))))), -500) AS conversions, countIf(and(equals(events.event, %(hogql_val_75)s), greaterOrEquals(toTimeZone(events.timestamp, %(hogql_val_76)s), toDateTime(%(hogql_val_77)s, %(hogql_val_78)s)), lessOrEquals(toTimeZone(events.timestamp, %(hogql_val_79)s), toDateTime64(%(hogql_val_80)s, 6, %(hogql_val_81)s)))) AS conversion_count, arraySlice(arraySort(groupUniqArrayIf(tuple(toUnixTimestamp(events__session.`$start_timestamp`), if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_82)s)), events__session.`$entry_utm_source`, %(hogql_val_83)s)), [%(hogql_val_84)s, %(hogql_val_85)s, %(hogql_val_86)s]), %(hogql_val_87)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_88)s)), events__session.`$entry_utm_source`, %(hogql_val_89)s)), [%(hogql_val_90)s, %(hogql_val_91)s, %(hogql_val_92)s, %(hogql_val_93)s, %(hogql_val_94)s, %(hogql_val_95)s, %(hogql_val_96)s, %(hogql_val_97)s]), %(hogql_val_98)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_99)s)), events__session.`$entry_utm_source`, %(hogql_val_100)s)), [%(hogql_val_101)s]), %(hogql_val_102)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_103)s)), events__session.`$entry_utm_source`, %(hogql_val_104)s)), [%(hogql_val_105)s, %(hogql_val_106)s, %(hogql_val_107)s, %(hogql_val_108)s, %(hogql_val_109)s, %(hogql_val_110)s, %(hogql_val_111)s, %(hogql_val_112)s, %(hogql_val_113)s]), %(hogql_val_114)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_115)s)), events__session.`$entry_utm_source`, %(hogql_val_116)s)))))), and(and(equals(events.event, %(hogql_val_117)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(toUnixTimestamp(events__session.`$start_timestamp`), minus(conv_bounds.first_conversion, 345600)), lessOrEquals(toUnixTimestamp(events__session.`$start_timestamp`), conv_bounds.last_conversion)))), -500) AS touchpoints 
++    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS person_id, arraySlice(arraySort(groupArrayIf(tuple(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_73)s)), coalesce(accurateCastOrNull(events.properties.revenue, 'Float64'), 0.0)), and(equals(events.event, %(hogql_val_74)s), greaterOrEquals(toTimeZone(events.timestamp, %(hogql_val_75)s), toDateTime(%(hogql_val_76)s, %(hogql_val_77)s)), lessOrEquals(toTimeZone(events.timestamp, %(hogql_val_78)s), toDateTime64(%(hogql_val_79)s, 6, %(hogql_val_80)s))))), -500) AS conversions, countIf(and(equals(events.event, %(hogql_val_81)s), greaterOrEquals(toTimeZone(events.timestamp, %(hogql_val_82)s), toDateTime(%(hogql_val_83)s, %(hogql_val_84)s)), lessOrEquals(toTimeZone(events.timestamp, %(hogql_val_85)s), toDateTime64(%(hogql_val_86)s, 6, %(hogql_val_87)s)))) AS conversion_count, arraySlice(arraySort(groupUniqArrayIf(tuple(toUnixTimestamp(events__session.`$start_timestamp`), if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_88)s)), events__session.`$entry_utm_source`, %(hogql_val_89)s)), [%(hogql_val_90)s, %(hogql_val_91)s, %(hogql_val_92)s]), %(hogql_val_93)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_94)s)), events__session.`$entry_utm_source`, %(hogql_val_95)s)), [%(hogql_val_96)s, %(hogql_val_97)s, %(hogql_val_98)s, %(hogql_val_99)s, %(hogql_val_100)s, %(hogql_val_101)s, %(hogql_val_102)s, %(hogql_val_103)s]), %(hogql_val_104)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_105)s)), events__session.`$entry_utm_source`, %(hogql_val_106)s)), [%(hogql_val_107)s]), %(hogql_val_108)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_109)s)), events__session.`$entry_utm_source`, %(hogql_val_110)s)), [%(hogql_val_111)s, %(hogql_val_112)s, %(hogql_val_113)s, %(hogql_val_114)s, %(hogql_val_115)s, %(hogql_val_116)s, %(hogql_val_117)s, %(hogql_val_118)s, %(hogql_val_119)s]), %(hogql_val_120)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_121)s)), events__session.`$entry_utm_source`, %(hogql_val_122)s)), [%(hogql_val_123)s, %(hogql_val_124)s, %(hogql_val_125)s]), %(hogql_val_126)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_127)s)), events__session.`$entry_utm_source`, %(hogql_val_128)s))))))), and(and(equals(events.event, %(hogql_val_129)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(toUnixTimestamp(events__session.`$start_timestamp`), minus(conv_bounds.first_conversion, 345600)), lessOrEquals(toUnixTimestamp(events__session.`$start_timestamp`), conv_bounds.last_conversion)))), -500) AS touchpoints 
+     FROM events_json AS events LEFT JOIN (
+-      SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_48)s)) AS `$start_timestamp`, nullIf(nullIf(argMinMerge(raw_sessions.initial_utm_source), %(hogql_val_49)s), %(hogql_val_50)s) AS `$entry_utm_source`, raw_sessions.session_id_v7 AS session_id_v7 
++      SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_54)s)) AS `$start_timestamp`, nullIf(nullIf(argMinMerge(raw_sessions.initial_utm_source), %(hogql_val_55)s), %(hogql_val_56)s) AS `$entry_utm_source`, raw_sessions.session_id_v7 AS session_id_v7 
+       FROM raw_sessions 
+-      WHERE and(equals(raw_sessions.team_id, 420), or(and(greaterOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), minus(toDateTime(%(hogql_val_51)s, %(hogql_val_52)s), toIntervalDay(3))), lessOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), plus(toDateTime64(%(hogql_val_53)s, 6, %(hogql_val_54)s), toIntervalDay(3)))), and(greaterOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), minus(minus(toDateTime(%(hogql_val_55)s, %(hogql_val_56)s), toIntervalSecond(345600)), toIntervalDay(3))), lessOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), plus(toDateTime64(%(hogql_val_57)s, 6, %(hogql_val_58)s), toIntervalDay(3)))))) 
+-      GROUP BY raw_sessions.session_id_v7) AS events__session ON equals(toUInt128(accurateCastOrNull(events.properties.`$session_id`, %(hogql_val_59)s)), events__session.session_id_v7) LEFT OUTER JOIN (
++      WHERE and(equals(raw_sessions.team_id, 420), or(and(greaterOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), minus(toDateTime(%(hogql_val_57)s, %(hogql_val_58)s), toIntervalDay(3))), lessOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), plus(toDateTime64(%(hogql_val_59)s, 6, %(hogql_val_60)s), toIntervalDay(3)))), and(greaterOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), minus(minus(toDateTime(%(hogql_val_61)s, %(hogql_val_62)s), toIntervalSecond(345600)), toIntervalDay(3))), lessOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), plus(toDateTime64(%(hogql_val_63)s, 6, %(hogql_val_64)s), toIntervalDay(3)))))) 
++      GROUP BY raw_sessions.session_id_v7) AS events__session ON equals(toUInt128(accurateCastOrNull(events.properties.`$session_id`, %(hogql_val_65)s)), events__session.session_id_v7) LEFT OUTER JOIN (
+       SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id 
+       FROM person_distinct_id_overrides 
+       WHERE equals(person_distinct_id_overrides.team_id, 420) 
+       GROUP BY person_distinct_id_overrides.distinct_id 
+       HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0) 
+       SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id) INNER JOIN (
+-      SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS person_id, min(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_60)s))) AS first_conversion, max(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_61)s))) AS last_conversion 
++      SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS person_id, min(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_66)s))) AS first_conversion, max(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_67)s))) AS last_conversion 
+       FROM events_json AS events LEFT OUTER JOIN (
+         SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id 
+         FROM person_distinct_id_overrides 
+@@ -99,12 +99,12 @@
+         GROUP BY person_distinct_id_overrides.distinct_id 
+         HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0) 
+         SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id) 
+-      WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_62)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_63)s, %(hogql_val_64)s)), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_65)s, 6, %(hogql_val_66)s))) 
++      WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_68)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_69)s, %(hogql_val_70)s)), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_71)s, 6, %(hogql_val_72)s))) 
+       GROUP BY if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id)) AS conv_bounds ON equals(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), conv_bounds.person_id) 
+-    WHERE and(equals(events.team_id, 420), or(and(equals(events.event, %(hogql_val_118)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_119)s, %(hogql_val_120)s)), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_121)s, 6, %(hogql_val_122)s))), and(equals(events.event, %(hogql_val_123)s), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_124)s, %(hogql_val_125)s), toIntervalSecond(345600))), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_126)s, 6, %(hogql_val_127)s)), greaterOrEquals(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_128)s)), minus(conv_bounds.first_conversion, 345600))))) 
++    WHERE and(equals(events.team_id, 420), or(and(equals(events.event, %(hogql_val_130)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_131)s, %(hogql_val_132)s)), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_133)s, 6, %(hogql_val_134)s))), and(equals(events.event, %(hogql_val_135)s), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_136)s, %(hogql_val_137)s), toIntervalSecond(345600))), lessOrEquals(events.timestamp, toDateTime64(%(hogql_val_138)s, 6, %(hogql_val_139)s)), greaterOrEquals(toUnixTimestamp(toTimeZone(events.timestamp, %(hogql_val_140)s)), minus(conv_bounds.first_conversion, 345600))))) 
+     GROUP BY if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) 
+     HAVING greater(length(conversions), 0)), per_conversion AS MATERIALIZED (
+-    SELECT person_arrays.person_id AS person_id, i, person_arrays.conversion_count AS conversion_count, (person_arrays.conversions[i]).1 AS conversion_time, (person_arrays.conversions[i]).2 AS conversion_value, arrayFilter(t -> and(ifNull(lessOrEquals(t.1, conversion_time), 0), ifNull(greaterOrEquals(t.1, minus(conversion_time, 345600)), 0)), person_arrays.touchpoints) AS tps, arrayMap(t -> t.1, tps) AS touch_ts, arrayMap(t -> t.2, tps) AS dims, arrayMap(_j -> if(ifNull(equals(_j, indexOf(touch_ts, arrayMin(touch_ts))), isNull(_j) and isNull(indexOf(touch_ts, arrayMin(touch_ts)))), 1.0, 0.0), arrayEnumerate(touch_ts)) AS w_first, arrayMap(_j -> if(ifNull(equals(_j, indexOf(touch_ts, arrayMax(touch_ts))), isNull(_j) and isNull(indexOf(touch_ts, arrayMax(touch_ts)))), 1.0, 0.0), arrayEnumerate(touch_ts)) AS w_last, arrayMap(_x -> divide(1.0, greatest(accurateCastOrNull(length(touch_ts), %(hogql_val_129)s), 1.0)), touch_ts) AS w_linear, arrayMap(w -> divide(w, greatest(arraySum(arrayMap(ts -> exp(multiply(-0.6931471805599453, divide(minus(conversion_time, ts), 86400))), touch_ts)), 1e-06)), arrayMap(ts -> exp(multiply(-0.6931471805599453, divide(minus(conversion_time, ts), 86400))), touch_ts)) AS w_decay, if(ifNull(equals(length(touch_ts), 0), 0), [], if(ifNull(equals(length(touch_ts), 1), 0), [1.0], if(ifNull(equals(length(touch_ts), 2), 0), [0.5, 0.5], arrayMap(w -> divide(w, greatest(arraySum(arrayMap(_pw -> ifNull(_pw, 0.0), arrayMap(ts -> if(ifNull(equals(ts, arrayMin(touch_ts)), isNull(ts) and isNull(arrayMin(touch_ts))), 0.4, if(ifNull(equals(ts, arrayMax(touch_ts)), isNull(ts) and isNull(arrayMax(touch_ts))), 0.4, divide(0.2, greatest(minus(accurateCastOrNull(length(touch_ts), %(hogql_val_130)s), 2.0), 1.0)))), touch_ts))), 1e-06)), arrayMap(_pw -> ifNull(_pw, 0.0), arrayMap(ts -> if(ifNull(equals(ts, arrayMin(touch_ts)), isNull(ts) and isNull(arrayMin(touch_ts))), 0.4, if(ifNull(equals(ts, arrayMax(touch_ts)), isNull(ts) and isNull(arrayMax(touch_ts))), 0.4, divide(0.2, greatest(minus(accurateCastOrNull(length(touch_ts), %(hogql_val_131)s), 2.0), 1.0)))), touch_ts)))))) AS w_position 
++    SELECT person_arrays.person_id AS person_id, i, person_arrays.conversion_count AS conversion_count, (person_arrays.conversions[i]).1 AS conversion_time, (person_arrays.conversions[i]).2 AS conversion_value, arrayFilter(t -> and(ifNull(lessOrEquals(t.1, conversion_time), 0), ifNull(greaterOrEquals(t.1, minus(conversion_time, 345600)), 0)), person_arrays.touchpoints) AS tps, arrayMap(t -> t.1, tps) AS touch_ts, arrayMap(t -> t.2, tps) AS dims, arrayMap(_j -> if(ifNull(equals(_j, indexOf(touch_ts, arrayMin(touch_ts))), isNull(_j) and isNull(indexOf(touch_ts, arrayMin(touch_ts)))), 1.0, 0.0), arrayEnumerate(touch_ts)) AS w_first, arrayMap(_j -> if(ifNull(equals(_j, indexOf(touch_ts, arrayMax(touch_ts))), isNull(_j) and isNull(indexOf(touch_ts, arrayMax(touch_ts)))), 1.0, 0.0), arrayEnumerate(touch_ts)) AS w_last, arrayMap(_x -> divide(1.0, greatest(accurateCastOrNull(length(touch_ts), %(hogql_val_141)s), 1.0)), touch_ts) AS w_linear, arrayMap(w -> divide(w, greatest(arraySum(arrayMap(ts -> exp(multiply(-0.6931471805599453, divide(minus(conversion_time, ts), 86400))), touch_ts)), 1e-06)), arrayMap(ts -> exp(multiply(-0.6931471805599453, divide(minus(conversion_time, ts), 86400))), touch_ts)) AS w_decay, if(ifNull(equals(length(touch_ts), 0), 0), [], if(ifNull(equals(length(touch_ts), 1), 0), [1.0], if(ifNull(equals(length(touch_ts), 2), 0), [0.5, 0.5], arrayMap(w -> divide(w, greatest(arraySum(arrayMap(_pw -> ifNull(_pw, 0.0), arrayMap(ts -> if(ifNull(equals(ts, arrayMin(touch_ts)), isNull(ts) and isNull(arrayMin(touch_ts))), 0.4, if(ifNull(equals(ts, arrayMax(touch_ts)), isNull(ts) and isNull(arrayMax(touch_ts))), 0.4, divide(0.2, greatest(minus(accurateCastOrNull(length(touch_ts), %(hogql_val_142)s), 2.0), 1.0)))), touch_ts))), 1e-06)), arrayMap(_pw -> ifNull(_pw, 0.0), arrayMap(ts -> if(ifNull(equals(ts, arrayMin(touch_ts)), isNull(ts) and isNull(arrayMin(touch_ts))), 0.4, if(ifNull(equals(ts, arrayMax(touch_ts)), isNull(ts) and isNull(arrayMax(touch_ts))), 0.4, divide(0.2, greatest(minus(accurateCastOrNull(length(touch_ts), %(hogql_val_143)s), 2.0), 1.0)))), touch_ts)))))) AS w_position 
+     FROM person_arrays ARRAY JOIN arrayEnumerate(person_arrays.conversions) AS i), per_touchpoint AS (
+     SELECT per_conversion.person_id AS person_id, per_conversion.i AS i, per_conversion.conversion_value AS conversion_value, per_conversion.dims[k] AS breakdown_value, per_conversion.w_first[k] AS w_first, per_conversion.w_last[k] AS w_last, per_conversion.w_linear[k] AS w_linear, per_conversion.w_decay[k] AS w_decay, per_conversion.w_position[k] AS w_position 
+     FROM per_conversion ARRAY JOIN arrayEnumerate(per_conversion.touch_ts) AS k), per_conversion_dim AS (
+@@ -114,7 +114,7 @@
+     SELECT per_conversion_dim.breakdown_value AS breakdown_value, count() AS influenced_conversions, sum(per_conversion_dim.conv_value) AS influenced_value, sum(per_conversion_dim.w_first) AS w_first_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_first)) AS w_first_value, sum(per_conversion_dim.w_last) AS w_last_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_last)) AS w_last_value, sum(per_conversion_dim.w_linear) AS w_linear_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_linear)) AS w_linear_value, sum(per_conversion_dim.w_decay) AS w_decay_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_decay)) AS w_decay_value, sum(per_conversion_dim.w_position) AS w_position_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_position)) AS w_position_value 
+     FROM per_conversion_dim 
+     GROUP BY per_conversion_dim.breakdown_value), attribution_rows AS (
+-    SELECT coalesce(nullIf(attribution_totals.breakdown_value, %(hogql_val_132)s), influenced_reach.breakdown_value) AS breakdown_value, ifNull(influenced_reach.visitors, 0) AS visitors, ifNull(attribution_totals.influenced_conversions, 0) AS influenced_conversions, ifNull(attribution_totals.influenced_value, 0.0) AS influenced_value, ifNull(attribution_totals.w_first_conversions, 0.0) AS w_first_conversions, ifNull(attribution_totals.w_first_value, 0.0) AS w_first_value, ifNull(attribution_totals.w_last_conversions, 0.0) AS w_last_conversions, ifNull(attribution_totals.w_last_value, 0.0) AS w_last_value, ifNull(attribution_totals.w_linear_conversions, 0.0) AS w_linear_conversions, ifNull(attribution_totals.w_linear_value, 0.0) AS w_linear_value, ifNull(attribution_totals.w_decay_conversions, 0.0) AS w_decay_conversions, ifNull(attribution_totals.w_decay_value, 0.0) AS w_decay_value, ifNull(attribution_totals.w_position_conversions, 0.0) AS w_position_conversions, ifNull(attribution_totals.w_position_value, 0.0) AS w_position_value, 1 AS footer_key 
++    SELECT coalesce(nullIf(attribution_totals.breakdown_value, %(hogql_val_144)s), influenced_reach.breakdown_value) AS breakdown_value, ifNull(influenced_reach.visitors, 0) AS visitors, ifNull(attribution_totals.influenced_conversions, 0) AS influenced_conversions, ifNull(attribution_totals.influenced_value, 0.0) AS influenced_value, ifNull(attribution_totals.w_first_conversions, 0.0) AS w_first_conversions, ifNull(attribution_totals.w_first_value, 0.0) AS w_first_value, ifNull(attribution_totals.w_last_conversions, 0.0) AS w_last_conversions, ifNull(attribution_totals.w_last_value, 0.0) AS w_last_value, ifNull(attribution_totals.w_linear_conversions, 0.0) AS w_linear_conversions, ifNull(attribution_totals.w_linear_value, 0.0) AS w_linear_value, ifNull(attribution_totals.w_decay_conversions, 0.0) AS w_decay_conversions, ifNull(attribution_totals.w_decay_value, 0.0) AS w_decay_value, ifNull(attribution_totals.w_position_conversions, 0.0) AS w_position_conversions, ifNull(attribution_totals.w_position_value, 0.0) AS w_position_value, 1 AS footer_key 
+     FROM attribution_totals FULL OUTER JOIN influenced_reach ON equals(attribution_totals.breakdown_value, influenced_reach.breakdown_value)), attribution_footer AS (
+     SELECT sumIf(per_conversion.conversion_count, ifNull(equals(per_conversion.i, 1), 0)) AS total_conversions, countIf(ifNull(greater(length(per_conversion.tps), 0), 0)) AS attributed_conversions, 1 AS footer_key 
+     FROM per_conversion) 
+@@ -322,7 +322,7 @@
+     GROUP BY if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id)), influenced_reach AS (
+     SELECT s.breakdown_value AS breakdown_value, uniq(s.person_id) AS visitors 
+     FROM (
+-      SELECT cached_sessions.person_id AS person_id, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_39)s)), cached_sessions.utm_source, %(hogql_val_40)s)), [%(hogql_val_41)s, %(hogql_val_42)s, %(hogql_val_43)s]), %(hogql_val_44)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_45)s)), cached_sessions.utm_source, %(hogql_val_46)s)), [%(hogql_val_47)s, %(hogql_val_48)s, %(hogql_val_49)s, %(hogql_val_50)s, %(hogql_val_51)s, %(hogql_val_52)s, %(hogql_val_53)s, %(hogql_val_54)s]), %(hogql_val_55)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_56)s)), cached_sessions.utm_source, %(hogql_val_57)s)), [%(hogql_val_58)s]), %(hogql_val_59)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_60)s)), cached_sessions.utm_source, %(hogql_val_61)s)), [%(hogql_val_62)s, %(hogql_val_63)s, %(hogql_val_64)s, %(hogql_val_65)s, %(hogql_val_66)s, %(hogql_val_67)s, %(hogql_val_68)s, %(hogql_val_69)s, %(hogql_val_70)s]), %(hogql_val_71)s, if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_72)s)), cached_sessions.utm_source, %(hogql_val_73)s))))) AS breakdown_value 
++      SELECT cached_sessions.person_id AS person_id, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_39)s)), cached_sessions.utm_source, %(hogql_val_40)s)), [%(hogql_val_41)s, %(hogql_val_42)s, %(hogql_val_43)s]), %(hogql_val_44)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_45)s)), cached_sessions.utm_source, %(hogql_val_46)s)), [%(hogql_val_47)s, %(hogql_val_48)s, %(hogql_val_49)s, %(hogql_val_50)s, %(hogql_val_51)s, %(hogql_val_52)s, %(hogql_val_53)s, %(hogql_val_54)s]), %(hogql_val_55)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_56)s)), cached_sessions.utm_source, %(hogql_val_57)s)), [%(hogql_val_58)s]), %(hogql_val_59)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_60)s)), cached_sessions.utm_source, %(hogql_val_61)s)), [%(hogql_val_62)s, %(hogql_val_63)s, %(hogql_val_64)s, %(hogql_val_65)s, %(hogql_val_66)s, %(hogql_val_67)s, %(hogql_val_68)s, %(hogql_val_69)s, %(hogql_val_70)s]), %(hogql_val_71)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_72)s)), cached_sessions.utm_source, %(hogql_val_73)s)), [%(hogql_val_74)s, %(hogql_val_75)s, %(hogql_val_76)s]), %(hogql_val_77)s, if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_78)s)), cached_sessions.utm_source, %(hogql_val_79)s)))))) AS breakdown_value 
+       FROM resolved_cached_sessions AS cached_sessions 
+       WHERE and(greaterOrEquals(cached_sessions.max_event_timestamp, toDateTime64('2022-12-28 00:00:00.000000', 6, 'UTC')), lessOrEquals(cached_sessions.min_event_timestamp, toDateTime64('2023-01-31 23:59:59.999999', 6, 'UTC')))) AS s 
+     GROUP BY s.breakdown_value), person_arrays AS (
+@@ -332,7 +332,7 @@
+       FROM cached_session_conversions) AS c LEFT JOIN (
+       SELECT d.person_id AS person_id, arraySlice(arraySort(groupUniqArray(tuple(d.session_ts, d.session_dim))), -500) AS touchpoints 
+       FROM (
+-        SELECT conv.conv_person_id AS person_id, toUnixTimestamp(cached_sessions.start_timestamp) AS session_ts, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_74)s)), cached_sessions.utm_source, %(hogql_val_75)s)), [%(hogql_val_76)s, %(hogql_val_77)s, %(hogql_val_78)s]), %(hogql_val_79)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_80)s)), cached_sessions.utm_source, %(hogql_val_81)s)), [%(hogql_val_82)s, %(hogql_val_83)s, %(hogql_val_84)s, %(hogql_val_85)s, %(hogql_val_86)s, %(hogql_val_87)s, %(hogql_val_88)s, %(hogql_val_89)s]), %(hogql_val_90)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_91)s)), cached_sessions.utm_source, %(hogql_val_92)s)), [%(hogql_val_93)s]), %(hogql_val_94)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_95)s)), cached_sessions.utm_source, %(hogql_val_96)s)), [%(hogql_val_97)s, %(hogql_val_98)s, %(hogql_val_99)s, %(hogql_val_100)s, %(hogql_val_101)s, %(hogql_val_102)s, %(hogql_val_103)s, %(hogql_val_104)s, %(hogql_val_105)s]), %(hogql_val_106)s, if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_107)s)), cached_sessions.utm_source, %(hogql_val_108)s))))) AS session_dim, conv.first_conversion AS first_conversion, conv.last_conversion AS upper_bound 
++        SELECT conv.conv_person_id AS person_id, toUnixTimestamp(cached_sessions.start_timestamp) AS session_ts, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_80)s)), cached_sessions.utm_source, %(hogql_val_81)s)), [%(hogql_val_82)s, %(hogql_val_83)s, %(hogql_val_84)s]), %(hogql_val_85)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_86)s)), cached_sessions.utm_source, %(hogql_val_87)s)), [%(hogql_val_88)s, %(hogql_val_89)s, %(hogql_val_90)s, %(hogql_val_91)s, %(hogql_val_92)s, %(hogql_val_93)s, %(hogql_val_94)s, %(hogql_val_95)s]), %(hogql_val_96)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_97)s)), cached_sessions.utm_source, %(hogql_val_98)s)), [%(hogql_val_99)s]), %(hogql_val_100)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_101)s)), cached_sessions.utm_source, %(hogql_val_102)s)), [%(hogql_val_103)s, %(hogql_val_104)s, %(hogql_val_105)s, %(hogql_val_106)s, %(hogql_val_107)s, %(hogql_val_108)s, %(hogql_val_109)s, %(hogql_val_110)s, %(hogql_val_111)s]), %(hogql_val_112)s, if(in(lower(if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_113)s)), cached_sessions.utm_source, %(hogql_val_114)s)), [%(hogql_val_115)s, %(hogql_val_116)s, %(hogql_val_117)s]), %(hogql_val_118)s, if(notEmpty(ifNull(cached_sessions.utm_source, %(hogql_val_119)s)), cached_sessions.utm_source, %(hogql_val_120)s)))))) AS session_dim, conv.first_conversion AS first_conversion, conv.last_conversion AS upper_bound 
+         FROM resolved_cached_sessions AS cached_sessions INNER JOIN (
+           SELECT cached_session_conversions.conv_person_id AS conv_person_id, cached_session_conversions.first_conversion AS first_conversion, cached_session_conversions.last_conversion AS last_conversion 
+           FROM cached_session_conversions) AS conv ON equals(cached_sessions.person_id, conv.conv_person_id) 
+@@ -340,7 +340,7 @@
+       WHERE and(ifNull(greaterOrEquals(d.session_ts, minus(d.first_conversion, 345600)), 0), ifNull(lessOrEquals(d.session_ts, d.upper_bound), 0)) 
+       GROUP BY d.person_id) AS t ON equals(c.conv_person_id, t.person_id) 
+     WHERE ifNull(greater(length(c.conversions), 0), 0)), per_conversion AS MATERIALIZED (
+-    SELECT person_arrays.person_id AS person_id, i, person_arrays.conversion_count AS conversion_count, (person_arrays.conversions[i]).1 AS conversion_time, (person_arrays.conversions[i]).2 AS conversion_value, arrayFilter(t -> and(ifNull(lessOrEquals(t.1, conversion_time), 0), ifNull(greaterOrEquals(t.1, minus(conversion_time, 345600)), 0)), person_arrays.touchpoints) AS tps, arrayMap(t -> t.1, tps) AS touch_ts, arrayMap(t -> t.2, tps) AS dims, arrayMap(_j -> if(ifNull(equals(_j, indexOf(touch_ts, arrayMin(touch_ts))), isNull(_j) and isNull(indexOf(touch_ts, arrayMin(touch_ts)))), 1.0, 0.0), arrayEnumerate(touch_ts)) AS w_first, arrayMap(_j -> if(ifNull(equals(_j, indexOf(touch_ts, arrayMax(touch_ts))), isNull(_j) and isNull(indexOf(touch_ts, arrayMax(touch_ts)))), 1.0, 0.0), arrayEnumerate(touch_ts)) AS w_last, arrayMap(_x -> divide(1.0, greatest(accurateCastOrNull(length(touch_ts), %(hogql_val_109)s), 1.0)), touch_ts) AS w_linear, arrayMap(w -> divide(w, greatest(arraySum(arrayMap(ts -> exp(multiply(-0.6931471805599453, divide(minus(conversion_time, ts), 86400))), touch_ts)), 1e-06)), arrayMap(ts -> exp(multiply(-0.6931471805599453, divide(minus(conversion_time, ts), 86400))), touch_ts)) AS w_decay, if(ifNull(equals(length(touch_ts), 0), 0), [], if(ifNull(equals(length(touch_ts), 1), 0), [1.0], if(ifNull(equals(length(touch_ts), 2), 0), [0.5, 0.5], arrayMap(w -> divide(w, greatest(arraySum(arrayMap(_pw -> ifNull(_pw, 0.0), arrayMap(ts -> if(ifNull(equals(ts, arrayMin(touch_ts)), isNull(ts) and isNull(arrayMin(touch_ts))), 0.4, if(ifNull(equals(ts, arrayMax(touch_ts)), isNull(ts) and isNull(arrayMax(touch_ts))), 0.4, divide(0.2, greatest(minus(accurateCastOrNull(length(touch_ts), %(hogql_val_110)s), 2.0), 1.0)))), touch_ts))), 1e-06)), arrayMap(_pw -> ifNull(_pw, 0.0), arrayMap(ts -> if(ifNull(equals(ts, arrayMin(touch_ts)), isNull(ts) and isNull(arrayMin(touch_ts))), 0.4, if(ifNull(equals(ts, arrayMax(touch_ts)), isNull(ts) and isNull(arrayMax(touch_ts))), 0.4, divide(0.2, greatest(minus(accurateCastOrNull(length(touch_ts), %(hogql_val_111)s), 2.0), 1.0)))), touch_ts)))))) AS w_position 
++    SELECT person_arrays.person_id AS person_id, i, person_arrays.conversion_count AS conversion_count, (person_arrays.conversions[i]).1 AS conversion_time, (person_arrays.conversions[i]).2 AS conversion_value, arrayFilter(t -> and(ifNull(lessOrEquals(t.1, conversion_time), 0), ifNull(greaterOrEquals(t.1, minus(conversion_time, 345600)), 0)), person_arrays.touchpoints) AS tps, arrayMap(t -> t.1, tps) AS touch_ts, arrayMap(t -> t.2, tps) AS dims, arrayMap(_j -> if(ifNull(equals(_j, indexOf(touch_ts, arrayMin(touch_ts))), isNull(_j) and isNull(indexOf(touch_ts, arrayMin(touch_ts)))), 1.0, 0.0), arrayEnumerate(touch_ts)) AS w_first, arrayMap(_j -> if(ifNull(equals(_j, indexOf(touch_ts, arrayMax(touch_ts))), isNull(_j) and isNull(indexOf(touch_ts, arrayMax(touch_ts)))), 1.0, 0.0), arrayEnumerate(touch_ts)) AS w_last, arrayMap(_x -> divide(1.0, greatest(accurateCastOrNull(length(touch_ts), %(hogql_val_121)s), 1.0)), touch_ts) AS w_linear, arrayMap(w -> divide(w, greatest(arraySum(arrayMap(ts -> exp(multiply(-0.6931471805599453, divide(minus(conversion_time, ts), 86400))), touch_ts)), 1e-06)), arrayMap(ts -> exp(multiply(-0.6931471805599453, divide(minus(conversion_time, ts), 86400))), touch_ts)) AS w_decay, if(ifNull(equals(length(touch_ts), 0), 0), [], if(ifNull(equals(length(touch_ts), 1), 0), [1.0], if(ifNull(equals(length(touch_ts), 2), 0), [0.5, 0.5], arrayMap(w -> divide(w, greatest(arraySum(arrayMap(_pw -> ifNull(_pw, 0.0), arrayMap(ts -> if(ifNull(equals(ts, arrayMin(touch_ts)), isNull(ts) and isNull(arrayMin(touch_ts))), 0.4, if(ifNull(equals(ts, arrayMax(touch_ts)), isNull(ts) and isNull(arrayMax(touch_ts))), 0.4, divide(0.2, greatest(minus(accurateCastOrNull(length(touch_ts), %(hogql_val_122)s), 2.0), 1.0)))), touch_ts))), 1e-06)), arrayMap(_pw -> ifNull(_pw, 0.0), arrayMap(ts -> if(ifNull(equals(ts, arrayMin(touch_ts)), isNull(ts) and isNull(arrayMin(touch_ts))), 0.4, if(ifNull(equals(ts, arrayMax(touch_ts)), isNull(ts) and isNull(arrayMax(touch_ts))), 0.4, divide(0.2, greatest(minus(accurateCastOrNull(length(touch_ts), %(hogql_val_123)s), 2.0), 1.0)))), touch_ts)))))) AS w_position 
+     FROM person_arrays ARRAY JOIN arrayEnumerate(person_arrays.conversions) AS i), per_touchpoint AS (
+     SELECT per_conversion.person_id AS person_id, per_conversion.i AS i, per_conversion.conversion_value AS conversion_value, per_conversion.dims[k] AS breakdown_value, per_conversion.w_first[k] AS w_first, per_conversion.w_last[k] AS w_last, per_conversion.w_linear[k] AS w_linear, per_conversion.w_decay[k] AS w_decay, per_conversion.w_position[k] AS w_position 
+     FROM per_conversion ARRAY JOIN arrayEnumerate(per_conversion.touch_ts) AS k), per_conversion_dim AS (
+@@ -350,7 +350,7 @@
+     SELECT per_conversion_dim.breakdown_value AS breakdown_value, count() AS influenced_conversions, sum(per_conversion_dim.conv_value) AS influenced_value, sum(per_conversion_dim.w_first) AS w_first_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_first)) AS w_first_value, sum(per_conversion_dim.w_last) AS w_last_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_last)) AS w_last_value, sum(per_conversion_dim.w_linear) AS w_linear_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_linear)) AS w_linear_value, sum(per_conversion_dim.w_decay) AS w_decay_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_decay)) AS w_decay_value, sum(per_conversion_dim.w_position) AS w_position_conversions, sum(multiply(per_conversion_dim.conv_value, per_conversion_dim.w_position)) AS w_position_value 
+     FROM per_conversion_dim 
+     GROUP BY per_conversion_dim.breakdown_value), attribution_rows AS (
+-    SELECT coalesce(nullIf(attribution_totals.breakdown_value, %(hogql_val_112)s), influenced_reach.breakdown_value) AS breakdown_value, ifNull(influenced_reach.visitors, 0) AS visitors, ifNull(attribution_totals.influenced_conversions, 0) AS influenced_conversions, ifNull(attribution_totals.influenced_value, 0.0) AS influenced_value, ifNull(attribution_totals.w_first_conversions, 0.0) AS w_first_conversions, ifNull(attribution_totals.w_first_value, 0.0) AS w_first_value, ifNull(attribution_totals.w_last_conversions, 0.0) AS w_last_conversions, ifNull(attribution_totals.w_last_value, 0.0) AS w_last_value, ifNull(attribution_totals.w_linear_conversions, 0.0) AS w_linear_conversions, ifNull(attribution_totals.w_linear_value, 0.0) AS w_linear_value, ifNull(attribution_totals.w_decay_conversions, 0.0) AS w_decay_conversions, ifNull(attribution_totals.w_decay_value, 0.0) AS w_decay_value, ifNull(attribution_totals.w_position_conversions, 0.0) AS w_position_conversions, ifNull(attribution_totals.w_position_value, 0.0) AS w_position_value, 1 AS footer_key 
++    SELECT coalesce(nullIf(attribution_totals.breakdown_value, %(hogql_val_124)s), influenced_reach.breakdown_value) AS breakdown_value, ifNull(influenced_reach.visitors, 0) AS visitors, ifNull(attribution_totals.influenced_conversions, 0) AS influenced_conversions, ifNull(attribution_totals.influenced_value, 0.0) AS influenced_value, ifNull(attribution_totals.w_first_conversions, 0.0) AS w_first_conversions, ifNull(attribution_totals.w_first_value, 0.0) AS w_first_value, ifNull(attribution_totals.w_last_conversions, 0.0) AS w_last_conversions, ifNull(attribution_totals.w_last_value, 0.0) AS w_last_value, ifNull(attribution_totals.w_linear_conversions, 0.0) AS w_linear_conversions, ifNull(attribution_totals.w_linear_value, 0.0) AS w_linear_value, ifNull(attribution_totals.w_decay_conversions, 0.0) AS w_decay_conversions, ifNull(attribution_totals.w_decay_value, 0.0) AS w_decay_value, ifNull(attribution_totals.w_position_conversions, 0.0) AS w_position_conversions, ifNull(attribution_totals.w_position_value, 0.0) AS w_position_value, 1 AS footer_key 
+     FROM attribution_totals FULL OUTER JOIN influenced_reach ON equals(attribution_totals.breakdown_value, influenced_reach.breakdown_value)), attribution_footer AS (
+     SELECT sumIf(per_conversion.conversion_count, ifNull(equals(per_conversion.i, 1), 0)) AS total_conversions, countIf(ifNull(greater(length(per_conversion.tps), 0), 0)) AS attributed_conversions, 1 AS footer_key 
+     FROM per_conversion) 
+diff --git a/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_marketing_retention_query_runner.new_events_schema.ambr b/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_marketing_retention_query_runner.new_events_schema.ambr
+index 6e171b41b55c..78ae490761c6 100644
+--- a/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_marketing_retention_query_runner.new_events_schema.ambr
++++ b/products/marketing_analytics/backend/hogql_queries/__snapshots__/test_marketing_retention_query_runner.new_events_schema.ambr
+@@ -71,7 +71,7 @@
+ # name: TestMarketingAnalyticsRetentionQueryRunner.test_retention_sql_1_source[new_events_schema]
+   '''
+   WITH acquisition AS MATERIALIZED (
+-    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, min(events__session.`$start_timestamp`) AS cohort_at, argMin(if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_8)s)), events__session.`$entry_utm_source`, %(hogql_val_9)s)), [%(hogql_val_10)s, %(hogql_val_11)s, %(hogql_val_12)s]), %(hogql_val_13)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_14)s)), events__session.`$entry_utm_source`, %(hogql_val_15)s)), [%(hogql_val_16)s, %(hogql_val_17)s, %(hogql_val_18)s, %(hogql_val_19)s, %(hogql_val_20)s, %(hogql_val_21)s, %(hogql_val_22)s, %(hogql_val_23)s]), %(hogql_val_24)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_25)s)), events__session.`$entry_utm_source`, %(hogql_val_26)s)), [%(hogql_val_27)s]), %(hogql_val_28)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_29)s)), events__session.`$entry_utm_source`, %(hogql_val_30)s)), [%(hogql_val_31)s, %(hogql_val_32)s, %(hogql_val_33)s, %(hogql_val_34)s, %(hogql_val_35)s, %(hogql_val_36)s, %(hogql_val_37)s, %(hogql_val_38)s, %(hogql_val_39)s]), %(hogql_val_40)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_41)s)), events__session.`$entry_utm_source`, %(hogql_val_42)s))))), events__session.`$start_timestamp`) AS breakdown_value 
++    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, min(events__session.`$start_timestamp`) AS cohort_at, argMin(if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_8)s)), events__session.`$entry_utm_source`, %(hogql_val_9)s)), [%(hogql_val_10)s, %(hogql_val_11)s, %(hogql_val_12)s]), %(hogql_val_13)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_14)s)), events__session.`$entry_utm_source`, %(hogql_val_15)s)), [%(hogql_val_16)s, %(hogql_val_17)s, %(hogql_val_18)s, %(hogql_val_19)s, %(hogql_val_20)s, %(hogql_val_21)s, %(hogql_val_22)s, %(hogql_val_23)s]), %(hogql_val_24)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_25)s)), events__session.`$entry_utm_source`, %(hogql_val_26)s)), [%(hogql_val_27)s]), %(hogql_val_28)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_29)s)), events__session.`$entry_utm_source`, %(hogql_val_30)s)), [%(hogql_val_31)s, %(hogql_val_32)s, %(hogql_val_33)s, %(hogql_val_34)s, %(hogql_val_35)s, %(hogql_val_36)s, %(hogql_val_37)s, %(hogql_val_38)s, %(hogql_val_39)s]), %(hogql_val_40)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_41)s)), events__session.`$entry_utm_source`, %(hogql_val_42)s)), [%(hogql_val_43)s, %(hogql_val_44)s, %(hogql_val_45)s]), %(hogql_val_46)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_47)s)), events__session.`$entry_utm_source`, %(hogql_val_48)s)))))), events__session.`$start_timestamp`) AS breakdown_value 
+     FROM events_json AS events LEFT JOIN (
+       SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_0)s)) AS `$start_timestamp`, nullIf(nullIf(argMinMerge(raw_sessions.initial_utm_source), %(hogql_val_1)s), %(hogql_val_2)s) AS `$entry_utm_source`, raw_sessions.session_id_v7 AS session_id_v7 
+       FROM raw_sessions 
+@@ -83,7 +83,7 @@
+       GROUP BY person_distinct_id_overrides.distinct_id 
+       HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0) 
+       SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id) 
+-    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_43)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_44)s, %(hogql_val_45)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_46)s, %(hogql_val_47)s)), ifNull(greaterOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_48)s, %(hogql_val_49)s)), 0), ifNull(lessOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_50)s, %(hogql_val_51)s)), 0), globalNotIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
++    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_49)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_50)s, %(hogql_val_51)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_52)s, %(hogql_val_53)s)), ifNull(greaterOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_54)s, %(hogql_val_55)s)), 0), ifNull(lessOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_56)s, %(hogql_val_57)s)), 0), globalNotIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
+           SELECT DISTINCT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS person_id 
+           FROM events_json AS events LEFT OUTER JOIN (
+             SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id 
+@@ -92,9 +92,9 @@
+             GROUP BY person_distinct_id_overrides.distinct_id 
+             HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0) 
+             SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id) 
+-          WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_52)s), notEmpty(events.properties.`$session_id`), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_53)s, %(hogql_val_54)s), toIntervalDay(90))), less(events.timestamp, toDateTime(%(hogql_val_55)s, %(hogql_val_56)s)))))) 
++          WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_58)s), notEmpty(events.properties.`$session_id`), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_59)s, %(hogql_val_60)s), toIntervalDay(90))), less(events.timestamp, toDateTime(%(hogql_val_61)s, %(hogql_val_62)s)))))) 
+     GROUP BY actor_id), activity AS (
+-    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, dateDiff(%(hogql_val_57)s, toStartOfWeek(toDateTime(%(hogql_val_58)s, %(hogql_val_59)s), 0), toStartOfWeek(toTimeZone(events.timestamp, %(hogql_val_60)s), 0)) AS activity_index 
++    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, dateDiff(%(hogql_val_63)s, toStartOfWeek(toDateTime(%(hogql_val_64)s, %(hogql_val_65)s), 0), toStartOfWeek(toTimeZone(events.timestamp, %(hogql_val_66)s), 0)) AS activity_index 
+     FROM events_json AS events LEFT OUTER JOIN (
+       SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id 
+       FROM person_distinct_id_overrides 
+@@ -102,14 +102,14 @@
+       GROUP BY person_distinct_id_overrides.distinct_id 
+       HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0) 
+       SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id) 
+-    WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_61)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_62)s, %(hogql_val_63)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_64)s, %(hogql_val_65)s)), globalIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
++    WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_67)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_68)s, %(hogql_val_69)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_70)s, %(hogql_val_71)s)), globalIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
+           SELECT acquisition.actor_id AS actor_id 
+           FROM acquisition))) 
+     GROUP BY actor_id, activity_index), cohort_sizes AS MATERIALIZED (
+-    SELECT acquisition.breakdown_value AS breakdown_value, dateDiff(%(hogql_val_66)s, toStartOfWeek(toDateTime(%(hogql_val_67)s, %(hogql_val_68)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_69)s), 0)) AS cohort_index, count(acquisition.actor_id) AS cohort_size 
++    SELECT acquisition.breakdown_value AS breakdown_value, dateDiff(%(hogql_val_72)s, toStartOfWeek(toDateTime(%(hogql_val_73)s, %(hogql_val_74)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_75)s), 0)) AS cohort_index, count(acquisition.actor_id) AS cohort_size 
+     FROM acquisition 
+     GROUP BY acquisition.breakdown_value, cohort_index), matrix AS (
+-    SELECT acquisition.breakdown_value AS breakdown_value, dateDiff(%(hogql_val_70)s, toStartOfWeek(toDateTime(%(hogql_val_71)s, %(hogql_val_72)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_73)s), 0)) AS cohort_index, minus(activity.activity_index, dateDiff(%(hogql_val_74)s, toStartOfWeek(toDateTime(%(hogql_val_75)s, %(hogql_val_76)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_77)s), 0))) AS intervals_from_base, count(DISTINCT acquisition.actor_id) AS count 
++    SELECT acquisition.breakdown_value AS breakdown_value, dateDiff(%(hogql_val_76)s, toStartOfWeek(toDateTime(%(hogql_val_77)s, %(hogql_val_78)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_79)s), 0)) AS cohort_index, minus(activity.activity_index, dateDiff(%(hogql_val_80)s, toStartOfWeek(toDateTime(%(hogql_val_81)s, %(hogql_val_82)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_83)s), 0))) AS intervals_from_base, count(DISTINCT acquisition.actor_id) AS count 
+     FROM acquisition INNER JOIN activity ON equals(activity.actor_id, acquisition.actor_id) 
+     GROUP BY acquisition.breakdown_value, cohort_index, intervals_from_base 
+     HAVING and(ifNull(greaterOrEquals(intervals_from_base, 0), 0), ifNull(less(intervals_from_base, 4), 0))), folded_sizes AS (
+@@ -118,7 +118,7 @@
+           FROM cohort_sizes 
+           GROUP BY cohort_sizes.breakdown_value 
+           ORDER BY sum(cohort_sizes.cohort_size) DESC, cohort_sizes.breakdown_value ASC 
+-          LIMIT 20)), cohort_sizes.breakdown_value, %(hogql_val_78)s) AS breakdown_value, cohort_sizes.cohort_index AS cohort_index, sum(cohort_sizes.cohort_size) AS cohort_size 
++          LIMIT 20)), cohort_sizes.breakdown_value, %(hogql_val_84)s) AS breakdown_value, cohort_sizes.cohort_index AS cohort_index, sum(cohort_sizes.cohort_size) AS cohort_size 
+     FROM cohort_sizes 
+     GROUP BY breakdown_value, cohort_sizes.cohort_index), folded_matrix AS (
+     SELECT if(globalIn(matrix.breakdown_value, (
+@@ -126,7 +126,7 @@
+           FROM cohort_sizes 
+           GROUP BY cohort_sizes.breakdown_value 
+           ORDER BY sum(cohort_sizes.cohort_size) DESC, cohort_sizes.breakdown_value ASC 
+-          LIMIT 20)), matrix.breakdown_value, %(hogql_val_79)s) AS breakdown_value, matrix.cohort_index AS cohort_index, matrix.intervals_from_base AS intervals_from_base, sum(matrix.count) AS count 
++          LIMIT 20)), matrix.breakdown_value, %(hogql_val_85)s) AS breakdown_value, matrix.cohort_index AS cohort_index, matrix.intervals_from_base AS intervals_from_base, sum(matrix.count) AS count 
+     FROM matrix 
+     GROUP BY breakdown_value, matrix.cohort_index, matrix.intervals_from_base), summary AS (
+     SELECT uniqExact(cohort_sizes.breakdown_value) AS distinct_breakdowns 
+@@ -209,7 +209,7 @@
+ # name: TestMarketingAnalyticsRetentionQueryRunner.test_retention_sql_3_all_users[new_events_schema]
+   '''
+   WITH acquisition AS MATERIALIZED (
+-    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, min(events__session.`$start_timestamp`) AS cohort_at, argMin(if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_8)s)), events__session.`$entry_utm_source`, %(hogql_val_9)s)), [%(hogql_val_10)s, %(hogql_val_11)s, %(hogql_val_12)s]), %(hogql_val_13)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_14)s)), events__session.`$entry_utm_source`, %(hogql_val_15)s)), [%(hogql_val_16)s, %(hogql_val_17)s, %(hogql_val_18)s, %(hogql_val_19)s, %(hogql_val_20)s, %(hogql_val_21)s, %(hogql_val_22)s, %(hogql_val_23)s]), %(hogql_val_24)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_25)s)), events__session.`$entry_utm_source`, %(hogql_val_26)s)), [%(hogql_val_27)s]), %(hogql_val_28)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_29)s)), events__session.`$entry_utm_source`, %(hogql_val_30)s)), [%(hogql_val_31)s, %(hogql_val_32)s, %(hogql_val_33)s, %(hogql_val_34)s, %(hogql_val_35)s, %(hogql_val_36)s, %(hogql_val_37)s, %(hogql_val_38)s, %(hogql_val_39)s]), %(hogql_val_40)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_41)s)), events__session.`$entry_utm_source`, %(hogql_val_42)s))))), events__session.`$start_timestamp`) AS breakdown_value 
++    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, min(events__session.`$start_timestamp`) AS cohort_at, argMin(if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_8)s)), events__session.`$entry_utm_source`, %(hogql_val_9)s)), [%(hogql_val_10)s, %(hogql_val_11)s, %(hogql_val_12)s]), %(hogql_val_13)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_14)s)), events__session.`$entry_utm_source`, %(hogql_val_15)s)), [%(hogql_val_16)s, %(hogql_val_17)s, %(hogql_val_18)s, %(hogql_val_19)s, %(hogql_val_20)s, %(hogql_val_21)s, %(hogql_val_22)s, %(hogql_val_23)s]), %(hogql_val_24)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_25)s)), events__session.`$entry_utm_source`, %(hogql_val_26)s)), [%(hogql_val_27)s]), %(hogql_val_28)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_29)s)), events__session.`$entry_utm_source`, %(hogql_val_30)s)), [%(hogql_val_31)s, %(hogql_val_32)s, %(hogql_val_33)s, %(hogql_val_34)s, %(hogql_val_35)s, %(hogql_val_36)s, %(hogql_val_37)s, %(hogql_val_38)s, %(hogql_val_39)s]), %(hogql_val_40)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_41)s)), events__session.`$entry_utm_source`, %(hogql_val_42)s)), [%(hogql_val_43)s, %(hogql_val_44)s, %(hogql_val_45)s]), %(hogql_val_46)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_47)s)), events__session.`$entry_utm_source`, %(hogql_val_48)s)))))), events__session.`$start_timestamp`) AS breakdown_value 
+     FROM events_json AS events LEFT JOIN (
+       SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_0)s)) AS `$start_timestamp`, nullIf(nullIf(argMinMerge(raw_sessions.initial_utm_source), %(hogql_val_1)s), %(hogql_val_2)s) AS `$entry_utm_source`, raw_sessions.session_id_v7 AS session_id_v7 
+       FROM raw_sessions 
+@@ -221,9 +221,9 @@
+       GROUP BY person_distinct_id_overrides.distinct_id 
+       HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0) 
+       SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id) 
+-    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_43)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_44)s, %(hogql_val_45)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_46)s, %(hogql_val_47)s)), ifNull(greaterOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_48)s, %(hogql_val_49)s)), 0), ifNull(lessOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_50)s, %(hogql_val_51)s)), 0)) 
++    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_49)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_50)s, %(hogql_val_51)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_52)s, %(hogql_val_53)s)), ifNull(greaterOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_54)s, %(hogql_val_55)s)), 0), ifNull(lessOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_56)s, %(hogql_val_57)s)), 0)) 
+     GROUP BY actor_id), activity AS (
+-    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, dateDiff(%(hogql_val_52)s, toStartOfWeek(toDateTime(%(hogql_val_53)s, %(hogql_val_54)s), 0), toStartOfWeek(toTimeZone(events.timestamp, %(hogql_val_55)s), 0)) AS activity_index 
++    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, dateDiff(%(hogql_val_58)s, toStartOfWeek(toDateTime(%(hogql_val_59)s, %(hogql_val_60)s), 0), toStartOfWeek(toTimeZone(events.timestamp, %(hogql_val_61)s), 0)) AS activity_index 
+     FROM events_json AS events LEFT OUTER JOIN (
+       SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id 
+       FROM person_distinct_id_overrides 
+@@ -231,14 +231,14 @@
+       GROUP BY person_distinct_id_overrides.distinct_id 
+       HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0) 
+       SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id) 
+-    WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_56)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_57)s, %(hogql_val_58)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_59)s, %(hogql_val_60)s)), globalIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
++    WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_62)s), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_63)s, %(hogql_val_64)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_65)s, %(hogql_val_66)s)), globalIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
+           SELECT acquisition.actor_id AS actor_id 
+           FROM acquisition))) 
+     GROUP BY actor_id, activity_index), cohort_sizes AS MATERIALIZED (
+-    SELECT acquisition.breakdown_value AS breakdown_value, dateDiff(%(hogql_val_61)s, toStartOfWeek(toDateTime(%(hogql_val_62)s, %(hogql_val_63)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_64)s), 0)) AS cohort_index, count(acquisition.actor_id) AS cohort_size 
++    SELECT acquisition.breakdown_value AS breakdown_value, dateDiff(%(hogql_val_67)s, toStartOfWeek(toDateTime(%(hogql_val_68)s, %(hogql_val_69)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_70)s), 0)) AS cohort_index, count(acquisition.actor_id) AS cohort_size 
+     FROM acquisition 
+     GROUP BY acquisition.breakdown_value, cohort_index), matrix AS (
+-    SELECT acquisition.breakdown_value AS breakdown_value, dateDiff(%(hogql_val_65)s, toStartOfWeek(toDateTime(%(hogql_val_66)s, %(hogql_val_67)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_68)s), 0)) AS cohort_index, minus(activity.activity_index, dateDiff(%(hogql_val_69)s, toStartOfWeek(toDateTime(%(hogql_val_70)s, %(hogql_val_71)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_72)s), 0))) AS intervals_from_base, count(DISTINCT acquisition.actor_id) AS count 
++    SELECT acquisition.breakdown_value AS breakdown_value, dateDiff(%(hogql_val_71)s, toStartOfWeek(toDateTime(%(hogql_val_72)s, %(hogql_val_73)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_74)s), 0)) AS cohort_index, minus(activity.activity_index, dateDiff(%(hogql_val_75)s, toStartOfWeek(toDateTime(%(hogql_val_76)s, %(hogql_val_77)s), 0), toStartOfWeek(toTimeZone(acquisition.cohort_at, %(hogql_val_78)s), 0))) AS intervals_from_base, count(DISTINCT acquisition.actor_id) AS count 
+     FROM acquisition INNER JOIN activity ON equals(activity.actor_id, acquisition.actor_id) 
+     GROUP BY acquisition.breakdown_value, cohort_index, intervals_from_base 
+     HAVING and(ifNull(greaterOrEquals(intervals_from_base, 0), 0), ifNull(less(intervals_from_base, 4), 0))), folded_sizes AS (
+@@ -247,7 +247,7 @@
+           FROM cohort_sizes 
+           GROUP BY cohort_sizes.breakdown_value 
+           ORDER BY sum(cohort_sizes.cohort_size) DESC, cohort_sizes.breakdown_value ASC 
+-          LIMIT 20)), cohort_sizes.breakdown_value, %(hogql_val_73)s) AS breakdown_value, cohort_sizes.cohort_index AS cohort_index, sum(cohort_sizes.cohort_size) AS cohort_size 
++          LIMIT 20)), cohort_sizes.breakdown_value, %(hogql_val_79)s) AS breakdown_value, cohort_sizes.cohort_index AS cohort_index, sum(cohort_sizes.cohort_size) AS cohort_size 
+     FROM cohort_sizes 
+     GROUP BY breakdown_value, cohort_sizes.cohort_index), folded_matrix AS (
+     SELECT if(globalIn(matrix.breakdown_value, (
+@@ -255,7 +255,7 @@
+           FROM cohort_sizes 
+           GROUP BY cohort_sizes.breakdown_value 
+           ORDER BY sum(cohort_sizes.cohort_size) DESC, cohort_sizes.breakdown_value ASC 
+-          LIMIT 20)), matrix.breakdown_value, %(hogql_val_74)s) AS breakdown_value, matrix.cohort_index AS cohort_index, matrix.intervals_from_base AS intervals_from_base, sum(matrix.count) AS count 
++          LIMIT 20)), matrix.breakdown_value, %(hogql_val_80)s) AS breakdown_value, matrix.cohort_index AS cohort_index, matrix.intervals_from_base AS intervals_from_base, sum(matrix.count) AS count 
+     FROM matrix 
+     GROUP BY breakdown_value, matrix.cohort_index, matrix.intervals_from_base), summary AS (
+     SELECT uniqExact(cohort_sizes.breakdown_value) AS distinct_breakdowns 
+@@ -269,7 +269,7 @@
+ # name: TestMarketingAnalyticsRetentionQueryRunner.test_retention_sql_4_summary[new_events_schema]
+   '''
+   WITH acquisition AS MATERIALIZED (
+-    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, min(events__session.`$start_timestamp`) AS first_session_at, argMin(if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_30)s)), events__session.`$entry_utm_source`, %(hogql_val_31)s)), [%(hogql_val_32)s, %(hogql_val_33)s, %(hogql_val_34)s]), %(hogql_val_35)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_36)s)), events__session.`$entry_utm_source`, %(hogql_val_37)s)), [%(hogql_val_38)s, %(hogql_val_39)s, %(hogql_val_40)s, %(hogql_val_41)s, %(hogql_val_42)s, %(hogql_val_43)s, %(hogql_val_44)s, %(hogql_val_45)s]), %(hogql_val_46)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_47)s)), events__session.`$entry_utm_source`, %(hogql_val_48)s)), [%(hogql_val_49)s]), %(hogql_val_50)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_51)s)), events__session.`$entry_utm_source`, %(hogql_val_52)s)), [%(hogql_val_53)s, %(hogql_val_54)s, %(hogql_val_55)s, %(hogql_val_56)s, %(hogql_val_57)s, %(hogql_val_58)s, %(hogql_val_59)s, %(hogql_val_60)s, %(hogql_val_61)s]), %(hogql_val_62)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_63)s)), events__session.`$entry_utm_source`, %(hogql_val_64)s))))), events__session.`$start_timestamp`) AS breakdown_value, 0 AS previous, %(hogql_val_65)s AS observation_end, argMin(events.properties.`$session_id`, events__session.`$start_timestamp`) AS first_session_id
++    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, min(events__session.`$start_timestamp`) AS first_session_at, argMin(if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_30)s)), events__session.`$entry_utm_source`, %(hogql_val_31)s)), [%(hogql_val_32)s, %(hogql_val_33)s, %(hogql_val_34)s]), %(hogql_val_35)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_36)s)), events__session.`$entry_utm_source`, %(hogql_val_37)s)), [%(hogql_val_38)s, %(hogql_val_39)s, %(hogql_val_40)s, %(hogql_val_41)s, %(hogql_val_42)s, %(hogql_val_43)s, %(hogql_val_44)s, %(hogql_val_45)s]), %(hogql_val_46)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_47)s)), events__session.`$entry_utm_source`, %(hogql_val_48)s)), [%(hogql_val_49)s]), %(hogql_val_50)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_51)s)), events__session.`$entry_utm_source`, %(hogql_val_52)s)), [%(hogql_val_53)s, %(hogql_val_54)s, %(hogql_val_55)s, %(hogql_val_56)s, %(hogql_val_57)s, %(hogql_val_58)s, %(hogql_val_59)s, %(hogql_val_60)s, %(hogql_val_61)s]), %(hogql_val_62)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_63)s)), events__session.`$entry_utm_source`, %(hogql_val_64)s)), [%(hogql_val_65)s, %(hogql_val_66)s, %(hogql_val_67)s]), %(hogql_val_68)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_69)s)), events__session.`$entry_utm_source`, %(hogql_val_70)s)))))), events__session.`$start_timestamp`) AS breakdown_value, 0 AS previous, %(hogql_val_71)s AS observation_end, argMin(events.properties.`$session_id`, events__session.`$start_timestamp`) AS first_session_id
+     FROM events_json AS events LEFT JOIN (
+       SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_22)s)) AS `$start_timestamp`, nullIf(nullIf(argMinMerge(raw_sessions.initial_utm_source), %(hogql_val_23)s), %(hogql_val_24)s) AS `$entry_utm_source`, raw_sessions.session_id_v7 AS session_id_v7
+       FROM raw_sessions
+@@ -281,7 +281,7 @@
+       GROUP BY person_distinct_id_overrides.distinct_id
+       HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0)
+       SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id)
+-    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_66)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_67)s, %(hogql_val_68)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_69)s, %(hogql_val_70)s)), ifNull(greaterOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_71)s, %(hogql_val_72)s)), 0), ifNull(lessOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_73)s, %(hogql_val_74)s)), 0), globalNotIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
++    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_72)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_73)s, %(hogql_val_74)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_75)s, %(hogql_val_76)s)), ifNull(greaterOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_77)s, %(hogql_val_78)s)), 0), ifNull(lessOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_79)s, %(hogql_val_80)s)), 0), globalNotIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
+           SELECT DISTINCT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS person_id
+           FROM events_json AS events LEFT OUTER JOIN (
+             SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id
+@@ -290,21 +290,21 @@
+             GROUP BY person_distinct_id_overrides.distinct_id
+             HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0)
+             SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id)
+-          WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_75)s), notEmpty(events.properties.`$session_id`), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_76)s, %(hogql_val_77)s), toIntervalDay(90))), less(events.timestamp, toDateTime(%(hogql_val_78)s, %(hogql_val_79)s))))))
++          WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_81)s), notEmpty(events.properties.`$session_id`), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_82)s, %(hogql_val_83)s), toIntervalDay(90))), less(events.timestamp, toDateTime(%(hogql_val_84)s, %(hogql_val_85)s))))))
+     GROUP BY actor_id UNION ALL
+-    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, min(events__session.`$start_timestamp`) AS first_session_at, argMin(if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_88)s)), events__session.`$entry_utm_source`, %(hogql_val_89)s)), [%(hogql_val_90)s, %(hogql_val_91)s, %(hogql_val_92)s]), %(hogql_val_93)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_94)s)), events__session.`$entry_utm_source`, %(hogql_val_95)s)), [%(hogql_val_96)s, %(hogql_val_97)s, %(hogql_val_98)s, %(hogql_val_99)s, %(hogql_val_100)s, %(hogql_val_101)s, %(hogql_val_102)s, %(hogql_val_103)s]), %(hogql_val_104)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_105)s)), events__session.`$entry_utm_source`, %(hogql_val_106)s)), [%(hogql_val_107)s]), %(hogql_val_108)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_109)s)), events__session.`$entry_utm_source`, %(hogql_val_110)s)), [%(hogql_val_111)s, %(hogql_val_112)s, %(hogql_val_113)s, %(hogql_val_114)s, %(hogql_val_115)s, %(hogql_val_116)s, %(hogql_val_117)s, %(hogql_val_118)s, %(hogql_val_119)s]), %(hogql_val_120)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_121)s)), events__session.`$entry_utm_source`, %(hogql_val_122)s))))), events__session.`$start_timestamp`) AS breakdown_value, 1 AS previous, %(hogql_val_123)s AS observation_end, argMin(events.properties.`$session_id`, events__session.`$start_timestamp`) AS first_session_id
++    SELECT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS actor_id, min(events__session.`$start_timestamp`) AS first_session_at, argMin(if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_94)s)), events__session.`$entry_utm_source`, %(hogql_val_95)s)), [%(hogql_val_96)s, %(hogql_val_97)s, %(hogql_val_98)s]), %(hogql_val_99)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_100)s)), events__session.`$entry_utm_source`, %(hogql_val_101)s)), [%(hogql_val_102)s, %(hogql_val_103)s, %(hogql_val_104)s, %(hogql_val_105)s, %(hogql_val_106)s, %(hogql_val_107)s, %(hogql_val_108)s, %(hogql_val_109)s]), %(hogql_val_110)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_111)s)), events__session.`$entry_utm_source`, %(hogql_val_112)s)), [%(hogql_val_113)s]), %(hogql_val_114)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_115)s)), events__session.`$entry_utm_source`, %(hogql_val_116)s)), [%(hogql_val_117)s, %(hogql_val_118)s, %(hogql_val_119)s, %(hogql_val_120)s, %(hogql_val_121)s, %(hogql_val_122)s, %(hogql_val_123)s, %(hogql_val_124)s, %(hogql_val_125)s]), %(hogql_val_126)s, if(in(lower(if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_127)s)), events__session.`$entry_utm_source`, %(hogql_val_128)s)), [%(hogql_val_129)s, %(hogql_val_130)s, %(hogql_val_131)s]), %(hogql_val_132)s, if(notEmpty(ifNull(events__session.`$entry_utm_source`, %(hogql_val_133)s)), events__session.`$entry_utm_source`, %(hogql_val_134)s)))))), events__session.`$start_timestamp`) AS breakdown_value, 1 AS previous, %(hogql_val_135)s AS observation_end, argMin(events.properties.`$session_id`, events__session.`$start_timestamp`) AS first_session_id
+     FROM events_json AS events LEFT JOIN (
+-      SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_80)s)) AS `$start_timestamp`, nullIf(nullIf(argMinMerge(raw_sessions.initial_utm_source), %(hogql_val_81)s), %(hogql_val_82)s) AS `$entry_utm_source`, raw_sessions.session_id_v7 AS session_id_v7
++      SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_86)s)) AS `$start_timestamp`, nullIf(nullIf(argMinMerge(raw_sessions.initial_utm_source), %(hogql_val_87)s), %(hogql_val_88)s) AS `$entry_utm_source`, raw_sessions.session_id_v7 AS session_id_v7
+       FROM raw_sessions
+-      WHERE and(equals(raw_sessions.team_id, 420), greaterOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), minus(toDateTime(%(hogql_val_83)s, %(hogql_val_84)s), toIntervalDay(3))), lessOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), plus(toDateTime(%(hogql_val_85)s, %(hogql_val_86)s), toIntervalDay(3))))
+-      GROUP BY raw_sessions.session_id_v7) AS events__session ON equals(toUInt128(accurateCastOrNull(events.properties.`$session_id`, %(hogql_val_87)s)), events__session.session_id_v7) LEFT OUTER JOIN (
++      WHERE and(equals(raw_sessions.team_id, 420), greaterOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), minus(toDateTime(%(hogql_val_89)s, %(hogql_val_90)s), toIntervalDay(3))), lessOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), plus(toDateTime(%(hogql_val_91)s, %(hogql_val_92)s), toIntervalDay(3))))
++      GROUP BY raw_sessions.session_id_v7) AS events__session ON equals(toUInt128(accurateCastOrNull(events.properties.`$session_id`, %(hogql_val_93)s)), events__session.session_id_v7) LEFT OUTER JOIN (
+       SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id
+       FROM person_distinct_id_overrides
+       WHERE equals(person_distinct_id_overrides.team_id, 420)
+       GROUP BY person_distinct_id_overrides.distinct_id
+       HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0)
+       SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id)
+-    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_124)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_125)s, %(hogql_val_126)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_127)s, %(hogql_val_128)s)), ifNull(greaterOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_129)s, %(hogql_val_130)s)), 0), ifNull(lessOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_131)s, %(hogql_val_132)s)), 0), globalNotIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
++    WHERE and(equals(events.team_id, 420), and(equals(events.event, %(hogql_val_136)s), notEmpty(events.properties.`$session_id`), greater(toUnixTimestamp(events__session.`$start_timestamp`), 0)), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_137)s, %(hogql_val_138)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_139)s, %(hogql_val_140)s)), ifNull(greaterOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_141)s, %(hogql_val_142)s)), 0), ifNull(lessOrEquals(events__session.`$start_timestamp`, toDateTime(%(hogql_val_143)s, %(hogql_val_144)s)), 0), globalNotIn(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), (
+           SELECT DISTINCT if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id) AS person_id
+           FROM events_json AS events LEFT OUTER JOIN (
+             SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id
+@@ -313,23 +313,23 @@
+             GROUP BY person_distinct_id_overrides.distinct_id
+             HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0)
+             SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id)
+-          WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_133)s), notEmpty(events.properties.`$session_id`), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_134)s, %(hogql_val_135)s), toIntervalDay(90))), less(events.timestamp, toDateTime(%(hogql_val_136)s, %(hogql_val_137)s))))))
++          WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_145)s), notEmpty(events.properties.`$session_id`), greaterOrEquals(events.timestamp, minus(toDateTime(%(hogql_val_146)s, %(hogql_val_147)s), toIntervalDay(90))), less(events.timestamp, toDateTime(%(hogql_val_148)s, %(hogql_val_149)s))))))
+     GROUP BY actor_id), activity AS (
+     SELECT acquisition.actor_id AS actor_id, acquisition.previous AS previous, min(events__session.`$start_timestamp`) AS returned_at
+     FROM events_json AS events LEFT JOIN (
+-      SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_138)s)) AS `$start_timestamp`, raw_sessions.session_id_v7 AS session_id_v7
++      SELECT min(toTimeZone(raw_sessions.min_timestamp, %(hogql_val_150)s)) AS `$start_timestamp`, raw_sessions.session_id_v7 AS session_id_v7
+       FROM raw_sessions
+-      WHERE and(equals(raw_sessions.team_id, 420), greaterOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), minus(toDateTime(%(hogql_val_139)s, %(hogql_val_140)s), toIntervalDay(3))), lessOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), plus(toDateTime(%(hogql_val_141)s, %(hogql_val_142)s), toIntervalDay(3))))
+-      GROUP BY raw_sessions.session_id_v7) AS events__session ON equals(toUInt128(accurateCastOrNull(events.properties.`$session_id`, %(hogql_val_143)s)), events__session.session_id_v7) LEFT OUTER JOIN (
++      WHERE and(equals(raw_sessions.team_id, 420), greaterOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), minus(toDateTime(%(hogql_val_151)s, %(hogql_val_152)s), toIntervalDay(3))), lessOrEquals(fromUnixTimestamp(intDiv(toUInt64(bitShiftRight(raw_sessions.session_id_v7, 80)), 1000)), plus(toDateTime(%(hogql_val_153)s, %(hogql_val_154)s), toIntervalDay(3))))
++      GROUP BY raw_sessions.session_id_v7) AS events__session ON equals(toUInt128(accurateCastOrNull(events.properties.`$session_id`, %(hogql_val_155)s)), events__session.session_id_v7) LEFT OUTER JOIN (
+       SELECT argMax(person_distinct_id_overrides.person_id, person_distinct_id_overrides.version) AS person_id, person_distinct_id_overrides.distinct_id AS distinct_id
+       FROM person_distinct_id_overrides
+       WHERE equals(person_distinct_id_overrides.team_id, 420)
+       GROUP BY person_distinct_id_overrides.distinct_id
+       HAVING equals(argMax(person_distinct_id_overrides.is_deleted, person_distinct_id_overrides.version), 0)
+       SETTINGS optimize_aggregation_in_order=1) AS events__override ON equals(events.distinct_id, events__override.distinct_id) GLOBAL INNER JOIN acquisition ON equals(if(not(empty(events__override.distinct_id)), events__override.person_id, events.person_id), acquisition.actor_id)
+-    WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_144)s), notEmpty(events.properties.`$session_id`), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_145)s, %(hogql_val_146)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_147)s, %(hogql_val_148)s)), notEquals(events.properties.`$session_id`, acquisition.first_session_id), greater(toDate(events__session.`$start_timestamp`), toDate(toTimeZone(acquisition.first_session_at, %(hogql_val_149)s))), lessOrEquals(events__session.`$start_timestamp`, plus(toTimeZone(acquisition.first_session_at, %(hogql_val_150)s), toIntervalDay(30))), ifNull(lessOrEquals(events__session.`$start_timestamp`, parseDateTime64BestEffortOrNull(acquisition.observation_end, 6, %(hogql_val_151)s)), 0))
++    WHERE and(equals(events.team_id, 420), equals(events.event, %(hogql_val_156)s), notEmpty(events.properties.`$session_id`), greaterOrEquals(events.timestamp, toDateTime(%(hogql_val_157)s, %(hogql_val_158)s)), lessOrEquals(events.timestamp, toDateTime(%(hogql_val_159)s, %(hogql_val_160)s)), notEquals(events.properties.`$session_id`, acquisition.first_session_id), greater(toDate(events__session.`$start_timestamp`), toDate(toTimeZone(acquisition.first_session_at, %(hogql_val_161)s))), lessOrEquals(events__session.`$start_timestamp`, plus(toTimeZone(acquisition.first_session_at, %(hogql_val_162)s), toIntervalDay(30))), ifNull(lessOrEquals(events__session.`$start_timestamp`, parseDateTime64BestEffortOrNull(acquisition.observation_end, 6, %(hogql_val_163)s)), 0))
+     GROUP BY actor_id, previous), people AS MATERIALIZED (
+-    SELECT acquisition.actor_id AS actor_id, acquisition.breakdown_value AS breakdown_value, acquisition.previous AS previous, toTimeZone(acquisition.first_session_at, %(hogql_val_152)s) AS first_session_at, parseDateTime64BestEffortOrNull(acquisition.observation_end, 6, %(hogql_val_153)s) AS observation_end, toTimeZone(activity.returned_at, %(hogql_val_154)s) AS returned_at
++    SELECT acquisition.actor_id AS actor_id, acquisition.breakdown_value AS breakdown_value, acquisition.previous AS previous, toTimeZone(acquisition.first_session_at, %(hogql_val_164)s) AS first_session_at, parseDateTime64BestEffortOrNull(acquisition.observation_end, 6, %(hogql_val_165)s) AS observation_end, toTimeZone(activity.returned_at, %(hogql_val_166)s) AS returned_at
+     FROM acquisition LEFT JOIN activity ON and(equals(acquisition.actor_id, activity.actor_id), equals(acquisition.previous, activity.previous)))
+   SELECT if(globalIn(people.breakdown_value, (
+         SELECT people.breakdown_value AS breakdown_value

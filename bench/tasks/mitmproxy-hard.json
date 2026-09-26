@@ -1,0 +1,140 @@
+{
+ "repo": "mitmproxy",
+ "tasks": [
+  {
+   "id": "PR8175-hard",
+   "area": "addons-dump",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen a CONNECT request fails (for example the upstream host is unreachable), mitmdump prints nothing for it, unlike other failed flows. Make failed CONNECT requests show up in mitmdump's output.",
+   "goldFiles": [
+    "mitmproxy/addons/dumper.py"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8175.diff",
+   "goldTitle": "fix: display failed CONNECT requests in mitmdump"
+  },
+  {
+   "id": "PR8176-hard",
+   "area": "startup-options",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nCustom options defined by a script addon passed with -s are missing when mitmproxy dumps its options at startup, because the scripts have not been loaded yet at that point. Make pending scripts load before the options are dumped.",
+   "goldFiles": [
+    "mitmproxy/tools/main.py"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8176.diff",
+   "goldTitle": "load pending scripts before dumping options"
+  },
+  {
+   "id": "PR8196-hard",
+   "area": "utils",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nThe heuristic that decides whether some content is 'mostly binary' raises IndexError for very short inputs because of how it looks at the tail of the data. Fix it without changing the result for normal inputs.",
+   "goldFiles": [
+    "mitmproxy/utils/strutils.py"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8196.diff",
+   "goldTitle": "fix: avoid IndexError in is_mostly_bin for short tails"
+  },
+  {
+   "id": "PR8214-hard",
+   "area": "certs",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nLeaf certificates generated for intercepted hosts should carry an AuthorityKeyIdentifier extension copied from the issuing CA's SubjectKeyIdentifier, as required by RFC 5280 \u00a74.2.1.2.",
+   "goldFiles": [
+    "mitmproxy/certs.py"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8214.diff",
+   "goldTitle": "Copy issuer's SubjectKeyIdentifier into leaf AuthorityKeyIdentifier (RFC 5280 \u00a74.2.1.2)"
+  },
+  {
+   "id": "PR8224-hard",
+   "area": "web-app",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nRename the XSRF cookie used by the web interface to `_mitmproxy_xsrf` (wherever it is set and wherever it is read) so that Firefox sessions broken by the old cookie recover.",
+   "goldFiles": [
+    "mitmproxy/tools/web/app.py",
+    "web/src/js/utils.ts"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8224.diff",
+   "goldTitle": "Rename mitmweb XSRF cookie to `_mitmproxy_xsrf` to recover broken Firefox sessions"
+  },
+  {
+   "id": "PR8288-hard",
+   "area": "web-frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nIn the web interface, when the 'reverse view order' option is enabled, live flows that arrive while you watch are inserted at the wrong end of the list. Honor the reversed order for live flows too.",
+   "goldFiles": [
+    "web/src/js/ducks/flows/_utils.ts",
+    "web/src/js/ducks/flows/index.ts"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8288.diff",
+   "goldTitle": "mitmweb: honor view_order_reversed for live flows"
+  },
+  {
+   "id": "PR8294-hard",
+   "area": "net-tls",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nOn some OpenSSL builds, setting the minimum/maximum protocol version while probing which TLS versions are supported raises SSL.Error. Handle that error and treat the version as unsupported instead of crashing.",
+   "goldFiles": [
+    "mitmproxy/net/tls.py"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8294.diff",
+   "goldTitle": "net.tls: handle SSL.Error from set_min/max_proto_version in is_supported_version"
+  },
+  {
+   "id": "PR8295-hard",
+   "area": "next-layer",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen host ignoring is enabled, QUIC connections to ignored hosts stall instead of being passed through. Fix it so QUIC flows are not stalled.",
+   "goldFiles": [
+    "mitmproxy/addons/next_layer.py"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8295.diff",
+   "goldTitle": "Don't stall QUIC flows when host ignoring is enabled"
+  },
+  {
+   "id": "PR8326-hard",
+   "area": "proxy-http",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nIn upstream proxy mode, when the target is an IPv6 literal, the authority in the CONNECT request sent to the upstream proxy is not bracketed. Bracket IPv6 literals in that authority.",
+   "goldFiles": [
+    "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8326.diff",
+   "goldTitle": "proxy: bracket IPv6 literals in upstream CONNECT authority"
+  },
+  {
+   "id": "PR8333-hard",
+   "area": "web-app",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nIn the web interface, editing a response's reason phrase appears to work but the modified reason phrase is never actually sent. Make edits to the reason phrase take effect end to end.",
+   "goldFiles": [
+    "mitmproxy/tools/web/app.py",
+    "web/src/js/components/FlowView/HttpMessages.tsx"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8333.diff",
+   "goldTitle": "Fix for modified reason phrase not being sent"
+  },
+  {
+   "id": "PR8397-hard",
+   "area": "encoding",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nUse the standard library's `compression.zstd` module (PEP 784) for zstd content encoding when it is available, falling back to the third-party zstandard package otherwise.",
+   "goldFiles": [
+    "mitmproxy/net/encoding.py"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8397.diff",
+   "goldTitle": "Use compression.zstd (PEP-784)"
+  },
+  {
+   "id": "PR8408-hard",
+   "area": "addons-browser",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nAdd Microsoft Edge support to the addon that launches an isolated, proxy-configured browser, alongside the existing Chrome and Firefox support.",
+   "goldFiles": [
+    "mitmproxy/addons/browser.py"
+   ],
+   "goldDiff": "bench/data/mitmproxy-diffs/8408.diff",
+   "goldTitle": "feat: add Microsoft Edge support to the Browser addon"
+  }
+ ]
+}

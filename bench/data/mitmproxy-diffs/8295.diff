@@ -1,0 +1,120 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 871f8a3c78..d04c0e9405 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -21,6 +21,8 @@
+   ([#8232](https://github.com/mitmproxy/mitmproxy/pull/8232), @ariel42)
+ - mitmweb: Fix correctly displaying multiple blank lines in content renderer.
+   ([#8248](https://github.com/mitmproxy/mitmproxy/pull/8248), @vincentdehaan)
++- Fix QUIC connections never starting if --allow-hosts or --ignore-hosts is set.
++  ([#8295](https://github.com/mitmproxy/mitmproxy/pull/8295), @tbodt)
+ 
+ ## 12 May 2026: mitmproxy 12.2.3
+ 
+diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py
+index 9f612d998c..6149578089 100644
+--- a/mitmproxy/addons/next_layer.py
++++ b/mitmproxy/addons/next_layer.py
+@@ -320,19 +320,21 @@ def _get_client_hello(context: Context, data_client: bytes) -> ClientHello | Non
+                         return ch
+                 return None
+             case "udp":
+-                try:
+-                    return quic_parse_client_hello_from_datagrams([data_client])
+-                except ValueError:
+-                    pass
+-
+-                try:
+-                    ch = dtls_parse_client_hello(data_client)
+-                except ValueError:
+-                    pass
+-                else:
+-                    if ch is None:
+-                        raise NeedsMoreData
+-                    return ch
++                if _starts_like_quic(data_client, context.server.address):
++                    try:
++                        return quic_parse_client_hello_from_datagrams([data_client])
++                    except ValueError:
++                        pass
++
++                if starts_like_dtls_record(data_client):
++                    try:
++                        ch = dtls_parse_client_hello(data_client)
++                    except ValueError:
++                        pass
++                    else:
++                        if ch is None:
++                            raise NeedsMoreData
++                        return ch
+                 return None
+             case _:  # pragma: no cover
+                 assert_never(context.client.transport_protocol)
+diff --git a/test/mitmproxy/addons/test_next_layer.py b/test/mitmproxy/addons/test_next_layer.py
+index 4694e35292..a9a7b7fd04 100644
+--- a/test/mitmproxy/addons/test_next_layer.py
++++ b/test/mitmproxy/addons/test_next_layer.py
+@@ -32,6 +32,7 @@
+ from mitmproxy.proxy.layers.http import HTTPMode
+ from mitmproxy.proxy.layers.http import HttpStream
+ from mitmproxy.proxy.layers.tls import HTTP1_ALPNS
++from mitmproxy.proxy.layers.tls import HTTP3_ALPN
+ from mitmproxy.proxy.mode_specs import ProxyMode
+ from mitmproxy.test import taddons
+ 
+@@ -99,6 +100,8 @@
+     "5a5ff925db617d187ec65a7f00d77651968e74c1a9ddc3c7fab57e8df821b07e103264244a3a03d17984e29933"
+ )
+ 
++invalid_quic = bytes.fromhex("806b3343cf00000000000000000000000000")
++
+ dns_query = bytes.fromhex("002a01000001000000000000076578616d706c6503636f6d0000010001")
+ 
+ # Custom protocol with just base64-encoded messages
+@@ -278,6 +281,15 @@ class TestNextLayer:
+                 True,
+                 id="quic sni",
+             ),
++            pytest.param(
++                ["example.com"],
++                [],
++                "udp",
++                "192.0.2.1",
++                invalid_quic,
++                False,
++                id="invalid quic",
++            ),
+             # allow
+             pytest.param(
+                 [],
+@@ -754,6 +766,16 @@ class TConf:
+         ),
+         id=f"transparent proxy: http via ALPN",
+     ),
++    pytest.param(
++        http3 := TConf(
++            before=[modes.TransparentProxy, ServerQuicLayer, ClientQuicLayer],
++            after=[modes.TransparentProxy, ServerQuicLayer, ClientQuicLayer, HttpLayer],
++            server_address=("192.0.2.1", 443),
++            transport_protocol="udp",
++            alpn=HTTP3_ALPN,
++        ),
++        id=f"transparent proxy: http3 via ALPN",
++    ),
+     pytest.param(
+         TConf(
+             before=[modes.TransparentProxy],
+@@ -849,6 +871,13 @@ class TConf:
+         ),
+         id=f"transparent proxy: non-http quic",
+     ),
++    pytest.param(
++        dataclasses.replace(
++            http3,
++            ignore_hosts=["$^"],
++        ),
++        id="transparent proxy: http3 not ignored but with ignoring active",
++    ),
+ ]
+ 
+ 

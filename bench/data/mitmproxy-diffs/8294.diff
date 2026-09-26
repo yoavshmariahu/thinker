@@ -1,0 +1,39 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 221ab93631..bf5b4ee2ab 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -21,6 +21,10 @@
+ - Remove the unused `msgpack` dependency. The msgpack contentview is
+   implemented in Rust and shipped with `mitmproxy_rs` since mitmproxy 12.
+   ([#8319](https://github.com/mitmproxy/mitmproxy/pull/8319), @lukehsiao)
++- Fix a crash on OpenSSL builds that reject a TLS protocol version at
++  context-setup time (e.g. SSLv3): `is_supported_version` now treats such a
++  version as unsupported instead of raising an unhandled `SSL.Error`.
++  ([#8294](https://github.com/mitmproxy/mitmproxy/pull/8294), @gaurav0107)
+ - mitmweb: Fix the flow table header of the sorted column keeping a light background and hiding its sort chevron under the dark theme.
+   ([#8336](https://github.com/mitmproxy/mitmproxy/pull/8336), @sleeyax)
+ - mitmweb: Add a dark theme, selectable via the new `web_theme` option (`system`, `dark`, or `light`).
+diff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py
+index 14c0553ca2..18e742b336 100644
+--- a/mitmproxy/net/tls.py
++++ b/mitmproxy/net/tls.py
+@@ -77,12 +77,15 @@ def is_supported_version(version: Version):
+     # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.
+     # https://github.com/pyca/cryptography/issues/9523
+     client_ctx.set_cipher_list(b"@SECLEVEL=0:ALL")
+-    client_ctx.set_min_proto_version(version.value)
+-    client_ctx.set_max_proto_version(version.value)
+-    client_conn = SSL.Connection(client_ctx)
+-    client_conn.set_connect_state()
+ 
+     try:
++        # On OpenSSL builds that have dropped a protocol version entirely
++        # (e.g. SSLv3 after POODLE/CVE-2014-3566), set_min/max_proto_version
++        # raises SSL.Error already at context-setup time, before recv().
++        client_ctx.set_min_proto_version(version.value)
++        client_ctx.set_max_proto_version(version.value)
++        client_conn = SSL.Connection(client_ctx)
++        client_conn.set_connect_state()
+         client_conn.recv(4096)
+     except SSL.WantReadError:
+         return True

@@ -1,0 +1,371 @@
+diff --git a/posthog/temporal/ai/slack_app/activities/billing.py b/posthog/temporal/ai/slack_app/activities/billing.py
+index 363c27507942..cd466cd19259 100644
+--- a/posthog/temporal/ai/slack_app/activities/billing.py
++++ b/posthog/temporal/ai/slack_app/activities/billing.py
+@@ -1,9 +1,12 @@
++import structlog
+ from temporalio import activity
+ 
+ from posthog.temporal.ai.slack_app.helpers import block_if_team_over_quota
+ from posthog.temporal.ai.slack_app.types import PostHogCodeSlackMentionWorkflowInputs
+ from posthog.temporal.common.utils import close_db_connections
+ 
++logger = structlog.get_logger(__name__)
++
+ 
+ @activity.defn
+ @close_db_connections
+@@ -15,7 +18,7 @@ def enforce_posthog_code_billing_quota_activity(
+ ) -> bool:
+     """Block the workflow when the team has exhausted its AI-credits quota.
+ 
+-    Returns True when a denial was posted and the workflow should stop. Called
++    Returns True when the team is over quota and the workflow must stop. Called
+     as the first activity in the mention workflow so the bot never proceeds to
+     Slack roundtrips, thread fetches, or billable LLM calls (the classifier,
+     notably) for an over-quota team.
+@@ -28,11 +31,27 @@ def enforce_posthog_code_billing_quota_activity(
+         integration_id=inputs.slack_team_id,
+     )
+     slack = SlackIntegration(integration)
+-    return block_if_team_over_quota(
++    # An untagged reply has asked PostHog for nothing yet, because both the classifier
++    # and the confirmation prompt run after this gate. The denial goes into the thread
++    # where everyone in the channel reads it, so an over-quota team would collect one
++    # under every reply people write in a thread PostHog owns, chitchat included. Stop
++    # the run without the message and keep the message for a mention or a confirmed
++    # reply, which are the turns that asked for work.
++    unrequested = inputs.untagged_followup and not inputs.untagged_followup_confirmed
++    blocked = block_if_team_over_quota(
+         integration=integration,
+         slack=slack,
+         channel=channel,
+         thread_ts=thread_ts,
+         slack_user_id=slack_user_id,
+         context="task_create",
++        post_denial=not unrequested,
+     )
++    if blocked and unrequested:
++        logger.info(
++            "slack_app_untagged_followup_dropped_over_quota",
++            team_id=integration.team_id,
++            channel=channel,
++            thread_ts=thread_ts,
++        )
++    return blocked
+diff --git a/posthog/temporal/ai/slack_app/helpers.py b/posthog/temporal/ai/slack_app/helpers.py
+index cc347ce33f3a..47dd0ac6a61e 100644
+--- a/posthog/temporal/ai/slack_app/helpers.py
++++ b/posthog/temporal/ai/slack_app/helpers.py
+@@ -18,14 +18,16 @@ def block_if_team_over_quota(
+     thread_ts: str,
+     slack_user_id: str,
+     context: str,
++    post_denial: bool = True,
+ ) -> bool:
+     """Refuse a Slack-bot turn when the team is over its AI credits quota.
+ 
+     The user-facing denial message lives in ``products.slack_app.backend.api``
+     next to the Slack-posting helpers, while the quota lookup lives here so
+     activity modules can compose both without each one re-importing
+-    ``ee.billing``. Returns True when the team was blocked and a denial was
+-    posted.
++    ``ee.billing``. Returns True when the team was blocked. Pass
++    ``post_denial=False`` for a turn nobody asked PostHog for, so the refusal
++    stops the run without a message in the thread.
+     """
+     from products.slack_app.backend.api import post_quota_exhausted_denial
+ 
+@@ -38,14 +40,15 @@ def block_if_team_over_quota(
+     ):
+         return False
+ 
+-    post_quota_exhausted_denial(
+-        integration=integration,
+-        slack=slack,
+-        channel=channel,
+-        thread_ts=thread_ts,
+-        slack_user_id=slack_user_id,
+-        context=context,
+-    )
++    if post_denial:
++        post_quota_exhausted_denial(
++            integration=integration,
++            slack=slack,
++            channel=channel,
++            thread_ts=thread_ts,
++            slack_user_id=slack_user_id,
++            context=context,
++        )
+     return True
+ 
+ 
+diff --git a/posthog/temporal/tests/ai/slack_app/activities/test_billing_quota_activity.py b/posthog/temporal/tests/ai/slack_app/activities/test_billing_quota_activity.py
+new file mode 100644
+index 000000000000..4d5061ad40a8
+--- /dev/null
++++ b/posthog/temporal/tests/ai/slack_app/activities/test_billing_quota_activity.py
+@@ -0,0 +1,63 @@
++from unittest.mock import patch
++
++from django.test import TestCase
++
++from parameterized import parameterized
++
++from posthog.models.integration import Integration
++from posthog.models.organization import Organization
++from posthog.models.team.team import Team
++from posthog.models.user import User
++from posthog.temporal.ai.slack_app import (
++    PostHogCodeSlackMentionWorkflowInputs,
++    enforce_posthog_code_billing_quota_activity,
++)
++
++
++class TestEnforcePostHogCodeBillingQuotaActivity(TestCase):
++    def setUp(self):
++        self.org = Organization.objects.create(name="TestOrg")
++        self.team = Team.objects.create(organization=self.org, name="TestTeam")
++        self.user = User.objects.create(email="alice@example.com")
++        self.integration = Integration.objects.create(team=self.team, kind="slack", integration_id="T_SLACK", config={})
++
++    def _call(self, *, untagged_followup: bool, confirmed: bool) -> bool:
++        inputs = PostHogCodeSlackMentionWorkflowInputs(
++            event={},
++            integration_id=self.integration.id,
++            slack_team_id="T_SLACK",
++            user_id=self.user.id,
++            untagged_followup=untagged_followup,
++            untagged_followup_confirmed=confirmed,
++        )
++        return enforce_posthog_code_billing_quota_activity(inputs, "C001", "1000.0000", "U_BOB")
++
++    @parameterized.expand(
++        [
++            # The gate runs before the classifier and before the prompt, so an untagged
++            # reply has asked for nothing yet. A denial under it would land in the thread
++            # for every reply people write, chitchat included.
++            ("unconfirmed_reply", True, False, False),
++            ("confirmed_reply", True, True, True),
++            ("mention", False, False, True),
++        ]
++    )
++    def test_denial_reaches_the_thread_only_for_a_turn_that_asked_for_work(
++        self, _name, untagged_followup, confirmed, expect_denial
++    ):
++        with (
++            patch("ee.billing.quota_limiting.is_team_limited", return_value=True),
++            patch("products.slack_app.backend.api.post_quota_exhausted_denial") as mock_denial,
++        ):
++            blocked = self._call(untagged_followup=untagged_followup, confirmed=confirmed)
++
++        assert blocked is True
++        assert mock_denial.called is expect_denial
++
++    def test_a_team_within_quota_is_not_blocked(self):
++        with (
++            patch("ee.billing.quota_limiting.is_team_limited", return_value=False),
++            patch("products.slack_app.backend.api.post_quota_exhausted_denial") as mock_denial,
++        ):
++            assert self._call(untagged_followup=True, confirmed=False) is False
++        mock_denial.assert_not_called()
+diff --git a/products/slack_app/backend/api.py b/products/slack_app/backend/api.py
+index 546189aa69d5..913ab669ac75 100644
+--- a/products/slack_app/backend/api.py
++++ b/products/slack_app/backend/api.py
+@@ -3210,6 +3210,8 @@ def _post_untagged_followup_prompt(
+         timeout=PICKER_TOKEN_MAX_AGE_SECONDS,
+     )
+ 
++    home_tab_url = app_home_url(integration)
++    home_tab_label = f"<{home_tab_url}|PostHog app Home tab>" if home_tab_url else "PostHog app Home tab"
+     blocks: list[dict[str, Any]] = [
+         {
+             "type": "section",
+@@ -3218,7 +3220,7 @@ def _post_untagged_followup_prompt(
+                 "type": "mrkdwn",
+                 "text": (
+                     "I'm working in this thread. Want me to pick up your message? "
+-                    "Only you can see this — nothing happens unless you say so."
++                    "Only you can see this, and I won't reply or start work unless you say so."
+                 ),
+             },
+         },
+@@ -3241,6 +3243,12 @@ def _post_untagged_followup_prompt(
+                 },
+             ],
+         },
++        {
++            "type": "context",
++            "elements": [
++                {"type": "mrkdwn", "text": f"In the {home_tab_label} you can set what happens in threads you start."}
++            ],
++        },
+     ]
+ 
+     try:
+diff --git a/products/slack_app/backend/models.py b/products/slack_app/backend/models.py
+index 66ee1651713e..76e65468bd07 100644
+--- a/products/slack_app/backend/models.py
++++ b/products/slack_app/backend/models.py
+@@ -116,8 +116,8 @@ class UntaggedFollowupMode(models.TextChoices):
+     """What PostHog does with an untagged reply in a thread it already owns.
+ 
+     Read from the thread creator's settings row, so it governs everyone
+-    replying in a thread that user started. ``NEVER`` is what an unset row
+-    resolves to, making untagged follow-ups opt-in per person.
++    replying in a thread that user started. An unset row resolves to ``ASK``,
++    so the person who replied can choose whether to send their message.
+     """
+ 
+     AUTO = "auto", "Always pick it up"
+@@ -162,8 +162,7 @@ class SlackSettings(UUIDModel):
+         null=True,
+         help_text="Per-integration permission mode for Slack-started agent runs, keyed by integration id.",
+     )
+-    # NULL means the user has never picked, which resolves to ``NEVER``: nothing
+-    # is picked up in their threads until they turn it on from the Home tab.
++    # NULL means the user has never picked, which resolves to ``ASK``.
+     untagged_followup_mode = models.CharField(
+         max_length=16,
+         null=True,
+diff --git a/products/slack_app/backend/services/slack_app_home.py b/products/slack_app/backend/services/slack_app_home.py
+index 7670d8e5522e..d47fa07fa726 100644
+--- a/products/slack_app/backend/services/slack_app_home.py
++++ b/products/slack_app/backend/services/slack_app_home.py
+@@ -445,8 +445,7 @@ def render_home_view(
+     blocks.extend(_personal_section_blocks(run_defaults))
+ 
+     # Section 4 — thread follow-ups: whether replies other people leave in the
+-    # threads you started reach PostHog on their own. Absent when the workspace
+-    # hasn't been opted into untagged follow-ups at all.
++    # threads you started reach PostHog on their own.
+     if untagged_followup_mode is not None:
+         blocks.append({"type": "divider"})
+         blocks.extend(_untagged_followups_section_blocks(untagged_followup_mode))
+@@ -875,8 +874,7 @@ def _personal_section_blocks(run_defaults: RunDefaultsState) -> list[dict]:
+ def _untagged_followups_section_blocks(mode: UntaggedFollowupMode) -> list[dict]:
+     """Picker for how untagged replies land in the threads you started.
+ 
+-    Off until picked, so the card doubles as the only way to turn the behaviour
+-    on for your own threads. The choice covers every reply in those threads,
++    Ask until picked. The choice covers every reply in those threads,
+     including the ones you write yourself.
+     """
+     options = [
+diff --git a/products/slack_app/backend/services/slack_settings.py b/products/slack_app/backend/services/slack_settings.py
+index 7f780ce8828e..9c399dd59c00 100644
+--- a/products/slack_app/backend/services/slack_settings.py
++++ b/products/slack_app/backend/services/slack_settings.py
+@@ -36,9 +36,9 @@ def resolve_untagged_followup_mode(integration: Integration, slack_user_id: str
+     """Resolve how untagged replies in a thread this Slack user started are treated.
+ 
+     Read from the thread creator's row, so one person's choice governs every
+-    reply in the threads they started. An absent row, an empty column, or a
+-    value we no longer recognise all resolve to `NEVER`: the feature is opt-in,
+-    so nothing is picked up until someone asks for it.
++    reply in the threads they started. An absent row or empty column resolves
++    to `ASK`, so the replier chooses whether to send the message. An unknown
++    value resolves to `NEVER`.
+     """
+ 
+     if not slack_user_id:
+@@ -55,6 +55,8 @@ def resolve_untagged_followup_mode(integration: Integration, slack_user_id: str
+         .first()
+     )
+     stored = row["untagged_followup_mode"] if row else None
++    if stored is None:
++        return UntaggedFollowupMode.ASK
+     if stored in UntaggedFollowupMode.values:
+         return UntaggedFollowupMode(stored)
+     return UntaggedFollowupMode.NEVER
+diff --git a/products/slack_app/backend/tests/services/test_slack_settings.py b/products/slack_app/backend/tests/services/test_slack_settings.py
+index 5a9e8a4c124e..ad5e7cfb9f27 100644
+--- a/products/slack_app/backend/tests/services/test_slack_settings.py
++++ b/products/slack_app/backend/tests/services/test_slack_settings.py
+@@ -28,13 +28,11 @@ class TestResolveUntaggedFollowupMode:
+             (UntaggedFollowupMode.ASK, UntaggedFollowupMode.ASK),
+             (UntaggedFollowupMode.NEVER, UntaggedFollowupMode.NEVER),
+             (UntaggedFollowupMode.AUTO, UntaggedFollowupMode.AUTO),
+-            # A row that predates the column, and a value retired since it was written,
+-            # both leave the feature off rather than opting someone in by accident.
+-            (None, UntaggedFollowupMode.NEVER),
++            (None, UntaggedFollowupMode.ASK),
+             ("retired-value", UntaggedFollowupMode.NEVER),
+         ],
+     )
+-    def test_stored_value_governs_with_never_as_the_floor(self, slack_setup, stored, expected):
++    def test_stored_value_governs_with_ask_as_the_default(self, slack_setup, stored, expected):
+         integration = slack_setup
+         SlackSettings.objects.create(
+             slack_workspace_id="T_WS",
+@@ -43,16 +41,14 @@ def test_stored_value_governs_with_never_as_the_floor(self, slack_setup, stored,
+         )
+         assert resolve_untagged_followup_mode(integration, "U001") == expected
+ 
+-    def test_no_row_at_all_resolves_never(self, slack_setup):
+-        assert resolve_untagged_followup_mode(slack_setup, "U001") == UntaggedFollowupMode.NEVER
++    def test_no_row_at_all_resolves_ask(self, slack_setup):
++        assert resolve_untagged_followup_mode(slack_setup, "U001") == UntaggedFollowupMode.ASK
+ 
+     def test_another_users_choice_does_not_leak(self, slack_setup):
+-        # The mode is read per thread creator, so one person opting in must not
+-        # turn follow-ups on in everybody else's threads.
+         integration = slack_setup
+         SlackSettings.objects.create(
+             slack_workspace_id="T_WS",
+             slack_user_id="U002",
+             untagged_followup_mode=UntaggedFollowupMode.AUTO,
+         )
+-        assert resolve_untagged_followup_mode(integration, "U001") == UntaggedFollowupMode.NEVER
++        assert resolve_untagged_followup_mode(integration, "U001") == UntaggedFollowupMode.ASK
+diff --git a/products/slack_app/backend/tests/test_posthog_code_event_handler.py b/products/slack_app/backend/tests/test_posthog_code_event_handler.py
+index 3045795b6acc..3287fec7377b 100644
+--- a/products/slack_app/backend/tests/test_posthog_code_event_handler.py
++++ b/products/slack_app/backend/tests/test_posthog_code_event_handler.py
+@@ -1643,6 +1643,31 @@ def test_signal_with_starts_conversation_workflow(
+         mock_slack.return_value.client.reactions_add.assert_not_called()
+ 
+ 
++class TestUntaggedFollowupPrompt(SimpleTestCase):
++    @parameterized.expand(
++        [
++            ("linked", {"app_id": "A123"}, "<slack://app?team=T12345&id=A123&tab=home|PostHog app Home tab>"),
++            ("no_app_id", {}, "PostHog app Home tab"),
++        ]
++    )
++    def test_prompt_shows_where_to_change_the_setting(self, _name, config, expected_label):
++        from products.slack_app.backend.api import _post_untagged_followup_prompt
++
++        slack = MagicMock()
++        integration = MagicMock(id=1, integration_id="T12345", config=config)
++        event = {"channel": "C001", "user": "U123", "thread_ts": "1234.5678"}
++
++        assert _post_untagged_followup_prompt(slack, integration, event, is_ext_shared_channel=False)
++
++        blocks = slack.client.chat_postEphemeral.call_args.kwargs["blocks"]
++        assert blocks[-1] == {
++            "type": "context",
++            "elements": [
++                {"type": "mrkdwn", "text": f"In the {expected_label} you can set what happens in threads you start."}
++            ],
++        }
++
++
+ class TestPostSlackUserEphemeral(SimpleTestCase):
+     def test_request_timeout_applies_to_the_client_that_makes_the_call(self):
+         # ``SlackIntegration.client`` builds a fresh WebClient on every access, so setting
+diff --git a/products/slack_app/backend/tests/test_thread_message_routing.py b/products/slack_app/backend/tests/test_thread_message_routing.py
+index 88eaa2594496..fa235af77121 100644
+--- a/products/slack_app/backend/tests/test_thread_message_routing.py
++++ b/products/slack_app/backend/tests/test_thread_message_routing.py
+@@ -456,8 +456,7 @@ def _set_creator_mode(self, mode: str | None) -> None:
+             ("never_other_person", UntaggedFollowupMode.NEVER, "U_BOB", False),
+             # `never` means nobody, the creator included.
+             ("never_creator", UntaggedFollowupMode.NEVER, "U_ALICE", False),
+-            # Never picked: the feature is opt-in, so an untouched row behaves as `never`.
+-            ("unset", None, "U_BOB", False),
++            ("unset", None, "U_BOB", True),
+         ]
+     )
+     @override_settings(DEBUG=False, CLOUD_DEPLOYMENT="US")

@@ -1,0 +1,86 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c7ca9e06ee..ee54adbe38 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,6 +7,8 @@
+ 
+ ## Unreleased: mitmproxy next
+ 
++- Fix addon options not being included in `--options` output.
++  ([#4423](https://github.com/mitmproxy/mitmproxy/issues/4423))
+ - Fix `view.settings.setval.toggle` command to correctly use the provided key parameter instead of hardcoded "key" string.
+   ([#8167](https://github.com/mitmproxy/mitmproxy/pull/8167), @nameearly)
+ - Fix 400 Bad Request for HTTP requests with uppercase scheme (e.g. `HTTP://`).
+diff --git a/mitmproxy/tools/main.py b/mitmproxy/tools/main.py
+index 5190820a0c..eabdc6c8be 100644
+--- a/mitmproxy/tools/main.py
++++ b/mitmproxy/tools/main.py
+@@ -91,6 +91,11 @@ async def main() -> T:
+             process_options(parser, opts, args)
+ 
+             if args.options:
++                # Load custom addons so that their options are registered
++                if sl := master.addons.get("scriptloader"):
++                    for s in sl.addons:
++                        if s.ns is None:
++                            s.loadscript()
+                 optmanager.dump_defaults(opts, sys.stdout)
+                 sys.exit(0)
+             if args.commands:
+diff --git a/test/mitmproxy/data/addonscripts/custom_option.py b/test/mitmproxy/data/addonscripts/custom_option.py
+new file mode 100644
+index 0000000000..f4e37f1116
+--- /dev/null
++++ b/test/mitmproxy/data/addonscripts/custom_option.py
+@@ -0,0 +1,14 @@
++from typing import Optional
++
++
++class CustomOptionAddon:
++    def load(self, loader):
++        loader.add_option(
++            name="custom_addon_option",
++            typespec=Optional[int],
++            default=None,
++            help="A custom option registered by an addon.",
++        )
++
++
++addons = [CustomOptionAddon()]
+diff --git a/test/mitmproxy/tools/test_main.py b/test/mitmproxy/tools/test_main.py
+index 2085db7619..134fba1367 100644
+--- a/test/mitmproxy/tools/test_main.py
++++ b/test/mitmproxy/tools/test_main.py
+@@ -1,3 +1,5 @@
++import pytest
++
+ from mitmproxy.tools import main
+ 
+ shutdown_script = "mitmproxy/data/addonscripts/shutdown.py"
+@@ -28,3 +30,26 @@ def test_mitmdump(tdata):
+             "0",
+         ]
+     )
++
++
++def test_options_includes_addon_options(tdata, capsys):
++    """--options should include options registered by addon scripts."""
++    with pytest.raises(SystemExit):
++        main.mitmdump(
++            [
++                "-s",
++                tdata.path("mitmproxy/data/addonscripts/custom_option.py"),
++                "--options",
++            ]
++        )
++    output = capsys.readouterr().out
++    assert "custom_addon_option" in output
++
++
++def test_options_without_scripts(capsys):
++    """--options without any scripts should still work and list built-in options."""
++    with pytest.raises(SystemExit):
++        main.mitmdump(["--options"])
++    output = capsys.readouterr().out
++    assert "listen_port" in output
++    assert "custom_addon_option" not in output

@@ -1,0 +1,401 @@
+diff --git a/frontend/src/initKea.ts b/frontend/src/initKea.ts
+index e776e3a56514..7457f50d43e7 100644
+--- a/frontend/src/initKea.ts
++++ b/frontend/src/initKea.ts
+@@ -102,6 +102,13 @@ const DUPLICATE_KEY_SELF_HANDLED = new Set(['saveFeatureFlag'])
+ 
+ const HAS_DEPENDENTS_SELF_HANDLED = new Set(['deleteDataWarehouseSavedQuery'])
+ 
++/*
++Write actions whose own logic marks the form row when the backend rejects an existing member
++(code `existing_member`). It is a validation result, so it is not reported as an exception.
++Owned by inviteLogic's inviteTeamMembersFailure listener.
++*/
++const EXISTING_MEMBER_SELF_HANDLED = new Set(['inviteTeamMembers'])
++
+ interface InitKeaProps {
+     state?: Record<string, any>
+     routerHistory?: any
+@@ -238,7 +245,9 @@ export function initKea({
+                 }
+                 const isSelfHandledNotFound =
+                     NOT_FOUND_SELF_HANDLED.has(String(actionKey)) && isUnavailableEndpointError(error)
+-                if (shouldReportApiFailure(error) && !isSelfHandledNotFound) {
++                const isSelfHandledExistingMember =
++                    error?.code === 'existing_member' && EXISTING_MEMBER_SELF_HANDLED.has(String(actionKey))
++                if (shouldReportApiFailure(error) && !isSelfHandledNotFound && !isSelfHandledExistingMember) {
+                     posthog.captureException(error)
+                 }
+             },
+diff --git a/frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx b/frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx
+index d42942f31d11..29531c999010 100644
+--- a/frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx
++++ b/frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx
+@@ -17,7 +17,13 @@ export const OnboardingInviteTeammates: OnboardingStepComponentType = () => {
+     const { preflight } = useValues(preflightLogic)
+     const { productKey } = useValues(onboardingLogic)
+     const { inviteTeamMembers } = useActions(inviteLogic)
+-    const { invitesToSend, canSubmit: canSubmitInvites, inviteContainsOwnerLevel, invites } = useValues(inviteLogic)
++    const {
++        invitesToSend,
++        canSubmit: canSubmitInvites,
++        inviteContainsOwnerLevel,
++        invites,
++        hasExistingMemberInvite,
++    } = useValues(inviteLogic)
+ 
+     const hasFilledEmail = invitesToSend.some(({ target_email }) => !!target_email)
+     const hasInvalidEmail = invitesToSend.some(({ isValid }) => !isValid)
+@@ -31,11 +37,13 @@ export const OnboardingInviteTeammates: OnboardingStepComponentType = () => {
+         emailServiceAvailable && hasFilledEmail
+             ? hasInvalidEmail
+                 ? 'Please enter a valid email address'
+-                : inviteContainsOwnerLevel && !canSubmitInvites
+-                  ? 'Type "send invites" to confirm owner-level invites'
+-                  : !canSubmitInvites
+-                    ? 'Please fill out all fields'
+-                    : undefined
++                : hasExistingMemberInvite
++                  ? 'Remove people who are already members'
++                  : inviteContainsOwnerLevel && !canSubmitInvites
++                    ? 'Type "send invites" to confirm owner-level invites'
++                    : !canSubmitInvites
++                      ? 'Please fill out all fields'
++                      : undefined
+             : undefined
+ 
+     const titlePrefix = (): string => {
+diff --git a/frontend/src/scenes/settings/organization/InviteModal.tsx b/frontend/src/scenes/settings/organization/InviteModal.tsx
+index 03ec70289ca3..d4dfe661d2ec 100644
+--- a/frontend/src/scenes/settings/organization/InviteModal.tsx
++++ b/frontend/src/scenes/settings/organization/InviteModal.tsx
+@@ -8,6 +8,7 @@ import { LemonInput, LemonSelect, LemonTextArea, Link, Tooltip } from '@posthog/
+ import { useRestrictedArea } from 'lib/components/RestrictedArea'
+ import { RestrictionScope } from 'lib/components/RestrictedArea'
+ import { OrganizationMembershipLevel } from 'lib/constants'
++import { useOnMountEffect } from 'lib/hooks/useOnMountEffect'
+ import { LemonBanner } from 'lib/lemon-ui/LemonBanner'
+ import { LemonButton } from 'lib/lemon-ui/LemonButton'
+ import { LemonModal } from 'lib/lemon-ui/LemonModal'
+@@ -196,8 +197,9 @@ export function InviteRow({
+     const { hasAvailableFeature } = useValues(userLogic)
+     const hasAccessControl = hasAvailableFeature(AvailableFeature.ACCESS_CONTROL)
+ 
+-    const { invitesToSend } = useValues(inviteLogic)
++    const { invitesToSend, existingMemberInviteRows } = useValues(inviteLogic)
+     const { updateInviteAtIndex, inviteTeamMembers, deleteInviteAtIndex } = useActions(inviteLogic)
++    const isExistingMember = existingMemberInviteRows[index]
+     const { preflight } = useValues(preflightLogic)
+     const { currentOrganization } = useValues(organizationLogic)
+ 
+@@ -219,7 +221,7 @@ export function InviteRow({
+                     <LemonInput
+                         placeholder={`${name.toLowerCase()}@posthog.com`}
+                         type="email"
+-                        className={`error-on-blur${!invitesToSend[index]?.isValid ? ' errored' : ''}`}
++                        className={`error-on-blur${!invitesToSend[index]?.isValid || isExistingMember ? ' errored' : ''}`}
+                         onChange={(v) => {
+                             let isValid = true
+                             if (v && !isEmail(v)) {
+@@ -236,6 +238,11 @@ export function InviteRow({
+                         autoFocus={index === 0}
+                         data-attr="invite-email-input"
+                     />
++                    {isExistingMember && (
++                        <div className="text-danger text-xs mt-1" data-attr="invite-email-existing-member">
++                            This person is already a member of this organization
++                        </div>
++                    )}
+                 </div>
+                 {preflight?.email_service_available && (
+                     <div className="flex-1 flex gap-1 items-center justify-between">
+@@ -273,7 +280,7 @@ export function InviteRow({
+                         <LemonButton
+                             type="primary"
+                             className="flex-1"
+-                            disabled={!isEmail(invitesToSend[index].target_email)}
++                            disabled={!isEmail(invitesToSend[index].target_email) || isExistingMember}
+                             onClick={() => {
+                                 inviteTeamMembers()
+                             }}
+@@ -303,7 +310,9 @@ export function InviteTeamMatesComponent({
+ }): JSX.Element {
+     const { preflight } = useValues(preflightLogic)
+     const { invitesToSend, inviteContainsOwnerLevel } = useValues(inviteLogic)
+-    const { appendInviteRow, updateMessage, setIsInviteConfirmed } = useActions(inviteLogic)
++    const { appendInviteRow, updateMessage, setIsInviteConfirmed, ensureAllMembersLoaded } = useActions(inviteLogic)
++
++    useOnMountEffect(ensureAllMembersLoaded)
+ 
+     const areInvitesCreatable = invitesToSend.length + 1 < MAX_INVITES_AT_ONCE
+     const areInvitesDeletable = invitesToSend.length > 1
+@@ -393,7 +402,7 @@ export function InviteModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
+     const { user } = useValues(userLogic)
+     const { currentOrganization } = useValues(organizationLogic)
+     const { preflight } = useValues(preflightLogic)
+-    const { invitesToSend, canSubmit, isInviting } = useValues(inviteLogic)
++    const { invitesToSend, canSubmit, isInviting, hasExistingMemberInvite } = useValues(inviteLogic)
+     const { resetInviteRows, inviteTeamMembers } = useActions(inviteLogic)
+ 
+     const validInvitesCount = invitesToSend.filter((invite) => invite.isValid && invite.target_email).length
+@@ -462,9 +471,11 @@ export function InviteModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
+                                     disabledReason={
+                                         userCannotInvite
+                                             ? "You don't have permissions to invite others."
+-                                            : !canSubmit
+-                                              ? 'Please fill out all fields'
+-                                              : undefined
++                                            : hasExistingMemberInvite
++                                              ? 'Remove people who are already members'
++                                              : !canSubmit
++                                                ? 'Please fill out all fields'
++                                                : undefined
+                                     }
+                                     data-attr="invite-team-member-submit"
+                                 >
+diff --git a/frontend/src/scenes/settings/organization/inviteLogic.test.ts b/frontend/src/scenes/settings/organization/inviteLogic.test.ts
+new file mode 100644
+index 000000000000..7954b04af5ce
+--- /dev/null
++++ b/frontend/src/scenes/settings/organization/inviteLogic.test.ts
+@@ -0,0 +1,38 @@
++import { MOCK_DEFAULT_ORGANIZATION } from 'lib/api.mock'
++
++import { expectLogic } from 'kea-test-utils'
++
++import { membersLogic } from 'scenes/organization/membersLogic'
++
++import { initKeaTests } from '~/test/init'
++
++import { inviteLogic } from './inviteLogic'
++
++describe('inviteLogic', () => {
++    let logic: ReturnType<typeof inviteLogic.build>
++
++    beforeEach(async () => {
++        initKeaTests(true, undefined, undefined, MOCK_DEFAULT_ORGANIZATION)
++        logic = inviteLogic()
++        logic.mount()
++        logic.actions.ensureAllMembersLoaded()
++        await expectLogic(membersLogic).toDispatchActions(['loadAllMembersSuccess'])
++    })
++
++    afterEach(() => {
++        logic.unmount()
++    })
++
++    it.each([
++        ['the current user', 'john.doe@posthog.com', true],
++        ['another member, in any letter case', ' Rose.Dawson@PostHog.com', true],
++        ['a new person', 'new.person@example.com', false],
++    ])('marks an invite row for %s', async (_description, email, isExistingMember) => {
++        logic.actions.updateInviteAtIndex({ target_email: email, isValid: true }, 0)
++
++        await expectLogic(logic).toMatchValues({
++            existingMemberInviteRows: [isExistingMember],
++            canSubmit: !isExistingMember,
++        })
++    })
++})
+diff --git a/frontend/src/scenes/settings/organization/inviteLogic.ts b/frontend/src/scenes/settings/organization/inviteLogic.ts
+index ace24b36e416..c41d80f500d5 100644
+--- a/frontend/src/scenes/settings/organization/inviteLogic.ts
++++ b/frontend/src/scenes/settings/organization/inviteLogic.ts
+@@ -7,10 +7,12 @@ import { OrganizationMembershipLevel } from 'lib/constants'
+ import { lemonToast } from 'lib/lemon-ui/LemonToast/LemonToast'
+ import { bindModalToUrl } from 'lib/logic/bindModalToUrl'
+ import { pluralize } from 'lib/utils/strings'
++import { membersLogic } from 'scenes/organization/membersLogic'
+ import { organizationLogic } from 'scenes/organizationLogic'
+ import { preflightLogic } from 'scenes/PreflightCheck/preflightLogic'
++import { userLogic } from 'scenes/userLogic'
+ 
+-import { AccessControlLevel, OrganizationInviteType } from '~/types'
++import { AccessControlLevel, OrganizationInviteType, OrganizationMemberType, UserType } from '~/types'
+ 
+ import type { PreflightStatus } from '../../../types'
+ 
+@@ -34,9 +36,14 @@ const EMPTY_INVITE: InviteRowState = {
+ 
+ // Generated by kea-typegen. Update if you're an agent, ignore if you're human.
+ export interface inviteLogicValues {
++    members: OrganizationMemberType[] | null // membersLogic
+     preflight: PreflightStatus | null // preflightLogic
++    user: UserType | null // userLogic
+     availableProjects: any[]
+     canSubmit: boolean
++    existingMemberEmails: Set<string>
++    existingMemberInviteRows: boolean[]
++    hasExistingMemberInvite: boolean
+     inviteContainsOwnerLevel: boolean
+     invitedTeamMembersInternal: OrganizationInviteType[]
+     invitedTeamMembersInternalLoading: boolean
+@@ -58,6 +65,12 @@ export interface inviteLogicValues {
+ 
+ // Generated by kea-typegen. Update if you're an agent, ignore if you're human.
+ export interface inviteLogicActions {
++    ensureAllMembersLoaded: () => {
++        value: true
++    } // membersLogic
++    loadAllMembers: () => {
++        value: true
++    } // membersLogic
+     addProjectAccess: (
+         inviteIndex: number,
+         projectId: number,
+@@ -172,10 +185,14 @@ export interface inviteLogicActions {
+ export interface inviteLogicMeta {
+     __keaTypeGenInternalSelectorTypes: {
+         inviteContainsOwnerLevel: (invitesToSend: InviteRowState[]) => boolean
++        existingMemberEmails: (user: UserType | null, members: OrganizationMemberType[] | null) => Set<string>
++        existingMemberInviteRows: (invitesToSend: InviteRowState[], existingMemberEmails: Set<string>) => boolean[]
++        hasExistingMemberInvite: (existingMemberInviteRows: boolean[]) => boolean
+         canSubmit: (
+             invitesToSend: InviteRowState[],
+             inviteContainsOwnerLevel: boolean,
+-            isInviteConfirmed: boolean
++            isInviteConfirmed: boolean,
++            hasExistingMemberInvite: boolean
+         ) => boolean
+         availableProjects: (currentOrganization: null | import('~/types').OrganizationType) => any[]
+         isInviting: (invitedTeamMembersInternalLoading: boolean) => boolean
+@@ -187,7 +204,8 @@ export type inviteLogicType = MakeLogicType<inviteLogicValues, inviteLogicAction
+ export const inviteLogic = kea<inviteLogicType>([
+     path(['scenes', 'organization', 'Settings', 'inviteLogic']),
+     connect(() => ({
+-        values: [preflightLogic, ['preflight']],
++        values: [preflightLogic, ['preflight'], userLogic, ['user'], membersLogic, ['members']],
++        actions: [membersLogic, ['ensureAllMembersLoaded', 'loadAllMembers']],
+     })),
+     actions({
+         showInviteModal: true,
+@@ -354,13 +372,41 @@ export const inviteLogic = kea<inviteLogicType>([
+                 return invites.filter(({ level }) => level === OrganizationMembershipLevel.Owner).length > 0
+             },
+         ],
++        existingMemberEmails: [
++            (selectors) => [selectors.user, selectors.members],
++            (user: UserType | null, members: OrganizationMemberType[] | null): Set<string> => {
++                // The user's own email counts before the member list loads.
++                const emails = [user?.email, ...(members ?? []).map((member) => member.user?.email)]
++                return new Set(emails.filter((email): email is string => !!email).map((email) => email.toLowerCase()))
++            },
++        ],
++        existingMemberInviteRows: [
++            (selectors) => [selectors.invitesToSend, selectors.existingMemberEmails],
++            (invites: InviteRowState[], existingMemberEmails: Set<string>): boolean[] =>
++                invites.map(({ target_email }) => existingMemberEmails.has(target_email.trim().toLowerCase())),
++        ],
++        hasExistingMemberInvite: [
++            (selectors) => [selectors.existingMemberInviteRows],
++            (existingMemberInviteRows: boolean[]): boolean => existingMemberInviteRows.some(Boolean),
++        ],
+         canSubmit: [
+-            (selectors) => [selectors.invitesToSend, selectors.inviteContainsOwnerLevel, selectors.isInviteConfirmed],
+-            (invites: InviteRowState[], inviteContainsOwnerLevel: boolean, isInviteConfirmed: boolean) => {
++            (selectors) => [
++                selectors.invitesToSend,
++                selectors.inviteContainsOwnerLevel,
++                selectors.isInviteConfirmed,
++                selectors.hasExistingMemberInvite,
++            ],
++            (
++                invites: InviteRowState[],
++                inviteContainsOwnerLevel: boolean,
++                isInviteConfirmed: boolean,
++                hasExistingMemberInvite: boolean
++            ) => {
+                 const ownerLevelConfirmed = inviteContainsOwnerLevel ? isInviteConfirmed : true
+                 return (
+                     invites.filter(({ target_email }) => !!target_email).length > 0 &&
+                     invites.filter(({ isValid }) => !isValid).length == 0 &&
++                    !hasExistingMemberInvite &&
+                     ownerLevelConfirmed
+                 )
+             },
+@@ -392,6 +438,12 @@ export const inviteLogic = kea<inviteLogicType>([
+                 actions.hideInviteModal()
+             }
+         },
++        inviteTeamMembersFailure: ({ errorObject }) => {
++            // Someone joined after the member list loaded. Reload it so the row shows the error.
++            if (errorObject?.code === 'existing_member') {
++                actions.loadAllMembers()
++            }
++        },
+         addProjectAccess: ({ projectId }) => {
+             // Load access control for the project when it's added
+             actions.loadProjectAccessControl(projectId)
+diff --git a/posthog/api/organization_invite.py b/posthog/api/organization_invite.py
+index 58f971e0d95b..9e205aa01215 100644
+--- a/posthog/api/organization_invite.py
++++ b/posthog/api/organization_invite.py
+@@ -197,6 +197,14 @@ def validate_target_email(self, email: str):
+         email = EmailNormalizer.normalize(email)
+         reject_plus_addressed_email(email)
+         validate_invite_target_email_domain(self.context["get_organization"](), email)
++        # Validation runs for every bulk row before any row saves, so one existing member
++        # rejects the batch without a partial set of sent invites.
++        if OrganizationMembership.objects.filter(
++            organization_id=self.context["organization_id"], user__email__iexact=email
++        ).exists():
++            raise exceptions.ValidationError(
++                "A user with this email address already belongs to the organization.", code="existing_member"
++            )
+         return email
+ 
+     def validate_first_name(self, value: str) -> str:
+@@ -307,12 +315,6 @@ def validate_private_project_access(
+         return private_project_access
+ 
+     def create(self, validated_data: dict[str, Any], *args: Any, **kwargs: Any) -> OrganizationInvite:
+-        if OrganizationMembership.objects.filter(
+-            organization_id=self.context["organization_id"],
+-            user__email__iexact=validated_data["target_email"],
+-        ).exists():
+-            raise exceptions.ValidationError("A user with this email address already belongs to the organization.")
+-
+         combine_pending_invites = validated_data.pop("combine_pending_invites", False)
+         send_email = validated_data.pop("send_email", True)
+ 
+diff --git a/posthog/api/test/test_organization_invites.py b/posthog/api/test/test_organization_invites.py
+index 8e8d77f2481a..3db20ba0e09f 100644
+--- a/posthog/api/test/test_organization_invites.py
++++ b/posthog/api/test/test_organization_invites.py
+@@ -1418,8 +1418,17 @@ def test_add_organization_invite_case_insensitive_duplicate_prevention(self):
+         self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+         self.assertEqual(OrganizationInvite.objects.count(), 1)
+ 
+-    def test_add_organization_invite_case_insensitive_existing_member_check(self):
+-        """Test that invites are rejected if a user with case variation already exists as member"""
++    @parameterized.expand(
++        [
++            ("single", "/api/organizations/@current/invites/", {"target_email": "existing.user@example.com"}),
++            (
++                "bulk_does_not_save_earlier_rows",
++                "/api/organizations/@current/invites/bulk/",
++                [{"target_email": "new.user@example.com"}, {"target_email": "existing.user@example.com"}],
++            ),
++        ]
++    )
++    def test_add_organization_invite_case_insensitive_existing_member_check(self, _name, url, payload):
+         existing_user = User.objects.create_user(
+             email="Existing.User@Example.COM", password="password123", first_name="Existing"
+         )
+@@ -1428,13 +1437,11 @@ def test_add_organization_invite_case_insensitive_existing_member_check(self):
+             organization=self.organization, user=existing_user, level=OrganizationMembership.Level.MEMBER
+         )
+ 
+-        invite_email = "existing.user@example.com"
+-        response = self.client.post(
+-            "/api/organizations/@current/invites/",
+-            {"target_email": invite_email},
+-        )
++        response = self.client.post(url, payload, format="json")
+ 
+         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
++        self.assertEqual(response.json()["code"], "existing_member")
++        self.assertEqual(response.json()["attr"], "target_email")
+         self.assertEqual(OrganizationInvite.objects.count(), 0)
+ 
+     def test_user_join_with_default_role(self):

@@ -1,0 +1,276 @@
+diff --git a/posthog/temporal/experiments/activities.py b/posthog/temporal/experiments/activities.py
+index fdd32e7e7a62..857511421b94 100644
+--- a/posthog/temporal/experiments/activities.py
++++ b/posthog/temporal/experiments/activities.py
+@@ -28,6 +28,7 @@
+     backfill_experiment_timeseries,
+     build_metric,
+     is_daily_timeseries_metric,
++    merge_saved_metric_breakdowns,
+     sync_timeseries_recalculation,
+ )
+ from products.experiments.backend.hogql_queries.base_query_utils import experiment_window_end
+@@ -372,8 +373,11 @@ def _get_experiment_saved_metrics_for_hour_sync(hour: int) -> list[ExperimentSav
+                 )
+                 continue
+ 
++            # Fingerprint the effective config (with link-metadata breakdowns), the same dict the calc
++            # activity computes and every reader (timeseries sync, chart read) resolves. Hashing the raw
++            # saved query here would file breakdown-configured metrics under a hash no reader looks up.
+             fingerprint = compute_metric_fingerprint(
+-                saved_metric.query,
++                merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata),
+                 experiment.start_date,
+                 get_experiment_stats_method(experiment),
+                 experiment.exposure_criteria,
+@@ -455,11 +459,7 @@ def _calculate_experiment_saved_metric_sync(
+     # a fingerprint (added by the experiment API serializer). The activity must
+     # apply both or the response cache key diverges from /query's.
+     query = {
+-        **saved_metric.query,
+-        "breakdownFilter": {
+-            **(saved_metric.query.get("breakdownFilter") or {}),
+-            "breakdowns": saved_metric_metadata.get("breakdowns") or [],
+-        },
++        **merge_saved_metric_breakdowns(saved_metric.query, saved_metric_metadata),
+         "fingerprint": fingerprint,
+     }
+     metric_type = query.get("metric_type")
+diff --git a/products/experiments/backend/facade/timeseries.py b/products/experiments/backend/facade/timeseries.py
+index fb26359f9101..8254a96b50b2 100644
+--- a/products/experiments/backend/facade/timeseries.py
++++ b/products/experiments/backend/facade/timeseries.py
+@@ -1,6 +1,10 @@
+ """Timeseries capabilities, re-exported for callers outside the experiments product."""
+ 
+-from products.experiments.backend.temporal.metric_resolution import build_metric, is_daily_timeseries_metric
++from products.experiments.backend.temporal.metric_resolution import (
++    build_metric,
++    is_daily_timeseries_metric,
++    merge_saved_metric_breakdowns,
++)
+ from products.experiments.backend.timeseries_backfill import backfill_experiment_timeseries
+ from products.experiments.backend.timeseries_sync import sync_timeseries_recalculation
+ 
+@@ -8,5 +12,6 @@
+     "backfill_experiment_timeseries",
+     "build_metric",
+     "is_daily_timeseries_metric",
++    "merge_saved_metric_breakdowns",
+     "sync_timeseries_recalculation",
+ ]
+diff --git a/products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py b/products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py
+index 700f43bbe1bb..cf8c4ae672d9 100644
+--- a/products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py
++++ b/products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py
+@@ -26,11 +26,10 @@ def _strip_empty_breakdowns(clean_metric: dict) -> None:
+     """Remove a breakdownFilter that carries no breakdowns before hashing.
+ 
+     An empty breakdown list is the same metric config as no breakdowns, but the two dict shapes hash to
+-    different values. Saved-metric resolution (`_merge_saved_metric_breakdowns`) injects
+-    `breakdownFilter.breakdowns = []` when the experiment link has none, while the daily timeseries discovery
+-    and the experiment serializer hash the raw saved query. Without this normalization the same config gets
+-    two fingerprints, so readers on one convention (timeseries sync, cold-start fallback) never find rows
+-    written under the other.
++    different values. Saved-metric resolution (`merge_saved_metric_breakdowns`) injects
++    `breakdownFilter.breakdowns = []` when the experiment link has none, so without this normalization the
++    merged dict would hash away from an identical config stored without a breakdownFilter, and rows written
++    under one shape would be invisible to readers hashing the other.
+     """
+     breakdown_filter = clean_metric.get("breakdownFilter")
+     if breakdown_filter is None:
+diff --git a/products/experiments/backend/presentation/serializers.py b/products/experiments/backend/presentation/serializers.py
+index 74828c8dedd4..329d5c444263 100644
+--- a/products/experiments/backend/presentation/serializers.py
++++ b/products/experiments/backend/presentation/serializers.py
+@@ -43,6 +43,7 @@
+ from products.ai_observability.backend.models.llm_prompt import LLMPrompt
+ from products.experiments.backend.experiment_service import ExperimentService
+ from products.experiments.backend.facade.contracts import CreateExperimentInput
++from products.experiments.backend.facade.timeseries import merge_saved_metric_breakdowns
+ from products.experiments.backend.hogql_queries.experiment_metric_fingerprint import compute_metric_fingerprint
+ from products.experiments.backend.hogql_queries.exposure_query_logic import resolve_default_exposure_event
+ from products.experiments.backend.hogql_queries.utils import get_experiment_stats_method
+@@ -612,10 +613,12 @@ def to_representation(self, instance):
+                 if saved_metric.get("query"):
+                     apply_metric_date_range(saved_metric["query"], new_date_range)
+ 
+-                    # Add fingerprint to saved metric returned from API
+-                    # so that frontend knows what timeseries records to query
++                    # Add fingerprint to saved metric returned from API so that the frontend knows what
++                    # timeseries records to query. Computed on the effective config (with link-metadata
++                    # breakdowns), the same dict the daily discovery fingerprints, so the chart read finds
++                    # the rows the daily workflow wrote.
+                     saved_metric["query"]["fingerprint"] = compute_metric_fingerprint(
+-                        saved_metric["query"],
++                        merge_saved_metric_breakdowns(saved_metric["query"], saved_metric.get("metadata")),
+                         instance.start_date,
+                         get_experiment_stats_method(instance),
+                         instance.exposure_criteria,
+diff --git a/products/experiments/backend/temporal/metric_resolution.py b/products/experiments/backend/temporal/metric_resolution.py
+index 533ca3a21009..8a00af9c3b93 100644
+--- a/products/experiments/backend/temporal/metric_resolution.py
++++ b/products/experiments/backend/temporal/metric_resolution.py
+@@ -35,10 +35,13 @@ def is_daily_timeseries_metric(metric: dict[str, Any] | None) -> bool:
+     return bool(metric and metric.get("metric_type") in DAILY_TIMESERIES_METRIC_TYPES)
+ 
+ 
+-def _merge_saved_metric_breakdowns(saved_query: dict[str, Any], metadata: dict[str, Any] | None) -> dict[str, Any]:
+-    """Merge per-experiment breakdowns from the M2M link metadata into the saved query, mirroring the
+-    daily-warming activity. Without this, callers would compute the unbroken-down version of a saved
+-    metric the experiment has configured with breakdowns."""
++def merge_saved_metric_breakdowns(saved_query: dict[str, Any], metadata: dict[str, Any] | None) -> dict[str, Any]:
++    """Merge per-experiment breakdowns from the M2M link metadata into the saved query.
++
++    This is the effective config of a saved metric on an experiment, and the only dict that may feed
++    `compute_metric_fingerprint` for one. A caller that fingerprints the raw saved query files or looks up
++    results under a different hash than every other caller, so breakdown-configured metrics silently miss
++    each other's rows (daily points invisible to the timeseries sync and to the chart read)."""
+     metadata = metadata or {}
+     return {
+         **saved_query,
+@@ -77,7 +80,7 @@ def iter_metric_dicts(experiment: Experiment) -> list[dict[str, Any]]:
+     for link in links:
+         saved_query = link.saved_metric.query
+         if is_scheduled_metric(saved_query):
+-            dicts.append(_merge_saved_metric_breakdowns(saved_query, link.metadata))
++            dicts.append(merge_saved_metric_breakdowns(saved_query, link.metadata))
+     return dicts
+ 
+ 
+diff --git a/products/experiments/backend/temporal/test_discovery_fingerprints.py b/products/experiments/backend/temporal/test_discovery_fingerprints.py
+index 6721330b291c..88c834c4cc0e 100644
+--- a/products/experiments/backend/temporal/test_discovery_fingerprints.py
++++ b/products/experiments/backend/temporal/test_discovery_fingerprints.py
+@@ -4,6 +4,8 @@
+ import pytest
+ from unittest.mock import patch
+ 
++from parameterized import parameterized
++
+ from posthog.models import Organization, Team, User
+ from posthog.temporal.experiments.activities import (
+     _get_experiment_regular_metrics_for_hour_sync,
+@@ -77,10 +79,19 @@ def test_saved_metric_fingerprint_includes_excluded_variants(self) -> None:
+         fingerprints = [r.fingerprint for r in results if r.experiment_id == experiment.id]
+         assert fingerprints == [self._expected_fingerprint(experiment, saved_metric.query)]
+ 
+-    def test_saved_metric_discovery_fingerprint_matches_recalculation_resolution(self) -> None:
+-        """Discovery hashes the raw saved query; the recalculation side (timeseries sync, cold-start
+-        fallback) hashes the merged dict from find_metric_dict, which injects an empty breakdown list.
+-        If the two diverge, the sync never finds the daily points and daily results are never published."""
++    @parameterized.expand(
++        [
++            ("no_breakdowns", {}),
++            ("with_breakdowns", {"type": "primary", "breakdowns": [{"type": "event", "property": "$os_name"}]}),
++        ]
++    )
++    def test_saved_metric_discovery_fingerprint_matches_recalculation_resolution(
++        self, _name: str, metadata: dict
++    ) -> None:
++        """The readers (timeseries sync, cold-start fallback, chart read) resolve a saved metric through
++        find_metric_dict, which merges the link-metadata breakdowns. Discovery must fingerprint the same
++        merged dict, or the daily points are filed under a hash no reader looks up and daily results are
++        never published for that metric."""
+         experiment, user = self._create_experiment(metrics=[])
+         saved_metric = ExperimentSavedMetric.objects.create(
+             team=experiment.team,
+@@ -88,7 +99,7 @@ def test_saved_metric_discovery_fingerprint_matches_recalculation_resolution(sel
+             query=METRIC,
+             created_by=user,
+         )
+-        ExperimentToSavedMetric.objects.create(experiment=experiment, saved_metric=saved_metric, metadata={})
++        ExperimentToSavedMetric.objects.create(experiment=experiment, saved_metric=saved_metric, metadata=metadata)
+ 
+         with patch("posthog.temporal.experiments.activities.close_old_connections"):
+             results = _raw_saved_sync(hour=2)
+diff --git a/products/experiments/backend/test/test_presentation_api.py b/products/experiments/backend/test/test_presentation_api.py
+index 64511627ef18..0dd485cf4876 100644
+--- a/products/experiments/backend/test/test_presentation_api.py
++++ b/products/experiments/backend/test/test_presentation_api.py
+@@ -42,10 +42,12 @@
+ from products.cohorts.backend.models.cohort import Cohort
+ from products.event_definitions.backend.models.event_definition import EventDefinition
+ from products.experiments.backend.experiment_service import ExperimentService
++from products.experiments.backend.hogql_queries.experiment_metric_fingerprint import compute_metric_fingerprint
+ from products.experiments.backend.hogql_queries.exposure_query_logic import (
+     EXPERIMENT_EXPOSURE_EVENT_CUTOFF,
+     EXPERIMENT_EXPOSURE_EVENT_FLAG,
+ )
++from products.experiments.backend.hogql_queries.utils import get_experiment_stats_method
+ from products.experiments.backend.models.experiment import (
+     EXPOSURE_FROZEN_GROUP_KEY,
+     EXPOSURE_FROZEN_GROUP_MARKER,
+@@ -60,6 +62,7 @@
+ from products.experiments.backend.presentation.serializers import ExperimentSerializer
+ from products.experiments.backend.presentation.views import LIST_DEFERRED_FIELDS, EnterpriseExperimentsViewSet
+ from products.experiments.backend.setup_context import EXPERIMENT_SETUP_CONTEXT_FLAG
++from products.experiments.backend.temporal.metric_resolution import merge_saved_metric_breakdowns
+ from products.feature_flags.backend.models.evaluation_context import EvaluationContext, FeatureFlagEvaluationContext
+ from products.feature_flags.backend.models.feature_flag import FeatureFlag
+ 
+@@ -1240,6 +1243,64 @@ def test_transferring_holdout_to_another_group(self):
+             {"id": holdout_2_id, "exclusion_percentage": 5},
+         )
+ 
++    def test_saved_metric_fingerprint_is_stamped_from_the_merged_query(self):
++        """The stamped fingerprint tells the frontend which timeseries rows to read. It must be computed on
++        the saved query merged with the link-metadata breakdowns, the same dict the daily workflow files its
++        rows under, or the chart reads an empty series for a breakdown-configured saved metric."""
++        saved_metric_response = self.client.post(
++            f"/api/projects/{self.team.id}/experiment_saved_metrics/",
++            {
++                "name": "Breakdown saved metric",
++                "query": {
++                    "kind": "ExperimentMetric",
++                    "metric_type": "mean",
++                    "source": {"kind": "EventsNode", "event": "$pageview"},
++                },
++            },
++        )
++        metadata = {"type": "primary", "breakdowns": [{"type": "event", "property": "$os_name"}]}
++        experiment_response = self.client.post(
++            f"/api/projects/{self.team.id}/experiments/",
++            {
++                "name": "Breakdown fingerprint",
++                "feature_flag_key": "breakdown-fingerprint",
++                "start_date": "2021-12-01T10:23",
++                "parameters": None,
++                "filters": {"events": [{"order": 0, "id": "$pageview"}], "properties": []},
++                "saved_metrics_ids": [{"id": saved_metric_response.json()["id"], "metadata": metadata}],
++            },
++        )
++        self.assertEqual(experiment_response.status_code, status.HTTP_201_CREATED)
++
++        detail = self.client.get(f"/api/projects/{self.team.id}/experiments/{experiment_response.json()['id']}/")
++        stamped = detail.json()["saved_metrics"][0]["query"]["fingerprint"]
++
++        experiment = Experiment.objects.get(pk=experiment_response.json()["id"])
++        saved_query = experiment.saved_metrics.first().query  # type: ignore[union-attr]
++        fingerprint_args = (
++            experiment.start_date,
++            get_experiment_stats_method(experiment),
++            experiment.exposure_criteria,
++        )
++        expected = compute_metric_fingerprint(
++            merge_saved_metric_breakdowns(saved_query, metadata),
++            *fingerprint_args,
++            only_count_matured_users=experiment.only_count_matured_users,
++            excluded_variants=experiment.excluded_variants or [],
++        )
++        self.assertEqual(stamped, expected)
++        # The raw query hashes differently when real breakdowns exist, so a stamp computed on it would
++        # point the chart at rows that do not exist.
++        self.assertNotEqual(
++            stamped,
++            compute_metric_fingerprint(
++                saved_query,
++                *fingerprint_args,
++                only_count_matured_users=experiment.only_count_matured_users,
++                excluded_variants=experiment.excluded_variants or [],
++            ),
++        )
++
+     def test_saved_metrics(self):
+         response = self.client.post(
+             f"/api/projects/{self.team.id}/experiment_saved_metrics/",

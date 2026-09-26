@@ -1,0 +1,412 @@
+diff --git a/products/tasks/backend/facade/api.py b/products/tasks/backend/facade/api.py
+index cea532f47a73..46ff3140af80 100644
+--- a/products/tasks/backend/facade/api.py
++++ b/products/tasks/backend/facade/api.py
+@@ -3203,6 +3203,7 @@ def update_task_run(
+                     "error_message": truncate_error_message(run.error_message),
+                     "error_type": "agent_reported",
+                     "duration_seconds": run._duration_seconds(),
++                    **run.failure_sandbox_backend_properties(),
+                 },
+             )
+         observe_wizard_run_unbound(run)
+diff --git a/products/tasks/backend/models.py b/products/tasks/backend/models.py
+index 3f40159ee7f7..e9723cc04dc2 100644
+--- a/products/tasks/backend/models.py
++++ b/products/tasks/backend/models.py
+@@ -3082,6 +3082,17 @@ def capture_event(
+             return False
+         return True
+ 
++    def failure_sandbox_backend_properties(self) -> dict[str, str]:
++        state = self.state if isinstance(self.state, dict) else {}
++        if not state.get("sandbox_id"):
++            return {}
++        backend = state.get("sandbox_backend")
++        if backend in ("modal", "hogland"):
++            return {"sandbox_backend": backend}
++        if backend is None:
++            return {"sandbox_backend": "modal"}
++        return {}
++
+     def _duration_seconds(self) -> float:
+         if self.completed_at and self.created_at:
+             return round((self.completed_at - self.created_at).total_seconds(), 1)
+@@ -3136,6 +3147,7 @@ def mark_failed(self, error: str, error_type: str | None = None) -> None:
+                 "error_message": truncate_error_message(error),
+                 "error_type": error_type or "unspecified",
+                 "duration_seconds": self._duration_seconds(),
++                **self.failure_sandbox_backend_properties(),
+             },
+         )
+         from products.tasks.backend.push_dispatcher import notify_task_run_failed
+diff --git a/products/tasks/backend/temporal/execute_sandbox/workflow.py b/products/tasks/backend/temporal/execute_sandbox/workflow.py
+index 72cf65d81669..87a786693f5f 100644
+--- a/products/tasks/backend/temporal/execute_sandbox/workflow.py
++++ b/products/tasks/backend/temporal/execute_sandbox/workflow.py
+@@ -1373,6 +1373,7 @@ async def _update_task_run_status(
+                 status=status,
+                 error_message=error_message,
+                 error_type=error_type,
++                sandbox_backend=self._context.sandbox_backend if self._context else None,
+             ),
+             start_to_close_timeout=timedelta(minutes=1),
+             retry_policy=RetryPolicy(maximum_attempts=3),
+diff --git a/products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py b/products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py
+index b026b404206e..c51d7a5aba37 100644
+--- a/products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py
++++ b/products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py
+@@ -87,10 +87,12 @@
+ )
+ 
+ 
+-@dataclass
++@frozen
+ class GetTaskProcessingContextInput:
+     run_id: str
+     create_pr: bool = True
++    resumed_sandbox_id: str | None = None
++    resumed_sandbox_backend: str | None = None
+ 
+ 
+ @dataclass(frozen=False)
+@@ -1564,11 +1566,23 @@ def get_task_processing_context(input: GetTaskProcessingContextInput) -> TaskPro
+         "debug",
+         f"pr_babysit_enabled: {pr_babysit_enabled} for this task run",
+     )
++    sandbox_backend_state = state
++    resumed_backend = input.resumed_sandbox_backend
++    if (
++        resumed_backend not in ("modal", "hogland")
++        and input.resumed_sandbox_id is not None
++        and input.resumed_sandbox_id == state.get("sandbox_id")
++    ):
++        persisted_backend = state.get("sandbox_backend")
++        resumed_backend = persisted_backend if persisted_backend in ("modal", "hogland") else "modal"
++    if resumed_backend in ("modal", "hogland"):
++        sandbox_backend_state = {**state, "sandbox_backend": resumed_backend}
++
+     sandbox_backend = _resolve_sandbox_backend(
+         distinct_id=distinct_id,
+         organization_id=organization_id,
+         run_id=run_id,
+-        state=state,
++        state=sandbox_backend_state,
+         task_runtime=task.runtime,
+         # Only a real user/environment image is a hogland incapability. The org default
+         # image (default_custom_image, applied when the user picked none) is not — hogland
+diff --git a/products/tasks/backend/temporal/process_task/activities/tests/test_get_task_processing_context.py b/products/tasks/backend/temporal/process_task/activities/tests/test_get_task_processing_context.py
+index c3def0c14b9a..92e5e5c0020b 100644
+--- a/products/tasks/backend/temporal/process_task/activities/tests/test_get_task_processing_context.py
++++ b/products/tasks/backend/temporal/process_task/activities/tests/test_get_task_processing_context.py
+@@ -7,6 +7,7 @@
+ from django.test import override_settings
+ 
+ from asgiref.sync import async_to_sync
++from temporalio.testing import ActivityEnvironment
+ 
+ from posthog.models import OrganizationMembership, User
+ from posthog.models.user_integration import UserIntegration
+@@ -20,6 +21,7 @@
+     CONTINUE_AS_NEW_FEATURE_FLAG,
+     DESKTOP_WORKSPACE_WARM_FEATURE_FLAG,
+     DEV_STACK_IMAGE_NAME,
++    HOGLAND_SANDBOX_FEATURE_FLAG,
+     MODAL_VM_SANDBOX_FEATURE_FLAG,
+     PR_BABYSIT_SNAPSHOT_FEATURE_FLAG,
+     RTK_DISABLED_FEATURE_FLAG,
+@@ -59,6 +61,8 @@
+     "products.tasks.backend.temporal.process_task.activities."
+     "get_task_processing_context.posthoganalytics.feature_enabled"
+ )
++
++
+ VM_FLAG_PAYLOAD_TARGET = "products.tasks.backend.constants.posthoganalytics.get_feature_flag_payload"
+ BENJAMIN_PAYLOAD_TARGET = (
+     "products.tasks.backend.temporal.process_task.activities."
+@@ -66,6 +70,12 @@
+ )
+ 
+ 
++async def _run_context(
++    activity_environment: ActivityEnvironment, input_data: GetTaskProcessingContextInput
++) -> TaskProcessingContext:
++    return await activity_environment.run(get_task_processing_context, input_data)
++
++
+ @pytest.mark.parametrize(
+     "state,expected",
+     [
+@@ -260,6 +270,51 @@ def test_get_task_processing_context_success(self, activity_environment, test_ta
+         assert result.create_pr is True
+         assert result.claude_model_access == ("own-subscription" if subscription else "posthog-gateway")
+ 
++    @pytest.mark.django_db(transaction=True)
++    @pytest.mark.parametrize(
++        "resumed_backend,state_backend,flag_enabled,expected_backend",
++        [
++            ("modal", None, True, "modal"),
++            (None, None, True, "modal"),
++            ("hogland", "hogland", False, "hogland"),
++            (None, "hogland", False, "hogland"),
++        ],
++    )
++    def test_continued_run_keeps_attached_sandbox_backend(
++        self,
++        activity_environment: ActivityEnvironment,
++        test_task: Task,
++        resumed_backend: str | None,
++        state_backend: str | None,
++        flag_enabled: bool,
++        expected_backend: str,
++    ) -> None:
++        sandbox_id = "sandbox-example"
++        sandbox_state = {"sandbox_id": sandbox_id}
++        if state_backend is not None:
++            sandbox_state["sandbox_backend"] = state_backend
++        task_run = test_task.create_run(extra_state=sandbox_state)
++
++        with (
++            override_settings(
++                HOGLAND_API_URL="https://hogland.example", HOGLAND_API_TOKEN="hog-tok", CLOUD_DEPLOYMENT="US"
++            ),
++            patch(
++                FEATURE_ENABLED_TARGET,
++                side_effect=lambda key, **kwargs: key == HOGLAND_SANDBOX_FEATURE_FLAG and flag_enabled,
++            ),
++        ):
++            result = async_to_sync(_run_context)(
++                activity_environment,
++                GetTaskProcessingContextInput(
++                    run_id=str(task_run.id),
++                    resumed_sandbox_id=sandbox_id,
++                    resumed_sandbox_backend=resumed_backend,
++                ),
++            )
++
++        assert result.sandbox_backend == expected_backend
++
+     @pytest.mark.django_db(transaction=True)
+     @pytest.mark.parametrize("integration_status", [None, "reauth_required", "connected"])
+     def test_codex_subscription_run_needs_a_connected_chatgpt_account(
+diff --git a/products/tasks/backend/temporal/process_task/activities/tests/test_update_task_run_status.py b/products/tasks/backend/temporal/process_task/activities/tests/test_update_task_run_status.py
+index 6a72a40c16ba..a311b2cd7172 100644
+--- a/products/tasks/backend/temporal/process_task/activities/tests/test_update_task_run_status.py
++++ b/products/tasks/backend/temporal/process_task/activities/tests/test_update_task_run_status.py
+@@ -1,7 +1,7 @@
+ from datetime import timedelta
+ 
+ import pytest
+-from unittest.mock import patch
++from unittest.mock import MagicMock, patch
+ 
+ from asgiref.sync import async_to_sync
+ from temporalio.exceptions import ApplicationError
+@@ -376,18 +376,38 @@ def test_terminal_analytics_carries_termination_reason(
+             (None, "unspecified"),
+         ],
+     )
++    @pytest.mark.parametrize(
++        "sandbox_backend,persisted_state,expected_backend",
++        [
++            (None, {}, None),
++            ("modal", {}, "modal"),
++            ("hogland", {}, "hogland"),
++            (None, {"sandbox_id": "sandbox-example", "sandbox_backend": "hogland"}, "hogland"),
++        ],
++    )
+     @patch("products.tasks.backend.models.posthoganalytics.capture")
+     def test_failed_transition_carries_error_type_and_message_tail(
+-        self, mock_capture, activity_environment, test_task_run, error_type, expected_error_type
+-    ):
++        self,
++        mock_capture: MagicMock,
++        activity_environment: ActivityEnvironment,
++        test_task_run: TaskRun,
++        error_type: str | None,
++        expected_error_type: str,
++        sandbox_backend: str | None,
++        persisted_state: dict[str, str],
++        expected_backend: str | None,
++    ) -> None:
++        test_task_run.state = persisted_state
++        test_task_run.save(update_fields=["state"])
+         error_message = "x" * 1400 + "TypeError: cannot read boot manifest"
+         input_data = UpdateTaskRunStatusInput(
+             run_id=str(test_task_run.id),
+             status=TaskRun.Status.FAILED,
+             error_message=error_message,
+             error_type=error_type,
++            sandbox_backend=sandbox_backend,
+         )
+-        async_to_sync(activity_environment.run)(update_task_run_status, input_data)
++        async_to_sync(_run_update_task_run_status)(activity_environment, input_data)
+ 
+         captured = [c for c in mock_capture.call_args_list if c.kwargs.get("event") == "task_run_failed"]
+         assert len(captured) == 1
+@@ -395,6 +415,7 @@ def test_failed_transition_carries_error_type_and_message_tail(
+         assert props["error_type"] == expected_error_type
+         assert len(props["error_message"]) == 500
+         assert props["error_message"].endswith("TypeError: cannot read boot manifest")
++        assert props.get("sandbox_backend") == expected_backend
+ 
+     @pytest.mark.django_db(transaction=True)
+     @patch("products.tasks.backend.models.posthoganalytics.capture")
+diff --git a/products/tasks/backend/temporal/process_task/activities/update_task_run_status.py b/products/tasks/backend/temporal/process_task/activities/update_task_run_status.py
+index 729843b82fa3..d207483c7d00 100644
+--- a/products/tasks/backend/temporal/process_task/activities/update_task_run_status.py
++++ b/products/tasks/backend/temporal/process_task/activities/update_task_run_status.py
+@@ -54,6 +54,7 @@ class UpdateTaskRunStatusInput:
+     end_of_turn_received: Optional[bool] = None
+     last_agent_heartbeat_at: Optional[str] = None
+     seconds_since_last_agent_heartbeat: Optional[float] = None
++    sandbox_backend: Optional[str] = None
+ 
+ 
+ @activity.defn
+@@ -264,6 +265,11 @@ def _capture_terminal_analytics(task_run: TaskRun, input: UpdateTaskRunStatusInp
+                     "duration_seconds": task_run._duration_seconds(),
+                     "termination_reason": termination_reason,
+                     **relay_state,
++                    **(
++                        {"sandbox_backend": input.sandbox_backend}
++                        if input.sandbox_backend in ("modal", "hogland")
++                        else task_run.failure_sandbox_backend_properties()
++                    ),
+                 },
+             )
+ 
+diff --git a/products/tasks/backend/temporal/process_task/tests/test_workflow.py b/products/tasks/backend/temporal/process_task/tests/test_workflow.py
+index 8b010781c7e5..cd8d523ef4e7 100644
+--- a/products/tasks/backend/temporal/process_task/tests/test_workflow.py
++++ b/products/tasks/backend/temporal/process_task/tests/test_workflow.py
+@@ -3474,6 +3474,7 @@ def test_build_and_restore_round_trips_loop_state(self, monkeypatch) -> None:
+             process_task_workflow_module.workflow, "info", Mock(return_value=Mock(start_time=chain_start))
+         )
+         wf = self._idle_enabled_workflow()
++        wf.context.sandbox_backend = "hogland"
+         wf._sandbox_url = "https://sandbox.example"
+         wf._sandbox_connect_token = "tok"
+         wf._ci_repetitions = 2
+@@ -3505,8 +3506,10 @@ def test_build_and_restore_round_trips_loop_state(self, monkeypatch) -> None:
+         rs = resumed_input.resumed_sandbox
+         assert rs is not None
+         assert (rs.sandbox_id, rs.sandbox_url, rs.connect_token) == ("sb-1", "https://sandbox.example", "tok")
++        assert rs.sandbox_backend == "hogland"
+ 
+         restored = ProcessTaskWorkflow()
++        restored._context = dataclasses.replace(wf.context)
+         restored._restore_resumed_state(rs)
+ 
+         assert restored._ci_repetitions == 2
+diff --git a/products/tasks/backend/temporal/process_task/workflow.py b/products/tasks/backend/temporal/process_task/workflow.py
+index 67ce152d4ffb..d6940d9c0d37 100644
+--- a/products/tasks/backend/temporal/process_task/workflow.py
++++ b/products/tasks/backend/temporal/process_task/workflow.py
+@@ -220,6 +220,7 @@ class ResumedSandboxState:
+     image_source: str | None = None
+     agent_ready_at: str | None = None
+     agent_boot_interaction_telemetry_enabled: bool | None = None
++    sandbox_backend: str | None = None
+ 
+ 
+ @frozen
+@@ -1981,6 +1982,7 @@ def _build_resumed_input(self, input: ProcessTaskInput, sandbox_id: str) -> Proc
+                 image_source=self._image_source,
+                 agent_ready_at=self._agent_ready_at.isoformat() if self._agent_ready_at else None,
+                 agent_boot_interaction_telemetry_enabled=self._agent_boot_interaction_telemetry_enabled,
++                sandbox_backend=self.context.sandbox_backend,
+             ),
+         )
+ 
+@@ -2027,7 +2029,12 @@ def _restore_resumed_state(self, resumed: ResumedSandboxState) -> None:
+     async def _get_task_processing_context(self, input: ProcessTaskInput) -> TaskProcessingContext:
+         context = await workflow.execute_activity(
+             get_task_processing_context,
+-            GetTaskProcessingContextInput(run_id=input.run_id, create_pr=input.create_pr),
++            GetTaskProcessingContextInput(
++                run_id=input.run_id,
++                create_pr=input.create_pr,
++                resumed_sandbox_id=input.resumed_sandbox.sandbox_id if input.resumed_sandbox else None,
++                resumed_sandbox_backend=input.resumed_sandbox.sandbox_backend if input.resumed_sandbox else None,
++            ),
+             start_to_close_timeout=timedelta(minutes=2),
+             retry_policy=RetryPolicy(maximum_attempts=3),
+         )
+@@ -2860,6 +2867,7 @@ async def _update_task_run_status(
+                     self._last_agent_heartbeat_at.isoformat() if self._last_agent_heartbeat_at else None
+                 ),
+                 seconds_since_last_agent_heartbeat=seconds_since_last_agent_heartbeat,
++                sandbox_backend=self._context.sandbox_backend if self._context else None,
+             ),
+             start_to_close_timeout=timedelta(minutes=1),
+             retry_policy=RetryPolicy(maximum_attempts=3),
+diff --git a/products/tasks/backend/tests/test_models.py b/products/tasks/backend/tests/test_models.py
+index e685cf5569da..ef1157105808 100644
+--- a/products/tasks/backend/tests/test_models.py
++++ b/products/tasks/backend/tests/test_models.py
+@@ -1459,11 +1459,19 @@ def test_mark_completed(self):
+         self.assertEqual(run.status, TaskRun.Status.COMPLETED)
+         self.assertIsNotNone(run.completed_at)
+ 
+-    def test_mark_failed(self):
++    @parameterized.expand(
++        [
++            ("without_sandbox", {}, None),
++            ("modal", {"sandbox_id": "sandbox-example"}, "modal"),
++            ("hogland", {"sandbox_id": "sandbox-example", "sandbox_backend": "hogland"}, "hogland"),
++        ]
++    )
++    def test_mark_failed(self, _name: str, state: dict[str, str], expected_backend: str | None) -> None:
+         run = TaskRun.objects.create(
+             task=self.task,
+             team=self.team,
+             status=TaskRun.Status.IN_PROGRESS,
++            state=state,
+         )
+ 
+         error_msg = "x" * 1400 + "Error: the root cause sits at the tail"
+@@ -1478,6 +1486,7 @@ def test_mark_failed(self):
+         self.assertEqual(len(captured), 1)
+         props = captured[0].kwargs["properties"]
+         self.assertEqual(props["error_type"], "stale_queued_cleanup")
++        self.assertEqual(props.get("sandbox_backend"), expected_backend)
+         self.assertEqual(len(props["error_message"]), 500)
+         self.assertTrue(props["error_message"].endswith("Error: the root cause sits at the tail"))
+ 
+diff --git a/products/tasks/backend/tests/test_task_run_metrics.py b/products/tasks/backend/tests/test_task_run_metrics.py
+index 303772ca57d8..edb7a684a50d 100644
+--- a/products/tasks/backend/tests/test_task_run_metrics.py
++++ b/products/tasks/backend/tests/test_task_run_metrics.py
+@@ -343,10 +343,21 @@ def test_task_run_failed_event_increments_failure_counter(self, _name: str, capt
+         assert _sample_value("posthog_tasks_task_run_failed_total", labels) == before + 1
+         assert mock_capture.called is capture_analytics
+ 
+-    def test_patch_terminal_failure_captures_single_typed_task_run_failed(self) -> None:
++    @parameterized.expand(
++        [
++            ("modal", {}),
++            ("hogland", {"sandbox_backend": "hogland"}),
++        ]
++    )
++    def test_patch_terminal_failure_captures_single_typed_task_run_failed(
++        self, sandbox_backend: str, sandbox_state: dict[str, str]
++    ) -> None:
+         from products.tasks.backend.facade import api as facade
+ 
+-        run = self.task.create_run(environment=TaskRun.Environment.CLOUD)
++        run = self.task.create_run(
++            environment=TaskRun.Environment.CLOUD,
++            extra_state={"sandbox_id": "sandbox-example", **sandbox_state},
++        )
+         long_error = "w" * 1400 + "Error: wizard exited with code 7"
+ 
+         with (
+@@ -365,6 +376,7 @@ def test_patch_terminal_failure_captures_single_typed_task_run_failed(self) -> N
+         assert len(captured) == 1
+         props = captured[0].kwargs["properties"]
+         assert props["error_type"] == "agent_reported"
++        assert props["sandbox_backend"] == sandbox_backend
+         assert len(props["error_message"]) == 500
+         assert props["error_message"].endswith("Error: wizard exited with code 7")
+ 

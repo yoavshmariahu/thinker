@@ -1,0 +1,2003 @@
+[
+ {
+  "number": 107245,
+  "title": "fix(signals): let report check lookups work with a report id alone",
+  "mergedAt": "2026-09-26T11:55:57Z",
+  "add": 131,
+  "src": [
+   "products/signals/backend/scout_harness/views.py",
+   "products/signals/frontend/generated/api.schemas.ts",
+   "products/signals/frontend/generated/api.ts",
+   "services/mcp/src/api/generated.ts",
+   "services/mcp/src/generated/signals/api.ts",
+   "services/mcp/src/tools/generated/signals.ts"
+  ],
+  "layers": [
+   "backend",
+   "frontend",
+   "other"
+  ],
+  "bodyLen": 3570,
+  "merge": "3727d83497aa1d544d339664221dca93ae0b9967"
+ },
+ {
+  "number": 106507,
+  "title": "fix(tasks): let a personal API key start a run on a Claude plan",
+  "mergedAt": "2026-09-25T14:16:36Z",
+  "add": 127,
+  "src": [
+   "products/tasks/backend/facade/client_provenance.py",
+   "products/tasks/backend/presentation/serializers.py",
+   "products/tasks/frontend/generated/api.schemas.ts",
+   "products/tasks/frontend/generated/api.zod.ts",
+   "services/mcp/src/api/generated.ts",
+   "services/mcp/src/generated/tasks/api.ts"
+  ],
+  "layers": [
+   "backend",
+   "frontend",
+   "other"
+  ],
+  "bodyLen": 4382,
+  "merge": "6591a88bb7046b0b351c1db7a1f9dc53f1df7fdf"
+ },
+ {
+  "number": 106137,
+  "title": "feat(signals): add the ranking_score report artefact",
+  "mergedAt": "2026-09-24T22:17:58Z",
+  "add": 307,
+  "src": [
+   "products/signals/backend/artefact_schemas.py",
+   "products/signals/backend/models.py",
+   "products/signals/frontend/generated/api.schemas.ts",
+   "products/signals/frontend/generated/api.ts",
+   "services/mcp/src/api/generated.ts",
+   "services/mcp/src/generated/signals/api.ts"
+  ],
+  "layers": [
+   "backend",
+   "frontend",
+   "other"
+  ],
+  "bodyLen": 6612,
+  "merge": "402aa331562ceb0505804e1c3fd2eddfcfba2b17"
+ },
+ {
+  "number": 107078,
+  "title": "feat(signals): expose the served inbox ranking score to staff",
+  "mergedAt": "2026-09-26T10:14:11Z",
+  "add": 233,
+  "src": [
+   "products/signals/backend/models.py",
+   "products/signals/backend/serializers.py",
+   "products/signals/backend/views.py",
+   "products/signals/frontend/generated/api.schemas.ts",
+   "services/mcp/src/api/generated.ts"
+  ],
+  "layers": [
+   "backend",
+   "frontend",
+   "other"
+  ],
+  "bodyLen": 4098,
+  "merge": "d2ecb8d523619f392486c5c2807c1f0215e217f6"
+ },
+ {
+  "number": 105744,
+  "title": "fix(workflows): keep the shared messaging tabs inside the broadcasts page",
+  "mergedAt": "2026-09-24T11:43:31Z",
+  "add": 295,
+  "src": [
+   "frontend/src/products.tsx",
+   "products/workflows/frontend/Broadcasts/BroadcastsScene.tsx",
+   "products/workflows/frontend/MessagingTabActions.tsx",
+   "products/workflows/frontend/WorkflowsScene.tsx",
+   "products/workflows/frontend/messagingTabs.tsx",
+   "products/workflows/manifest.tsx"
+  ],
+  "layers": [
+   "frontend",
+   "other"
+  ],
+  "bodyLen": 3195,
+  "merge": "b81ad60c827fa8074dfb28973bce1ad342ac573f"
+ },
+ {
+  "number": 106936,
+  "title": "fix(invites): flag existing members on the invite row before submit",
+  "mergedAt": "2026-09-25T23:40:02Z",
+  "add": 160,
+  "src": [
+   "frontend/src/initKea.ts",
+   "frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx",
+   "frontend/src/scenes/settings/organization/InviteModal.tsx",
+   "frontend/src/scenes/settings/organization/inviteLogic.ts",
+   "posthog/api/organization_invite.py"
+  ],
+  "layers": [
+   "backend",
+   "frontend"
+  ],
+  "bodyLen": 4296,
+  "merge": "d964d1e66751be37de1e6330b660abfbf6e1ab92"
+ },
+ {
+  "number": 106029,
+  "title": "feat(ml_inference): ask the AI gateway for JevK5 instead of Kev",
+  "mergedAt": "2026-09-24T19:39:17Z",
+  "add": 53,
+  "src": [
+   "products/ml_inference/backend/facade/contracts.py",
+   "products/ml_inference/backend/presentation/serializers.py",
+   "products/ml_inference/frontend/DecisionPlaygroundScene.tsx",
+   "products/ml_inference/frontend/decisionPlaygroundLogic.ts",
+   "products/ml_inference/frontend/generated/api.zod.ts"
+  ],
+  "layers": [
+   "backend",
+   "frontend"
+  ],
+  "bodyLen": 2364,
+  "merge": "2d88bf768f5e607b5ed2017fbc3268e3dda16cb6"
+ },
+ {
+  "number": 107020,
+  "title": "fix(frontend): drop top-level await from stable lazy chunks",
+  "mergedAt": "2026-09-25T23:11:52Z",
+  "add": 157,
+  "src": [
+   "common/esbuilder/cssLoader.mjs",
+   "frontend/bin/stableChunkNames.mjs",
+   "frontend/bin/stableCssPlan.mjs",
+   "frontend/build.mjs"
+  ],
+  "layers": [
+   "frontend",
+   "other"
+  ],
+  "bodyLen": 4674,
+  "merge": "39b69adda4e684d567dd6d99f9cf79de426d8b55"
+ },
+ {
+  "number": 106466,
+  "title": "feat(workflows): let a live broadcast go back to draft and replace its schedule on launch",
+  "mergedAt": "2026-09-25T14:16:08Z",
+  "add": 243,
+  "src": [
+   "products/workflows/backend/api/hog_flow.py",
+   "products/workflows/frontend/Broadcasts/BroadcastSummary.tsx",
+   "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+   "products/workflows/frontend/Broadcasts/broadcastsLogic.ts"
+  ],
+  "layers": [
+   "backend",
+   "frontend"
+  ],
+  "bodyLen": 6629,
+  "merge": "624323555554fa5233b76239195f08a6d1037b0a"
+ },
+ {
+  "number": 106672,
+  "title": "fix(experiments): keep inline and shared metric uuids unique",
+  "mergedAt": "2026-09-26T08:12:56Z",
+  "add": 183,
+  "src": [
+   "products/experiments/backend/experiment_saved_metric_service.py",
+   "products/experiments/backend/experiment_service.py",
+   "products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2"
+  ],
+  "layers": [
+   "backend",
+   "other"
+  ],
+  "bodyLen": 5018,
+  "merge": "7bed05dd05795990f924d08907e5364ec676d6b1"
+ },
+ {
+  "number": 106564,
+  "title": "feat(frontend): let a feature flag roll out the stable chunk build",
+  "mergedAt": "2026-09-25T12:35:53Z",
+  "add": 136,
+  "src": [
+   "common/esbuilder/utils.mjs",
+   "posthog/stable_chunks.py",
+   "posthog/utils.py"
+  ],
+  "layers": [
+   "backend",
+   "other"
+  ],
+  "bodyLen": 3997,
+  "merge": "1fc927d58041671f41238b1367cbd1ea7f66ce34"
+ },
+ {
+  "number": 106517,
+  "title": "fix(ml_inference): accept a fractional latency from the decision model",
+  "mergedAt": "2026-09-25T11:11:59Z",
+  "add": 7,
+  "src": [
+   "products/ml_inference/backend/facade/contracts.py",
+   "products/ml_inference/backend/presentation/serializers.py",
+   "products/ml_inference/frontend/DecisionPlaygroundScene.tsx"
+  ],
+  "layers": [
+   "backend",
+   "frontend"
+  ],
+  "bodyLen": 2108,
+  "merge": "453d866aa2e6878c158795665b9696247d4bb0bf"
+ },
+ {
+  "number": 106636,
+  "title": "fix(replay-vision): type the replay_scanners id as a uuid and document the join",
+  "mergedAt": "2026-09-25T14:16:27Z",
+  "add": 15,
+  "src": [
+   "posthog/hogql/database/schema/system.py",
+   "products/posthog_ai/skills/querying-posthog-data/references/models-replay-vision.md.j2"
+  ],
+  "layers": [
+   "backend",
+   "other"
+  ],
+  "bodyLen": 1686,
+  "merge": "b230a3b02463c698cc36f776ff5ea8388668b6e5"
+ },
+ {
+  "number": 106613,
+  "title": "fix(ml_inference): serve the decisions playground at /ml-inference/playground",
+  "mergedAt": "2026-09-25T13:43:22Z",
+  "add": 57,
+  "src": [
+   "frontend/src/products.tsx",
+   "products/ml_inference/manifest.tsx"
+  ],
+  "layers": [
+   "frontend",
+   "other"
+  ],
+  "bodyLen": 1459,
+  "merge": "0120a9906cd59f74ad4b5e93681fd1fe2d22ebea"
+ },
+ {
+  "number": 106278,
+  "title": "feat(ml_inference): point the decision client at hogference's jev server",
+  "mergedAt": "2026-09-24T23:42:19Z",
+  "add": 5,
+  "src": [
+   "products/ml_inference/backend/facade/contracts.py",
+   "products/ml_inference/frontend/generated/api.zod.ts"
+  ],
+  "layers": [
+   "backend",
+   "frontend"
+  ],
+  "bodyLen": 1938,
+  "merge": "2bcb2555430d28b6d65319d914fb68c5bb3e0df0"
+ },
+ {
+  "number": 105903,
+  "title": "fix(mcp): say the catalog caveat in words a customer reads",
+  "mergedAt": "2026-09-24T15:33:22Z",
+  "add": 19,
+  "src": [
+   "products/data_catalog/evals/scorers.py",
+   "services/mcp/src/tools/exec.ts"
+  ],
+  "layers": [
+   "backend",
+   "other"
+  ],
+  "bodyLen": 2744,
+  "merge": "01449eb1ffe783af5bc2815ad7f793634d146002"
+ },
+ {
+  "number": 107042,
+  "title": "fix(insights): correct mobile actions and transfer navigation",
+  "mergedAt": "2026-09-25T21:57:48Z",
+  "add": 48,
+  "src": [
+   "frontend/src/scenes/insights/SidePanel/InsightPanelActions.tsx",
+   "frontend/src/scenes/insights/SidePanel/InsightSceneMenuBar.tsx",
+   "frontend/src/scenes/insights/insightLogic.tsx",
+   "frontend/src/scenes/resource-transfer/ResourceTransfer.tsx",
+   "frontend/src/scenes/urls.ts",
+   "products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2307,
+  "merge": "3d58970f948c0c4487b7f96bd6b4f9622538eaff"
+ },
+ {
+  "number": 106776,
+  "title": "feat(ai-research): read codes at the scale plan's ratio",
+  "mergedAt": "2026-09-25T16:03:43Z",
+  "add": 161,
+  "src": [
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-scrub-sidecar/dev/code-bench.ts",
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-scrub-sidecar/dev/floors.ts",
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-scrub-sidecar/src/floors.ts",
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-scrub-sidecar/src/qr.ts",
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-scrub-sidecar/src/scale-plan.ts",
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-scrub-sidecar/src/scrub.ts"
+  ],
+  "layers": [
+   "nodejs"
+  ],
+  "bodyLen": 3914,
+  "merge": "e797202515dea5345b1ec2da209159e2204d245b"
+ },
+ {
+  "number": 106522,
+  "title": "fix(tasks): identify sandbox backend on failure events",
+  "mergedAt": "2026-09-25T14:31:23Z",
+  "add": 152,
+  "src": [
+   "products/tasks/backend/facade/api.py",
+   "products/tasks/backend/models.py",
+   "products/tasks/backend/temporal/execute_sandbox/workflow.py",
+   "products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py",
+   "products/tasks/backend/temporal/process_task/activities/update_task_run_status.py",
+   "products/tasks/backend/temporal/process_task/workflow.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 1046,
+  "merge": "9c1de2696efec4b8cbeae8e08f9ecb9130e02857"
+ },
+ {
+  "number": 106448,
+  "title": "feat(engineering-analytics): show friction on the teams roster and team page",
+  "mergedAt": "2026-09-25T12:36:40Z",
+  "add": 288,
+  "src": [
+   "products/engineering_analytics/frontend/components/AuthorFrictionTable.tsx",
+   "products/engineering_analytics/frontend/lib/frictionFixtures.ts",
+   "products/engineering_analytics/frontend/scenes/EngineeringAnalyticsAuthors.tsx",
+   "products/engineering_analytics/frontend/scenes/EngineeringAnalyticsTeamScene.tsx",
+   "products/engineering_analytics/frontend/scenes/EngineeringAnalyticsTeams.tsx",
+   "products/engineering_analytics/frontend/scenes/TeamFrictionSection.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2611,
+  "merge": "2f39d0298e22ea801f84ce62b848d6534a0b5530"
+ },
+ {
+  "number": 106330,
+  "title": "feat(navigation): configure starred apps from the sidebar",
+  "mergedAt": "2026-09-25T00:20:24Z",
+  "add": 357,
+  "src": [
+   "frontend/src/layout/panel-layout/ProjectTree/homeFolderUtils.tsx",
+   "frontend/src/layout/panel-layout/navbar/tabs/ConfigureStarredModal.tsx",
+   "frontend/src/layout/panel-layout/navbar/tabs/NavAppRow.tsx",
+   "frontend/src/layout/panel-layout/navbar/tabs/NavAppsMenu.tsx",
+   "frontend/src/layout/panel-layout/navbar/tabs/NavTabApps.tsx",
+   "frontend/src/layout/panel-layout/navbar/tabs/navAppsTabLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3879,
+  "merge": "54dd59a4e29c1b5b361862594facb9520e751d02"
+ },
+ {
+  "number": 106291,
+  "title": "fix(terminal): shrink page and side panel above the dock",
+  "mergedAt": "2026-09-25T08:49:47Z",
+  "add": 99,
+  "src": [
+   "frontend/src/layout/navigation-3000/Navigation.scss",
+   "frontend/src/layout/navigation-3000/sidepanel/SidePanel.tsx",
+   "frontend/src/layout/panel-layout/PanelLayout.tsx",
+   "frontend/src/layout/panel-layout/PanelLayoutPanel.tsx",
+   "frontend/src/layout/panel-layout/navbar/NavBar.tsx",
+   "frontend/src/layout/panel-layout/navbar/PanelLayoutPanels.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3483,
+  "merge": "354787ff118609d138d35da337077e908591db53"
+ },
+ {
+  "number": 106047,
+  "title": "feat(customer-analytics): enroll accounts on accepted salesforce claims",
+  "mergedAt": "2026-09-25T11:14:39Z",
+  "add": 222,
+  "src": [
+   "products/customer_analytics/backend/facade/contracts.py",
+   "products/customer_analytics/backend/logic/ownership.py",
+   "products/customer_analytics/backend/logic/ownership_claims.py",
+   "products/customer_analytics/backend/logic/relationships.py",
+   "products/customer_analytics/backend/management/commands/configure_account_ownership.py",
+   "products/customer_analytics/backend/models/relationship.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 4553,
+  "merge": "856142cbdabeeca9ab6a47c47e88bbb1b6a9009a"
+ },
+ {
+  "number": 105842,
+  "title": "fix(tasks): report why the sandbox stopped when a run ends on sandbox loss",
+  "mergedAt": "2026-09-25T11:18:24Z",
+  "add": 194,
+  "src": [
+   "products/tasks/backend/logic/services/modal_sandbox.py",
+   "products/tasks/backend/logic/services/sandbox.py",
+   "products/tasks/backend/temporal/process_task/activities/get_sandbox_exit_reason.py",
+   "products/tasks/backend/temporal/process_task/activities/refresh_sandbox_credentials.py",
+   "products/tasks/backend/temporal/process_task/credential_refresh.py",
+   "products/tasks/backend/temporal/process_task/workflow.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 5417,
+  "merge": "4c3249cfdb37683dc9f35137ac18d1aef6eb1c71"
+ },
+ {
+  "number": 105793,
+  "title": "feat(slack_app): ask before picking up unset thread follow-ups",
+  "mergedAt": "2026-09-24T13:55:57Z",
+  "add": 147,
+  "src": [
+   "posthog/temporal/ai/slack_app/activities/billing.py",
+   "posthog/temporal/ai/slack_app/helpers.py",
+   "products/slack_app/backend/api.py",
+   "products/slack_app/backend/models.py",
+   "products/slack_app/backend/services/slack_app_home.py",
+   "products/slack_app/backend/services/slack_settings.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3504,
+  "merge": "cf123d3954719cec9fc82c9f808601a259e9ccee"
+ },
+ {
+  "number": 106686,
+  "title": "feat(workflows): set up and verify a broadcast's email sender without leaving the wizard",
+  "mergedAt": "2026-09-25T19:55:52Z",
+  "add": 171,
+  "src": [
+   "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+   "products/workflows/frontend/Broadcasts/steps/BroadcastContentStep.tsx",
+   "products/workflows/frontend/Broadcasts/steps/BroadcastReviewStep.tsx",
+   "products/workflows/frontend/Channels/EmailSetup/EmailSetupModal.tsx",
+   "products/workflows/frontend/Channels/EmailSetup/emailSetupModalLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3959,
+  "merge": "fd2c5fdc3b727223123f27edf18d543bb4ff4109"
+ },
+ {
+  "number": 106644,
+  "title": "feat(desktop): let the source filter select several sources",
+  "mergedAt": "2026-09-25T13:30:29Z",
+  "add": 213,
+  "src": [
+   "products/desktop/packages/core/src/canvas/channelItems.ts",
+   "products/desktop/packages/ui/src/features/canvas/components/ChannelFilterMenu.tsx",
+   "products/desktop/packages/ui/src/features/canvas/components/ChannelItemsPane.tsx",
+   "products/desktop/packages/ui/src/features/canvas/stores/spaceActivityViewStore.ts",
+   "products/desktop/packages/ui/src/features/sidebar/sidebarStore.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 2334,
+  "merge": "d10aa268ba85037795df550c62616a46250ea491"
+ },
+ {
+  "number": 106427,
+  "title": "feat(integrations): connect slack in a new tab from every slack picker",
+  "mergedAt": "2026-09-25T17:39:47Z",
+  "add": 339,
+  "src": [
+   "frontend/src/lib/components/Comments/SlackDestinationPicker.tsx",
+   "frontend/src/lib/integrations/SlackIntegrationHelpers.tsx",
+   "frontend/src/lib/integrations/slackChannel.ts",
+   "frontend/src/lib/integrations/slackConnectLogic.ts",
+   "products/alerts/frontend/components/AlertNotificationDestinationEditor.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2818,
+  "merge": "f4824a896384c8515b12ccee5a2966e6c3bc8a36"
+ },
+ {
+  "number": 106363,
+  "title": "fix(workflows): open broadcast-shaped workflows as broadcasts",
+  "mergedAt": "2026-09-25T02:47:05Z",
+  "add": 184,
+  "src": [
+   "products/workflows/frontend/Broadcasts/BroadcastScene.tsx",
+   "products/workflows/frontend/Broadcasts/BroadcastSummary.tsx",
+   "products/workflows/frontend/Broadcasts/BroadcastsTable.tsx",
+   "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+   "products/workflows/frontend/Broadcasts/broadcastsLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3828,
+  "merge": "113265dc4d6a1d0043bb3750906ace8a965d203d"
+ },
+ {
+  "number": 106019,
+  "title": "fix(desktop): default work sidebar to desktop",
+  "mergedAt": "2026-09-24T18:00:25Z",
+  "add": 191,
+  "src": [
+   "products/desktop/packages/core/src/canvas/channelItems.ts",
+   "products/desktop/packages/ui/src/features/canvas/components/ChannelFilterMenu.tsx",
+   "products/desktop/packages/ui/src/features/canvas/components/ChannelItemsPane.tsx",
+   "products/desktop/packages/ui/src/features/canvas/components/work/WorkColumn.tsx",
+   "products/desktop/packages/ui/src/features/sidebar/sidebarStore.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 3025,
+  "merge": "72227e93bc9210dbd58218bf50b61493832c3bf1"
+ },
+ {
+  "number": 105887,
+  "title": "fix(experiments): fingerprint saved metrics with their per-experiment breakdowns",
+  "mergedAt": "2026-09-24T13:55:29Z",
+  "add": 107,
+  "src": [
+   "posthog/temporal/experiments/activities.py",
+   "products/experiments/backend/facade/timeseries.py",
+   "products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py",
+   "products/experiments/backend/presentation/serializers.py",
+   "products/experiments/backend/temporal/metric_resolution.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 4012,
+  "merge": "8eaa6abd5e213f032b6a7bb5707ede9ba388f769"
+ },
+ {
+  "number": 105871,
+  "title": "fix(flags): skip non-v1 configs in cross-team flag jobs",
+  "mergedAt": "2026-09-25T10:44:04Z",
+  "add": 169,
+  "src": [
+   "posthog/management/commands/fix_invalid_flag_property_types.py",
+   "posthog/management/commands/reencrypt_flag_payloads.py",
+   "products/feature_flags/backend/flag_status.py",
+   "products/feature_flags/backend/management/commands/audit_flag_filters.py",
+   "products/feature_flags/backend/temporal/health_checks/stale_flags.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 4036,
+  "merge": "42fcec00d4a9590fecb66498abbe7d37e6f56328"
+ },
+ {
+  "number": 107139,
+  "title": "feat(pgapi): estimate CPU by query from pg_stat_statements",
+  "mergedAt": "2026-09-25T22:41:09Z",
+  "add": 312,
+  "src": [
+   "rust/pgapi/src/api.rs",
+   "rust/pgapi/src/mcp.rs",
+   "rust/pgapi/src/queries.rs",
+   "rust/pgapi/src/ui/index.html"
+  ],
+  "layers": [
+   "rust"
+  ],
+  "bodyLen": 4874,
+  "merge": "9a530c43020e1107f77b26099b8bdc22e6aeddf8"
+ },
+ {
+  "number": 106917,
+  "title": "fix(warehouse-sources): pause cdc table schedules on break and disable",
+  "mergedAt": "2026-09-25T19:11:20Z",
+  "add": 175,
+  "src": [
+   "products/data_warehouse/backend/facade/api.py",
+   "products/data_warehouse/backend/logic/data_load/service.py",
+   "products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py",
+   "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3856,
+  "merge": "7cac99c34e42bb9e9d6366f587567273595bb048"
+ },
+ {
+  "number": 106629,
+  "title": "feat(warehouse-sources): add easypost claim, carrier account, carrier metadata and end shipper tables",
+  "mergedAt": "2026-09-25T15:54:10Z",
+  "add": 281,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/easypost/canonical_descriptions.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/easypost/easypost.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/easypost/settings.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/easypost/source.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 5282,
+  "merge": "314055781cf66d7ac520c88dd80d4716ed9cb279"
+ },
+ {
+  "number": 106579,
+  "title": "feat(error-tracking): name the assignee in issue alert events",
+  "mergedAt": "2026-09-25T17:21:57Z",
+  "add": 278,
+  "src": [
+   "products/error_tracking/backend/logic/assignees.py",
+   "products/error_tracking/backend/logic/issue_mutations.py",
+   "products/error_tracking/backend/logic/lifecycle_events.py",
+   "products/error_tracking/backend/temporal/lifecycle/side_effects.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 5972,
+  "merge": "95301101328ffc7714584d08210b127b260703fc"
+ },
+ {
+  "number": 106492,
+  "title": "fix(insights): sort blank chart preview tiles after previewed ones",
+  "mergedAt": "2026-09-25T10:18:13Z",
+  "add": 81,
+  "src": [
+   "products/product_analytics/frontend/insights/chartAlternatives/ChartPreviewTile.tsx",
+   "products/product_analytics/frontend/insights/chartAlternatives/chartPreviewData.ts",
+   "products/product_analytics/frontend/insights/chartAlternatives/chartPreviewsLogic.ts",
+   "products/product_analytics/frontend/insights/shared/hasTrendsChartData.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2746,
+  "merge": "c89f65dec0de0c57d3d2963091a386bbb1a872c8"
+ },
+ {
+  "number": 106491,
+  "title": "fix(insights): show the chart gallery on the insight page in view mode",
+  "mergedAt": "2026-09-25T10:18:33Z",
+  "add": 11,
+  "src": [
+   "frontend/src/queries/nodes/InsightViz/InsightVizDisplay.tsx",
+   "products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.tsx",
+   "products/product_analytics/frontend/insights/chartAlternatives/ChartGallery.tsx",
+   "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 1982,
+  "merge": "d56746564886ccea46d8af2e4ad5405de5212cc6"
+ },
+ {
+  "number": 106430,
+  "title": "feat(signals): share the scout creation check between endpoint and facade",
+  "mergedAt": "2026-09-25T17:39:52Z",
+  "add": 96,
+  "src": [
+   "products/signals/backend/facade/api.py",
+   "products/signals/backend/scout_harness/create_access.py",
+   "products/signals/backend/scout_harness/team_limits.py",
+   "products/signals/backend/scout_harness/views.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 1968,
+  "merge": "726d78d960c667ce2ce6baa571437aa2393ab5b7"
+ },
+ {
+  "number": 106322,
+  "title": "feat(persons): expose deletion mode, tombstone delivery wait, queue acks and repair counts",
+  "mergedAt": "2026-09-24T23:42:02Z",
+  "add": 96,
+  "src": [
+   "posthog/dags/person_tombstone_queue.py",
+   "posthog/models/person/bulk_delete.py",
+   "posthog/models/person/deletion.py",
+   "posthog/models/person/util.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 4394,
+  "merge": "3750b691bff541760ae017515ce208d13cb4d1ea"
+ },
+ {
+  "number": 106319,
+  "title": "feat(mcp): stamp learn form, skills flag and result shape on tool calls",
+  "mergedAt": "2026-09-25T21:39:28Z",
+  "add": 224,
+  "src": [
+   "services/mcp/src/hono/tool-executor.ts",
+   "services/mcp/src/lib/build-tool-result.ts",
+   "services/mcp/src/lib/discovery-hints.ts",
+   "services/mcp/src/tools/exec.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 5752,
+  "merge": "9dbe91a4334ad4a1fcf388114cd009bc21e6c1a2"
+ },
+ {
+  "number": 106265,
+  "title": "feat(replay-vision): flag expired recordings in search and add a date filter",
+  "mergedAt": "2026-09-25T18:58:23Z",
+  "add": 305,
+  "src": [
+   "products/replay_vision/frontend/components/RecordingExpiredTag.tsx",
+   "products/replay_vision/frontend/search/ObservationSearch.tsx",
+   "products/replay_vision/frontend/search/SearchResults.tsx",
+   "products/replay_vision/frontend/search/observationSearchLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 5279,
+  "merge": "9425b835151f055a456c2571aade9ba07ee93da8"
+ },
+ {
+  "number": 106067,
+  "title": "fix(nav): keep the org logo square and give the project name more room",
+  "mergedAt": "2026-09-25T00:19:37Z",
+  "add": 14,
+  "src": [
+   "frontend/src/layout/panel-layout/navbar/NavBar.tsx",
+   "frontend/src/lib/components/Account/NewAccountMenu.tsx",
+   "frontend/src/lib/components/NavSearchButton/NavSearchButton.tsx",
+   "frontend/src/lib/lemon-ui/UploadedLogo/UploadedLogo.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2896,
+  "merge": "aefa91c06b78c6ceaca349724aa9ca08992ec9d4"
+ },
+ {
+  "number": 105910,
+  "title": "feat(warehouse-sources): add doppler role, project member and config log tables",
+  "mergedAt": "2026-09-25T13:45:31Z",
+  "add": 373,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/doppler/canonical_descriptions.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/doppler/doppler.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/doppler/settings.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/doppler/source.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 7730,
+  "merge": "0d95d43d88914c788d99b6292d12257cb0d28a20"
+ },
+ {
+  "number": 105809,
+  "title": "fix(tasks): let a goal-space setup run reach every tool it needs",
+  "mergedAt": "2026-09-24T19:45:41Z",
+  "add": 208,
+  "src": [
+   "products/tasks/backend/facade/api.py",
+   "products/tasks/backend/facade/contracts.py",
+   "products/tasks/backend/temporal/client.py",
+   "products/tasks/backend/temporal/oauth.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 6087,
+  "merge": "db58f2c56923af8318f0d051352e14ac8d9b2757"
+ },
+ {
+  "number": 105789,
+  "title": "fix(signals): pin the repository a GitHub issue names through selection",
+  "mergedAt": "2026-09-24T22:17:50Z",
+  "add": 227,
+  "src": [
+   "posthog/git.py",
+   "products/signals/backend/report_generation/select_repo.py",
+   "products/signals/backend/report_generation/source_repository.py",
+   "products/tasks/backend/logic/repo_selection/agent.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 6348,
+  "merge": "4d43651711bb0430300413ca15c1cb958bc9b32f"
+ },
+ {
+  "number": 105730,
+  "title": "feat(desktop): add an agent-smoke entrypoint that drives one gateway turn",
+  "mergedAt": "2026-09-24T13:56:48Z",
+  "add": 345,
+  "src": [
+   "products/desktop/packages/agent/src/smoke/bin.ts",
+   "products/desktop/packages/agent/src/smoke/classify.ts",
+   "products/desktop/packages/agent/src/smoke/run-turn.ts",
+   "products/desktop/packages/agent/tsup.config.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 1502,
+  "merge": "7e21cfe269d223b400d37342f84336497b0a7327"
+ },
+ {
+  "number": 107205,
+  "title": "feat(signals): add baked and unbaked unseen ranking metrics",
+  "mergedAt": "2026-09-26T08:33:01Z",
+  "add": 231,
+  "src": [
+   "products/signals/dags/inbox_ranking/training/dag.py",
+   "products/signals/dags/inbox_ranking/training/telemetry.py",
+   "products/signals/dags/inbox_ranking/training/unseen.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2596,
+  "merge": "9050b690ea6dd701dca64518b8bf4e4b38549151"
+ },
+ {
+  "number": 106814,
+  "title": "fix(desktop): clarify suggested reviewer layout",
+  "mergedAt": "2026-09-25T17:21:22Z",
+  "add": 241,
+  "src": [
+   "products/desktop/packages/core/src/inbox/artefacts.ts",
+   "products/desktop/packages/ui/src/features/inbox/components/ReportReviewersSection.tsx",
+   "products/desktop/packages/ui/src/features/inbox/components/SuggestedReviewersList.tsx"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 1863,
+  "merge": "e050fde5ab0582709f1c09d2b1248dbdd03914ac"
+ },
+ {
+  "number": 106801,
+  "title": "fix(signals): drop inbox row when its scoped reviewer is removed",
+  "mergedAt": "2026-09-25T18:28:05Z",
+  "add": 128,
+  "src": [
+   "products/signals/frontend/inbox/logics/inboxBulkActionsLogic.ts",
+   "products/signals/frontend/inbox/logics/inboxReportDetailLogic.ts",
+   "products/signals/frontend/inbox/logics/reportListLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2774,
+  "merge": "ca02ad9644c8da96e932efc67c6760b485e92f8d"
+ },
+ {
+  "number": 106722,
+  "title": "feat(desktop): play video artifacts in the artifact preview",
+  "mergedAt": "2026-09-25T16:57:37Z",
+  "add": 76,
+  "src": [
+   "products/desktop/packages/ui/src/features/sessions/components/ArtifactPreview.tsx",
+   "products/desktop/packages/ui/src/features/sessions/components/ArtifactPreviewContent.tsx",
+   "products/desktop/packages/ui/src/features/sessions/components/artifactPreviewDocument.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 2498,
+  "merge": "2f4feaae2d6e45c82b65a51b8df9059d44469367"
+ },
+ {
+  "number": 106635,
+  "title": "feat(warehouse-sources): add dropbox sign team, bulk send job and fax tables",
+  "mergedAt": "2026-09-25T21:29:35Z",
+  "add": 242,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/dropbox_sign/canonical_descriptions.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/dropbox_sign/dropbox_sign.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/dropbox_sign/settings.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 4682,
+  "merge": "f77ca290260a0c52dfd57c53b29749578eb240da"
+ },
+ {
+  "number": 106632,
+  "title": "feat(warehouse-sources): add easypromos prize inventory table",
+  "mergedAt": "2026-09-25T13:45:13Z",
+  "add": 78,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/easypromos/canonical_descriptions.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/easypromos/easypromos.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/easypromos/settings.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 5010,
+  "merge": "930efb61521456a8f35e5e74fd8d26c9cb99c1ac"
+ },
+ {
+  "number": 106504,
+  "title": "fix(frontend): name split stylesheets so the CDN caches them as immutable",
+  "mergedAt": "2026-09-25T11:11:29Z",
+  "add": 44,
+  "src": [
+   "frontend/bin/stableChunkNames.mjs",
+   "frontend/bin/stableCss.mjs",
+   "frontend/bin/stableCssPlan.mjs"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 4208,
+  "merge": "608d71520a437540e7bed697a1fe1847e91c2a8f"
+ },
+ {
+  "number": 106493,
+  "title": "feat(insights): rank and gate chart alternatives by breakdown",
+  "mergedAt": "2026-09-25T10:18:21Z",
+  "add": 127,
+  "src": [
+   "frontend/src/scenes/insights/insightVizDataLogic.ts",
+   "products/product_analytics/frontend/insights/chartAlternatives/chartDisplayOptions.ts",
+   "products/product_analytics/frontend/insights/chartAlternatives/chartRecommendations.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3139,
+  "merge": "b85269304ca4843bcd0e4cf6439b034317121709"
+ },
+ {
+  "number": 106481,
+  "title": "feat(experiments): replace feedback tab empty-state banner with a header",
+  "mergedAt": "2026-09-25T09:40:38Z",
+  "add": 10,
+  "src": [
+   "frontend/src/scenes/experiments/ExperimentView/ExperimentFeedbackTab.tsx",
+   "frontend/src/scenes/feature-flags/FeatureFlagFeedbackTab.tsx",
+   "frontend/src/scenes/surveys/FeedbackTabContent.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 1143,
+  "merge": "6e1115ca90e754c322fa5d88315a5a20bf7ae693"
+ },
+ {
+  "number": 106472,
+  "title": "fix(terminal): create blank markdown files",
+  "mergedAt": "2026-09-25T10:20:35Z",
+  "add": 347,
+  "src": [
+   "frontend/src/scenes/terminal/ninepServer.ts",
+   "frontend/src/scenes/terminal/posthogFilesystem.ts",
+   "frontend/src/scenes/terminal/terminalFilesystem.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 4643,
+  "merge": "85267bfb58510e81c6e2c249c83d46a2b5a9e3b7"
+ },
+ {
+  "number": 106467,
+  "title": "feat(experiments): add experiment_recalculation_times config field",
+  "mergedAt": "2026-09-25T10:01:38Z",
+  "add": 296,
+  "src": [
+   "posthog/admin/inlines/team_experiments_config_inline.py",
+   "posthog/api/team.py",
+   "products/experiments/backend/models/team_experiments_config.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2963,
+  "merge": "4fdd52c7e50446a1b109b2ab08fff756869cac3c"
+ },
+ {
+  "number": 106453,
+  "title": "fix(tasks): match the task title icon to the run environment",
+  "mergedAt": "2026-09-25T10:20:25Z",
+  "add": 67,
+  "src": [
+   "products/posthog_ai/frontend/components/TaskEnvironmentIcon.tsx",
+   "products/posthog_ai/frontend/components/navigation/TaskListItem.tsx",
+   "products/posthog_ai/frontend/scenes/TaskTracker/components/TaskRunSceneShell.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3979,
+  "merge": "f0380659d9be3952f87e61b5e177e9e2d47a4e1b"
+ },
+ {
+  "number": 106414,
+  "title": "fix(cohorts): forward no person payload for personless events",
+  "mergedAt": "2026-09-25T18:36:34Z",
+  "add": 127,
+  "src": [
+   "rust/cohort-event-shuffler/src/consumer.rs",
+   "rust/cohort-event-shuffler/src/event.rs",
+   "rust/cohort-event-shuffler/src/observability/metrics.rs"
+  ],
+  "layers": [
+   "rust"
+  ],
+  "bodyLen": 3842,
+  "merge": "dd9cec52cd391c93ea5fc7370f79cda0e8283354"
+ },
+ {
+  "number": 106360,
+  "title": "fix(replay): return a normal result for missing MCP recordings",
+  "mergedAt": "2026-09-25T22:03:43Z",
+  "add": 217,
+  "src": [
+   "products/replay/mcp/apps/SessionRecordingView.tsx",
+   "services/mcp/src/tools/index.ts",
+   "services/mcp/src/tools/replay/getSessionRecording.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 2933,
+  "merge": "abd705f56fdfe0be9bc7d56f2adb3a99d0cecd7b"
+ },
+ {
+  "number": 106331,
+  "title": "perf(ai-research): free image fetch domain slots before the kafka publish",
+  "mergedAt": "2026-09-25T00:19:44Z",
+  "add": 137,
+  "src": [
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-fetch/fetch-runner.ts",
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror/config.ts",
+   "nodejs/src/servers/ingestion-session-replay-ml-image-fetch-server.ts"
+  ],
+  "layers": [
+   "nodejs"
+  ],
+  "bodyLen": 3742,
+  "merge": "12baa015da21643bd20e1fd5af5f0dc5476b270d"
+ },
+ {
+  "number": 106321,
+  "title": "feat(terminal): open folders from files menus",
+  "mergedAt": "2026-09-25T00:20:36Z",
+  "add": 129,
+  "src": [
+   "frontend/src/layout/panel-layout/ProjectTree/menus/MenuItems.tsx",
+   "frontend/src/scenes/terminal/terminalDockLogic.ts",
+   "frontend/src/scenes/terminal/terminalLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2348,
+  "merge": "47948ca6daeb6f07148d403af59d1782af550a4e"
+ },
+ {
+  "number": 106306,
+  "title": "perf: render the app context as a json script block",
+  "mergedAt": "2026-09-26T09:33:31Z",
+  "add": 70,
+  "src": [
+   "posthog/templates/head.html",
+   "posthog/templatetags/posthog_filters.py",
+   "posthog/utils.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3978,
+  "merge": "34739804d95b0da4d5469e4a8ded90e1cbdf1543"
+ },
+ {
+  "number": 106285,
+  "title": "fix(insights): report the tile kind on page loads",
+  "mergedAt": "2026-09-25T15:34:49Z",
+  "add": 51,
+  "src": [
+   "frontend/src/queries/nodes/DataNode/dataNodeCollectionLogic.ts",
+   "frontend/src/queries/nodes/DataNode/dataNodeLogic.ts",
+   "frontend/src/scenes/web-analytics/webAnalyticsLoadTimeLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 1945,
+  "merge": "168c33f534322c01170b96399e6ce75ee759c75a"
+ },
+ {
+  "number": 106270,
+  "title": "fix(warehouse-sources): wait for a table's sync to stop before a cdc reset",
+  "mergedAt": "2026-09-25T18:09:24Z",
+  "add": 293,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/cdc/activities.py",
+   "products/warehouse_sources/backend/temporal/data_imports/cdc/snapshot_lane.py",
+   "products/warehouse_sources/backend/temporal/data_imports/cdc/source_manager.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 4956,
+  "merge": "27a8e5ba3b3dda3e065f5747a0b46d913af1ebea"
+ },
+ {
+  "number": 106211,
+  "title": "fix(ml_inference): verify weights once, fail on any child exit, keep compile caches on the volume",
+  "mergedAt": "2026-09-24T20:28:20Z",
+  "add": 171,
+  "src": [
+   "products/ml_inference/packages/kev-vllm/Dockerfile",
+   "products/ml_inference/packages/kev-vllm/bin/serve.sh",
+   "products/ml_inference/packages/kev-vllm/serving/Caddyfile"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 3064,
+  "merge": "cd19040835522c49534568759c691894f497228e"
+ },
+ {
+  "number": 106153,
+  "title": "fix(dashboards): align widget refresh with the five-minute interval",
+  "mergedAt": "2026-09-25T21:57:40Z",
+  "add": 205,
+  "src": [
+   "frontend/src/scenes/dashboard/DashboardReloadAction.tsx",
+   "frontend/src/scenes/dashboard/dashboardLogic.tsx",
+   "frontend/src/scenes/dashboard/widgetFetchUtils.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2941,
+  "merge": "b862acccb3c85d4dd2ae2bceb691e0148b439d50"
+ },
+ {
+  "number": 106127,
+  "title": "fix(slack_app): skip the auto-mention when the answer already tags the user",
+  "mergedAt": "2026-09-25T11:18:42Z",
+  "add": 49,
+  "src": [
+   "products/slack_app/backend/services/slack_messages.py",
+   "products/slack_app/backend/slack_thread.py",
+   "products/tasks/backend/temporal/slack_relay/activities.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2181,
+  "merge": "536ec968dcc08a003032fa311c1829e4450b5086"
+ },
+ {
+  "number": 105930,
+  "title": "fix(replay-vision): keep thumbnails off the unstyled edges of the video",
+  "mergedAt": "2026-09-24T17:57:30Z",
+  "add": 26,
+  "src": [
+   "products/replay_vision/backend/temporal/activities/call_scanner_provider.py",
+   "products/replay_vision/backend/temporal/activities/observation_media.py",
+   "products/replay_vision/backend/temporal/scanners/prompts/_macros.jinja"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2728,
+  "merge": "6720a1cb044d50709af14b4fb1bdfe8bcc25093e"
+ },
+ {
+  "number": 105925,
+  "title": "feat(warehouse-sources): add drata task, failure, policy and requirement tables",
+  "mergedAt": "2026-09-25T13:41:30Z",
+  "add": 261,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/drata/canonical_descriptions.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/drata/drata.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/drata/settings.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 5403,
+  "merge": "d18343df1ef72d0ad40a0277c00d17ab03dfb8fd"
+ },
+ {
+  "number": 105909,
+  "title": "feat(drip): add campaign membership, tag and custom field tables",
+  "mergedAt": "2026-09-25T13:43:35Z",
+  "add": 257,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/drip/canonical_descriptions.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/drip/drip.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/drip/settings.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 4866,
+  "merge": "f46b5a667533da1d9be8b73bfd611379010b0007"
+ },
+ {
+  "number": 105907,
+  "title": "feat(warehouse-sources): add dovetail custom fields table",
+  "mergedAt": "2026-09-25T13:41:00Z",
+  "add": 163,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/dovetail/canonical_descriptions.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/dovetail/dovetail.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/dovetail/settings.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 5307,
+  "merge": "e476b0197f9945cd5ee45a85be839d296ee2e75d"
+ },
+ {
+  "number": 105883,
+  "title": "fix(marketing-analytics): warm sessions through the local day end",
+  "mergedAt": "2026-09-24T13:56:14Z",
+  "add": 112,
+  "src": [
+   "products/analytics_platform/backend/lazy_computation/lazy_computation_executor.py",
+   "products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py",
+   "products/marketing_analytics/dags/marketing_sessions_precompute.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3912,
+  "merge": "8b1c98ce710d62705249fd2058edb1afae69a07d"
+ },
+ {
+  "number": 105864,
+  "title": "feat(cli): add posthog-cli update, drop the broken updater",
+  "mergedAt": "2026-09-24T12:25:31Z",
+  "add": 388,
+  "src": [
+   "cli/src/commands.rs",
+   "cli/src/lib.rs",
+   "cli/src/update.rs"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 5177,
+  "merge": "0298cb7450ac6480b26f1c170806ab048d5e0f34"
+ },
+ {
+  "number": 105852,
+  "title": "fix(tasks): give a codex turn one trace id",
+  "mergedAt": "2026-09-24T13:13:08Z",
+  "add": 128,
+  "src": [
+   "products/desktop/packages/agent/src/acp-extensions.ts",
+   "products/desktop/packages/agent/src/adapters/acp-connection.ts",
+   "products/desktop/packages/agent/src/server/agent-server.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 3984,
+  "merge": "d6ae6a9ea78220cdeaec4185f5baacd182563bfc"
+ },
+ {
+  "number": 105827,
+  "title": "fix(alerts): copy snooze when backfilling platform alerts",
+  "mergedAt": "2026-09-24T18:00:36Z",
+  "add": 84,
+  "src": [
+   "products/alerts/backend/facade/contracts.py",
+   "products/alerts/backend/logic/platform_lifecycle.py",
+   "products/logs/backend/platform_alert_backfill.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3101,
+  "merge": "b48eeecabd1b32bbf8bc339dc88c61ec783fc9b9"
+ },
+ {
+  "number": 105774,
+  "title": "fix(signals): link the pull requests a report summary names",
+  "mergedAt": "2026-09-24T23:41:46Z",
+  "add": 48,
+  "src": [
+   "products/signals/backend/report_generation/research.py",
+   "products/signals/backend/report_links.py",
+   "products/signals/backend/scout_harness/prompt.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 5108,
+  "merge": "ff7b2f00a35adbc85213394a6cb84d1688442aa2"
+ },
+ {
+  "number": 105740,
+  "title": "fix(posthog-ai): stop the composer queue swallowing follow-ups",
+  "mergedAt": "2026-09-24T17:58:02Z",
+  "add": 342,
+  "src": [
+   "products/posthog_ai/frontend/components/QueuedMessageList.tsx",
+   "products/posthog_ai/frontend/logics/runInteractionLogic.ts",
+   "products/posthog_ai/frontend/scenes/TaskTracker/components/TaskRunComposer.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3013,
+  "merge": "84ebde9e18fb8725da035a5df924b50d10486117"
+ },
+ {
+  "number": 107305,
+  "title": "fix(llm-gateway): pass through claude code classifier fields",
+  "mergedAt": "2026-09-26T18:29:44Z",
+  "add": 284,
+  "src": [
+   "services/llm-gateway/src/llm_gateway/api/anthropic.py",
+   "services/llm-gateway/src/llm_gateway/litellm_passthrough.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3855,
+  "merge": "57ca357730843205c2d659098ac8e4c5e07a6698"
+ },
+ {
+  "number": 107227,
+  "title": "fix(netlify): stop reporting a Netlify outage as a bad access token",
+  "mergedAt": "2026-09-26T11:05:12Z",
+  "add": 53,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/netlify/netlify.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/netlify/source.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2510,
+  "merge": "a2d84df80e161ad5e83b0e1d7e30465e8132f4ed"
+ },
+ {
+  "number": 107226,
+  "title": "fix(klaviyo): say why the API key failed instead of calling it invalid",
+  "mergedAt": "2026-09-26T10:45:19Z",
+  "add": 62,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/klaviyo/klaviyo.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/klaviyo/source.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2765,
+  "merge": "e879fd7ecf22acbdf5815ed3d4c859dd3babee9e"
+ },
+ {
+  "number": 107185,
+  "title": "fix(data-warehouse): say where new columns come from after a schema pull",
+  "mergedAt": "2026-09-26T10:37:44Z",
+  "add": 6,
+  "src": [
+   "products/data_warehouse/frontend/scenes/SchemaScene/schemaSceneLogic.ts",
+   "products/data_warehouse/frontend/scenes/SourceScene/tabs/sourceSettingsLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2361,
+  "merge": "ff051ebd8125f2eeb7afdafe5d52ea91acd70c16"
+ },
+ {
+  "number": 107166,
+  "title": "fix(snowflake): stop reporting a self-recovering backend blip as an error",
+  "mergedAt": "2026-09-26T10:31:44Z",
+  "add": 26,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/snowflake/snowflake.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/snowflake/source.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3170,
+  "merge": "a9e47a1fec4c75e2d9ae7fa0fd09efdb17b92da3"
+ },
+ {
+  "number": 107088,
+  "title": "feat(signals): enable the inbox-reports-merge MCP tool",
+  "mergedAt": "2026-09-25T21:58:41Z",
+  "add": 124,
+  "src": [
+   "services/mcp/src/generated/signals/api.ts",
+   "services/mcp/src/tools/generated/signals.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 2659,
+  "merge": "ac764eb5e7347da161c4e596bebf0d697443c7ac"
+ },
+ {
+  "number": 107072,
+  "title": "feat(admin): enable prefill of impersonation reason on links from Hogdesk",
+  "mergedAt": "2026-09-25T23:11:42Z",
+  "add": 158,
+  "src": [
+   "posthog/admin/admins/user_admin.py",
+   "posthog/templates/admin/posthog/user/change_form.html"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2124,
+  "merge": "0ef48ec9594e29b188e707819a181a1fbcf58bb8"
+ },
+ {
+  "number": 106886,
+  "title": "fix(data-warehouse): read back float array and map fields on synced views",
+  "mergedAt": "2026-09-25T18:42:59Z",
+  "add": 66,
+  "src": [
+   "products/data_modeling/backend/models/datawarehouse_managed_viewset.py",
+   "products/warehouse_sources/backend/models/util.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2329,
+  "merge": "4036bff86c528fe5bb7fa590c240b0c330fdaec9"
+ },
+ {
+  "number": 106875,
+  "title": "fix(data-imports): keep a source rollout window out of error tracking",
+  "mergedAt": "2026-09-26T10:31:52Z",
+  "add": 68,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/common/base.py",
+   "products/warehouse_sources/backend/temporal/data_imports/workflow_activities/import_data_sync.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3391,
+  "merge": "1e8ce81a5e7553d45c3e37ec1efc496d7d269233"
+ },
+ {
+  "number": 106844,
+  "title": "fix(data-modeling): zoom the lineage canvas to the closest search match",
+  "mergedAt": "2026-09-25T17:52:27Z",
+  "add": 90,
+  "src": [
+   "products/data_modeling/frontend/lineage/ModelsLineageTab.tsx",
+   "products/data_modeling/frontend/lineage/modelsLineageLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3227,
+  "merge": "252a5a5239bcc2a0e128fe7ba2f62510f1ee9827"
+ },
+ {
+  "number": 106827,
+  "title": "feat(security): report email change and identity refusal events",
+  "mergedAt": "2026-09-25T17:20:55Z",
+  "add": 122,
+  "src": [
+   "posthog/api/user.py",
+   "posthog/event_usage.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2324,
+  "merge": "71c3c23f102e38c992724919af69ae5b4521c4f8"
+ },
+ {
+  "number": 106816,
+  "title": "feat(ai-research): size the text input from the stored image",
+  "mergedAt": "2026-09-25T16:03:46Z",
+  "add": 65,
+  "src": [
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-scrub-sidecar/dev/text-det-bench.ts",
+   "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-scrub-sidecar/src/scale-plan.ts"
+  ],
+  "layers": [
+   "nodejs"
+  ],
+  "bodyLen": 4206,
+  "merge": "2b7029a66ca867b054fa4bac71dff5791cc22dce"
+ },
+ {
+  "number": 106736,
+  "title": "fix(warehouse-sources): fix false cdc delete-enrichment violations",
+  "mergedAt": "2026-09-25T17:51:47Z",
+  "add": 33,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/cdc/batcher.py",
+   "products/warehouse_sources/backend/temporal/data_imports/cdc/load_resolution.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3034,
+  "merge": "9f3c98786af78585708543b2387b7a65640085b3"
+ },
+ {
+  "number": 106718,
+  "title": "feat(insights): gate the chart type gallery on its experiment variant",
+  "mergedAt": "2026-09-25T14:31:07Z",
+  "add": 13,
+  "src": [
+   "frontend/src/lib/constants.tsx",
+   "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2360,
+  "merge": "5302b3297ab47cac8772a16ef05c972607ea486b"
+ },
+ {
+  "number": 106630,
+  "title": "fix(agent): allow standard-tier fallback for flex runs",
+  "mergedAt": "2026-09-25T14:18:43Z",
+  "add": 40,
+  "src": [
+   "products/desktop/packages/agent/src/server/gateway-env.ts",
+   "products/desktop/packages/agent/src/server/types.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 2186,
+  "merge": "b462aa21b815053c238d770018d2db567265290d"
+ },
+ {
+  "number": 106599,
+  "title": "fix(terminal): load nested folders when opening project files",
+  "mergedAt": "2026-09-25T14:19:07Z",
+  "add": 81,
+  "src": [
+   "frontend/src/layout/panel-layout/ProjectTree/projectTreeLogic.tsx",
+   "frontend/src/layout/panel-layout/navbar/tabs/navFilesTabLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 4348,
+  "merge": "fb7d50814980636b37d9bc769af434561b14301c"
+ },
+ {
+  "number": 106597,
+  "title": "feat(insights): preview the slope graph under a breakdown",
+  "mergedAt": "2026-09-25T13:40:05Z",
+  "add": 22,
+  "src": [
+   "products/product_analytics/frontend/insights/chartAlternatives/chartPreviewData.ts",
+   "products/product_analytics/frontend/insights/trends/TrendsSlopeChart/TrendsSlopeChart.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2637,
+  "merge": "5a66b929e229caa30fc0982c3efc09f06e02404f"
+ },
+ {
+  "number": 106569,
+  "title": "fix(postgres): stop retrying Neon IP allow-list and blocked-network rejections",
+  "mergedAt": "2026-09-25T13:44:37Z",
+  "add": 117,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/postgres/cdc/errors.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/postgres/source.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3232,
+  "merge": "78b1b0aac1147d059d64b17d26685e7caa7dee4c"
+ },
+ {
+  "number": 106494,
+  "title": "feat(ingestion): export librdkafka broker request stats for producers",
+  "mergedAt": "2026-09-25T10:24:41Z",
+  "add": 141,
+  "src": [
+   "nodejs/src/common/kafka/kafka-producer-metrics.ts",
+   "nodejs/src/common/kafka/kafka-producer-stats-schema.ts"
+  ],
+  "layers": [
+   "nodejs"
+  ],
+  "bodyLen": 3006,
+  "merge": "af44c1c7e0ceb410db2eecdbb38c7ac23bbb8a6e"
+ },
+ {
+  "number": 106486,
+  "title": "feat(dashboards): ship metric cards in the website metrics template",
+  "mergedAt": "2026-09-25T11:26:38Z",
+  "add": 2,
+  "src": [
+   "frontend/src/lib/constants.tsx",
+   "frontend/src/scenes/dashboard/newDashboardLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 1811,
+  "merge": "7cf54376383ada46f0277678399a8d1916ec4432"
+ },
+ {
+  "number": 106485,
+  "title": "feat(slack_app): invite a follow-up under link unfurls",
+  "mergedAt": "2026-09-25T12:13:02Z",
+  "add": 270,
+  "src": [
+   "products/slack_app/backend/services/followup_invite.py",
+   "products/slack_app/backend/slack_link_unfurl.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3549,
+  "merge": "3d5231e036a9792638f3df35511afcb85a0e20d4"
+ },
+ {
+  "number": 106464,
+  "title": "feat(workflows): add search, status and creator filters to the broadcasts list",
+  "mergedAt": "2026-09-25T10:18:06Z",
+  "add": 255,
+  "src": [
+   "products/workflows/frontend/Broadcasts/BroadcastsTable.tsx",
+   "products/workflows/frontend/Broadcasts/broadcastsLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 5041,
+  "merge": "9293faea469a6f24f7c4f1d962415a354a4caa01"
+ },
+ {
+  "number": 106445,
+  "title": "fix(navigation): describe all configurable starred apps",
+  "mergedAt": "2026-09-25T08:49:37Z",
+  "add": 76,
+  "src": [
+   "frontend/src/layout/panel-layout/navbar/tabs/NavAppTooltip.tsx",
+   "frontend/src/layout/panel-layout/sidebarToolMeta.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2631,
+  "merge": "4206073e4240353bd436e860efa59210bd3379fb"
+ },
+ {
+  "number": 106440,
+  "title": "fix(desktop): keep every file mounted in the review diff list",
+  "mergedAt": "2026-09-25T11:26:10Z",
+  "add": 8,
+  "src": [
+   "products/desktop/packages/ui/src/features/code-review/components/ReviewShell.tsx",
+   "products/desktop/packages/ui/src/features/code-review/constants.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 3274,
+  "merge": "efe7c778e8e06e238a62672fc3ab6d75e91654cb"
+ },
+ {
+  "number": 106361,
+  "title": "feat(desktop): offer pr merged and pr closed loop notifications",
+  "mergedAt": "2026-09-25T10:19:54Z",
+  "add": 4,
+  "src": [
+   "products/desktop/packages/api-client/src/loops.ts",
+   "products/desktop/packages/ui/src/features/loops/components/LoopNotificationsFields.tsx"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 2172,
+  "merge": "16ea07611df3d3ed2db66429a4250f57bda32737"
+ },
+ {
+  "number": 106310,
+  "title": "fix(mcp): serve exec learn guides to every claude.ai connector surface",
+  "mergedAt": "2026-09-25T18:13:10Z",
+  "add": 96,
+  "src": [
+   "services/mcp/src/hono/instructions.ts",
+   "services/mcp/src/lib/client-detection.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 4458,
+  "merge": "343466df175c2b7b7ce1ffeaf1ad468de6ba1b03"
+ },
+ {
+  "number": 106271,
+  "title": "fix(marketing-analytics): persist campaign breakdown columns",
+  "mergedAt": "2026-09-25T02:46:56Z",
+  "add": 286,
+  "src": [
+   "frontend/src/scenes/web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsLogic.ts",
+   "frontend/src/scenes/web-analytics/tabs/marketing-analytics/frontend/logic/marketingAnalyticsTableLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3009,
+  "merge": "8a1ef21a36b91c306a73ef9ed5cd341e6f8c5d7f"
+ },
+ {
+  "number": 106257,
+  "title": "perf(frontend): load two factor status only when needed",
+  "mergedAt": "2026-09-26T17:17:22Z",
+  "add": 130,
+  "src": [
+   "frontend/src/scenes/authentication/two-factor-setup/twoFactorLogic.ts",
+   "frontend/src/scenes/settings/user/TwoFactorSettings.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2225,
+  "merge": "6503af836ab104921704c7c7404ea7d0442f671b"
+ },
+ {
+  "number": 106190,
+  "title": "fix(experiments): truncate long feature flag keys in the meta bar",
+  "mergedAt": "2026-09-24T20:08:02Z",
+  "add": 146,
+  "src": [
+   "products/experiments/frontend/components/ExperimentMetaBar/ExperimentMetaBar.tsx",
+   "products/experiments/frontend/components/TruncatedText.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 13485,
+  "merge": "a64ddd321fcdf08e6da7b9c5e08683bb2f3a8292"
+ },
+ {
+  "number": 106151,
+  "title": "fix(experiments): re-apply collapse control for long conclusion texts",
+  "mergedAt": "2026-09-24T18:22:32Z",
+  "add": 54,
+  "src": [
+   "products/experiments/frontend/components/ExperimentMetaBar/ExperimentConclusionCard.tsx",
+   "products/experiments/frontend/components/ExperimentMetaBar/ExperimentConclusionComment.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 13058,
+  "merge": "58f08730654c5eda0a8f225438d386db2c27cd70"
+ },
+ {
+  "number": 106130,
+  "title": "fix(experiments): decouples exposure loading indicator from metric group",
+  "mergedAt": "2026-09-24T18:04:30Z",
+  "add": 3,
+  "src": [
+   "frontend/src/scenes/experiments/MetricsView/new/MetricsTable.tsx",
+   "products/experiments/frontend/components/ExperimentMetaBar/ExperimentRefreshButton.tsx"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 10787,
+  "merge": "70b4f6e583387a769b509df95657ec095ba12375"
+ },
+ {
+  "number": 106060,
+  "title": "fix(tasks): complete delivered report runs after watch timeout",
+  "mergedAt": "2026-09-24T18:00:14Z",
+  "add": 129,
+  "src": [
+   "products/signals/backend/supersession.py",
+   "products/tasks/backend/temporal/process_task/workflow.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 3751,
+  "merge": "e19c3f23a0cb00d60cb8f170a107a89ad2245c63"
+ },
+ {
+  "number": 106017,
+  "title": "fix(max): continue the newest web chat from the homepage",
+  "mergedAt": "2026-09-24T18:00:06Z",
+  "add": 228,
+  "src": [
+   "frontend/src/scenes/project-homepage/ai-first/aiFirstHomepageLogic.ts",
+   "frontend/src/scenes/project-homepage/ai-first/homepageSuggestions.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3429,
+  "merge": "a4d4eac76eb820b6b26137a041e6dfadccb9016c"
+ },
+ {
+  "number": 106004,
+  "title": "fix(error-tracking): validate issueId in the similar issues runner",
+  "mergedAt": "2026-09-24T14:57:12Z",
+  "add": 34,
+  "src": [
+   "posthog/hogql_queries/query_runner.py",
+   "products/error_tracking/backend/hogql_queries/error_tracking_similar_issues_query_runner.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 4695,
+  "merge": "9b46d73fd962221b391be8956f5d7888bb395bc5"
+ },
+ {
+  "number": 105943,
+  "title": "fix(warehouse-sources): let resume cdc through a self-managed lag marker",
+  "mergedAt": "2026-09-24T14:41:50Z",
+  "add": 35,
+  "src": [
+   "products/warehouse_sources/backend/facade/source_management.py",
+   "products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 2262,
+  "merge": "cfcc694ba7a773e41e321404227996e77a4011bc"
+ },
+ {
+  "number": 105941,
+  "title": "fix(taxonomic-filter): use neutral copy for custom event names",
+  "mergedAt": "2026-09-24T18:41:42Z",
+  "add": 69,
+  "src": [
+   "frontend/src/lib/components/TaxonomicFilter/InfiniteList.tsx",
+   "frontend/src/lib/components/TaxonomicFilter/infiniteListLogic.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 3136,
+  "merge": "5de27b4d654c0f838b523d29bdfe1fac17b652ac"
+ },
+ {
+  "number": 105906,
+  "title": "feat(warehouse-sources): add digitalocean project, dns and database tables",
+  "mergedAt": "2026-09-25T13:40:51Z",
+  "add": 276,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/digitalocean/canonical_descriptions.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/digitalocean/settings.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 6187,
+  "merge": "eabffb0cab49fee6278454b98acdb716a0a7743b"
+ },
+ {
+  "number": 105840,
+  "title": "fix(desktop): mobile preserve plan mode for warm cloud tasks",
+  "mergedAt": "2026-09-25T15:35:05Z",
+  "add": 55,
+  "src": [
+   "products/desktop/apps/mobile/src/app/task/index.tsx",
+   "products/desktop/apps/mobile/src/features/tasks/hooks/useWarmTask.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 1953,
+  "merge": "d17013a1b997c481e95040b0b42fc1df798ff68f"
+ },
+ {
+  "number": 105837,
+  "title": "feat(marketing-analytics): add contextual AI questions",
+  "mergedAt": "2026-09-24T14:53:26Z",
+  "add": 268,
+  "src": [
+   "products/marketing_analytics/frontend/dashboard/askAi/AskPostHogAi.tsx",
+   "products/marketing_analytics/frontend/dashboard/askAi/marketingAiQuestions.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2650,
+  "merge": "9ae6c79688b2d67f4426bf318dcef6421813d4b3"
+ },
+ {
+  "number": 105835,
+  "title": "fix(integrations): let members connect setup-modal integrations",
+  "mergedAt": "2026-09-24T14:53:12Z",
+  "add": 22,
+  "src": [
+   "frontend/src/lib/components/CyclotronJob/integrations/IntegrationChoice.tsx",
+   "frontend/src/lib/integrations/integrationPermissions.ts"
+  ],
+  "layers": [
+   "frontend"
+  ],
+  "bodyLen": 2622,
+  "merge": "f87d083bf6ad67b651f33c395743374cbc655b36"
+ },
+ {
+  "number": 105756,
+  "title": "fix(desktop): keep the ACP error details when the agent server crashes",
+  "mergedAt": "2026-09-24T13:56:32Z",
+  "add": 114,
+  "src": [
+   "products/desktop/packages/agent/src/server/agent-server.ts",
+   "products/desktop/packages/agent/src/utils/logger.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 926,
+  "merge": "91af6ff535db3c165c494b84ac2d7c0ef1f82724"
+ },
+ {
+  "number": 105753,
+  "title": "feat(visual-review): enable the toleration pile-ups MCP tool",
+  "mergedAt": "2026-09-24T14:19:38Z",
+  "add": 148,
+  "src": [
+   "services/mcp/src/generated/visual_review/api.ts",
+   "services/mcp/src/tools/generated/visual_review.ts"
+  ],
+  "layers": [
+   "other"
+  ],
+  "bodyLen": 1779,
+  "merge": "9ca73d068ff192b47154f8c664cded866352407e"
+ },
+ {
+  "number": 105736,
+  "title": "fix(bigquery): stop key file field names blocking source setup",
+  "mergedAt": "2026-09-24T13:52:42Z",
+  "add": 69,
+  "src": [
+   "products/warehouse_sources/backend/temporal/data_imports/sources/bigquery/source.py",
+   "products/warehouse_sources/backend/temporal/data_imports/sources/common/config.py"
+  ],
+  "layers": [
+   "backend"
+  ],
+  "bodyLen": 4634,
+  "merge": "b88941af8682f32651d053deb6c40f0b6ab11ea4"
+ }
+]

@@ -1,0 +1,555 @@
+diff --git a/products/experiments/backend/experiment_saved_metric_service.py b/products/experiments/backend/experiment_saved_metric_service.py
+index 7b03bf6b1668..dd43bd2792c1 100644
+--- a/products/experiments/backend/experiment_saved_metric_service.py
++++ b/products/experiments/backend/experiment_saved_metric_service.py
+@@ -139,7 +139,9 @@ def normalize_query_for_write(cls, query: dict, *, existing_uuid: str | None = N
+ 
+         if existing_uuid:
+             normalized_query["uuid"] = existing_uuid
+-        elif not incoming_uuid:
++        else:
++            # A caller promoting an inline metric sends its uuid; keeping it would make the
++            # shared metric and the inline one read each other's results.
+             normalized_query["uuid"] = str(uuid4())
+ 
+         return normalized_query
+diff --git a/products/experiments/backend/experiment_service.py b/products/experiments/backend/experiment_service.py
+index 7c33bc325ee0..5c86c075c2c9 100644
+--- a/products/experiments/backend/experiment_service.py
++++ b/products/experiments/backend/experiment_service.py
+@@ -3628,6 +3628,14 @@ def update_experiment(
+ 
+         if "saved_metrics_ids" in update_data:
+             self.validate_saved_metrics_ids(update_data["saved_metrics_ids"], self.team.id)
++            saved_metric_uuids = self._collect_saved_metric_uuids(update_data["saved_metrics_ids"])
++            # A stored inline metric can carry the uuid of a shared metric this update links, for
++            # example one promoted from it. Send that list through the uuid assignment below so the
++            # inline copy gets a fresh uuid and the two metrics stop sharing results.
++            for field in ("metrics", "metrics_secondary"):
++                stored_metrics = getattr(experiment, field) or []
++                if field not in update_data and any(m.get("uuid") in saved_metric_uuids for m in stored_metrics):
++                    update_data[field] = deepcopy(stored_metrics)
+ 
+         # Seed the uniqueness set with uuids that must remain stable in the
+         # ordering arrays — any inline metric reusing one of these gets
+@@ -3647,7 +3655,7 @@ def update_experiment(
+                 if uuid := metric.get("uuid"):
+                     seen_metric_uuids.add(uuid)
+         if "saved_metrics_ids" in update_data:
+-            seen_metric_uuids |= self._collect_saved_metric_uuids(update_data["saved_metrics_ids"])
++            seen_metric_uuids |= saved_metric_uuids
+         else:
+             for link in experiment.experimenttosavedmetric_set.select_related("saved_metric").all():
+                 if link.saved_metric.query and (uuid := link.saved_metric.query.get("uuid")):
+@@ -4923,12 +4931,22 @@ def get_velocity_stats(self) -> dict:
+ 
+     def _sync_ordering_with_metric_changes(self, experiment: Experiment, update_data: dict) -> None:
+         """Sync ordering arrays with inline metric changes during update."""
++        if "metrics" not in update_data and "metrics_secondary" not in update_data:
++            return
++
++        # A stored inline metric can share its uuid with a linked shared metric. When dedup gives the
++        # inline copy a fresh uuid, the old uuid still belongs to the shared metric, so keep it in the ordering.
++        saved_uuids = self._saved_metric_uuids_by_type(
++            (link.saved_metric.query, link.metadata)
++            for link in experiment.experimenttosavedmetric_set.select_related("saved_metric").all()
++        )
++
+         if "metrics" in update_data:
+             old_uuids = {m.get("uuid") for m in experiment.metrics or [] if m.get("uuid")}
+             new_uuids = {m.get("uuid") for m in update_data.get("metrics") or [] if m.get("uuid")}
+ 
+             added = new_uuids - old_uuids
+-            removed = old_uuids - new_uuids
++            removed = old_uuids - new_uuids - saved_uuids["primary"]
+ 
+             if added or removed:
+                 if "primary_metrics_ordered_uuids" in update_data:
+@@ -4948,7 +4966,7 @@ def _sync_ordering_with_metric_changes(self, experiment: Experiment, update_data
+             new_uuids = {m.get("uuid") for m in update_data.get("metrics_secondary") or [] if m.get("uuid")}
+ 
+             added = new_uuids - old_uuids
+-            removed = old_uuids - new_uuids
++            removed = old_uuids - new_uuids - saved_uuids["secondary"]
+ 
+             if added or removed:
+                 if "secondary_metrics_ordered_uuids" in update_data:
+diff --git a/products/experiments/backend/test/test_experiment_saved_metric_service.py b/products/experiments/backend/test/test_experiment_saved_metric_service.py
+index b7de86c90195..d5ed6ae4a38e 100644
+--- a/products/experiments/backend/test/test_experiment_saved_metric_service.py
++++ b/products/experiments/backend/test/test_experiment_saved_metric_service.py
+@@ -22,19 +22,20 @@ def _valid_experiment_metric(self) -> dict:
+             "source": {"kind": "EventsNode", "event": "$pageview"},
+         }
+ 
+-    def test_create_saved_metric_with_minimum_fields(self) -> None:
++    @parameterized.expand([("without_uuid", {}), ("with_client_uuid", {"uuid": "inline-metric-uuid"})])
++    def test_create_saved_metric_with_minimum_fields(self, _name: str, client_uuid: dict) -> None:
+         original_query = self._valid_experiment_metric()
+         saved_metric = self._service().create_saved_metric(
+             name="Service saved metric",
+             description="Created through the service",
+-            query=original_query,
++            query={**original_query, **client_uuid},
+         )
+ 
+         assert saved_metric.team_id == self.team.id
+         assert saved_metric.created_by_id == self.user.id
+         assert saved_metric.name == "Service saved metric"
+         assert saved_metric.description == "Created through the service"
+-        assert saved_metric.query["uuid"]
++        assert saved_metric.query["uuid"] not in (None, "", "inline-metric-uuid")
+         assert {key: value for key, value in saved_metric.query.items() if key != "uuid"} == original_query
+ 
+     @parameterized.expand(
+diff --git a/products/experiments/backend/test/test_experiment_service.py b/products/experiments/backend/test/test_experiment_service.py
+index c18f00d26788..d3122540610e 100644
+--- a/products/experiments/backend/test/test_experiment_service.py
++++ b/products/experiments/backend/test/test_experiment_service.py
+@@ -6153,6 +6153,134 @@ def test_dedup_regenerates_inline_uuids_that_collide_with_saved_metric_uuid(self
+         # The saved-metric link itself is untouched.
+         assert list(updated.experimenttosavedmetric_set.values_list("saved_metric_id", flat=True)) == [sm.id]
+ 
++    @parameterized.expand(
++        [
++            ("primary", "metrics", "metrics_secondary", "primary_metrics_ordered_uuids", "primary", True),
++            ("secondary", "metrics_secondary", "metrics", "secondary_metrics_ordered_uuids", "secondary", True),
++            ("no_collision", "metrics", "metrics_secondary", "primary_metrics_ordered_uuids", "primary", False),
++        ]
++    )
++    def test_attaching_saved_metric_regenerates_stored_inline_uuid_that_collides(
++        self,
++        _name: str,
++        field: str,
++        other_field: str,
++        ordering_attr: str,
++        metric_type: str,
++        collides: bool,
++    ) -> None:
++        self._create_flag(key="attach-dedup-with-saved")
++        inline_uuid = "66bfb66a-51f5-48d0-a87e-bde2b4c958a6"
++        service = self._service()
++        inline_metrics: dict[str, Any] = {
++            field: [
++                {
++                    "kind": "ExperimentMetric",
++                    "metric_type": "mean",
++                    "uuid": inline_uuid,
++                    "source": {"kind": "EventsNode", "event": "stale_event_nobody_sends"},
++                }
++            ],
++            other_field: [
++                {
++                    "kind": "ExperimentMetric",
++                    "metric_type": "mean",
++                    "source": {"kind": "EventsNode", "event": "$pageview"},
++                }
++            ],
++        }
++        experiment = service.create_experiment(
++            name="Promoted inline metric",
++            feature_flag_key="attach-dedup-with-saved",
++            allow_unknown_events=True,
++            **inline_metrics,
++        )
++        stored_before = {f: deepcopy(getattr(experiment, f)) for f in ("metrics", "metrics_secondary")}
++        saved_metric_uuid = inline_uuid if collides else str(uuid4())
++        # Created through the ORM, because the saved-metric service assigns its own uuid on create.
++        sm = ExperimentSavedMetric.objects.create(
++            team=self.team,
++            name="Promoted",
++            query={
++                "kind": "ExperimentMetric",
++                "metric_type": "mean",
++                "uuid": saved_metric_uuid,
++                "source": {"kind": "EventsNode", "event": "$pageview"},
++            },
++        )
++
++        updated = service.update_experiment(
++            experiment, {"saved_metrics_ids": [{"id": sm.id, "metadata": {"type": metric_type}}]}
++        )
++
++        sm.refresh_from_db()
++        assert sm.query["uuid"] == saved_metric_uuid
++        assert list(updated.experimenttosavedmetric_set.values_list("saved_metric_id", flat=True)) == [sm.id]
++        assert getattr(updated, other_field) == stored_before[other_field]
++        new_inline_uuid = getattr(updated, field)[0]["uuid"]
++        if collides:
++            assert new_inline_uuid != inline_uuid
++            UUID(new_inline_uuid)
++            assert {new_inline_uuid, saved_metric_uuid} <= set(getattr(updated, ordering_attr))
++        else:
++            assert getattr(updated, field) == stored_before[field]
++
++    @parameterized.expand(
++        [
++            ("attach_another_primary", "metrics", "primary_metrics_ordered_uuids", "primary", True),
++            ("resend_inline_secondary", "metrics_secondary", "secondary_metrics_ordered_uuids", "secondary", False),
++        ]
++    )
++    def test_update_keeps_saved_metric_uuid_in_ordering_when_stored_inline_copy_collides(
++        self, _name: str, field: str, ordering_attr: str, metric_type: str, attach_another: bool
++    ) -> None:
++        self._create_flag(key="stored-collision")
++        shared_uuid = "77bfb66a-51f5-48d0-a87e-bde2b4c958a6"
++        sm = ExperimentSavedMetric.objects.create(
++            team=self.team,
++            name="Linked",
++            query={
++                "kind": "ExperimentMetric",
++                "metric_type": "mean",
++                "uuid": shared_uuid,
++                "source": {"kind": "EventsNode", "event": "$pageview"},
++            },
++        )
++        service = self._service()
++        experiment = service.create_experiment(
++            name="Stored collision",
++            feature_flag_key="stored-collision",
++            allow_unknown_events=True,
++            saved_metrics_ids=[{"id": sm.id, "metadata": {"type": metric_type}}],
++        )
++        Experiment.objects.filter(id=experiment.id).update(
++            **{
++                field: [
++                    {
++                        "kind": "ExperimentMetric",
++                        "metric_type": "mean",
++                        "uuid": shared_uuid,
++                        "source": {"kind": "EventsNode", "event": "$pageview"},
++                    }
++                ],
++                ordering_attr: [shared_uuid],
++            }
++        )
++        experiment.refresh_from_db()
++
++        saved_metrics_ids = [{"id": sm.id, "metadata": {"type": metric_type}}]
++        if attach_another:
++            saved_metrics_ids.append({"id": self._make_saved_metric("Another").id, "metadata": {"type": metric_type}})
++            payload: dict = {"saved_metrics_ids": saved_metrics_ids}
++        else:
++            payload = {field: deepcopy(getattr(experiment, field))}
++
++        updated = service.update_experiment(experiment, payload)
++
++        new_inline_uuid = getattr(updated, field)[0]["uuid"]
++        assert new_inline_uuid != shared_uuid
++        assert {shared_uuid, new_inline_uuid} <= set(getattr(updated, ordering_attr))
++
+     def test_create_regenerates_inline_uuid_that_collides_with_saved_metric_uuid(self):
+         """Same protection on create: inline metric reusing a saved-metric uuid gets regenerated."""
+         self._create_flag(key="create-dedup-with-saved")
+diff --git a/products/experiments/backend/test/test_presentation_api.py b/products/experiments/backend/test/test_presentation_api.py
+index 0dd485cf4876..709374ebfe93 100644
+--- a/products/experiments/backend/test/test_presentation_api.py
++++ b/products/experiments/backend/test/test_presentation_api.py
+@@ -7727,7 +7727,6 @@ def test_saved_metric_add_remove_does_not_log_ordering_changes(self):
+                 "query": {
+                     "kind": "ExperimentMetric",
+                     "metric_type": "mean",
+-                    "uuid": "test-uuid-001",
+                     "source": {"kind": "EventsNode", "event": "$pageview"},
+                 },
+             },
+@@ -7735,6 +7734,7 @@ def test_saved_metric_add_remove_does_not_log_ordering_changes(self):
+         )
+         self.assertEqual(saved_metric_response.status_code, status.HTTP_201_CREATED)
+         saved_metric_id = saved_metric_response.json()["id"]
++        saved_metric_uuid = saved_metric_response.json()["query"]["uuid"]
+ 
+         # Create experiment without saved metrics
+         experiment_response = self.client.post(
+@@ -7761,7 +7761,7 @@ def test_saved_metric_add_remove_does_not_log_ordering_changes(self):
+ 
+         # Verify ordering was updated in the database
+         experiment = Experiment.objects.get(id=experiment_id)
+-        self.assertIn("test-uuid-001", experiment.secondary_metrics_ordered_uuids or [])
++        self.assertIn(saved_metric_uuid, experiment.secondary_metrics_ordered_uuids or [])
+ 
+         # Exactly 1 new log should be created (the saved_metric_config, not ordering changes)
+         logs_after_add = ActivityLog.objects.filter(item_id=str(experiment_id), scope="Experiment").count()
+@@ -7802,7 +7802,7 @@ def test_saved_metric_add_remove_does_not_log_ordering_changes(self):
+ 
+         # Verify ordering was updated
+         experiment.refresh_from_db()
+-        self.assertNotIn("test-uuid-001", experiment.secondary_metrics_ordered_uuids or [])
++        self.assertNotIn(saved_metric_uuid, experiment.secondary_metrics_ordered_uuids or [])
+ 
+         # Exactly 1 new log should be created (the saved_metric_config deletion)
+         logs_after_remove = ActivityLog.objects.filter(item_id=str(experiment_id), scope="Experiment").count()
+@@ -7884,7 +7884,6 @@ def test_explicit_reorder_in_same_patch_as_saved_metric_add_is_logged(self):
+                 "query": {
+                     "kind": "ExperimentMetric",
+                     "metric_type": "mean",
+-                    "uuid": "combined-saved-uuid",
+                     "source": {"kind": "EventsNode", "event": "$pageview"},
+                 },
+             },
+@@ -7892,6 +7891,7 @@ def test_explicit_reorder_in_same_patch_as_saved_metric_add_is_logged(self):
+         )
+         self.assertEqual(saved_metric_response.status_code, status.HTTP_201_CREATED)
+         saved_metric_id = saved_metric_response.json()["id"]
++        saved_metric_uuid = saved_metric_response.json()["query"]["uuid"]
+ 
+         # Start with one inline primary metric so we have an existing ordering to permute
+         experiment_response = self.client.post(
+@@ -7922,7 +7922,7 @@ def test_explicit_reorder_in_same_patch_as_saved_metric_add_is_logged(self):
+             f"/api/projects/{self.team.id}/experiments/{experiment_id}/",
+             {
+                 "saved_metrics_ids": [{"id": saved_metric_id, "metadata": {"type": "primary"}}],
+-                "primary_metrics_ordered_uuids": ["combined-saved-uuid", "combined-inline-uuid"],
++                "primary_metrics_ordered_uuids": [saved_metric_uuid, "combined-inline-uuid"],
+             },
+             format="json",
+         )
+@@ -7931,7 +7931,7 @@ def test_explicit_reorder_in_same_patch_as_saved_metric_add_is_logged(self):
+         experiment = Experiment.objects.get(id=experiment_id)
+         self.assertEqual(
+             experiment.primary_metrics_ordered_uuids,
+-            ["combined-saved-uuid", "combined-inline-uuid"],
++            [saved_metric_uuid, "combined-inline-uuid"],
+         )
+ 
+         # Two new logs: the saved_metric_config add AND the experiment-level reorder.
+@@ -7958,7 +7958,7 @@ def test_explicit_reorder_in_same_patch_as_saved_metric_add_is_logged(self):
+         ]
+         self.assertEqual(len(ordering_changes), 1, "User-supplied reorder must be logged once")
+         self.assertEqual(ordering_changes[0]["before"], ["combined-inline-uuid"])
+-        self.assertEqual(ordering_changes[0]["after"], ["combined-saved-uuid", "combined-inline-uuid"])
++        self.assertEqual(ordering_changes[0]["after"], [saved_metric_uuid, "combined-inline-uuid"])
+ 
+     @parameterized.expand(
+         [
+@@ -7976,9 +7976,9 @@ def test_bulk_remove_shared_metrics_does_not_log_ordering_change(
+         write is bookkeeping and must be muted. Only the per-link `saved_metric_config`
+         deleted entries should appear.
+         """
+-        saved_metric_uuids = ["bulk-remove-uuid-1", "bulk-remove-uuid-2"]
++        saved_metric_uuids: list[str] = []
+         saved_metric_ids: list[int] = []
+-        for index, uuid in enumerate(saved_metric_uuids):
++        for index in range(2):
+             response = self.client.post(
+                 f"/api/projects/{self.team.id}/experiment_saved_metrics/",
+                 {
+@@ -7986,7 +7986,6 @@ def test_bulk_remove_shared_metrics_does_not_log_ordering_change(
+                     "query": {
+                         "kind": "ExperimentMetric",
+                         "metric_type": "mean",
+-                        "uuid": uuid,
+                         "source": {"kind": "EventsNode", "event": "$pageview"},
+                     },
+                 },
+@@ -7994,6 +7993,7 @@ def test_bulk_remove_shared_metrics_does_not_log_ordering_change(
+             )
+             self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+             saved_metric_ids.append(response.json()["id"])
++            saved_metric_uuids.append(response.json()["query"]["uuid"])
+ 
+         experiment_response = self.client.post(
+             f"/api/projects/{self.team.id}/experiments/",
+@@ -8140,14 +8140,12 @@ def test_update_auto_syncs_ordering_when_inline_metric_added_with_empty_ordering
+ 
+     def test_update_auto_syncs_ordering_when_saved_metric_added_with_empty_ordering(self):
+         """Test that adding a saved metric with empty ordering auto-populates the ordering"""
+-        saved_metric_uuid = "saved-metric-uuid-456"
+         saved_metric_response = self.client.post(
+             f"/api/projects/{self.team.id}/experiment_saved_metrics/",
+             {
+                 "name": "Test Saved Metric",
+                 "query": {
+                     "kind": "ExperimentMetric",
+-                    "uuid": saved_metric_uuid,
+                     "metric_type": "funnel",
+                     "series": [{"kind": "EventsNode", "event": "$pageview"}],
+                 },
+@@ -8156,6 +8154,7 @@ def test_update_auto_syncs_ordering_when_saved_metric_added_with_empty_ordering(
+         )
+         self.assertEqual(saved_metric_response.status_code, status.HTTP_201_CREATED)
+         saved_metric_id = saved_metric_response.json()["id"]
++        saved_metric_uuid = saved_metric_response.json()["query"]["uuid"]
+ 
+         response = self.client.post(
+             f"/api/projects/{self.team.id}/experiments/",
+@@ -8185,14 +8184,12 @@ def test_update_auto_syncs_ordering_when_saved_metric_added_with_empty_ordering(
+ 
+     def test_update_succeeds_when_ordering_arrays_are_correct(self):
+         """Test that updating an experiment succeeds when ordering arrays contain all metric UUIDs"""
+-        saved_metric_uuid = "saved-metric-uuid-789"
+         saved_metric_response = self.client.post(
+             f"/api/projects/{self.team.id}/experiment_saved_metrics/",
+             {
+                 "name": "Test Saved Metric",
+                 "query": {
+                     "kind": "ExperimentMetric",
+-                    "uuid": saved_metric_uuid,
+                     "metric_type": "funnel",
+                     "series": [{"kind": "EventsNode", "event": "$pageview"}],
+                 },
+@@ -8201,6 +8198,7 @@ def test_update_succeeds_when_ordering_arrays_are_correct(self):
+         )
+         self.assertEqual(saved_metric_response.status_code, status.HTTP_201_CREATED)
+         saved_metric_id = saved_metric_response.json()["id"]
++        saved_metric_uuid = saved_metric_response.json()["query"]["uuid"]
+ 
+         response = self.client.post(
+             f"/api/projects/{self.team.id}/experiments/",
+@@ -8502,14 +8500,12 @@ def test_update_preserves_existing_order_when_adding_metrics(self):
+ 
+     def test_update_auto_syncs_ordering_when_saved_metric_added_without_ordering(self):
+         """Test that adding a saved metric without sending ordering auto-populates the ordering"""
+-        saved_metric_uuid = "saved-metric-no-ordering-uuid"
+         saved_metric_response = self.client.post(
+             f"/api/projects/{self.team.id}/experiment_saved_metrics/",
+             {
+                 "name": "Test Saved Metric",
+                 "query": {
+                     "kind": "ExperimentMetric",
+-                    "uuid": saved_metric_uuid,
+                     "metric_type": "funnel",
+                     "series": [{"kind": "EventsNode", "event": "$pageview"}],
+                 },
+@@ -8518,6 +8514,7 @@ def test_update_auto_syncs_ordering_when_saved_metric_added_without_ordering(sel
+         )
+         self.assertEqual(saved_metric_response.status_code, status.HTTP_201_CREATED)
+         saved_metric_id = saved_metric_response.json()["id"]
++        saved_metric_uuid = saved_metric_response.json()["query"]["uuid"]
+ 
+         response = self.client.post(
+             f"/api/projects/{self.team.id}/experiments/",
+@@ -8546,8 +8543,6 @@ def test_update_auto_syncs_ordering_when_saved_metric_added_without_ordering(sel
+ 
+     def test_update_removes_saved_metric_uuid_from_ordering_when_removed(self):
+         """Test that removing a saved metric also removes its UUID from the ordering array"""
+-        saved_metric_uuid_1 = "remove-saved-uuid-1"
+-        saved_metric_uuid_2 = "remove-saved-uuid-2"
+ 
+         # Create two saved metrics
+         saved_metric_response_1 = self.client.post(
+@@ -8556,7 +8551,6 @@ def test_update_removes_saved_metric_uuid_from_ordering_when_removed(self):
+                 "name": "Saved Metric 1",
+                 "query": {
+                     "kind": "ExperimentMetric",
+-                    "uuid": saved_metric_uuid_1,
+                     "metric_type": "funnel",
+                     "series": [{"kind": "EventsNode", "event": "$pageview"}],
+                 },
+@@ -8564,6 +8558,7 @@ def test_update_removes_saved_metric_uuid_from_ordering_when_removed(self):
+             format="json",
+         )
+         saved_metric_id_1 = saved_metric_response_1.json()["id"]
++        saved_metric_uuid_1 = saved_metric_response_1.json()["query"]["uuid"]
+ 
+         saved_metric_response_2 = self.client.post(
+             f"/api/projects/{self.team.id}/experiment_saved_metrics/",
+@@ -8571,7 +8566,6 @@ def test_update_removes_saved_metric_uuid_from_ordering_when_removed(self):
+                 "name": "Saved Metric 2",
+                 "query": {
+                     "kind": "ExperimentMetric",
+-                    "uuid": saved_metric_uuid_2,
+                     "metric_type": "funnel",
+                     "series": [{"kind": "EventsNode", "event": "$pageleave"}],
+                 },
+@@ -8579,6 +8573,7 @@ def test_update_removes_saved_metric_uuid_from_ordering_when_removed(self):
+             format="json",
+         )
+         saved_metric_id_2 = saved_metric_response_2.json()["id"]
++        saved_metric_uuid_2 = saved_metric_response_2.json()["query"]["uuid"]
+ 
+         # Create experiment with both saved metrics
+         response = self.client.post(
+@@ -8615,14 +8610,12 @@ def test_update_removes_saved_metric_uuid_from_ordering_when_removed(self):
+ 
+     def test_update_auto_syncs_secondary_saved_metric_ordering(self):
+         """Test that adding a secondary saved metric auto-populates the secondary ordering array"""
+-        saved_metric_uuid = "secondary-saved-metric-uuid"
+         saved_metric_response = self.client.post(
+             f"/api/projects/{self.team.id}/experiment_saved_metrics/",
+             {
+                 "name": "Secondary Saved Metric",
+                 "query": {
+                     "kind": "ExperimentMetric",
+-                    "uuid": saved_metric_uuid,
+                     "metric_type": "funnel",
+                     "series": [{"kind": "EventsNode", "event": "$pageview"}],
+                 },
+@@ -8631,6 +8624,7 @@ def test_update_auto_syncs_secondary_saved_metric_ordering(self):
+         )
+         self.assertEqual(saved_metric_response.status_code, status.HTTP_201_CREATED)
+         saved_metric_id = saved_metric_response.json()["id"]
++        saved_metric_uuid = saved_metric_response.json()["query"]["uuid"]
+ 
+         response = self.client.post(
+             f"/api/projects/{self.team.id}/experiments/",
+@@ -8711,14 +8705,12 @@ def test_create_auto_syncs_ordering_for_secondary_inline_metrics(self):
+ 
+     def test_create_auto_syncs_ordering_for_saved_metrics(self):
+         """Test that creating an experiment with saved metrics auto-populates ordering"""
+-        saved_metric_uuid = "create-saved-metric-uuid"
+         saved_metric_response = self.client.post(
+             f"/api/projects/{self.team.id}/experiment_saved_metrics/",
+             {
+                 "name": "Test Saved Metric",
+                 "query": {
+                     "kind": "ExperimentMetric",
+-                    "uuid": saved_metric_uuid,
+                     "metric_type": "funnel",
+                     "series": [{"kind": "EventsNode", "event": "$pageview"}],
+                 },
+@@ -8727,6 +8719,7 @@ def test_create_auto_syncs_ordering_for_saved_metrics(self):
+         )
+         self.assertEqual(saved_metric_response.status_code, status.HTTP_201_CREATED)
+         saved_metric_id = saved_metric_response.json()["id"]
++        saved_metric_uuid = saved_metric_response.json()["query"]["uuid"]
+ 
+         # Create experiment with saved metric but no ordering
+         response = self.client.post(
+@@ -8747,7 +8740,6 @@ def test_create_auto_syncs_ordering_for_saved_metrics(self):
+     def test_create_auto_syncs_ordering_for_mixed_metrics(self):
+         """Test that creating an experiment with both inline and saved metrics auto-populates ordering"""
+         inline_uuid = "create-mixed-inline-uuid"
+-        saved_metric_uuid = "create-mixed-saved-uuid"
+ 
+         saved_metric_response = self.client.post(
+             f"/api/projects/{self.team.id}/experiment_saved_metrics/",
+@@ -8755,7 +8747,6 @@ def test_create_auto_syncs_ordering_for_mixed_metrics(self):
+                 "name": "Test Saved Metric",
+                 "query": {
+                     "kind": "ExperimentMetric",
+-                    "uuid": saved_metric_uuid,
+                     "metric_type": "funnel",
+                     "series": [{"kind": "EventsNode", "event": "$pageview"}],
+                 },
+@@ -8763,6 +8754,7 @@ def test_create_auto_syncs_ordering_for_mixed_metrics(self):
+             format="json",
+         )
+         saved_metric_id = saved_metric_response.json()["id"]
++        saved_metric_uuid = saved_metric_response.json()["query"]["uuid"]
+ 
+         # Create experiment with both inline and saved metrics, no ordering
+         response = self.client.post(
+diff --git a/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2 b/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2
+index 3e912ad58508..d3bd1f110ec1 100644
+--- a/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2
++++ b/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2
+@@ -296,9 +296,15 @@ resend — sending the link `id` attaches the wrong metric or fails validation.
+ `metadata` is optional and defaults to `primary`. Pass an empty array to detach
+ all shared metrics.
+ 
+-To promote a one-off inline metric into a reusable shared metric, call
+-`experiment-saved-metrics-create` with the same `query` (the `ExperimentMetric`
+-object), then attach it via `saved_metrics_ids` as above.
++To promote a one-off inline metric into a reusable shared metric:
++
++1. Call `experiment-saved-metrics-create` with the inline metric's `query` (the
++   `ExperimentMetric` object) and leave out `query.uuid`. The API assigns the
++   shared metric a new uuid and ignores one you send.
++2. In a single `experiment-update` call, attach the new metric through
++   `saved_metrics_ids` as above, and resend `metrics` (or `metrics_secondary`)
++   without the inline metric. If you leave the inline metric in place, the
++   experiment measures the same thing twice.
+ 
+ ## Property filters
+ 

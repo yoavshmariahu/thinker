@@ -1,0 +1,301 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 539ddc24ec..871f8a3c78 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,6 +7,10 @@
+ 
+ ## Unreleased: mitmproxy next
+ 
++- mitmweb: Honor the `view_order_reversed` option for live flows. New flows are
++  now placed at the top of the table when the option is set, instead of always
++  being appended at the bottom.
++  ([#8288](https://github.com/mitmproxy/mitmproxy/pull/8288), @hexbinoct)
+ - Fix contentview detection for XML files that start with CRLF.
+   ([#8243](https://github.com/mitmproxy/mitmproxy/pull/8243), @ADiTyaRaj8969)
+ - mitmweb: Fix the filter input losing half-typed text on unrelated parent re-renders.
+diff --git a/web/src/js/__tests__/ducks/flows/indexSpec.tsx b/web/src/js/__tests__/ducks/flows/indexSpec.tsx
+index 5b69deeb4a..cc1ecf6e5e 100644
+--- a/web/src/js/__tests__/ducks/flows/indexSpec.tsx
++++ b/web/src/js/__tests__/ducks/flows/indexSpec.tsx
+@@ -3,6 +3,8 @@ import { defaultState } from "../../../ducks/flows";
+ import { testState, TFlow, TStore } from "../tutils";
+ import FlowColumns from "../../../components/FlowTable/FlowColumns";
+ import { FilterName } from "../../../ducks/ui/filter";
++import { OPTIONS_RECEIVE, OPTIONS_UPDATE } from "../../../ducks/options";
++import type { OptionsStateWithMeta } from "../../../ducks/options";
+ 
+ describe("flow reducer", () => {
+     let s;
+@@ -378,6 +380,74 @@ describe("flow reducer", () => {
+             expect(s.view).toEqual(state.view);
+         });
+     });
++
++    describe("view_order_reversed (#5520)", () => {
++        const reversedOption = (value: boolean) =>
++            ({
++                view_order_reversed: { value },
++            }) as unknown as OptionsStateWithMeta;
++        const reversedOn = reversedOption(true);
++        const reversedOff = reversedOption(false);
++
++        const addFlows = (s, ids: string[]) => {
++            for (const id of ids) {
++                s = reduceFlows(
++                    s,
++                    flowActions.FLOWS_ADD({
++                        flow: { ...TFlow(), id },
++                        matching_filters: {},
++                    }),
++                );
++            }
++            return s;
++        };
++
++        it("tracks the option via OPTIONS_RECEIVE and OPTIONS_UPDATE", () => {
++            let s = reduceFlows(undefined, OPTIONS_RECEIVE(reversedOn));
++            expect(s.orderReversed).toBe(true);
++            s = reduceFlows(s, OPTIONS_UPDATE(reversedOff));
++            expect(s.orderReversed).toBe(false);
++        });
++
++        it("ignores option payloads without view_order_reversed", () => {
++            const s = reduceFlows(state, OPTIONS_UPDATE({}));
++            expect(s.orderReversed).toBe(state.orderReversed);
++        });
++
++        it("prepends live flows when reversed and no column sort is active", () => {
++            let s = reduceFlows(undefined, OPTIONS_RECEIVE(reversedOn));
++            s = addFlows(s, ["0", "1", "2"]);
++            expect(s.view.map((f) => f.id)).toEqual(["2", "1", "0"]);
++        });
++
++        it("appends live flows when not reversed", () => {
++            let s = reduceFlows(undefined, OPTIONS_RECEIVE(reversedOff));
++            s = addFlows(s, ["0", "1", "2"]);
++            expect(s.view.map((f) => f.id)).toEqual(["0", "1", "2"]);
++        });
++
++        it("lets an active column sort take precedence over the option", () => {
++            let s = reduceFlows(undefined, OPTIONS_RECEIVE(reversedOn));
++            s = reduceFlows(
++                s,
++                flowActions.setSort({ column: "comment", desc: false }),
++            );
++            for (const [id, comment] of [
++                ["x", "c"],
++                ["y", "a"],
++                ["z", "b"],
++            ]) {
++                s = reduceFlows(
++                    s,
++                    flowActions.FLOWS_ADD({
++                        flow: { ...TFlow(), id, comment },
++                        matching_filters: {},
++                    }),
++                );
++            }
++            expect(s.view.map((f) => f.id)).toEqual(["y", "z", "x"]);
++        });
++    });
+ });
+ 
+ test("makeSort", () => {
+diff --git a/web/src/js/__tests__/ducks/tutils.ts b/web/src/js/__tests__/ducks/tutils.ts
+index 4468de57e7..2ae38f1785 100644
+--- a/web/src/js/__tests__/ducks/tutils.ts
++++ b/web/src/js/__tests__/ducks/tutils.ts
+@@ -95,6 +95,7 @@ export const testState: RootState = {
+             desc: true,
+             column: "path",
+         },
++        orderReversed: false,
+         view: [tflow1, tflow2, tflow3, tflow4],
+         list: [tflow0, tflow1, tflow2, tflow3, tflow4],
+         _listIndex: new Map<string, number>([
+diff --git a/web/src/js/ducks/flows/_utils.ts b/web/src/js/ducks/flows/_utils.ts
+index 22ad4dde6a..058e17912c 100644
+--- a/web/src/js/ducks/flows/_utils.ts
++++ b/web/src/js/ducks/flows/_utils.ts
+@@ -82,8 +82,20 @@ export function insertViewItem<T extends Item>(
+     item: T,
+     sort: Comparer<T>,
+ ): { view: T[]; _viewIndex: Map<string, number> } {
+-    const pos = findInsertPos(prevView, item, sort);
++    return insertViewItemAt(
++        prevView,
++        prevViewIndex,
++        item,
++        findInsertPos(prevView, item, sort),
++    );
++}
+ 
++export function insertViewItemAt<T extends Item>(
++    prevView: T[],
++    prevViewIndex: Map<string, number>,
++    item: T,
++    pos: number,
++): { view: T[]; _viewIndex: Map<string, number> } {
+     const view = toSpliced(prevView, pos, 0, item);
+ 
+     const _viewIndex = new Map(prevViewIndex);
+diff --git a/web/src/js/ducks/flows/index.ts b/web/src/js/ducks/flows/index.ts
+index 323f2901ad..f32aca38d0 100644
+--- a/web/src/js/ducks/flows/index.ts
++++ b/web/src/js/ducks/flows/index.ts
+@@ -10,11 +10,13 @@ import {
+     buildIndex,
+     buildLookup,
+     insertViewItem,
++    insertViewItemAt,
+     removeViewItemAt,
+     updateViewItem,
+     withElemRemoved,
+ } from "./_utils";
+ import { toSorted, toSpliced } from "./_compat";
++import { OPTIONS_RECEIVE, OPTIONS_UPDATE } from "../options";
+ 
+ export * from "./_backend_actions";
+ 
+@@ -47,6 +49,10 @@ export interface FlowsState {
+     _viewIndex: Map<string, number>;
+ 
+     sort: { column?: keyof typeof sortFunctions; desc: boolean };
++    // Mirrors the server's view_order_reversed option. When no column sort is
++    // active, the view follows the server flow order, so newly added flows go to
++    // the front when this is set and to the back otherwise.
++    orderReversed: boolean;
+     selected: Flow[];
+     selectedIds: Set<string>;
+     highlightedIds: Set<string>;
+@@ -60,6 +66,7 @@ export const defaultState: FlowsState = {
+     _viewIndex: new Map(),
+ 
+     sort: { column: undefined, desc: false },
++    orderReversed: false,
+     selected: [],
+     selectedIds: new Set(),
+     highlightedIds: new Set(),
+@@ -77,7 +84,7 @@ export default function flowsReducer(
+     action: UnknownAction,
+ ): FlowsState {
+     if (FLOWS_RECEIVE.match(action)) {
+-        const { sort } = state;
++        const { sort, orderReversed } = state;
+         const list = action.payload;
+         const _listIndex = buildIndex(list);
+         const byId = new Map(list.map((f) => [f.id, f]));
+@@ -97,6 +104,7 @@ export default function flowsReducer(
+             view,
+             _viewIndex,
+             sort,
++            orderReversed,
+             selected,
+             selectedIds,
+             highlightedIds,
+@@ -106,7 +114,7 @@ export default function flowsReducer(
+         if (state._listIndex.has(flow.id)) {
+             return state; // WebSocket/HTTP race
+         }
+-        const { sort, selected, selectedIds } = state;
++        const { sort, selected, selectedIds, orderReversed } = state;
+         let { view, _viewIndex, highlightedIds } = state;
+         // Update list
+         const _listIndex = new Map(state._listIndex);
+@@ -119,11 +127,12 @@ export default function flowsReducer(
+             matching_filters[FilterName.Search] === true ||
+             matching_filters[FilterName.Search] === undefined
+         ) {
+-            ({ view, _viewIndex } = insertViewItem(
++            ({ view, _viewIndex } = insertFlowIntoView(
+                 view,
+                 _viewIndex,
+                 flow,
+-                makeSort(sort),
++                sort,
++                orderReversed,
+             ));
+         }
+         // Update highlight
+@@ -139,13 +148,14 @@ export default function flowsReducer(
+             view,
+             _viewIndex,
+             sort,
++            orderReversed,
+             selected,
+             selectedIds,
+             highlightedIds,
+         };
+     } else if (FLOWS_UPDATE.match(action)) {
+         const { flow, matching_filters } = action.payload;
+-        const { _listIndex, sort, selectedIds } = state;
++        const { _listIndex, sort, selectedIds, orderReversed } = state;
+         let { view, _viewIndex, selected, highlightedIds } = state;
+         // Update list
+         const listPos = state._listIndex.get(flow.id);
+@@ -209,13 +219,14 @@ export default function flowsReducer(
+             view,
+             _viewIndex,
+             sort,
++            orderReversed,
+             selected,
+             selectedIds,
+             highlightedIds,
+         };
+     } else if (FLOWS_REMOVE.match(action)) {
+         const flow_id = action.payload;
+-        const { sort } = state;
++        const { sort, orderReversed } = state;
+         let { view, _viewIndex, selected, selectedIds } = state;
+         const listPos = state._listIndex.get(flow_id);
+         if (listPos === undefined) {
+@@ -256,6 +267,7 @@ export default function flowsReducer(
+             view,
+             _viewIndex,
+             sort,
++            orderReversed,
+             selected,
+             selectedIds,
+             highlightedIds,
+@@ -311,11 +323,41 @@ export default function flowsReducer(
+             selected: action.payload,
+             selectedIds: buildLookup(action.payload),
+         };
++    } else if (OPTIONS_RECEIVE.match(action) || OPTIONS_UPDATE.match(action)) {
++        const update = action.payload.view_order_reversed;
++        if (update !== undefined) {
++            return { ...state, orderReversed: update.value };
++        }
++        return state;
+     } else {
+         return state;
+     }
+ }
+ 
++/**
++ * Insert a flow that newly enters the view. With an active column sort the flow
++ * is placed according to that sort. Otherwise the view follows the server flow
++ * order, so the flow goes to the front when view_order_reversed is set and to the
++ * back otherwise.
++ */
++function insertFlowIntoView(
++    view: Flow[],
++    _viewIndex: Map<string, number>,
++    flow: Flow,
++    sort: FlowsState["sort"],
++    orderReversed: boolean,
++): { view: Flow[]; _viewIndex: Map<string, number> } {
++    if (sort.column) {
++        return insertViewItem(view, _viewIndex, flow, makeSort(sort));
++    }
++    return insertViewItemAt(
++        view,
++        _viewIndex,
++        flow,
++        orderReversed ? 0 : view.length,
++    );
++}
++
+ export function makeSort({
+     column,
+     desc,

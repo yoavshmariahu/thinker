@@ -1,0 +1,293 @@
+[
+ {
+  "number": 8175,
+  "title": "fix: display failed CONNECT requests in mitmdump",
+  "body": "#### Description\r\n\r\nHandle HttpConnectErrorHook in the dumper addon so that failed CONNECT requests (e.g. DNS resolution errors) are logged to the terminal.\r\n\r\nCloses #7083 \r\n\r\n<img width=\"493\" height=\"44\" alt=\"image\" src=\"https://github.com/user-attachments/assets/260ad8e0-2d74-471b-9690-41987f781e7a\" />\r\n\r\n\r\n#### Checklist\r\n\r\n - [x] I have updated tests where applicable.\r\n - [x] I have added an entry to the CHANGELOG.\r\n",
+  "mergeCommit": "ca58cd8e07127467c4b1d23de304ef794cebe101",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 2,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/addons/dumper.py",
+    "additions": 4,
+    "deletions": 0
+   },
+   {
+    "path": "test/mitmproxy/addons/test_dumper.py",
+    "additions": 16,
+    "deletions": 0
+   }
+  ]
+ },
+ {
+  "number": 8176,
+  "title": "load pending scripts before dumping options",
+  "body": "#### Description\r\n\r\nFix `--options` not including addon-registered options\r\n\r\nAddon scripts register their options in Script.loadscript(), which is deferred by Script.watcher(). When --options is passed, we now load pending scripts before dumping options\r\n\r\nCloses #4423\r\n\r\n#### Checklist\r\n\r\n - [x] I have updated tests where applicable.\r\n - [x] I have added an entry to the CHANGELOG.\r\n",
+  "mergeCommit": "cc58fc9f38e5865c4fa1eb07d7cc598eca1ebd4d",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 2,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/tools/main.py",
+    "additions": 5,
+    "deletions": 0
+   },
+   {
+    "path": "test/mitmproxy/data/addonscripts/custom_option.py",
+    "additions": 14,
+    "deletions": 0
+   },
+   {
+    "path": "test/mitmproxy/tools/test_main.py",
+    "additions": 25,
+    "deletions": 0
+   }
+  ]
+ },
+ {
+  "number": 8196,
+  "title": "fix: avoid IndexError in is_mostly_bin for short tails",
+  "body": "fixes #8188.\n\nreproducible with any bytes payload of len 101\u2013103 where index 100 is a UTF-8 continuation byte:\n\n```python\n>>> from mitmproxy.utils import strutils\n>>> strutils.is_mostly_bin(b'a' * 100 + b'\\x80')\nTraceback (most recent call last):\n  ...\nIndexError: index out of range\n```\n\nthe lookahead loop `range(100, 104)` reads `s[100]` through `s[103]` to find the start of the next UTF-8 char and avoid chopping a multibyte code point in half. when len(s) is between 101 and 103 and the first byte past the 100-byte cutoff is a continuation byte, the loop continues into out-of-range indices.\n\ncap the loop end at `len(s)`. the existing `s[:100]` fallback still covers the case where every byte in the lookahead window is a continuation byte.\n\nadded a small regression assertion for the three affected lengths.",
+  "mergeCommit": "a8fbfc73fae5334868ca8a4238952572c3863083",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 3,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/utils/strutils.py",
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "path": "test/mitmproxy/utils/test_strutils.py",
+    "additions": 5,
+    "deletions": 0
+   }
+  ]
+ },
+ {
+  "number": 8214,
+  "title": "Copy issuer's SubjectKeyIdentifier into leaf AuthorityKeyIdentifier (RFC 5280 \u00a74.2.1.2)",
+  "body": "#### Description\n\n`mitmproxy/certs.py::dummy_cert` builds the leaf certificate's `AuthorityKeyIdentifier` with:\n\n```python\nx509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())\n```\n\n`cryptography`'s `from_issuer_public_key` always derives the keyIdentifier as the **SHA-1** of the issuer's BIT STRING public key. It ignores whatever `SubjectKeyIdentifier` the issuer cert actually has stored. This violates RFC 5280 \u00a74.2.1.2:\n\n> The value of the subject key identifier MUST be the value placed in the key identifier field of the authority key identifier extension of certificates issued by the subject of this certificate.\n\nIt also makes mitmproxy incompatible with any CA whose stored SKI was not derived as SHA-1 \u2014 an entirely legal choice per RFC 7093 (truncated SHA-256/384/512) and RFC 5280 (any unique value).\n\nStrict TLS chain builders (`X509_V_FLAG_X509_STRICT`, Python `ssl`, Go `crypto/x509`, modern Java) all use AKI to find the issuer candidate during chain construction, so an AKI/SKI mismatch is rejected with `authority and subject key identifier mismatch` \u2014 even though the issuer's subject DN matches and the signature verifies.\n\n##### Why this is hitting more users now\n\n- **cert-manager \u2265 1.18** (Oct 2025) defaults to truncated SHA-256 SKIs for FIPS 140-3 compliance. Any mitmproxy deployment whose CA was provisioned by cert-manager (very common in Kubernetes egress / corporate intercept setups) breaks.\n- **Go \u2265 1.25** (Aug 2025) does the same when generating self-signed CAs (`GODEBUG=x509sha256skid=1`, on by default). Tools that wrap Go's `crypto/x509` to produce CAs (cert-manager being one) inherit this.\n- Hand-rolled CAs with `subjectKeyIdentifier=hash:sha256` in the OpenSSL config trigger it too.\n\nThe closest existing report is #7703, which was closed without investigation after the OP misdiagnosed it as a CA-trust-store problem.\n\n##### Reproduction\n\n```bash\n# 1) Make a CA with a non-SHA-1 SKI (mimics cert-manager output).\ncat > /tmp/ca.cnf <<'CNF'\n[req]\ndistinguished_name = req\nx509_extensions    = v3_ca\nprompt             = no\nCN                 = Test CA\n[v3_ca]\nbasicConstraints       = critical,CA:TRUE\nkeyUsage               = critical,keyCertSign,cRLSign\nsubjectKeyIdentifier   = hash:sha256\nCNF\nopenssl req -x509 -newkey rsa:2048 -nodes -days 3650 \\\n  -keyout /tmp/ca.key -out /tmp/ca.crt -config /tmp/ca.cnf\n\n# 2) Hand it to mitmproxy as the CA.\ncat /tmp/ca.crt /tmp/ca.key > ~/.mitmproxy/mitmproxy-ca.pem\nmitmdump -p 8080 &\n\n# 3) Trust /tmp/ca.crt system-wide, then:\ncurl --proxy http://127.0.0.1:8080 https://example.com\n# curl: (60) SSL certificate problem: authority and subject key identifier mismatch\n```\n\n##### Fix\n\nPrefer the issuer's stored SKI verbatim, falling back to the previous SHA-1-of-public-key behavior only when the issuer has no `SubjectKeyIdentifier` extension at all. The change is fully backward-compatible: when the issuer cert was generated by mitmproxy itself (or any other tool that does in fact use SHA-1 of the public key for the SKI), `from_issuer_subject_key_identifier(stored_ski)` and `from_issuer_public_key(public_key)` produce byte-identical results.\n\n##### Tests\n\nAdded two regression tests in `test/mitmproxy/test_certs.py::TestDummyCert`:\n\n- `test_aki_copies_issuer_ski_non_sha1` \u2014 builds a CA whose stored SKI is a truncated SHA-256 (as cert-manager / Go 1.25+ would produce) and asserts the leaf's AKI is byte-equal to the CA's stored SKI.\n- `test_aki_falls_back_when_issuer_has_no_ski` \u2014 pins the legacy fallback path: if the CA has no SKI extension, the leaf's AKI is still computed from the issuer's public key and matches the prior behavior.\n\nAll existing `test_certs.py` tests pass (36 total). I also re-ran `test/mitmproxy/proxy/layers/test_tls.py` to make sure nothing downstream of `dummy_cert` was affected (62 tests total, all pass). `ruff check`, `ruff format --check`, and `mypy mitmproxy/certs.py` are clean.\n\n##### Verification with real clients\n\nOutside the unit tests I also reproduced the bug end-to-end on a Kubernetes minikube cluster with a cert-manager-issued CA, then re-ran the same tests with a `mitmweb` instance whose `dummy_cert` had been runtime-patched with this same change. Strict TLS chain validation through Python `requests`, Go `net/http`, and `curl --cacert` all flipped from `authority and subject key identifier mismatch` to a successful intercept, with no other code changes.\n\n#### Checklist\n\n - [x] I have updated tests where applicable.\n - [x] I have added an entry to the CHANGELOG.",
+  "mergeCommit": "b464cbf82308547f461a916b18db96d05c399944",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 4,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/certs.py",
+    "additions": 20,
+    "deletions": 4
+   },
+   {
+    "path": "test/mitmproxy/test_certs.py",
+    "additions": 85,
+    "deletions": 0
+   }
+  ]
+ },
+ {
+  "number": 8224,
+  "title": "Rename mitmweb XSRF cookie to `_mitmproxy_xsrf` to recover broken Firefox sessions",
+  "body": "#### Description\n\nUsers with a stale HttpOnly `_xsrf` cookie could no longer update options in mitmweb (`X-XSRFToken: undefined` \u2192 403), especially in Firefox. This change isolates mitmweb from legacy cookie state by migrating XSRF handling to a namespaced cookie name.\n\n- **Backend (Tornado XSRF config)**\n  - Set `xsrf_cookie_name=\"_mitmproxy_xsrf\"` in the web `Application` settings.\n\n- **Frontend (header token source)**\n  - Updated token lookup in `fetchApi` to read `_mitmproxy_xsrf` instead of `_xsrf` before sending `X-XSRFToken`.\n\n- **Review feedback follow-up**\n  - Reverted the added assertion in `test/mitmproxy/tools/web/test_app.py`.\n  - Reverted all changes in `web/src/js/__tests__/utilsSpec.tsx`.\n  - Kept the production fix focused to backend/frontend cookie naming only.\n  - Retested the affected backend/frontend test targets and posted the verification screenshot directly in PR comments (without adding it to the repository).\n\n```python\n# mitmproxy/tools/web/app.py\nsuper().__init__(\n    ...,\n    xsrf_cookies=True,\n    xsrf_cookie_name=\"_mitmproxy_xsrf\",\n    xsrf_cookie_kwargs=dict(samesite=\"Strict\"),\n    ...,\n)\n```\n\n#### Checklist\n\n - [x] I have updated tests where applicable.\n - [ ] I have added an entry to the CHANGELOG.",
+  "mergeCommit": "6bc7f0a4f25e085f3eea3ae64e28b72c6f7662a3",
+  "files": [
+   {
+    "path": "mitmproxy/tools/web/app.py",
+    "additions": 3,
+    "deletions": 0
+   },
+   {
+    "path": "web/src/js/utils.ts",
+    "additions": 1,
+    "deletions": 1
+   }
+  ]
+ },
+ {
+  "number": 8288,
+  "title": "mitmweb: honor view_order_reversed for live flows",
+  "body": "Fixes #5520.\n\n## Problem\n\nIn mitmweb the `view_order_reversed` option only affected the initial flow list. Flows that arrive afterwards over the WebSocket were always appended to the bottom of the table, so enabling the option did not keep the newest flow visible at the top. This is the behaviour reported in the issue, and it matches what Prinzhorn observed there (the option is ignored and new rows are appended).\n\n## Cause\n\nThe initial `/flows` response is sent in the server view order, which already respects `view_order_reversed`, and the client keeps that order when no column sort is active. Live `flows/add` events go through `insertViewItem` instead, and with no active column sort the comparator is a no-op, so `findInsertPos` always returns the end of the list. The client never consulted `view_order_reversed`.\n\n## Change\n\nThe flows reducer now tracks `view_order_reversed` from the options state. When no column sort is active, a newly added flow is inserted at the front if the option is set and at the back otherwise, which is the same order the server uses for the initial list. An active column sort still takes precedence and is unchanged.\n\nThe fix is limited to newly added flows, which are unambiguously the most recent. The order restored when a column sort is toggled back off is left as it was.\n\n## Tests\n\nAdded reducer tests covering the option being read from `OPTIONS_RECEIVE` and `OPTIONS_UPDATE`, front insertion when reversed, back insertion when not, and a column sort taking precedence over the option. `npm test` (eslint, tsc, jest) passes locally.\n",
+  "mergeCommit": "3500dacba0a18f130e9d4c262393162e1538204c",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 4,
+    "deletions": 0
+   },
+   {
+    "path": "web/src/js/__tests__/ducks/flows/indexSpec.tsx",
+    "additions": 70,
+    "deletions": 0
+   },
+   {
+    "path": "web/src/js/__tests__/ducks/tutils.ts",
+    "additions": 1,
+    "deletions": 0
+   },
+   {
+    "path": "web/src/js/ducks/flows/_utils.ts",
+    "additions": 13,
+    "deletions": 1
+   },
+   {
+    "path": "web/src/js/ducks/flows/index.ts",
+    "additions": 48,
+    "deletions": 6
+   }
+  ]
+ },
+ {
+  "number": 8294,
+  "title": "net.tls: handle SSL.Error from set_min/max_proto_version in is_supported_version",
+  "body": "## Description\n\n`mitmproxy.net.tls.is_supported_version()` builds an `SSL.Context`, sets the\nmin/max protocol version, then probes support with `client_conn.recv()`. Only\nthe `recv()` probe was wrapped in `try/except SSL.Error`.\n\nOn OpenSSL builds that have dropped a protocol version entirely (e.g. SSLv3\nafter POODLE / CVE-2014-3566, see pyca/cryptography#9523),\n`set_min_proto_version(SSL3_VERSION)` raises `SSL.Error` immediately at\ncontext-setup time \u2014 *before* the guarded `recv()`. The exception then\npropagated unhandled and crashed callers. The only production caller,\n`TlsConfig._warn_unsupported_version`, iterates over every `Version` to build\nthe \"supported versions\" list, so on those builds option validation crashed\noutright.\n\nThis moves the protocol-version setters and connection setup inside the\nexisting `try`, so a setup-time `SSL.Error` is treated the same as a\nprobe-time one: the version is reported as unsupported (`return False`) instead\nof raising. Behavior for currently-supported versions is unchanged.\n\nA regression test (`test_supported_setup_error`) monkeypatches\n`SSL.Context.set_min_proto_version` to raise `SSL.Error`, reproducing the crash\npath deterministically on any OpenSSL build (the existing `test_supported[SSL3]`\nonly exercises the `recv()` path on builds that still allow SSL3 context setup).\n\nCloses #8264\n\nNote: #8254 also touches this function but bundles it with an unrelated CRLF\nprettifier fix (#8253) across four files. This PR is a focused, single-concern\nalternative scoped to #8264 only; happy to defer to whichever the maintainers\nprefer.\n\n## Checklist\n\n- [x] I have updated tests where applicable.\n- [x] I have updated the CHANGELOG (`## Unreleased: mitmproxy next`).",
+  "mergeCommit": "f384cb740183e14582bd748b583b82d081f5c002",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 4,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/net/tls.py",
+    "additions": 7,
+    "deletions": 4
+   }
+  ]
+ },
+ {
+  "number": 8295,
+  "title": "Don't stall QUIC flows when host ignoring is enabled",
+  "body": "If allow_hosts or ignore_hosts was set, any QUIC connections would stall forever after TLS handshake and never get assigned an HttpLayer or e.g. appear in the flow list in mitmweb. The codepath goes like this:\r\n\r\n1. After client TLS handshake completes, next layer hook is invoked with data_client = b'', i.e. the data so far inside the QUIC stream\r\n2. _next_layer first checks using _ignore_connection\r\n3. _ignore_connection uses _get_client_hello, passing b'' data_client\r\n4. quick_parse_client_hello_from_datagram raises a type of ValueError because b'' is definitely not a valid QUIC packet\r\n5. ValueError is skipped, so dtls_parse_client_hello is tried, which also raises a type of ValueError for about the same reason\r\n6. This is now converted into NeedsMoreData, which bails out of the entire _next_layer process.\r\n\r\nThis repeats each time next_layer is called and never makes progress, even if data is read on the QUIC stream, it's still not going to be a valid QUIC or DTLS packet.\r\n\r\nThis fix matches the tcp case and only tries to parse the packet as quic or dtls if it heuristically looks like that.\r\n\r\n#### Checklist\r\n\r\n - [x] I have updated tests where applicable.\r\n - [x] I have added an entry to the CHANGELOG.\r\n",
+  "mergeCommit": "99054d774d8eb67a2176ee8abd75660acaea1a7c",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 2,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/addons/next_layer.py",
+    "additions": 15,
+    "deletions": 13
+   },
+   {
+    "path": "test/mitmproxy/addons/test_next_layer.py",
+    "additions": 29,
+    "deletions": 0
+   }
+  ]
+ },
+ {
+  "number": 8326,
+  "title": "proxy: bracket IPv6 literals in upstream CONNECT authority",
+  "body": "#### Description\n\nIn `--mode upstream`, when the target server is an IPv6 literal, the `CONNECT`\nrequest (and `Host` header) sent to the upstream proxy was built as\n`host:port` without bracketing the IPv6 address \u2014 e.g.\n`CONNECT 2001:db8::1:443` / `Host: 2001:db8::1:443`. Per RFC 3986 \u00a73.2.2 and\nRFC 7230 \u00a75.4, an IPv6 literal in an authority must be wrapped in square\nbrackets, so downstream proxies (e.g. Burp) reject the unbracketed form as a\nmalformed CONNECT target.\n\nThis brackets IPv6 literals so the authority becomes `[2001:db8::1]:443`.\nHostnames (still IDNA-encoded) and IPv4 addresses are unchanged. The same\n`authority` value feeds both the request target and the `Host` header, so a\nsingle change fixes both.\n\nAdded a regression test `test_upstream_proxy_ipv6` that drives\n`HTTPMode.upstream` with an IPv6 target and asserts the outgoing `CONNECT` /\n`Host` are bracketed; it fails against the previous code and passes with the\nfix. The existing `test_upstream_proxy` (hostname / IDNA / IPv4) stays green.\n\nCloses #8309\n\n#### Checklist\n\n- [x] I have updated tests where applicable.\n- [x] I have added an entry to the CHANGELOG (`## Unreleased: mitmproxy next`).",
+  "mergeCommit": "af35c326cb020793f7c61b6a5c6ef78a3a998c23",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 4,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/proxy/layers/http/_upstream_proxy.py",
+    "additions": 12,
+    "deletions": 3
+   },
+   {
+    "path": "test/mitmproxy/proxy/layers/http/test_http.py",
+    "additions": 31,
+    "deletions": 0
+   }
+  ]
+ },
+ {
+  "number": 8333,
+  "title": "Fix for modified reason phrase not being sent",
+  "body": "#### Description\r\n\r\nIt looks like there was mismatch between `msg` being sent form the frontend and being passed to the response object but this object does not know about a `msg` attribute, it only knows about a `reason` attribute.\r\nThis mismatch has been corrected by sending the correct `reason` attribute in the frontend and properly dispatching it.\r\n\r\nI already reported the issue here:\r\nhttps://github.com/mitmproxy/mitmproxy/issues/8332\r\n\r\n#### Checklist\r\n\r\n - [x] I have updated tests where applicable.\r\n - [x] I have added an entry to the CHANGELOG.",
+  "mergeCommit": "04ab3855635c67786522d4a3a407bf22af675451",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 2,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/tools/web/app.py",
+    "additions": 4,
+    "deletions": 2
+   },
+   {
+    "path": "test/mitmproxy/tools/web/test_app.py",
+    "additions": 10,
+    "deletions": 2
+   },
+   {
+    "path": "web/src/js/components/FlowView/HttpMessages.tsx",
+    "additions": 4,
+    "deletions": 2
+   }
+  ]
+ },
+ {
+  "number": 8397,
+  "title": "Use compression.zstd (PEP-784)",
+  "body": "#### Description\r\n\r\nPython 3.14 introduces support for Zstandard in the standard library via the [`compression.zstd`](https://docs.python.org/3.14/library/compression.zstd.html) module ([PEP-784](https://peps.python.org/pep-0784/)).\r\n\r\nChanges in this PR:\r\n - Remove the `zstdandard` dependency in favor of the native support in Python 3.14+. For older Python versions, the [backport](https://github.com/Rogdham/backports.zstd) is used.\r\n\r\n#### Checklist\r\n\r\n - [x] I have updated tests where applicable.\r\n - [x] I have added an entry to the CHANGELOG.\r\n\r\n#### Notes\r\n\r\nI am unsure about what bounds you want for the versions of the `backports.zstd` dependency. In version 1.x.x, that library syncs changes from upstream (i.e. from CPython 3.14).\r\n\r\n_Full disclosure: I'm the author and maintainer of `backports.zstd`, and the maintainer of `pyzstd` (which code was used as a base for the integration into Python). I also helped with PEP-784 and its integration into CPython. I have made PRs similar to this one in many repositories already._",
+  "mergeCommit": "72995cab1cf6717e46b1794c100adb1d205b4958",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 2,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/net/encoding.py",
+    "additions": 8,
+    "deletions": 5
+   },
+   {
+    "path": "pyproject.toml",
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "path": "uv.lock",
+    "additions": 49,
+    "deletions": 59
+   }
+  ]
+ },
+ {
+  "number": 8408,
+  "title": "feat: add Microsoft Edge support to the Browser addon",
+  "body": "#### Description\r\n\r\n## Summary\r\n\r\nThe Browser addon (`mitmproxy/addons/browser.py`) supports launching an\r\nisolated, proxy-configured instance of Chrome or Firefox via\r\n`browser.start`, but had no equivalent for Microsoft Edge. Users without\r\nChrome or Firefox installed -- e.g. Windows users, where Edge is always\r\npre-installed -- had no working option.\r\n\r\nProposed in #8407 and confirmed welcome by maintainers before implementing.\r\n\r\n## Changes\r\n\r\n- `mitmproxy/addons/browser.py`: added `launch_edge()`, following the exact\r\n  same structure as `launch_chrome()` -- executable search paths across\r\n  macOS/Windows/Linux, a Flatpak fallback (`com.microsoft.Edge`), and the\r\n  same isolated `--user-data-dir` / `--proxy-server` launch flags (Edge is\r\n  Chromium-based, so the same flags apply). Wired into the `browser.start`\r\n  command dispatcher alongside the existing `chrome`/`firefox` branches.\r\n- `test/mitmproxy/addons/test_browser.py`: added `test_browser_start_edge`\r\n  and `test_browser_start_edge_not_found`, mirroring the existing Firefox\r\n  test pattern.\r\n\r\nCloses #8407\r\n\r\n#### Checklist\r\n\r\n - [x] I have updated tests where applicable.\r\n - [x] I have added an entry to the CHANGELOG.\r\n",
+  "mergeCommit": "b506c68108e287104045333ade476d92c39c275e",
+  "files": [
+   {
+    "path": "CHANGELOG.md",
+    "additions": 4,
+    "deletions": 0
+   },
+   {
+    "path": "mitmproxy/addons/browser.py",
+    "additions": 47,
+    "deletions": 0
+   },
+   {
+    "path": "test/mitmproxy/addons/test_browser.py",
+    "additions": 19,
+    "deletions": 0
+   }
+  ]
+ }
+]

@@ -1,0 +1,282 @@
+diff --git a/posthog/dags/person_tombstone_queue.py b/posthog/dags/person_tombstone_queue.py
+index dc6f1c72fcf1..0fbbd174641f 100644
+--- a/posthog/dags/person_tombstone_queue.py
++++ b/posthog/dags/person_tombstone_queue.py
+@@ -247,6 +247,26 @@ def publish_queue_gauges(result: QueueResolution, completed_at: float) -> None:
+     the queue publishes nothing, so a staleness alert on the last-run gauge is what reports it."""
+     oldest_ms = min((row.tombstoned_at_ms for row in result.remaining), default=None)
+     with pushed_metrics_registry(METRICS_JOB) as registry:
++        Gauge(
++            "posthog_person_tombstone_queue_listed_rows",
++            "Queued persons the weekly repair read in its team range",
++            registry=registry,
++        ).set(result.listed)
++        Gauge(
++            "posthog_person_tombstone_queue_dropped_rows",
++            "Queued persons acked because the persons DB no longer holds their tombstone: revived or hard-deleted. Counts team passes that completed",
++            registry=registry,
++        ).set(result.dropped)
++        Gauge(
++            "posthog_person_tombstone_queue_confirmed_rows",
++            "Queued persons acked because ClickHouse shows their tombstone, before or after a republish. Counts team passes that completed; a failed team's rows are in unresolved_rows",
++            registry=registry,
++        ).set(result.confirmed)
++        Gauge(
++            "posthog_person_tombstone_queue_republished_rows",
++            "Queued persons whose tombstone the weekly repair produced again at the stored versions, in team passes that completed; confirmed_rows says how many then showed in ClickHouse",
++            registry=registry,
++        ).set(result.republished)
+         Gauge(
+             "posthog_person_tombstone_queue_unresolved_rows",
+             "Queued persons the weekly repair could not confirm in ClickHouse: deleted in Postgres, possibly live in ClickHouse",
+diff --git a/posthog/dags/tests/test_person_tombstone_queue.py b/posthog/dags/tests/test_person_tombstone_queue.py
+index 944ad5638463..dcfa7cd440ac 100644
+--- a/posthog/dags/tests/test_person_tombstone_queue.py
++++ b/posthog/dags/tests/test_person_tombstone_queue.py
+@@ -248,8 +248,17 @@ def capture(job_name: str):
+         yield registry
+ 
+     with patch("posthog.dags.person_tombstone_queue.pushed_metrics_registry", capture):
+-        publish_queue_gauges(QueueResolution(remaining=remaining, failed_teams=failed_teams), completed_at=1_000.0)
++        publish_queue_gauges(
++            QueueResolution(
++                listed=7, dropped=1, confirmed=4, republished=2, remaining=remaining, failed_teams=failed_teams
++            ),
++            completed_at=1_000.0,
++        )
+ 
++    assert registry.get_sample_value("posthog_person_tombstone_queue_listed_rows") == 7
++    assert registry.get_sample_value("posthog_person_tombstone_queue_dropped_rows") == 1
++    assert registry.get_sample_value("posthog_person_tombstone_queue_confirmed_rows") == 4
++    assert registry.get_sample_value("posthog_person_tombstone_queue_republished_rows") == 2
+     assert registry.get_sample_value("posthog_person_tombstone_queue_unresolved_rows") == expected_unresolved
+     assert registry.get_sample_value("posthog_person_tombstone_queue_failed_teams") == failed_teams
+     assert registry.get_sample_value("posthog_person_tombstone_queue_oldest_unresolved_seconds") == expected_oldest_age
+diff --git a/posthog/models/person/bulk_delete.py b/posthog/models/person/bulk_delete.py
+index 5783e1e000c4..37ef05313141 100644
+--- a/posthog/models/person/bulk_delete.py
++++ b/posthog/models/person/bulk_delete.py
+@@ -10,7 +10,7 @@
+ from django.conf import settings
+ 
+ import structlog
+-from prometheus_client import Counter, Histogram
++from prometheus_client import Counter, Gauge, Histogram
+ from temporalio import common
+ 
+ from posthog.dataclasses import frozen
+@@ -78,6 +78,21 @@ class PersonDeletionStep(StrEnum):
+     labelnames=["path", "outcome"],
+ )
+ 
++# Every process sets the same value from its settings; max exports it once under multiprocess mode.
++PERSON_DELETE_TOMBSTONE_ENABLED = Gauge(
++    "posthog_person_delete_tombstone_enabled",
++    "1 when PERSON_DELETE_TOMBSTONE is on: deletes tombstone Postgres first and publish ClickHouse at the stored versions.",
++    multiprocess_mode="max",
++)
++PERSON_DELETE_TOMBSTONE_ENABLED.set(1 if settings.PERSON_DELETE_TOMBSTONE else 0)
++
++# mode: "tombstone" under PERSON_DELETE_TOMBSTONE, "legacy" otherwise, per person a delete attempted.
++PERSON_DELETION_MODE_COUNTER = Counter(
++    "posthog_person_deletion_mode_persons_total",
++    "Persons a profile delete attempted, by deletion order.",
++    labelnames=["mode"],
++)
++
+ PERSON_DELETION_DISTINCT_IDS_PER_PERSON = Histogram(
+     "posthog_person_deletion_distinct_ids_per_person",
+     "Distinct IDs fetched per person by the queued deletion, which shows how wide deleted persons are.",
+@@ -484,8 +499,10 @@ def _tombstone_and_delete_persons(
+     """
+     failures: builtins.list[PersonDeletionFailure] = []
+     if settings.PERSON_DELETE_TOMBSTONE:
++        PERSON_DELETION_MODE_COUNTER.labels(mode="tombstone").inc(len(persons))
+         deleted = _tombstone_persons_at_exact_versions(team_id, persons, failures)
+     else:
++        PERSON_DELETION_MODE_COUNTER.labels(mode="legacy").inc(len(persons))
+         deleted = _tombstone_then_hard_delete_persons(team_id, persons, distinct_ids_for, failures)
+ 
+     if organization_id is not None and deleted:
+diff --git a/posthog/models/person/deletion.py b/posthog/models/person/deletion.py
+index fb18e2feed07..085b714fa524 100644
+--- a/posthog/models/person/deletion.py
++++ b/posthog/models/person/deletion.py
+@@ -336,7 +336,7 @@ def tombstone_orphaned_ch_persons(
+         )
+         result.tombstoned_persons += 1
+ 
+-    publication = PersonTombstonePublication(team_id=team_id)
++    publication = PersonTombstonePublication(team_id=team_id, source="orphan_repair")
+     publication.publish(to_republish)
+     result.republished_persons = len(to_republish)
+ 
+diff --git a/posthog/models/person/test/test_bulk_delete_helpers.py b/posthog/models/person/test/test_bulk_delete_helpers.py
+index b95bc1104dc4..484098015bc6 100644
+--- a/posthog/models/person/test/test_bulk_delete_helpers.py
++++ b/posthog/models/person/test/test_bulk_delete_helpers.py
+@@ -8,6 +8,7 @@
+ 
+ from confluent_kafka import KafkaError
+ from parameterized import parameterized
++from prometheus_client import REGISTRY
+ 
+ from posthog.kafka_client.client import ProduceResult
+ from posthog.models.activity_logging.activity_log import ActivityLog
+@@ -28,6 +29,10 @@
+ from posthog.test.persons import create_person
+ 
+ 
++def _sample(name: str, **labels: str) -> float:
++    return REGISTRY.get_sample_value(name, labels) or 0.0
++
++
+ def _person_with_distinct_ids(*distinct_ids: str) -> Person:
+     # Unsaved Person with distinct_ids cached, so reads stay in-memory in the async fan-out.
+     person = Person()
+@@ -90,12 +95,14 @@ def test_ignores_duplicate_queueing(self):
+ class DeletePersonsProfileTests(BaseTest):
+     def test_deletes_persons_via_helpers(self):
+         p = create_person(team=self.team, distinct_ids=["a"], properties={})
++        legacy_before = _sample("posthog_person_deletion_mode_persons_total", mode="legacy")
+         with (
+             patch("posthog.models.person.bulk_delete.delete_person") as ch_delete,
+             patch("posthog.models.person.bulk_delete.delete_persons_from_postgres") as pg_delete,
+         ):
+             result = delete_persons_profile(self.team.pk, [p], actor=self.user)
+         assert result.deleted_count == 1
++        assert _sample("posthog_person_deletion_mode_persons_total", mode="legacy") == legacy_before + 1
+         assert result.errors == []
+         ch_delete.assert_called_once()
+         assert ch_delete.call_args.kwargs["person"] == p
+@@ -185,6 +192,8 @@ class TombstoneDeletePersonsProfileTests(BaseTest):
+     def test_tombstones_postgres_first_then_publishes_clickhouse_at_the_returned_versions_and_acks(self):
+         p = create_person(team=self.team, distinct_ids=["a"], properties={})
+         fake = get_active_fake()
++        mode_before = _sample("posthog_person_deletion_mode_persons_total", mode="tombstone")
++        acked_before = _sample("posthog_person_tombstone_acks_total", outcome="acked")
+         with (
+             patch("posthog.models.person.bulk_delete.delete_person") as legacy_ch_delete,
+             patch("posthog.models.person.util.publish_person_tombstone", return_value=[]) as publish,
+@@ -203,6 +212,8 @@ def test_tombstones_postgres_first_then_publishes_clickhouse_at_the_returned_ver
+         assert [(d.id, d.version) for d in tombstone.distinct_ids] == [("a", 1)]
+         assert publish.call_args.kwargs["created_at"] == p.created_at
+         assert fake.tombstone_queue == {}
++        assert _sample("posthog_person_deletion_mode_persons_total", mode="tombstone") == mode_before + 1
++        assert _sample("posthog_person_tombstone_acks_total", outcome="acked") == acked_before + 1
+ 
+     @parameterized.expand([("produce_raises",), ("delivery_fails",)])
+     def test_counts_and_logs_a_person_whose_clickhouse_publish_failed_and_keeps_it_queued(self, case):
+@@ -232,6 +243,7 @@ def test_waits_once_for_kafka_delivery_before_acking(self, _name, delivered):
+         producer = MagicMock()
+         if delivered:
+             producer.flush.side_effect = lambda timeout: pending.set_result(None, None)
++        waits_before = _sample("posthog_person_tombstone_delivery_wait_seconds_count", source="delete")
+         with (
+             patch("posthog.models.person.util.publish_person_tombstone", return_value=[pending]),
+             patch("posthog.models.person.util.get_producer", return_value=producer),
+@@ -241,6 +253,7 @@ def test_waits_once_for_kafka_delivery_before_acking(self, _name, delivered):
+         # Both person topics resolve to this one producer, so it is flushed once, inside the delivery timeout.
+         producer.flush.assert_called_once()
+         assert 0 < producer.flush.call_args.args[0] <= TOMBSTONE_DELIVERY_TIMEOUT_SECONDS
++        assert _sample("posthog_person_tombstone_delivery_wait_seconds_count", source="delete") == waits_before + 1
+         assert result.deleted_count == 1
+         if delivered:
+             assert result.failures == []
+@@ -327,6 +340,7 @@ def test_splits_the_rpc_by_distinct_id_budget_and_waits_for_delivery_once(self,
+ 
+     def test_a_failed_queue_ack_is_only_logged(self):
+         p = create_person(team=self.team, distinct_ids=["a"], properties={})
++        failed_before = _sample("posthog_person_tombstone_acks_total", outcome="ack_failed")
+         with (
+             patch("posthog.models.person.util.publish_person_tombstone", return_value=[]),
+             patch("posthog.models.person.util.ack_person_tombstones", side_effect=RuntimeError("personhog down")),
+@@ -337,6 +351,7 @@ def test_a_failed_queue_ack_is_only_logged(self):
+         assert result.deleted_count == 1
+         assert result.failures == []
+         assert list(get_active_fake().tombstone_queue) == [(self.team.pk, str(p.uuid))]
++        assert _sample("posthog_person_tombstone_acks_total", outcome="ack_failed") == failed_before + 1
+ 
+ 
+ class ProcessQueuedPersonDeletionTests(BaseTest):
+diff --git a/posthog/models/person/util.py b/posthog/models/person/util.py
+index 8cd352795f9e..c3b89aafcc73 100644
+--- a/posthog/models/person/util.py
++++ b/posthog/models/person/util.py
+@@ -16,6 +16,7 @@
+ 
+ import structlog
+ from dateutil.parser import isoparse
++from prometheus_client import Counter, Histogram
+ 
+ from posthog.clickhouse.client import sync_execute
+ from posthog.dataclasses import frozen
+@@ -857,6 +858,23 @@ def publish_person_tombstone(
+ 
+ TOMBSTONE_DELIVERY_TIMEOUT_SECONDS = 10
+ 
++# source: "delete" for the person delete paths, "orphan_repair" for the fix_orphaned_ch_persons command.
++PERSON_TOMBSTONE_DELIVERY_WAIT_SECONDS = Histogram(
++    "posthog_person_tombstone_delivery_wait_seconds",
++    "Time a caller waits for Kafka to deliver the ClickHouse tombstones it published, before acking the queue.",
++    labelnames=["source"],
++    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, float("inf")),
++)
++
++# Acks go out in calls of 1000 persons, the RPC maximum. "acked" counts queue rows a call cleared, which
++# can be fewer than the persons sent because an ack is idempotent. "ack_failed" counts the persons in a
++# call that raised; they stay queued for the weekly sweep, and earlier calls' rows stay counted as acked.
++PERSON_TOMBSTONE_ACKS_COUNTER = Counter(
++    "posthog_person_tombstone_acks_total",
++    "Tombstone queue rows cleared after Kafka delivery, or persons left queued because the ack call failed.",
++    labelnames=["outcome"],
++)
++
+ 
+ @frozen
+ class PersonTombstonePublishFailure:
+@@ -878,6 +896,7 @@ class PersonTombstonePublication:
+     """
+ 
+     team_id: int
++    source: str = "delete"
+     failures: list[PersonTombstonePublishFailure] = field(default_factory=list)
+     _pending: list[tuple[PersonTombstone, list[ProduceResult]]] = field(default_factory=list, init=False, repr=False)
+ 
+@@ -895,8 +914,10 @@ def await_and_ack(self) -> None:
+         if not pending:
+             return
+ 
++        started = time.monotonic()
+         if not all(result.done() for _, results in pending for result in results):
+             _flush_person_producers(TOMBSTONE_DELIVERY_TIMEOUT_SECONDS)
++        PERSON_TOMBSTONE_DELIVERY_WAIT_SECONDS.labels(source=self.source).observe(time.monotonic() - started)
+ 
+         delivered: list[tuple[UUID, int]] = []
+         for tombstone, results in pending:
+@@ -907,14 +928,17 @@ def await_and_ack(self) -> None:
+                 self.failures.append(PersonTombstonePublishFailure(person_uuid=tombstone.uuid, error=exc))
+                 continue
+             delivered.append((tombstone.uuid, tombstone.version))
+-        if not delivered:
+-            return
+-        try:
+-            ack_person_tombstones(self.team_id, delivered)
+-        except Exception:
+-            logger.warning(
+-                "person_tombstones.ack_failed", team_id=self.team_id, person_count=len(delivered), exc_info=True
+-            )
++        for i in range(0, len(delivered), 1000):
++            chunk = delivered[i : i + 1000]
++            try:
++                cleared = ack_person_tombstones(self.team_id, chunk)
++            except Exception:
++                PERSON_TOMBSTONE_ACKS_COUNTER.labels(outcome="ack_failed").inc(len(chunk))
++                logger.warning(
++                    "person_tombstones.ack_failed", team_id=self.team_id, person_count=len(chunk), exc_info=True
++                )
++                continue
++            PERSON_TOMBSTONE_ACKS_COUNTER.labels(outcome="acked").inc(cleared)
+ 
+ 
+ def _flush_person_producers(timeout: float) -> None:

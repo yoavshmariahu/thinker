@@ -1,0 +1,85 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 0b160adb4d..19640f9d64 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -34,6 +34,8 @@
+   ([#8295](https://github.com/mitmproxy/mitmproxy/pull/8295), @tbodt)
+ - Correctly read the SNI hostname from fragmented QUIC client hellos.
+   ([#8296](https://github.com/mitmproxy/mitmproxy/pull/8296), @tbodt)
++- mitmweb: Fix for modified reason phrase not being sent
++  ([#8333](https://github.com/mitmproxy/mitmproxy/pull/8333), @grusski)
+ 
+ ## 12 May 2026: mitmproxy 12.2.3
+ 
+diff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py
+index 1989bd2e9d..b34d25f864 100644
+--- a/mitmproxy/tools/web/app.py
++++ b/mitmproxy/tools/web/app.py
+@@ -608,8 +608,10 @@ def put(self, flow_id) -> None:
+                 elif a == "response" and hasattr(flow, "response"):
+                     response: mitmproxy.http.Response = flow.response
+                     for k, v in b.items():
+-                        if k in ["msg", "http_version"]:
+-                            setattr(response, k, str(v))
++                        if k == "reason":
++                            response.reason = str(v)
++                        elif k == "http_version":
++                            response.http_version = str(v)
+                         elif k == "code":
+                             response.status_code = int(v)
+                         elif k == "headers":
+diff --git a/test/mitmproxy/tools/web/test_app.py b/test/mitmproxy/tools/web/test_app.py
+index 7922484ef2..495e02273b 100644
+--- a/test/mitmproxy/tools/web/test_app.py
++++ b/test/mitmproxy/tools/web/test_app.py
+@@ -207,7 +207,7 @@ def test_flow_update(self):
+                 "content": "req",
+             },
+             "response": {
+-                "msg": "Non-Authorisé",
++                "reason": "Non-Authorisé",
+                 "code": 404,
+                 "headers": [("bar", "baz")],
+                 "trailers": [("foo", "bar")],
+@@ -221,7 +221,7 @@ def test_flow_update(self):
+         assert f.request.port == 123
+         assert f.request.headers["foo"] == "bar"
+         assert f.request.text == "req"
+-        assert f.response.msg == "Non-Authorisé"
++        assert f.response.reason == "Non-Authorisé"
+         assert f.response.status_code == 404
+         assert f.response.headers["bar"] == "baz"
+         assert f.response.text == "resp"
+@@ -254,6 +254,14 @@ def test_flow_update(self):
+             == 400
+         )
+ 
++    def test_flow_update_http_version_only(self):
++        f = self.view.get_by_id("42")
++        f.backup()
++        resp = self.put_json("/flows/42", {"response": {"http_version": "2.0"}})
++        assert resp.code == 200
++        assert f.response.http_version == "2.0"
++        f.revert()
++
+     def test_flow_duplicate(self):
+         resp = self.fetch("/flows/42/duplicate", method="POST")
+         assert resp.code == 200
+diff --git a/web/src/js/components/FlowView/HttpMessages.tsx b/web/src/js/components/FlowView/HttpMessages.tsx
+index 5b8cf45872..de576ef41e 100644
+--- a/web/src/js/components/FlowView/HttpMessages.tsx
++++ b/web/src/js/components/FlowView/HttpMessages.tsx
+@@ -104,9 +104,11 @@ function ResponseLine({ flow }: ResponseLineProps) {
+                     &nbsp;
+                     <ValueEditor
+                         content={flow.response.reason}
+-                        onEditDone={(msg) =>
++                        onEditDone={(reason) =>
+                             dispatch(
+-                                flowActions.update(flow, { response: { msg } }),
++                                flowActions.update(flow, {
++                                    response: { reason },
++                                }),
+                             )
+                         }
+                         selectAllOnClick={true}

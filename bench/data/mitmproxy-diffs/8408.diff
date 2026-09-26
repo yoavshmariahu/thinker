@@ -1,0 +1,107 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 4258444fc4..b268eac48e 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,6 +7,10 @@
+ 
+ ## Unreleased: mitmproxy next
+ 
++- Add `launch_edge()` to the Browser addon, so `browser.start edge` can
++  launch an isolated, proxy-configured instance of Microsoft Edge, matching
++  the existing Chrome and Firefox support.
++  ([#8407](https://github.com/mitmproxy/mitmproxy/issues/8407), @eliahu-frusin)
+ - Replace deprecated pyparsing APIs with their snake_case equivalents to avoid
+   `PyparsingDeprecationWarning` during command and flow-filter parsing.
+   ([#8344](https://github.com/mitmproxy/mitmproxy/pull/8344), @Dnsayhey)
+diff --git a/mitmproxy/addons/browser.py b/mitmproxy/addons/browser.py
+index ccc9209536..5d16662ff8 100644
+--- a/mitmproxy/addons/browser.py
++++ b/mitmproxy/addons/browser.py
+@@ -45,6 +45,8 @@ def start(self, browser: str = "chrome") -> None:
+             self.launch_chrome()
+         elif browser == "firefox":
+             self.launch_firefox()
++        elif browser == "edge":
++            self.launch_edge()
+         else:
+             logging.log(ALERT, "Invalid browser name.")
+ 
+@@ -100,6 +102,51 @@ def launch_chrome(self) -> None:
+             )
+         )
+ 
++    def launch_edge(self) -> None:
++        """
++        Start an isolated instance of Edge that points to the currently
++        running proxy.
++        """
++        cmd = find_executable_cmd(
++            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
++            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
++            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
++            "microsoft-edge",
++            "microsoft-edge-stable",
++            "microsoft-edge-dev",
++            "microsoft-edge-beta",
++        ) or find_flatpak_cmd(
++            "com.microsoft.Edge",
++        )
++
++        if not cmd:
++            logging.log(
++                ALERT, "Your platform is not supported yet - please submit a patch."
++            )
++            return
++
++        tdir = tempfile.TemporaryDirectory()
++        self.tdir.append(tdir)
++        self.browser.append(
++            subprocess.Popen(
++                [
++                    *cmd,
++                    "--user-data-dir=%s" % str(tdir.name),
++                    "--proxy-server={}:{}".format(
++                        ctx.options.listen_host or "127.0.0.1",
++                        ctx.options.listen_port or "8080",
++                    ),
++                    "--disable-fre",
++                    "--no-default-browser-check",
++                    "--no-first-run",
++                    "--disable-extensions",
++                    "about:blank",
++                ],
++                stdout=subprocess.DEVNULL,
++                stderr=subprocess.DEVNULL,
++            )
++        )
++
+     def launch_firefox(self) -> None:
+         """
+         Start an isolated instance of Firefox that points to the currently
+diff --git a/test/mitmproxy/addons/test_browser.py b/test/mitmproxy/addons/test_browser.py
+index d5bd38c5c5..6851c02ab2 100644
+--- a/test/mitmproxy/addons/test_browser.py
++++ b/test/mitmproxy/addons/test_browser.py
+@@ -95,3 +95,22 @@ async def test_browser_start_firefox_not_found(caplog):
+         which.return_value = False
+         browser.Browser().start("firefox")
+         assert "platform is not supported" in caplog.text
++
++
++async def test_browser_start_edge():
++    with (
++        mock.patch("shutil.which") as which,
++        mock.patch("subprocess.Popen") as po,
++        taddons.context(),
++    ):
++        which.return_value = "edge"
++        browser.Browser().start("edge")
++        assert po.called
++
++
++async def test_browser_start_edge_not_found(caplog):
++    caplog.set_level("INFO")
++    with mock.patch("shutil.which") as which:
++        which.return_value = False
++        browser.Browser().start("edge")
++        assert "platform is not supported" in caplog.text

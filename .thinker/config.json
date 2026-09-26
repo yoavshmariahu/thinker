@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "verifyModel": "haiku",
+  "distillModel": "sonnet"
+}

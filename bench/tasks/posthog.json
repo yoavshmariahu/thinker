@@ -1,0 +1,254 @@
+{
+ "repo": "posthog",
+ "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+ "tasks": [
+  {
+   "id": "PR106936",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: fix(invites): flag existing members on the invite row before submit\n\n## Problem\n\n- People who invite a teammate who is already in the organization, or themselves, get a generic toast after a round trip. It happens in onboarding and in organization settings.\n- The client checks only the email format. The server rejects existing members in `OrganizationInviteSerializer.create`, which runs during `save()`.\n- In the bulk endpoint, `save()` creates rows in order. A batch with an existing member in row 3 already saved and emailed rows 1 and 2 before it failed.\n- Each failure goes to error tracking as a handled exception, which makes a validation result look like a defect.\n\n## Origin\n\n- Scout: a custom scout\n- First signal: 2026-09-25\n- Inbox report: [open]([ref]\n- Task started by: auto-start, after the report was rated P2 and ready to fix",
+   "goldFiles": [
+    "frontend/src/initKea.ts",
+    "frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx",
+    "frontend/src/scenes/settings/organization/InviteModal.tsx",
+    "frontend/src/scenes/settings/organization/inviteLogic.ts",
+    "posthog/api/organization_invite.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106936.diff",
+   "goldTitle": "fix(invites): flag existing members on the invite row before submit",
+   "layers": [
+    "backend",
+    "frontend"
+   ]
+  },
+  {
+   "id": "PR106466",
+   "area": "workflows",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: feat(workflows): let a live broadcast go back to draft and replace its schedule on launch\n\n## Problem\n\n- A scheduled broadcast can't be stopped or edited from Broadcasts. Once launched it stays read-only until it sends.\n- A relaunched broadcast can silently never send. Editing the audience of a draft pauses its schedule, and launch cannot resume a paused one (schedule `status` is read-only in the API). The flow goes active, the toast says \"Broadcast scheduled\", and nothing fires.\n- Follow-up to [[ref]]([ref] whose review flagged both: the lost stop control ([thread]([ref] and the paused schedule ([thread]([ref]",
+   "goldFiles": [
+    "products/workflows/backend/api/hog_flow.py",
+    "products/workflows/frontend/Broadcasts/BroadcastSummary.tsx",
+    "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+    "products/workflows/frontend/Broadcasts/broadcastsLogic.ts"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106466.diff",
+   "goldTitle": "feat(workflows): let a live broadcast go back to draft and replace its schedule on launch",
+   "layers": [
+    "backend",
+    "frontend"
+   ]
+  },
+  {
+   "id": "PR106672",
+   "area": "experiments",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: fix(experiments): keep inline and shared metric uuids unique\n\n## Problem\n\n- A shared metric attached to an experiment could share a uuid with an inline metric, so one metric showed the other's results.\n- The backend result rows and the frontend both key metric results by uuid.\n- [ref] closed collisions between two inline metrics. Two paths still created an inline and a shared metric with one uuid:\n  - Promoting an inline metric to a shared one kept its uuid. The `configuring-experiment-analytics` skill told agents to promote \"with the same query\", then attach, while the inline copy stayed.\n  - A PATCH that sends only `saved_metrics_ids` never re-checked the stored inline metrics.",
+   "goldFiles": [
+    "products/experiments/backend/experiment_saved_metric_service.py",
+    "products/experiments/backend/experiment_service.py",
+    "products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106672.diff",
+   "goldTitle": "fix(experiments): keep inline and shared metric uuids unique",
+   "layers": [
+    "backend",
+    "other"
+   ]
+  },
+  {
+   "id": "PR106564",
+   "area": "common",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: feat(frontend): let a feature flag roll out the stable chunk build\n\n## Problem\n\nPart of [ref].\n\n- The stable chunk build ([ref]) reaches a browser only when someone opts in by hand with `?stable_chunks=1`.\n- That cannot run an A/B test. The goal is a 50% split of logged-in users, compared on LCP.",
+   "goldFiles": [
+    "common/esbuilder/utils.mjs",
+    "posthog/stable_chunks.py",
+    "posthog/utils.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106564.diff",
+   "goldTitle": "feat(frontend): let a feature flag roll out the stable chunk build",
+   "layers": [
+    "backend",
+    "other"
+   ]
+  },
+  {
+   "id": "PR106613",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: fix(ml_inference): serve the decisions playground at /ml-inference/playground\n\n## Problem\n\nThe decisions playground lived at `/ml-inference/decisions`, while the other playground in the app, AI observability's, lives at `/ai-observability/playground`. The page is a playground, so its URL should say so.",
+   "goldFiles": [
+    "frontend/src/products.tsx",
+    "products/ml_inference/manifest.tsx"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106613.diff",
+   "goldTitle": "fix(ml_inference): serve the decisions playground at /ml-inference/playground",
+   "layers": [
+    "frontend",
+    "other"
+   ]
+  },
+  {
+   "id": "PR107042",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: fix(insights): correct mobile actions and transfer navigation\n\n## Problem\n\n- On narrow screens, duplicating an insight leaves the actions sidebar over the new insight.\n- The transfer page sends its Back link to a numeric insight ID, which opens an unavailable insight.\n- The empty subscription card keeps its illustration beside its text when the modal is narrow.",
+   "goldFiles": [
+    "frontend/src/scenes/insights/SidePanel/InsightPanelActions.tsx",
+    "frontend/src/scenes/insights/SidePanel/InsightSceneMenuBar.tsx",
+    "frontend/src/scenes/insights/insightLogic.tsx",
+    "frontend/src/scenes/resource-transfer/ResourceTransfer.tsx",
+    "frontend/src/scenes/urls.ts",
+    "products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/107042.diff",
+   "goldTitle": "fix(insights): correct mobile actions and transfer navigation",
+   "layers": [
+    "frontend"
+   ]
+  },
+  {
+   "id": "PR106522",
+   "area": "tasks",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: fix(tasks): identify sandbox backend on failure events\n\n## Problem\r\n\r\nTask operators cannot reliably filter sandbox failure alerts by backend when a run continues or the agent reports the failure.",
+   "goldFiles": [
+    "products/tasks/backend/facade/api.py",
+    "products/tasks/backend/models.py",
+    "products/tasks/backend/temporal/execute_sandbox/workflow.py",
+    "products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py",
+    "products/tasks/backend/temporal/process_task/activities/update_task_run_status.py",
+    "products/tasks/backend/temporal/process_task/workflow.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106522.diff",
+   "goldTitle": "fix(tasks): identify sandbox backend on failure events",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR105793",
+   "area": "posthog",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: feat(slack_app): ask before picking up unset thread follow-ups\n\n## Problem\n\nPeople who have not chosen a thread follow-up setting get no prompt when someone replies without tagging PostHog. This prevents them from deciding whether to send that reply to the agent.",
+   "goldFiles": [
+    "posthog/temporal/ai/slack_app/activities/billing.py",
+    "posthog/temporal/ai/slack_app/helpers.py",
+    "products/slack_app/backend/api.py",
+    "products/slack_app/backend/models.py",
+    "products/slack_app/backend/services/slack_app_home.py",
+    "products/slack_app/backend/services/slack_settings.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/105793.diff",
+   "goldTitle": "feat(slack_app): ask before picking up unset thread follow-ups",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR105887",
+   "area": "posthog",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: fix(experiments): fingerprint saved metrics with their per-experiment breakdowns\n\n## Problem\n\nUsers whose saved metrics carry per-experiment breakdowns still see their experiment recompute on every first open of the day, even after [ref]. On one affected experiment the morning batch published 7 of 9 metrics; the 2 with a breakdown stayed unpublished, and any gap makes the page recompute all metrics.\n\nStep by step:\n\n1. The daily job computes each metric and files the result under a hash of the metric's config.\n2. For a saved metric, the breakdowns live on the experiment link, not in the saved query itself.\n3. The daily discovery hashed the raw saved query, without the breakdowns. Every reader (timeseries sync, cold-start fallback, chart read via the serializer stamp) hashes the config with the breakdowns merged in.\n4. Writer and readers use different hashes, so the fresh results are never found. [ref] fixed the empty-breakdowns case of this; this PR fixes the real-breakdowns case.\n\n```mermaid\nflowchart LR\n    W[daily job<br/>hashes query without breakdowns] -->|files under hash A| S[(results table)]\n    R[sync and chart<br/>hash query with breakdowns] -->|look up hash B| S\n    S -->|nothing under B| X[nothing published,<br/>page recomputes on open]\n    classDef phBlue fill:#1d4aff,stroke:#1d4aff,color:#fff;\n    classDef phGray fill:#e5e7eb,stroke:#c7ccd1,color:[ref];\n    classDef phRed fill:#f54e00,stroke:#f54e00,color:#fff;\n    class W,R phBlue;\n    class S phGray;\n    class X phRed;\n```",
+   "goldFiles": [
+    "posthog/temporal/experiments/activities.py",
+    "products/experiments/backend/facade/timeseries.py",
+    "products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py",
+    "products/experiments/backend/presentation/serializers.py",
+    "products/experiments/backend/temporal/metric_resolution.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/105887.diff",
+   "goldTitle": "fix(experiments): fingerprint saved metrics with their per-experiment breakdowns",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR105871",
+   "area": "posthog",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: fix(flags): skip non-v1 configs in cross-team flag jobs\n\n## Problem\n\n- One team's feature flag stored in a config format the v1 readers do not understand could make a job that scans every team's flags rewrite that row, misreport it, or abort the whole run.\n- Three such jobs read `filters` as a v1 document with no format check: the payload re-encryption command, the read-only filters audit, and the weekly stale-flags health check. A fourth, the property-type repair command, has no work left and is deleted instead.\n- No such rows are stored today; this closes the path before the first one lands, as the internal cache builders ([ref]) and the legacy definitions producer ([ref]) already did for their paths.",
+   "goldFiles": [
+    "posthog/management/commands/fix_invalid_flag_property_types.py",
+    "posthog/management/commands/reencrypt_flag_payloads.py",
+    "products/feature_flags/backend/flag_status.py",
+    "products/feature_flags/backend/management/commands/audit_flag_filters.py",
+    "products/feature_flags/backend/temporal/health_checks/stale_flags.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/105871.diff",
+   "goldTitle": "fix(flags): skip non-v1 configs in cross-team flag jobs",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR106917",
+   "area": "data_warehouse",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: fix(warehouse-sources): pause cdc table schedules on break and disable\n\n## Problem\n\n- A team that disables CDC on a source keeps paying for syncs of its former CDC tables.\n  `disable_cdc` turns the tables off with a bulk `update(sync_type=None, should_sync=False)`. That skips `update_should_sync`, the helper that pauses a table's Temporal schedule, and `ExternalDataJobWorkflow` never checks `should_sync`. So each table keeps syncing, as a billable run, on its old schedule.\n- A broken CDC source (slot dropped for critical lag, slot or publication missing) keeps starting runs for every CDC table.\n  `mark_cdc_broken` pauses only the capture schedule. Each table's schedule keeps firing, and every tick records a failed or billing-blocked job until someone repairs the source.",
+   "goldFiles": [
+    "products/data_warehouse/backend/facade/api.py",
+    "products/data_warehouse/backend/logic/data_load/service.py",
+    "products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py",
+    "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106917.diff",
+   "goldTitle": "fix(warehouse-sources): pause cdc table schedules on break and disable",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR106579",
+   "area": "error_tracking",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: feat(error-tracking): name the assignee in issue alert events\n\n## Problem\n\n- People building error tracking alerts on destinations cannot show who an issue is assigned to, because the payload holds only a user or role id.\n- Issue lifecycle events carry `assignee` as a JSON string, for example `{\"type\":\"user\",\"id\":1234}`. The key is missing when the issue is unassigned.\n- Hog templates cannot resolve that id to a person, so a message can say \"assigned\" or \"unassigned\" and nothing more.\n- The alert authoring skill reference does not mention the assignee, so PostHog AI guesses at its shape.",
+   "goldFiles": [
+    "products/error_tracking/backend/logic/assignees.py",
+    "products/error_tracking/backend/logic/issue_mutations.py",
+    "products/error_tracking/backend/logic/lifecycle_events.py",
+    "products/error_tracking/backend/temporal/lifecycle/side_effects.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106579.diff",
+   "goldTitle": "feat(error-tracking): name the assignee in issue alert events",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR106491",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: fix(insights): show the chart gallery on the insight page in view mode\n\n## Problem\n\nA user viewing a saved trends insight got the plain chart type dropdown, and only saw the chart type gallery after entering edit mode. The two modes showed two different pickers for the same job.",
+   "goldFiles": [
+    "frontend/src/queries/nodes/InsightViz/InsightVizDisplay.tsx",
+    "products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.tsx",
+    "products/product_analytics/frontend/insights/chartAlternatives/ChartGallery.tsx",
+    "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106491.diff",
+   "goldTitle": "fix(insights): show the chart gallery on the insight page in view mode",
+   "layers": [
+    "frontend"
+   ]
+  },
+  {
+   "id": "PR106322",
+   "area": "posthog",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: feat(persons): expose deletion mode, tombstone delivery wait, queue acks and repair counts\n\n## Problem\n\n- The person deletion dashboard cannot show four things an on-call engineer needs once `PERSON_DELETE_TOMBSTONE` is on: which deletion order an environment runs, how long a delete waits for Kafka before acking the tombstone queue, whether those acks fail, and what the weekly queue repair did with the rows it read.\n- None of those had a metric. The mode is a setting nothing exports, the ack failure was only a log line, and the repair's counts lived only in Dagster run metadata.\n- Follows [ref], which adds the weekly repair and the queue gauges this extends.",
+   "goldFiles": [
+    "posthog/dags/person_tombstone_queue.py",
+    "posthog/models/person/bulk_delete.py",
+    "posthog/models/person/deletion.py",
+    "posthog/models/person/util.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106322.diff",
+   "goldTitle": "feat(persons): expose deletion mode, tombstone delivery wait, queue acks and repair counts",
+   "layers": [
+    "backend"
+   ]
+  }
+ ]
+}

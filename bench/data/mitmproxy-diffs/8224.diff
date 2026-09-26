@@ -1,0 +1,27 @@
+diff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py
+index c207701ed3..1989bd2e9d 100644
+--- a/mitmproxy/tools/web/app.py
++++ b/mitmproxy/tools/web/app.py
+@@ -925,6 +925,9 @@ def __init__(
+             template_path=os.path.join(os.path.dirname(__file__), "templates"),
+             static_path=os.path.join(os.path.dirname(__file__), "static"),
+             xsrf_cookies=True,
++            # https://github.com/mitmproxy/mitmproxy/issues/8194
++            # 2026-05: We can move back to the default cookie name in a few years.
++            xsrf_cookie_name="_mitmproxy_xsrf",
+             xsrf_cookie_kwargs=dict(samesite="Strict"),
+             cookie_secret=secrets.token_bytes(32),
+             debug=debug,
+diff --git a/web/src/js/utils.ts b/web/src/js/utils.ts
+index 7e76df609c..89969f55cf 100644
+--- a/web/src/js/utils.ts
++++ b/web/src/js/utils.ts
+@@ -78,7 +78,7 @@ function getCookie(name) {
+ }
+ 
+ let xsrf = () => {
+-    const cached = getCookie("_xsrf");
++    const cached = getCookie("_mitmproxy_xsrf");
+     xsrf = () => cached;
+     return xsrf();
+ };

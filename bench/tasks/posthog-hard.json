@@ -1,0 +1,254 @@
+{
+ "repo": "posthog",
+ "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+ "tasks": [
+  {
+   "id": "PR106936-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen I invite a teammate who is already a member of my organization, or I enter my own email, I only find out after submitting, and then I get a generic error toast. This happens both in the onboarding invite step and in the organization settings invite dialog. The form currently checks only that the email looks valid, so nothing warns me while I'm filling in the row. Worse, when I send several invites at once and an existing member is in, say, the third row, the first two invitations have already been created and emailed before the whole batch fails, leaving a partial, confusing result. Each of these rejections is also reported to our error tracking as if it were an unexpected error, even though it's an ordinary validation outcome. I'd like the invite row itself to flag an email that belongs to an existing member (or to myself) before I submit, so I can fix or remove it. Submitting a batch that contains such an email should be rejected up front without creating or emailing any of the other invites, and it should not be logged as an application error.",
+   "goldFiles": [
+    "frontend/src/initKea.ts",
+    "frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx",
+    "frontend/src/scenes/settings/organization/InviteModal.tsx",
+    "frontend/src/scenes/settings/organization/inviteLogic.ts",
+    "posthog/api/organization_invite.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106936.diff",
+   "goldTitle": "fix(invites): flag existing members on the invite row before submit",
+   "layers": [
+    "backend",
+    "frontend"
+   ]
+  },
+  {
+   "id": "PR106466-hard",
+   "area": "workflows",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nOnce a scheduled broadcast has been launched, there is no way to stop or edit it from the Broadcasts area. It stays read-only until it sends, so someone who launches by mistake or wants to change the details has no control. There is also a bug when a broadcast is relaunched: if the audience of a draft was edited, its schedule gets paused. Launching does not resume that paused schedule, and the schedule's status can't be changed through the API. The broadcast then appears live and shows the \"Broadcast scheduled\" confirmation, but it never sends. Users should be able to move a live, scheduled broadcast back to draft so they can edit it. Launching should also replace any existing schedule with a fresh, active one, so a relaunched broadcast always sends at the chosen time and never ends up silently paused.",
+   "goldFiles": [
+    "products/workflows/backend/api/hog_flow.py",
+    "products/workflows/frontend/Broadcasts/BroadcastSummary.tsx",
+    "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+    "products/workflows/frontend/Broadcasts/broadcastsLogic.ts"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106466.diff",
+   "goldTitle": "feat(workflows): let a live broadcast go back to draft and replace its schedule on launch",
+   "layers": [
+    "backend",
+    "frontend"
+   ]
+  },
+  {
+   "id": "PR106672-hard",
+   "area": "experiments",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen a shared metric is attached to an experiment, it can end up with the same internal identifier as one of the experiment's own inline metrics. Because experiment results are matched to metrics by that identifier, one metric then displays the other's results, which is wrong and confusing. An earlier fix prevented this between two inline metrics, but two scenarios still produce the clash. First, when a user promotes an inline metric to a shared metric, the new shared metric keeps the original's identifier, and if the inline copy remains on the experiment, the two collide. The guidance given to agents for setting up experiment analytics also tells them to promote a metric with the same query and then attach it, which leads straight to this situation. Second, when an experiment is updated with only a new list of attached shared metrics, the experiment's existing inline metrics are never checked against them, so a clash can slip through. Desired behavior: inline and shared metrics on the same experiment should always have distinct identifiers, whether the shared metric is created by promotion or attached through an update that changes only the attached shared metrics. Each metric should always show its own results, and the agent guidance should stop recommending the flow that causes the duplication.",
+   "goldFiles": [
+    "products/experiments/backend/experiment_saved_metric_service.py",
+    "products/experiments/backend/experiment_service.py",
+    "products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106672.diff",
+   "goldTitle": "fix(experiments): keep inline and shared metric uuids unique",
+   "layers": [
+    "backend",
+    "other"
+   ]
+  },
+  {
+   "id": "PR106564-hard",
+   "area": "common",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nThe stable chunk build of the frontend, which is meant to improve load performance, currently only reaches a browser when someone manually opts in by adding a query parameter to the page address. Because of this, there is no way to run a proper A/B test of it on real users. We want to compare the stable build against the current build on Largest Contentful Paint (LCP), with a 50% split of logged-in users. The desired behavior is that a feature flag can decide whether a given logged-in user is served the stable chunk build, so roughly half of logged-in users get it and the other half get the current build. The existing manual opt-in via the query parameter should keep working, so people can still force the stable build on for themselves. Users who are not logged in should not be enrolled in the experiment.",
+   "goldFiles": [
+    "common/esbuilder/utils.mjs",
+    "posthog/stable_chunks.py",
+    "posthog/utils.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106564.diff",
+   "goldTitle": "feat(frontend): let a feature flag roll out the stable chunk build",
+   "layers": [
+    "backend",
+    "other"
+   ]
+  },
+  {
+   "id": "PR106613-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nThe decisions playground in the ML inference product is currently reached at a web address ending in \"/ml-inference/decisions\". That address is inconsistent with the other playground in the app, AI observability's, which lives at \"/ai-observability/playground\". Because the page is a playground, its address should say so. Please make the decisions playground available at \"/ml-inference/playground\" instead of \"/ml-inference/decisions\". Anything in the app that links to or navigates to the playground, such as menu entries or in-app links, should point to the new address and open the same page as before. The page's behavior and content should not change; only where it is served.",
+   "goldFiles": [
+    "frontend/src/products.tsx",
+    "products/ml_inference/manifest.tsx"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106613.diff",
+   "goldTitle": "fix(ml_inference): serve the decisions playground at /ml-inference/playground",
+   "layers": [
+    "frontend",
+    "other"
+   ]
+  },
+  {
+   "id": "PR107042-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nThree things are broken around insights on small screens and in related flows. First, on a narrow screen, when I duplicate an insight, the actions sidebar stays open on top of the newly created copy, so I can't see it. After duplicating, the sidebar should close so the new insight is visible. Second, on the page for transferring an insight to another project, the Back link points to the insight using its numeric ID, which opens an insight that isn't available. Back should take me to the insight in a way that actually loads it, using the same kind of link used elsewhere to open insights. Third, when the subscriptions modal is narrow, the empty-state card keeps its illustration next to the text instead of adapting. In a narrow modal the illustration should no longer sit beside the text, and the layout should stack or otherwise fit properly.",
+   "goldFiles": [
+    "frontend/src/scenes/insights/SidePanel/InsightPanelActions.tsx",
+    "frontend/src/scenes/insights/SidePanel/InsightSceneMenuBar.tsx",
+    "frontend/src/scenes/insights/insightLogic.tsx",
+    "frontend/src/scenes/resource-transfer/ResourceTransfer.tsx",
+    "frontend/src/scenes/urls.ts",
+    "products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/107042.diff",
+   "goldTitle": "fix(insights): correct mobile actions and transfer navigation",
+   "layers": [
+    "frontend"
+   ]
+  },
+  {
+   "id": "PR106522-hard",
+   "area": "tasks",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen a task run fails inside a sandbox, the failure events don't consistently say which sandbox backend the run was using. This is most visible when a run continues after an earlier step, or when the agent itself reports the failure. In those cases the backend information is missing, so operators can't filter or route sandbox failure alerts by backend. Every sandbox failure event should identify the backend of the run, whether the failure is detected by the system or reported by the agent, and whether the run is a fresh one or a continuation. The backend should be carried through the full lifecycle of the run, including status updates that record a failure, so alerts can be filtered reliably. Existing failure information (error message, run status, and so on) should stay the same, with the backend identifier added.",
+   "goldFiles": [
+    "products/tasks/backend/facade/api.py",
+    "products/tasks/backend/models.py",
+    "products/tasks/backend/temporal/execute_sandbox/workflow.py",
+    "products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py",
+    "products/tasks/backend/temporal/process_task/activities/update_task_run_status.py",
+    "products/tasks/backend/temporal/process_task/workflow.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106522.diff",
+   "goldTitle": "fix(tasks): identify sandbox backend on failure events",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR105793-hard",
+   "area": "posthog",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nIn Slack, when someone replies in a thread where PostHog is already involved but doesn't tag PostHog, the reply is handled according to that person's thread follow-up setting. Users who have never chosen a setting currently get no prompt at all in that situation, so they have no chance to decide whether the reply should go to the agent. The reply is simply ignored, and the person is never told the option exists. Desired behavior: when a user with no thread follow-up preference set replies without tagging PostHog, they should be asked whether they want that reply sent to the agent. The prompt should also let them save a default choice for future follow-ups, so they aren't asked every time. That same setting should be visible and changeable from the app's home page. Users who have already chosen a setting should keep their current behavior with no prompt.",
+   "goldFiles": [
+    "posthog/temporal/ai/slack_app/activities/billing.py",
+    "posthog/temporal/ai/slack_app/helpers.py",
+    "products/slack_app/backend/api.py",
+    "products/slack_app/backend/models.py",
+    "products/slack_app/backend/services/slack_app_home.py",
+    "products/slack_app/backend/services/slack_settings.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/105793.diff",
+   "goldTitle": "feat(slack_app): ask before picking up unset thread follow-ups",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR105887-hard",
+   "area": "posthog",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nExperiments that use saved metrics with per-experiment breakdowns still recompute all their metrics the first time they're opened each day, even though the overnight batch ran. On one affected experiment, the batch produced results for 7 of 9 metrics; the 2 metrics with breakdowns were never published, and because any gap causes the page to recompute everything, the user waits for a full recompute. For a saved metric, the breakdowns are stored on the experiment's link to the metric rather than in the saved query itself. The overnight job identifies each metric's results using only the saved query without its breakdowns, while everything that reads results (the timeseries sync, the cold-start fallback, and the results chart) identifies the metric using the query combined with its breakdowns. Because the two sides use different identifiers, the freshly computed results are stored under one key and looked up under another, so they are never found. The desired behavior is that the overnight job identifies saved metrics the same way readers do, including any per-experiment breakdowns, so its results are found and published. Experiments with breakdowns should then open with fresh results and no recompute, just like experiments without breakdowns already do.",
+   "goldFiles": [
+    "posthog/temporal/experiments/activities.py",
+    "products/experiments/backend/facade/timeseries.py",
+    "products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py",
+    "products/experiments/backend/presentation/serializers.py",
+    "products/experiments/backend/temporal/metric_resolution.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/105887.diff",
+   "goldTitle": "fix(experiments): fingerprint saved metrics with their per-experiment breakdowns",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR105871-hard",
+   "area": "posthog",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nSeveral maintenance jobs that scan feature flags across every team assume each flag's targeting rules are stored in the original, current format, and they never check. If any team ever has a flag saved in a different, newer format that these jobs can't interpret, the jobs could misread it. Depending on the job, that could mean rewriting that flag's stored data incorrectly, reporting it wrongly, or crashing the entire run because of one team's flag. This affects the command that re-encrypts flag payloads, the read-only audit of flag rules, and the weekly health check that identifies stale flags. No such flags exist today, but the jobs should be made safe before the first one appears. Expected behavior: these jobs should quietly skip any flag whose rules are not in the original format, leaving it untouched and unreported, and continue processing all other flags. Separately, the one-off command that repaired invalid property types has no remaining work to do and should be removed.",
+   "goldFiles": [
+    "posthog/management/commands/fix_invalid_flag_property_types.py",
+    "posthog/management/commands/reencrypt_flag_payloads.py",
+    "products/feature_flags/backend/flag_status.py",
+    "products/feature_flags/backend/management/commands/audit_flag_filters.py",
+    "products/feature_flags/backend/temporal/health_checks/stale_flags.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/105871.diff",
+   "goldTitle": "fix(flags): skip non-v1 configs in cross-team flag jobs",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR106917-hard",
+   "area": "data_warehouse",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen a team turns off change data capture (CDC) on a data warehouse source, the tables that were previously synced via CDC are marked as no longer syncing, but they keep running on their old schedules anyway. Each of these runs is still billed, so the team keeps paying for syncs of tables it expected to be stopped. Separately, when a CDC source becomes broken (for example, the replication slot was dropped because of critical lag, or the slot or publication is missing), only the change-capture process is paused. Every CDC table's own sync schedule keeps firing, and each tick records a failed or billing-blocked job until someone repairs the source. Desired behavior: disabling CDC should pause the sync schedule of every affected table so no further runs start, and marking a CDC source as broken should likewise pause the schedules of all its CDC tables so no failed or billed runs pile up while the source is broken. A table that is marked as not syncing should never continue to run on its schedule.",
+   "goldFiles": [
+    "products/data_warehouse/backend/facade/api.py",
+    "products/data_warehouse/backend/logic/data_load/service.py",
+    "products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py",
+    "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106917.diff",
+   "goldTitle": "fix(warehouse-sources): pause cdc table schedules on break and disable",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR106579-hard",
+   "area": "error_tracking",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen I build an error tracking alert on a destination, I can't show who an issue is assigned to. The event payload only contains an identifier for the assigned user or role, so a message can say \"assigned\" or \"unassigned\" but never name the person or role. Today the assignee comes through as a text string containing the type and id (for example a user with id 1234), and it is missing entirely when the issue is unassigned. Message templates have no way to turn that id into a readable name, so they can't display it. I want the issue alert events to include the assignee's actual name (the user's name or the role's name) alongside the existing assignee information, so templates can display it directly. When an issue is unassigned, the assignee should still be absent, as it is now, and existing behavior should keep working. The documentation the AI assistant uses to help author alerts should also describe the assignee and its shape, so it stops guessing.",
+   "goldFiles": [
+    "products/error_tracking/backend/logic/assignees.py",
+    "products/error_tracking/backend/logic/issue_mutations.py",
+    "products/error_tracking/backend/logic/lifecycle_events.py",
+    "products/error_tracking/backend/temporal/lifecycle/side_effects.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106579.diff",
+   "goldTitle": "feat(error-tracking): name the assignee in issue alert events",
+   "layers": [
+    "backend"
+   ]
+  },
+  {
+   "id": "PR106491-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen I open a saved trends insight in view mode, the chart type is chosen through a plain dropdown. The richer chart type gallery, which shows alternative ways to visualize the same data, only appears after I click into edit mode. That means the same job, picking how the insight is displayed, is handled by two different pickers depending on the mode, which is inconsistent and hides the gallery from people who are only viewing. The gallery should also be shown on the insight page in view mode, so viewers see the same chart type options as in edit mode. The dropdown shouldn't be shown in place of the gallery in view mode. Editing behavior should stay as it is today.",
+   "goldFiles": [
+    "frontend/src/queries/nodes/InsightViz/InsightVizDisplay.tsx",
+    "products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.tsx",
+    "products/product_analytics/frontend/insights/chartAlternatives/ChartGallery.tsx",
+    "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106491.diff",
+   "goldTitle": "fix(insights): show the chart gallery on the insight page in view mode",
+   "layers": [
+    "frontend"
+   ]
+  },
+  {
+   "id": "PR106322-hard",
+   "area": "posthog",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nThe person deletion dashboard is missing four pieces of information an on-call engineer needs once the tombstone-based deletion setting is turned on. First, there's no way to see which deletion order an environment is running, because that setting isn't reported anywhere. Second, there's no visibility into how long a person delete waits for the message queue (Kafka) to confirm delivery before it acknowledges the item in the tombstone queue. Third, when that acknowledgement fails, the only trace is a log line, so failures can't be graphed or alerted on. Fourth, the weekly tombstone queue repair job reports how many rows it read and what it did with them only in the orchestrator's run metadata, not as metrics. Please expose each of these as metrics that can be charted: the active deletion mode, the delivery wait time before acknowledgement, a count of acknowledgement failures, and counts of the rows the weekly repair read and how it handled them. This builds on the earlier work that added the weekly repair and the queue gauges.",
+   "goldFiles": [
+    "posthog/dags/person_tombstone_queue.py",
+    "posthog/models/person/bulk_delete.py",
+    "posthog/models/person/deletion.py",
+    "posthog/models/person/util.py"
+   ],
+   "goldDiff": "bench/data/posthog-diffs/106322.diff",
+   "goldTitle": "feat(persons): expose deletion mode, tombstone delivery wait, queue acks and repair counts",
+   "layers": [
+    "backend"
+   ]
+  }
+ ]
+}
