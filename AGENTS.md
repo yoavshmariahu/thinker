@@ -85,7 +85,8 @@ The log holds the first 200 characters of each request.
 `thinker usage [--here] [--days n] [--json]` summarizes it for every
 repository on the machine, with a line per repository (`--here`: this
 repository only). A repository's older local log is moved into the machine's
-log the first time thinker runs there, and kept as `log.jsonl.moved`. The summary covers notes served and how, what the
+log the first time thinker runs there, and kept as
+`.thinker/state/log-before-shared.jsonl`. The summary covers notes served and how, what the
 sessions did with them, what was learned and what it cost, and an estimate of
 the tool calls and tokens saved. The estimate counts only servings a session
 was seen to act on (`confirmed`), as one read per file the note rests on (at

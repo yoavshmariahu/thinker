@@ -36,13 +36,14 @@ export function logFile(store) {
 }
 
 // What a repository logged locally before the log was shared is moved into the machine's
-// log, once: the local file is renamed first, so two processes cannot both move it.
+// log, once: the local file is renamed first, so two processes cannot both move it. It is
+// kept under state/, which every checkout already keeps out of commits.
 export function adoptLocalLog(store) {
   const main = logFile(store), local = path.join(store.dir, 'log.jsonl');
   // only into the machine's own log, not one that THINKER_LOG names
   if (process.env.THINKER_LOG || !main || main === local || !fs.existsSync(local)) return;
-  const moved = local + '.moved';
-  try { fs.renameSync(local, moved); } catch { return; }
+  const moved = path.join(store.dir, 'state', 'log-before-shared.jsonl');
+  try { fs.mkdirSync(path.dirname(moved), { recursive: true }); fs.renameSync(local, moved); } catch { return; }
   try {
     const lines = fs.readFileSync(moved, 'utf8').split('\n').filter(Boolean).map(l => { try { const e = JSON.parse(l); return JSON.stringify(e.repo ? e : { t: e.t, repo: store.repo, ...e }); } catch { return null; } }).filter(Boolean);
     fs.mkdirSync(path.dirname(main), { recursive: true });

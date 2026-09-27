@@ -46,7 +46,7 @@ test('usage is kept in one log for the machine and summarized across repositorie
 
     assert.equal(fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').trim().split('\n').length, 11);
     assert.equal(fs.existsSync(path.join(one.dir, 'log.jsonl')), false);
-    assert.equal(fs.existsSync(path.join(one.dir, 'log.jsonl.moved')), true);
+    assert.equal(fs.existsSync(path.join(one.dir, 'state', 'log-before-shared.jsonl')), true);
     assert.equal(fs.existsSync(path.join(two.dir, 'log.jsonl')), false);
 
     const here = summarize(one);

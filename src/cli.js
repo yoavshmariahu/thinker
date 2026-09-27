@@ -336,7 +336,7 @@ function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
   }
   if (!fs.existsSync(path.join(store.dir, 'cochange.json'))) { try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {} }
   const gi = path.join(repo, '.thinker', '.gitignore');
-  if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'log.jsonl\nlog.jsonl.moved\nstate/\n');
+  if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'log.jsonl\nstate/\n');
 }
 
 // owner/name of the GitHub repository behind `origin`, or null
