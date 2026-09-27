@@ -1,0 +1,50 @@
+{
+  "id": "external-ticket-legacy-auth-counters-live-in-metrics-py-and-",
+  "title": "External ticket legacy auth counters live in metrics.py and are incremented in _authenticate_team",
+  "kind": "cochange",
+  "answers": [
+    "Where is the legacy secret_api_token usage on the external ticket route measured?",
+    "How do I find which team still uses the legacy external ticket API token?",
+    "Removing the external ticket route (#63111): what metrics need deleting?"
+  ],
+  "body": "Two Prometheus counters track legacy `secret_api_token` auth on the external ticket route, both incremented in `_authenticate_team` in products/conversations/backend/api/external.py:\n- `TICKET_ACTION_AUTH_COUNTER` (`posthog_conversations_ticket_action_auth_total`, labels auth_method/http_method)\n- `LEGACY_TICKET_AUTH_BY_TEAM_COUNTER` (`posthog_conversations_external_ticket_legacy_team_total`, label team_id)\nBoth are defined in products/conversations/backend/metrics.py. The per-team counter is explicitly temporary (#63111): delete it together with the route, along with its import in external.py.\nTests in products/conversations/backend/api/tests/test_external.py (`test_authenticated_requests_increment_the_legacy_auth_counters`) assert both from a single authenticated GET; the reviewer asked to extend the existing counter test rather than add a separate one. Update it if either counter changes.",
+  "applies": "Conversations external ticket route auth metrics; relevant when adding metrics there or removing the legacy route.",
+  "tags": [
+    "conversations",
+    "metrics",
+    "prometheus",
+    "deprecation"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/api/external.py",
+      "symbol": "_authenticate_team",
+      "hash": "sha256:e112e35ac92c61840e59883c",
+      "line": 53,
+      "missing": false
+    },
+    {
+      "path": "products/conversations/backend/metrics.py",
+      "symbol": "LEGACY_TICKET_AUTH_BY_TEAM_COUNTER",
+      "hash": "sha256:f9d7ebc50b0d32c168e289ec",
+      "line": 15,
+      "missing": false
+    },
+    {
+      "path": "products/conversations/backend/api/tests/test_external.py",
+      "hash": "sha256:edcffdae0b3c76c2b8f0adab",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105237"
+  },
+  "created": "2026-09-27T00:10:21.666Z",
+  "verified": "2026-09-27T00:10:21.666Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

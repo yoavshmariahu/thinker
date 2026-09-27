@@ -1,0 +1,71 @@
+{
+  "id": "map-an-experimentholdout-onto-flag-filters-via-apply-holdout",
+  "title": "Map an ExperimentHoldout onto flag filters via _apply_holdout, not set_holdout directly",
+  "kind": "convention",
+  "answers": [
+    "How do I set a holdout on an experiment's feature flag filters?",
+    "Where does holdout id / exclusion_percentage get written to flag filters?",
+    "Adding a new holdout call site in the experiment service"
+  ],
+  "body": "In products/experiments/backend/experiment_service.py, use `_apply_holdout(filters, holdout)` (defined next to the other filter helpers like `_strip_frozen_exposure`) whenever an ExperimentHoldout (or None) must be reflected in flag filters.\n- It wraps the facade's plain-value `set_holdout(filters, holdout_id=..., exclusion_percentage=...)` and passes None for both when holdout is None (which clears it).\n- Existing callers: `_ensure_feature_flag` (create path) and `_sync_feature_flag_on_update` (both the filters-rebuild branch and the holdout-only `update_flag` branch).\n- Do not re-inline `holdout.id if holdout else None` at call sites; a change to how a holdout maps to flag filters belongs inside the helper only.",
+  "applies": "products/experiments/backend/experiment_service.py holdout handling on flag create/update",
+  "tags": [
+    "experiments",
+    "holdout",
+    "feature-flag",
+    "filters"
+  ],
+  "deps": [
+    {
+      "path": "products/experiments/backend/experiment_service.py",
+      "symbol": "_apply_holdout",
+      "hash": "sha256:a49908dbccae86fcab57ad1f",
+      "line": 311,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/experiment_service.py",
+      "symbol": "_sync_feature_flag_on_update",
+      "hash": "sha256:02e0ef2487e8a54a7a48663c",
+      "line": 3990,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/experiment_service.py",
+      "symbol": "_ensure_feature_flag",
+      "hash": "sha256:0137b456be2f8557170b02e6",
+      "line": 1562,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105657"
+  },
+  "created": "2026-09-27T00:00:05.694Z",
+  "verified": "2026-09-27T00:00:05.694Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 13,
+  "related": [
+    "experiment-metric-identity-uuid-vs-config-fingerprint",
+    "uniqueness-constraints-for-experiment-metrics-and-results"
+  ],
+  "servedIn": [
+    "ffd5d7a2-4585-4abf-82a8-6ebeb4e1eab6",
+    "7f55fb13-0cd8-44cb-8c17-e95628f2e036",
+    "aa0facb4-3469-4ea0-a240-86f0eb879eca",
+    "3c87f53b-2863-49b8-a330-2bc3b4ab43d1",
+    "7509243b-8859-4cf6-a36d-f2a353754833",
+    "28603e98-37bf-447a-8663-6a7c6b802c85",
+    "36249c18-3dd5-4db5-aceb-ad444635e403",
+    "9d7cb4d1-d895-491e-920b-ba43d2189f27",
+    "11cb3a3c-bf3c-44e7-bc34-5f2d1b763110",
+    "32292e2b-f34f-4f03-88be-eae6ad5c6b4f",
+    "461ccefd-e751-45f3-846a-5ee6369b7409",
+    "62dcccb3-560a-43e1-9b25-218ef0c70e4c",
+    "fc3a9395-dcb1-4e72-a2d8-3d746ed996b1"
+  ],
+  "lastUsed": "2026-09-27T06:12:06.441Z"
+}

@@ -1,0 +1,96 @@
+{
+  "id": "mitmweb-flow-update-path-http-put-view-update-websocket-broa",
+  "title": "mitmweb flow update path: HTTP PUT -> view.update -> websocket broadcast",
+  "kind": "callpath",
+  "answers": [
+    "How do UI flow edits get applied in mitmweb?",
+    "How are websocket updates pushed to the mitmweb frontend?",
+    "Where is the flows list endpoint handled?"
+  ],
+  "body": "- Routes: module-level `handlers` in mitmproxy/tools/web/app.py (`/flows` -> `Flows`, `/flows/<id>` -> `FlowHandler`, `/updates` -> `ClientConnection`).\n- List: `Flows.get` returns `[flow_to_json(f) for f in self.view]`; `flow_to_json` defines the JSON shape sent to the UI.\n- Edit: `FlowHandler.put` does `flow.backup()`, iterates JSON keys; `request`/`response` fields are whitelisted (method/scheme/host/path/http_version as str, port int, headers/trailers cleared+re-added, content via `.text`), `marked`/`comment` set directly, unknown key -> `APIError(400)`. On `APIError` it calls `flow.revert()` and re-raises (other exceptions like ValueError from int() do NOT revert). On success `self.view.update([flow])`.\n- Push: view emits `sig_view_update` -> `WebMaster._sig_view_update` (master.py) -> `ClientConnection.broadcast_flow(\"flows/update\", flow)`. Other messages: flows/add, flows/remove, flows/reset, events/add, options/update, state/update.\n- `WebSocketEventBroadcaster.open` registers connection + per-connection asyncio.Queue and `send_task`; `send` is put_nowait so slow clients don't block. `_broadcast_flow` adds per-connection `matching_filters`.\n- Client->server: `ClientConnection.on_message` only accepts `flows/updateFilter`; anything else closes with 1011.\n- Base class `RequestHandler`: `flow` property (404 APIError), `json` property (400 unless application/json).",
+  "tags": [
+    "mitmweb",
+    "tornado",
+    "websocket"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "FlowHandler",
+      "hash": "sha256:dba5abeb1ee55d42ae09a033",
+      "line": 574,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "ClientConnection",
+      "hash": "sha256:8b763c24e11c68580d6c03cc",
+      "line": 424,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/master.py",
+      "symbol": "WebMaster",
+      "hash": "sha256:30ce899818636853eccd4399",
+      "line": 27,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "Flows.get",
+      "hash": "sha256:749232c16dd639676792aef3",
+      "line": 501,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "FlowHandler.put",
+      "hash": "sha256:15bc8028b4b41c64e02b7bc6",
+      "line": 580,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/master.py",
+      "symbol": "WebMaster._sig_view_update",
+      "hash": "sha256:25dcbea7fe657ee921e970a7",
+      "line": 60,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "ClientConnection.broadcast_flow",
+      "hash": "sha256:b6a190ecd214fbf21a33d84e",
+      "line": 439,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "WebSocketEventBroadcaster.open",
+      "hash": "sha256:74b4e8f516ef8c88f387ad92",
+      "line": 388,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "ClientConnection.on_message",
+      "hash": "sha256:9461e2109c8076c8f66773f4",
+      "line": 487,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "33f43c64-d7f2-4582-ab59-0489fe03b3ed"
+  },
+  "created": "2026-09-26T09:24:21.682Z",
+  "verified": "2026-09-26T09:24:21.682Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 3,
+  "lastUsed": "2026-09-26T09:59:25.406Z",
+  "related": [
+    "mitmweb-xsrf-auth-and-header-protections",
+    "flow-arrival-and-filter-evaluation-websocket-to-view-update"
+  ]
+}

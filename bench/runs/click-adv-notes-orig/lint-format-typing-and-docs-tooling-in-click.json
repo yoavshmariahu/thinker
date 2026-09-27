@@ -1,0 +1,62 @@
+{
+  "id": "lint-format-typing-and-docs-tooling-in-click",
+  "title": "Lint, format, typing and docs tooling in click",
+  "kind": "howto",
+  "answers": [
+    "What linters and type checkers does click use?",
+    "How do I build the docs?",
+    "How is pre-commit configured?",
+    "What ruff rules/import conventions apply?"
+  ],
+  "body": "- Style: pre-commit (`.pre-commit-config.yaml`): ruff-check, ruff-format, uv-lock, codespell (`--ignore-words-list=inout,te`), pre-commit-hooks basics. Run `uv run pre-commit run --all-files` or `tox r -e style`; CI via `.github/workflows/pre-commit.yaml`.\n- Ruff (`pyproject.toml` `[tool.ruff]`): excludes `examples/`, `fix = true`, rules B,E,F,I,UP,W,ICN; isort `force-single-line`; `typing` must be imported as `t`.\n- Typing: `tox r -e typing` runs `mypy` (strict, over `src` and `tests/typing`, `[tool.mypy]`) and `pyright --ignoreexternal --verifytypes click` (`[tool.pyright]` basic). `uv run mypy` works directly.\n- Docs: Sphinx + MyST in `docs/` (`docs/conf.py`, `docs` dependency group). `tox r -e docs` = `sphinx-build -E -W -b dirhtml docs docs/_build/dirhtml` (-W: warnings are errors). `tox r -e docs-auto` uses sphinx-autobuild, also watching `src`. Read the Docs (`.readthedocs.yaml`) uses `uv run --group docs sphinx-build -W -b dirhtml ...`.\n- Maintenance envs: `update-actions`, `update-pre_commit`, `update-requirements`. Changelog: `CHANGES.md`.",
+  "tags": [
+    "lint",
+    "mypy",
+    "ruff",
+    "docs",
+    "sphinx"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:87bf078e2c9357d812139144",
+      "missing": false
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "hash": "sha256:32f781c5f5555301804f5d42",
+      "missing": false
+    },
+    {
+      "path": ".readthedocs.yaml",
+      "hash": "sha256:0a21349ad847b7ea4975c468",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/pre-commit.yaml",
+      "hash": "sha256:6ceaadd5d41f22d6384392e6",
+      "missing": false
+    },
+    {
+      "path": "docs/contributing.md",
+      "hash": "sha256:b490393be72a728fe3482a7f",
+      "missing": false
+    },
+    {
+      "path": "docs/conf.py",
+      "hash": "sha256:23c516899b6c0994a305fe05",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "710097d6-e275-452b-a353-bd5052007d1e"
+  },
+  "created": "2026-09-26T09:14:12.437Z",
+  "verified": "2026-09-26T09:14:12.437Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 8,
+  "lastUsed": "2026-09-26T09:34:24.820Z"
+}

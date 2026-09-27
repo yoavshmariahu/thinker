@@ -1,0 +1,50 @@
+{
+  "id": "PR8397-hook-0",
+  "task": "PR8397",
+  "area": "encoding",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "f1fccb2b-0bf4-4e31-924d-85d2182a6aa4",
+  "turns": 8,
+  "wall_ms": 19516,
+  "api_ms": 18948,
+  "cost": 0.11209640000000001,
+  "in_tokens": 175881,
+  "out_tokens": 1828,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 6,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "injected": [
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "uv.lock was not updated (lockfile regeneration, not functionally relevant to the code change)"
+    ],
+    "wrong": [
+      "Version range for backports.zstd (>=1.0.0,<2) differs from upstream's pinned 1.7.0 but is a reasonable, compatible constraint"
+    ],
+    "reason": "The agent's encoding.py change is essentially identical to the merged patch: it imports compression.zstd on Python 3.14+ and backports.zstd otherwise, and it uses zstd.decompress and zstd.compress(level=1). pyproject.toml swaps zstandard for backports.zstd with a python_version<'3.14' marker. The remaining differences are the looser version range, the missing uv.lock update and the missing pragma comment, none of which change behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/net/encoding.py",
+      "pyproject.toml"
+    ]
+  },
+  "result": "mitmproxy now uses the standard-library `compression.zstd` on Python 3.14+ and the `backports.zstd` package on older versions. I haven't run the tests, linter, or type checker, and I didn't touch `uv.lock`.\n\n- **`mitmproxy/net/encoding.py`**:\n  - It imports `compression.zstd` when `sys.version_info >= (3, 14)` and `backports.zstd` otherwise.\n  - `decode_zstd` is now `zstd.decompress(content)`, which reads across multiple frames, as the old `read_across_frames=True` did.\n  - `encode_zstd` is now `zstd.compress(content, level=1)`.\n- **`pyproject.toml`**: `zstandard` is replaced by `backports.zstd>=1.0.0,<2; python_version<'3.14'`. I picked that version range myself, so check it against what's actually published.\n- **`CHANGELOG.md`**: I added an entry for the change.\n\nThe existing `test_zstd` test covers both single-frame and multi-frame decoding, so I didn't change any tests.\n\nYou'll need to run `uv lock` to update `uv.lock` for the new dependency.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..674e21016 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,8 @@\n \n ## Unreleased: mitmproxy next\n \n+- Use `compression.zstd` (PEP-784) on Python 3.14+, and the `backports.zstd` package on older versions,\n+  replacing the `zstandard` dependency.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/net/encoding.py b/mitmproxy/net/encoding.py\nindex 7be30d3d5..bcba77a7a 100644\n--- a/mitmproxy/net/encoding.py\n+++ b/mitmproxy/net/encoding.py\n@@ -5,12 +5,17 @@ Utility functions for decoding response bodies.\n import codecs\n import collections\n import gzip\n+import sys\n import zlib\n from io import BytesIO\n from typing import overload\n \n import brotli\n-import zstandard as zstd\n+\n+if sys.version_info >= (3, 14):\n+    from compression import zstd\n+else:\n+    from backports import zstd\n \n # We have a shared single-element cache for encoding and decoding.\n # This is quite useful in practice, e.g.\n@@ -182,14 +187,12 @@ def encode_brotli(content: bytes) -> bytes:\n def decode_zstd(content: bytes) -> bytes:\n     if not content:\n         return b\"\"\n-    zstd_ctx = zstd.ZstdDecompressor()\n-    return zstd_ctx.stream_reader(BytesIO(content), read_across_frames=True).read()\n+    return zstd.decompress(content)\n \n \n def encode_zstd(content: bytes) -> bytes:\n     # Use level=1 for fastest compression speed.\n-    zstd_ctx = zstd.ZstdCompressor(level=1)\n-    return zstd_ctx.compress(content)\n+    return zstd.compress(content, level=1)\n \n \n def decode_deflate(content: bytes) -> bytes:\ndiff --git a/pyproject.toml b/pyproject.toml\nindex 7ddc3b834..04d584e42 100644\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -57,7 +57,7 @@ dependencies = [\n     \"urwid>=2.6.14,<=3.0.5\",\n     \"wsproto>=1.0,<=1.3.2\",\n     \"publicsuffix2>=2.20190812,<=2.20191221\",\n-    \"zstandard>=0.25,<=0.25.0\",\n+    \"backports.zstd>=1.0.0,<2; python_version<'3.14'\",\n ]\n \n [dependency-groups]\n"
+}

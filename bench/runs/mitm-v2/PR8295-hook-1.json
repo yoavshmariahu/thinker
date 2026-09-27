@@ -1,0 +1,47 @@
+{
+  "id": "PR8295-hook-1",
+  "task": "PR8295",
+  "area": "next-layer",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "0977cff7-7049-4548-a4b3-fc948a3c6d70",
+  "turns": 5,
+  "wall_ms": 15339,
+  "api_ms": 14853,
+  "cost": 0.0483736,
+  "in_tokens": 107692,
+  "out_tokens": 1498,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Read": 1,
+      "Bash": 2,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "ignore-allow-hosts-semantics-in-ignore-connection",
+      "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn",
+      "bytes-heuristics-next-layer-inspects-quic-host-header-raw-tc"
+    ]
+  },
+  "grade": {
+    "score": 0.96,
+    "missing": [
+      "No tests were added, such as the invalid QUIC case or the http3 case with ignore_hosts active. This does not affect behavior."
+    ],
+    "wrong": [],
+    "reason": "The agent changed the same place as upstream, the udp branch of `_get_client_hello`. Both patches gate the QUIC parse on `_starts_like_quic` and the DTLS parse on `starts_like_dtls_record`, so empty or invalid data returns None instead of NeedsMoreData. The only difference is the order: the agent checks DTLS first and uses `elif` for QUIC, while upstream checks QUIC first and then DTLS. The two checks cannot both be true. A QUIC long header has the top bit set, so the first byte cannot be 0x16, which is what a DTLS handshake record starts with. The behavior is therefore equivalent.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py"
+    ]
+  },
+  "result": "I changed `_get_client_hello` in `mitmproxy/addons/next_layer.py` so QUIC flows no longer stall when `ignore_hosts` or `allow_hosts` is set. I did not run the tests, and I did not add a test.\n\nFor UDP, the function used to try QUIC parsing and then DTLS parsing on whatever bytes it got. After a QUIC handshake, `data_client` is `b''`, and the parser failures ended up as `NeedsMoreData`, so the next-layer decision never completed. It now tries a parse only when the bytes look like that protocol, as the TCP branch already does:\n\n- **DTLS:** if `starts_like_dtls_record(data_client)` is true, it parses as DTLS. An incomplete hello still raises `NeedsMoreData`.\n- **QUIC:** otherwise, if `_starts_like_quic(data_client, context.server.address)` is true, it parses as QUIC. A `ValueError` is ignored.\n- **Neither:** it returns `None`, so the host check continues with the other candidates (peer address, server address, `client.sni`).\n\nI checked that the QUIC parser (`_client_hello_parser.py`) raises `ValueError` on invalid input. I didn't look for where those errors become `NeedsMoreData`, so the stall mechanism is taken from your description.\n\nI didn't add a test. `test/mitmproxy/addons/test_next_layer.py` already configures `ignore_hosts`, so a case with an established QUIC connection and empty `data_client` would fit there.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..5dc698026 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,19 +320,20 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n-\n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n+                elif _starts_like_quic(data_client, context.server.address):\n+                    try:\n+                        return quic_parse_client_hello_from_datagrams([data_client])\n+                    except ValueError:\n+                        pass\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\n"
+}

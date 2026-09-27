@@ -1,0 +1,49 @@
+{
+  "id": "posthog-cli-crate-api-bundle-is-gitignored-so-include-list-a",
+  "title": "posthog-cli crate: API bundle is gitignored, so include list and --allow-dirty must stay in sync",
+  "kind": "cochange",
+  "answers": [
+    "Why does cargo publish for posthog-cli need --allow-dirty?",
+    "posthog-cli api is dead in the crates.io crate",
+    "Adding a new file the posthog-cli build needs to cli/Cargo.toml include"
+  ],
+  "body": "cli/lib/posthog-api-cli.mjs is gitignored and written during the release, so cargo would not package it by default.\n- cli/Cargo.toml `include` lists it explicitly: src/**/*, build.rs, lib/posthog-api-cli.mjs, README.md.\n- An explicit `include` REPLACES cargo's tracked-files default. Any new path the build needs (new build input, embedded asset) must be added there or consumers' `cargo install` builds break.\n- The publish-cargo job in .github/workflows/release-cli.yml runs `cargo publish -p posthog-cli --allow-dirty` because the bundle is always untracked in the checkout.\n- Verify with `cargo package --list --allow-dirty` in cli/.",
+  "applies": "cli/Cargo.toml packaging and the publish-cargo job in release-cli.yml",
+  "tags": [
+    "posthog-cli",
+    "crates.io",
+    "release",
+    "cargo"
+  ],
+  "deps": [
+    {
+      "path": "cli/Cargo.toml",
+      "hash": "sha256:ef8834d96f2865b09e4e9e0e",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/release-cli.yml",
+      "hash": "sha256:234a5b7a78d45eb8e2eece94",
+      "missing": false
+    },
+    {
+      "path": "cli/build.rs",
+      "hash": "sha256:3d5d9d10f9f4261f1dc14fb3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105728"
+  },
+  "created": "2026-09-26T23:57:51.438Z",
+  "verified": "2026-09-26T23:57:51.438Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-publish-channel-to-release-cli-yml-wire-notify-jobs",
+    "build-rs-silently-tolerates-a-missing-api-bundle-release-mus"
+  ]
+}

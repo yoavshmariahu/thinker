@@ -102,6 +102,69 @@ Reading:
 - During the live run: 11 new notes, 1 contradiction applied with a correction, confidence nudges on confirmed notes; nothing retired.
 - Co-change mining on mitmproxy: 241 usable commits, 409 files; edges such as `net/tls.py -> addons/tlsconfig.py (86%, n=6)` and `addons/next_layer.py -> test/.../test_next_layer.py (94%, n=16)`. Served as a short block under the notes; no measurable effect on `must` (already ~1.0).
 
+## PostHog (54k files, 14 change tasks from merged PRs, base a3b3c368)
+
+Notes: v1 = 58 notes from 20 seed sessions ($9); v2 = 259 notes after adding 76 mined pre-base PRs (fix records, invariants, conventions, co-change; $4.66) and 14 invariant-focused seed sessions ($5.97). No evaluation PR was mined. PostHog ships its own 317-line CLAUDE.md, loaded in every arm.
+
+### Grading changed here, and earlier success numbers should be read in that light
+
+The original judge scored "functionally equivalent to the merged patch". On PostHog it marked down fixes that differed from the reference: arms with notes scored 0.52-0.57 against 0.64-0.66 without, although exploration breadth (9.5-10.3 files inspected), files edited (3.1-3.3) and patch size were identical across arms, and runs whose notes all pointed at the right code scored *lower* than runs with off-target notes.
+
+Replacement (`bench/criteria.js`): per task, Opus derives 5-9 behavioural acceptance criteria from the request and merged patch (no file or symbol names; essential ones marked). The grader sees the patch plus the patched code around each hunk and answers met / not met / unclear per criterion. Calibration keeps only criteria that the merged patch meets and an empty patch does not: 97 of 106 kept, 59 essential. Without code context the merged patch itself failed on 6 of 14 tasks; with context it meets 100 of 106.
+
+### PR-body tasks (Sonnet, 1 seed, old judge)
+
+| arm | calls | in ktok | success |
+|---|---|---|---|
+| nocache | 10.9 | 636 | 0.46 |
+| prompt-only control | 12.0 | - | - |
+| hook (early full) | 7.8 | 435 | 0.46 |
+
+27% fewer turns, 32% fewer tokens, content-driven (the control does not get it). Phase analysis: notes cut both localization (3.1 to 2.4 calls) and the work after it (7.8 to 5.2).
+
+### Symptom-only tasks (Sonnet, 308 runs, calibrated criteria)
+
+| arm | notes | n | calls | in ktok | essential met | strict pass | Δ vs same task, no notes | old judge |
+|---|---|---|---|---|---|---|---|---|
+| nocache | - | 42 | 13.3 | 824 | 0.61 ±0.06 | 29% | - | 0.64 |
+| prompt-only | - | 28 | 13.6 | 842 | 0.54 ±0.07 | 29% | - | 0.66 |
+| irrelevant notes (forced) | other repo | 28 | 13.5 | 839 | 0.55 ±0.07 | 25% | -0.03 ±0.03 | 0.63 |
+| early full | v1 | 42 | 12.8 | 802 | 0.58 ±0.05 | 19% | 0.00 ±0.03 | 0.54 |
+| pointers only | v1 | 28 | 12.9 | 762 | 0.57 ±0.07 | 32% | -0.01 ±0.04 | 0.68 |
+| late (file-keyed) | v1 | 28 | 12.9 | 806 | 0.63 ±0.06 | 29% | +0.05 ±0.03 | 0.57 |
+| late + nudge | v1 | 28 | 13.3 | 815 | 0.53 ±0.07 | 18% | -0.06 ±0.04 | 0.57 |
+| pointers only | v2 | 28 | 12.7 | 776 | 0.54 ±0.07 | 29% | -0.04 ±0.04 | 0.54 |
+| late | v2 | 28 | 13.4 | 849 | 0.58 ±0.07 | 29% | 0.00 ±0.04 | 0.61 |
+| all (auto early + late + nudge) | v2 | 28 | 12.0 | 753 | 0.54 ±0.08 | 32% | -0.04 ±0.05 | 0.52 |
+
+Reading:
+
+- Success is flat: every arm is within about one standard error of baseline. The penalty seen with the old judge was mostly reference-similarity bias.
+- Token savings on vague requests are 3-9%.
+- Where the calls go: the agent reaches a file the real fix touched after 4.5 calls without notes and 2.3 with; about 9 further calls are spent understanding and designing, which notes did not shorten. Localization is not the bottleneck on symptom tasks.
+- Enriched notes (v2) did not beat v1. The completeness nudge fired in 2 of 28 runs (co-change thresholds too strict for a 400-commit history window).
+- Retrieval precision against the merged patch's files: 59-66% of notes served at prompt time, 80-88% of late notes.
+- The `irrelevant` arm here really injects another repo's notes (the earlier "irrelevant" rows on click and mitmproxy were prompt-only, see above).
+
+### Symptom-only tasks on Opus (claude-opus-5, single seed, calibrated criteria)
+
+Opus works very differently from Sonnet on the same tasks: about 56 tool calls, 5.3M input tokens and $4.50 per task, against 13 calls, 0.8M and $0.41.
+
+| arm | tasks | calls | before first edit | after first edit | in Mtok | $/run | essential met |
+|---|---|---|---|---|---|---|---|
+| nocache | 7 | 58.1 | 39.1 | 19.0 | 5.42 | 4.54 | 0.75 ±0.12 |
+| early full (original bundle, ~4k chars) | 5 | 53.4 | 28.0 | 25.4 | 5.35 | 4.49 | 0.90 ±0.06 |
+| pointers only | 4 | 52.5 | 29.3 | 23.3 | 5.46 | 4.59 | 0.71 ±0.12 |
+| router + late + nudge | 5 | 51.6 | - | - | 5.17 | 4.44 | 0.67 |
+| early full, slim bundle + "verified current" preamble | 7 | see text | 34.2 | 23.5 | 5.5 | 4.55 | 0.67 |
+
+Reading: cost is the same in every arm. Notes cut Opus's pre-edit exploration by roughly a quarter, and Opus spends the saving on more editing and tests, so total calls and tokens do not drop. Halving the injected bundle and replacing the "notes are partial, verify" preamble with a statement that dependencies were re-hashed and match did not change that. Success differences are within single-run noise (one task moved 0.80 → 0.00 and another 0.00 → 0.33 between arms). On vague requests Opus's cost is set by how thoroughly it works, not by how long it takes to find the code.
+
+### Harness incidents
+
+- 83 runs returned empty when the session limit was hit; detected (1 turn, 0 tokens, limit message), removed and re-run. `run.js` and `llm.js` now wait and retry on limits.
+- The re-grade first ran during a limit window and failed entirely; re-run after the reset.
+
 ## What this says about the design
 
 1. **Delivery matters more than retrieval.** Zero-turn injection (hook) is the only delivery that paid for itself; a tool call the agent must discover and invoke costs more than it saves in Claude Code today.
@@ -112,4 +175,4 @@ Reading:
 
 ## Cost of the whole study
 
-~600 `claude -p` runs (agents, judges, distillation, verification); roughly $65 through the user's Claude Code login.
+~1,400 `claude -p` runs (agents, judges, graders, distillation, mining, verification); roughly $300 of usage through the user's Claude Code login.

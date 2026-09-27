@@ -1,0 +1,52 @@
+{
+  "id": "where-reviewhog-model-pins-live-and-what-must-change-with-th",
+  "title": "Where ReviewHog model pins live and what must change with them",
+  "kind": "cochange",
+  "answers": [
+    "Where are ReviewHog model ids pinned?",
+    "What files need updating when changing the ReviewHog reviewer or validator model?",
+    "Which test asserts the review model in analytics events?"
+  ],
+  "body": "Pins are all in products/review_hog/backend/reviewer/constants.py: REVIEW_MODEL, FLASH_ARM.model, VALIDATION_MODEL, RESOLUTION_MODEL, OUTCOME_JUDGE_MODEL (resolution and judge mirror the validator's model by convention).\nChange together with them:\n- products/review_hog/ARCHITECTURE.md (names the ids for reviewer, validator/resolver, FLASH_ARM, and the effort-application line).\n- docs/internal/sandboxes-setup-guide.md (Flash model id).\n- Hardcoded expectation in products/review_hog/backend/tests/test_review_completed_tracking.py (`review_model` in test_events_carry_the_tier_and_report_link_of_an_agent_pr).\nDECISIONS.md is intentionally not edited: it is the history of each pin, not the current reference.",
+  "applies": "Model-id bumps for ReviewHog reviewer, Flash, validator, resolver, outcome judge.",
+  "tags": [
+    "review_hog",
+    "models",
+    "docs"
+  ],
+  "deps": [
+    {
+      "path": "products/review_hog/backend/reviewer/constants.py",
+      "symbol": "REVIEW_MODEL",
+      "hash": "sha256:5cb85037e51580f5d321a5f1",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "products/review_hog/ARCHITECTURE.md",
+      "hash": "sha256:e0855584c88f790051fe3701",
+      "missing": false
+    },
+    {
+      "path": "docs/internal/sandboxes-setup-guide.md",
+      "hash": "sha256:a3ff4b342ea3e293f9f94c94",
+      "missing": false
+    },
+    {
+      "path": "products/review_hog/backend/tests/test_review_completed_tracking.py",
+      "hash": "sha256:1248709757f2afc56bd21365",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105226"
+  },
+  "created": "2026-09-27T00:11:16.822Z",
+  "verified": "2026-09-27T00:11:16.822Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

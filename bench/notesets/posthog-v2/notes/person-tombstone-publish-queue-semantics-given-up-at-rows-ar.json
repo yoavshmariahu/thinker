@@ -1,0 +1,39 @@
+{
+  "id": "person-tombstone-publish-queue-semantics-given-up-at-rows-ar",
+  "title": "person_tombstone_publish_queue semantics: given_up_at rows are Postgres-deleted but maybe live in ClickHouse",
+  "kind": "invariant",
+  "answers": [
+    "Why does a deleted person still show in analytics?",
+    "What does given_up_at mean in person_tombstone_publish_queue?",
+    "How are persons stuck between Postgres tombstone and ClickHouse tracked?"
+  ],
+  "body": "`person_tombstone_publish_queue` (rust/persons_migrations/20260923000001_add_person_tombstone_publish_queue.sql) is keyed by `(team_id, person_uuid)` and holds `person_version`, retry bookkeeping (`attempts`, `last_attempt_at`, `last_error`) and `given_up_at`.\n- Row present = person tombstoned in Postgres by DeletePersons, ClickHouse tombstone not yet confirmed.\n- `given_up_at` set = sweeper stopped retrying; person is deleted in PG but possibly still live in ClickHouse (operator work list).\n- Partial index `person_tombstone_publish_queue_pending` on `tombstoned_at WHERE given_up_at IS NULL` serves the retry sweep; queries for pending rows should filter on `given_up_at IS NULL` to use it.\n- Planned design: the replica inserts the row in the same transaction as the tombstone (with PERSON_DELETE_TOMBSTONE on); a Dagster sweeper deletes rows once ClickHouse shows the tombstone. Not yet wired in this PR.",
+  "applies": "Code that writes/reads the tombstone queue (personhog-replica DeletePersons, Dagster sweeper).",
+  "tags": [
+    "persons",
+    "tombstone",
+    "clickhouse",
+    "dagster",
+    "personhog-replica"
+  ],
+  "deps": [
+    {
+      "path": "rust/persons_migrations/20260923000001_add_person_tombstone_publish_queue.sql",
+      "symbol": "person_tombstone_publish_queue",
+      "hash": "sha256:17d36a6bd8c868074bcad350",
+      "line": 5,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105419"
+  },
+  "created": "2026-09-27T00:02:49.636Z",
+  "verified": "2026-09-27T00:02:49.636Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

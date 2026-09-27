@@ -1,0 +1,56 @@
+{
+  "id": "E6-new-type-hook-0",
+  "task": "E6-new-type",
+  "area": "types",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "54cd8b5c-a370-4bc6-85da-03279c6db830",
+  "turns": 3,
+  "wall_ms": 20311,
+  "api_ms": 19806,
+  "cost": 0.0965338,
+  "in_tokens": 74110,
+  "out_tokens": 1978,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": [
+      "implementing-a-custom-paramtype-required-members-failure-and",
+      "option-value-pipeline-argv-string-typed-callback-kwarg",
+      "type-to-paramtype-resolution-and-value-conversion-callpath"
+    ]
+  },
+  "grade": {
+    "score": 0.5,
+    "missing": [
+      "Placement constraint: the timedelta branch must be inserted before `if is_guessed: return STRING` (L1322), otherwise default=timedelta silently becomes STRING",
+      "Failure mode detail: FuncParamType(timedelta) raises TypeError, not the ValueError FuncParamType.convert catches, so it gives a traceback rather than a usage error",
+      "Other convert_type call sites (Option flag-value guessing, Tuple, Choice.get_metavar, prompt) that get DURATION for free",
+      "Correct param_type value: ParamType.to_info_dict strips the 'ParamType' suffix so it is 'Duration'",
+      "tests/test_types.py parse/failure tests",
+      "Optional DurationInfoDict TypedDict if configurable; __init__/to_info_dict pattern from DateTime",
+      "tests/typing / strict mypy and pyright annotation requirement",
+      "Import of `re` and that datetime/re are already allowed in test_imports.py",
+      "Statement that core.py, shell_completion, termui, decorators need no changes",
+      "Precise __init__ import ordering (between DateTime and File)"
+    ],
+    "wrong": [
+      "Claims `convert` is 'the only abstract method'; ParamType declares no abstract methods (convert has a base implementation), though it must be overridden in practice",
+      "Suggests test_info_dict param_type could be \"DurationParamType\" — the correct value is \"Duration\"; the answer hedges/leaves it unresolved with an incorrect example",
+      "Says convert_type is fed only via Parameter.__init__ and the list omits the other call sites; also states the shorthand is 'the only place' while other consumers exist (minor)",
+      "Lists `tuple → Tuple(...)` and ParamType instance branches; roughly plausible but the reference does not show them (not clearly wrong)",
+      "Claims 'Strip whitespace first, as UUID does' — unverified detail"
+    ],
+    "reason": "The main points are right: the convert_type timedelta branch, the class and singleton in types.py, the __init__ export, the docs, the tests, name, convert and __repr__. But the answer has a wrong claim (convert is \"the only abstract method\", when ParamType has no abstract methods) and an incorrect example for the info-dict param_type (\"DurationParamType\" instead of \"Duration\"). It also misses the placement constraint before `if is_guessed`, the TypeError-vs-ValueError failure detail, tests/test_types.py, and the typing and no-change notes.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "Checked against the code in `/Users/yoavshmariahu/src/thinker/bench/repos/click`. `UUID` is the closest existing model for a new built-in type.\n\n## Where the `type=int` shorthand is mapped\n\n`src/click/types.py:convert_type` (L1294) is the only place. `Parameter.__init__` in `core.py` calls `types.convert_type(type, default)`. `convert_type` first runs `_guess_type` (L1249), which infers a Python type from the default when `type=None`. It then checks the result in order:\n- `tuple` → `Tuple(...)`\n- a `ParamType` instance → returned as-is\n- `str` or `None` → `STRING`\n- `int` → `INT` (L1313)\n- `float` → `FLOAT`\n- `bool` → `BOOL`\n- anything else → `FuncParamType(guessed)`\n\n**A DURATION shorthand:** the Python type to map from would be `datetime.timedelta`. Add `if guessed is timedelta: return DURATION` next to the `int`/`float`/`bool` branches. That also gives inference from a default, so `default=timedelta(minutes=5)` would pick DURATION. Without that branch, a `timedelta` type falls through to `FuncParamType(timedelta)`, which calls `timedelta(\"1h30m\")` and fails.\n\nUUID has no shorthand, so it isn't mapped in `convert_type`. The shorthand is optional. Users can pass `type=click.DURATION` without it.\n\n## Files and symbols to change or add\n\n1. **`src/click/types.py`**\n   - Add `class DurationParamType(ParamType[timedelta])`, modeled on `UUIDParameterType` (L830). Import `timedelta` from `datetime`. Reuse the module's `_` gettext for the error message.\n   - Add `DURATION: t.Final[DurationParamType] = DurationParamType()` near L1368, with a `#:` doc comment and `.. versionadded::`.\n   - Add the `timedelta` branch in `convert_type` (above).\n2. **`src/click/__init__.py`**: add `from .types import DURATION as DURATION`, next to `INT`/`UUID` at L62–69. If you also export the class, add it there too. Existing types like `DateTime` and `Choice` are exported as classes.\n3. **`docs/api.md`**: add `.. autodata:: DURATION` near L227, where `UUID` is documented.\n4. **`docs/parameter-types.md`**: add a bullet near L123. Say whether it's guessed from `timedelta` or only explicit.\n5. **`tests/test_basic.py`**: add a test modeled on the UUID one at L165–171 (valid, invalid, and default cases).\n6. **`tests/test_info_dict.py`**: add a param next to L156, e.g. `click.DURATION, {\"param_type\": \"DurationParamType\", \"name\": \"duration\"}`. Match the exact `param_type` string that `to_info_dict` produces. `UUID` expects `\"UUID\"` here, so check what the base class actually emits.\n7. **`CHANGES.md`**: add an entry under the unreleased version.\n\n## What the new class must implement\n\n- **`name`**: a class attribute, e.g. `name = \"duration\"`. It is required and also drives the default metavar (`DURATION`).\n- **`convert(self, value, param, ctx) -> timedelta`**, the only abstract method:\n  - Return `value` unchanged if it is already a `timedelta`. This is needed for defaults and re-conversion.\n  - Otherwise parse the string, e.g. with a regex over units like `d/h/m/s`. Strip whitespace first, as UUID does.\n  - On failure call `self.fail(_(\"{value!r} is not a valid duration.\").format(value=value), param, ctx)`, which raises `BadParameter`.\n  - It must work when `param` and `ctx` are `None`, as with prompt input.\n- **`__repr__`**: return `\"DURATION\"`, matching the `UUID` and `BOOL` convention.\n\nOptional overrides on `ParamType`:\n- `get_metavar(param, ctx)`, if you want something like `[DURATION]` or a format hint in the help.\n- `shell_complete`, which is unnecessary for free-form input.\n- `to_info_dict`, which is only needed if you add extra fields. The base class already emits `param_type` and `name`.\n- `split_envvar_value`, which is not needed for a single value.\n\nEdge case: reject empty strings, and decide up front whether a bare number like `\"90\"` is allowed. It could be read as seconds or rejected.",
+  "is_error": false
+}

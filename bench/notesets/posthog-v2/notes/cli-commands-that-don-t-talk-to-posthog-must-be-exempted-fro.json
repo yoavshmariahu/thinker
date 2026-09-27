@@ -1,0 +1,50 @@
+{
+  "id": "cli-commands-that-don-t-talk-to-posthog-must-be-exempted-fro",
+  "title": "CLI commands that don't talk to PostHog must be exempted from init_context credentials",
+  "kind": "cochange",
+  "answers": [
+    "New posthog-cli command fails without a token",
+    "How to add a posthog-cli subcommand that needs no credentials",
+    "Where is the CLI command list exempt from init_context?"
+  ],
+  "body": "Adding a `Commands` variant in `cli/src/commands.rs` touches several places together:\n- the enum variant itself\n- `telemetry_command_name` match arm\n- the dispatch match (calls e.g. `crate::update::update()`)\n- `pub mod` in `cli/src/lib.rs`\n- if the command never contacts PostHog, add it to the `matches!` exemption list beside `Login` and `Api` in `Cli`, or `init_context` runs and errors without a token (review caught this for `Update`).\nAlso add a `cli/.sampo/changesets/*.md` entry (`cargo/posthog-cli: patch`) and document user-facing commands in `cli/README.md`.",
+  "applies": "cli/src/commands.rs subcommand additions",
+  "tags": [
+    "posthog-cli",
+    "commands",
+    "credentials",
+    "sampo"
+  ],
+  "deps": [
+    {
+      "path": "cli/src/commands.rs",
+      "symbol": "Commands",
+      "hash": "sha256:8ecfdedf3bb2a878e5562d9e",
+      "line": 270,
+      "missing": false
+    },
+    {
+      "path": "cli/src/commands.rs",
+      "symbol": "Cli",
+      "hash": "sha256:2fc8c92c28228f2ead2f50db",
+      "line": 346,
+      "missing": false
+    },
+    {
+      "path": "cli/src/lib.rs",
+      "hash": "sha256:654588ef41f17d111efef99b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105864"
+  },
+  "created": "2026-09-26T23:56:47.203Z",
+  "verified": "2026-09-26T23:56:47.203Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

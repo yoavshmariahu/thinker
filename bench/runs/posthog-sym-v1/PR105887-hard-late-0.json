@@ -1,0 +1,91 @@
+{
+  "id": "PR105887-hard-late-0",
+  "task": "PR105887-hard",
+  "area": "posthog",
+  "arm": "late",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "06603d34-f319-4c96-840e-6289e296b4db",
+  "turns": 11,
+  "wall_ms": 22836,
+  "api_ms": 19735,
+  "cost": 0.31059420000000004,
+  "in_tokens": 530064,
+  "out_tokens": 2107,
+  "tools": {
+    "calls": 10,
+    "byTool": {
+      "Bash": 9,
+      "bash": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 8,
+    "injected": [
+      "experiment-metric-fingerprints-computation-and-call-sites",
+      "experiment-metric-uuid-assignment-and-resolution"
+    ],
+    "lateEvents": 6,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0.5,
+    "samples": [
+      1,
+      0.5,
+      0.5
+    ],
+    "reasons": [
+      "The core fix in the overnight job's discovery (_get_experiment_saved_metrics_for_hour_sync) is identical in behavior to upstream: fingerprint from the merged saved query plus link metadata breakdowns. This is what makes the overnight results get found and published. The agent skipped the serializer change, which the upstream patch also made so the chart's stamped fingerprint matches. The request's explicit desired behavior was only that the overnight job identify saved metrics the same way readers do, so I consider the requested change achieved. The agent's claim that readers already merge breakdowns is consistent with the upstream docstrings. The serializer stamp is a secondary gap, so I am not treating it as disqualifying, but it is a real omission.",
+      "The agent fixed the core discovery fingerprint in _get_experiment_saved_metrics_for_hour_sync, which is the same change the upstream patch makes there. It left the serializer's stamped fingerprint on the raw saved query, and upstream changed that too. The chart read therefore stays out of sync with the daily job for breakdown metrics.",
+      "The agent fixed the main location. The overnight discovery in _get_experiment_saved_metrics_for_hour_sync now fingerprints the merged query with link-metadata breakdowns, the same as the upstream patch. But the upstream patch also changed the serializer, which stamps the fingerprint the frontend chart uses to read timeseries rows. The agent left that on the raw saved query. After this change the job files breakdown metrics under the merged hash while the chart still looks them up under the raw hash. That is a mismatch on one of the three reader paths the request names, and it would regress the chart for breakdown metrics. The fix is therefore incomplete."
+    ],
+    "reason": "The core fix in the overnight job's discovery (_get_experiment_saved_metrics_for_hour_sync) is identical in behavior to upstream: fingerprint from the merged saved query plus link metadata breakdowns. This is what makes the overnight results get found and published. The agent skipped the serializer change, which the upstream patch also made so the chart's stamped fingerprint matches. The request's explicit desired behavior was only that the overnight job identify saved metrics the same way readers do, so I consider the requested change achieved. The agent's claim that readers already merge breakdowns is consistent with the upstream docstrings. The serializer stamp is a secondary gap, so I am not treating it as disqualifying, but it is a real omission.",
+    "mustHit": 1,
+    "mustTotal": 5,
+    "touched": [
+      "posthog/temporal/experiments/activities.py"
+    ],
+    "criteria": {
+      "essential": 0.2,
+      "all": 0.16666666666666666,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "Discovery now calls `compute_metric_fingerprint(_merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata), ...)`, so the fingerprint comes from the query merged with the link metadata, not `saved_metric.query` alone. The helper body isn't shown, but its name and the call signature indicate it merges breakdowns."
+        },
+        {
+          "id": "c2",
+          "verdict": "unclear",
+          "evidence": "The reader paths (timeseries sync, cold-start fallback, chart) and `find_metric_dict` aren't shown. Only the author's summary says they use the same helper. The other fingerprint arguments (start_date, stats method, exposure criteria, matured users, excluded variants) also can't be compared with the readers' arguments."
+        },
+        {
+          "id": "c3",
+          "verdict": "unclear",
+          "evidence": "The patch only touches the batch discovery function. The serializer or API code that returns the metric identifier to the frontend isn't shown, so I can't tell whether it already uses the merged config."
+        },
+        {
+          "id": "c4",
+          "verdict": "unclear",
+          "evidence": "`_merge_saved_metric_breakdowns` isn't shown, so I can't confirm that it returns an equivalent query when breakdowns are missing, null or empty. The only support is the author's claim that `compute_metric_fingerprint` treats an empty breakdown list as no breakdowns."
+        },
+        {
+          "id": "c5",
+          "verdict": "unclear",
+          "evidence": "The patch passes `exp_to_saved_metric.metadata` directly to the helper. Whether the helper handles `None` metadata isn't visible."
+        },
+        {
+          "id": "c6",
+          "verdict": "unclear",
+          "evidence": "`_calculate_experiment_saved_metric_sync` is cut off after `Experiment.objects.get(...)`. The patch doesn't change it, and I can't see whether it applies breakdowns and uses the same fingerprint."
+        }
+      ]
+    }
+  },
+  "result": "The overnight job now identifies saved metrics the same way the readers do, so results for metrics with breakdowns should be found and published. I haven't run any tests, and I didn't add one.\n\n**Cause:** `_get_experiment_saved_metrics_for_hour_sync` in `posthog/temporal/experiments/activities.py` computed each saved metric's fingerprint from `saved_metric.query` alone. That query lacks the per-experiment breakdowns, which live on the experiment's link to the metric (`ExperimentToSavedMetric.metadata`). The calculation step and all the readers did merge those breakdowns in. So results were written under one key and looked up under another.\n\n**Fix:** The fingerprint is now computed from `_merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata)`. That is the same helper `find_metric_dict` uses for the readers.\n\nFor saved metrics with no breakdowns, the fingerprint doesn't change. `compute_metric_fingerprint` already treats an empty breakdown list as no breakdowns.\n\nI imported `_merge_saved_metric_breakdowns` from `metric_resolution.py` even though it has a leading underscore, because it's a same-product helper and renaming it would have widened the change. Say if you'd rather it be made public.",
+  "is_error": false,
+  "diff": "diff --git a/posthog/temporal/experiments/activities.py b/posthog/temporal/experiments/activities.py\nindex fdd32e7e7a6..409c6901916 100644\n--- a/posthog/temporal/experiments/activities.py\n+++ b/posthog/temporal/experiments/activities.py\n@@ -39,6 +39,7 @@ from products.experiments.backend.models.experiment import (\n     Experiment,\n     ExperimentMetricResult as ExperimentMetricResultModel,\n )\n+from products.experiments.backend.temporal.metric_resolution import _merge_saved_metric_breakdowns\n from products.experiments.stats.shared.statistics import StatisticError\n \n logger = structlog.get_logger(__name__)\n@@ -373,7 +374,7 @@ def _get_experiment_saved_metrics_for_hour_sync(hour: int) -> list[ExperimentSav\n                 continue\n \n             fingerprint = compute_metric_fingerprint(\n-                saved_metric.query,\n+                _merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata),\n                 experiment.start_date,\n                 get_experiment_stats_method(experiment),\n                 experiment.exposure_criteria,\n",
+  "distill": null
+}

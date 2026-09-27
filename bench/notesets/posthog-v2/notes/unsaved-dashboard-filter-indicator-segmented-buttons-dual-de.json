@@ -1,0 +1,42 @@
+{
+  "id": "unsaved-dashboard-filter-indicator-segmented-buttons-dual-de",
+  "title": "Unsaved dashboard filter indicator: segmented buttons, dual desktop/menu layout, snapshots",
+  "kind": "cochange",
+  "answers": [
+    "How is the dashboard unsaved filters control styled?",
+    "Changing DashboardUnsavedChangesIndicator layout",
+    "Why did filter-bar storybook snapshots change?"
+  ],
+  "body": "DashboardUnsavedChangesIndicator (products/dashboards/frontend/dashboardSettings/DashboardUnsavedChangesIndicator.tsx) renders a joined button group inside a bordered `rounded border-warning` wrapper: status LemonButton (`rounded-l`), action LemonButtons (`border-l border-warning`, `rounded-none` except last `rounded-r`), and a LemonMenu trigger button (`rounded-r border-l`).\nThe action buttons are hidden via `@max-lg/dashboard-filters:hidden` and the menu trigger via `@min-lg/dashboard-filters:hidden`. Any change to the segment corners or borders must update both variants so the outer radius stays consistent at every width.\nVisual changes here alter the Storybook snapshots `products-dashboards-filter-bar--filter-bar--*` and `products-dashboards-filter-bar--unsaved-changes-popover--*` in frontend/snapshots.yml (light and dark hashes), which must be updated in the same PR.",
+  "applies": "Dashboard filter bar unsaved-changes control and its snapshots",
+  "tags": [
+    "dashboards",
+    "lemon-ui",
+    "snapshots"
+  ],
+  "deps": [
+    {
+      "path": "products/dashboards/frontend/dashboardSettings/DashboardUnsavedChangesIndicator.tsx",
+      "symbol": "DashboardUnsavedChangesIndicator",
+      "hash": "sha256:3f6ffd03549f1e1d052c4a61",
+      "line": 10,
+      "missing": false
+    },
+    {
+      "path": "frontend/snapshots.yml",
+      "hash": "sha256:136931a57503c54b62af1a75",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105388"
+  },
+  "created": "2026-09-27T00:04:45.880Z",
+  "verified": "2026-09-27T00:04:45.880Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

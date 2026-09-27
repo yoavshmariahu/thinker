@@ -1,0 +1,44 @@
+{
+  "id": "PR8176-irrelevant-1",
+  "task": "PR8176",
+  "area": "startup-options",
+  "arm": "irrelevant",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "e0e5e043-af76-4e66-9d24-83a590319da9",
+  "turns": 8,
+  "wall_ms": 20094,
+  "api_ms": 19662,
+  "cost": 0.0698518,
+  "in_tokens": 148892,
+  "out_tokens": 1778,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 4,
+      "bash": 1,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 4,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "No test added (not required)"
+    ],
+    "wrong": [],
+    "reason": "The agent loads pending scripts before dump_defaults in main.py, via a new ScriptLoader.load_pending() that also cancels the deferred watcher task. It selects the same unloaded scripts as upstream's ns-is-None check, on the assumption that reloadtask is always set in Script.__init__. The result is the same, so addon options appear in --options.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/script.py",
+      "mitmproxy/tools/main.py"
+    ]
+  },
+  "result": "`--options` should now include options registered by addon scripts. I haven't run it or the test suite, and I didn't add a test.\n\n**Cause:** `Script.watcher()` puts off `loadscript()` until after the first `await asyncio.sleep(0)`. So when `--options` dumped the defaults, `--scripts` had been configured but no script had loaded yet, and none of their options existed.\n\n**Fix:**\n- `mitmproxy/addons/script.py`: I added `ScriptLoader.load_pending()`. For each script that hasn't loaded yet, it cancels the deferred watcher task and calls `loadscript()` immediately.\n- `mitmproxy/tools/main.py`: when `--options` is passed, `run()` now calls `load_pending()` on the `scriptloader` addon before `optmanager.dump_defaults()`.\n\nI cancel the watcher because the process exits right after the dump, so hot-reloading isn't needed.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/script.py b/mitmproxy/addons/script.py\nindex e86272ade..0cb1ecd13 100644\n--- a/mitmproxy/addons/script.py\n+++ b/mitmproxy/addons/script.py\n@@ -165,6 +165,17 @@ class ScriptLoader:\n     def running(self):\n         self.is_running = True\n \n+    def load_pending(self) -> None:\n+        \"\"\"\n+        Immediately load all scripts whose loading is still deferred by\n+        Script.watcher(), so that options registered by them are available.\n+        \"\"\"\n+        for s in self.addons:\n+            if s.reloadtask and not s.ns:\n+                s.reloadtask.cancel()\n+                s.reloadtask = None\n+                s.loadscript()\n+\n     @command.command(\"script.run\")\n     def script_run(self, flows: Sequence[flow.Flow], path: mtypes.Path) -> None:\n         \"\"\"\ndiff --git a/mitmproxy/tools/main.py b/mitmproxy/tools/main.py\nindex 5190820a0..ed3595226 100644\n--- a/mitmproxy/tools/main.py\n+++ b/mitmproxy/tools/main.py\n@@ -91,6 +91,10 @@ def run(\n             process_options(parser, opts, args)\n \n             if args.options:\n+                # Scripts register their options on load, which is deferred.\n+                loader = master.addons.get(\"scriptloader\")\n+                if loader:\n+                    loader.load_pending()\n                 optmanager.dump_defaults(opts, sys.stdout)\n                 sys.exit(0)\n             if args.commands:\n"
+}

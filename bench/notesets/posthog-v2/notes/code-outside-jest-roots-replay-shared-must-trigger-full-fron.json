@@ -1,0 +1,50 @@
+{
+  "id": "code-outside-jest-roots-replay-shared-must-trigger-full-fron",
+  "title": "Code outside jest roots (replay-shared) must trigger full frontend jest run",
+  "kind": "invariant",
+  "answers": [
+    "Why did frontend jest tests not run when I changed common/replay-shared?",
+    "How do I make a package outside jest roots trigger full frontend tests in CI?",
+    "Mobile replay parsing snapshot went stale after replay-shared change"
+  ],
+  "body": "The frontend jest selector uses `--findRelatedTests`, which cannot trace imports from source outside the jest roots. `common/replay-shared/src/**` is such a location, so its frontend consumers (e.g. mobile-replay parsing tests) were silently omitted.\nEnforced in `.github/workflows/ci-frontend.yml`: (1) the `frontend_code` paths-filter in the `changes` job includes `common/replay-shared/src/**`; (2) the selection script's `case \"$f\"` loop calls `fall_back unindexed_dependency \"$f\"` for `common/replay-shared/src/*`, running the full suite. Draft PRs still skip.\nAny new source dir outside the jest roots that frontend imports needs the same treatment in BOTH places. The case-loop patterns are meant to mirror the `frontend_code` filter.",
+  "applies": "CI frontend jest selection in .github/workflows/ci-frontend.yml; packages/dirs outside frontend jest roots",
+  "tags": [
+    "ci",
+    "jest",
+    "replay-shared",
+    "paths-filter",
+    "findrelatedtests"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ci-frontend.yml",
+      "hash": "sha256:4032a1a9d2f0c1e15dcef2ed",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/session-recordings/mobile-replay/__snapshots__/parsing.test.ts.snap",
+      "hash": "sha256:ed2c1c6cc7eff073e0a573f0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105391"
+  },
+  "created": "2026-09-27T00:04:38.618Z",
+  "verified": "2026-09-27T00:04:38.618Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 5,
+  "related": [],
+  "lastUsed": "2026-09-27T00:59:50.755Z",
+  "servedIn": [
+    "17902b5e-665f-4276-998f-410cc6809daf",
+    "afad1150-74a1-4e9a-9a6e-93d48551d352",
+    "73edd0c0-2abf-4ef4-9b8b-e396ba9ebfaf",
+    "2e552557-6ce0-4e96-8d4c-138f629e75bd",
+    "44edde1f-5bf3-4596-bb15-0a811e04a28f"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "id": "PR8295-nocache-0",
+  "task": "PR8295",
+  "area": "next-layer",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "574e7118-274a-4571-8c55-ab417cb5b98f",
+  "turns": 5,
+  "wall_ms": 13715,
+  "api_ms": 13341,
+  "cost": 0.0889358,
+  "in_tokens": 95213,
+  "out_tokens": 1373,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 2,
+      "Read": 1,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to the udp branch of _get_client_hello in next_layer.py is identical to the merged upstream patch. It gates QUIC parsing on _starts_like_quic and DTLS parsing on starts_like_dtls_record. It omits tests and the changelog, which don't affect the score.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py"
+    ]
+  },
+  "result": "I fixed the stall in `_get_client_hello` in `mitmproxy/addons/next_layer.py`. I haven't run any tests, and I didn't add one.\n\nThe `udp` branch now only tries to parse a ClientHello when the data looks like it could be one, which is how the `tcp` branch already works:\n- **QUIC:** `quic_parse_client_hello_from_datagrams` is only tried if `_starts_like_quic(data_client, context.server.address)` is true.\n- **DTLS:** `dtls_parse_client_hello` is only tried if `starts_like_dtls_record(data_client)` is true.\n\nOtherwise it returns `None`, meaning \"no ClientHello\", so `_ignore_connection` no longer bails out and `_next_layer` can go on to assign an `HttpLayer`.\n\nPreviously, the empty `b\"\"` data after the QUIC handshake made both parsers raise `ValueError`. The `dtls_parse_client_hello` `ValueError` is swallowed, but the function still ended up raising `NeedsMoreData`, and no later data could ever look like a valid QUIC or DTLS packet, so it never made progress. `_starts_like_quic` already returns `False` for empty or too-short data, and for anything that looks like DTLS.\n\nThe existing `test_starts_like_quic` covers the heuristic itself. A natural addition would be a `test_next_layer.py` case with `ignore_hosts` set and empty client data on a QUIC connection, asserting the layer is assigned.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..614957808 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,19 +320,21 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n-\n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                if _starts_like_quic(data_client, context.server.address):\n+                    try:\n+                        return quic_parse_client_hello_from_datagrams([data_client])\n+                    except ValueError:\n+                        pass\n+\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\n"
+}

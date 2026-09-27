@@ -1,0 +1,46 @@
+{
+  "id": "credit-billed-pinned-products-mint-refusals-and-per-run-trad",
+  "title": "Credit-billed pinned products: mint refusals and per-run trade-offs",
+  "kind": "invariant",
+  "answers": [
+    "Why didn't a sandbox run get an AI_GATEWAY_TOKEN?",
+    "Why does a run with an open-weight model stay on the Python gateway?",
+    "What happens when a team is out of AI credits for a gateway-minted run?"
+  ],
+  "body": "For products in `AI_CREDITS_BILLED_PRODUCTS` (posthog_ai, slack_app, workflows) the mint is refused when the team is out of AI credits, and for products in `PRODUCT_ALLOWED_MODELS` it is refused with `model_outside_pin` for off-pin models (e.g. open-weight zai-org/kimi). Enforced via `mint_refusal` in products/tasks/backend/temporal/process_task/ai_gateway_token.py; `ai_gateway_env_vars` then omits `AI_GATEWAY_TOKEN` and the run falls back to the Python gateway.\nKnown trade-offs: credits are checked once at run start (not mid-run), and a pinned run cannot switch to an off-pin model mid-run.\nposthog_ai origin stays API-settable (task tracker creates tasks via the public API), so eligibility relies on these refusals and the team billing rather than origin reservation.",
+  "applies": "Products minting Go gateway tokens that bill AI credits or carry a model pin.",
+  "tags": [
+    "ai-gateway",
+    "billing",
+    "model-pin"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/ai_gateway_token.py",
+      "symbol": "mint_refusal",
+      "hash": "sha256:e0a5e20e930c7a9c7436891b",
+      "line": 157,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/ai_gateway_token.py",
+      "symbol": "AI_CREDITS_BILLED_PRODUCTS",
+      "hash": "sha256:b0107321b311dbdb791f4c6a",
+      "line": 99,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105244"
+  },
+  "created": "2026-09-27T00:09:56.383Z",
+  "verified": "2026-09-27T00:09:56.383Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "onboarding-a-product-to-go-ai-gateway-token-minting-sets-tha"
+  ]
+}

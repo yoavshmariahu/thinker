@@ -1,0 +1,99 @@
+{
+  "id": "script-addons-s-loading-path",
+  "title": "Script addons (-s) loading path",
+  "kind": "callpath",
+  "answers": [
+    "How does -s script get loaded?",
+    "Where is the scripts option registered?",
+    "How does script hot reload work?"
+  ],
+  "body": "`-s` = `opts.make_parser(parser, \"scripts\", short=\"s\")` in `tools/cmdline.py:common_options`; option itself registered in `addons/script.py:ScriptLoader.load` (Sequence[str]); ScriptLoader is in `default_addons()`.\nFlow: `process_options` → `opts.update(scripts=[...])` → `changed` → `AddonManager._configure_all` → `ScriptLoader.configure(updated)` (only if \"scripts\" updated; rejects dupes, unloads removed, keeps order, creates `Script(path, reload=True)`, `master.addons.register(script)`, RunningHook if already running).\n`Script.__init__` expands path, raises OptionsError(\"No such script\") if missing; reload=True starts async `Script.watcher()` which defers first load, then polls mtime. `Script.loadscript` → `load_script(path)` imports as `__mitmproxy_script__.<name>` via SourceFileLoader with script dir temporarily on sys.path; errors go to `script_error_handler`; then `ctx.master.addons.register(ns)`.",
+  "tags": [
+    "scripts",
+    "addons",
+    "hot-reload"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "ScriptLoader",
+      "hash": "sha256:3074d1003e65ecd65bee764d",
+      "line": 153,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "Script",
+      "hash": "sha256:d6da5ad4d88f7d583a896972",
+      "line": 77,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "load_script",
+      "hash": "sha256:39c7e5508fe0ecb654094be6",
+      "line": 23,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/cmdline.py",
+      "symbol": "common_options",
+      "hash": "sha256:455d59d5df07c9f333aa2821",
+      "line": 4,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "ScriptLoader.load",
+      "hash": "sha256:16bba75c5c0fb2abd8034e76",
+      "line": 162,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "ScriptLoader.configure",
+      "hash": "sha256:44cebe126eb754b6ddaacd1f",
+      "line": 190,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "Script.__init__",
+      "hash": "sha256:bc9ba3936aa0872a39cd369b",
+      "line": 82,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "Script.watcher",
+      "hash": "sha256:3241bbb2b20f1d26f0750e14",
+      "line": 133,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "Script.loadscript",
+      "hash": "sha256:ec221f267677e3bb9820e35e",
+      "line": 113,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9ea74c15-8de3-4e0f-b46b-862dfb148d36"
+  },
+  "created": "2026-09-26T09:23:19.583Z",
+  "verified": "2026-09-26T09:23:19.583Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 11,
+  "lastUsed": "2026-09-26T19:44:21.090Z",
+  "related": [
+    "option-registration-deferred-options-and-argparse-generation"
+  ],
+  "servedIn": [
+    "062c2bab-9b64-44cc-8616-9f9b0fbff3c1",
+    "a3cb686e-b9e3-481c-9105-5c192b93402a"
+  ]
+}

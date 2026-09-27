@@ -1,0 +1,65 @@
+{
+  "id": "nav-rail-size-must-come-from-navrailsize-metrics-not-fixed-c",
+  "title": "Nav rail size must come from navRailSize metrics, not fixed constants",
+  "kind": "cochange",
+  "answers": [
+    "How do I change nav rail width or icon size?",
+    "Where did NAV_RAIL_WIDTH go?",
+    "Add a new nav rail item or setting"
+  ],
+  "body": "Rail dimensions come from one table in features/sidebar/navRailSize.ts via `useNavRailMetrics()` (width, iconSize, gapClassName); `NAV_RAIL_WIDTH` was removed.\n- Anything sized against the rail must use the hook: NavRail.tsx, ChannelsSidebar.tsx (edge-hover peek `offset`), ChannelsFab.tsx (rail icon size).\n- The size is the `navRailSize` (small/medium/large) in `useSettingsStore`, set on the Appearance page (AppearanceSettings.tsx).\n- Rail items render via shared `NavRailTile`; destinations use optional `shortLabel` for the caption and `placement: \"more\"` (railDestinations.ts) to file under the More hover item, which reports `in_more: true` in `pick`.\n- New settings pages need entries in SETTINGS_PAGES (SettingsPageContent.tsx) and sidebar groups (SettingsPanel.tsx).",
+  "applies": "desktop channels-layout nav rail and settings Appearance page",
+  "tags": [
+    "nav-rail",
+    "settings",
+    "appearance"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/NavRail.tsx",
+      "symbol": "NavRailImpl",
+      "hash": "sha256:3c6ea38e2471d4109dcdf560",
+      "line": 271,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/railDestinations.ts",
+      "symbol": "RailDestination",
+      "hash": "sha256:820a5b2faa56cd9199f7c966",
+      "line": 57,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/settings/sections/AppearanceSettings.tsx",
+      "symbol": "AppearanceSettings",
+      "hash": "sha256:6614df7f8b7c742d3c9e15f4",
+      "line": 24,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/ChannelsSidebar.tsx",
+      "symbol": "ChannelsSidebarImpl",
+      "hash": "sha256:6b973a35a27e2c8acd21345b",
+      "line": 219,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/sidebar/navRailSize.ts",
+      "symbol": "useNavRailMetrics",
+      "hash": "sha256:311a7025e82ad612603a57a5",
+      "line": 42,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105267"
+  },
+  "created": "2026-09-27T00:08:48.032Z",
+  "verified": "2026-09-27T00:08:48.032Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

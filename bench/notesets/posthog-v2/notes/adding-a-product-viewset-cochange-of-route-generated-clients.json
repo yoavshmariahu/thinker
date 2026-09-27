@@ -1,0 +1,69 @@
+{
+  "id": "adding-a-product-viewset-cochange-of-route-generated-clients",
+  "title": "Adding a product viewset: cochange of route, generated clients, MCP tools.yaml; logic guards for team id and shared views",
+  "kind": "cochange",
+  "answers": [
+    "What files change when I add a new project-scoped endpoint in product_analytics?",
+    "Why does dataRetentionBannerLogic skip the request in shared dashboards?",
+    "Where do product viewsets get registered?"
+  ],
+  "body": "Adding `EventsRetentionViewSet` required these to move together:\n- Viewset lives under products/product_analytics/backend/presentation/ (reviewer moved it out of posthog/api) and registers in products/product_analytics/backend/routes.py via `routers.projects.register(...)`.\n- Regenerate clients: products/product_analytics/frontend/generated/api.ts and api.schemas.ts, and services/mcp/src/api/generated.ts; do not hand-edit.\n- Add the operation to products/product_analytics/mcp/tools.yaml (here `events-retention-retrieve` with `enabled: false`).\n- Frontend logics calling the generated client with the team id: `loadRetentionMonths` in dataRetentionBannerLogic.ts returns null while `currentTeamId` is null, reloads on `teamLogic.actionTypes.loadCurrentTeamSuccess`, and skips the request when `isSharedView()` (shared/embedded pages).",
+  "applies": "New project-scoped endpoints in products/product_analytics and logics consuming them",
+  "tags": [
+    "codegen",
+    "mcp",
+    "kea",
+    "routes"
+  ],
+  "deps": [
+    {
+      "path": "products/product_analytics/backend/routes.py",
+      "symbol": "register_routes",
+      "hash": "sha256:b48f35c82f1773e116e7ee1c",
+      "line": 13,
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/mcp/tools.yaml",
+      "hash": "sha256:d166b10bebc96e4258a12fb1",
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/generated/api.ts",
+      "symbol": "eventsRetentionRetrieve",
+      "hash": "sha256:92d99149a54a98ee51e7c83b",
+      "line": 351,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/insights/dataRetention/dataRetentionBannerLogic.ts",
+      "symbol": "dataRetentionBannerLogic",
+      "hash": "sha256:a767885aef6efc8d90b689f9",
+      "line": 85,
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/generated/api.schemas.ts",
+      "hash": "sha256:5bac9460e14c927f250712b0",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/api/generated.ts",
+      "hash": "sha256:013b8059f6d1727059c06954",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105350"
+  },
+  "created": "2026-09-27T00:06:11.343Z",
+  "verified": "2026-09-27T00:06:11.343Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "return-200-with-null-fields-for-not-applicable-state-not-404"
+  ]
+}

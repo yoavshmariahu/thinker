@@ -1,0 +1,67 @@
+{
+  "id": "PR8214-hard-live-1",
+  "task": "PR8214-hard",
+  "area": "certs",
+  "arm": "live",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "5640c93e-5d01-4f56-8d3f-103ddb3c83db",
+  "turns": 6,
+  "wall_ms": 16637,
+  "api_ms": 16054,
+  "cost": 0.09980159999999999,
+  "in_tokens": 149680,
+  "out_tokens": 1501,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Bash": 5
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 4,
+    "injected": [
+      "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-",
+      "ca-cert-store-location-creation-and-loading",
+      "certstore-leaf-cert-cache-keys-lookup-order-eviction"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same location in dummy_cert. It copies the AKI from the issuer's SubjectKeyIdentifier extension using from_issuer_subject_key_identifier. It falls back to from_issuer_public_key when the CA has no SKI. This is functionally identical to the merged patch. The agent's test is simpler than upstream's but valid.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/certs.py",
+      "test/mitmproxy/test_certs.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the same place in dummy_cert as the merged patch. It reads the CA's SubjectKeyIdentifier and builds the AKI with from_issuer_subject_key_identifier. If the CA has no SKI, it falls back to from_issuer_public_key. This is functionally identical to the upstream change. The agent's test is smaller, but that doesn't affect the score.",
+      "The agent changed the same place as the merged patch, `dummy_cert` in `mitmproxy/certs.py`. It reads the CA's SubjectKeyIdentifier and builds the AKI with `from_issuer_subject_key_identifier`. If the CA has no SKI, it falls back to `from_issuer_public_key`. That is the same behavior as upstream. The agent's test differs from upstream's but is adequate.",
+      "The agent changed the same place, `dummy_cert` in `mitmproxy/certs.py`. It uses `from_issuer_subject_key_identifier` on the CA's SKI extension value. When the CA has no SKI, it falls back to `from_issuer_public_key`. This is functionally the same as the merged patch. Its test change is smaller but adequate."
+    ]
+  },
+  "result": "Leaf certificates now get their AuthorityKeyIdentifier copied from the issuing CA's SubjectKeyIdentifier. I haven't run the tests, as you asked.\n\n**What changed**\n- In `dummy_cert` (`mitmproxy/certs.py`), the AKI is now built with `AuthorityKeyIdentifier.from_issuer_subject_key_identifier(...)` from the CA's SKI extension.\n- Leaf certs already carried an AKI, but it was a SHA-1 hash of the CA's public key, not the CA's SKI. The two only match when the CA computed its SKI the same way. mitmproxy's own CA does, but a user-supplied CA might not.\n- If the CA has no SKI, it falls back to the old hash-based AKI.\n- I did not add an SKI to the leaf. The existing comment explains that a leaf SKI matching the CA's breaks SChannel (issue 6494).\n- In `test/mitmproxy/test_certs.py`, `TestDummyCert.test_with_ca` now asserts that the leaf's AKI key identifier equals the CA's SKI digest.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/certs.py b/mitmproxy/certs.py\nindex 2f421e25e..af3bcbb99 100644\n--- a/mitmproxy/certs.py\n+++ b/mitmproxy/certs.py\n@@ -356,10 +356,16 @@ def dummy_cert(\n     )\n \n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1\n-    builder = builder.add_extension(\n-        x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key()),  # type: ignore\n-        critical=False,\n-    )\n+    # The AKI is copied from the CA's SKI (RFC 5280 section 4.2.1.2) if present.\n+    try:\n+        ca_ski = cacert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier)\n+    except x509.ExtensionNotFound:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())  # type: ignore\n+    else:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(\n+            ca_ski.value\n+        )\n+    builder = builder.add_extension(aki, critical=False)\n     # If CA and leaf cert have the same Subject Key Identifier, SChannel breaks in funny ways,\n     # see https://github.com/mitmproxy/mitmproxy/issues/6494.\n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2 states\ndiff --git a/test/mitmproxy/test_certs.py b/test/mitmproxy/test_certs.py\nindex aba66a733..e09c5209b 100644\n--- a/test/mitmproxy/test_certs.py\n+++ b/test/mitmproxy/test_certs.py\n@@ -167,6 +167,11 @@ class TestDummyCert:\n         )\n         assert r.organization == \"Foo Ltd.\"\n         assert r.crl_distribution_points == [\"https://example.com/example.crl\"]\n+        ca_ski = tstore.default_ca._cert.extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        )\n+        aki = r._cert.extensions.get_extension_for_class(x509.AuthorityKeyIdentifier)\n+        assert aki.value.key_identifier == ca_ski.value.digest\n \n         r = certs.dummy_cert(\n             tstore.default_privatekey, tstore.default_ca._cert, None, [], None, None\n",
+  "distill": "attest  confirmed    tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy- → c=100%\nattest  unused       ca-cert-store-location-creation-and-loading → c=88%\nattest  unused       certstore-leaf-cert-cache-keys-lookup-order-eviction → c=85%\nsaved   dummy-cert-already-sets-aki-from-ca-public-key-hash-not-ca-s  [gotcha] dummy_cert already sets AKI from CA public key hash, not CA SKI\ndistilled 7 events (5 exploration calls) → 1 new, 0 merged; cost $0.040\n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same location in dummy_cert. It copies the AKI from the issuer's SubjectKeyIdentifier extension using from_issuer_subject_key_identifier. It falls back to from_issuer_public_key when the CA has no SKI. This is functionally identical to the merged patch. The agent's test is simpler than upstream's but valid.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/certs.py",
+      "test/mitmproxy/test_certs.py"
+    ]
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "id": "cli-startup-sequence-main-run-options-applied",
+  "title": "CLI startup sequence: main.run → options applied",
+  "kind": "callpath",
+  "answers": [
+    "What happens when mitmdump/mitmproxy/mitmweb starts?",
+    "Where are command-line option values applied?",
+    "Why is the argparse parser built after the master/addons are created?",
+    "Where is --set handled?"
+  ],
+  "body": "Entry: `tools/main.py:mitmproxy|mitmdump|mitmweb` lazily import tool pkg → `main.run(master_cls, make_parser, args, extra)`. Inner `main()` order:\n1. `options.Options()` (core options via `add_option` in `options.py:Options.__init__`).\n2. `master_cls(opts)`: `master.py:Master.__init__` creates CommandManager/AddonManager; `AddonManager.__init__` hooks `options.changed` → `_configure_all` (ConfigureHook to all addons). `DumpMaster.__init__` (`tools/dump.py`) adds `addons.default_addons()`, Dumper, KeepServing, ReadFileStdin, ErrorCheck.\n3. `make_parser(opts)` AFTER addons load (parser is built from registered options), then `parse_args`; failure → `arg_check.check()`, exit 1.\n4. `opts.set(*args.setoptions, defer=True)` (--set), then `optmanager.load_paths` for confdir config.yaml/yml, then `process_options` (`--version`, -q/-v tweak termlog_verbosity/flow_detail, then `opts.update(**adict)` for non-None parsed values that are `in opts`).\n5. `--options`/`--commands` dump and exit; then `extra(args)` (mitmdump: filter → save_stream_filter/readfile_filter/dumper_filter) applied via `opts.update`; signal handlers; `await master.run()`.",
+  "tags": [
+    "startup",
+    "cli",
+    "options"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/main.py",
+      "symbol": "run",
+      "hash": "sha256:01231a690ab1f30c1e29fd0e",
+      "line": 45,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/dump.py",
+      "symbol": "DumpMaster",
+      "hash": "sha256:51a6c4bbbdd1289cb2c57188",
+      "line": 10,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/master.py",
+      "symbol": "Master",
+      "hash": "sha256:b87be570a4f3c4b7aae9dab4",
+      "line": 19,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/options.py",
+      "symbol": "Options",
+      "hash": "sha256:98f714c104b047dc433caf3d",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/main.py",
+      "symbol": "mitmproxy",
+      "hash": "sha256:395888459c8ec6ccf89c12cc",
+      "line": 141,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/options.py",
+      "symbol": "Options.__init__",
+      "hash": "sha256:383138f53997387ec2d41264",
+      "line": 13,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/master.py",
+      "symbol": "Master.__init__",
+      "hash": "sha256:ad107261bba20d045e4c521f",
+      "line": 27,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/main.py",
+      "symbol": "main",
+      "hash": "sha256:32da6684a8a2360f0612ae89",
+      "line": 56,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/dump.py",
+      "symbol": "DumpMaster.__init__",
+      "hash": "sha256:3297539f444707d01a178508",
+      "line": 11,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/optmanager.py",
+      "symbol": "load_paths",
+      "hash": "sha256:ac6e2a0eb91e3e435af1d63b",
+      "line": 564,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/master.py",
+      "symbol": "run",
+      "hash": "sha256:327466033f21defc3c6f6b18",
+      "line": 54,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9ea74c15-8de3-4e0f-b46b-862dfb148d36"
+  },
+  "created": "2026-09-26T09:23:19.542Z",
+  "verified": "2026-09-26T09:23:19.542Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 11,
+  "lastUsed": "2026-09-26T19:44:21.089Z",
+  "related": [
+    "option-registration-deferred-options-and-argparse-generation"
+  ],
+  "servedIn": [
+    "062c2bab-9b64-44cc-8616-9f9b0fbff3c1",
+    "a3cb686e-b9e3-481c-9105-5c192b93402a"
+  ]
+}

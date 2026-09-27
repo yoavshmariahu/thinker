@@ -1,0 +1,90 @@
+{
+  "id": "PR106613-hard-pointers-0",
+  "task": "PR106613-hard",
+  "area": "frontend",
+  "arm": "pointers",
+  "rep": 0,
+  "model": "opus",
+  "session": "4fe0275b-9983-4db4-8bc8-786b37f97773",
+  "turns": 20,
+  "wall_ms": 97055,
+  "api_ms": 88138,
+  "cost": 1.0320330000000002,
+  "in_tokens": 780006,
+  "out_tokens": 6056,
+  "tools": {
+    "calls": 19,
+    "byTool": {
+      "Bash": 14,
+      "Read": 2,
+      "Edit": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 2,
+    "greps": 13,
+    "injected": [
+      "ml-inference-route-registration-backend-auto-discovery-and-f",
+      "ml-inference-decision-playground-frontend-scene-and-kea-logi"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "score": 1,
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the route key and URL builder in frontend/src/products.tsx exactly as upstream did, and also updated the source manifest (products/ml_inference/manifest.tsx). The playground is now served at /ml-inference/playground, and everything that goes through urls.decisionPlayground() points to the new address. Upstream additionally added a redirect from the old path. The request only asked to serve the page at the new address instead of the old one, so the redirect is an extra rather than a requirement. The agent also flagged the missing redirect. The slack_app changes are unrelated noise and don't affect the core behavior.",
+      "The agent changed the route key and the URL builder in frontend/src/products.tsx to '/ml-inference/playground', which is the same change as upstream. It also updated products/ml_inference/manifest.tsx, the source the generated file comes from, and upstream did not touch that file in the diff shown. The request asked to serve the page at the new address \"instead of\" the old one and did not ask for a redirect, so the missing redirect is an optional extra. The slack_app edits are unrelated and the agent said it did not make them. The playground is now served at the new path and every link built with urls.decisionPlayground() points to it.",
+      "The agent renamed the route key and the decisionPlayground URL builder to '/ml-inference/playground' in frontend/src/products.tsx. This matches upstream. It also updated the source-of-truth products/ml_inference/manifest.tsx, so the generated file stays in sync. All in-app links go through urls.decisionPlayground(), so they now point to the new address. The only difference from upstream is the missing redirect from the old address. The request said \"instead of\", so the core behavior is equivalent."
+    ],
+    "reason": "The agent changed the route key and URL builder in frontend/src/products.tsx exactly as upstream did, and also updated the source manifest (products/ml_inference/manifest.tsx). The playground is now served at /ml-inference/playground, and everything that goes through urls.decisionPlayground() points to the new address. Upstream additionally added a redirect from the old path. The request only asked to serve the page at the new address instead of the old one, so the redirect is an extra rather than a requirement. The agent also flagged the missing redirect. The slack_app changes are unrelated noise and don't affect the core behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "frontend/src/products.tsx",
+      "products/ml_inference/manifest.tsx",
+      "products/slack_app/backend/models.py",
+      "products/slack_app/backend/services/slack_settings.py"
+    ],
+    "criteria": {
+      "essential": 1,
+      "all": 0.75,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "Manifest and generated products.tsx both have `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']`, same scene as before."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "The route key `/ml-inference/decisions` was replaced in both manifest.tsx and products.tsx routes; `redirects: {}` is empty, so the old path is not a route of its own."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "Both `urls.decisionPlayground` definitions now return `'/ml-inference/playground'`. The author says other consumers use `urls.decisionPlayground()`, and a grep for the old path finds nothing. The manifest has no tree items, so there are no menu entries with a hardcoded path."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "Only the route key and URL string changed; the scene import, name, layout and logic are untouched. The slack_app changes are unrelated to the playground."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "`redirects: {}` is still empty and no redirect for `/ml-inference/decisions` was added. The author's summary admits old links will 404."
+        }
+      ]
+    }
+  },
+  "result": "Done. Only two files needed changing — nothing else in the repo hardcoded the path.\n\n**`products/ml_inference/manifest.tsx`** (the source of truth): the route key and the `decisionPlayground` URL builder both changed from `/ml-inference/decisions` to `/ml-inference/playground`.\n\n**`frontend/src/products.tsx`**: the generated mirror of every manifest — same two lines, in `productRoutes` and `productUrls`.\n\nI hand-edited the generated file rather than running `frontend/build-products.mjs`, since `node_modules` isn't installed here and you asked me not to install. The edit matches what the generator would emit: it collects routes and urls in manifest-file order without sorting keys (`build-products.mjs:60-100`), so renaming a key in place doesn't move it, and the change is a pure string substitution at the same two positions.\n\nNothing else pointed at the old address. Every other consumer already went through `urls.decisionPlayground()`:\n\n- `products/ml_inference/frontend/DecisionPlayground.stories.tsx:55` (`pageUrl`)\n- the scene lazy-import map in `frontend/src/productScenes.tsx:134`, keyed on the scene name, not the path\n\nThe manifest declares no `treeItemsProducts`, so there's no nav/menu entry carrying the URL, and `frontend/src/products.json` (the Python-facing extract) only includes tree items, so it's unaffected. A repo-wide grep for `ml-inference/decisions` now returns nothing. The `ml-inference-decisions` feature flag key (`frontend/src/lib/constants.tsx:412`, `products/ml_inference/backend/logic/decisions.py:33`) is unrelated to the URL and I left it alone.\n\nNo test change. The scene, its logic, and the API are untouched, and the route map is generated from the manifest, so a test asserting `urls.decisionPlayground() === '/ml-inference/playground'` would only restate the generated artifact rather than catch a regression. No existing test referenced the old path.\n\nTwo things worth flagging:\n\n- **Old links will 404.** You said \"instead of\", so I did a straight replacement and did not add a redirect. The manifest supports a `redirects` map (AI observability uses it to forward the retired `/llm-analytics/playground` and `/llm-observability/playground`), so if you want bookmarks to keep working, say so and I'll add `'/ml-inference/decisions'` there.\n- The working tree also contains unrelated in-progress edits under `products/slack_app/` (untagged follow-up mode defaults). Those aren't mine and I left them untouched — worth separating before you commit.",
+  "is_error": false,
+  "diff": "diff --git a/frontend/src/products.tsx b/frontend/src/products.tsx\nindex 63441ff6199..fb80102fcda 100644\n--- a/frontend/src/products.tsx\n+++ b/frontend/src/products.tsx\n@@ -218,7 +218,7 @@ export const productRoutes: Record<string, [string, string]> = {\n     '/mcp-servers': ['McpGateway', 'mcpGateway'],\n     '/mcp-servers/:tab': ['McpGateway', 'mcpGatewayTab'],\n     '/metrics': ['Metrics', 'metrics'],\n-    '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+    '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n     '/notebooks/widgets/:widgetId': ['ReusableWidget', 'reusableWidget'],\n     '/person/*': ['Person', 'personByDistinctId'],\n     '/persons/*': ['Person', 'personByUUID'],\n@@ -1495,7 +1495,7 @@ export const productUrls = {\n     mcpGatewayAgent: (id: string): string => `/mcp-servers/agent/${id}`,\n     mcpGatewayMember: (id: string | number): string => `/mcp-servers/member/${id}`,\n     metrics: (): string => '/metrics',\n-    decisionPlayground: (): string => '/ml-inference/decisions',\n+    decisionPlayground: (): string => '/ml-inference/playground',\n     notebooks: (): string => '/notebooks',\n     notebook: (shortId: string): string => `/notebooks/${shortId}`,\n     canvas: (): string => `/canvas`,\ndiff --git a/products/ml_inference/manifest.tsx b/products/ml_inference/manifest.tsx\nindex 1c710326070..d29ab99a05b 100644\n--- a/products/ml_inference/manifest.tsx\n+++ b/products/ml_inference/manifest.tsx\n@@ -12,11 +12,11 @@ export const manifest: ProductManifest = {\n         },\n     },\n     routes: {\n-        '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+        '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n     },\n     redirects: {},\n     urls: {\n-        decisionPlayground: (): string => '/ml-inference/decisions',\n+        decisionPlayground: (): string => '/ml-inference/playground',\n     },\n     fileSystemTypes: {},\n     treeItemsNew: [],\ndiff --git a/products/slack_app/backend/models.py b/products/slack_app/backend/models.py\nindex 66ee1651713..e1c66b56e3e 100644\n--- a/products/slack_app/backend/models.py\n+++ b/products/slack_app/backend/models.py\n@@ -116,8 +116,9 @@ class UntaggedFollowupMode(models.TextChoices):\n     \"\"\"What PostHog does with an untagged reply in a thread it already owns.\n \n     Read from the thread creator's settings row, so it governs everyone\n-    replying in a thread that user started. ``NEVER`` is what an unset row\n-    resolves to, making untagged follow-ups opt-in per person.\n+    replying in a thread that user started. ``ASK`` is what an unset row\n+    resolves to, so a person who has never chosen is offered the choice on the\n+    reply itself instead of having it dropped.\n     \"\"\"\n \n     AUTO = \"auto\", \"Always pick it up\"\n@@ -162,8 +163,9 @@ class SlackSettings(UUIDModel):\n         null=True,\n         help_text=\"Per-integration permission mode for Slack-started agent runs, keyed by integration id.\",\n     )\n-    # NULL means the user has never picked, which resolves to ``NEVER``: nothing\n-    # is picked up in their threads until they turn it on from the Home tab.\n+    # NULL means the user has never picked, which resolves to ``ASK``: a reply in\n+    # their threads asks its author before anything runs. Filled in from the Home\n+    # tab, or from the buttons on the prompt itself.\n     untagged_followup_mode = models.CharField(\n         max_length=16,\n         null=True,\ndiff --git a/products/slack_app/backend/services/slack_settings.py b/products/slack_app/backend/services/slack_settings.py\nindex 7f780ce8828..4f32efc6c9e 100644\n--- a/products/slack_app/backend/services/slack_settings.py\n+++ b/products/slack_app/backend/services/slack_settings.py\n@@ -1,5 +1,5 @@\n-\"\"\"Read helpers for per-(Slack workspace, Slack user) settings backed by\n-`models.SlackSettings` (today: the untagged follow-up mode), plus the shared\n+\"\"\"Read and write helpers for per-(Slack workspace, Slack user) settings backed\n+by `models.SlackSettings` (today: the untagged follow-up mode), plus the shared\n AI-triple value object.\n \n Model preferences themselves live in the central tasks config\n@@ -13,11 +13,16 @@ from __future__ import annotations\n from dataclasses import dataclass\n from typing import TYPE_CHECKING\n \n-from products.slack_app.backend.models import UntaggedFollowupMode\n+from products.slack_app.backend.models import SlackSettings, UntaggedFollowupMode\n \n if TYPE_CHECKING:\n     from posthog.models.integration import Integration\n \n+# What an untouched row means. `ASK` rather than `AUTO` or `NEVER` because the\n+# person has told us nothing: a prompt is the only branch that neither forwards\n+# a reply they didn't intend for us nor drops one silently.\n+UNTAGGED_FOLLOWUP_DEFAULT_MODE = UntaggedFollowupMode.ASK\n+\n \n @dataclass(frozen=True)\n class AIPreferences:\n@@ -32,19 +37,21 @@ class AIPreferences:\n     reasoning_effort: str | None = None\n \n \n-def resolve_untagged_followup_mode(integration: Integration, slack_user_id: str | None) -> UntaggedFollowupMode:\n-    \"\"\"Resolve how untagged replies in a thread this Slack user started are treated.\n+def stored_untagged_followup_mode(integration: Integration, slack_user_id: str | None) -> UntaggedFollowupMode | None:\n+    \"\"\"The mode this Slack user picked, or `None` when they never picked one.\n \n-    Read from the thread creator's row, so one person's choice governs every\n-    reply in the threads they started. An absent row, an empty column, or a\n-    value we no longer recognise all resolve to `NEVER`: the feature is opt-in,\n-    so nothing is picked up until someone asks for it.\n+    Callers that only need the behaviour want `resolve_untagged_followup_mode`.\n+    This one exists for the surfaces that must tell an explicit choice apart\n+    from the default, because only the person who has never chosen is offered\n+    the chance to.\n+\n+    An absent row, an empty column, and a value we no longer recognise are all\n+    reported as \"never picked\", so a retired value falls back to the default\n+    instead of resolving to whichever mode it used to name.\n     \"\"\"\n \n     if not slack_user_id:\n-        return UntaggedFollowupMode.NEVER\n-\n-    from products.slack_app.backend.models import SlackSettings\n+        return None\n \n     row = (\n         SlackSettings.objects.filter(\n@@ -57,10 +64,39 @@ def resolve_untagged_followup_mode(integration: Integration, slack_user_id: str\n     stored = row[\"untagged_followup_mode\"] if row else None\n     if stored in UntaggedFollowupMode.values:\n         return UntaggedFollowupMode(stored)\n-    return UntaggedFollowupMode.NEVER\n+    return None\n+\n+\n+def resolve_untagged_followup_mode(integration: Integration, slack_user_id: str | None) -> UntaggedFollowupMode:\n+    \"\"\"Resolve how untagged replies in a thread this Slack user started are treated.\n+\n+    Read from the thread creator's row, so one person's choice governs every\n+    reply in the threads they started. Someone who never picked gets\n+    `UNTAGGED_FOLLOWUP_DEFAULT_MODE`.\n+    \"\"\"\n+\n+    return stored_untagged_followup_mode(integration, slack_user_id) or UNTAGGED_FOLLOWUP_DEFAULT_MODE\n+\n+\n+def save_untagged_followup_mode(\n+    integration: Integration, slack_user_id: str, mode: UntaggedFollowupMode | str\n+) -> None:\n+    \"\"\"Record a Slack user's own pick for this workspace, creating their row if needed.\n+\n+    Keyed on the picker, so no surface can write somebody else's preference.\n+    \"\"\"\n+\n+    SlackSettings.objects.update_or_create(\n+        slack_workspace_id=integration.integration_id,\n+        slack_user_id=slack_user_id,\n+        defaults={\"untagged_followup_mode\": mode},\n+    )\n \n \n __all__ = [\n     \"AIPreferences\",\n+    \"UNTAGGED_FOLLOWUP_DEFAULT_MODE\",\n     \"resolve_untagged_followup_mode\",\n+    \"save_untagged_followup_mode\",\n+    \"stored_untagged_followup_mode\",\n ]\n",
+  "distill": null
+}

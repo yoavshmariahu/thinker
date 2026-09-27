@@ -1,0 +1,69 @@
+{
+  "id": "PR8196-hard-live-0",
+  "task": "PR8196-hard",
+  "area": "utils",
+  "arm": "live",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "b68ed588-2ebb-4f6e-a352-1f2a5d45e016",
+  "turns": 5,
+  "wall_ms": 12268,
+  "api_ms": 11725,
+  "cost": 0.0852468,
+  "in_tokens": 98392,
+  "out_tokens": 1224,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Read": 1,
+      "Edit": 2,
+      "Bash": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to strutils.py is identical to the merged patch: `range(100, min(104, len(s)))`. This fixes the IndexError for inputs of 101-103 bytes and leaves results for longer inputs unchanged. The added test is reasonable, though it differs from upstream's.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent's change to mitmproxy/utils/strutils.py is identical to the merged patch: the loop range becomes range(100, min(104, len(s))). This fixes the IndexError for 101-103 byte inputs and leaves normal inputs unchanged. The added test is also reasonable.",
+      "The agent's source change to mitmproxy/utils/strutils.py is identical to the merged patch (range(100, min(104, len(s)))). Its added test is also reasonable, and the tests and changelog don't affect the score.",
+      "The agent's change to mitmproxy/utils/strutils.py is identical to the merged patch: the loop is now `range(100, min(104, len(s)))`. That removes the IndexError for inputs of 101-103 bytes and leaves normal inputs unchanged. The test it added is different from upstream's but reasonable."
+    ]
+  },
+  "result": "`is_mostly_bin` no longer raises `IndexError` on inputs of 101–103 bytes. I haven't run the tests, as you asked.\n\n**Cause:** for inputs longer than 100 bytes, the code checks bytes 100 to 103 for UTF-8 continuation bytes so it doesn't cut a character in half. On inputs of 101–103 bytes, `s[cut]` ran past the end of the data.\n\n**Fix:** in `mitmproxy/utils/strutils.py` the loop is now `range(100, min(104, len(s)))`. Inputs of 104 bytes or more behave exactly as before. On 101–103 bytes, if every checked byte is a continuation byte, the `for/else` truncates to `s[:100]`, as it already did for longer inputs.\n\n**Test:** in `test/mitmproxy/utils/test_strutils.py` I added a check that runs `is_mostly_bin` on lengths 101–104 for both plain ASCII (not binary) and continuation bytes (`\\x80`, binary).",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..9c5cb7273 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -132,7 +132,7 @@ def is_mostly_bin(s: bytes) -> bool:\n     # Cut off at ~100 chars, but do it smartly so that if the input is UTF-8, we don't\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n-        for cut in range(100, 104):\n+        for cut in range(100, min(104, len(s))):\n             is_continuation_byte = (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..0ddb1486b 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,10 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # inputs just over 100 bytes must not index past the end\n+    for n in (101, 102, 103, 104):\n+        assert not strutils.is_mostly_bin(n * b\"a\")\n+        assert strutils.is_mostly_bin(n * b\"\\x80\")\n \n \n def test_is_xml():\n",
+  "distill": "attest  confirmed    is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten → c=93%\nattest  unused       python-test-lint-typecheck-commands-tox-in-pyproject-run-via → c=80%\nattest  unused       web-frontend-tests-web-npm → c=70%\ndistilled 6 events (2 exploration calls) → 0 new, 0 merged; cost $0.033\n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to strutils.py is identical to the merged patch: `range(100, min(104, len(s)))`. This fixes the IndexError for inputs of 101-103 bytes and leaves results for longer inputs unchanged. The added test is reasonable, though it differs from upstream's.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "id": "workflow-and-activity-declaration-conventions-posthog-tempor",
+  "title": "Workflow and activity declaration conventions (PostHog Temporal)",
+  "kind": "convention",
+  "answers": [
+    "How do I declare a Temporal workflow here?",
+    "How are activity inputs and context passed?",
+    "How should I log in workflows and activities?"
+  ],
+  "body": "- Workflows subclass `posthog/temporal/common/base.py:PostHogWorkflow`, use `@workflow.defn(name=\"kebab-name\")` (e.g. `alerts/workflows.py:CheckAlertWorkflow`); the name is what `manage.py execute_temporal_workflow` takes.\n- Each has static `parse_inputs(list[str])` that JSON-decodes into an inputs dataclass.\n- Django/non-deterministic imports go under `workflow.unsafe.imports_passed_through()`.\n- Activities are `@activity.defn` async functions taking ONE inputs dataclass (often `@frozen` from `posthog.dataclasses`), e.g. `alerts/activities.py:prepare_alert`. Context (team_id, ids) travels in the inputs.\n- Ambient context: `common/activity_context.py` (`current_workflow_id`, `current_activity_attempt`, ...) returns None/1 outside an activity.\n- `common/scoped.py:scoped_temporal` replaces `posthoganalytics.scoped` on async activities.\n- Logging: never pass keyword fields to `activity.logger`/`workflow.logger` (TypeError); use `extra={}` in workflows and the structlog logger in activities (`posthog/temporal/AGENTS.md`).\n- Adding commands to an existing workflow needs `workflow.patched` (`.claude/rules/temporal-workflow-versioning.md`).",
+  "applies": "Code under posthog/temporal and product backend/temporal packages.",
+  "tags": [
+    "temporal",
+    "conventions",
+    "logging"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/common/base.py",
+      "symbol": "PostHogWorkflow",
+      "hash": "sha256:d7bf3500d4a93bf571d98e3a",
+      "line": 9,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/workflows.py",
+      "hash": "sha256:fb203981989877082ca89821",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "hash": "sha256:775d6be6f32f972f2884cd2a",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/scoped.py",
+      "symbol": "scoped_temporal",
+      "hash": "sha256:20f9f990b88bebb9a7b25a0b",
+      "line": 16,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/activity_context.py",
+      "hash": "sha256:d36d7f856777e5e3702e95dc",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/AGENTS.md",
+      "hash": "sha256:3fc0dbf6e7a6d914fb4502df",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/workflows.py",
+      "symbol": "CheckAlertWorkflow",
+      "hash": "sha256:a356657b0311790e64069950",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "manage.py",
+      "hash": "sha256:ca9beee30900684efa049b05",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "prepare_alert",
+      "hash": "sha256:8ad7ff22d6f4c361c971cef7",
+      "line": 212,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e64496e3-34ea-4415-8688-589f00033e63"
+  },
+  "created": "2026-09-26T20:23:00.702Z",
+  "verified": "2026-09-26T20:23:00.702Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "temporal-retries-timeouts-and-heartbeat-conventions"
+  ]
+}

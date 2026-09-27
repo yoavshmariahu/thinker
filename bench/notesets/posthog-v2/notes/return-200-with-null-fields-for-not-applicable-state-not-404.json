@@ -1,0 +1,47 @@
+{
+  "id": "return-200-with-null-fields-for-not-applicable-state-not-404",
+  "title": "Return 200 with null fields for 'not applicable' state, not 404",
+  "kind": "convention",
+  "answers": [
+    "Should an endpoint return 404 when a feature doesn't apply to a project?",
+    "Why does events_retention return null instead of 404?",
+    "client_request_failure noise from non-2xx responses"
+  ],
+  "body": "Review on the events retention endpoint established: don't use 404 to signal 'feature/window not enabled'. 404 must keep meaning 'no such project or no access', and every non-2xx response is captured as a `client_request_failure` event, so a per-insight banner call would spam it while a rollout flag is off.\n- Pattern: always 200; window fields null (`EventsRetentionSerializer` with `allow_null=True` in products/product_analytics/backend/presentation/events_retention.py).\n- Frontend consumer `loadRetentionMonths` in frontend/src/scenes/insights/dataRetention/dataRetentionBannerLogic.ts treats null as 'not enforced' and has no 404 catch.\n- Avoid an 'enforced' boolean next to the values; null conveys it without looking like a setting.",
+  "applies": "New DRF endpoints whose data may not apply to a project, especially ones polled by frontend logics",
+  "tags": [
+    "api-design",
+    "retention",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "products/product_analytics/backend/presentation/events_retention.py",
+      "symbol": "EventsRetentionViewSet.list",
+      "hash": "sha256:4f6def02e12e73e4dd5be5a0",
+      "line": 47,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/insights/dataRetention/dataRetentionBannerLogic.ts",
+      "symbol": "dataRetentionBannerLogic",
+      "hash": "sha256:a767885aef6efc8d90b689f9",
+      "line": 85,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105350"
+  },
+  "created": "2026-09-27T00:06:11.119Z",
+  "verified": "2026-09-27T00:06:11.119Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "events-retention-window-is-exposed-only-via-read-only-events",
+    "adding-a-product-viewset-cochange-of-route-generated-clients"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "PR8214-nocache-1",
+  "task": "PR8214",
+  "area": "certs",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "8bdc142a-bf9e-43a8-af7d-696b7110dcf7",
+  "turns": 9,
+  "wall_ms": 23913,
+  "api_ms": 23599,
+  "cost": 0.0743272,
+  "in_tokens": 154456,
+  "out_tokens": 2845,
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "Bash": 2,
+      "bash": 1,
+      "Edit": 5
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same spot in dummy_cert as the merged patch. It reads the issuer's SubjectKeyIdentifier extension and builds the AKI with from_issuer_subject_key_identifier. It falls back to from_issuer_public_key when ExtensionNotFound is raised. The try/except/else structure differs from the merged version but behaves identically. It also added equivalent regression tests. The missing changelog entry does not affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/certs.py",
+      "test/mitmproxy/test_certs.py"
+    ]
+  },
+  "result": "`dummy_cert` now copies the issuer CA's stored `SubjectKeyIdentifier` into the leaf's `AuthorityKeyIdentifier`, so the two match even when the CA's SKI isn't a SHA-1. I haven't run the tests or any linting, as you asked.\n\n**The change** is in `mitmproxy/certs.py`. `dummy_cert` looks up the CA's `SubjectKeyIdentifier` extension and builds the AKI with `from_issuer_subject_key_identifier`. If the CA has no SKI extension, it falls back to the old `from_issuer_public_key` call, so those CAs behave as before. For CAs whose SKI is the SHA-1 of the public key, which includes CAs mitmproxy generates itself, the result is unchanged.\n\n**Tests** are added to `TestDummyCert` in `test/mitmproxy/test_certs.py`, with a small `_make_ca` helper and new imports for `timedelta`, `hashes` and `rsa`:\n- `test_aki_copies_issuer_ski_non_sha1` builds a CA with a truncated-SHA-256 SKI and asserts the leaf's AKI key identifier equals it.\n- `test_aki_falls_back_when_issuer_has_no_ski` builds a CA with no SKI and asserts the leaf's AKI equals the SHA-1-of-public-key value.\n\nI didn't add a changelog entry.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/certs.py b/mitmproxy/certs.py\nindex 2f421e25e..bc6c0fc9b 100644\n--- a/mitmproxy/certs.py\n+++ b/mitmproxy/certs.py\n@@ -356,10 +356,19 @@ def dummy_cert(\n     )\n \n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1\n-    builder = builder.add_extension(\n-        x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key()),  # type: ignore\n-        critical=False,\n-    )\n+    # The AKI must match the issuer's stored SKI (RFC 5280 §4.2.1.2), which is not necessarily\n+    # the SHA-1 of its public key (e.g. RFC 7093 truncated SHA-256, as used by cert-manager / Go 1.25+).\n+    try:\n+        issuer_ski = cacert.extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        ).value\n+    except x509.ExtensionNotFound:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())  # type: ignore\n+    else:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(\n+            issuer_ski\n+        )\n+    builder = builder.add_extension(aki, critical=False)\n     # If CA and leaf cert have the same Subject Key Identifier, SChannel breaks in funny ways,\n     # see https://github.com/mitmproxy/mitmproxy/issues/6494.\n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2 states\ndiff --git a/test/mitmproxy/test_certs.py b/test/mitmproxy/test_certs.py\nindex aba66a733..f8c992d02 100644\n--- a/test/mitmproxy/test_certs.py\n+++ b/test/mitmproxy/test_certs.py\n@@ -1,11 +1,14 @@\n import ipaddress\n import os\n from datetime import datetime\n+from datetime import timedelta\n from datetime import timezone\n from pathlib import Path\n \n import pytest\n from cryptography import x509\n+from cryptography.hazmat.primitives import hashes\n+from cryptography.hazmat.primitives.asymmetric import rsa\n from cryptography.x509 import NameOID\n \n from ..conftest import skip_windows\n@@ -176,6 +179,47 @@ class TestDummyCert:\n         assert r.altnames == x509.GeneralNames([])\n         assert r.crl_distribution_points == []\n \n+    @staticmethod\n+    def _make_ca(ski: x509.SubjectKeyIdentifier | None):\n+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, \"Test CA\")])\n+        now = datetime.now(timezone.utc)\n+        builder = (\n+            x509.CertificateBuilder()\n+            .subject_name(name)\n+            .issuer_name(name)\n+            .public_key(key.public_key())\n+            .serial_number(x509.random_serial_number())\n+            .not_valid_before(now)\n+            .not_valid_after(now + timedelta(days=1))\n+            .add_extension(x509.BasicConstraints(ca=True, path_length=None), True)\n+        )\n+        if ski is not None:\n+            builder = builder.add_extension(ski, False)\n+        return key, builder.sign(key, hashes.SHA256())\n+\n+    def test_aki_copies_issuer_ski_non_sha1(self):\n+        digest = hashes.Hash(hashes.SHA256())\n+        digest.update(b\"arbitrary\")\n+        ski = x509.SubjectKeyIdentifier(digest.finalize()[:20])\n+        key, ca = self._make_ca(ski)\n+        r = certs.dummy_cert(key, ca, \"foo.com\", [x509.DNSName(\"foo.com\")])\n+        aki = r._cert.extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        ).value\n+        assert aki.key_identifier == ski.digest\n+\n+    def test_aki_falls_back_when_issuer_has_no_ski(self):\n+        key, ca = self._make_ca(None)\n+        r = certs.dummy_cert(key, ca, \"foo.com\", [x509.DNSName(\"foo.com\")])\n+        aki = r._cert.extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        ).value\n+        expected = x509.AuthorityKeyIdentifier.from_issuer_public_key(\n+            ca.public_key()\n+        )\n+        assert aki.key_identifier == expected.key_identifier\n+\n \n class TestCert:\n     def test_simple(self, tdata):\n"
+}

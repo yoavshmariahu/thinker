@@ -1,0 +1,58 @@
+{
+  "id": "gotcha-stale-flags-health-check-and-featureflagstatuschecker",
+  "title": "Gotcha: stale_flags health check and FeatureFlagStatusChecker lack v2 guard",
+  "kind": "gotcha",
+  "answers": [
+    "Do health checks handle v2 flag filters?",
+    "Where might a v2 flag be misread as v1?"
+  ],
+  "body": "`temporal/health_checks/stale_flags.py:_serves_more_than_one_result` / `_sole_served_variant` and `flag_status.py:FeatureFlagStatusChecker` read `filters[\"groups\"]`/`multivariate` without calling `detect_config_format`. A v2 flag would likely be read as a v1 flag with no groups. Not run to confirm (inferred from grep/reads). Add a guard if touching these.",
+  "applies": "Only until a detect_config_format guard is added there.",
+  "tags": [
+    "feature-flags",
+    "health-check"
+  ],
+  "deps": [
+    {
+      "path": "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
+      "hash": "sha256:47b079f5acf6638f4d361d56",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flag_status.py",
+      "symbol": "FeatureFlagStatusChecker",
+      "hash": "sha256:be3b8487acca3442ead5c66b",
+      "line": 256,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
+      "symbol": "_serves_more_than_one_result",
+      "hash": "sha256:68a740d14f15c288e1bf6a25",
+      "line": 173,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "6c653026-d833-43e7-aa3f-28783ae11ea2"
+  },
+  "created": "2026-09-27T00:18:40.039Z",
+  "verified": "2026-09-27T00:18:40.039Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 6,
+  "related": [
+    "feature-flags-backend-lives-in-products-feature-flags-backen",
+    "how-cross-team-flag-jobs-iterate-commands-and-temporal-healt"
+  ],
+  "lastUsed": "2026-09-27T00:58:45.860Z",
+  "servedIn": [
+    "08696bb9-9b76-4e26-aeda-ffbfe1cdf640",
+    "7963fd21-bd15-4e41-8e3c-274cd2823351",
+    "7805d634-fdab-444e-9008-da1f664abcbe",
+    "f46d4b5d-42ec-4d38-853a-4179418ca6d6",
+    "38882f6a-dc45-46d6-ace3-4d87917567d7"
+  ]
+}

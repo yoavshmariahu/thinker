@@ -1,0 +1,102 @@
+{
+  "id": "adding-a-hogflow-status-transition-what-changes-together",
+  "title": "Adding a HogFlow status transition: what changes together",
+  "kind": "cochange",
+  "answers": [
+    "What must change when adding a workflow status?",
+    "Where are HogFlow status guardrails in the API?"
+  ],
+  "body": "- Persisted state: `HogFlow.State` (needs Django migration since `status` has choices); display-only state: `BroadcastStatus` + `getBroadcastStatus` only.\n- `backend/api/hog_flow.py`: `HogFlowSerializer.status` (ChoiceField), `HogFlowSerializer.validate` (re-validates actions when activating a draft with no actions in payload), `HogFlowViewSet.perform_create` (blocks active create via MCP), `perform_update` (rejects mixed status+field MCP payloads; routes content edits on active flows to draft).\n- Side effects: `hog_flow_saved` post_save → `reload_hog_flows_on_workers` (skips draft-only saves); `_pause_schedules_on_audience_change`; batch job dispatch/cancel (`invocations/cancel` action, `hog_flow_batch_job.py`).\n- `backend/facade/api.py` enable/disable uses State.ACTIVE/DRAFT, refuses archived.\n- Regenerate with `hogli build:openapi` (`frontend/generated/api.schemas.ts`, MCP tools in `mcp/tools.yaml`; docs `skills/building-workflows/references/lifecycle-and-debugging.md`).\n- Update frontend status table/test.",
+  "applies": "Status/lifecycle changes on HogFlow; pure display changes need only frontend edits.",
+  "tags": [
+    "workflows",
+    "status",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowViewSet",
+      "hash": "sha256:91a7248e2c6515c9b07cae8c",
+      "line": 3987,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow/hog_flow.py",
+      "symbol": "HogFlow",
+      "hash": "sha256:7a5296f57718a2b31cb15b02",
+      "line": 110,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/facade/api.py",
+      "hash": "sha256:96876d9949d8208f465b5f3b",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow_batch_job.py",
+      "hash": "sha256:872febd1d2454bc46a28033e",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow/hog_flow.py",
+      "symbol": "HogFlow.State",
+      "hash": "sha256:3e02927b57c81fbe06a9bf2c",
+      "line": 126,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowSerializer.status",
+      "hash": "sha256:155d4c0fcdc22d931df9c0d5",
+      "line": 2919,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowSerializer.validate",
+      "hash": "sha256:7d5d69596d120de9975b9679",
+      "line": 3214,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowViewSet.perform_create",
+      "hash": "sha256:86329c06a3b6b09412e6f757",
+      "line": 4329,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow/hog_flow.py",
+      "symbol": "State.ACTIVE",
+      "hash": "sha256:970738de5da13b8ccec6d289",
+      "line": 128,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "3ec4dd80-785e-4bab-8bfd-c8caaa125787"
+  },
+  "created": "2026-09-26T20:24:01.626Z",
+  "verified": "2026-09-26T20:24:01.626Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 6,
+  "related": [
+    "action-eligibility-backend-gates-vs-frontend-mirrors-launch-",
+    "hogflowschedule-status-and-sync-with-flow-batch-job-state",
+    "data-warehouse-sources-lives-in-posthog-cdp-filters-py-impor",
+    "hogflow-status-has-no-backend-transition-matrix-rules-live-i"
+  ],
+  "lastUsed": "2026-09-26T23:30:32.836Z",
+  "servedIn": [
+    "c6af33c6-9cbe-4bcb-8bc5-1c6f87b0efef",
+    "130f3e97-4b6b-418b-a41f-c582226c1678",
+    "ba4504c9-f343-4848-8e36-352a336e9503",
+    "b3a4c8cf-7501-496f-860f-248c8ea73720",
+    "1b55c9fc-8144-45a9-a509-f7df7f0ccf59",
+    "0a314f90-3d79-4a53-9587-48b57cfd06b7"
+  ]
+}

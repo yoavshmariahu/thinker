@@ -1,0 +1,49 @@
+{
+  "id": "pre-aggregation-must-fail-when-no-teams-are-selected-before-",
+  "title": "Pre-aggregation must fail when no teams are selected, before touching tables",
+  "kind": "invariant",
+  "answers": [
+    "Pre-aggregation wiped existing data with an empty team selection",
+    "Why does the web pre-aggregation job raise 'No teams are selected'",
+    "Empty web_pre_aggregated_teams table behaviour"
+  ],
+  "body": "With no explicit `team_ids` op config, `pre_aggregate_web_analytics_data` in products/web_analytics/dags/web_preaggregated.py calls `count_selected_teams()`. It raises `dagster.Failure(\"No teams are selected ...\")` when the count is 0.\nThe guard runs before the SQL generator and any cluster calls. Without it, an empty selection built empty staging partitions and swapped them over the existing data.\nAny refactor of this function must keep the check ahead of table-changing steps. The unit test in products/web_analytics/dags/tests/test_web_preaggregated_utils.py asserts that sql_generator and cluster.map_all_hosts are never called.",
+  "applies": "pre_aggregate_web_analytics_data and any new pre-aggregation entry point using the default team selection",
+  "tags": [
+    "web-analytics",
+    "dagster",
+    "pre-aggregation"
+  ],
+  "deps": [
+    {
+      "path": "products/web_analytics/dags/web_preaggregated.py",
+      "symbol": "pre_aggregate_web_analytics_data",
+      "hash": "sha256:0d3e65c50d7ebfb932f6ab74",
+      "line": 56,
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/dags/web_preaggregated.py",
+      "symbol": "count_selected_teams",
+      "hash": "sha256:03abafa053c2599095ab05c4",
+      "line": 50,
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/dags/tests/test_web_preaggregated_utils.py",
+      "hash": "sha256:572098b5396a84cec8783c43",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105406"
+  },
+  "created": "2026-09-27T00:03:44.010Z",
+  "verified": "2026-09-27T00:03:44.010Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

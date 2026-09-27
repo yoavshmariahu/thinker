@@ -1,0 +1,48 @@
+{
+  "id": "native-json-new-events-schema-test-matrix-is-opt-in-via-test",
+  "title": "Native-JSON (new events schema) test matrix is opt-in via test-new-events-schema label",
+  "kind": "invariant",
+  "answers": [
+    "Why didn't the native-JSON tests run on my PR?",
+    "How do I run the new events schema backend tests in CI?",
+    "When to add the test-new-events-schema label"
+  ],
+  "body": "Backend CI doubles its Django/product test matrices (schema_modes [false, true]) only when RUN_NEW_EVENTS_SCHEMA is 'true'.\n- Enforced in `.github/workflows/ci-backend.yml` on both matrix builders: `contains(github.event.pull_request.labels.*.name, 'test-new-events-schema') || github.event_name == 'workflow_dispatch'`.\n- Merge queue and scheduled master runs are legacy-schema only (no label, not dispatch), so a PR touching event-schema behavior without the label is never tested against native JSON before merge.\n- Label PRs that change event ingestion/cleaning, event or property reads, generated SQL over events, or schema-specific snapshots (see AGENTS.md CI section and `.github/pull_request_template.md`).\n- Leave unrelated PRs unlabeled; the label doubles the matrix.",
+  "applies": "Backend CI workflows and any PR touching events-table code or snapshots",
+  "tags": [
+    "ci",
+    "backend",
+    "native-json",
+    "labels"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ci-backend.yml",
+      "hash": "sha256:7c320697b3266bacdc8e63c8",
+      "missing": false
+    },
+    {
+      "path": "AGENTS.md",
+      "hash": "sha256:b1d09957c9da935bd2719731",
+      "missing": false
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "hash": "sha256:cfb1b277de752549dcf54f45",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105879"
+  },
+  "created": "2026-09-26T23:56:29.938Z",
+  "verified": "2026-09-26T23:56:29.938Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "label-events-don-t-start-backend-ci-apply-test-new-events-sc"
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "id": "option-registration-deferred-options-and-argparse-generation",
+  "title": "Option registration, deferred options and argparse generation",
+  "kind": "callpath",
+  "answers": [
+    "How do addons register options?",
+    "How do addon/script options become settable from CLI --set or config?",
+    "How does cmdline.py build argparse flags from options?",
+    "What is OptManager.deferred?"
+  ],
+  "body": "Both paths end in `optmanager.py:OptManager.add_option` (stores `_Option`, fires `changed`). Core: `options.py:Options.__init__`. Addons: `load(self, loader)` → `addonmanager.py:Loader.add_option` (no-op if identical signature exists; differing signature → warning + override).\n`AddonManager.register` builds Loader, fires LoadHook, fills lookup/commands, then calls `options.process_deferred()`, which applies deferred --set/config values (parsed by `_parse_setval`) once their option exists. Unknown options are stashed in `OptManager.deferred` (via `set(..., defer=True)`).\nCLI flags: `tools/cmdline.py:common_options/mitmproxy/mitmdump/mitmweb` call `opts.make_parser(parser, name, metavar=, short=)` (`OptManager.make_parser`): skips unregistered options, bool → `--x/--no-x`, Sequence[str] → append, `dest=optname` (so `vars(args)` keys match option names), defaults None so config file isn't overridden.",
+  "tags": [
+    "options",
+    "addons",
+    "argparse"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/optmanager.py",
+      "symbol": "OptManager.make_parser",
+      "hash": "sha256:e31222c2f7b7c085e87e4ff1",
+      "line": 412,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "Loader.add_option",
+      "hash": "sha256:5d6e07454a8fa31ebd459263",
+      "line": 70,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "AddonManager.register",
+      "hash": "sha256:b7ee0c43dd3b3404699317a2",
+      "line": 158,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/cmdline.py",
+      "symbol": "common_options",
+      "hash": "sha256:455d59d5df07c9f333aa2821",
+      "line": 4,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/optmanager.py",
+      "symbol": "OptManager.add_option",
+      "hash": "sha256:036c7cc74018a5a028e4003c",
+      "line": 122,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/options.py",
+      "symbol": "Options.__init__",
+      "hash": "sha256:383138f53997387ec2d41264",
+      "line": 13,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9ea74c15-8de3-4e0f-b46b-862dfb148d36"
+  },
+  "created": "2026-09-26T09:23:19.553Z",
+  "verified": "2026-09-26T09:23:19.553Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 7,
+  "lastUsed": "2026-09-26T09:58:02.556Z",
+  "related": [
+    "cli-startup-sequence-main-run-options-applied",
+    "script-addons-s-loading-path",
+    "flow-event-dispatch-layer-hook-connectionhandler-addonmanage",
+    "making-s-scripts-load-before-options-dump"
+  ]
+}

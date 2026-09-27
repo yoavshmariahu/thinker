@@ -1,0 +1,47 @@
+{
+  "id": "model-pin-bumps-must-keep-old-models-registered-so-persisted",
+  "title": "Model pin bumps must keep old models registered so persisted review arms still resolve",
+  "kind": "invariant",
+  "answers": [
+    "How do I bump the ReviewHog review model?",
+    "Why did an in-flight review change model after a model bump?",
+    "What happens to persisted review arm when a model is removed from the task catalog?"
+  ],
+  "body": "Each ReviewReport persists its review arm (adapter/model/effort/permission mode) at creation and keeps it for the report's life.\n`resolve_review_arm` in products/review_hog/backend/reviewer/constants.py honors a persisted arm only while it is a registry-supported combo; otherwise it falls back to DEFAULT_REVIEW_ARM and stamps `review_arm_fallback`.\nSo when changing REVIEW_MODEL / FLASH_ARM / VALIDATION_MODEL, do NOT deregister the old model or narrow its supported efforts in the task catalog: in-flight reports would silently jump to the new default (a cheap-tier `low` report would be lifted to full-strength xhigh, costing money).\nProducts/review_hog/backend/reviewer/tests/test_constants.py covers this with `_LEGACY_CODEX_ARM` params (legacy xhigh and legacy low cheap-tier); keep or extend them on the next bump.",
+  "applies": "Any change to review/validation model pins or the task-catalog registration of models used by ReviewHog.",
+  "tags": [
+    "review_hog",
+    "models",
+    "review_arm"
+  ],
+  "deps": [
+    {
+      "path": "products/review_hog/backend/reviewer/constants.py",
+      "symbol": "resolve_review_arm",
+      "hash": "sha256:3a1d77d4a496fbc117dd3560",
+      "line": 178,
+      "missing": false
+    },
+    {
+      "path": "products/review_hog/backend/reviewer/tests/test_constants.py",
+      "hash": "sha256:ad8b499026b70631fc1b2cfb",
+      "missing": false
+    },
+    {
+      "path": "Products/review_hog/backend/reviewer/tests/test_constants.py",
+      "hash": "sha256:ad8b499026b70631fc1b2cfb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105226"
+  },
+  "created": "2026-09-27T00:11:16.733Z",
+  "verified": "2026-09-27T00:11:16.733Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

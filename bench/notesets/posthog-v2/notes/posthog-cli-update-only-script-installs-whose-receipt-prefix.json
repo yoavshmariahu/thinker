@@ -1,0 +1,63 @@
+{
+  "id": "posthog-cli-update-only-script-installs-whose-receipt-prefix",
+  "title": "posthog-cli update: only script installs whose receipt prefix contains the running binary self-update",
+  "kind": "invariant",
+  "answers": [
+    "Why does posthog-cli update print a command instead of updating?",
+    "How does posthog-cli decide whether it installed itself via install script?",
+    "Debug build started self-updating and overwrote ~/.posthog"
+  ],
+  "body": "Install classification lives in `cli/src/update.rs:classify_path` (called by `detect_install_method`).\n- A receipt existing is NOT proof of ownership. `owned_by_script` is true only when the receipt's `install_prefix` (via `receipt_install_prefix`) contains the canonicalized running exe. Otherwise a debug build or package-manager copy would be 'updated' from a stale receipt.\n- Path checks win over the receipt: `Cellar` -> Homebrew, `node_modules` -> Npm(path), parent `.cargo/bin` -> Cargo, then script, else Unknown.\n- Use `std::fs::canonicalize`, not `read_link`: Homebrew symlinks are relative (`../Cellar/...`).\n- npm is ONE variant (`InstallMethod::Npm(PathBuf)`); global, npx and plugin/SDK-nested copies all get a message naming the path. Do not split it.\n- Any new `InstallMethod` variant must return guidance from `InstallMethod::guidance`; `only_a_script_install_updates_itself` guards this.",
+  "applies": "cli/src/update.rs install detection and the `posthog-cli update` command",
+  "tags": [
+    "posthog-cli",
+    "update",
+    "install",
+    "homebrew",
+    "npm"
+  ],
+  "deps": [
+    {
+      "path": "cli/src/update.rs",
+      "symbol": "classify_path",
+      "hash": "sha256:8be34783eec925bcfa207e8f",
+      "line": 132,
+      "missing": false
+    },
+    {
+      "path": "cli/src/update.rs",
+      "symbol": "detect_install_method",
+      "hash": "sha256:9745de305bc363c07ccd1284",
+      "line": 107,
+      "missing": false
+    },
+    {
+      "path": "cli/src/update.rs",
+      "hash": "sha256:2bdaa564044124293ae5f636",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105864"
+  },
+  "created": "2026-09-26T23:56:46.949Z",
+  "verified": "2026-09-26T23:56:46.949Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 7,
+  "related": [
+    "self-update-must-match-the-generated-installers-receipt-loca"
+  ],
+  "lastUsed": "2026-09-27T05:00:55.490Z",
+  "servedIn": [
+    "7f55fb13-0cd8-44cb-8c17-e95628f2e036",
+    "aa0facb4-3469-4ea0-a240-86f0eb879eca",
+    "3c87f53b-2863-49b8-a330-2bc3b4ab43d1",
+    "28603e98-37bf-447a-8663-6a7c6b802c85",
+    "11cb3a3c-bf3c-44e7-bc34-5f2d1b763110",
+    "32292e2b-f34f-4f03-88be-eae6ad5c6b4f",
+    "461ccefd-e751-45f3-846a-5ee6369b7409"
+  ]
+}

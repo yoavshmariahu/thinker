@@ -1,0 +1,46 @@
+{
+  "id": "PR106564-prompt-0",
+  "task": "PR106564",
+  "area": "common",
+  "arm": "prompt",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "3e58bcf2-6f31-40bd-93ee-804c7e011256",
+  "turns": 7,
+  "wall_ms": 21501,
+  "api_ms": 15274,
+  "cost": 0.2505182,
+  "in_tokens": 341863,
+  "out_tokens": 1451,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Bash": 6
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "injected": []
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty and makes no functional change, so it does not implement the feature-flag rollout of the stable chunk build.",
+      "The agent's patch is empty, so it made no functional change and does not meet the request. It said the stable chunk code was missing from its checkout, but the merged patch modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs, and none of those changes were made.",
+      "The agent's patch is empty. It concluded the stable chunks code was missing from the checkout and asked for clarification instead of implementing the change. The merged patch changes posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs, and the agent made no functional change to any of them."
+    ],
+    "reason": "The agent's patch is empty and makes no functional change, so it does not implement the feature-flag rollout of the stable chunk build.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": []
+  },
+  "result": "I made no changes, because the code this change builds on isn't in this checkout.\n\n- `stable_chunks` and any \"stable chunk\" build appear nowhere in the frontend, `common/esbuilder`, `posthog/utils.py` or the templates. My grep matched only unrelated files (`cli/` sourcemaps, review_hog docs, a HogQL test).\n- No commit on this branch mentions it either, and the checkout is at `a3b3c3685bc`.\n- The existing chunk machinery is `common/esbuilder/chunkLoader.mjs`, `common/esbuilder/utils.mjs` and `frontend/build.mjs`. It has no stable variant and no `?stable_chunks=1` opt-in, so the feature-flag rollout has nothing to attach to yet.\n\nIf I wrote this now, I'd have to invent the stable build, how it's served, and the opt-in switch. Those are the parts the ticket treats as already done, so I'd likely conflict with the real PR ([ref]).\n\nCan you point me at one of these?\n- The branch or PR for the stable chunk build, so I can rebase onto it.\n- A description of how that build is emitted and selected. I'd then add the flag check next to the `?stable_chunks=1` handling.\n\nOnce I have that, the plan is small:\n- Evaluate a feature flag for logged-in users and treat a true result like `?stable_chunks=1`.\n- Keep the query param as a manual override.\n- Send the assigned variant to PostHog so LCP can be compared across the 50% split.\n- Add a small test for the flag-versus-param precedence.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

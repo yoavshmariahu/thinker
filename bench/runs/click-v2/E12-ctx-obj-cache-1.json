@@ -1,0 +1,49 @@
+{
+  "id": "E12-ctx-obj-cache-1",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "cache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "6da2ee0d-f427-4a81-93ee-75a4fada10c0",
+  "turns": 6,
+  "wall_ms": 15714,
+  "api_ms": 15089,
+  "cost": 0.036504,
+  "in_tokens": 109644,
+  "out_tokens": 1097,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "ToolSearch": 1,
+      "mcp__thinker__orient": 1,
+      "Bash": 1,
+      "Read": 2
+    },
+    "thinkerCalls": 1,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "customizing-command-group-option-classes-via-cls-and-class-a",
+      "augment-usage-errors-attaches-ctx-param-to-errors"
+    ]
+  },
+  "grade": {
+    "score": 0.75,
+    "missing": [
+      "Group.invoke (core.py ~1982 non-chain, ~2002-2008 chain) where cmd.make_context(..., parent=ctx) is called; not cited as a propagation site",
+      "Command.make_context (core.py ~1311) and Context._make_sub_context (~837-843) as sites supplying parent=",
+      "Command.main / cli(obj=...) seeding root context",
+      "ensure_object calls object_type() with no args",
+      "ensure_object can overwrite an unrelated existing obj on the current context (clobbering)",
+      "Chained groups: sub-contexts all built before invocation so siblings don't see each other's ensure_object",
+      "obj is None test (not falsiness); contrast with ctx.meta shared dict"
+    ],
+    "wrong": [],
+    "reason": "The answer correctly identifies Context.__init__ at core.py:374-378 as the propagation, and accurately describes find_object and ensure_object, including that ensure_object sets the innermost context's obj. It also correctly covers reference-copy semantics, local rebinding and timing. However, it omits the other file:symbol sites that supply parent= (Group.invoke, make_context, _make_sub_context), and several important specifics such as clobbering and the zero-arg constructor requirement.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "**Propagation:** `src/click/core.py:Context.__init__` (lines 374–378):\n\n```python\nif obj is None and parent is not None:\n    obj = parent.obj\nself.obj = obj\n```\n\nWhen a group invokes a subcommand, the child `Context` is created with `parent=<group ctx>`. Unless `obj=` is passed explicitly, the child takes the parent's `obj` at that moment. This is a plain reference copy at construction time, not a live link.\n\n- **Shared mutable object:** if the group callback sets `ctx.obj = {...}` before the subcommand's context is created, the child sees the same object. Mutations to it are visible to both.\n- **Rebinding:** if a child later assigns `ctx.obj = something_else`, the parent is unaffected.\n- **Timing:** the group's callback runs before the subcommand context is made, so setting `ctx.obj` inside the group callback is picked up.\n\n**find_object vs ensure_object** (`core.py:Context.find_object`, line 736, and `Context.ensure_object`, line 748):\n\n- **`find_object(T)`** walks from the current context up through `.parent`. It returns the first `node.obj` that is an `isinstance` of `T`, or `None` if none matches. It is read-only.\n- **`ensure_object(T)`** calls `find_object(T)`. If that returns `None`, it sets `self.obj = T()` on the current, innermost context and returns the new instance. Otherwise it returns the one found. It creates the object only when none exists.\n\nBecause `ensure_object` assigns to `self.obj`, a newly created object lives on the context that called it. Parent contexts don't see it, though contexts created later beneath it will inherit it.",
+  "is_error": false
+}

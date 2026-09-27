@@ -1,0 +1,76 @@
+{
+  "id": "xsrf-cookie-name-must-be-changed-in-both-app-py-and-utils-ts",
+  "title": "XSRF cookie name must be changed in both app.py and utils.ts (and static bundle needs rebuild)",
+  "kind": "cochange",
+  "answers": [
+    "How do I rename the mitmweb XSRF cookie?",
+    "Where is the _xsrf cookie set and read?",
+    "Why does the compiled web UI still use the old cookie name?"
+  ],
+  "body": "- Server: `mitmproxy/tools/web/app.py` Application settings: add `xsrf_cookie_name=\"_mitmproxy_xsrf\"` next to `xsrf_cookies=True` / `xsrf_cookie_kwargs`. Tornado uses it for both setting and validating.\n- Client: `web/src/js/utils.ts` `xsrf()` reads `getCookie(\"_mitmproxy_xsrf\")` and sends it as `X-XSRFToken`.\n- Unchanged: the hidden form field `_xsrf` (login.html `{% module xsrf_form_html() %}`) and header `X-XSRFToken` are Tornado-fixed names, not the cookie.\n- `mitmproxy/tools/web/static/index-*.js` is a compiled bundle containing the old name; needs `npm run build` in `web/`, do not hand-edit.\n- Existing tests (`test/mitmproxy/tools/web/test_app.py`) set `xsrf_cookies=False`, so the cookie name is untested.\n- Add a CHANGELOG.md bullet under 'Unreleased'.",
+  "applies": "Only for the XSRF cookie name; the form field and header names must stay as is.",
+  "tags": [
+    "mitmweb",
+    "xsrf",
+    "cookie"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "hash": "sha256:e09a85c5c783c7a2be8d3059",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/utils.ts",
+      "symbol": "xsrf",
+      "hash": "sha256:2daeb1ce4c9730695e2b9eef",
+      "line": 80,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/templates/login.html",
+      "hash": "sha256:00c4ee51a3e3b9f80a4fc18c",
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/tools/web/test_app.py",
+      "hash": "sha256:fc9640b2132c2ce2ff70e184",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "450aa3a1-532d-4d1b-bbc2-156bb95acbf9"
+  },
+  "created": "2026-09-26T19:45:05.511Z",
+  "verified": "2026-09-26T19:50:51.428Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "invalid",
+  "uses": 1,
+  "related": [
+    "mitmweb-xsrf-auth-and-header-protections",
+    "mitmweb-flow-update-path-http-put-view-update-websocket-broa",
+    "flow-arrival-and-filter-evaluation-websocket-to-view-update",
+    "web-ui-flow-edit-frontend-payload-to-server-setattr-handler"
+  ],
+  "stale": {
+    "since": "2026-09-26T19:45:08.467Z",
+    "changed": [
+      {
+        "path": "mitmproxy/tools/web/app.py",
+        "reason": "file changed"
+      },
+      {
+        "path": "web/src/js/utils.ts",
+        "symbol": "xsrf",
+        "reason": "symbol body changed"
+      }
+    ]
+  },
+  "lastUsed": "2026-09-26T19:50:28.932Z",
+  "servedIn": [
+    "3327aeea-6754-4203-a524-97d0fd648c85"
+  ],
+  "invalidReason": "The work described in the note has not been applied. The current code in web/src/js/utils.ts still reads getCookie(\"_xsrf\") instead of getCookie(\"_mitmproxy_xsrf\"). The note describes a required change that hasn't been implemented."
+}

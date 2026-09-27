@@ -1,0 +1,44 @@
+{
+  "id": "async-replay-vision-activity-fails-first-attempt-after-db-co",
+  "title": "Async Replay Vision activity fails first attempt after DB connection drop",
+  "kind": "fix",
+  "answers": [
+    "Replay Vision observation has no thumbnail after a database connection drop",
+    "First attempt of async Temporal activity fails with dead/closed Django DB connection",
+    "Why does track_activity evict stale connections only for sync activities?"
+  ],
+  "body": "Symptom: An observation permanently lacks a thumbnail (or an async activity's first attempt always errors) after a Postgres connection was dropped; nothing retries the thumbnail later since the backfill sweep was removed.\nRoot cause: products/replay_vision/backend/temporal/decorators.py:track_activity only called close_stale_db_connections in the sync wrapper; async_wrapper left dead connections on the long-lived thread.\nFix pattern: in async_wrapper, run `await sync_to_async(close_stale_db_connections)()` before invoking the activity, guarded by `if not settings.TEST`.\nConstraints: Applies to every async activity decorated with track_activity. The settings.TEST skip mirrors close_db_connections (touches Django connections in tests without DB access), so the eviction itself is untested. Does not help with multi-minute Postgres outages.",
+  "applies": "Replay Vision Temporal activities decorated with track_activity",
+  "tags": [
+    "replay-vision",
+    "temporal",
+    "django-db"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/decorators.py",
+      "symbol": "track_activity",
+      "hash": "sha256:0bfcea6ffcd49e778bd938ac",
+      "line": 20,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/utils.py",
+      "symbol": "close_stale_db_connections",
+      "hash": "sha256:9f43687a279a6aad3e1a374b",
+      "line": 61,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-09-27T00:01:58.415Z",
+  "verified": "2026-09-27T00:01:58.415Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

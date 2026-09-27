@@ -1,0 +1,60 @@
+{
+  "id": "flows-duck-state-shape-and-reducer-actions",
+  "title": "Flows duck: state shape and reducer actions",
+  "kind": "overview",
+  "answers": [
+    "How does mitmweb store flows in Redux?",
+    "Where is the flows reducer?",
+    "What is in FlowsState?",
+    "Why isn't the flows reducer createSlice?"
+  ],
+  "body": "All under web/src/js/.\n- `ducks/flows/index.ts:flowsReducer` is a hand-written reducer (not createSlice; Immer is too slow). Registered in `ducks/store.ts` and `flows` is in `serializableCheck.ignoredPaths` because state has Map/Set.\n- State: `list` (arrival order), `_listIndex` (id->pos in list), `byId`, `view` (filtered+sorted), `_viewIndex`, `sort {column,desc}`, `selected: Flow[]`, `selectedIds`, `highlightedIds`.\n- Server actions: FLOWS_ADD/UPDATE (`{flow, matching_filters}`), FLOWS_REMOVE, FLOWS_RECEIVE, FLOWS_FILTER_UPDATE (`{name, matching_flow_ids|null}`). Client: `setSort`, `select`.\n- `ducks/flows/_backend_actions.ts` thunks (update, remove, mark, uploadContent...) only call REST; state changes return via websocket.\n- Helpers in `ducks/flows/_utils.ts`: buildIndex, insertViewItem, updateViewItem, removeViewItemAt, findInsertPos; `_compat.ts` toSorted/toSpliced.",
+  "tags": [
+    "redux",
+    "mitmweb",
+    "flows"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/ducks/flows/index.ts",
+      "symbol": "flowsReducer",
+      "hash": "sha256:17f737533fffb681f0d4b1f4",
+      "line": 68,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/flows/_utils.ts",
+      "hash": "sha256:c5b0bc07cd70cad07c649651",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/flows/_backend_actions.ts",
+      "hash": "sha256:aee8c5e8c5dbb5fe8550c001",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/store.ts",
+      "hash": "sha256:c8cfecd97ab387d22383d85f",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/flows/_compat.ts",
+      "hash": "sha256:643b16d7fc2705c65d8de4f0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "4495999f-49ff-4782-bc86-73c614660f9d"
+  },
+  "created": "2026-09-26T09:25:17.630Z",
+  "verified": "2026-09-26T09:25:17.630Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 2,
+  "lastUsed": "2026-09-26T10:00:11.876Z",
+  "related": [
+    "flow-arrival-and-filter-evaluation-websocket-to-view-update"
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "lowering-the-enabled-scout-cap-pauses-nothing-tests-patch-th",
+  "title": "Lowering the enabled-scout cap pauses nothing; tests patch the constant in team_limits",
+  "kind": "gotcha",
+  "answers": [
+    "What happens to running scouts when the max enabled scouts is lowered?",
+    "How do I patch MAX_ENABLED_SCOUTS_PER_TEAM in tests?"
+  ],
+  "body": "Semantics: a lowered cap only blocks the next ordinary enable (`views._reject_if_enabled_cap_reached`, error names count and cap); disabling/tuning existing scouts stays allowed and raising the cap resumes nothing. Operational scouts still count toward the cap but are exempt from it at seeding.\nTests: the constant is now imported into `team_limits.py`, so patch `products.signals.backend.scout_harness.team_limits.MAX_ENABLED_SCOUTS_PER_TEAM`, not `config_registry`/`views`.\n`tools/runs.py` `MAX_SCOUTS_PER_RUNS_QUERY` deliberately stays 10x the constant, not per-project.\nImport `team_limits` lazily inside models.py (PLC0415) to keep the django.setup() path light.",
+  "applies": "tests and behavior around enabled-scout cap in products/signals",
+  "tags": [
+    "signals",
+    "testing",
+    "scouts"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/scout_harness/tools/runs.py",
+      "symbol": "MAX_SCOUTS_PER_RUNS_QUERY",
+      "hash": "sha256:88305dfba27e37846cf09355",
+      "line": 76,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/team_limits.py",
+      "hash": "sha256:ba01cafddda4ed84bb0e36c2",
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/views.py",
+      "symbol": "_reject_if_enabled_cap_reached",
+      "hash": "sha256:74ed6b736e0efb8a691b848d",
+      "line": 2397,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105682"
+  },
+  "created": "2026-09-26T23:59:40.702Z",
+  "verified": "2026-09-26T23:59:40.702Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "enabled-scout-cap-must-be-resolved-via-team-limits-and-befor",
+    "adding-a-field-to-scout-team-limits-touches-resolver-datacla"
+  ]
+}

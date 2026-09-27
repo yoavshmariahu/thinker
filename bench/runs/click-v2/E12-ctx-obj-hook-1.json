@@ -1,0 +1,48 @@
+{
+  "id": "E12-ctx-obj-hook-1",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "6d386c6f-d97c-49db-acee-370c4f304895",
+  "turns": 4,
+  "wall_ms": 11620,
+  "api_ms": 11178,
+  "cost": 0.0276908,
+  "in_tokens": 65268,
+  "out_tokens": 939,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 1,
+      "Read": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "customizing-command-group-option-classes-via-cls-and-class-a",
+      "augment-usage-errors-attaches-ctx-param-to-errors"
+    ]
+  },
+  "grade": {
+    "score": 0.9,
+    "missing": [
+      "Other propagation sites with file:symbol: Group.invoke (core.py ~1982 / 2002-2008 chain), Command.make_context (~1311), Context._make_sub_context (~837-843), Command.main, shell_completion._resolve_context. The agent only mentions the chain generally.",
+      "Caveat that ensure_object calls object_type() with no args, so the type must be zero-arg constructible.",
+      "Caveat that ensure_object can clobber an existing unrelated obj on the current context, since it only checks isinstance.",
+      "The check is 'obj is None', not falsiness, so passing obj=None cannot block inheritance.",
+      "Chained groups build all sub-contexts up front, so ensure_object in one chained command is invisible to its siblings.",
+      "Comparison with Context.meta, and the consumers pass_obj and make_pass_decorator."
+    ],
+    "wrong": [
+      "Weak point: the answer says a find_object lookup usually hits at the first node. That is true but incidental, and it slightly understates the parent walk. It does not contradict the reference."
+    ],
+    "reason": "The main point is correct. Propagation happens in Context.__init__ at core.py:374-378 by copying parent.obj when obj is None. The answer also correctly says the copy is by reference, is taken at creation time, and that rebinding does not flow back. Its description of find_object and ensure_object is accurate: ensure_object sets the innermost context, not the root. It leaves out many specifics from the reference: the other construction sites, the zero-arg constructor requirement, the clobbering caveat, and the chain behavior. These are extra detail, and the core file:symbol is right.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "**Propagation**\n\nIt happens in `Context.__init__` in `src/click/core.py:374-378`:\n\n```python\nif obj is None and parent is not None:\n    obj = parent.obj\nself.obj = obj\n```\n\nWhen a subcommand's context is created (through `Group.invoke`, then `Command.make_context`, then `Context(..., parent=ctx)`), it copies `parent.obj` if you didn't pass an `obj` explicitly.\n\n- **Same object, not a copy.** Mutating a shared object, such as a dict, in the child is visible in the parent.\n- **Copied at creation time.** If the group callback sets `ctx.obj` before the subcommand context is created, the subcommand sees it. That is the normal case, because the group callback runs before subcommand contexts are made.\n- **Reassignment doesn't flow back.** If a child sets `ctx.obj = something_new`, the parent's `obj` is unchanged.\n\n**`find_object` vs `ensure_object`** (`core.py:736` and `core.py:748`)\n\n- **`find_object(T)`** walks from the current context up through `.parent`. It returns the first `ctx.obj` that is an instance of `T`, or `None` if there isn't one. It has no side effects.\n- **`ensure_object(T)`** calls `find_object(T)`. If that returns `None`, it creates `T()` and assigns it to the current context's `self.obj`. Only the innermost context is set, not the root. It then returns the object.\n\nBecause of the propagation above, a `find_object` lookup usually hits at the first node, since the child's `obj` is the parent's. The parent walk matters when a context has overridden `obj` with something of a different type.",
+  "is_error": false
+}

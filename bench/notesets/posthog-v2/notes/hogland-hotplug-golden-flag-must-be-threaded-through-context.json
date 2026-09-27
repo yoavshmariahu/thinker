@@ -1,0 +1,72 @@
+{
+  "id": "hogland-hotplug-golden-flag-must-be-threaded-through-context",
+  "title": "Hogland hotplug golden flag must be threaded through context -> SandboxConfig -> HoglandSandbox.create",
+  "kind": "cochange",
+  "answers": [
+    "How does the tasks-hogland-hotplug-golden flag reach the sandbox?",
+    "Add a new per-run hogland sandbox option from a feature flag",
+    "Where is the pluggable memory golden snapshot alias selected?"
+  ],
+  "body": "A per-run hogland option resolved from an org feature flag touches these together:\n- constant `HOGLAND_HOTPLUG_GOLDEN_FEATURE_FLAG` in products/tasks/backend/constants.py\n- `TaskProcessingContext.use_hogland_hotplug_golden` and its resolution in `get_task_processing_context` (products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py); evaluated only when sandbox_backend == \"hogland\", org-scoped groups, wrapped in try/except so it fails closed to False\n- `_create_sandbox_for_repository` passes `use_hotplug_golden=ctx.use_hogland_hotplug_golden` (products/tasks/backend/temporal/process_task/activities/provision_sandbox.py)\n- `SandboxConfig.use_hotplug_golden` (products/tasks/backend/logic/services/sandbox.py)\n- `HoglandSandbox.create` swaps to `HOGLAND_HOTPLUG_SNAPSHOT_ALIAS` (products/tasks/backend/logic/services/hogland_sandbox.py), only for `SandboxTemplate.DEFAULT_BASE`\nNew context fields need a default (False) so in-flight Temporal runs deserialize safely. Test: `TestHoglandSandboxCreate.test_create_selects_the_golden_by_hotplug_flag`.",
+  "applies": "Hogland sandbox provisioning and per-run flag-gated options in products/tasks",
+  "tags": [
+    "tasks",
+    "hogland",
+    "feature-flag",
+    "temporal"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/logic/services/hogland_sandbox.py",
+      "symbol": "HoglandSandbox.create",
+      "hash": "sha256:18736ae04e9ba33f1b6b6212",
+      "line": 235,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py",
+      "symbol": "get_task_processing_context",
+      "hash": "sha256:a63caba72e316fd6661c6704",
+      "line": 1140,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/sandbox.py",
+      "symbol": "SandboxConfig",
+      "hash": "sha256:aa837f868aa59ac5212f0ecb",
+      "line": 189,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/provision_sandbox.py",
+      "hash": "sha256:eb550d2e0a9db99f5af1e7e7",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/constants.py",
+      "hash": "sha256:6241dd4a3d2a1b0a86b5b27d",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/sandbox.py",
+      "symbol": "SandboxTemplate.DEFAULT_BASE",
+      "hash": "sha256:78e0ebc7b9c5f1b934a58c89",
+      "line": 70,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105407"
+  },
+  "created": "2026-09-27T00:03:28.347Z",
+  "verified": "2026-09-27T00:03:28.347Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "sandbox-backend-resolution-and-propagation-in-process-task",
+    "sandbox-backend-selection-and-provider-class-resolution"
+  ]
+}

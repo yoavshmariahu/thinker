@@ -19,7 +19,64 @@
    "layers": [
     "backend",
     "frontend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "While filling in an invite row, an email that belongs to an existing member of the current organization is flagged on that row itself (visible inline error/error styling on the email field) before any submission happens, in the organization settings invite dialog.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The signed-in user's own email address is treated the same as an existing member's email and is flagged on the row.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When any row contains an existing-member (or own) email, the batch submit control is unavailable and communicates a reason indicating that people who are already members must be removed; this applies both in the onboarding invite step and in the organization settings invite dialog. Per-row send controls are likewise unavailable for such a row.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "The match against existing members' emails ignores letter case and surrounding whitespace, so e.g. ' Rose.Dawson@PostHog.com' is flagged when the member's email is rose.dawson@posthog.com.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The organization's member list is fetched when the invite form is opened so the check can work without the user having visited the members list first, and the own-email check still applies before that data has loaded.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "A bulk invite request containing an existing member's email in any position is rejected as a bad request without creating or emailing any invite from that batch, including invites listed before the offending row.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The rejection is returned as a field-level validation error attributed to the target email with a stable, distinguishable code identifying the existing-member case (rather than a generic error).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "An existing-member rejection of an invite submission is not sent to error tracking as an application exception, while other unexpected API failures on the same path still are.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c9",
+     "behavior": "If the server rejects a submission for an existing member that the client did not know about, the member data is refreshed so the offending row becomes flagged afterwards.",
+     "essential": false,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "d964d1e66751be37de1e6330b660abfbf6e1ab92"
   },
   {
    "id": "PR106466-hard",
@@ -37,7 +94,64 @@
    "layers": [
     "backend",
     "frontend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "From the summary view of a launched (live) scheduled broadcast, the user can trigger an action that returns the broadcast to draft status; after it succeeds the broadcast is no longer read-only and its details can be edited in the wizard again, and the scheduled send no longer goes out while it is a draft.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The stop/return-to-draft control is only offered for a live broadcast that still has a pending scheduled send; it is not offered for a broadcast already in draft, nor for one whose send has already gone out (e.g. an immediate send, or a one-time schedule already completed).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Launching a broadcast with a future/recurring send results in exactly one schedule that is newly created and active at the chosen time — any schedule the broadcast already had (including a paused one) is removed rather than reused or edited — so a relaunched broadcast actually sends instead of staying silently paused. Launching with immediate send likewise leaves no leftover schedule behind that could fire later.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "During a relaunch the broadcast is only marked live after the schedule replacement has completed, so an interruption part-way through leaves the broadcast as a draft rather than live with two schedules or none.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The stop/return-to-draft control is additionally withheld when stopping would be unsafe or ambiguous: while a send run is waiting/queued/in progress, while the run history is not yet known, when the broadcast carries more than one schedule, and when the underlying workflow has been changed into a shape the wizard cannot safely edit.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Choosing to stop a live broadcast asks for explicit confirmation first, explaining that the scheduled send stops and nothing sends until it is launched again, with the option to cancel; the broadcast is only moved to draft if confirmed.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "When returning a broadcast to draft, any send run that had already started is cancelled as well, and the user is told which happened: a plain success message when nothing had started, a warning that a just-started send was cancelled and already-sent emails cannot be recalled when one had, and — if the cancellation itself fails — a message that still makes clear the broadcast is now a draft.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "The scheduler does not start a new send run for a broadcast that has been moved out of live status concurrently: the status is re-verified immediately before the run is created, and when it is no longer live no run is created, nothing is dispatched, and the schedule is not reported as processed.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c9",
+     "behavior": "When a relaunch replaces an existing schedule, any variable overrides the previous schedule carried are retained on the newly created schedule rather than being silently dropped.",
+     "essential": false,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "624323555554fa5233b76239195f08a6d1037b0a"
   },
   {
    "id": "PR106672-hard",
@@ -54,7 +168,58 @@
    "layers": [
     "backend",
     "other"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "Creating a shared metric always stores a newly generated internal identifier, even when the caller supplies an identifier in the metric definition (the supplied one is discarded rather than reused). The rest of the submitted metric definition is stored unchanged.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "Updating/editing an existing shared metric continues to preserve that metric's existing internal identifier rather than generating a new one.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When an experiment is updated with only a new list of attached shared metrics (no inline metric payload in the request), the experiment's already-stored inline metrics are compared against the identifiers of the shared metrics being linked, and any stored inline metric whose identifier matches one of them is rewritten with a new unique identifier. This applies to both the primary and the secondary inline metric collections.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Attaching shared metrics whose identifiers do not clash with any stored inline metric leaves the stored inline metrics completely unchanged, including their identifiers and their ordering entries.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "After a stored inline metric's identifier is regenerated because of a clash, the display ordering for that metric type contains both the new inline identifier and the original identifier (which now belongs only to the attached shared metric); the original identifier is not removed from the ordering merely because the inline metric no longer carries it.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Resolving a clash never changes the attached shared metric or its link to the experiment: the shared metric keeps its stored identifier and the set of linked shared metrics is exactly what the update requested.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The agent-facing guidance for promoting an inline metric to a shared metric no longer recommends creating the shared metric with the inline metric's identifier and leaving the inline copy attached; it instead instructs omitting the identifier when creating the shared metric and removing the inline metric as part of the same update that attaches the shared one.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "When an update resends an inline metric collection that still contains a metric clashing with an already-linked shared metric, the inline copy likewise receives a fresh identifier while the clashing identifier remains in the ordering for the shared metric.",
+     "essential": false,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "7bed05dd05795990f924d08907e5364ec676d6b1"
   },
   {
    "id": "PR106564-hard",
@@ -71,7 +236,58 @@
    "layers": [
     "backend",
     "other"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "For a logged-in user with no opt-in query parameter and no stored choice, the build served is decided by the value of a feature flag evaluated for that user: flag on ⇒ the stable chunk build is served (import map / stable asset URLs present in the rendered page), flag off ⇒ the current build is served. This is the only automatic enrolment path, so with a 50% flag rollout roughly half of logged-in users get each build.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "A request from a user who is not logged in is never served the stable build on the basis of the flag — even when a flag value of on is present in the evaluated flags, the current build is rendered.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When no flag value is available for the request (flags not evaluated at all, empty flag set, or the flag missing / not resolvable to a true value), the page still renders successfully with the current build rather than erroring or defaulting to the stable build.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "The manual query parameter continues to work and takes precedence over both a previously stored choice and the flag: the on value forces the stable build for that request (even when the flag is off), and the off value forces the current build (even when the flag is on).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "An explicit choice made via the query parameter is remembered for subsequent requests in both directions and outranks the flag on those later requests: after forcing on, later flag-off requests still get the stable build; after forcing off, later flag-on requests still get the current build. The remembered choice lasts for a bounded period (about 30 days) rather than only the current request.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "The flag value that decided which build was served is the same value made available to the in-page analytics client, so performance events reported by the page carry the flag value used for that page load.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "When the stable build fails at runtime and the page reloads onto the current build, the reload request is served the current build, does not record a persistent opt-out (so a later navigation can be served the stable build again by the flag), and cannot re-trigger the stable build on that same load, i.e. no reload loop.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "After the server has applied a query-parameter override, the parameter is removed from the visible page address so a bookmarked or shared URL does not keep forcing a particular build.",
+     "essential": false,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "1fc927d58041671f41238b1367cbd1ea7f66ce34"
   },
   {
    "id": "PR106613-hard",
@@ -87,7 +303,40 @@
    "layers": [
     "frontend",
     "other"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "Visiting the web address \"/ml-inference/playground\" loads the decisions playground page of the ML inference product (the same page that previously answered at \"/ml-inference/decisions\").",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The address \"/ml-inference/decisions\" no longer directly serves the playground page as a route of its own.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Every in-app link, menu/navigation entry, or programmatic navigation that targets the decisions playground now resolves to \"/ml-inference/playground\", and following any of them opens the same playground page as before; no remaining app-side reference produces the old address.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "The playground page's rendered content, state and behaviour are unchanged — only the address at which it is served differs (no change to what the page does, the data it loads, or the scene it renders).",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c5",
+     "behavior": "A request to the old address \"/ml-inference/decisions\" is redirected to \"/ml-inference/playground\" rather than showing a not-found/error page, so existing bookmarks and shared links still reach the playground.",
+     "essential": false,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "0120a9906cd59f74ad4b5e93681fd1fe2d22ebea"
   },
   {
    "id": "PR107042-hard",
@@ -106,7 +355,58 @@
    "goldTitle": "fix(insights): correct mobile actions and transfer navigation",
    "layers": [
     "frontend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When an insight is duplicated with redirection to the copy and the actions side panel is currently displayed as an overlay/modal (narrow-screen presentation), the panel is closed as part of the duplication flow, so the newly created insight is visible rather than covered.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "Duplication still navigates to the newly created insight's edit view and still reports success, i.e. closing the panel does not replace or suppress the redirect.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When the side panel is in its normal docked (wide-screen) presentation, duplicating an insight leaves the panel open — the close only happens for the overlay presentation.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Navigating from an insight to the transfer-to-another-project page carries the insight's short identifier along with the numeric transfer identifier, so the page can reconstruct a working link back to that insight.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "On the transfer page for an insight, the Back link resolves to the insight's short-identifier view URL (the same form used everywhere else to open an insight) rather than a URL built from the numeric ID, so following it loads the insight.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "If the transfer page is reached for an insight without an available short identifier, Back resolves to the insights list instead of producing a URL that fails to load an insight.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Back links for non-insight resource kinds (e.g. dashboards, surveys) still resolve to their existing numeric-ID URLs, and transfer URLs for those kinds gain no extra identifier parameter.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "In the subscriptions modal, the empty-state card's illustration sits beside the text only when the modal is wide enough; below that width the illustration no longer sits beside the text and the content stacks vertically so it fits the narrow modal.",
+     "essential": true,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "3d58970f948c0c4487b7f96bd6b4f9622538eaff"
   },
   {
    "id": "PR106522-hard",
@@ -125,7 +425,52 @@
    "goldTitle": "fix(tasks): identify sandbox backend on failure events",
    "layers": [
     "backend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When a failure is reported by the agent itself (a terminal failure submitted through the external run-update path), the emitted task-run failure analytics event includes a property identifying the sandbox backend the run was using.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "When the system itself marks a run as failed (e.g. internal failure handling / cleanup paths), the emitted task-run failure analytics event includes a property identifying the sandbox backend of that run.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "A status update that records a run as failed emits a failure event carrying the sandbox backend, using the backend known by the currently executing run when available and otherwise falling back to the backend recorded in the run's stored state.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "When a run continues after an earlier step while attached to the same sandbox, the backend determined for the earlier segment is carried into the continued segment, so failure events from the continuation report the same backend rather than a freshly re-resolved one (including when re-resolution would now pick a different backend).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "If a continued run reattaches to a sandbox but no backend value is handed over, the backend recorded in the run's stored state for that same sandbox is used, and a legacy sandbox with no recorded backend is treated as the default backend.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Failure events omit the sandbox backend property entirely when the run has no sandbox associated with it, or when the recorded backend value is not one of the recognized backend identifiers.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "All pre-existing failure event information is preserved unchanged alongside the new backend property, including the truncated error message, the error type (with its default when unspecified), the run duration, and the resulting run status.",
+     "essential": true,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "9c1de2696efec4b8cbeae8e08f9ecb9130e02857"
   },
   {
    "id": "PR105793-hard",
@@ -144,7 +489,52 @@
    "goldTitle": "feat(slack_app): ask before picking up unset thread follow-ups",
    "layers": [
     "backend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When someone replies in a thread PostHog is already involved in without tagging PostHog, and the relevant thread follow-up preference has never been set (no stored settings record at all, or the preference field empty), the reply now triggers the private ask-the-replier prompt instead of being silently ignored.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "Users who have explicitly chosen a thread follow-up setting keep their existing behaviour for untagged replies: an 'always pick it up' choice still forwards the reply with no prompt, a 'never' choice still ignores it with no prompt (including for the thread creator's own replies), and an explicit 'ask' choice still prompts.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The prompt presented to the replier both lets them send that one reply to the agent and lets them record a default choice so future untagged follow-ups are handled without asking again.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c4",
+     "behavior": "The thread follow-up setting is shown and changeable on the app's home page for users who have never chosen a setting (the section is no longer omitted for them), reflecting the ask default as the currently selected option.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c5",
+     "behavior": "A stored preference value that is no longer recognised continues to resolve to the never-pick-up behaviour rather than to the new ask default, so it does not start prompting.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "The prompt tells the replier where the setting can be changed, linking to the app's home page when a link can be built for the workspace and degrading to plain unlinked text when it cannot.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "When the team is over its AI credits quota, an unconfirmed untagged reply is stopped without posting any quota-denial message into the thread, while mentions and untagged replies the user has confirmed still produce the usual denial message; a team within quota is not stopped in any of these cases.",
+     "essential": false,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "cf123d3954719cec9fc82c9f808601a259e9ccee"
   },
   {
    "id": "PR105887-hard",
@@ -162,7 +552,46 @@
    "goldTitle": "fix(experiments): fingerprint saved metrics with their per-experiment breakdowns",
    "layers": [
     "backend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When the scheduled/overnight discovery step enumerates saved metrics attached to an experiment, the identifier it computes for each metric is derived from the saved query combined with the per-experiment breakdowns recorded on that experiment's link to the metric, not from the saved query alone. For a saved metric whose link records one or more breakdowns, the resulting identifier differs from the one derived from the raw saved query.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "For a saved metric with per-experiment breakdowns, the identifier produced by the scheduled discovery step is byte-for-byte equal to the identifier that the result-reading paths (timeseries sync, cold-start fallback, and the chart/API read) resolve for the same metric on the same experiment, so results written by the batch are found and published rather than recomputed.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The metric identifier returned to the frontend with an experiment's saved metrics is computed from the effective configuration including the link's breakdowns, so that for a breakdown-configured saved metric it equals the identifier the batch filed results under and not the one derived from the unmodified saved query.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "For a saved metric whose experiment link records no breakdowns (missing, null, or an empty list), the computed identifier is unchanged from before the change and still matches the identifier used by the readers, so previously published results for such experiments remain valid and are not invalidated or recomputed.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Absent or null link metadata is handled without raising an error anywhere the effective saved-metric configuration is built, yielding the same result as metadata containing no breakdowns.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "The actual computation of a saved metric's results continues to run against the query with the per-experiment breakdowns applied, and the identifier attached to those computed results is the same merged-config identifier used at discovery and read time.",
+     "essential": true,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "8eaa6abd5e213f032b6a7bb5707ede9ba388f769"
   },
   {
    "id": "PR105871-hard",
@@ -180,7 +609,58 @@
    "goldTitle": "fix(flags): skip non-v1 configs in cross-team flag jobs",
    "layers": [
     "backend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "The payload re-encryption job leaves any flag whose stored targeting rules are not in the original format completely untouched: no attempt to read, decrypt or rotate its payloads, and its stored rule data is byte-for-byte unchanged after both dry and live runs, while flags in the original format in the same run are still re-encrypted normally.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "If a flag's stored rules are in the original format when first scanned but in another format at the moment the job is about to write it (e.g. changed concurrently), the job still does not rewrite it; the run reports zero re-encryptions and one skip for that flag.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The read-only audit of flag rules produces no findings of any kind (no rule violations, no unknown keys, no round-trip divergences) for flags whose rules are not in the original format, does not count them among clean flags, and still reports findings for other flags scanned in the same run.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c4",
+     "behavior": "The audit's summary output exposes how many flags were skipped for being in an unrecognised format, in both its human-readable and machine-readable output modes, and the total scanned count still includes them.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The weekly stale-flag health check emits no issue for any flag whose rules are not in the original format, across every way it can identify a stale or fully-rolled-out flag, and never surfaces such a flag more than once or in place of a valid one.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "A flag in an unrecognised format belonging to one team does not abort the health-check run: the run completes and issues for all other teams and flags in the same batch are still reported, with no entry produced for a team whose only flags were skipped.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "All three jobs treat missing/null stored rules as the original format and keep processing them as before, while stored rules that are not a JSON object at all (e.g. a list or scalar) are treated as unrecognised and skipped rather than causing an error.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c8",
+     "behavior": "The one-off command that repaired invalid property types no longer exists and can no longer be invoked, and no remaining configuration, allow-list or baseline in the repository still grants it permission to write flag data.",
+     "essential": true,
+     "calibrated": false
+    }
+   ],
+   "mergeCommit": "42fcec00d4a9590fecb66498abbe7d37e6f56328"
   },
   {
    "id": "PR106917-hard",
@@ -197,7 +677,52 @@
    "goldTitle": "fix(warehouse-sources): pause cdc table schedules on break and disable",
    "layers": [
     "backend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "Turning off change data capture on a source pauses the extraction schedule of every table that was syncing via CDC on that source, so none of those tables start further runs after the request succeeds. Tables on the source that were not syncing via CDC keep their schedules running and their sync settings unchanged.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "If pausing a table's schedule fails while disabling CDC, the request fails with an error response and nothing else about the source or its tables is changed: CDC still reads as enabled, the CDC tables keep their CDC sync type and still-syncing flag, and no source-side CDC resource cleanup is performed — so retrying the request performs the full disable rather than reporting it as already disabled.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When a disable-CDC request is aborted because a pause failed, the schedules that this request had successfully paused are resumed, while schedules that were already paused before the request began (for example a table with sync turned off, or a broken source) are left paused.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Marking a CDC source as broken pauses the extraction schedule of each CDC table it marks as broken, in addition to pausing the change-capture process, so no further table runs fire while the source is broken.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "When marking a source broken without requesting a pause, no table schedule is paused; and when pausing is requested, only the tables actually marked broken (the source's actively syncing CDC tables) have their schedules paused — tables with sync already off are not touched.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "A failure to pause any individual table schedule while marking a source broken does not prevent the broken state from being persisted on the source and its tables, nor prevent the remaining tables' schedules from being paused; the failure is only reported/logged.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Determining whether a table's extraction schedule is currently paused reports a non-existent schedule as not paused (nothing to resume), while other errors from the scheduling system surface as failures rather than being silently treated as not paused.",
+     "essential": false,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "7cac99c34e42bb9e9d6366f587567273595bb048"
   },
   {
    "id": "PR106579-hard",
@@ -214,7 +739,58 @@
    "goldTitle": "feat(error-tracking): name the assignee in issue alert events",
    "layers": [
     "backend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "For an issue that has an assignee, the issue lifecycle/alert events include, in addition to the existing assignee identifier property, a separate property holding a human-readable name of the assignee, so a message template can render it directly without any lookup.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The readable assignee name reflects the kind of assignee: for a user assignee it is that user's own full/display name, and for a role assignee it is the role's name.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When an issue has no assignee, the emitted event contains neither the assignee identifier property nor any assignee name (or related assignee display) property — nothing is emitted as empty, null, or a placeholder.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "The pre-existing assignee identifier property is emitted with exactly the same value and serialized form as before (a compact string carrying the assignee type and id, with user ids as numbers and role ids as strings), so existing exact-match property filters and templates keep working unchanged.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c5",
+     "behavior": "When a user assignee has no name recorded, the readable assignee name still has a usable value (their email address) rather than being empty or absent.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "For user assignees an additional assignee email property is included; for role assignees no email property is included.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The readable assignee name (and email) are omitted, while the assignee identifier is still emitted, in cases where naming the person would be wrong or leak information: the assigned user is no longer a member of the issue's organization, or the issue's current assignee no longer matches the assignee captured on the event being delivered.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "The reference material the AI assistant consults when authoring error tracking alerts describes the assignee properties: that they are only present when the issue is assigned, the shape of the identifier value (a string, not a nested object that can be dotted into), and that the name property is what to use to display the assignee.",
+     "essential": true,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "95301101328ffc7714584d08210b127b260703fc"
   },
   {
    "id": "PR106491-hard",
@@ -231,7 +807,52 @@
    "goldTitle": "fix(insights): show the chart gallery on the insight page in view mode",
    "layers": [
     "frontend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "Opening a saved trends insight on the insight page in view mode (without entering edit mode) shows the rich chart type gallery control as the chart type picker, with the same set of alternative visualization options that edit mode offers.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "In view mode on the insight page, the plain chart type dropdown is no longer rendered in the place where the gallery now appears; the two pickers are not shown simultaneously and the dropdown is not used as a view-mode substitute.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "In edit mode, the chart type gallery continues to be available and behaves exactly as before the change (same options, same opening/closing, same selection effect) — no capability is lost or altered there.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c4",
+     "behavior": "Choosing a chart type from the gallery while in view mode changes how the insight is displayed, using the same selection path as edit mode rather than being inert or read-only.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The gallery stays hidden on surfaces where chart type selection should not be offered: embedded/dashboard-tile renderings of the insight, shared or publicly-exposed views, and for users who lack permission to edit the insight.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c6",
+     "behavior": "Existing conditions that decide whether the gallery is offered at all — trends-only applicability and any feature-flag/query-shape gating — continue to apply unchanged in view mode, so the gallery does not appear for insight types that never supported it.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "In view mode the gallery opens and closes as a popover anchored to the chart type control, matching the interaction already provided in edit mode.",
+     "essential": false,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "d56746564886ccea46d8af2e4ad5405de5212cc6"
   },
   {
    "id": "PR106322-hard",
@@ -248,7 +869,64 @@
    "goldTitle": "feat(persons): expose deletion mode, tombstone delivery wait, queue acks and repair counts",
    "layers": [
     "backend"
-   ]
+   ],
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "The deletion order an environment is configured for (tombstone-first vs. legacy) is exposed as a chartable metric whose value/labels let a viewer tell which of the two modes is active, derived from the environment's configuration rather than only from log lines.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "Each attempted profile deletion contributes to a mode-attributed metric, incremented by the number of persons the attempt covered, on both the tombstone-first path and the legacy path, so charts show which order real deletes are taking.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The mode indicator reports the same value no matter how many worker processes export it (it does not grow with process count when every process reports the same configuration).",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "The time a delete spends waiting for the message queue to confirm delivery of published tombstones, before acknowledging items in the tombstone queue, is recorded as a distribution/timing metric with one observation per acknowledgement cycle that had published work — including the case where the messages were already confirmed and no waiting was needed (observation is ~0 rather than absent).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "When an acknowledgement cycle has nothing published to wait for, no delivery-wait observation and no acknowledgement counts are emitted.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "A failure to acknowledge items in the tombstone queue increments a chartable failure count (in addition to any logging), by the number of persons whose acknowledgement did not go through, while the delete itself still reports success and the affected rows stay queued for the weekly repair.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Successful acknowledgements are also counted, and the counted amount reflects the queue rows actually cleared by the call rather than simply the number of persons submitted (idempotent re-acks do not inflate the count).",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "Acknowledgements for large sets are sent in bounded batches, and a batch that fails does not abort the remaining batches: later batches are still attempted and counted, and rows cleared by earlier batches stay counted as succeeded.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c9",
+     "behavior": "The weekly tombstone queue repair publishes, as chartable metrics alongside its existing queue gauges, the number of queued rows it read and separate counts for how it handled them — those acknowledged because the tombstone is gone from the source database, those confirmed present in the analytics store, and those it re-published — with values matching the run's results and emitted even when zero.",
+     "essential": true,
+     "calibrated": true
+    }
+   ],
+   "mergeCommit": "3750b691bff541760ae017515ce208d13cb4d1ea"
   }
  ]
 }

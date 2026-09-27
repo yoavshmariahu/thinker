@@ -1,0 +1,85 @@
+{
+  "id": "frontend-build-esbuild-config-chunk-naming-index-html-genera",
+  "title": "Frontend build: esbuild config, chunk naming, index.html generation",
+  "kind": "callpath",
+  "answers": [
+    "How is the PostHog frontend built?",
+    "Where are chunk names and hashes configured?",
+    "How does dist/index.html get its hashed entry script?",
+    "What does createHashlessEntrypoints do?"
+  ],
+  "body": "- frontend/build.mjs: `buildInParallel([...])` runs PostHog App (src/index.tsx + sharedChunkAnchors, splitting, ESM), WORKER_ENTRIES, Exporter, Render Query (IIFE), Toolbar. `onBuildComplete` for App: `reportTopChunks`, `writePreloadManifest` (prod), then `writeIndexHtml(chunks, entrypoints)`; every build ends with `createHashlessEntrypoints`.\n- `writeIndexHtml` → `copyIndexHtml` twice: src/index.html→dist/index.html and src/layout.html→dist/layout.html; exporter→dist/exporter.html, render query→dist/render_query.html.\n- common/esbuilder/utils.mjs:`commonConfig`: `entryNames` = dev `[dir]/[name]`, prod `[dir]/[name]-[hash]`; `chunkNames` `[name]-[hash]` (→ chunk-HASH.js); `assetNames` `assets/[name]-[hash]`; `publicPath` '/static'; `metafile: true`.\n- `getChunks(result)` reads metafile static imports per entry, keyed by first export (or `index` for root entries); `getBuiltEntryPoints` pairs entry JS with CSS by name+single hash.\n- `createHashlessEntrypoints` copies index-HASH.js → index.js as fallback.\n- `copyIndexHtml` injects inline nonce'd script before </head>: ESBUILD_LOAD_SCRIPT (import JS_URL+/static/+file, fallback to unhashed index.js?t=buildId), `cssLoaderScript` (cssLoader.mjs), `chunkLoaderScript` (chunkLoader.mjs; omitted in dev: `chunksToServe = isDev ? {} : chunks`).",
+  "tags": [
+    "esbuild",
+    "frontend",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": "frontend/build.mjs",
+      "hash": "sha256:04a704af38df6caa36299f29",
+      "missing": false
+    },
+    {
+      "path": "common/esbuilder/utils.mjs",
+      "symbol": "commonConfig",
+      "hash": "sha256:47cb2fbf2b72f6f0e1fdc9ad",
+      "line": 168,
+      "missing": false
+    },
+    {
+      "path": "common/esbuilder/utils.mjs",
+      "symbol": "copyIndexHtml",
+      "hash": "sha256:12685859b64c1fa568d3bb8c",
+      "line": 71,
+      "missing": false
+    },
+    {
+      "path": "common/esbuilder/utils.mjs",
+      "symbol": "createHashlessEntrypoints",
+      "hash": "sha256:1d654445b3dd3c768af59ddf",
+      "line": 150,
+      "missing": false
+    },
+    {
+      "path": "common/esbuilder/chunkLoader.mjs",
+      "hash": "sha256:7837d7ba9826a18b6a4e5727",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e50c32b1-74f3-41fc-b8cb-66aec7f3c784"
+  },
+  "created": "2026-09-26T20:35:12.920Z",
+  "verified": "2026-09-26T20:35:12.920Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "stale",
+  "uses": 4,
+  "related": [
+    "build-output-naming-must-stay-in-sync-with-server-preload-ma",
+    "how-django-picks-which-frontend-build-assets-to-serve-debug-",
+    "chunk-map-file-and-preload-manifest"
+  ],
+  "servedIn": [
+    "2de383db-5d63-43c9-9226-cd2cf77e2c10",
+    "aa0facb4-3469-4ea0-a240-86f0eb879eca",
+    "4d1906e5-79ec-4b4b-a088-06d0c30914e3",
+    "01de268d-b79f-4536-878a-05cd626d33e6"
+  ],
+  "stale": {
+    "since": "2026-09-27T06:28:56.742Z",
+    "changed": [
+      {
+        "path": "frontend/build.mjs",
+        "reason": "file changed"
+      },
+      {
+        "path": "common/esbuilder/utils.mjs",
+        "symbol": "copyIndexHtml",
+        "reason": "symbol body changed"
+      }
+    ]
+  }
+}

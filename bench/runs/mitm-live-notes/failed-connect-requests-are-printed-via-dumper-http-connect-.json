@@ -1,0 +1,95 @@
+{
+  "id": "failed-connect-requests-are-printed-via-dumper-http-connect-",
+  "title": "Failed CONNECT requests are printed via Dumper.http_connect_error",
+  "kind": "callpath",
+  "answers": [
+    "Why does mitmdump print nothing for failed CONNECT?",
+    "How do I make CONNECT failures show in dumper output?",
+    "Which hook fires when a CONNECT fails?"
+  ],
+  "body": "Failed CONNECT flows never fire `response` or `error` hooks, so Dumper stayed silent.\n- Flow: `proxy/layers/http/__init__.py:HttpStream.handle_connect_regular` (eager strategy: `OpenConnection` err -> sets 502 'Cannot connect to ...' response) -> `handle_connect_finish` sets non-2xx response and yields `HttpConnectErrorHook`.\n- Fix: `addons/dumper.py:Dumper.http_connect_error(self, f)` = `if self.match(f): self.echo_flow(f)` (same as `response`/`error`).\n- Successful CONNECTs still not printed (no hook for them in Dumper).\n- Test: `test/mitmproxy/addons/test_dumper.py:test_http_connect_error`; changelog entry goes under 'Unreleased' in CHANGELOG.md.",
+  "applies": "regular/upstream mode CONNECT handling; hook name http_connect_error is from HttpConnectErrorHook",
+  "tags": [
+    "dumper",
+    "connect",
+    "hooks"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/dumper.py",
+      "symbol": "Dumper",
+      "hash": "sha256:58fc1817f27a9dc1019a9a9e",
+      "line": 48,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/__init__.py",
+      "symbol": "HttpStream.handle_connect_regular",
+      "hash": "sha256:90471110203f483d261fc091",
+      "line": 786,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/_hooks.py",
+      "symbol": "HttpConnectErrorHook",
+      "hash": "sha256:3d3ca66af1a51bd3df82ef8c",
+      "line": 114,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/__init__.py",
+      "hash": "sha256:c6040737c83f0ab7e1ca9fa4",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/dumper.py",
+      "symbol": "Dumper.http_connect_error",
+      "hash": "sha256:17e7a1bbecaa01b73e223636",
+      "line": 297,
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/addons/test_dumper.py",
+      "symbol": "test_http_connect_error",
+      "hash": "sha256:effe8f9bc6bad6746d90a93e",
+      "line": 294,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "44062425-7c23-496f-aadf-fccff1fc0147"
+  },
+  "created": "2026-09-26T19:43:04.977Z",
+  "verified": "2026-09-26T19:43:04.977Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.75,
+  "status": "stale",
+  "uses": 0,
+  "related": [
+    "mitmdump-flow-printing-is-the-dumper-addon-response-error-ho",
+    "upstream-proxy-mode-layer-composition-and-mode-selection",
+    "flow-event-dispatch-layer-hook-connectionhandler-addonmanage",
+    "adding-addon-output-for-a-proxy-hook-httpconnecterrorhook-is"
+  ],
+  "stale": {
+    "since": "2026-09-26T19:43:08.297Z",
+    "changed": [
+      {
+        "path": "mitmproxy/addons/dumper.py",
+        "symbol": "Dumper",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "mitmproxy/addons/dumper.py",
+        "symbol": "Dumper.http_connect_error",
+        "reason": "symbol not found"
+      },
+      {
+        "path": "test/mitmproxy/addons/test_dumper.py",
+        "symbol": "test_http_connect_error",
+        "reason": "symbol not found"
+      }
+    ]
+  }
+}

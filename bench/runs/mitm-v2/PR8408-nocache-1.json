@@ -1,0 +1,42 @@
+{
+  "id": "PR8408-nocache-1",
+  "task": "PR8408",
+  "area": "addons-browser",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "526063dd-2e39-42e9-915e-ac7b4e685b56",
+  "turns": 4,
+  "wall_ms": 15955,
+  "api_ms": 15549,
+  "cost": 0.0959768,
+  "in_tokens": 75635,
+  "out_tokens": 1831,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Read": 1,
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added an \"edge\" branch in `start()` and a `launch_edge()` that looks for Edge in the same places as upstream: the macOS app bundle, both Windows `msedge.exe` paths, the Linux binaries, and the Flatpak `com.microsoft.Edge`. It also adds `msedge` as a Linux name, which is harmless. Instead of duplicating the launch code, it moved Chrome's existing launch body into a shared `_launch_chromium(cmd)`. I could only see the diff hunks, not the full file, so I'm inferring that Chrome's flags match the ones upstream uses for Edge, which is likely since Edge is Chromium-based. If they do, Edge gets the same temp profile dir, `--proxy-server` and first-run flags as upstream, and the not-found message is unchanged. Tests and the changelog are equivalent.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/browser.py",
+      "test/mitmproxy/addons/test_browser.py"
+    ]
+  },
+  "result": "`browser.start edge` now launches an isolated, proxy-configured Microsoft Edge. I haven't run the tests, as you asked.\n\n- **`mitmproxy/addons/browser.py`:**\n  - `start()` accepts `\"edge\"` and calls a new `launch_edge()`.\n  - I moved the launch code that `launch_chrome()` used (temp profile dir, `--proxy-server`, first-run flags) into a shared `_launch_chromium(cmd)`. Edge is Chromium-based and takes the same flags, so both browsers now use it.\n  - `launch_edge()` looks for Edge in these places:\n    - the macOS app bundle\n    - both Windows `msedge.exe` install paths\n    - the Linux binaries `microsoft-edge`, `-stable`, `-beta`, `-dev` and `msedge`\n    - the Flatpak `com.microsoft.Edge`\n  - If none is found, it logs the same \"platform is not supported\" message as Chrome and Firefox.\n- **`test/mitmproxy/addons/test_browser.py`:** two new tests. One checks that Edge launches with `--proxy-server=127.0.0.1:8080`, the other that the not-found message appears.\n- **`CHANGELOG.md`:** added an entry under \"Unreleased\".\n\nI left the PR reference and author off the changelog line, since the file's header says CI adds those.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..9e4549e50 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- Add Microsoft Edge support to the Browser addon (`browser.start edge`).\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/addons/browser.py b/mitmproxy/addons/browser.py\nindex ccc920953..38f8e9a50 100644\n--- a/mitmproxy/addons/browser.py\n+++ b/mitmproxy/addons/browser.py\n@@ -43,6 +43,8 @@ class Browser:\n \n         if browser in (\"chrome\", \"chromium\"):\n             self.launch_chrome()\n+        elif browser == \"edge\":\n+            self.launch_edge()\n         elif browser == \"firefox\":\n             self.launch_firefox()\n         else:\n@@ -72,6 +74,27 @@ class Browser:\n             \"com.google.ChromeDev\",\n         )\n \n+        self._launch_chromium(cmd)\n+\n+    def launch_edge(self) -> None:\n+        \"\"\"\n+        Start an isolated instance of Microsoft Edge that points to the currently\n+        running proxy.\n+        \"\"\"\n+        cmd = find_executable_cmd(\n+            \"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge\",\n+            r\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            r\"C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            # Linux binary names\n+            \"microsoft-edge\",\n+            \"microsoft-edge-stable\",\n+            \"microsoft-edge-beta\",\n+            \"microsoft-edge-dev\",\n+            \"msedge\",\n+        ) or find_flatpak_cmd(\"com.microsoft.Edge\")\n+        self._launch_chromium(cmd)\n+\n+    def _launch_chromium(self, cmd: list[str] | None) -> None:\n         if not cmd:\n             logging.log(\n                 ALERT, \"Your platform is not supported yet - please submit a patch.\"\ndiff --git a/test/mitmproxy/addons/test_browser.py b/test/mitmproxy/addons/test_browser.py\nindex d5bd38c5c..77c5ec62a 100644\n--- a/test/mitmproxy/addons/test_browser.py\n+++ b/test/mitmproxy/addons/test_browser.py\n@@ -95,3 +95,23 @@ async def test_browser_start_firefox_not_found(caplog):\n         which.return_value = False\n         browser.Browser().start(\"firefox\")\n         assert \"platform is not supported\" in caplog.text\n+\n+\n+async def test_browser_start_edge():\n+    with (\n+        mock.patch(\"shutil.which\") as which,\n+        mock.patch(\"subprocess.Popen\") as po,\n+        taddons.context(),\n+    ):\n+        which.return_value = \"microsoft-edge\"\n+        browser.Browser().start(\"edge\")\n+        assert po.called\n+        assert \"--proxy-server=127.0.0.1:8080\" in po.call_args[0][0]\n+\n+\n+async def test_browser_start_edge_not_found(caplog):\n+    caplog.set_level(\"INFO\")\n+    with mock.patch(\"shutil.which\") as which:\n+        which.return_value = False\n+        browser.Browser().start(\"edge\")\n+        assert \"platform is not supported\" in caplog.text\n"
+}

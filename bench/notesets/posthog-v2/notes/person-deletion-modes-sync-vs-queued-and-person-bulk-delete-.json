@@ -1,0 +1,57 @@
+{
+  "id": "person-deletion-modes-sync-vs-queued-and-person-bulk-delete-",
+  "title": "Person deletion modes: sync vs queued, and PERSON_BULK_DELETE_ASYNC switch",
+  "kind": "callpath",
+  "answers": [
+    "How does person bulk delete choose sync vs async?",
+    "What setting switches person deletion to queued mode?",
+    "Where is queued person deletion processed?"
+  ],
+  "body": "- API: posthog/api/person.py PersonViewSet → if `allow_queued and settings.PERSON_BULK_DELETE_ASYNC` → `_queue_bulk_delete_persons` → Celery `delete_persons_async` (posthog/tasks/delete_persons.py) → `process_queued_person_deletion` (posthog/models/person/bulk_delete.py).\n- Otherwise (setting False, default; or `allow_queued=False`) → `delete_persons_profile` synchronously in bulk_delete.py.\n- Setting defined at posthog/settings/__init__.py:136 (env PERSON_BULK_DELETE_ASYNC, default False).\n- Queued path pages distinct ids by QUEUED_DELETION_DISTINCT_ID_PAGE_SIZE (5000) and flushes steps at QUEUED_DELETION_DISTINCT_IDS_PER_BATCH (20_000).\n- Flags: delete_profile, delete_recordings, delete_events, keep_person. Events → AsyncDeletion(DeletionType.Person) for deletes_job; recordings → Temporal workflow `delete-recordings-with-person` (caps _RECORDING_DELETION_PERSONS_PER_WORKFLOW=100, _MAX_DISTINCT_IDS_PER_WORKFLOW=2000).\n- API limits: max 1000 ids/distinct_ids per call, not both.",
+  "tags": [
+    "person-deletion",
+    "settings"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/person.py",
+      "hash": "sha256:59dc86e86ca0edfd0d042347",
+      "missing": false
+    },
+    {
+      "path": "posthog/models/person/bulk_delete.py",
+      "symbol": "process_queued_person_deletion",
+      "hash": "sha256:86641aa3e847ed60343d12aa",
+      "line": 217,
+      "missing": false
+    },
+    {
+      "path": "posthog/tasks/delete_persons.py",
+      "hash": "sha256:b5ecab0fa80a6737214f8bf8",
+      "missing": false
+    },
+    {
+      "path": "posthog/settings/__init__.py",
+      "hash": "sha256:4a36389b0b7f93180a90677b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "56b7f00e-a572-4ca0-b57b-9c0f9120117f"
+  },
+  "created": "2026-09-27T00:23:53.882Z",
+  "verified": "2026-09-27T00:23:53.882Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "bulk-person-delete-call-path-api-celery-dagster-bulk-delete-",
+    "person-deletion-step-ordering-and-failure-invariants"
+  ],
+  "servedIn": [
+    "adcee338-64ea-4441-8bfb-db43173e8dd9",
+    "5c8e7539-6b19-4050-88bd-69c110e19dd7"
+  ]
+}

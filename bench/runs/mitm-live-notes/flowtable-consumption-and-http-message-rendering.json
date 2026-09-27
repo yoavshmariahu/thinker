@@ -1,0 +1,44 @@
+{
+  "id": "flowtable-consumption-and-http-message-rendering",
+  "title": "FlowTable consumption and HTTP message rendering",
+  "kind": "callpath",
+  "answers": [
+    "How does the flow view render HTTP request/response?",
+    "What does FlowTable select from Redux?",
+    "Why does the # column keep original number after sort?"
+  ],
+  "body": "- `components/FlowTable.tsx` connect(...) selects `flows.view`, `highlightedIds`, `selectedIds`, `_listIndex`, first selected index (from `_viewIndex`), and `options.web_columns` once at table level (commit d482bbaa2 reduced per-row subscriptions). `_listIndex` feeds the `#` column so numbers persist through sort/filter.\n- `components/FlowView.tsx` imports `Request`/`Response` from `components/FlowView/HttpMessages.tsx`; they read `state.flows.selected[0]` via useAppSelector and render memoized `Message`, using `RequestLine` etc. editors and `KeyValueListEditor`.\n- Body rendering delegates to `components/contentviews/HttpMessage.tsx` (uses useContentView, useContent, ViewSelector, ContentRenderer, CodeEditor; `setContentViewFor` from `ducks/ui/flow`).",
+  "tags": [
+    "components",
+    "flowview"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/components/FlowTable.tsx",
+      "hash": "sha256:e1f087e45d8df600368aa4d8",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/components/FlowView/HttpMessages.tsx",
+      "hash": "sha256:87f8c29571d92de42382b2ba",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/components/contentviews/HttpMessage.tsx",
+      "hash": "sha256:74f072a9ee5285e81ebeb9b6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "4495999f-49ff-4782-bc86-73c614660f9d"
+  },
+  "created": "2026-09-26T09:25:17.713Z",
+  "verified": "2026-09-26T09:25:17.713Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 3,
+  "lastUsed": "2026-09-26T09:59:49.488Z",
+  "related": []
+}

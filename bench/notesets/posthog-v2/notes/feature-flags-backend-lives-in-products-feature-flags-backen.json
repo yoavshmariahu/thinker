@@ -1,0 +1,114 @@
+{
+  "id": "feature-flags-backend-lives-in-products-feature-flags-backen",
+  "title": "Feature flags backend lives in products/feature_flags/backend (not posthog/models)",
+  "kind": "location",
+  "answers": [
+    "Where is the FeatureFlag model?",
+    "Where is flag caching / local evaluation code?",
+    "Where do flag management commands live?"
+  ],
+  "body": "- No `posthog/models/feature_flag/` dir; the product is `products/feature_flags/backend/`.\n- Model: `models/feature_flag.py:FeatureFlag` (table posthog_featureflag; `filters` JSONField; `objects` hides soft-deleted, `objects_including_soft_deleted` includes them).\n- Serialized caches (HyperCache/Redis): `flags_cache.py:update_flags_cache`, `local_evaluation.py:update_flag_definitions_cache` (SDK local-eval blob).\n- Filter shape validation: `filters_validation.py:collect_filters_violations` (no version number).\n- Status/staleness: `flag_status.py:FeatureFlagStatusChecker`.\n- Actual evaluation is in Rust: `rust/feature-flags/src/flags/flag_matching.rs` (only grepped, not read).\n- Commands split: cache warm/verify in `posthog/management/commands/`; audit/repair/delete in `products/feature_flags/backend/management/commands/`.\n- Temporal health check: `products/feature_flags/backend/temporal/health_checks/stale_flags.py`.",
+  "tags": [
+    "feature-flags",
+    "layout"
+  ],
+  "deps": [
+    {
+      "path": "products/feature_flags/backend/models/feature_flag.py",
+      "symbol": "FeatureFlag",
+      "hash": "sha256:2ba4aa7ddd1dfcd5742c8dc4",
+      "line": 140,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flags_cache.py",
+      "hash": "sha256:62da951efd8f36090ef6f8ab",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/local_evaluation.py",
+      "hash": "sha256:c1d2981b2b697fbd2c93a037",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/filters_validation.py",
+      "hash": "sha256:226c2c5903ba82f2ae179a85",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flags_cache.py",
+      "symbol": "update_flags_cache",
+      "hash": "sha256:3fa70d521dace5aed4344e97",
+      "line": 633,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/local_evaluation.py",
+      "symbol": "update_flag_definitions_cache",
+      "hash": "sha256:f8f9b0e42e7fbc80341d4cae",
+      "line": 368,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/filters_validation.py",
+      "symbol": "collect_filters_violations",
+      "hash": "sha256:275b020344dfa39054f77ec7",
+      "line": 362,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flag_status.py",
+      "symbol": "FeatureFlagStatusChecker",
+      "hash": "sha256:be3b8487acca3442ead5c66b",
+      "line": 256,
+      "missing": false
+    },
+    {
+      "path": "rust/feature-flags/src/flags/flag_matching.rs",
+      "hash": "sha256:f9e5d163e8ede49901f009c6",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
+      "hash": "sha256:47b079f5acf6638f4d361d56",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "eecffbdd-fbb7-4ad8-b947-e8cdbabf746d"
+  },
+  "created": "2026-09-26T20:25:57.936Z",
+  "verified": "2026-09-26T20:25:57.936Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 18,
+  "related": [
+    "gotcha-stale-flags-health-check-and-featureflagstatuschecker",
+    "how-cross-team-flag-jobs-iterate-commands-and-temporal-healt",
+    "feature-flag-filters-v1-v2-config-format-detection-and-handl",
+    "flag-and-team-level-version-representations"
+  ],
+  "lastUsed": "2026-09-26T23:34:49.416Z",
+  "servedIn": [
+    "5900d10d-5786-4ea4-b991-ee3f32f68dc0",
+    "cc12b8dc-e71c-4811-a896-5b8b0d1adf1a",
+    "43c683fc-0d94-44ca-ac96-4b6f130e707a",
+    "627ec169-fd04-4e99-832e-eef043c67e56",
+    "23e46a07-2bec-4662-bb9d-5db4b227d3c7",
+    "b5b797cd-a919-4a2e-803c-a4f38bd559b3",
+    "83882f2f-7ff4-4752-b137-a0e75ba0c581",
+    "fc24e040-80bc-4ba6-9c98-b7abf32b55dc",
+    "2b266a83-f261-409f-a7ea-e0152f5622f0",
+    "c96b79a8-4a4d-4a2d-b375-82e8fa9b1140",
+    "27e9d6cb-3cfa-4d7e-96e9-ebf19a6ff757",
+    "6ec7cf9b-2c7b-45c0-8688-6518df3645e2",
+    "1496f670-d564-4f77-a3a8-9b73655484c0",
+    "123380bf-b49e-4ac3-b3eb-a3927e061811",
+    "4bb7b6ba-817e-4bd2-a11a-2f55eb654532",
+    "7963fd21-bd15-4e41-8e3c-274cd2823351",
+    "f46d4b5d-42ec-4d38-853a-4179418ca6d6",
+    "38882f6a-dc45-46d6-ace3-4d87917567d7"
+  ]
+}

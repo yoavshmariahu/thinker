@@ -1,0 +1,98 @@
+{
+  "id": "experiment-metric-fingerprints-computation-and-call-sites",
+  "title": "Experiment metric fingerprints: computation and call sites",
+  "kind": "gotcha",
+  "answers": [
+    "How are experiment metric fingerprints computed?",
+    "What fields change a metric fingerprint?",
+    "Where are fingerprints recomputed?",
+    "What is the recalc fingerprint?"
+  ],
+  "body": "- `products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py:compute_metric_fingerprint` hashes sorted-key JSON of the metric dict, UTC start_date, stats method, and optional exposure_criteria / only_count_matured_users / excluded_variants.\n- `METRIC_FIELDS_TO_IGNORE` (uuid, name, kind, fingerprint, only_count_matured_users) is stripped from the metric dict, so renames or uuid changes don't alter the fingerprint.\n- `_strip_empty_breakdowns` makes an empty breakdownFilter hash like none (saved-metric merge path vs raw path would otherwise differ).\n- `temporal/recalc_fingerprint.py:compute_recalc_fingerprint` = sha256(config_fp + \"recalculation\"), keeping recalc rows separate from daily timeseries rows in the shared `ExperimentMetricResult` table.\n- Call sites: `presentation/serializers.py` (stamps fingerprints), `ExperimentService._recompute_fingerprints`, daily discovery activities in `posthog/temporal/experiments/activities.py`, `recalculation.py:_recalc_fingerprints_for_run`, `timeseries_sync.py:sync_timeseries_recalculation`.\n- Hazard: read paths recompute from current experiment fields, so changing start_date/exposure_criteria/stats config/etc. orphans old rows.",
+  "applies": "When adding or changing an input to the fingerprint; every call site must pass it consistently.",
+  "tags": [
+    "experiments",
+    "fingerprint",
+    "timeseries"
+  ],
+  "deps": [
+    {
+      "path": "products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py",
+      "symbol": "compute_metric_fingerprint",
+      "hash": "sha256:37b2876983d1e4beee52c326",
+      "line": 47,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/temporal/recalc_fingerprint.py",
+      "symbol": "compute_recalc_fingerprint",
+      "hash": "sha256:f47b1cef94f67b42ab71c23f",
+      "line": 8,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/timeseries_sync.py",
+      "symbol": "sync_timeseries_recalculation",
+      "hash": "sha256:5b8fe5bada19d09f2766c903",
+      "line": 45,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/recalculation.py",
+      "hash": "sha256:7de4171273dd75a78f8c1ddf",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/presentation/serializers.py",
+      "hash": "sha256:24a6f580e732fb4bf2bea903",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/experiments/activities.py",
+      "hash": "sha256:3f4d53cfa90bcb42b2395d14",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/recalculation.py",
+      "symbol": "_recalc_fingerprints_for_run",
+      "hash": "sha256:e688bfbd9ff53145fd06b683",
+      "line": 374,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "058f2cfe-013c-4365-b760-41bfce0daccd"
+  },
+  "created": "2026-09-26T20:24:59.919Z",
+  "verified": "2026-09-26T20:24:59.919Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 21,
+  "related": [],
+  "lastUsed": "2026-09-27T00:27:00.934Z",
+  "servedIn": [
+    "ed508f88-1237-460a-9105-5c6cb1fbd83a",
+    "5236f0e8-dfa7-4876-91bb-cce8adfe04ac",
+    "7c625711-0708-4f3b-bb82-483db78692b8",
+    "6d17fed1-6cb3-4238-b29c-b361e5c7bca8",
+    "a3957af3-4ff1-42ac-ba0a-01f196ff67e8",
+    "a1845c80-16a4-421d-b6ef-8aa0d6d2b675",
+    "3f18e863-f78a-4435-8630-b7392695e84f",
+    "304fe954-29c7-4caa-ac1b-b9b6ed37a2ef",
+    "09514e22-ccbc-4bf8-8bde-89ed996869da",
+    "1ab8ae63-f06f-4044-b522-87020216b687",
+    "9c43ef34-676e-4f6f-8453-8819d5918020",
+    "550a5279-1627-4439-9dcf-0b2efc93061e",
+    "48307cd3-3f6d-4a93-991a-b1025cb9194c",
+    "06603d34-f319-4c96-840e-6289e296b4db",
+    "ee46deb5-b573-4746-ab09-2c6903cbe0d1",
+    "341004e5-743f-4683-88f4-36fb6ba870e5",
+    "b76a30c1-b48f-42f9-8fff-a46b0411562b",
+    "fdfd7ef9-f44b-48e5-8396-639e0dbe839c",
+    "a4b3b22d-2409-4a82-b13b-143b2b847aba",
+    "51acf3f9-cb5b-4e51-8c93-1063594f8ea9",
+    "70bdb113-cd1b-4080-9c8d-12e8adec3ecd"
+  ]
+}

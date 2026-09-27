@@ -1,0 +1,60 @@
+{
+  "id": "plugin-server-mode-dispatch-index-ts-createserver-vs-plugins",
+  "title": "Plugin server mode dispatch: index.ts createServer vs PluginServer fallback",
+  "kind": "callpath",
+  "answers": [
+    "How does the plugin server choose what to run?",
+    "Where is PLUGIN_SERVER_MODE handled?",
+    "Where do I add a new server mode?"
+  ],
+  "body": "- `nodejs/src/index.ts:createServer` switches on `defaultConfig.PLUGIN_SERVER_MODE` (enum `PluginServerMode` in `src/common/config.ts`).\n- Most ingestion modes have a dedicated class in `src/servers/` (e.g. `IngestionGeneralServer`, `IngestionApiServer`, `IngestionSessionReplayServer`, `ErrorTrackingServer`, `RecordingApiServer`) sharing `NodeServer`/`ServerLifecycle` from `src/servers/base-server.ts`.\n- `default:` branch returns `PluginServer` (`src/server.ts`): handles CDP modes, evaluation scheduler, local-dev combined modes. Its `startServices` only builds what `getPluginServerCapabilities` (`src/capabilities.ts`) enables; named groups like `CAPABILITIES_CDP` exist so dev can combine them.\n- Shared infra lives in `src/common/` (config, Kafka, `IngestionOutputs`/`KafkaProducerRegistry`, PG/Redis pools, `TeamManager`).",
+  "tags": [
+    "plugin-server",
+    "modes"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/index.ts",
+      "symbol": "createServer",
+      "hash": "sha256:5a174f7f6523a776926c2532",
+      "line": 25,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/server.ts",
+      "hash": "sha256:926c0141934ca9784ce21d21",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/capabilities.ts",
+      "hash": "sha256:46822d43a9a51787cdc46bf4",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/common/config.ts",
+      "symbol": "PluginServerMode",
+      "hash": "sha256:7b1439fc1d73478b580806f5",
+      "line": 33,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/servers/base-server.ts",
+      "hash": "sha256:d597b69b9c848683c8da068d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "461ca948-a93f-493d-91a4-9b58d68b1251"
+  },
+  "created": "2026-09-26T20:39:55.368Z",
+  "verified": "2026-09-26T20:39:55.368Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "servedIn": [
+    "3962f32b-37da-46ad-bfdf-e2257e751a15"
+  ]
+}

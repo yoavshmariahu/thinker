@@ -1,0 +1,50 @@
+{
+  "id": "use-marketingqueryerror-for-dashboard-card-errors-storybook-",
+  "title": "Use MarketingQueryError for dashboard card errors; Storybook needs fixed-width scenes",
+  "kind": "convention",
+  "answers": [
+    "Which component shows the error banner with retry in the marketing dashboard?",
+    "Marketing analytics story snapshot banner collapsed",
+    "How to add a story for a marketing error state"
+  ],
+  "body": "Traffic and customer-card errors in the new marketing dashboard use the shared `MarketingQueryError` (products/marketing_analytics/frontend/dashboard/MarketingQueryError.tsx) instead of a bare LemonBanner. It takes `message`, `queryId` (nullable; the label is omitted when missing), `onRetry`, and `loading`.\n- Table/overview/retention surfaces keep using `InsightErrorState` with a `queryId` prop.\n- Stories wrap the banner in a fixed-width container (`w-[60rem] max-w-full`, and `w-[32.5rem]` for narrow) because the banner's container query collapses in snapshots otherwise (MarketingQueryError.stories.tsx).\n- New stories add entries to frontend/snapshots.yml (generated hashes, do not hand-edit).\n- Failure stories use mswDecorator returning 500 for `/api/environments/:team_id/query/:kind/` (MarketingQueryFailures.stories.tsx).",
+  "applies": "products/marketing_analytics/frontend/dashboard and its stories.",
+  "tags": [
+    "marketing-analytics",
+    "storybook",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "products/marketing_analytics/frontend/dashboard/MarketingQueryError.tsx",
+      "hash": "sha256:f6ee54798945552380ac9be7",
+      "missing": false
+    },
+    {
+      "path": "products/marketing_analytics/frontend/dashboard/MarketingQueryError.stories.tsx",
+      "hash": "sha256:be46a8557cf0189756fec469",
+      "missing": false
+    },
+    {
+      "path": "products/marketing_analytics/frontend/dashboard/MarketingQueryFailures.stories.tsx",
+      "hash": "sha256:7df937892904f8db23ca7b3f",
+      "missing": false
+    },
+    {
+      "path": "frontend/snapshots.yml",
+      "hash": "sha256:136931a57503c54b62af1a75",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105217"
+  },
+  "created": "2026-09-27T00:11:42.659Z",
+  "verified": "2026-09-27T00:11:42.659Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

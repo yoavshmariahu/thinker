@@ -1,0 +1,49 @@
+{
+  "id": "PR8295-hook-0",
+  "task": "PR8295",
+  "area": "next-layer",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "932ae15c-7ba4-459b-932d-67c4a425fe10",
+  "turns": 7,
+  "wall_ms": 21394,
+  "api_ms": 20851,
+  "cost": 0.12886560000000002,
+  "in_tokens": 168384,
+  "out_tokens": 1995,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Read": 3,
+      "Bash": 2,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "ignore-allow-hosts-semantics-in-ignore-connection",
+      "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn",
+      "bytes-heuristics-next-layer-inspects-quic-host-header-raw-tc"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [
+      "Unrelated change to mitmproxy/net/tls.py is_supported_version (moving setup inside try); harmless but out of scope"
+    ],
+    "reason": "The agent's change to next_layer.py's UDP branch is identical to the merged upstream patch: it guards the QUIC parse with _starts_like_quic and the DTLS parse with starts_like_dtls_record. That fixes the stall. The extra tls.py edit is unrelated and doesn't affect the fix's behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py",
+      "mitmproxy/net/tls.py",
+      "test/mitmproxy/net/test_tls.py"
+    ]
+  },
+  "result": "I fixed the stall in `mitmproxy/addons/next_layer.py`. I haven't run the tests or added a new one.\n\nIn `NextLayer._get_client_hello`, the UDP branch used to try QUIC parsing and then DTLS parsing on every call. It now only tries each parser if the bytes plausibly look like that protocol:\n\n- **QUIC:** parsed only if `_starts_like_quic(data_client, context.server.address)` is true.\n- **DTLS:** parsed only if `starts_like_dtls_record(data_client)` is true.\n- **Otherwise:** it returns `None`.\n\nThis matches the TCP branch, which already checks `starts_like_tls_record` before parsing. Once the QUIC handshake finishes, the next-layer hook is called with `data_client == b\"\"`, which fails both checks. `_get_client_hello` therefore returns `None`, so `_ignore_connection` falls through to the other candidates (peername, address, `client.sni`). `_next_layer` then continues on to the HttpLayer assignment instead of deferring forever.\n\nThe bug report says the empty input ends up as `NeedsMoreData`, but in the current code both parse calls are wrapped in `except ValueError: pass`. I didn't trace exactly where the `NeedsMoreData` came from. The new checks stop empty or garbage payloads reaching either parser, so that path shouldn't be hit for them.\n\nA natural regression test would call `_next_layer` with UDP, `ignore_hosts` or `allow_hosts` set, an established client `sni` and empty `data_client`, and assert that a layer is returned rather than `NeedsMoreData`. I didn't write it.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..614957808 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,19 +320,21 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n-\n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                if _starts_like_quic(data_client, context.server.address):\n+                    try:\n+                        return quic_parse_client_hello_from_datagrams([data_client])\n+                    except ValueError:\n+                        pass\n+\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\ndiff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py\nindex 14c0553ca..92598abb4 100644\n--- a/mitmproxy/net/tls.py\n+++ b/mitmproxy/net/tls.py\n@@ -73,16 +73,17 @@ DEFAULT_OPTIONS = SSL.OP_CIPHER_SERVER_PREFERENCE | SSL.OP_NO_COMPRESSION\n \n @cache\n def is_supported_version(version: Version):\n-    client_ctx = SSL.Context(SSL.TLS_CLIENT_METHOD)\n-    # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n-    # https://github.com/pyca/cryptography/issues/9523\n-    client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n-    client_ctx.set_min_proto_version(version.value)\n-    client_ctx.set_max_proto_version(version.value)\n-    client_conn = SSL.Connection(client_ctx)\n-    client_conn.set_connect_state()\n-\n     try:\n+        client_ctx = SSL.Context(SSL.TLS_CLIENT_METHOD)\n+        # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n+        # https://github.com/pyca/cryptography/issues/9523\n+        client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n+        # Some OpenSSL builds have dropped versions entirely (e.g. SSLv3) and\n+        # raise SSL.Error here already.\n+        client_ctx.set_min_proto_version(version.value)\n+        client_ctx.set_max_proto_version(version.value)\n+        client_conn = SSL.Connection(client_ctx)\n+        client_conn.set_connect_state()\n         client_conn.recv(4096)\n     except SSL.WantReadError:\n         return True\ndiff --git a/test/mitmproxy/net/test_tls.py b/test/mitmproxy/net/test_tls.py\nindex 8359e4a9d..49dc90f5b 100644\n--- a/test/mitmproxy/net/test_tls.py\n+++ b/test/mitmproxy/net/test_tls.py\n@@ -15,6 +15,15 @@ def test_supported(version):\n     assert tls.is_supported_version(version) == expected_support\n \n \n+def test_supported_setup_error(monkeypatch):\n+    def raise_error(*args, **kwargs):\n+        raise SSL.Error(\"protocol version not supported\")\n+\n+    monkeypatch.setattr(SSL.Context, \"set_min_proto_version\", raise_error)\n+    # bypass @cache so the result is neither served from nor stored in it\n+    assert tls.is_supported_version.__wrapped__(tls.Version.SSL3) is False\n+\n+\n def test_make_master_secret_logger():\n     assert tls.make_master_secret_logger(None) is None\n     assert isinstance(tls.make_master_secret_logger(\"filepath\"), tls.MasterSecretLogger)\n"
+}

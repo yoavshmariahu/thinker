@@ -1,0 +1,42 @@
+{
+  "id": "E12-ctx-obj-irrelevant-0",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "irrelevant",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "40fddd8f-cb61-453e-84e4-41008b12cf23",
+  "turns": 4,
+  "wall_ms": 11501,
+  "api_ms": 11090,
+  "cost": 0.0629004,
+  "in_tokens": 62630,
+  "out_tokens": 1038,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 1,
+      "Read": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.9,
+    "missing": [
+      "Doesn't list the sites that supply parent= (Command.make_context, Group.invoke at ~1982/2002-2008, Context._make_sub_context), which the reference includes as file:symbol locations",
+      "Doesn't mention ensure_object can clobber an unrelated existing obj on the current context (isinstance-only check)",
+      "Doesn't mention ensure_object requires zero-arg constructor",
+      "Doesn't mention chained-group siblings each snapshot the group's obj / make_pass_decorator consumers"
+    ],
+    "wrong": [],
+    "reason": "The main point is correct and matches the reference. Propagation happens at Context.__init__ (core.py:374-378) as a reference copy at construction. The find_object/ensure_object semantics are accurate, including writing to the innermost context. Several supporting specifics from the reference are missing, but nothing stated is wrong.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "## Propagation\n\nIt happens in `Context.__init__` in `src/click/core.py:374-378`:\n\n```python\nif obj is None and parent is not None:\n    obj = parent.obj\nself.obj = obj\n```\n\nWhen a subcommand's context is created, `parent` is the group's context. If no explicit `obj=` was passed, the child copies the parent's `obj` reference. This is a shallow copy of the reference, not a clone. The group and its subcommands therefore share the same object, and mutating it in one is visible in the others.\n\nTwo consequences follow:\n\n- The copy happens once, at child-context creation. The group callback runs before the subcommand context is created, so anything the group callback sets on `ctx.obj` is inherited.\n- If the child is created first and the parent's `obj` is reassigned afterwards, the child doesn't see the new value.\n\nThe same constructor also inherits `_meta` (`core.py:379`) and `_opt_prefixes` (`core.py:372`) from the parent.\n\n## `find_object` vs `ensure_object`\n\nBoth are in `src/click/core.py`.\n\n- **`Context.find_object`** (`core.py:736`) is read-only. It walks from the current context up through `.parent`. It returns the first `node.obj` that is an `isinstance` of `object_type`, or `None` if there is no match.\n- **`Context.ensure_object`** (`core.py:748`) calls `find_object` first. If that returns `None`, it creates `object_type()` and assigns it to `self.obj`, which is the current (innermost) context only, not the root or the parent. It then returns the object.\n\nSo `ensure_object` never returns `None`. If it has to create the object, that object is visible to this context and to any children created afterwards. It is not visible to the parent or to sibling contexts.\n\nBecause `find_object` matches on type, it can find an ancestor's object even when the nearer `ctx.obj` is something else. For example, `ctx.obj` may be a `str` while a parent holds a `Config`. The `__init__` propagation, by contrast, just copies whatever `parent.obj` is.",
+  "is_error": false,
+  "diff": null
+}

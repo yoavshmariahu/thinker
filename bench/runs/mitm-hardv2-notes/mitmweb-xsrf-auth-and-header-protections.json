@@ -1,0 +1,98 @@
+{
+  "id": "mitmweb-xsrf-auth-and-header-protections",
+  "title": "mitmweb XSRF, auth and header protections",
+  "kind": "location",
+  "answers": [
+    "How does mitmweb protect against XSRF?",
+    "Where is mitmweb authentication enforced?",
+    "How does the frontend send the XSRF token?"
+  ],
+  "body": "- `Application.__init__` (mitmproxy/tools/web/app.py) sets `xsrf_cookies=True`, `xsrf_cookie_kwargs=dict(samesite=\"Strict\")`, random `cookie_secret`.\n- Frontend: web/src/js/utils.ts reads the `_xsrf` cookie and sends header `X-XSRFToken` on fetches.\n- Websocket: `WebSocketEventBroadcaster.prepare` touches `self.xsrf_token` so the cookie is set on handshake.\n- `RequestHandler.prepare` returns 403 for non-GET/HEAD/OPTIONS when `Sec-Fetch-Site` is present and not same-origin/none.\n- `RequestHandler.set_default_headers`: X-Frame-Options DENY, CSP default-src 'self', nosniff.\n- Auth: `AuthRequestHandler.__init_subclass__` auto-wraps every HTTP method with `_require_auth` (signed cookie, Bearer token or `token` arg via `is_valid_password`); new handlers inherit this automatically. `IndexHandler.auth_fail` renders login.",
+  "tags": [
+    "mitmweb",
+    "xsrf",
+    "auth"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "AuthRequestHandler",
+      "hash": "sha256:73208c4a9cbfc9ca9e70b900",
+      "line": 224,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "Application",
+      "hash": "sha256:762d04ea5688e05571d5b7a4",
+      "line": 915,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/utils.ts",
+      "hash": "sha256:db5f7877c005fc7cb8323f86",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "Application.__init__",
+      "hash": "sha256:17e052b91bdd2bdf4abc6f3e",
+      "line": 918,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "WebSocketEventBroadcaster.prepare",
+      "hash": "sha256:27498398c034bdf041b3807b",
+      "line": 383,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "RequestHandler.prepare",
+      "hash": "sha256:27472a07e476c58747cff059",
+      "line": 284,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "RequestHandler.set_default_headers",
+      "hash": "sha256:17ff74056499be31d88c6ea7",
+      "line": 300,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "AuthRequestHandler.__init_subclass__",
+      "hash": "sha256:127c7b0ff242b210b5925dc7",
+      "line": 227,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "IndexHandler.auth_fail",
+      "hash": "sha256:d70015c95d5e0ca8327f0026",
+      "line": 362,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "33f43c64-d7f2-4582-ab59-0489fe03b3ed"
+  },
+  "created": "2026-09-26T09:24:21.699Z",
+  "verified": "2026-09-26T09:24:21.699Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 7,
+  "lastUsed": "2026-09-26T19:44:45.801Z",
+  "related": [
+    "mitmweb-flow-update-path-http-put-view-update-websocket-broa",
+    "flow-arrival-and-filter-evaluation-websocket-to-view-update"
+  ],
+  "servedIn": [
+    "c49d2dfa-8d17-47a4-a534-9164b432b5b3",
+    "d28d4b8a-0a02-4b46-a0c7-17ad243a22f5"
+  ]
+}

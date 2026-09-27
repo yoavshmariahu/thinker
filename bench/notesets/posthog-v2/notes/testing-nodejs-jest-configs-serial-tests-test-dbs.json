@@ -1,0 +1,63 @@
+{
+  "id": "testing-nodejs-jest-configs-serial-tests-test-dbs",
+  "title": "Testing nodejs: jest configs, serial tests, test DBs",
+  "kind": "howto",
+  "answers": [
+    "How do I run nodejs tests?",
+    "When to use .serial.test.ts?",
+    "Which databases do nodejs tests use?"
+  ],
+  "body": "- Tests use dedicated DBs (`test_posthog`, `test_persons`, `test_behavioral_cohorts`, `test_cyclotron*`, ClickHouse `posthog_test`), never dev DBs. Create with `pnpm --filter=@posthog/nodejs setup:test`; `tests/helpers/database-guard.ts` blocks destructive helpers on non-test DBs.\n- Run one file: `pnpm jest <path>` from `nodejs/`, or `hogli test <path>` from repo root.\n- Two configs: `jest.config.js` (`*.test.ts`, parallel) and `jest.serial.config.js` (`*.serial.test.ts`, --runInBand) for shared mutable infra, e.g. `src/ingestion/ingestion-consumer.serial.test.ts`, `tests/server.serial.test.ts`. package.json scripts `test:parallel`/`test:serial`.\n- Unit tests sit beside source and assert with `isOkResult`/`PipelineResultType`.",
+  "tags": [
+    "testing",
+    "jest"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/README.md",
+      "hash": "sha256:c90614819f2d6e538e9ecb7e",
+      "missing": false
+    },
+    {
+      "path": "nodejs/package.json",
+      "hash": "sha256:b370367d9cfa235fdf6f1f70",
+      "missing": false
+    },
+    {
+      "path": "nodejs/jest.config.js",
+      "hash": "sha256:277c2f5aafb844690c4420a2",
+      "missing": false
+    },
+    {
+      "path": "nodejs/jest.serial.config.js",
+      "hash": "sha256:eba1698930ed94833c395acc",
+      "missing": false
+    },
+    {
+      "path": "nodejs/tests/helpers/database-guard.ts",
+      "hash": "sha256:df205af2a52ac8376faed485",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.serial.test.ts",
+      "hash": "sha256:6df822f491f36b628b4c2eef",
+      "missing": false
+    },
+    {
+      "path": "nodejs/tests/server.serial.test.ts",
+      "hash": "sha256:e8e38cb7a6aad8a702607464",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "461ca948-a93f-493d-91a4-9b58d68b1251"
+  },
+  "created": "2026-09-26T20:39:55.979Z",
+  "verified": "2026-09-26T20:39:55.979Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

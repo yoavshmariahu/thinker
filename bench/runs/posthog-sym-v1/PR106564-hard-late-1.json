@@ -1,0 +1,100 @@
+{
+  "id": "PR106564-hard-late-1",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "late",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "dfc7d833-f026-406e-9e28-8a46c6a24b17",
+  "turns": 12,
+  "wall_ms": 46087,
+  "api_ms": 30225,
+  "cost": 0.2288968,
+  "in_tokens": 646832,
+  "out_tokens": 2769,
+  "tools": {
+    "calls": 11,
+    "byTool": {
+      "Bash": 11
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 11,
+    "injected": [
+      "chunk-map-file-and-preload-manifest",
+      "slack-app-http-entry-points-and-api-map",
+      "backend-asset-serving-js-url-static-dirs-templates-from-dist",
+      "frontend-build-esbuild-config-chunk-naming-index-html-genera"
+    ],
+    "lateEvents": 9,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty. It did not find posthog/stable_chunks.py, where the existing opt-in logic lives, and it made no functional change. The requested feature-flag rollout is not implemented.",
+      "The agent's patch is empty and it made no functional change. It failed to find the existing posthog/stable_chunks.py module, which already implements the query-param and cookie opt-in. The merged patch adds flag-based selection for authenticated users there and in posthog/utils.py, so the request is not met.",
+      "The agent produced an empty patch and no functional change. It failed to locate posthog/stable_chunks.py, where the existing opt-in logic lives (stable_chunks_opted_in, the cookie, the stable_chunks param). It told the user the feature was missing. Its proposed design was in the right general direction (flag for authenticated users, param overrides), but nothing was implemented."
+    ],
+    "reason": "The agent's patch is empty. It did not find posthog/stable_chunks.py, where the existing opt-in logic lives, and it made no functional change. The requested feature-flag rollout is not implemented.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag evaluation selects the stable build."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-based enrolment logic exists, so there is no logged-in gating."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-handling code was added, so the missing-flag fallback behaviour is not implemented."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch; the author reports no stable-build query parameter exists in the checkout, so no override or precedence was implemented."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no remembered choice (cookie, roughly 30 days) was added."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch; the flag value is not passed to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch; there is no reload-on-failure handling for the stable build."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no code removes the query parameter from the URL."
+        }
+      ]
+    }
+  },
+  "result": "I couldn't find the stable chunk build in this checkout, so I made no changes.\n\nI searched the repo for it under several names: `stable chunk`, `stableChunk`, `stable build`, `stable-build`, and a `?stable=` / `?chunks=` / `?build=` query parameter. I looked in these places:\n- `common/esbuilder/` (`utils.mjs`, `chunkLoader.mjs`)\n- `frontend/build.mjs`\n- `frontend/src/index.html`\n- `posthog/utils.py`\n- `posthog/views.py`\n- `posthog/urls.py`\n- `posthog/settings/`\n\nThe only \"stable chunk\" hits are unrelated: sourcemap chunk IDs in `cli/` and some review_hog docs. The only query parameter `posthog/utils.py` reads is `no-preloaded-app-context`. The frontend build here is one esbuild build with content-hashed chunks and an inline chunk loader, and nothing switches between two variants. There is only `master`, and the git log has no commit that adds a stable build.\n\nI didn't want to invent the build and a query-parameter opt-in just to hang a flag on them. That would be a guess at a large feature, and it wouldn't match whatever you have elsewhere.\n\n**Design I would use once the build exists**\n- **Where:** in `_build_template_context` in `posthog/utils.py`, where `index.html` gets its context. That is the only place with both the request and the user.\n- **Who is enrolled:** only when `request.user.is_authenticated`. Anonymous users always get the current build and never see the flag.\n- **Flag check:** evaluate a server-side feature flag for that user with a 50/50 split, for example `stable-chunk-build`. Evaluating it also records the exposure event, so LCP can be compared by variant.\n- **Manual opt-in:** if the query parameter is present, use the stable build without checking the flag. The parameter keeps working, and forced users don't get counted as experiment exposures.\n- **Serving:** pass the result to the template, or use it to pick which built `index.html` and chunk map to serve.\n- **Test:** cover three cases, with the flag on, flag off, and anonymous.\n\nCan you tell me which branch or PR has the stable chunk build, or how the query parameter is meant to work? I'll wire the flag in once I can see that.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

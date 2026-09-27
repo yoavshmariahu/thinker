@@ -1,0 +1,93 @@
+{
+  "id": "PR106564-hard-nocache-1",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "d34641b8-e599-4644-858b-61552b0670df",
+  "turns": 19,
+  "wall_ms": 100008,
+  "api_ms": 45220,
+  "cost": 0.49158419999999997,
+  "in_tokens": 1102575,
+  "out_tokens": 3990,
+  "tools": {
+    "calls": 18,
+    "byTool": {
+      "Bash": 18
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 18,
+    "injected": []
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent made no code change, so the request is not achieved. The relevant code (posthog/stable_chunks.py, posthog/utils.py, common/esbuilder/utils.mjs) existed upstream, and the agent failed to find it.",
+      "The agent's patch is empty and no functional change was made. The agent failed to find the existing stable chunks code (posthog/stable_chunks.py, utils.py's stable_chunks_for_request), so the flag-based rollout was not implemented.",
+      "The agent made no change and did not find the existing stable chunks implementation. The upstream patch changes posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs to add flag-based enrollment. Nothing in the agent's output achieves the request."
+    ],
+    "reason": "The agent made no code change, so the request is not achieved. The relevant code (posthog/stable_chunks.py, posthog/utils.py, common/esbuilder/utils.mjs) existed upstream, and the agent failed to find it.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag evaluation selects the stable build."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no logged-in gating or flag-based build selection exists."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-based path exists. Author states the stable build does not exist in the checkout."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch; author says no query parameter handling for build selection exists."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no cookie/stored choice implemented."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch; nothing passes the deciding flag value to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no reload-on-failure handling for a stable build was added."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no query parameter removal from the URL was added."
+        }
+      ]
+    }
+  },
+  "result": "I haven't changed anything, because I couldn't find the stable chunk build in this checkout.\n\nI searched the whole repo for these:\n- \"stable chunk\", \"stable build\" and close variants\n- the query parameter handling in `posthog/utils.py`, `posthog/views.py` and the index template\n- the frontend build (`frontend/build.mjs`, `common/esbuilder/*`)\n- `frontend/src/index.html` and the chunk loader\n- feature-flag hooks near the page render\n\nNone of it turned up. The build has one chunking setup, with content-hashed chunk names and an external chunk map. `frontend/src/index.html` has no build selector. Nothing reads a query parameter to switch builds. The only `stable*` hits are unrelated (`stable_chunk_id` in the sourcemap CLI for error tracking, plus test fixtures).\n\nI couldn't tell whether the stable build lives on a branch this checkout doesn't have or is spelled in a way I missed. The only branch here is `master`, and it has no such code. If I guessed, I'd be inventing both the build and its opt-in, and the flag wiring would sit on top of code that doesn't exist.\n\nThe flag wiring itself is straightforward once the stable build is there:\n- **Flag check:** in `get_context_for_template` in `posthog/utils.py`, for `index.html` only, evaluate a flag such as `stable-chunk-build`. Use the logged-in user's distinct ID, and skip anonymous users entirely so they never enter the experiment.\n- **Manual override:** serve the stable build when either the flag is on or the existing query parameter is set. The parameter would still work for anyone forcing it on.\n- **Experiment split:** configure the 50/50 split and the LCP metric on the flag or experiment in PostHog, not in code.\n\nTo go ahead, tell me one of:\n1. The branch or PR that has the stable chunk build, so I can fetch it and build on it.\n2. The name of the query parameter and the files that handle it.\n3. That you want me to implement the stable build too, which is a much larger change.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

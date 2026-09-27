@@ -1,0 +1,43 @@
+{
+  "id": "inbox-actionability-filters-read-cached-columns-nullable-alr",
+  "title": "Inbox actionability filters read cached columns; nullable already_addressed needs filter(=False)",
+  "kind": "invariant",
+  "answers": [
+    "Why does already_addressed=false exclude reports nobody judged?",
+    "How do I filter the Self-driving inbox by actionability or already addressed?",
+    "Reports missing from inbox actionability tab"
+  ],
+  "body": "Inbox list filters/ranks on the cached columns `SignalReport.latest_actionability` and `latest_already_addressed`, not on artefact JSON (the `_latest_actionability_field` subquery helpers were deleted).\n- Enforced in `products/signals/backend/views.py`: `_apply_signal_report_actionability_filter`, `_apply_signal_report_already_addressed_filter`, `_apply_signal_report_inbox_view_filter`, `_Q_READY_NOT_ACTIONABLE`.\n- `latest_already_addressed` is nullable. `already_addressed=false` must be `filter(latest_already_addressed=False)`; `exclude(...=True)` lets unjudged (NULL) reports back in. The `actionable` view likewise filters `latest_already_addressed=False`.\n- A report whose cached columns stay NULL drops out of the actionability tabs, so anything that writes judgment artefacts must keep the columns current (receivers in #104927; `backfill_report_actionability` command repairs drift).\n- Test: `test_filter_already_addressed_false_excludes_reports_nobody_judged` in `products/signals/backend/test/test_signal_report_api.py`.",
+  "applies": "products/signals inbox list queries in SignalReportViewSet",
+  "tags": [
+    "signals",
+    "inbox",
+    "nullable",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/views.py",
+      "symbol": "_apply_signal_report_already_addressed_filter",
+      "hash": "sha256:98449604d310353a52d71bea",
+      "line": 1521,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/test/test_signal_report_api.py",
+      "hash": "sha256:722a215fc350a4ad3ed17bf6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105683"
+  },
+  "created": "2026-09-26T23:59:23.591Z",
+  "verified": "2026-09-26T23:59:23.591Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

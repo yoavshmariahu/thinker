@@ -1,0 +1,59 @@
+{
+  "id": "decorator-flow-option-argument-stash-params-on-function-comm",
+  "title": "Decorator flow: option/argument stash params on function, command builds Command",
+  "kind": "callpath",
+  "answers": [
+    "How does @click.command turn a function into a Command?",
+    "Where are @option params accumulated before the Command exists?",
+    "How does @group relate to @command?",
+    "Why are __click_params__ reversed?"
+  ],
+  "body": "- `decorators.py:option` → inner `decorator(f)` → `_param_memo(f, cls(param_decls, **attrs))`; returns `f` unchanged. `argument` same with `Argument`. `version_option`/`help_option`/`password_option` etc. wrap `option(...)`.\n- `decorators.py:_param_memo`: if `f` is a `Command`, appends to `f.params` (option stacked above @command); else appends to `f.__click_params__` (list created on the function if missing).\n- Decorators apply bottom-up, so the list is in reverse source order.\n- `decorators.py:command` inner `decorator(f)`: TypeError if `f` is already a Command; starts from `attrs.pop('params')` or `[]`; reads and `del`s `f.__click_params__`, then `params.extend(reversed(...))` (explicit params= come first); defaults help to `f.__doc__`; name from `f.__name__` (lowercased, `_`→`-`, strips suffix -command/-cmd/-group/-grp); finally `cls(name=..., callback=f, params=params, **attrs)`.\n- Bare `@command` works because `command` checks `callable(name)` and applies `decorator` immediately (asserts cls is None and no attrs).\n- `decorators.py:group` sets `cls = Group` by default and delegates to `command`; no separate build code.",
+  "tags": [
+    "decorators",
+    "command",
+    "option",
+    "params"
+  ],
+  "deps": [
+    {
+      "path": "src/click/decorators.py",
+      "symbol": "command",
+      "hash": "sha256:8c38f37f6f8249e9618431ad",
+      "line": 137,
+      "missing": false
+    },
+    {
+      "path": "src/click/decorators.py",
+      "symbol": "_param_memo",
+      "hash": "sha256:7defb1f9091ea74605c842b6",
+      "line": 314,
+      "missing": false
+    },
+    {
+      "path": "src/click/decorators.py",
+      "symbol": "option",
+      "hash": "sha256:9b6bcbfeb6ff5d161ecc6e87",
+      "line": 352,
+      "missing": false
+    },
+    {
+      "path": "src/click/decorators.py",
+      "symbol": "group",
+      "hash": "sha256:a74dede9f04c50392277b785",
+      "line": 262,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "05b822d5-2d22-4654-a10d-4c2cd75578ae"
+  },
+  "created": "2026-09-26T09:13:50.437Z",
+  "verified": "2026-09-26T09:13:50.437Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 27,
+  "lastUsed": "2026-09-26T09:36:36.480Z"
+}

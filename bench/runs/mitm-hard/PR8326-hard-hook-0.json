@@ -1,0 +1,72 @@
+{
+  "id": "PR8326-hard-hook-0",
+  "task": "PR8326-hard",
+  "area": "proxy-http",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "4ecb126f-bb52-4e47-b298-2a3fc5c3bd79",
+  "turns": 6,
+  "wall_ms": 14225,
+  "api_ms": 13694,
+  "cost": 0.0995296,
+  "in_tokens": 126684,
+  "out_tokens": 1244,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Read": 2,
+      "Edit": 1,
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 2,
+    "greps": 2,
+    "injected": [
+      "building-sending-the-upstream-connect-and-forming-the-author",
+      "upstream-proxy-mode-layer-composition-and-mode-selection",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [
+      "No test added (optional)",
+      "No changelog entry (does not matter)"
+    ],
+    "wrong": [],
+    "reason": "The agent changed the same spot as upstream, `HttpUpstreamProxy.start_handshake`. It IDNA-encodes the host, then wraps it in brackets if it contains \":\". ASCII IPv6 literals pass through the idna codec unchanged, so `[2001:db8::1]:443` is produced. Domains and IPv4 addresses are unchanged. The shared `authority` variable also brackets the Host header, as upstream does. The `:` check is simpler than upstream's `ipaddress` parse but behaves the same for valid hosts.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the same code in start_handshake and brackets IPv6 literals in the authority, which is also used for the Host header. Its colon check gives the same output as the merged patch's ipaddress check for realistic hosts, and domains and IPv4 addresses are unchanged. The missing test does not affect the score.",
+      "Same location as the merged patch, and functionally equivalent. IPv6 literals (hosts containing ':') get bracketed in the authority, which is also used for the Host header. Encoding with idna before bracketing is harmless for ASCII IPv6 strings. No test was added, but tests don't affect the score.",
+      "The agent changed the same place as the merged patch, `start_handshake` in `_upstream_proxy.py`. It brackets IPv6 literals in the authority, which also feeds the Host header, so the CONNECT line and Host header both come out bracketed. It detects IPv6 by checking for \":\" in the IDNA-encoded host instead of using `ipaddress`. For IPv6 literals, IPv4 addresses and domain names that gives the same result. IDNA encoding of an IPv6 string like \"2001:db8::1\" passes it through unchanged, so nothing gets mangled. The missing test and changelog entry don't affect behavior."
+    ]
+  },
+  "result": "In upstream proxy mode, the CONNECT sent to the upstream proxy now brackets an IPv6 literal target, so it goes out as `CONNECT [::1]:443` instead of `CONNECT ::1:443`. I did not add a test and did not run anything.\n\nThe change is in `HttpUpstreamProxy.start_handshake` in `mitmproxy/proxy/layers/http/_upstream_proxy.py`. If the IDNA-encoded host contains a `:`, it is wrapped in `[...]` before the port is appended. Domain names and IPv4 addresses come out as before.\n\nBecause `authority` is reused for the optional `Host` header (`http_connect_send_host_header`), that header is bracketed too, which is what RFC 7230 requires for IPv6 hosts.\n\nThe existing `test_upstream_proxy` in `test/mitmproxy/proxy/layers/http/test_http.py` could be extended with an IPv6 case, but its parametrization is intricate, so I left it alone.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/proxy/layers/http/_upstream_proxy.py b/mitmproxy/proxy/layers/http/_upstream_proxy.py\nindex f40b26ce6..d25c44e23 100644\n--- a/mitmproxy/proxy/layers/http/_upstream_proxy.py\n+++ b/mitmproxy/proxy/layers/http/_upstream_proxy.py\n@@ -50,9 +50,10 @@ class HttpUpstreamProxy(tunnel.TunnelLayer):\n             return (yield from super().start_handshake())\n         assert self.conn.address\n         flow = http.HTTPFlow(self.context.client, self.tunnel_connection)\n-        authority = (\n-            self.conn.address[0].encode(\"idna\") + f\":{self.conn.address[1]}\".encode()\n-        )\n+        host = self.conn.address[0].encode(\"idna\")\n+        if b\":\" in host:  # IPv6 literal\n+            host = b\"[\" + host + b\"]\"\n+        authority = host + f\":{self.conn.address[1]}\".encode()\n         headers = http.Headers()\n         if self.context.options.http_connect_send_host_header:\n             headers.insert(0, b\"Host\", authority)\n",
+  "grade0": {
+    "score": 0.95,
+    "missing": [
+      "No test added (optional)",
+      "No changelog entry (does not matter)"
+    ],
+    "wrong": [],
+    "reason": "The agent changed the same spot as upstream, `HttpUpstreamProxy.start_handshake`. It IDNA-encodes the host, then wraps it in brackets if it contains \":\". ASCII IPv6 literals pass through the idna codec unchanged, so `[2001:db8::1]:443` is produced. Domains and IPv4 addresses are unchanged. The shared `authority` variable also brackets the Host header, as upstream does. The `:` check is simpler than upstream's `ipaddress` parse but behaves the same for valid hosts.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+    ]
+  }
+}

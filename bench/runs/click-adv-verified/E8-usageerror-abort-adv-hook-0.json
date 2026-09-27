@@ -1,0 +1,46 @@
+{
+  "id": "E8-usageerror-abort-adv-hook-0",
+  "task": "E8-usageerror-abort-adv",
+  "area": "exceptions",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "01eeee71-7b32-4397-91ba-414dfb87b3c5",
+  "turns": 4,
+  "wall_ms": 13595,
+  "api_ms": 13045,
+  "cost": 0.0412844,
+  "in_tokens": 92435,
+  "out_tokens": 1144,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 2,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "command-main-exception-handling-and-exit-code-flow",
+      "exception-hierarchy-and-exit-codes-in-exceptions-py",
+      "clirunner-invoke-exception-exit-code-handling-and-result"
+    ]
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "Exact usage output format (blank line before Error, hint uses longest help name)",
+      "Context teardown ordering and Context.exit/Exit path",
+      "augment_usage_errors attaching ctx",
+      "Line numbers for show/sys.exit (1521/1522) and Abort echo/exit lines (1546/1547)"
+    ],
+    "wrong": [],
+    "reason": "The answer matches the reference on all key facts. UsageError is caught at core.py:1518, exits 2, and prints usage, hint and Error to stderr. Abort is caught at 1543 and, per the version correction, prints \"Interrupted!\" and exits 130. KeyboardInterrupt is caught at 1515, echoes a blank line, raises Abort from e, and ends as blank line plus \"Interrupted!\" with exit 130. The missing items are minor extra detail.",
+    "mustHit": 0,
+    "mustTotal": 0
+  },
+  "result": "All three cases are handled in `src/click/core.py:Command.main` (lines 1501–1547). The code there differs from what I had cached and from upstream click, so I'm describing what the file says now.\n\n**`click.UsageError`**\n- It is caught by `except ClickException` at `core.py:Command.main:1518`, since `UsageError` subclasses `ClickException`.\n- In standalone mode, `e.show()` (`exceptions.py:UsageError.show`) prints the usage line, then a `Try '... --help'` hint if the command has a help option, then `Error: <message>`. All of it goes to stderr.\n- It then calls `sys.exit(e.exit_code)`. `exit_code` is 2 (`exceptions.py:UsageError`, line 77), so the process exits with **2**.\n- With `standalone_mode=False`, the exception is re-raised and nothing is printed.\n\n**`click.Abort`**\n- `Abort` is not a `ClickException`, so the inner handlers don't take it. It propagates to the outer `except Abort` at `core.py:Command.main:1543`.\n- In standalone mode, it echoes `Interrupted!` to stderr and calls `sys.exit(130)`. The exit code is **130**.\n- With `standalone_mode=False`, it is re-raised.\n- Upstream click prints `Aborted!` and exits 1. I believe the \"adversarial mutations\" commit (33a9ddb) changed this, but I didn't check the diff.\n\n**Plain `KeyboardInterrupt`** (`EOFError` is handled the same way)\n- It is caught by the inner `except (EOFError, KeyboardInterrupt)` at `core.py:Command.main:1515`.\n- That handler echoes a blank line to stderr and raises `Abort() from e`, which is then caught by the outer `except Abort` at line 1543.\n- The output is therefore the blank line followed by `Interrupted!`, and the exit code is **130**, the same as an `Abort` raised directly.",
+  "is_error": false,
+  "diff": null
+}

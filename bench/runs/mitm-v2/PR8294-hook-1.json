@@ -1,0 +1,46 @@
+{
+  "id": "PR8294-hook-1",
+  "task": "PR8294",
+  "area": "net-tls",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "79b5f98c-d0e9-4978-97e6-c0d3133f2427",
+  "turns": 6,
+  "wall_ms": 13482,
+  "api_ms": 12968,
+  "cost": 0.0864388,
+  "in_tokens": 74880,
+  "out_tokens": 1620,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Read": 1,
+      "Bash": 2,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne",
+      "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent made the same fix as the merged patch in the same function. It moved the min/max protocol version setters and the connection setup into the existing try block, so a setup-time SSL.Error now returns False. It also moved context creation and set_cipher_list into the try. Those calls are unlikely to raise SSL.Error, and if they do, returning False is reasonable, so behavior matches the merged patch in practice. The added regression test matches the upstream description.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/tls.py",
+      "test/mitmproxy/net/test_tls.py"
+    ]
+  },
+  "result": "`is_supported_version` now returns `False` when setting the protocol version raises `SSL.Error`, instead of letting the exception crash the caller. I haven't run the tests or the new test.\n\n**Change in `mitmproxy/net/tls.py`:** the context creation, cipher list, min/max protocol version setters and connection setup now sit inside the existing `try`. A setup-time `SSL.Error` is handled by the existing `except SSL.Error: return False`, the same as a probe-time one. Nothing changes for versions the build supports. This also stops `TlsConfig._warn_unsupported_version` from crashing when it iterates every `Version` on builds without SSLv3.\n\n**Test in `test/mitmproxy/net/test_tls.py`:** I added `test_supported_setup_error`. It monkeypatches `SSL.Context.set_min_proto_version` to raise `SSL.Error` and asserts `is_supported_version(Version.SSL3)` is `False`. That reproduces the crash path on any OpenSSL build. The function is `@cache`d, so the test clears the cache before and after the call.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py\nindex 14c0553ca..f94140014 100644\n--- a/mitmproxy/net/tls.py\n+++ b/mitmproxy/net/tls.py\n@@ -73,16 +73,16 @@ DEFAULT_OPTIONS = SSL.OP_CIPHER_SERVER_PREFERENCE | SSL.OP_NO_COMPRESSION\n \n @cache\n def is_supported_version(version: Version):\n-    client_ctx = SSL.Context(SSL.TLS_CLIENT_METHOD)\n-    # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n-    # https://github.com/pyca/cryptography/issues/9523\n-    client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n-    client_ctx.set_min_proto_version(version.value)\n-    client_ctx.set_max_proto_version(version.value)\n-    client_conn = SSL.Connection(client_ctx)\n-    client_conn.set_connect_state()\n-\n     try:\n+        client_ctx = SSL.Context(SSL.TLS_CLIENT_METHOD)\n+        # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n+        # https://github.com/pyca/cryptography/issues/9523\n+        client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n+        # Some OpenSSL builds have dropped protocol versions entirely and raise here.\n+        client_ctx.set_min_proto_version(version.value)\n+        client_ctx.set_max_proto_version(version.value)\n+        client_conn = SSL.Connection(client_ctx)\n+        client_conn.set_connect_state()\n         client_conn.recv(4096)\n     except SSL.WantReadError:\n         return True\ndiff --git a/test/mitmproxy/net/test_tls.py b/test/mitmproxy/net/test_tls.py\nindex 8359e4a9d..0d82d06d6 100644\n--- a/test/mitmproxy/net/test_tls.py\n+++ b/test/mitmproxy/net/test_tls.py\n@@ -15,6 +15,18 @@ def test_supported(version):\n     assert tls.is_supported_version(version) == expected_support\n \n \n+def test_supported_setup_error(monkeypatch):\n+    def raise_error(self, version):\n+        raise SSL.Error([(\"\", \"\", \"\")])\n+\n+    monkeypatch.setattr(SSL.Context, \"set_min_proto_version\", raise_error)\n+    tls.is_supported_version.cache_clear()\n+    try:\n+        assert tls.is_supported_version(tls.Version.SSL3) is False\n+    finally:\n+        tls.is_supported_version.cache_clear()\n+\n+\n def test_make_master_secret_logger():\n     assert tls.make_master_secret_logger(None) is None\n     assert isinstance(tls.make_master_secret_logger(\"filepath\"), tls.MasterSecretLogger)\n"
+}

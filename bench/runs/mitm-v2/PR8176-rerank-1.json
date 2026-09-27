@@ -1,0 +1,48 @@
+{
+  "id": "PR8176-rerank-1",
+  "task": "PR8176",
+  "area": "startup-options",
+  "arm": "rerank",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "4dc061a0-732d-4f6a-834b-f9ac7dbd3c88",
+  "turns": 9,
+  "wall_ms": 43481,
+  "api_ms": 23818,
+  "cost": 0.11901660000000001,
+  "in_tokens": 107288,
+  "out_tokens": 2832,
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "Read": 3,
+      "Bash": 1,
+      "Edit": 4
+    },
+    "thinkerCalls": 0,
+    "filesRead": 2,
+    "greps": 1,
+    "injected": [
+      "script-addons-s-loading-path",
+      "option-registration-deferred-options-and-argparse-generation",
+      "cli-startup-sequence-main-run-options-applied"
+    ]
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "No tests added (not penalized)"
+    ],
+    "wrong": [],
+    "reason": "The agent loads pending scripts in the `--options` branch of `main.py` before `dump_defaults`, as upstream does. It shares the mtime state with the watcher so scripts aren't loaded twice. The behaviour matches the merged patch.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/script.py",
+      "mitmproxy/tools/main.py"
+    ]
+  },
+  "result": "`--options` now loads any pending `-s` scripts before it dumps options, so options registered by addon scripts show up in the output. I haven't run it or the tests, and I didn't add a test.\n\n- **Cause:** `ScriptLoader.configure` creates each `Script` with `reload=True`. The script's `loadscript()`, where addons register their options, only runs later, in the async `watcher()` task. `--options` dumped and exited before that task had run.\n- **`Script.load_pending()`:** new method in `mitmproxy/addons/script.py` that loads the script immediately if the watcher hasn't loaded it yet. I moved the watcher's `last_mtime` onto the instance as `_last_mtime`, so the watcher and `load_pending()` share it. That stops the watcher from loading the script a second time.\n- **`ScriptLoader.load_pending()`:** new method that calls `load_pending()` on every managed script.\n- **`mitmproxy/tools/main.py`:** in the `args.options` branch, it fetches the loader with `master.addons.get(\"scriptloader\")` and calls `load_pending()` before `optmanager.dump_defaults`.\n\nI chose an explicit synchronous load over yielding to the event loop, because the watcher's own `sleep(0)` makes a fixed number of yields fragile.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/script.py b/mitmproxy/addons/script.py\nindex e86272ade..cc511868f 100644\n--- a/mitmproxy/addons/script.py\n+++ b/mitmproxy/addons/script.py\n@@ -85,6 +85,7 @@ class Script:\n         self.fullpath = os.path.expanduser(path.strip(\"'\\\" \"))\n         self.ns: types.ModuleType | None = None\n         self.is_running = False\n+        self._last_mtime = 0.0\n \n         if not os.path.isfile(self.fullpath):\n             raise exceptions.OptionsError(f\"No such script: {self.fullpath}\")\n@@ -130,11 +131,19 @@ class Script:\n                 # We're already running, so we call that on the addon now.\n                 ctx.master.addons.invoke_addon_sync(self.ns, hooks.RunningHook())\n \n+    def load_pending(self) -> None:\n+        \"\"\"Load the script now if the watcher has not loaded it yet.\"\"\"\n+        if self._last_mtime == 0.0:\n+            try:\n+                self._last_mtime = os.stat(self.fullpath).st_mtime\n+            except FileNotFoundError:\n+                return\n+            self.loadscript()\n+\n     async def watcher(self):\n         # Script loading is terminally confused at the moment.\n         # This here is a stopgap workaround to defer loading.\n         await asyncio.sleep(0)\n-        last_mtime = 0.0\n         while True:\n             try:\n                 mtime = os.stat(self.fullpath).st_mtime\n@@ -144,9 +153,9 @@ class Script:\n                 scripts.remove(self.path)\n                 ctx.options.update(scripts=scripts)\n                 return\n-            if mtime > last_mtime:\n+            if mtime > self._last_mtime:\n+                self._last_mtime = mtime\n                 self.loadscript()\n-                last_mtime = mtime\n             await asyncio.sleep(ReloadInterval)\n \n \n@@ -165,6 +174,14 @@ class ScriptLoader:\n     def running(self):\n         self.is_running = True\n \n+    def load_pending(self) -> None:\n+        \"\"\"\n+        Immediately load all scripts whose deferred first load has not happened\n+        yet, so that the options they register are available.\n+        \"\"\"\n+        for s in self.addons:\n+            s.load_pending()\n+\n     @command.command(\"script.run\")\n     def script_run(self, flows: Sequence[flow.Flow], path: mtypes.Path) -> None:\n         \"\"\"\ndiff --git a/mitmproxy/tools/main.py b/mitmproxy/tools/main.py\nindex 5190820a0..d9ed5b032 100644\n--- a/mitmproxy/tools/main.py\n+++ b/mitmproxy/tools/main.py\n@@ -91,6 +91,9 @@ def run(\n             process_options(parser, opts, args)\n \n             if args.options:\n+                # Scripts load lazily; load them so their options are dumped.\n+                if loader := master.addons.get(\"scriptloader\"):\n+                    loader.load_pending()\n                 optmanager.dump_defaults(opts, sys.stdout)\n                 sys.exit(0)\n             if args.commands:\n"
+}

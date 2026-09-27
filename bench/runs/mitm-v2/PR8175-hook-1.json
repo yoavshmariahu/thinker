@@ -1,0 +1,44 @@
+{
+  "id": "PR8175-hook-1",
+  "task": "PR8175",
+  "area": "addons-dump",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "1ae64933-94c0-4802-bbaf-e553fe7a8293",
+  "turns": 6,
+  "wall_ms": 14475,
+  "api_ms": 13891,
+  "cost": 0.046259,
+  "in_tokens": 121035,
+  "out_tokens": 1318,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Bash": 3,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "injected": [
+      "mitmdump-flow-printing-is-the-dumper-addon-response-error-ho",
+      "flow-event-dispatch-layer-hook-connectionhandler-addonmanage"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added the same http_connect_error handler to Dumper in mitmproxy/addons/dumper.py. It uses the same match check and echo_flow call as the merged patch, so behavior is identical. The only differences are a type annotation and the changelog wording, and the agent skipped the optional test.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/dumper.py"
+    ]
+  },
+  "result": "mitmdump now prints failed CONNECT requests, such as DNS resolution errors. I haven't run anything, and I didn't add a test.\n\n- **Cause:** the dumper addon only handled `response` and `error`. A failed CONNECT fires `HttpConnectErrorHook` (hook name `http_connect_error`) instead, so it printed nothing.\n- **Fix:** I added an `http_connect_error` method to `Dumper` in `mitmproxy/addons/dumper.py`. It applies the same `match` check as the other handlers, then calls `echo_flow`. That prints the CONNECT request line, the response line if there is one, and the error message if `flow.error` is set. The hook's docstring says `flow.error` isn't guaranteed to be set.\n- **Changelog:** I added a line to `CHANGELOG.md` under \"Unreleased\".\n\nA natural test would be an `http_connect_error` case in `test/mitmproxy/addons/test_dumper.py`, next to the existing error tests.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..c3d31b31f 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmdump: Display failed CONNECT requests (e.g. DNS resolution errors).\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/addons/dumper.py b/mitmproxy/addons/dumper.py\nindex ea7569064..3b088ed4f 100644\n--- a/mitmproxy/addons/dumper.py\n+++ b/mitmproxy/addons/dumper.py\n@@ -294,6 +294,10 @@ class Dumper:\n         if self.match(f):\n             self.echo_flow(f)\n \n+    def http_connect_error(self, f: http.HTTPFlow):\n+        if self.match(f):\n+            self.echo_flow(f)\n+\n     def websocket_message(self, f: http.HTTPFlow):\n         assert f.websocket is not None  # satisfy type checker\n         if self.match(f):\n"
+}

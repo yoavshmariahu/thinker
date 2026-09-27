@@ -1,0 +1,45 @@
+{
+  "id": "allowlist-entries-must-name-the-action-never-a-whole-prefix-",
+  "title": "Allowlist entries must name the action, never a whole prefix; pair with blocked-sibling tests",
+  "kind": "invariant",
+  "answers": [
+    "How do I allowlist a POST path for read-only impersonation safely?",
+    "Why not allow the whole hog_flows/ prefix in the impersonation allowlist?",
+    "What tests are needed when editing READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS?"
+  ],
+  "body": "Entries in `READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS` (posthog/middleware.py) must match the exact action, because the same URL prefix hosts writing actions (e.g. `hog_flows/` has publish, bulk_delete, run, batch_jobs; `logs/` has writing CRUD viewsets). Widening to a prefix hands a read-only session a write.\nEvery new entry needs two tests in posthog/test/test_middleware.py: a case in the `test_read_only_impersonation_allows_allowlisted_post` list, and mutating siblings in `test_read_only_impersonation_blocks_mutating_siblings` (e.g. `hog_flows/<id>/publish/`, `hog_flows/bulk_delete/`). Extend the existing parameterized lists rather than adding new tests.",
+  "applies": "Any edit to the read-only impersonation allowlist",
+  "tags": [
+    "impersonation",
+    "allowlist",
+    "security",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "posthog/middleware.py",
+      "hash": "sha256:c1bc5f886dae93d4a664d9ce",
+      "missing": false
+    },
+    {
+      "path": "posthog/test/test_middleware.py",
+      "symbol": "test_read_only_impersonation_blocks_mutating_siblings",
+      "hash": "sha256:88c5b2875273ae8efa0b7a5e",
+      "line": 1133,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105799"
+  },
+  "created": "2026-09-26T23:57:12.641Z",
+  "verified": "2026-09-26T23:57:12.641Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "read-only-impersonation-403-on-post-with-body-read-endpoints"
+  ]
+}

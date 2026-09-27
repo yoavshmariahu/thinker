@@ -1,0 +1,101 @@
+{
+  "id": "PR106322-hard-hook-0",
+  "task": "PR106322-hard",
+  "area": "posthog",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "daf602ff-a237-4d68-8a7f-b954e4b08514",
+  "turns": 23,
+  "wall_ms": 117943,
+  "api_ms": 58996,
+  "cost": 0.6693634,
+  "in_tokens": 1645326,
+  "out_tokens": 5243,
+  "tools": {
+    "calls": 22,
+    "byTool": {
+      "Bash": 22
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 22,
+    "injected": [
+      "deletion-queue-dags-deletes-job-cleanup-sweep-pg-drain",
+      "bulk-person-delete-call-path-api-celery-dagster-bulk-delete-"
+    ]
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty, so it added none of the requested metrics. The upstream patch adds the deletion-mode gauge and counter, the delivery-wait histogram, the ack outcome counter, and the repair row gauges in the files above.",
+      "The agent's patch is empty, so it made no functional change. The merged patch added metrics in the existing files posthog/models/person/bulk_delete.py, posthog/models/person/util.py and posthog/dags/person_tombstone_queue.py. The agent did not find these files, so the request was not met.",
+      "The agent's patch is empty, so no metrics were added. The merged patch changes existing code in person_tombstone_queue.py, bulk_delete.py, util.py and deletion.py, which the agent failed to find."
+    ],
+    "reason": "The agent's patch is empty, so it added none of the requested metrics. The upstream patch adds the deletion-mode gauge and counter, the delivery-wait histogram, the ack outcome counter, and the repair row gauges in the files above.",
+    "mustHit": 0,
+    "mustTotal": 4,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no deletion-mode metric was added."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no mode-attributed delete counter exists."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no mode indicator gauge was added."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no delivery-wait histogram was added."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no ack cycle metrics logic exists."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no ack failure counter was added."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no ack success counting exists."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no batched acknowledgement was implemented."
+        },
+        {
+          "id": "c9",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no repair job metrics were published."
+        }
+      ]
+    }
+  },
+  "result": "I couldn't find the code this change would attach to, so I made no edits.\n\nThe task assumes four things that aren't in this checkout (`a3b3c3685bc`, detached HEAD on `master`):\n\n- **Deletion-order setting:** I found no setting that picks tombstone-first versus hard-delete order. Tombstoning is chosen per request through `DeletePersonsMode` and, for merges, `PERSON_MERGE_TOMBSTONE_TEAM_ALLOWLIST`. Neither is an \"active deletion mode\" I can report.\n- **Kafka delivery wait before acknowledging:** The queue-side code exists as RPCs (`AckPersonTombstones`, `ListPersonTombstoneQueue`) in `rust/personhog-replica` and as thin wrappers in `posthog/personhog_client/client.py`. Nothing calls them. The migration `rust/persons_migrations/20260923000001_add_person_tombstone_publish_queue.sql` also exists. No consumer waits on Kafka delivery and then acknowledges, so I have no wait time to time and no failing acknowledgement to count.\n- **Weekly repair job:** `posthog/dags/clickhouse_cleanup.py` is a weekly sweep, and `posthog/dags/person_pg_cleanup_drain.py` publishes queue gauges through `PublishedGauge`. Neither reads the tombstone queue, and I found nothing named repair for it. The only \"repair\" hits were the unrelated `events_backfill_to_duckling.py` and the `fix_orphaned_ch_persons` command.\n- **The earlier work:** I found no commit that adds the weekly repair. Recent history has the queue table (#105419) and the queue insert, read, list and ack RPCs (#105460).\n\nThat may mean the earlier PR isn't merged into this base, or lives on a branch I can't see. I didn't want to invent a repair job, a Kafka wait or a deletion-mode setting just to attach metrics to them.\n\nOnce the earlier PR is in the tree, I'd follow the existing `PublishedGauge` pattern in `person_pg_cleanup_drain.py`. That means gauges for the deletion mode and the repair's rows read and outcomes, a histogram for the Kafka wait, and a counter for acknowledgement failures. Tell me the branch or PR that has it, or whether you want me to build the missing pieces too. If it's the latter, I'd need to know where the acknowledgement consumer should live.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

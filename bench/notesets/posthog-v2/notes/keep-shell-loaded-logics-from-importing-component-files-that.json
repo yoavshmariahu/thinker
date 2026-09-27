@@ -1,0 +1,57 @@
+{
+  "id": "keep-shell-loaded-logics-from-importing-component-files-that",
+  "title": "Keep shell-loaded logics from importing component files that pull in heavy logic",
+  "kind": "invariant",
+  "answers": [
+    "Why is liquidjs or dompurify in the main authenticated bundle?",
+    "Where should shared option lists for taxonomic filter live?",
+    "How to keep the shell eager JS small when a logic imports from a component file"
+  ],
+  "body": "taxonomicFilterLogic and buildTaxonomicGroups load on every logged-in page (authenticated shell). They must import only light modules.\n- Import product event option lists from `scenes/hog-functions/filters/productEventFilterOptions` (getProductEventFilterOptions, getProductEventPropertyFilterOptions, getProductEventPropertyValues), never from `HogFunctionFiltersInternal.tsx`.\n- `HogFunctionFiltersInternal.tsx` imports `hogFunctionConfigurationLogic`, which drags in liquidjs, dompurify and survey utils. Importing anything from it puts ~153 KiB on the shell.\n- Pattern: when a shell-loaded file needs a pure helper or constant from a component file, move it to a dependency-free `.ts` module and import from there.\n- Check with a production build and the esbuild metafile.",
+  "applies": "frontend/src/lib/components/TaxonomicFilter and any module loaded eagerly on the authenticated shell",
+  "tags": [
+    "bundle-size",
+    "frontend",
+    "taxonomic-filter",
+    "hog-functions"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/hog-functions/filters/productEventFilterOptions.ts",
+      "symbol": "getProductEventFilterOptions",
+      "hash": "sha256:186af84e0633c98ec11e3c3d",
+      "line": 8,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/lib/components/TaxonomicFilter/taxonomicFilterLogic.tsx",
+      "hash": "sha256:b8a571ff3c3429ef7e4d306d",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/lib/components/TaxonomicFilter/utils/buildTaxonomicGroups.tsx",
+      "symbol": "buildTaxonomicGroups",
+      "hash": "sha256:fed5cf500a75130b48cd634e",
+      "line": 184,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/hog-functions/filters/HogFunctionFiltersInternal.tsx",
+      "hash": "sha256:c3d4bc0dc292b0c1dddd5331",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105249"
+  },
+  "created": "2026-09-27T00:09:29.970Z",
+  "verified": "2026-09-27T00:09:29.970Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "moving-product-event-filter-options-update-all-three-importe"
+  ]
+}

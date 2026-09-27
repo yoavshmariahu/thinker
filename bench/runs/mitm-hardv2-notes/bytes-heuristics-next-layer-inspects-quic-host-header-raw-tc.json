@@ -1,0 +1,62 @@
+{
+  "id": "bytes-heuristics-next-layer-inspects-quic-host-header-raw-tc",
+  "title": "Bytes heuristics next_layer inspects (QUIC, host header, raw TCP)",
+  "kind": "location",
+  "answers": [
+    "How does next_layer detect QUIC?",
+    "When is traffic treated as raw TCP?",
+    "How is the HTTP Host header sniffed?"
+  ],
+  "body": "In `mitmproxy/addons/next_layer.py`:\n- `_starts_like_quic`: False if <18 bytes or looks like DTLS; long-header packet -> True if version in `KNOWN_QUIC_VERSIONS` or matches reserved `0x?a?a?a?a`; else fallback to server port in `TYPICAL_QUIC_PORTS` (80, 443, 8443).\n- `_get_host_header`: TCP only, no server data yet; needs request line matching `[A-Z]{3,}.+HTTP/`, finds `Host:` before blank line; raises `NeedsMoreData` until headers complete.\n- `_get_client_hello`: TCP `parse_client_hello`; UDP `quic_parse_client_hello_from_datagrams` then `dtls_parse_client_hello`. Incomplete -> NeedsMoreData; parse failure -> no hello.\n- `probably_no_http` (only used when `--rawtcp`): true if <3 bytes, no space, first space after first newline, first 3 bytes non-alpha, server sent first, or data starts with `SSH`.",
+  "tags": [
+    "heuristics",
+    "quic",
+    "tcp"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "_starts_like_quic",
+      "hash": "sha256:eb93be3f132d2a0ebbff2841",
+      "line": 155,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer._get_host_header",
+      "hash": "sha256:0850cab461968657404b3ac9",
+      "line": 265,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer._get_client_hello",
+      "hash": "sha256:d89987596a90686862143a0f",
+      "line": 299,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "probably_no_http",
+      "hash": "sha256:74e1952872dbf568b78077d7",
+      "line": 181,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "212aa119-3de6-48cd-ab96-a1d2c87158c9"
+  },
+  "created": "2026-09-26T09:32:07.266Z",
+  "verified": "2026-09-26T09:32:07.266Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 4,
+  "lastUsed": "2026-09-26T10:01:22.450Z",
+  "related": [
+    "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn",
+    "ignore-allow-hosts-semantics-in-ignore-connection",
+    "upstream-proxy-mode-layer-composition-and-mode-selection"
+  ]
+}

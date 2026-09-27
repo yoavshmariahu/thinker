@@ -1,0 +1,105 @@
+{
+  "id": "PR105871-hard-late+nudge-0",
+  "task": "PR105871-hard",
+  "area": "posthog",
+  "arm": "late+nudge",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "4b3fa2b1-adac-4684-b5ea-13dfacd2b78d",
+  "turns": 15,
+  "wall_ms": 61201,
+  "api_ms": 51440,
+  "cost": 0.46828660000000005,
+  "in_tokens": 845960,
+  "out_tokens": 6246,
+  "tools": {
+    "calls": 14,
+    "byTool": {
+      "Bash": 14
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 14,
+    "injected": [
+      "feature-flags-backend-lives-in-products-feature-flags-backen"
+    ],
+    "lateEvents": 3,
+    "nudged": false
+  },
+  "grade": {
+    "score": 1,
+    "samples": [
+      1,
+      1,
+      0.5
+    ],
+    "reasons": [
+      "The agent changed the same places as upstream. It deleted the fix_invalid_flag_property_types command and its baseline and allowlist entries. It added a v1-format check to the reencrypt command, the audit command and the stale-flags check. Reencrypt also re-checks the format under the row lock. Unlike upstream, it does not count skipped flags in the summary output. That matches the request's \"quietly skip, unreported\" wording. The gap is that non-dict filters, such as a list, are still processed rather than skipped. That is an edge case outside the newer-format scenario the request describes.",
+      "The agent changed the same places as upstream: reencrypt, audit, stale flags, and the deleted command with its baseline and allowlist entries. Non-v1 mappings are skipped and left untouched in all three jobs. Reencrypt also re-checks after taking the row lock. The differences are edge cases: it doesn't skip non-dict filters, and its skip counters differ from upstream. Neither affects the described behavior for newer-format flags.",
+      "The agent patched the right three jobs. It deleted the repair command and its baseline entries the same way upstream did. Dict-shaped v2 or unsupported flags are skipped in all three jobs, and the reencrypt job re-checks under the lock. It diverges on two points. Non-dict `filters` such as a list are left unhandled, so reencrypt can still crash on them and the stale check can still report them. Skip counts and logging are also missing or different, notably the audit's skipped count and the reencrypt skipped tally. The direction is right but the coverage is incomplete."
+    ],
+    "reason": "The agent changed the same places as upstream. It deleted the fix_invalid_flag_property_types command and its baseline and allowlist entries. It added a v1-format check to the reencrypt command, the audit command and the stale-flags check. Reencrypt also re-checks the format under the row lock. Unlike upstream, it does not count skipped flags in the summary output. That matches the request's \"quietly skip, unreported\" wording. The gap is that non-dict filters, such as a list, are still processed rather than skipped. That is an edge case outside the newer-format scenario the request describes.",
+    "mustHit": 4,
+    "mustTotal": 5,
+    "touched": [
+      "posthog/management/commands/fix_invalid_flag_property_types.py",
+      "posthog/management/commands/reencrypt_flag_payloads.py",
+      "posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt",
+      "posthog/test/repo_invariants/test_feature_flag_gated_writes.py",
+      "products/feature_flags/backend/facade/config.py",
+      "products/feature_flags/backend/management/commands/audit_flag_filters.py",
+      "products/feature_flags/backend/temporal/health_checks/stale_flags.py"
+    ],
+    "criteria": {
+      "essential": 1,
+      "all": 0.6,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "Loop: `if is_non_v1_config(flag.filters): continue` before any `_reencrypt`/`_needs_reencrypt`, so v2/unsupported flags are never read, decrypted or written; v1 flags proceed as before."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "`_reencrypt` returns False when `is_non_v1_config(filters)` under the lock, but `skipped` is only incremented in the `except InvalidToken` branch. The result is updated=0, skipped=0, not the required one skip."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "`if is_non_v1_config(flag.filters): continue` runs before `scanned += 1`, `collect_filters_violations`, and `divergences.record`. Non-v1 mapping flags produce no findings and are not counted as clean. Other flags are still audited."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "No skipped counter was added. `_emit_json` and `_emit_console` still receive only `scanned, flags_with_violations, ...`. Skipped flags are also excluded from `scanned`, the opposite of what is required."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "The full-rollout list comprehension begins `if not is_non_v1_config(flag.filters) and ...`, and `stale_candidates = [flag for flag in stale_candidates if not is_non_v1_config(flag.filters)]` filters the other source. Overlap exclusion still prevents duplicates."
+        },
+        {
+          "id": "c6",
+          "verdict": "met",
+          "evidence": "Non-v1 flags are dropped from both candidate lists before `_serves_more_than_one_result`/the checker runs. Issues are built per `flag.team_id` only from remaining candidates, so a team whose flags were all skipped gets no `issues` entry and other teams are unaffected."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "`is_non_v1_config` returns `isinstance(filters, Mapping) and ...`, so a list or scalar is NOT skipped. The docstring says such values \"stay with the caller's existing handling\". In reencrypt, `(flag.filters or {}).get(...)` would raise on a non-empty list."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "The command file is deleted. However, the diff contains no changes to `posthog/test/repo_invariants/`, even though the author's summary says baseline and allowlist entries were removed there. Those entries, if they existed, remain."
+        }
+      ]
+    }
+  },
+  "result": "The reencrypt command, the flag-rules audit and the weekly stale-flag check now skip any flag whose rules aren't in the original (v1) format. I didn't run the tests or the linters. I also didn't add a test for the skip behaviour.\n\n- **Format check:** I added `is_non_v1_config(filters)` in `products/feature_flags/backend/facade/config.py`. It builds on the existing `detect_config_format`. It is true only when `filters` is a mapping that isn't v1, meaning v2 or an unsupported version. Anything that isn't a mapping (for example junk data) is not skipped, so the audit still reports it as before.\n- **`reencrypt_flag_payloads`:** it skips these flags in the scan loop, and again after taking the row lock in `_reencrypt`, so a flag that changes format between the scan and the write is still left alone. Skipped flags don't count toward scanned or skipped.\n- **`audit_flag_filters`:** it skips these flags before counting or validating them, so they never show up in the report.\n- **`stale_flags.py` (stale-flag check):** it drops these flags from both candidate lists (the stale query and the full-rollout query), so they are never reported and never reach the status checker.\n- **`fix_invalid_flag_property_types`:** I deleted the command and its two entries in the feature-flag gated-writes baseline and allowlist in `posthog/test/repo_invariants/`. It had no dedicated test file.\n\nThe stale-flag change filters the candidates in Python after they are fetched, so v2 flags are still read from the database and then dropped. That is fine while none exist, and it avoids changing the shared status-check queries.",
+  "is_error": false,
+  "diff": "diff --git a/posthog/management/commands/fix_invalid_flag_property_types.py b/posthog/management/commands/fix_invalid_flag_property_types.py\ndeleted file mode 100644\nindex 7df0ce243a4..00000000000\n--- a/posthog/management/commands/fix_invalid_flag_property_types.py\n+++ /dev/null\n@@ -1,87 +0,0 @@\n-from django.core.management.base import BaseCommand\n-\n-from products.feature_flags.backend.models.feature_flag import FeatureFlag\n-\n-# Valid property types for feature flags (from validate_filters in api/feature_flag.py)\n-VALID_PROPERTY_TYPES = {\"person\", \"cohort\", \"group\", \"flag\"}\n-\n-# Map of invalid types to their correct replacement\n-TYPE_FIXES = {\n-    \"event\": \"person\",  # Django treats \"event\" the same as \"person\" for backwards compatibility\n-}\n-\n-# Raw SQL to find flags with invalid property types (used as a subquery filter)\n-INVALID_FLAGS_SQL = \"\"\"\n-    SELECT 1 FROM jsonb_array_elements(posthog_featureflag.filters::jsonb->'groups') as grp,\n-                  jsonb_array_elements(grp->'properties') as prop\n-    WHERE prop->>'type' NOT IN ('person', 'cohort', 'group', 'flag')\n-      AND prop->>'type' IS NOT NULL\n-\"\"\"\n-\n-\n-class Command(BaseCommand):\n-    help = \"Fix feature flags with invalid property types (e.g., 'event' -> 'person')\"\n-\n-    def add_arguments(self, parser):\n-        parser.add_argument(\"--team-id\", default=None, type=int, help=\"Limit to a specific team ID\")\n-        parser.add_argument(\"--live-run\", action=\"store_true\", help=\"Apply changes (default is dry-run)\")\n-\n-    def handle(self, *args, **options):\n-        live_run = options.get(\"live_run\", False)\n-        team_id = options.get(\"team_id\")\n-\n-        mode = \"LIVE RUN\" if live_run else \"DRY RUN\"\n-        self.stdout.write(f\"Starting fix_invalid_flag_property_types ({mode})\")\n-\n-        # Only fetch flags that have invalid property types (efficient DB-level filter)\n-        # nosemgrep: python.django.security.audit.query-set-extra.avoid-query-set-extra (INVALID_FLAGS_SQL is a static constant, admin-only command)\n-        flags = FeatureFlag.objects.filter(active=True).extra(where=[f\"EXISTS ({INVALID_FLAGS_SQL})\"])\n-        if team_id:\n-            flags = flags.filter(team_id=team_id)\n-            self.stdout.write(f\"Filtering to team_id={team_id}\")\n-\n-        fixed_count = 0\n-        unfixable_count = 0\n-        flags_to_update = []\n-\n-        for flag in flags.iterator():\n-            filters = flag.filters or {}\n-            groups = filters.get(\"groups\", [])\n-            modified = False\n-\n-            for group_idx, group in enumerate(groups):\n-                properties = group.get(\"properties\", [])\n-                for prop_idx, prop in enumerate(properties):\n-                    prop_type = prop.get(\"type\")\n-\n-                    if prop_type and prop_type not in VALID_PROPERTY_TYPES:\n-                        if prop_type in TYPE_FIXES:\n-                            new_type = TYPE_FIXES[prop_type]\n-                            self.stdout.write(\n-                                f\"  Flag id={flag.id} team_id={flag.team_id} key='{flag.key}': \"\n-                                f\"group[{group_idx}].properties[{prop_idx}].type '{prop_type}' -> '{new_type}'\"\n-                            )\n-                            prop[\"type\"] = new_type\n-                            modified = True\n-                            fixed_count += 1\n-                        else:\n-                            self.stdout.write(\n-                                self.style.WARNING(\n-                                    f\"  Flag id={flag.id} team_id={flag.team_id} key='{flag.key}': \"\n-                                    f\"group[{group_idx}].properties[{prop_idx}].type '{prop_type}' has no known fix\"\n-                                )\n-                            )\n-                            unfixable_count += 1\n-\n-            if modified:\n-                flag.filters = filters  # nosemgrep: feature-flags-no-raw-filters-access -- data-repair command that fixes the filters JSON itself\n-                flags_to_update.append(flag)\n-\n-        if live_run and flags_to_update:\n-            FeatureFlag.objects.bulk_update(flags_to_update, [\"filters\"])\n-            self.stdout.write(self.style.SUCCESS(f\"  Saved {len(flags_to_update)} flags\"))\n-\n-        self.stdout.write(f\"Completed ({mode}): {fixed_count} properties fixed, {unfixable_count} unfixable\")\n-\n-        if not live_run and fixed_count > 0:\n-            self.stdout.write(self.style.NOTICE(\"Run with --live-run to apply changes\"))\ndiff --git a/posthog/management/commands/reencrypt_flag_payloads.py b/posthog/management/commands/reencrypt_flag_payloads.py\nindex 7447de37e7e..8c380cdf7fc 100644\n--- a/posthog/management/commands/reencrypt_flag_payloads.py\n+++ b/posthog/management/commands/reencrypt_flag_payloads.py\n@@ -6,6 +6,7 @@ import structlog\n from cryptography.fernet import InvalidToken\n \n from products.feature_flags.backend.encrypted_flag_payloads import FlagPayloadCodec, flag_payload_codec\n+from products.feature_flags.backend.facade.config import is_non_v1_config\n from products.feature_flags.backend.models.feature_flag import FeatureFlag\n \n logger = structlog.get_logger(__name__)\n@@ -39,6 +40,9 @@ class Command(BaseCommand):\n \n         scanned = updated = skipped = 0\n         for flag in self._get_flags(team_id, limit).iterator(chunk_size=batch_size):\n+            # Payload storage is defined for the v1 format only; leave other formats untouched.\n+            if is_non_v1_config(flag.filters):\n+                continue\n             scanned += 1\n             try:\n                 changed = self._reencrypt(flag.pk, codec) if live_run else self._needs_reencrypt(flag, codec)\n@@ -74,6 +78,8 @@ class Command(BaseCommand):\n         with transaction.atomic():\n             flag = FeatureFlag.objects.select_for_update().only(\"id\", \"filters\").get(pk=flag_pk)\n             filters = flag.filters or {}\n+            if is_non_v1_config(filters):\n+                return False\n             rotated = self._rotate_payloads(filters.get(\"payloads\") or {}, codec)\n             if rotated is None:\n                 return False\ndiff --git a/posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt b/posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt\nindex db5791b8a02..e8f1bbe3370 100644\n--- a/posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt\n+++ b/posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt\n@@ -1,8 +1,6 @@\n # Generated by write_baseline() in test_feature_flag_gated_writes.py. Shrink it, never grow it.\n posthog/api/file_system/registrations.py::_feature_flag_pre_delete::feature_flag.active =\n posthog/api/file_system/registrations.py::_feature_flag_pre_restore::feature_flag.active =\n-posthog/management/commands/fix_invalid_flag_property_types.py::Command.handle::FeatureFlag.objects.bulk_update()\n-posthog/management/commands/fix_invalid_flag_property_types.py::Command.handle::flag.filters =\n posthog/management/commands/generate_random_product_tours.py::Command.create_internal_targeting_flag::FeatureFlag.objects.create()\n posthog/management/commands/reencrypt_flag_payloads.py::Command._reencrypt::FeatureFlag.objects.filter(pk=flag_pk).update()\n posthog/management/commands/sync_feature_flags.py::Command.create_feature_flag::FeatureFlag.objects.create()\ndiff --git a/posthog/test/repo_invariants/test_feature_flag_gated_writes.py b/posthog/test/repo_invariants/test_feature_flag_gated_writes.py\nindex bd13aaf37cd..383a5fdcbab 100644\n--- a/posthog/test/repo_invariants/test_feature_flag_gated_writes.py\n+++ b/posthog/test/repo_invariants/test_feature_flag_gated_writes.py\n@@ -27,7 +27,6 @@ ALLOWED_REASONS: dict[str, str] = {\n     \"products/surveys/backend/api/survey.py\": \"targeting flag writes and the start/stop mirror of active\",\n     \"posthog/api/file_system/registrations.py\": \"file-system trash and restore flip active\",\n     \"products/early_access_features/backend/api.py\": \"never-fail cleanup when stored filters fail validation\",\n-    \"posthog/management/commands/fix_invalid_flag_property_types.py\": \"data repair command\",\n     \"posthog/management/commands/generate_random_product_tours.py\": \"local data generator\",\n     \"posthog/management/commands/reencrypt_flag_payloads.py\": \"payload re-encryption command\",\n     \"posthog/management/commands/sync_feature_flags.py\": \"local dev flag sync\",\ndiff --git a/products/feature_flags/backend/facade/config.py b/products/feature_flags/backend/facade/config.py\nindex cdf3f42ad1d..ae3a8b8caf4 100644\n--- a/products/feature_flags/backend/facade/config.py\n+++ b/products/feature_flags/backend/facade/config.py\n@@ -59,6 +59,15 @@ def detect_config_format(filters: Mapping[str, Any] | None) -> ConfigFormat:\n     return ConfigFormat(kind=\"unsupported\", raw_version=version)\n \n \n+def is_non_v1_config(filters: Any) -> bool:\n+    \"\"\"Whether ``filters`` is a stored document that is not in the v1 format.\n+\n+    Cross-team scans use this to leave v2 and unsupported documents alone. Anything that is\n+    not a mapping is not a versioned document, so it stays with the caller's existing handling.\n+    \"\"\"\n+    return isinstance(filters, Mapping) and detect_config_format(filters).kind != \"v1\"\n+\n+\n @frozen\n class RuleV2:\n     id: str\ndiff --git a/products/feature_flags/backend/management/commands/audit_flag_filters.py b/products/feature_flags/backend/management/commands/audit_flag_filters.py\nindex ca385084eb9..d04637bd7a7 100644\n--- a/products/feature_flags/backend/management/commands/audit_flag_filters.py\n+++ b/products/feature_flags/backend/management/commands/audit_flag_filters.py\n@@ -33,6 +33,7 @@ from products.feature_flags.backend.api.filters_schema import (\n     UNKNOWN_KEYS_SINK_CONTEXT_KEY,\n     is_legacy_unknown_key,\n )\n+from products.feature_flags.backend.facade.config import is_non_v1_config\n from products.feature_flags.backend.filters_validation import Violation, collect_filters_violations\n from products.feature_flags.backend.flags_cache import _is_unevaluable\n from products.feature_flags.backend.models.feature_flag import FeatureFlag\n@@ -347,6 +348,9 @@ class Command(BaseCommand):\n         # check_groups_non_empty_for_create: non-empty groups is a POST-only rule (#50084) —\n         # stored flags with empty groups are valid state and must never show up in this report.\n         for flag in _iter_flag_rows(queryset, limit=limit):\n+            # The rules below describe the v1 format only; other formats are not audited.\n+            if is_non_v1_config(flag.filters):\n+                continue\n             scanned += 1\n             try:\n                 violations = collect_filters_violations(\ndiff --git a/products/feature_flags/backend/temporal/health_checks/stale_flags.py b/products/feature_flags/backend/temporal/health_checks/stale_flags.py\nindex 4759c09288a..d47a07f6bbf 100644\n--- a/products/feature_flags/backend/temporal/health_checks/stale_flags.py\n+++ b/products/feature_flags/backend/temporal/health_checks/stale_flags.py\n@@ -16,6 +16,7 @@ from posthog.temporal.health_checks.models import HealthCheckResult\n \n from products.early_access_features.backend.models import EarlyAccessFeature\n from products.experiments.backend.models.experiment import Experiment\n+from products.feature_flags.backend.facade.config import is_non_v1_config\n from products.feature_flags.backend.flag_status import (\n     ROLLOUT_FULLY_ROLLED_OUT,\n     ROLLOUT_NOT_ROLLED_OUT,\n@@ -170,9 +171,12 @@ class StaleFeatureFlagsCheck(HealthCheck):\n         full_rollout_candidates = [\n             flag\n             for flag in full_rollout_query\n-            if not _serves_more_than_one_result(flag)\n+            if not is_non_v1_config(flag.filters)\n+            and not _serves_more_than_one_result(flag)\n             and FeatureFlagStatusChecker(feature_flag=flag).is_flag_fully_rolled_out(flag)[0]\n         ]\n+        # The staleness rules read the v1 format only; a flag in another format is not reported.\n+        stale_candidates = [flag for flag in stale_candidates if not is_non_v1_config(flag.filters)]\n         candidates = stale_candidates + full_rollout_candidates\n         if not candidates:\n             return {}\n",
+  "distill": null
+}

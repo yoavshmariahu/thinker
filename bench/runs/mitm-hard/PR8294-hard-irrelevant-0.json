@@ -1,0 +1,64 @@
+{
+  "id": "PR8294-hard-irrelevant-0",
+  "task": "PR8294-hard",
+  "area": "net-tls",
+  "arm": "irrelevant",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "7a6fcb77-59df-4288-889a-bf7fc78a97f2",
+  "turns": 6,
+  "wall_ms": 11773,
+  "api_ms": 11319,
+  "cost": 0.0790178,
+  "in_tokens": 113333,
+  "out_tokens": 992,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Bash": 2,
+      "Read": 1,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same function, `is_supported_version` in `mitmproxy/net/tls.py`. It wrapped the `set_min_proto_version` and `set_max_proto_version` calls in a `try` block and returns False on `SSL.Error`. That treats the version as unsupported, which is what the merged patch does by moving these calls into the existing `try`. The merged patch also puts `SSL.Connection` creation inside the `try`, but that call is very unlikely to raise `SSL.Error`, so behavior is effectively the same.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/net/tls.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent wrapped set_min/max_proto_version in try/except SSL.Error and returns False (unsupported). This matches the upstream behavior. Upstream also wraps Connection creation, but that isn't a source of SSL.Error here. The existing handler returns False for SSL.Error, so the result is equivalent.",
+      "The agent wrapped set_min/max_proto_version in try/except SSL.Error in is_supported_version and returns False, which is functionally equivalent to the upstream patch. The upstream version moves the calls into the existing try block, where the SSL.Error handler already returns False. Both treat the version as unsupported.",
+      "The agent wrapped set_min/max_proto_version in try/except SSL.Error and returns False (unsupported). This is functionally equivalent to the upstream patch, which puts these calls inside the existing try block, where the SSL.Error handler returns False. Creating the Connection outside the try is fine since it doesn't raise for this case."
+    ]
+  },
+  "result": "`is_supported_version` in `mitmproxy/net/tls.py` no longer crashes when an OpenSSL build rejects setting the protocol version. I haven't run the tests or added one.\n\nThe two calls that set the min and max protocol version on the probe context are now inside a `try` block. If they raise `SSL.Error`, the function returns `False`, so that TLS version is treated as unsupported. This matches how the existing `SSL.Error` handler already treats a failed handshake probe.\n\nI also added a line to `CHANGELOG.md` under \"Unreleased\".",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..07a54bdc6 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,8 @@\n \n ## Unreleased: mitmproxy next\n \n+- Fix a crash when probing supported TLS versions on OpenSSL builds that reject\n+  setting the minimum/maximum protocol version.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py\nindex 14c0553ca..f927465f0 100644\n--- a/mitmproxy/net/tls.py\n+++ b/mitmproxy/net/tls.py\n@@ -77,8 +77,12 @@ def is_supported_version(version: Version):\n     # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n     # https://github.com/pyca/cryptography/issues/9523\n     client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n-    client_ctx.set_min_proto_version(version.value)\n-    client_ctx.set_max_proto_version(version.value)\n+    try:\n+        client_ctx.set_min_proto_version(version.value)\n+        client_ctx.set_max_proto_version(version.value)\n+    except SSL.Error:\n+        # Some OpenSSL builds refuse to set the protocol version at all.\n+        return False\n     client_conn = SSL.Connection(client_ctx)\n     client_conn.set_connect_state()\n \n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same function, `is_supported_version` in `mitmproxy/net/tls.py`. It wrapped the `set_min_proto_version` and `set_max_proto_version` calls in a `try` block and returns False on `SSL.Error`. That treats the version as unsupported, which is what the merged patch does by moving these calls into the existing `try`. The merged patch also puts `SSL.Connection` creation inside the `try`, but that call is very unlikely to raise `SSL.Error`, so behavior is effectively the same.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/net/tls.py"
+    ]
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "id": "uniqueness-constraints-for-experiment-metrics-and-results",
+  "title": "Uniqueness constraints for experiment metrics and results",
+  "kind": "invariant",
+  "answers": [
+    "What must be unique for experiment metrics?",
+    "What is the ExperimentMetricResult key?",
+    "Why does timeseries sync offset by 1 second?"
+  ],
+  "body": "- metric.uuid unique across primary, secondary and saved-metric uuids per experiment: `validate_no_duplicate_metric_uuids`; `_assign_uuids_to_metrics` seeds `seen` from `_collect_saved_metric_uuids`, regenerates collisions and fixes ordering via `_remap_ordering`. Clones: `_regenerate_all_metric_uuids`.\n- `ExperimentMetricResult` unique_together (experiment, metric_uuid, query_to) in `models/experiment.py`; fingerprint NOT in key, so writers use `update_or_create` with fingerprint in defaults (different fp overwrites in place): `temporal/recalculation_logic.py`, `timeseries_sync.py:_copy_points`.\n- `_copy_points` writes at newest_point + `_WINDOW_OFFSET` (1s); writing at the point's own query_to would rewrite the timeseries row's fingerprint.\n- Reading a run: match recalc fingerprint AND query_to == recalc.query_to (`recalculation.py:get_run_results`), since one config accumulates a row per query_to.\n- One active timeseries recalc per (experiment, fingerprint) (`unique_active_recalculation_per_experiment_metric`); one active metrics recalc per experiment (`unique_active_metrics_recalculation_per_experiment`).",
+  "applies": "Backend experiments product.",
+  "tags": [
+    "experiments",
+    "uniqueness",
+    "results"
+  ],
+  "deps": [
+    {
+      "path": "products/experiments/backend/models/experiment.py",
+      "symbol": "ExperimentMetricResult",
+      "hash": "sha256:1ba02d77233cb670a9666e80",
+      "line": 453,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/timeseries_sync.py",
+      "symbol": "_copy_points",
+      "hash": "sha256:562b10b5d7e26b210e5eab53",
+      "line": 124,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/experiment_service.py",
+      "hash": "sha256:00e7aa468f96e9e322ae618c",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/recalculation.py",
+      "hash": "sha256:7de4171273dd75a78f8c1ddf",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/temporal/recalculation_logic.py",
+      "hash": "sha256:7178bcedb588bf639fd69d0f",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/recalculation.py",
+      "symbol": "get_run_results",
+      "hash": "sha256:221d2301cf99431fc5d11e49",
+      "line": 404,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "19a1b465-2ae5-4aac-be03-62deb6217e7f"
+  },
+  "created": "2026-09-27T00:17:34.000Z",
+  "verified": "2026-09-27T00:17:34.000Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 23,
+  "related": [
+    "places-that-must-compute-the-same-metric-fingerprint-saved-v",
+    "experiment-metric-fingerprints-computation-and-call-sites",
+    "experiment-metric-identity-uuid-vs-config-fingerprint",
+    "map-an-experimentholdout-onto-flag-filters-via-apply-holdout"
+  ],
+  "lastUsed": "2026-09-27T06:21:43.100Z",
+  "servedIn": [
+    "5aaee5b7-e296-4b13-92ed-c17b05bd0815",
+    "ffd5d7a2-4585-4abf-82a8-6ebeb4e1eab6",
+    "0f544b05-7ebd-4b31-867b-086e7019dd17",
+    "bc7bdba1-1b39-43a1-acd9-79de7ec24874",
+    "dc57c855-9d09-4ae7-80f5-246632cf3126",
+    "94c4f715-51d3-47f5-84dd-cce53a15f20e",
+    "7509243b-8859-4cf6-a36d-f2a353754833",
+    "983841c6-448d-4c99-8bfd-b5c7d3ee8fd7",
+    "b1480431-e51f-41d1-99be-1bdab52e1970",
+    "d6de17d5-8e0d-4f82-a244-1b3ad814b8b9",
+    "36249c18-3dd5-4db5-aceb-ad444635e403",
+    "f6ea5c04-94aa-4f01-a8eb-ed3b71cdbfeb",
+    "ae1a237e-7db7-4fe1-957d-c7b8fdddebe2",
+    "5b88942a-6004-42f8-9e68-f19ea1cf0bb0",
+    "c4b634ff-422c-475d-afa9-f7a795ebe7cc",
+    "672f69c3-5335-4ede-a2d5-12c5d57e495f",
+    "c69af017-cce4-4452-be45-169e91d6a1b0",
+    "df08fa0c-693c-47b2-965e-dff04c5bcc38",
+    "02a562b6-0187-47bf-a33c-19cbc171d1c8",
+    "9d7cb4d1-d895-491e-920b-ba43d2189f27",
+    "63dbff74-3475-4ad3-a92f-b8b4e596b6c7",
+    "02801e27-cfb2-4402-80b3-c18dcff7a69e",
+    "fb774065-a8df-4e26-b2e6-0ee497af3266"
+  ]
+}

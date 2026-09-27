@@ -1,0 +1,73 @@
+{
+  "id": "PR8196-hard-hook-0",
+  "task": "PR8196-hard",
+  "area": "utils",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "86758c63-4128-4196-8000-f9b6482b1162",
+  "turns": 5,
+  "wall_ms": 13624,
+  "api_ms": 13078,
+  "cost": 0.09350739999999999,
+  "in_tokens": 98728,
+  "out_tokens": 1362,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Read": 1,
+      "Edit": 2,
+      "Bash": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [
+      "On 101-103 byte inputs whose tail bytes are all continuation bytes, the agent cuts at len(s) and keeps the whole input. Upstream ends the loop without a break, so it probably takes the fallback cut. The sample can differ by a few bytes, which is unlikely to change the result."
+    ],
+    "reason": "The agent edited the same loop in is_mostly_bin and removed the IndexError. Its `cut < len(s)` guard treats the end of the input as a character boundary. Upstream instead shortens the range to `min(104, len(s))`. Inputs of 100 bytes or fewer, and of 104 or more, behave as before. The two versions differ only in which few tail bytes are sampled in the edge case, so the result should be the same in practice.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent fixed the same line in `is_mostly_bin`, so the loop no longer reads past the end of the input for 101–103 byte inputs. Behaviour for normal inputs is unchanged. For 101–103 byte inputs ending in continuation bytes, the agent keeps the whole input where upstream probably trims to 100 bytes (the post-loop code wasn't shown). That difference is negligible for the heuristic.",
+      "The agent fixed the same line in is_mostly_bin by treating the end of input as a character boundary, which removes the IndexError for 101-103 byte inputs. Results differ from upstream only by 1-3 tail bytes on these rare edge cases, which does not change the mostly-binary outcome, and normal inputs are unchanged.",
+      "Same location as the upstream fix (the lookahead loop in is_mostly_bin). The agent's bounds check treats the end of the input as a character boundary, so the IndexError is gone. Any difference from upstream is at most 1–3 tail bytes and does not change the result in realistic cases. Normal inputs behave as before."
+    ]
+  },
+  "result": "`is_mostly_bin` no longer raises `IndexError` on inputs of 101–103 bytes. I haven't run the tests.\n\n**Cause:** when the input is longer than 100 bytes, the function looks at `s[100]` through `s[103]` to find a spot to cut that doesn't split a UTF-8 character. If the input is only 101–103 bytes and those tail bytes are continuation bytes (`0b10xxxxxx`), the loop indexed past the end of the data.\n\n**Fix:** in `mitmproxy/utils/strutils.py`, the continuation-byte check now reads `cut < len(s) and (s[cut] >> 6) == 0b10`. Reaching the end of the input counts as a character boundary, and the slice `s[:cut]` then keeps the whole input. Inputs of 100 bytes or fewer, or of 104 or more, take the same path as before, so their results don't change.\n\n**Test:** in `test/mitmproxy/utils/test_strutils.py`, I added cases for `101 * b\"\\x80\"`, `102 * b\"\\x80\"` and `103 * b\"\\x80\"`, which previously raised `IndexError`. All three should return `True` (binary).",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..44b09598e 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -133,7 +133,8 @@ def is_mostly_bin(s: bytes) -> bool:\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n         for cut in range(100, 104):\n-            is_continuation_byte = (s[cut] >> 6) == 0b10\n+            # Reaching the end of the input also counts as a character boundary.\n+            is_continuation_byte = cut < len(s) and (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\n                 s = s[:cut]\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..44b0b65c3 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,10 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # input just past the cut-off, ending in continuation bytes\n+    assert strutils.is_mostly_bin(101 * b\"\\x80\")\n+    assert strutils.is_mostly_bin(102 * b\"\\x80\")\n+    assert strutils.is_mostly_bin(103 * b\"\\x80\")\n \n \n def test_is_xml():\n",
+  "distill": null,
+  "grade0": {
+    "score": 0.93,
+    "missing": [],
+    "wrong": [
+      "On 101-103 byte inputs whose tail bytes are all continuation bytes, the agent cuts at len(s) and keeps the whole input. Upstream ends the loop without a break, so it probably takes the fallback cut. The sample can differ by a few bytes, which is unlikely to change the result."
+    ],
+    "reason": "The agent edited the same loop in is_mostly_bin and removed the IndexError. Its `cut < len(s)` guard treats the end of the input as a character boundary. Upstream instead shortens the range to `min(104, len(s))`. Inputs of 100 bytes or fewer, and of 104 or more, behave as before. The two versions differ only in which few tail bytes are sampled in the edge case, so the result should be the same in practice.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ]
+  }
+}

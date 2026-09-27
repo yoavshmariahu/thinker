@@ -1,0 +1,70 @@
+{
+  "id": "certstore-leaf-cert-cache-keys-lookup-order-eviction",
+  "title": "CertStore leaf cert cache: keys, lookup order, eviction",
+  "kind": "gotcha",
+  "answers": [
+    "How are generated certs cached?",
+    "What is the cache eviction policy for certs?",
+    "Do --certs custom certs override generated ones?"
+  ],
+  "body": "- `certs.py:CertStore.certs`: dict `TCertId` (str or `(commonname, sans)` tuple) → `CertStoreEntry` (cert, privatekey, chain_file, chain_certs). In-memory only; lost when `TlsConfig.configure` recreates the CertStore.\n- `CertStore.get_cert` lookup order, first hit wins: CN and each SAN via `asterisk_forms` (www.example.com, *.example.com, *.com) → literal `\"*\"` → `(commonname, sans)` tuple. Miss → `dummy_cert`, stored under the tuple.\n- Custom `--certs` are registered via `add_cert_file`/`add_cert` under CN, SANs and the spec (default `\"*\"`), so they beat generated certs (and a `*` custom cert catches everything).\n- Eviction: `CertStore.expire` FIFO `expire_queue`, `STORE_CAP=100`; evicting removes all dict keys pointing to the entry.",
+  "tags": [
+    "cache",
+    "certstore"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/certs.py",
+      "symbol": "CertStore.get_cert",
+      "hash": "sha256:81945d04f107bbc540265653",
+      "line": 661,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/certs.py",
+      "symbol": "CertStore.expire",
+      "hash": "sha256:e9a393f7d347845e125668cf",
+      "line": 466,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/certs.py",
+      "symbol": "CertStore.add_cert",
+      "hash": "sha256:db873834bb7b7c9e8ee72307",
+      "line": 632,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/certs.py",
+      "symbol": "CertStore.certs",
+      "hash": "sha256:867274d7fbb8de568aa3f34d",
+      "line": 518,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e600dd9f-c5e9-46a1-8108-47655c674498"
+  },
+  "created": "2026-09-26T09:24:06.252Z",
+  "verified": "2026-09-26T09:24:06.252Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-",
+    "ca-cert-store-location-creation-and-loading",
+    "dummy-cert-already-sets-aki-from-ca-public-key-hash-not-ca-s"
+  ],
+  "lastUsed": "2026-09-26T19:50:01.594Z",
+  "servedIn": [
+    "dc21f668-2eab-4b81-a37f-a5ecc95065d6",
+    "5640c93e-5d01-4f56-8d3f-103ddb3c83db"
+  ],
+  "attest": {
+    "confirmed": 0,
+    "contradicted": 0,
+    "unused": 2
+  }
+}

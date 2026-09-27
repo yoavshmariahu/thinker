@@ -1,0 +1,65 @@
+{
+  "id": "PR8408-hard-irrelevant-0",
+  "task": "PR8408-hard",
+  "area": "addons-browser",
+  "arm": "irrelevant",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "9afe09ae-7cae-4e42-b140-3b5574b48e28",
+  "turns": 5,
+  "wall_ms": 20608,
+  "api_ms": 20113,
+  "cost": 0.1111436,
+  "in_tokens": 126728,
+  "out_tokens": 2422,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 3,
+      "bash": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added an \"edge\" branch to `start()` and a `launch_edge()` method. It searches the same macOS, Windows, Linux and flatpak locations as the merged patch, and adds `msedge` as an extra binary name. It also accepts `msedge` as an alias. Instead of duplicating the Popen code, it moved the shared \"unsupported platform\" message, temp-dir profile and proxy flags into `_launch_chromium_based`. Chrome and Edge both call this helper, so behavior matches the merged patch, including the not-found message. The test and changelog differ from the upstream ones, but that does not affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/browser.py",
+      "test/mitmproxy/addons/test_browser.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent added launch_edge() and routed \"edge\" to it in the same file as upstream. It searches the same executable paths and the flatpak, and reuses Chrome's launch code through a shared helper. Chrome's launch flags are identical to upstream's Edge flags, and the \"not supported\" alert is preserved. The extra msedge alias is harmless.",
+      "The agent added `launch_edge()` and an \"edge\" branch in `start()`, in the same file as upstream. It searches the same Edge paths (macOS app, both Windows paths, Linux binaries, the flatpak) and also accepts \"msedge\". It reuses Chrome's launch code through a shared helper. Chrome's flags appear to match the ones upstream uses for Edge, though I only saw the Chrome launch code in the diff, not in full. The behaviour is therefore functionally equivalent to the merged patch.",
+      "The agent added launch_edge() to the same file with the same executable paths and flatpak fallback. It is wired into start() for \"edge\" and also accepts \"msedge\". It reuses the Chrome launch logic through a shared helper, so the flags are the same as in the merged patch. The Chrome flags weren't visible in the diff, but the helper is a refactor of the existing code and the summary says Edge takes the same flags. The behavior matches the merged patch."
+    ]
+  },
+  "result": "`browser.start` now accepts `edge` (or `msedge`) and launches an isolated Microsoft Edge pointed at the running proxy. I haven't run the tests or the new code.\n\n- **Edge launch:** `launch_edge()` in `mitmproxy/addons/browser.py` looks for Edge in these places:\n  - the macOS app bundle\n  - the Windows install paths, both `Program Files` and `Program Files (x86)`\n  - the Linux binaries `microsoft-edge`, `-stable`, `-beta` and `-dev`, plus `msedge`\n  - the `com.microsoft.Edge` flatpak\n- **Shared launcher:** Edge is Chromium-based and takes the same flags as Chrome, so I moved the shared code into a `_launch_chromium_based(cmd)` helper. That code covers the \"platform not supported\" message, the temporary profile directory, and the proxy and first-run flags. `launch_chrome` and `launch_edge` both call it.\n- **Test:** `test_browser` in `test/mitmproxy/addons/test_browser.py` now also calls `start(\"edge\")` and checks that a third browser process was started.\n- **Changelog:** I added an entry to `CHANGELOG.md`.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..0753c68d6 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- Add Microsoft Edge support to the `browser.start` command.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/addons/browser.py b/mitmproxy/addons/browser.py\nindex ccc920953..bb08bce57 100644\n--- a/mitmproxy/addons/browser.py\n+++ b/mitmproxy/addons/browser.py\n@@ -43,6 +43,8 @@ class Browser:\n \n         if browser in (\"chrome\", \"chromium\"):\n             self.launch_chrome()\n+        elif browser in (\"edge\", \"msedge\"):\n+            self.launch_edge()\n         elif browser == \"firefox\":\n             self.launch_firefox()\n         else:\n@@ -72,6 +74,27 @@ class Browser:\n             \"com.google.ChromeDev\",\n         )\n \n+        self._launch_chromium_based(cmd)\n+\n+    def launch_edge(self) -> None:\n+        \"\"\"\n+        Start an isolated instance of Microsoft Edge that points to the currently\n+        running proxy.\n+        \"\"\"\n+        cmd = find_executable_cmd(\n+            \"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge\",\n+            r\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            r\"C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            # Linux binary names\n+            \"microsoft-edge\",\n+            \"microsoft-edge-stable\",\n+            \"microsoft-edge-beta\",\n+            \"microsoft-edge-dev\",\n+            \"msedge\",\n+        ) or find_flatpak_cmd(\"com.microsoft.Edge\")\n+        self._launch_chromium_based(cmd)\n+\n+    def _launch_chromium_based(self, cmd: list[str] | None) -> None:\n         if not cmd:\n             logging.log(\n                 ALERT, \"Your platform is not supported yet - please submit a patch.\"\ndiff --git a/test/mitmproxy/addons/test_browser.py b/test/mitmproxy/addons/test_browser.py\nindex d5bd38c5c..8226b5cd5 100644\n--- a/test/mitmproxy/addons/test_browser.py\n+++ b/test/mitmproxy/addons/test_browser.py\n@@ -20,9 +20,12 @@ def test_browser(caplog):\n         assert \"Starting additional browser\" in caplog.text\n         assert len(b.browser) == 2\n \n+        b.start(\"edge\")\n+        assert len(b.browser) == 3\n+\n         b.start(\"unsupported-browser\")\n         assert \"Invalid browser name.\" in caplog.text\n-        assert len(b.browser) == 2\n+        assert len(b.browser) == 3\n         b.done()\n         assert not b.browser\n \n",
+  "grade0": {
+    "score": 0.95,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added an \"edge\" branch to `start()` and a `launch_edge()` method. It searches the same macOS, Windows, Linux and flatpak locations as the merged patch, and adds `msedge` as an extra binary name. It also accepts `msedge` as an alias. Instead of duplicating the Popen code, it moved the shared \"unsupported platform\" message, temp-dir profile and proxy flags into `_launch_chromium_based`. Chrome and Edge both call this helper, so behavior matches the merged patch, including the not-found message. The test and changelog differ from the upstream ones, but that does not affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/browser.py",
+      "test/mitmproxy/addons/test_browser.py"
+    ]
+  }
+}

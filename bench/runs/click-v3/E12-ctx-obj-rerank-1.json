@@ -1,0 +1,45 @@
+{
+  "id": "E12-ctx-obj-rerank-1",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "rerank",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "f7a0bc79-7108-4913-a990-8be3495a4739",
+  "turns": 5,
+  "wall_ms": 19425,
+  "api_ms": 11107,
+  "cost": 0.0301002,
+  "in_tokens": 63423,
+  "out_tokens": 1077,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 2,
+      "Read": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.85,
+    "missing": [
+      "Doesn't cite Group.invoke line numbers (core.py:1982 non-chain, 2002-2008 chain) or Context._make_sub_context (core.py:837-843) as additional sites",
+      "Doesn't mention Command.main / make_context at ~1311 seeding root obj via cli(obj=...) or context_settings",
+      "Doesn't mention that ensure_object calls object_type() with no args (zero-arg constructible requirement)",
+      "Doesn't mention make_pass_decorator/pass_obj consumers or the shell_completion _resolve_context site",
+      "Doesn't mention chained-group nuance (all sub-contexts built before invocation) or the obj is None (not falsy) check"
+    ],
+    "wrong": [
+      "Claim that an explicit obj= passed to the child overrides inheritance is correct, but no contradiction found; minor: 'find_object keeps searching past' framing is fine"
+    ],
+    "reason": "The main point is right: propagation happens in Context.__init__ at core.py:374-378 as a reference copy at construction time, and the group callback ordering is explained. The find_object/ensure_object semantics are accurate, including innermost-context assignment and overwriting an existing obj of a different type. The answer omits secondary propagation sites, the zero-arg constructor requirement, and the chain/falsy nuances. None of these omissions contradicts the reference.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "**Propagation:** `src/click/core.py:Context.__init__` (lines 374–378):\n\n```python\nif obj is None and parent is not None:\n    obj = parent.obj\nself.obj = obj\n```\n\nWhen a group invokes a subcommand, `Group.invoke` calls `Command.make_context(..., parent=ctx)`, which builds a new `Context(parent=ctx)` without passing `obj`. The child's `__init__` then copies `parent.obj` at construction time.\n\nDetails worth knowing:\n- The copy is by reference, so the child shares the same object as the parent. Mutating that object is visible in both contexts.\n- The copy happens once, when the child context is created. If the group callback sets `ctx.obj = ...`, subcommands see it, because they are created after the group callback runs. Reassigning `ctx.obj` in a child does not affect the parent.\n- An explicit `obj=` passed to the child `Context` overrides inheritance.\n\n**`find_object` vs `ensure_object`** (`core.py:Context.find_object`, line 736, and `Context.ensure_object`, line 748):\n\n- **`find_object(T)`** walks up from `self` through `.parent` and returns the first `node.obj` that is an `isinstance` of `T`. It returns `None` if nothing matches. It never modifies anything.\n- **`ensure_object(T)`** calls `find_object(T)`. If that returns `None`, it sets `self.obj = T()` on the current, innermost context and returns the new instance. Otherwise it returns the existing object.\n\nThe difference matters when `ctx.obj` is set but is not of the requested type. `find_object` keeps searching up the chain past it. `ensure_object` creates a new `T()` and overwrites `self.obj` with it, replacing the old value. That new object is not set on any ancestor, so it is only inherited by contexts created afterwards.",
+  "is_error": false,
+  "diff": null
+}

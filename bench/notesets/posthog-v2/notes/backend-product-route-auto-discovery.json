@@ -1,0 +1,65 @@
+{
+  "id": "backend-product-route-auto-discovery",
+  "title": "Backend product route auto-discovery",
+  "kind": "callpath",
+  "answers": [
+    "How do product backend API routes get registered?",
+    "Where is register_routes called?",
+    "How to add a backend endpoint to a product?",
+    "How to register webhooks for a product?"
+  ],
+  "body": "- Product defines `products/<name>/backend/routes.py:register_routes(routers)`, e.g. `routers.projects.register(r\"x\", ViewSet, \"project_x\", [\"team_id\"])`.\n- Discovery loop: `posthog/api/rest_router.py` (~line 597) `for _routes_module in load_product_modules(\"routes\")` -> `posthog/products.py:load_product_modules` walks INSTALLED_APPS product apps using find_spec.\n- `posthog/api/routing.py:RouterRegistry` exposes core parents projects/organizations/environments/root; `add()` rejects callers under `products.`.\n- Discovery is eager at ROOT_URLCONF import (not AppConfig.ready), so celery/management commands never load product API.\n- Non-router paths: routes.py may define `api_urlpatterns` (api/<product>/) or `webhook_urlpatterns` (webhooks/<product>/), validated/mounted by `posthog/product_urls.py`.\n- New product also needs its AppConfig in `posthog/settings/web.py:PRODUCTS_APPS` and a `tach.toml` block; no edit to rest_router.py.",
+  "tags": [
+    "products",
+    "backend",
+    "routes",
+    "django"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/rest_router.py",
+      "hash": "sha256:b5c796ab969a12eaad30e3da",
+      "missing": false
+    },
+    {
+      "path": "posthog/api/routing.py",
+      "symbol": "RouterRegistry",
+      "hash": "sha256:95bc101faf09e22a0f226536",
+      "line": 67,
+      "missing": false
+    },
+    {
+      "path": "posthog/products.py",
+      "symbol": "load_product_modules",
+      "hash": "sha256:d44219e91e2d444714a1d2df",
+      "line": 29,
+      "missing": false
+    },
+    {
+      "path": "posthog/settings/web.py",
+      "symbol": "PRODUCTS_APPS",
+      "hash": "sha256:89841d48a93b5c58913355ce",
+      "line": 43,
+      "missing": false
+    },
+    {
+      "path": "posthog/product_urls.py",
+      "hash": "sha256:822bf43c204f2237d38fce72",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "3a3272a0-af54-45ee-b4ca-e751f6a7ee0e"
+  },
+  "created": "2026-09-26T20:20:11.429Z",
+  "verified": "2026-09-26T20:20:11.429Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "router-registration-core-vs-product-routes",
+    "ml-inference-route-registration-backend-auto-discovery-and-f"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "id": "PR8295-hook-0",
+  "task": "PR8295",
+  "area": "next-layer",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "cb12f7a0-0d35-4e16-bf3e-3d2ea3aacb1c",
+  "turns": 5,
+  "wall_ms": 15387,
+  "api_ms": 14907,
+  "cost": 0.1049292,
+  "in_tokens": 107811,
+  "out_tokens": 1580,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Read": 1,
+      "Bash": 2,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "ignore-allow-hosts-semantics-in-ignore-connection",
+      "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn",
+      "bytes-heuristics-next-layer-inspects-quic-host-header-raw-tc"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's patch to _get_client_hello in next_layer.py is identical to the merged upstream code change. It gates QUIC parsing on _starts_like_quic and DTLS parsing on starts_like_dtls_record. Only the tests and changelog differ, and those don't count.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py"
+    ]
+  },
+  "result": "I changed `_get_client_hello` in `mitmproxy/addons/next_layer.py` so it only tries QUIC or DTLS parsing when the bytes look like that protocol, the same way the TCP branch already does. I haven't run the tests, and I didn't add one.\n\n- **QUIC:** it now calls `quic_parse_client_hello_from_datagrams` only if `_starts_like_quic(data_client, context.server.address)` is true. That check returns false for anything under 18 bytes, including the `b''` that arrives after the QUIC handshake.\n- **DTLS:** it now calls `dtls_parse_client_hello` only if `starts_like_dtls_record(data_client)` is true.\n- **No match:** if neither check passes, `_get_client_hello` returns `None`. `_ignore_connection` then skips the SNI candidate and carries on, so the layer decision proceeds and the QUIC flow gets its `HttpLayer`.\n\nI didn't trace the exact spot where the DTLS `ValueError` became `NeedsMoreData`. `dtls_parse_client_hello` raises `ValueError` on an `EOFError`, and `_get_client_hello` swallows that. Gating both parsers on the heuristics means the empty input never reaches either of them, so the reported stall path is closed.\n\nI'd add a regression test in `test/mitmproxy/addons/test_next_layer.py`: a UDP context with `ignore_hosts` set and `data_client=b\"\"` should return a layer rather than raising `NeedsMoreData`.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..614957808 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,19 +320,21 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n-\n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                if _starts_like_quic(data_client, context.server.address):\n+                    try:\n+                        return quic_parse_client_hello_from_datagrams([data_client])\n+                    except ValueError:\n+                        pass\n+\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\n"
+}

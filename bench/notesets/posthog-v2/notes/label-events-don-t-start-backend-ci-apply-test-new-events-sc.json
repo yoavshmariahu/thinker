@@ -1,0 +1,47 @@
+{
+  "id": "label-events-don-t-start-backend-ci-apply-test-new-events-sc",
+  "title": "Label events don't start Backend CI: apply test-new-events-schema before ready_for_review or push",
+  "kind": "gotcha",
+  "answers": [
+    "I added test-new-events-schema but CI didn't rerun",
+    "When should I apply the new events schema label on a PR?",
+    "Why does labeling not trigger Backend CI?"
+  ],
+  "body": "The `pull_request` trigger in `.github/workflows/ci-backend.yml` uses `types: [opened, synchronize, reopened, ready_for_review]`, so `labeled` does not start it. A label takes effect on the next push or ready_for_review.\n- Convention (AGENTS.md, PR template): add `test-new-events-schema` while the PR is a draft so ready_for_review starts the run.\n- If the PR must open ready, label immediately and push another commit.\n- Report the classification result under 'How did you test this code?'.\n- Don't add `labeled` to the trigger types: unrelated labels would rerun the matrices on already-covered commits.",
+  "applies": "Agent/human PR workflow for backend PRs",
+  "tags": [
+    "ci",
+    "labels",
+    "pull-request"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/ci-backend.yml",
+      "hash": "sha256:7c320697b3266bacdc8e63c8",
+      "missing": false
+    },
+    {
+      "path": "AGENTS.md",
+      "hash": "sha256:b1d09957c9da935bd2719731",
+      "missing": false
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "hash": "sha256:cfb1b277de752549dcf54f45",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105879"
+  },
+  "created": "2026-09-26T23:56:30.008Z",
+  "verified": "2026-09-26T23:56:30.008Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "native-json-new-events-schema-test-matrix-is-opt-in-via-test"
+  ]
+}

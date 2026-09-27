@@ -1,0 +1,62 @@
+{
+  "id": "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten",
+  "title": "is_mostly_bin is the binary heuristic but not used by contentviews",
+  "kind": "gotcha",
+  "answers": [
+    "How does mitmproxy decide binary vs text?",
+    "Where is is_mostly_bin used?",
+    "Do content views use is_mostly_bin?"
+  ],
+  "body": "`mitmproxy/utils/strutils.py:is_mostly_bin(bytes)` is the only binary/text heuristic: empty→False; inspects first ~100 bytes (cut extended up to 3 bytes to avoid splitting UTF-8 continuation bytes); low = <9 or 14–31, high = >126; if printable ASCII >70% → text; elif ascii+high >95% and `s.decode()` succeeds → text; else binary.\nGotcha: contentviews do NOT call it (grep shows no use in mitmproxy/contentviews). Callers: `tools/console/master.py` (hex editor offer), `addons/savehar.py` (base64 vs text content). Binary in views just falls to raw view (priority 0.1). A binary-grabbing view must call `strutils.is_mostly_bin` in its own `render_priority`.\n`strutils.is_xml` sniffs first non-whitespace byte == '<'.",
+  "tags": [
+    "binary",
+    "strutils"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/utils/strutils.py",
+      "symbol": "is_mostly_bin",
+      "hash": "sha256:59ddd3a4f4d7851746a95692",
+      "line": 128,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/console/master.py",
+      "hash": "sha256:5ba896ecb1dda33f16758f5d",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/savehar.py",
+      "hash": "sha256:488bc3fe9d338b1825f042a3",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/utils/strutils.py",
+      "symbol": "is_xml",
+      "hash": "sha256:07d881ccfdf4cbe3d457ee28",
+      "line": 165,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "fc0a7474-b2ad-434d-9680-c28107554390"
+  },
+  "created": "2026-09-26T09:23:39.969Z",
+  "verified": "2026-09-26T19:49:53.507Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.9800000000000001,
+  "status": "fresh",
+  "uses": 10,
+  "lastUsed": "2026-09-26T19:49:36.348Z",
+  "related": [],
+  "servedIn": [
+    "b68ed588-2ebb-4f6e-a352-1f2a5d45e016",
+    "d405231e-a052-4bc3-af52-8682579ca4ba"
+  ],
+  "attest": {
+    "confirmed": 2,
+    "contradicted": 0,
+    "unused": 0
+  }
+}

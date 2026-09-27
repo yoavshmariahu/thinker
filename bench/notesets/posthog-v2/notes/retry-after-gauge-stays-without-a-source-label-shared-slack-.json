@@ -1,0 +1,44 @@
+{
+  "id": "retry-after-gauge-stays-without-a-source-label-shared-slack-",
+  "title": "Retry-After gauge stays without a source label (shared Slack bucket)",
+  "kind": "invariant",
+  "answers": [
+    "Should the Slack Retry-After gauge have a source label?",
+    "How to get per-flow 429 attribution for Slack?"
+  ],
+  "body": "The Slack `Retry-After` gauge keeps per-bucket labels only, with no `source`. Slack applies one rate limit per workspace, app and method, so all flows calling a method wait on the same reset. A `source` label would split one bucket into one series per flow, showing the same reset repeatedly (rejected in review of this change).\n- Per-flow 429 attribution comes from `slack_api_requests_total{status_code=\"429\", source=...}` instead.\n- Client construction is in posthog/models/integration/slack.py:SlackIntegration.",
+  "applies": "Slack egress metrics work in posthog/egress/slack and SlackIntegration.",
+  "tags": [
+    "slack",
+    "egress",
+    "metrics",
+    "rate-limit"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/integration/slack.py",
+      "symbol": "SlackIntegration",
+      "hash": "sha256:9127804a9ce11d78f78de11e",
+      "line": 86,
+      "missing": false
+    },
+    {
+      "path": "posthog/egress/slack/README.md",
+      "hash": "sha256:0be90e0e6f0e2cc39eb9db8a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105814"
+  },
+  "created": "2026-09-26T23:57:00.785Z",
+  "verified": "2026-09-26T23:57:00.785Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "slack-flows-must-pass-their-own-egress-source-to-slackintegr"
+  ]
+}

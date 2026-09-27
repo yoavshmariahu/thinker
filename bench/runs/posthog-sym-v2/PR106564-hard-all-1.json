@@ -1,0 +1,104 @@
+{
+  "id": "PR106564-hard-all-1",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "all",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "28603e98-37bf-447a-8663-6a7c6b802c85",
+  "turns": 12,
+  "wall_ms": 59327,
+  "api_ms": 28563,
+  "cost": 0.34159180000000006,
+  "in_tokens": 596942,
+  "out_tokens": 2684,
+  "tools": {
+    "calls": 11,
+    "byTool": {
+      "Bash": 11
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 11,
+    "injected": [
+      "feature-flag-gated-scene-flashes-404-before-flags-load",
+      "map-an-experimentholdout-onto-flag-filters-via-apply-holdout",
+      "posthog-cli-update-only-script-installs-whose-receipt-prefix",
+      "build-output-naming-must-stay-in-sync-with-server-preload-ma",
+      "chunk-map-file-and-preload-manifest",
+      "how-django-picks-which-frontend-build-assets-to-serve-debug-",
+      "backend-asset-serving-js-url-static-dirs-templates-from-dist",
+      "kea-loader-error-toasts-automatic-via-loadersplugin-opt-out-"
+    ],
+    "lateEvents": 9,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent produced an empty patch and incorrectly concluded the stable chunk feature was absent. The upstream change modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs to add flag-based selection. The agent made none of these changes.",
+      "The agent produced an empty patch and no functional change. The upstream patch modifies the existing posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs to add flag-based enrollment for logged-in users. The agent wrongly concluded the feature did not exist.",
+      "The agent made no code changes. It wrongly concluded the stable chunk feature was absent, when the merged patch modifies existing files (posthog/stable_chunks.py, posthog/utils.py, common/esbuilder/utils.mjs). The request is not achieved."
+    ],
+    "reason": "The agent produced an empty patch and incorrectly concluded the stable chunk feature was absent. The upstream change modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs to add flag-based selection. The agent made none of these changes.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag evaluation selects the build. Author states nothing reads a feature flag."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no gating logic exists for logged-out users."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-based logic added. Page renders only the single existing build, so the missing-flag behaviour is not implemented."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch; author says the query parameter opt-in does not exist in this checkout."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no cookie or stored choice added."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag value is wired to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no reload/fallback handling for the stable build was added."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no query-parameter stripping was added."
+        }
+      ]
+    }
+  },
+  "result": "I made no code changes. The stable chunk build and its query-parameter opt-in don't exist in this checkout, so there was nothing to gate behind a flag.\n\nI searched the repo for a stable-chunk or stable-build variant of the frontend and for any query parameter that switches builds. The searches covered:\n- Django serving: `posthog/utils.py`, `posthog/views.py`, `posthog/templates/`.\n- The esbuild pipeline: `frontend/build.mjs`, `common/esbuilder/`, `frontend/src/index.html`.\n- Case-insensitive terms like `stable chunk`, `stable build` and `stable hash`.\n\nThe only hits were an unrelated sourcemap helper in the Rust CLI (`stable_chunk_id`) and an unrelated ClickHouse test fixture.\n\nWhat the repo does today:\n- **One build:** esbuild emits a single set of hashed chunks.\n- **No switch:** Django doesn't choose between builds. It only passes `js_url` and preload hints from `posthog/utils.py:_resolve_entry_assets`, and `index.html` has the chunk paths baked in.\n- **No experiment plumbing:** nothing reads a feature flag or a query parameter to pick a build.\n\nThe work was probably done on a branch or PR that isn't in `a3b3c3685bc`. Building it here would mean inventing the build variant and its opt-in myself, which is a much larger change than gating an existing one, and it wouldn't match what you described.\n\n- **If the work exists elsewhere,** tell me the branch or PR (or rebase onto it) and I'll add the flag gate.\n- **If you want me to build it from scratch,** I need to know what \"stable\" should mean, for example content-independent chunk names, so cached chunks survive deploys.\n\nThe gate itself would work like this:\n- **Server side:** for authenticated requests only, evaluate a flag such as `stable-chunk-build` for the user and combine it with the existing query-parameter override. Anonymous users are never enrolled and never get the flag evaluated.\n- **Delivery:** pass the result into the template context so `index.html` loads the stable entry.\n- **Experiment:** create the flag as a 50/50 experiment with LCP as the metric.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

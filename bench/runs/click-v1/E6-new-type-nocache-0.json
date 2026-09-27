@@ -1,0 +1,49 @@
+{
+  "id": "E6-new-type-nocache-0",
+  "task": "E6-new-type",
+  "area": "types",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "8a700f2b-30ea-4a65-bd03-9f44b94733d5",
+  "turns": 4,
+  "wall_ms": 20379,
+  "api_ms": 19964,
+  "cost": 0.0968184,
+  "in_tokens": 93141,
+  "out_tokens": 1950,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3
+  },
+  "grade": {
+    "score": 0.6,
+    "missing": [
+      "Ordering constraint: the timedelta branch must be inserted before `if is_guessed: return STRING` (line ~1322), otherwise default=timedelta silently becomes STRING",
+      "Explanation that type=timedelta without the branch raises TypeError (not ValueError caught by FuncParamType.convert), causing a traceback rather than a usage error",
+      "Call sites consuming convert_type (Parameter.__init__, Option.__init__, Tuple, Choice.get_metavar, termui.prompt)",
+      "Precise __init__ import placement: `__init__.py` insertion between DateTime and File (line ~58-59) due to isort case-insensitive ordering; agent said ~line 69 next to UUID",
+      "DurationInfoDict(ParamTypeInfoDict) for configurable types",
+      "tests/test_imports.py needs no change (datetime and re already allowed)",
+      "Optional tests/typing and strict typing/pyright verifytypes note",
+      "Statement that core.py, termui.py, shell_completion.py, decorators.py need no changes",
+      "__repr__ is convention only (not strictly required); is_composite/arity defaults; ParamType has no abstract methods",
+      "test_types.py parse/failure tests and BadParameter assertion (agent mentioned only conditionally)"
+    ],
+    "wrong": [
+      "Says get_metavar is optional with return 'DURATION' — harmless but the default already yields DURATION from name; minor",
+      "Says `__init__.py` line ~69 next to UUID and 'alphabetical order'; the reference says place between DateTime and File (case-insensitive sort), so UUID-adjacent placement would be wrong for isort",
+      "Claims `type=timedelta` falls through to FuncParamType and is 'wrong' without noting the crash mechanism; also says the `datetime` import needs `timedelta` addition only 'if not already' — fine"
+    ],
+    "reason": "The agent identified the main pieces: convert_type as the shorthand location, the new class, singleton, name/convert/__repr__ requirements, docs, changelog, and tests. It missed the critical ordering constraint before the `is_guessed` fallback, the TypeError crash detail, the call sites, and the no-change files. It also gave a wrong placement for the `__init__.py` export (next to UUID rather than between DateTime and File), so the answer is right on the main point but incomplete and slightly off on specifics.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "A `DURATION` type touches `src/click/types.py` plus a handful of export, docs and test files. I read the code but haven't changed anything.\n\n## Files and symbols\n\n**`src/click/types.py`**\n- Add a new class, e.g. `DurationParamType(ParamType[timedelta])`, placed next to `UUIDParameterType` (~line 830). You'd also add `from datetime import timedelta` if it isn't already imported (`datetime` is, for `DateTime`).\n- Add an instance below the `UUID` one (~line 1368): `DURATION: t.Final[DurationParamType] = DurationParamType()`, with a `#:` doc comment like the neighbouring ones.\n- **The `int` → `INT` shorthand** is in `convert_type()` (~line 1314), a chain of `if guessed is int: return INT`, `float → FLOAT`, `bool → BOOL`, and so on. For a shorthand, add `if guessed is timedelta: return DURATION` there. Users could then write `type=timedelta`.\n  - `_guess_type()` (~line 1249) needs no change. It already returns `type(default)`, so `default=timedelta(hours=1)` would infer `DURATION` automatically once `convert_type` handles it.\n  - Without the shorthand, `type=timedelta` falls through to `FuncParamType(timedelta)`, which is wrong.\n  - `UUID` deliberately has no shorthand (\"not automatically guessed\" in the docs), so decide whether you want one.\n\n**`src/click/__init__.py`**\n- Add `from .types import DURATION as DURATION` (~line 69, next to `UUID`). Keep it in alphabetical order.\n\n**Docs and changelog**\n- `docs/api.md` (~line 227): add `.. autodata:: DURATION` in an `eval-rst` block, like `UUID`.\n- `docs/parameter-types.md` (~line 123): add a bullet for `click.DURATION`. Mention the shorthand if you add one.\n- `CHANGES.md`: add an entry under \"Version 8.5.0\" (Unreleased) with a `versionadded` note.\n\n**Tests**\n- `tests/test_basic.py` (near the UUID cases, ~line 165): cases for valid input, invalid input, and a `timedelta` default.\n- `tests/test_info_dict.py` (~line 156): add `pytest.param(click.DURATION, {\"param_type\": \"Duration\", \"name\": \"duration\"}, ...)`. The `param_type` comes from the class name with the `ParamType` or `ParameterType` suffix stripped.\n- If you add the shorthand, a `convert_type(timedelta)` test, probably in `tests/test_types.py`.\n\n## Methods the new class must implement\n\n- **`name`**: a class attribute, e.g. `name = \"duration\"`. It's required and appears in `to_info_dict`.\n- **`convert(self, value, param, ctx) -> timedelta`**:\n  - Return the value unchanged if it is already a `timedelta`.\n  - Otherwise strip the string and parse it with a regex for `1h30m`, `90s` and so on.\n  - Call `self.fail(_(\"{value!r} is not a valid duration.\").format(value=value), param, ctx)` on error. The `_` gettext helper is already used in this file.\n  - It must work when `param` and `ctx` are `None`, which happens for prompt input.\n- **`__repr__`**: return `\"DURATION\"`, following `UUIDParameterType`, `INT` and `BOOL`.\n\n## Optional methods\n\n- **`get_metavar`**: for example, return `\"DURATION\"`.\n- **`to_info_dict`**: only override it if you add constructor options. The base class already handles the name.\n- **`__call__`**, **`split_envvar_value`**, **`shell_complete`** and **`get_missing_message`** have working defaults. `__call__` already returns `None` for `None`.",
+  "is_error": false
+}

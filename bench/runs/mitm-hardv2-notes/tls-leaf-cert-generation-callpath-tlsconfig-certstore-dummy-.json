@@ -1,0 +1,67 @@
+{
+  "id": "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-",
+  "title": "TLS leaf cert generation callpath (tlsconfig -> CertStore -> dummy_cert)",
+  "kind": "callpath",
+  "answers": [
+    "How does mitmproxy generate per-host leaf certs?",
+    "Where is the leaf cert subject/SAN/extensions built?",
+    "Does mitmproxy generate a key per host?",
+    "Where is the CRL URL / SNI altname chosen for the leaf cert?"
+  ],
+  "body": "- `mitmproxy/addons/tlsconfig.py:TlsConfig.get_cert` collects names: upstream cert CN/SANs/org/CRL dist point (if `upstream_cert` option), plus client SNI (or client local IP if no SNI) and server address host; dedups with `dict.fromkeys`; CN = first altname; CRL URL path rewritten to `crl_path()`.\n- → `certs.py:CertStore.get_cert(cn, altnames, organization, crl_url)` → on miss `certs.py:dummy_cert`.\n- `dummy_cert`: issuer=`cacert.subject`; public key = CA's public key (NO per-host key; entry privatekey is `default_privatekey`); validity now-2d..+`CERT_EXPIRY` (199d); random serial.\n- Subject: CN only if <64 chars, plus Organization if given. Extensions: EKU SERVER_AUTH, SAN (critical only if subject has no CN; `_fix_legacy_sans` normalises), AuthorityKeyIdentifier, CRLDistributionPoints only if crl_url. Signed SHA-256 with CA key, wrapped in `Cert`.\n- Deliberately NO SubjectKeyIdentifier: SKI matching the CA's breaks SChannel (issue 6494, per code comment).",
+  "tags": [
+    "tls",
+    "certs"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "TlsConfig.get_cert",
+      "hash": "sha256:ebf88c6bd34de08812cde2f1",
+      "line": 585,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/certs.py",
+      "symbol": "dummy_cert",
+      "hash": "sha256:750522f1865958be9008137f",
+      "line": 310,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/certs.py",
+      "symbol": "CertStore.get_cert",
+      "hash": "sha256:81945d04f107bbc540265653",
+      "line": 661,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "crl_path",
+      "hash": "sha256:2d2598119c87ec5a4dc08c0b",
+      "line": 582,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e600dd9f-c5e9-46a1-8108-47655c674498"
+  },
+  "created": "2026-09-26T09:24:06.000Z",
+  "verified": "2026-09-26T09:24:06.000Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 9,
+  "lastUsed": "2026-09-26T19:44:31.406Z",
+  "related": [
+    "certstore-leaf-cert-cache-keys-lookup-order-eviction",
+    "tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne",
+    "ca-cert-store-location-creation-and-loading",
+    "supported-tls-version-detection-and-warnings-lru-cache-gotch"
+  ],
+  "servedIn": [
+    "095700eb-fb67-4d0e-836e-1f210c9d21d2",
+    "97498399-b764-4b4e-8f0c-90ce737728b6"
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "id": "PR8224-hard-live-1",
+  "task": "PR8224-hard",
+  "area": "web-app",
+  "arm": "live",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "3327aeea-6754-4203-a524-97d0fd648c85",
+  "turns": 7,
+  "wall_ms": 14768,
+  "api_ms": 14225,
+  "cost": 0.0909064,
+  "in_tokens": 119348,
+  "out_tokens": 1543,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Bash": 3,
+      "Edit": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "injected": [
+      "xsrf-cookie-name-must-be-changed-in-both-app-py-and-utils-ts",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's patch is functionally identical to the merged patch. It adds xsrf_cookie_name=\"_mitmproxy_xsrf\" to the Tornado settings in app.py and changes the getCookie call in web/src/js/utils.ts to read \"_mitmproxy_xsrf\". The extra CHANGELOG entry doesn't affect behavior, and the upstream comment is only documentation.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/tools/web/app.py",
+      "web/src/js/utils.ts"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent's patch matches the upstream patch functionally. It adds `xsrf_cookie_name=\"_mitmproxy_xsrf\"` to the Tornado settings in app.py and changes the cookie read in utils.ts to `_mitmproxy_xsrf`. The extra changelog entry doesn't affect behavior.",
+      "The agent's patch makes the same functional changes as the merged patch. It sets xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and changes the cookie read in web/src/js/utils.ts to \"_mitmproxy_xsrf\". The utils.ts change is identical. The only extra is a changelog line, which doesn't affect behavior.",
+      "The agent's patch matches the upstream patch functionally. It sets xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and changes the cookie read in utils.ts to the same name. The only extra is a changelog entry, which doesn't affect behavior."
+    ]
+  },
+  "result": "I renamed the XSRF cookie to `_mitmproxy_xsrf` on both the server and the client. I haven't run any tests or rebuilt the frontend.\n\n- **Server:** in `mitmproxy/tools/web/app.py` I added `xsrf_cookie_name=\"_mitmproxy_xsrf\"` to the Tornado `Application` settings. Tornado uses that one setting both to set the cookie and to validate it.\n- **Client:** in `web/src/js/utils.ts` the `xsrf()` helper now reads `getCookie(\"_mitmproxy_xsrf\")` before sending it as the `X-XSRFToken` header.\n- **Changelog:** I added a bullet under \"Unreleased\" in `CHANGELOG.md`.\n\nThe `_xsrf` form field in the login template and the `X-XSRFToken` header are fixed Tornado names, so I left them alone.\n\nI didn't add a test. The existing web app tests run with `xsrf_cookies=False`, so nothing covers the cookie name today.\n\nThe compiled bundle under `mitmproxy/tools/web/static/` still contains the old name. Run `npm run build` in `web/` to regenerate it; I didn't hand-edit it.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..f22c6fa43 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmweb: Rename the XSRF cookie to `_mitmproxy_xsrf` to recover Firefox sessions broken by the old cookie.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..b18662dfd 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -925,6 +925,7 @@ class Application(tornado.web.Application):\n             template_path=os.path.join(os.path.dirname(__file__), \"templates\"),\n             static_path=os.path.join(os.path.dirname(__file__), \"static\"),\n             xsrf_cookies=True,\n+            xsrf_cookie_name=\"_mitmproxy_xsrf\",\n             xsrf_cookie_kwargs=dict(samesite=\"Strict\"),\n             cookie_secret=secrets.token_bytes(32),\n             debug=debug,\ndiff --git a/web/src/js/utils.ts b/web/src/js/utils.ts\nindex 7e76df609..89969f55c 100644\n--- a/web/src/js/utils.ts\n+++ b/web/src/js/utils.ts\n@@ -78,7 +78,7 @@ function getCookie(name) {\n }\n \n let xsrf = () => {\n-    const cached = getCookie(\"_xsrf\");\n+    const cached = getCookie(\"_mitmproxy_xsrf\");\n     xsrf = () => cached;\n     return xsrf();\n };\n",
+  "distill": "attest  confirmed    xsrf-cookie-name-must-be-changed-in-both-app-py-and-utils-ts → c=90%\nattest  unused       web-frontend-tests-web-npm → c=64%\ndistilled 9 events (3 exploration calls) → 0 new, 0 merged; cost $0.033\n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's patch is functionally identical to the merged patch. It adds xsrf_cookie_name=\"_mitmproxy_xsrf\" to the Tornado settings in app.py and changes the getCookie call in web/src/js/utils.ts to read \"_mitmproxy_xsrf\". The extra CHANGELOG entry doesn't affect behavior, and the upstream comment is only documentation.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/tools/web/app.py",
+      "web/src/js/utils.ts"
+    ]
+  }
+}

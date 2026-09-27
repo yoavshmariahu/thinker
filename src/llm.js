@@ -25,7 +25,20 @@ async function viaSdk({ system, prompt, model, schema, maxTokens, timeoutMs }) {
   return { text, json: schema ? JSON.parse(text) : null, usage: res.usage, cost: null };
 }
 
-async function viaCli({ system, prompt, model, schema, timeoutMs }) {
+const LIMIT_RE = /session limit|usage limit|rate limit|limit reached|hit your .*limit/i;
+
+async function viaCli(opts) {
+  // usage limits: wait and retry instead of failing the caller
+  for (let attempt = 0; ; attempt++) {
+    try { return await viaCliOnce(opts); }
+    catch (e) {
+      if (!LIMIT_RE.test(String(e.message)) || attempt >= 18 || process.env.THINKER_NO_LIMIT_WAIT === '1') throw e;
+      await new Promise(r => setTimeout(r, 10 * 60_000));
+    }
+  }
+}
+
+async function viaCliOnce({ system, prompt, model, schema, timeoutMs }) {
   // Run in an empty temp cwd so no project CLAUDE.md / MCP servers leak in.
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-llm-'));
   const args = ['-p', '--model', ALIASES[model] || model, '--output-format', 'json', '--no-session-persistence',
@@ -43,7 +56,7 @@ async function viaCli({ system, prompt, model, schema, timeoutMs }) {
       p.stdin.end(prompt);
     });
     const j = JSON.parse(stdout);
-    if (j.is_error) throw new Error('claude -p error: ' + (j.result || '').slice(0, 500));
+    if (j.is_error || LIMIT_RE.test(String(j.result || '').slice(0, 200)) && (j.num_turns || 0) <= 1) throw new Error('claude -p error: ' + (j.result || '').slice(0, 500));
     let json = j.structured_output ?? null;
     if (schema && json == null) { try { json = JSON.parse(j.result); } catch { throw new Error('no structured output: ' + String(j.result).slice(0, 300)); } }
     return { text: j.result, json, usage: j.usage, cost: j.total_cost_usd };

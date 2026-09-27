@@ -1,0 +1,64 @@
+{
+  "id": "pre-commit-pre-push-hooks-and-required-codegen",
+  "title": "Pre-commit/pre-push hooks and required codegen",
+  "kind": "cochange",
+  "answers": [
+    "What runs on pre-commit and pre-push?",
+    "Which codegen must I run after changing serializers or schema?",
+    "How do I fix ci:preflight failures?"
+  ],
+  "body": "- `.husky/pre-commit` runs `pnpm lint-staged` (rules in `package.json` `lint-staged`): py → `hogli lint:python:fix`, `hogli format:python`, `ty check`; md → `hogli format:markdown`; templates → `hogli format:html`.\n- Editing `products/**/manifest.tsx` triggers `pnpm build:products` and stages regenerated `products.tsx`, `productScenes.tsx`, `products.json`. `frontend/src/lib/constants.tsx` triggers `hogli lint:feature-flags:fix`.\n- `.husky/pre-push`: blocks master, blocks merge-queue branches, runs `hogli ci:preflight --strict`; on failure run `hogli ci:preflight --fix`. Never `--no-verify`.\n- Codegen: serializers/viewsets → `hogli build:openapi` (never hand-edit `api.schemas.ts`, `api.ts`, `api.zod.ts`); query schema → `hogli build:schema` (json+python); kea logics → `typegen:write` in frontend/package.json (`*Type.ts` files); migrations via `hogli migrations:run`.",
+  "applies": "Contributor changes touching serializers, query schema, kea logics, product manifests; hooks apply on commit/push.",
+  "tags": [
+    "codegen",
+    "pre-commit",
+    "openapi",
+    "kea"
+  ],
+  "deps": [
+    {
+      "path": ".husky/pre-commit",
+      "hash": "sha256:58fca2fb329a23265c294104",
+      "missing": false
+    },
+    {
+      "path": ".husky/pre-push",
+      "hash": "sha256:27f31ab6688256a0900845f2",
+      "missing": false
+    },
+    {
+      "path": "package.json",
+      "hash": "sha256:aea9121f42bdd80c0a5b6e85",
+      "missing": false
+    },
+    {
+      "path": "hogli.yaml",
+      "hash": "sha256:701482cc24d2ef297d1bd18e",
+      "missing": false
+    },
+    {
+      "path": "frontend/package.json",
+      "hash": "sha256:badec13ec1d8c4367eb4a5a6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "0655c45f-8654-4740-ad3c-fddeee2e923d"
+  },
+  "created": "2026-09-26T20:38:56.491Z",
+  "verified": "2026-09-26T20:38:56.491Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "hogli-is-the-task-runner-test-lint-format-codegen-entry-poin"
+  ],
+  "lastUsed": "2026-09-26T22:42:56.751Z",
+  "servedIn": [
+    "a7d33789-154d-44cb-94f2-61838fb3d7d1",
+    "c8bc6301-026f-4fbe-b0ed-fd02857e9a68",
+    "043b894d-7483-463a-981a-37bca4b0739d"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "id": "decimal-places-0-is-a-valid-value-compare-against-null-never",
+  "title": "Decimal places 0 is a valid value: compare against null, never truthiness",
+  "kind": "fix",
+  "answers": [
+    "Decimal places set to 0 has no effect on SQL insight table or Big number",
+    "Big number shows 42.195 instead of 42 with style None",
+    "decimalPlaces 0 ignored in data visualization formatting"
+  ],
+  "body": "Symptom: Setting Decimal places to 0 on a SQL insight under style None still shows the raw float (42.195 instead of 42) in Big number and table cells.\nRoot cause: frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts:formatDataWithSettings and the tabularData table cell selector used `decimalPlaces ? ... : data`; 0 is falsy so it fell through to the raw value.\nFix pattern: use `decimalPlaces != null` for configured-check. Do NOT use `toFixed(decimalPlaces ?? 0)`: unset would then truncate every float in tables (tested: unset keeps full precision).\nConstraints: Number style already worked because toLocaleString accepts 0. Any new decimalPlaces check in DataVisualization must use null comparison (sqlLineGraphAdapter.ts:formatSqlSeriesValue already does via `?? 3`).",
+  "applies": "frontend/src/queries/nodes/DataVisualization formatting of decimalPlaces",
+  "tags": [
+    "data-viz",
+    "sql-insight",
+    "formatting"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "formatDataWithSettings",
+      "hash": "sha256:1efd38510b23c9a71150e490",
+      "line": 156,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+      "symbol": "formatSqlSeriesValue",
+      "hash": "sha256:0a05e3abdf21780416131363",
+      "line": 242,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105690"
+  },
+  "created": "2026-09-26T23:58:55.233Z",
+  "verified": "2026-09-26T23:58:55.233Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "series-data-ydata-breakdown-must-stay-unrounded-rounding-hap"
+  ]
+}

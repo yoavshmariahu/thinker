@@ -1,0 +1,45 @@
+{
+  "id": "E12-ctx-obj-rerank-0",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "rerank",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "15918234-2e09-4293-a0b4-f4be1906747e",
+  "turns": 4,
+  "wall_ms": 16619,
+  "api_ms": 10854,
+  "cost": 0.0622744,
+  "in_tokens": 62621,
+  "out_tokens": 979,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 1,
+      "Read": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.85,
+    "missing": [
+      "Doesn't name the specific call sites that supply parent= (Group.invoke at core.py ~1982/2002-2008, Command.make_context ~1311, Context._make_sub_context ~837)",
+      "Doesn't mention that ensure_object may overwrite an unrelated existing obj on the current context (docs caveat)",
+      "Doesn't mention that ensure_object calls object_type() with no args",
+      "Doesn't mention chained-group behavior (sub-contexts built up front) or the obj is None (not falsiness) check",
+      "Doesn't mention make_pass_decorator/pass_obj consumers or Context.meta contrast"
+    ],
+    "wrong": [
+      "Says 'If the child passes its own non-None obj, that overrides the parent's' — true for Context.__init__, but Group.invoke doesn't pass obj, so it's a minor tangent, not contradictory"
+    ],
+    "reason": "The main point is correct: propagation happens in Context.__init__ at core.py:374-378 through a reference copy at construction, and the answer gets the timing after the group callback right. The find_object and ensure_object semantics are correct, including that ensure_object writes to the innermost context only. It misses the secondary call sites and several specifics the reference lists, so it falls short of full marks.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "**Propagation:** `src/click/core.py:Context.__init__` (lines 374–378):\n\n```python\nif obj is None and parent is not None:\n    obj = parent.obj\nself.obj = obj\n```\n\nWhen a group invokes a subcommand, click builds the child `Context` with `parent=` set to the group's context. It does not pass `obj`, so the child copies `parent.obj` at construction time. This is a plain reference copy, not a copy of the object. The child and parent share the same object, so mutations to it are visible to both. If the child passes its own non-`None` `obj`, that overrides the parent's.\n\nBecause the copy happens at construction, assigning `ctx.obj = ...` in the group callback works for subcommands. The subcommand context is created after the group callback runs, so it picks up the new value. Reassigning `ctx.obj` in a child afterwards does not affect the parent.\n\n**`find_object` vs `ensure_object`** (`core.py:Context.find_object` at line 736, `Context.ensure_object` at line 748):\n\n- **`find_object(object_type)`**:\n  - It walks from the current context up through `.parent`.\n  - It returns the first `node.obj` that is an `isinstance` of `object_type`.\n  - It returns `None` if none matches.\n  - It is read-only.\n- **`ensure_object(object_type)`**:\n  - It calls `find_object` first.\n  - If that returns `None`, it sets `self.obj = object_type()` on the current, innermost context only, and returns the new instance.\n  - Otherwise it returns the existing object.\n\nThe practical difference is that `find_object` can return `None` and never modifies anything. `ensure_object` never returns `None` and can create the object, but it stores it only on the current context. A parent context therefore won't see an object created by a child's `ensure_object`. Subcommands of that child, created after the call, will inherit it through the propagation above.",
+  "is_error": false,
+  "diff": null
+}

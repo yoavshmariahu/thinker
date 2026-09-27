@@ -1,0 +1,42 @@
+{
+  "id": "task-pr-status-revalidation-is-throttled-by-ttl-and-concurre",
+  "title": "Task PR status revalidation is throttled by TTL and concurrency cap",
+  "kind": "invariant",
+  "answers": [
+    "Why does the PR badge state take up to 30 seconds to update?",
+    "Where is the limit on background GitHub checks for task PR status?",
+    "Why is getTaskPrStatus not calling GitHub on every row render?"
+  ],
+  "body": "Host-side PR status revalidation must stay bounded because every visible row can trigger a lookup.\n- task-pr-status.ts `TaskPrStatusService`: `REVALIDATION_TTL_MS` (30s) skips a repeat check of the same task via `lastRevalidations`.\n- A changed `cloudPrUrl` bypasses the TTL, so a PR a run just opened gets its color at once.\n- `MAX_CONCURRENT_REVALIDATIONS` (4) is enforced by `withRevalidationSlot`; extra checks queue.\n- In-flight dedupe via `taskPrRevalidations` runs first, then the TTL check.\n- Removing any of these makes per-row lookups (up to 50 rows in the work column) hammer GitHub. Tests in task-pr-status.test.ts cover all three.\n- Trade-off: PR state changes may show up to 30s late.",
+  "applies": "products/desktop/packages/workspace-server task PR status lookups",
+  "tags": [
+    "desktop",
+    "pr-status",
+    "rate-limit"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/workspace-server/src/services/git/task-pr-status.ts",
+      "symbol": "TaskPrStatusService",
+      "hash": "sha256:0b789e752bcb9fed59006cb1",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/workspace-server/src/services/git/task-pr-status.test.ts",
+      "hash": "sha256:b8a80174a8178e48bf872c2f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105647"
+  },
+  "created": "2026-09-27T00:00:27.042Z",
+  "verified": "2026-09-27T00:00:27.042Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

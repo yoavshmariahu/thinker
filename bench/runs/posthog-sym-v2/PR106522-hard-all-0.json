@@ -1,0 +1,98 @@
+{
+  "id": "PR106522-hard-all-0",
+  "task": "PR106522-hard",
+  "area": "tasks",
+  "arm": "all",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "afad1150-74a1-4e9a-9a6e-93d48551d352",
+  "turns": 11,
+  "wall_ms": 58084,
+  "api_ms": 38272,
+  "cost": 0.40312880000000006,
+  "in_tokens": 648831,
+  "out_tokens": 4633,
+  "tools": {
+    "calls": 9,
+    "byTool": {
+      "Bash": 9
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 9,
+    "injected": [
+      "invariants-for-recording-task-run-status-failure-in-process-",
+      "code-outside-jest-roots-replay-shared-must-trigger-full-fron",
+      "cloud-task-run-lifecycle-api-facade-temporal-process-task"
+    ],
+    "lateEvents": 0,
+    "nudged": true
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0.5
+    ],
+    "reasons": [
+      "The agent covered only the process_task workflow status-update path and one telemetry event. It missed the two main failure emitters the upstream patch fixes, mark_failed and the agent-reported failure in the facade update_task_run. It also missed the continuation backend propagation. Agent-reported failures and continued runs would still lack reliable backend info. The added metric label and is_resume field are extras. The change is incomplete and mostly in the wrong places.",
+      "The agent changed only part of the flow (update_task_run_status terminal analytics and a workflow event). It missed the agent-reported failure event in facade/api.py, mark_failed in models.py, the execute_sandbox workflow, and carrying the backend through resumed runs. Agent-reported failures, a core case in the request, still lack the backend. It is a partial, off-target change, so it scores 0.",
+      "The agent tagged the process_task workflow's status-update activity and its failure tracking event with sandbox_backend, which is one of the merged patch's paths. It missed two failure paths the merged patch covers: TaskRun.mark_failed and the agent-reported failure in the facade. It also did not carry the backend through resumed and continued runs, or through the execute_sandbox workflow's status updates. The request explicitly names agent-reported failures and continuations, so the change is in the right direction but incomplete."
+    ],
+    "reason": "The agent covered only the process_task workflow status-update path and one telemetry event. It missed the two main failure emitters the upstream patch fixes, mark_failed and the agent-reported failure in the facade update_task_run. It also missed the continuation backend propagation. Agent-reported failures and continued runs would still lack reliable backend info. The added metric label and is_resume field are extras. The change is incomplete and mostly in the wrong places.",
+    "mustHit": 2,
+    "mustTotal": 6,
+    "touched": [
+      "products/tasks/backend/metrics.py",
+      "products/tasks/backend/temporal/process_task/activities/update_task_run_status.py",
+      "products/tasks/backend/temporal/process_task/workflow.py"
+    ],
+    "criteria": {
+      "essential": 0.6,
+      "all": 0.42857142857142855,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "unclear",
+          "evidence": "The activity's `_resolve_sandbox_backend_property` falls back to `state.get(\"sandbox_backend\")` when `input.sandbox_backend` is empty, and the comment says \"Agent-reported failures arrive without one\". However the external run-update path (API view that submits terminal failure) is not shown, and it is unknown whether it emits task_run_failed through this activity/`_capture_terminal_analytics` or through another capture path. Cannot confirm the agent-reported path adds the property."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "System failure path: workflow `_update_task_run_status(\"failed\", ...)` passes `sandbox_backend=self._context.sandbox_backend if self._context else None`, and `_capture_terminal_analytics` emits `\"sandbox_backend\": _resolve_sandbox_backend_property(task_run, input)` in `task_run_failed`. The workflow's own track event also adds `\"sandbox_backend\": self.context.sandbox_backend`."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "`_resolve_sandbox_backend_property`: `if input.sandbox_backend: return input.sandbox_backend` else reads `state.get(\"sandbox_backend\")` from the stored run state. Status-update input is populated from the running workflow's context in `_update_task_run_status`."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "The patch does nothing to carry the backend from an earlier segment into a continued segment (continue-as-new / same-sandbox resume). It only reads `self.context.sandbox_backend` as-is; there is no change to how context.sandbox_backend is resolved on continuation, so re-resolution could pick a different backend."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "No handover/reattach logic added. The only fallback is in the status-update activity (state value, else \"modal\"), not tied to a continued run reattaching to the same sandbox with backend from state for that sandbox."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "`_resolve_sandbox_backend_property` always returns a string (defaulting to \"modal\") and never omits the property; it also doesn't validate against recognized identifiers (any non-empty string passes through). Only the Prometheus label is bounded via `_ALLOWED_SANDBOX_BACKENDS`, not the event property, and there is no no-sandbox omission."
+        },
+        {
+          "id": "c7",
+          "verdict": "met",
+          "evidence": "The existing fields remain unchanged in the event: `\"error_message\": truncate_error_message(input.error_message or task_run.error_message)`, `\"error_type\": input.error_type or \"unspecified\"`, `\"duration_seconds\": task_run._duration_seconds()`, `termination_reason`, and `**relay_state`; new keys are only added. Status is still recorded via the same flow."
+        }
+      ]
+    }
+  },
+  "result": "None of the three rules needs further edits.\n\n- **Desktop bootstrap launch:** I didn't touch `_prepare_posthog_desktop_cloud_task` or `provision_sandbox.py`.\n- **Merge-queue follow-up skip:** I added no follow-up decision sites, so `merge_queue_push_would_eject` isn't relevant.\n- **`workflow.patched` marker:** my change adds telemetry fields only and doesn't change any workflow decision or command sequence, so replay is unaffected. The new activity-input fields are optional with defaults, so in-flight payloads still deserialize.",
+  "is_error": false,
+  "diff": "diff --git a/products/tasks/backend/metrics.py b/products/tasks/backend/metrics.py\nindex 8edec4994ec..3a64957248f 100644\n--- a/products/tasks/backend/metrics.py\n+++ b/products/tasks/backend/metrics.py\n@@ -40,6 +40,7 @@ StreamTokenRoute = Literal[\"proxy\", \"django\", \"thin_tail_withheld\"]\n _ALLOWED_MODES = {\"background\", \"interactive\"}\n _ALLOWED_RUN_SOURCES = {\"manual\", \"signal_report\", \"agent\"}\n _ALLOWED_RUNTIME_ADAPTERS = {\"claude\", \"codex\"}\n+_ALLOWED_SANDBOX_BACKENDS = {\"modal\", \"hogland\"}\n _ALLOWED_TASK_RUNTIMES = {\"acp\", \"pi\"}\n \n \n@@ -183,6 +184,7 @@ TASK_RUN_FAILED_TOTAL = Counter(\n         \"mode\",\n         \"run_source\",\n         \"runtime_adapter\",\n+        \"sandbox_backend\",\n         \"error_type\",\n         \"temporal_activity_type\",\n         \"temporal_activity_retry_state\",\n@@ -681,6 +683,7 @@ def observe_task_run_failed(properties: dict[str, object]) -> None:\n         mode=_bounded_metric_label(properties.get(\"mode\"), _ALLOWED_MODES),\n         run_source=_bounded_metric_label(properties.get(\"run_source\"), _ALLOWED_RUN_SOURCES),\n         runtime_adapter=_bounded_metric_label(properties.get(\"runtime_adapter\"), _ALLOWED_RUNTIME_ADAPTERS),\n+        sandbox_backend=_bounded_metric_label(properties.get(\"sandbox_backend\"), _ALLOWED_SANDBOX_BACKENDS),\n         error_type=_failure_metric_label(properties.get(\"error_type\")),\n         temporal_activity_type=_failure_metric_label(properties.get(\"temporal_activity_type\")),\n         temporal_activity_retry_state=_failure_metric_label(properties.get(\"temporal_activity_retry_state\")),\ndiff --git a/products/tasks/backend/temporal/process_task/activities/update_task_run_status.py b/products/tasks/backend/temporal/process_task/activities/update_task_run_status.py\nindex 729843b82fa..0508e541be9 100644\n--- a/products/tasks/backend/temporal/process_task/activities/update_task_run_status.py\n+++ b/products/tasks/backend/temporal/process_task/activities/update_task_run_status.py\n@@ -10,6 +10,7 @@ from temporalio.exceptions import ApplicationError\n \n from posthog.temporal.common.utils import asyncify\n \n+from products.tasks.backend.constants import is_same_run_resume_state\n from products.tasks.backend.error_telemetry import truncate_error_message\n from products.tasks.backend.logic.services.workflow_step_resume import resume_workflow_step_for_run\n from products.tasks.backend.metrics import observe_prewarmed_unused_if_never_activated, observe_wizard_run_unbound\n@@ -50,6 +51,9 @@ class UpdateTaskRunStatusInput:\n     # One of _TERMINAL_STATE_MARKERS, recorded as a True key in TaskRun.state.\n     # Optional with a default for the same in-flight payload reason as error_type.\n     timeout_marker: Optional[str] = None\n+    # Failure attribution for sandbox alerts; optional for the same in-flight payload reason.\n+    sandbox_backend: Optional[str] = None\n+    is_resume: Optional[bool] = None\n     agent_active_at_termination: Optional[bool] = None\n     end_of_turn_received: Optional[bool] = None\n     last_agent_heartbeat_at: Optional[str] = None\n@@ -263,6 +267,8 @@ def _capture_terminal_analytics(task_run: TaskRun, input: UpdateTaskRunStatusInp\n                     \"error_type\": input.error_type or \"unspecified\",\n                     \"duration_seconds\": task_run._duration_seconds(),\n                     \"termination_reason\": termination_reason,\n+                    \"sandbox_backend\": _resolve_sandbox_backend_property(task_run, input),\n+                    \"is_resume\": _resolve_is_resume_property(task_run, input),\n                     **relay_state,\n                 },\n             )\n@@ -272,6 +278,22 @@ def _capture_terminal_analytics(task_run: TaskRun, input: UpdateTaskRunStatusInp\n         activity.logger.warning(f\"Failed to capture terminal analytics for run {task_run.id}\", exc_info=True)\n \n \n+def _resolve_sandbox_backend_property(task_run: TaskRun, input: UpdateTaskRunStatusInput) -> str:\n+    \"\"\"Backend of the run. Agent-reported failures arrive without one, so fall back to the run state.\"\"\"\n+    if input.sandbox_backend:\n+        return input.sandbox_backend\n+    state = task_run.state if isinstance(task_run.state, dict) else {}\n+    backend = state.get(\"sandbox_backend\")\n+    return backend if isinstance(backend, str) and backend else \"modal\"\n+\n+\n+def _resolve_is_resume_property(task_run: TaskRun, input: UpdateTaskRunStatusInput) -> bool:\n+    if input.is_resume is not None:\n+        return input.is_resume\n+    state = task_run.state if isinstance(task_run.state, dict) else {}\n+    return bool(state.get(\"resume_from_run_id\") or is_same_run_resume_state(state))\n+\n+\n def _record_terminal_token_usage(task_run: TaskRun, input: UpdateTaskRunStatusInput) -> None:\n     try:\n         state = task_run.state if isinstance(task_run.state, dict) else {}\ndiff --git a/products/tasks/backend/temporal/process_task/workflow.py b/products/tasks/backend/temporal/process_task/workflow.py\nindex ff5860a13a4..05543fd0fba 100644\n--- a/products/tasks/backend/temporal/process_task/workflow.py\n+++ b/products/tasks/backend/temporal/process_task/workflow.py\n@@ -1681,6 +1681,8 @@ class ProcessTaskWorkflow(PostHogWorkflow):\n                         \"error_type\": type(e).__name__,\n                         \"error_message\": truncate_error_message(str(e)),\n                         \"sandbox_id\": current_sandbox_id,\n+                        \"sandbox_backend\": self.context.sandbox_backend,\n+                        \"is_resume\": self._is_resume_run(),\n                         **self._activity_error_properties(e),\n                     },\n                     capture_analytics=False,\n@@ -2613,9 +2615,11 @@ class ProcessTaskWorkflow(PostHogWorkflow):\n         if not self._context:\n             return False\n \n+        return self.context.mode != \"interactive\" and not self._is_resume_run()\n+\n+    def _is_resume_run(self) -> bool:\n         state = self.context.state or {}\n-        is_resume = bool(state.get(\"resume_from_run_id\") or is_same_run_resume_state(state))\n-        return self.context.mode != \"interactive\" and not is_resume\n+        return bool(state.get(\"resume_from_run_id\") or is_same_run_resume_state(state))\n \n     async def _track_workflow_event(self, event_name: str, properties: dict, capture_analytics: bool = True) -> None:\n         track_input = TrackWorkflowEventInput(\n@@ -2823,6 +2827,8 @@ class ProcessTaskWorkflow(PostHogWorkflow):\n                 timed_out_inactivity=timed_out_inactivity,\n                 error_type=error_type,\n                 timeout_marker=timeout_marker,\n+                sandbox_backend=self._context.sandbox_backend if self._context else None,\n+                is_resume=self._is_resume_run() if self._context else None,\n                 agent_active_at_termination=self._agent_active,\n                 end_of_turn_received=self._end_of_turn_received,\n                 last_agent_heartbeat_at=(\n",
+  "distill": null
+}

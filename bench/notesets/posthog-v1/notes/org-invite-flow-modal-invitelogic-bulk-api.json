@@ -1,0 +1,69 @@
+{
+  "id": "org-invite-flow-modal-invitelogic-bulk-api",
+  "title": "Org invite flow: modal → inviteLogic → bulk API",
+  "kind": "callpath",
+  "answers": [
+    "How do organization invites work end to end?",
+    "Which endpoint does the invite modal call?",
+    "Where is invite creation validated on the backend?",
+    "What does inviteLogic do on success?"
+  ],
+  "body": "- UI: frontend/src/scenes/settings/organization/InviteModal.tsx:InviteModal → InviteTeamMatesComponent → InviteRow per `invitesToSend` entry. Client validation is only `isEmail` in row onChange (sets `isValid`); MAX_INVITES_AT_ONCE=20; owner-level needs typed \"send invites\" (`isInviteConfirmed`).\n- Logic: inviteLogic.ts loader `invitedTeamMembersInternal.inviteTeamMembers`: returns if !`canSubmit`, drops empty emails, copies shared `message`, awaits timeSensitiveAuthenticationLogic checkReauthentication, then `api.create` on `api/organizations/<id>/invites/bulk/`.\n- Modal opens via URL: `bindModalToUrl` urlKey 'invite-members'.\n- Backend: posthog/api/organization_invite.py:OrganizationInviteViewSet.bulk (non-list body rejected, >20 rows → code max_length, `OrganizationInviteSerializer(many=True)`, save, `report_bulk_invited`).\n- Serializer: validate_target_email (EmailNormalizer, reject_plus_addressed_email, validate_invite_target_email_domain → code `verified_domain_required`), validate_level (PermissionDenied if above inviter), validate_private_project_access; `create` rejects existing members, combine/delete existing invites via OrganizationInviteManager, sends email if `is_email_available`.\n- Success listener `inviteTeamMembersSuccess`: toast, reset rows to EMPTY_INVITE, reload org+invites; closes modal only if preflight email_service_available (else stays open for copying links).\n- `delegate` action is a separate onboarding flow, not used by the modal.",
+  "tags": [
+    "invites",
+    "kea",
+    "drf"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/organization_invite.py",
+      "symbol": "OrganizationInviteViewSet",
+      "hash": "sha256:73b4c9007240d956b2157179",
+      "line": 395,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/settings/organization/inviteLogic.ts",
+      "hash": "sha256:1ba7c1fa1a4d51cc10cd1f3f",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/settings/organization/InviteModal.tsx",
+      "hash": "sha256:4d71a53478f9e0c8706a73cd",
+      "missing": false
+    },
+    {
+      "path": "posthog/api/organization_invite.py",
+      "symbol": "OrganizationInviteViewSet.bulk",
+      "hash": "sha256:a2ab0b1f3a3d6f32fd87f3f6",
+      "line": 688,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "b5dc3d06-44e6-42c6-8a9f-0f2bdb441ad6"
+  },
+  "created": "2026-09-26T20:37:09.971Z",
+  "verified": "2026-09-26T20:37:09.971Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 12,
+  "related": [
+    "invite-validation-errors-reach-ui-only-as-a-global-toast"
+  ],
+  "lastUsed": "2026-09-27T00:32:35.205Z",
+  "servedIn": [
+    "dc6d75e7-6e87-4c6a-9728-6eb5084f4ad9",
+    "16dc75e1-acc4-444e-a71c-ca1fa73dff92",
+    "02f3d8f2-9b89-4094-8521-b221128422fb",
+    "9d03eee3-3849-49b1-b40f-7246df872518",
+    "a72ab93c-65d7-410e-a8d7-d0251a7b8f73",
+    "7704edb1-cbd7-41a2-87c3-97e329ae49aa",
+    "5aec7454-7b00-469b-8ed7-2db53df85935",
+    "6655cdaf-c87a-43af-9b20-b84c4b501952",
+    "e940b3ae-eb60-4884-97b1-f87b3160c1f6",
+    "a6c3e9ba-b40d-45b4-aea3-6bd26395a7c3"
+  ]
+}

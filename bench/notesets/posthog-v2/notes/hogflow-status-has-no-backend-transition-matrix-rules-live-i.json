@@ -1,0 +1,100 @@
+{
+  "id": "hogflow-status-has-no-backend-transition-matrix-rules-live-i",
+  "title": "HogFlow status has no backend transition matrix; rules live in serializer validation and frontend",
+  "kind": "invariant",
+  "answers": [
+    "Which HogFlow statuses can transition to which?",
+    "Does the backend enforce status transitions for workflows?",
+    "What happens when activating a draft workflow?",
+    "What extra restrictions apply to MCP callers?"
+  ],
+  "body": "- `HogFlow.State` = draft|active|archived (backend/models/hog_flow/hog_flow.py). `HogFlowSerializer.status` is a plain ChoiceField: any status can be PATCHed to any other; no transition matrix.\n- draft→active: `HogFlowSerializer.validate` re-validates stored actions with non-draft (strict) checks when payload has no `actions`. `to_internal_value` sets `context[\"is_draft\"]` when target status != active, so draft/archived saves are lenient.\n- MCP: `HogFlowViewSet.perform_create` rejects creating as ACTIVE; `perform_update` (`_is_mcp_request` block) forbids mixing status change with field edits and replacing actions/edges.\n- `origin_product` (broadcasts = origin_product=\"broadcasts\") is create-only; `HogFlowUpdateSerializer.validate` blocks changes.\n- Editing an active flow stages `draft` JSON (`stage_draft`, `DRAFT_CONTENT_FIELDS`); live row changes only via `publish`, `restore_revision`, graph endpoint, or update without stage_draft.\n- publish needs signed `confirm_token` from a preview (`mint_publish_confirm_token`), non-empty draft, strict revalidation; 409 `StaleWorkflowUpdateError` if draft changed.\n- Concurrency: `base_updated_at` → 409 if stored row newer; `base_live_updated_at` fences live metadata write; `perform_update` uses select_for_update.",
+  "applies": "Worker-side (Node/CDP) status enforcement was not inspected.",
+  "tags": [
+    "workflows",
+    "hogflow",
+    "status",
+    "publish"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowSerializer",
+      "hash": "sha256:d7be418de463c09e7db8cc14",
+      "line": 2907,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowViewSet",
+      "hash": "sha256:91a7248e2c6515c9b07cae8c",
+      "line": 3987,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow/hog_flow.py",
+      "symbol": "HogFlow",
+      "hash": "sha256:7a5296f57718a2b31cb15b02",
+      "line": 110,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow/hog_flow.py",
+      "symbol": "HogFlow.State",
+      "hash": "sha256:3e02927b57c81fbe06a9bf2c",
+      "line": 126,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowSerializer.status",
+      "hash": "sha256:155d4c0fcdc22d931df9c0d5",
+      "line": 2919,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowSerializer.validate",
+      "hash": "sha256:7d5d69596d120de9975b9679",
+      "line": 3214,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowViewSet.perform_create",
+      "hash": "sha256:86329c06a3b6b09412e6f757",
+      "line": 4329,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowUpdateSerializer.validate",
+      "hash": "sha256:5b14bf5059231335c380d085",
+      "line": 3393,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "6b23f6f0-67e5-41f7-83d1-f40cd68c9123"
+  },
+  "created": "2026-09-27T00:14:11.320Z",
+  "verified": "2026-09-27T00:14:11.320Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "adding-a-hogflow-status-transition-what-changes-together",
+    "broadcast-status-is-derived-in-frontend-from-hogflow-status-",
+    "action-eligibility-backend-gates-vs-frontend-mirrors-launch-",
+    "hogflowschedule-status-and-sync-with-flow-batch-job-state"
+  ],
+  "servedIn": [
+    "6c1304de-5377-4a98-a171-a7499a5b5140",
+    "1d74124f-792a-4371-985b-456bd989732c",
+    "2396f9df-b35b-4b03-ba90-9b58edf1b680",
+    "0a314f90-3d79-4a53-9587-48b57cfd06b7"
+  ],
+  "lastUsed": "2026-09-27T01:01:11.580Z"
+}

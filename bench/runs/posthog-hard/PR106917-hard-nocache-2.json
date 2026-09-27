@@ -1,0 +1,91 @@
+{
+  "id": "PR106917-hard-nocache-2",
+  "task": "PR106917-hard",
+  "area": "data_warehouse",
+  "arm": "nocache",
+  "rep": 2,
+  "model": "sonnet",
+  "session": "9c6fbb94-6974-495b-b7d6-158d0421ed8d",
+  "turns": 13,
+  "wall_ms": 40511,
+  "api_ms": 37941,
+  "cost": 0.29525140000000005,
+  "in_tokens": 764060,
+  "out_tokens": 4216,
+  "tools": {
+    "calls": 12,
+    "byTool": {
+      "Bash": 12
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 11,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent modified both places the upstream patch changed. In disable_cdc it pauses each former CDC schema's schedule. In mark_cdc_broken, when pause=True, it pauses every CDC schema's schedule in addition to the extraction schedule. This meets the request's core behavior. The upstream patch adds transactional safety: it pauses first, rolls back on failure, and returns a 503. The agent instead pauses after commit and logs failures. That is a robustness difference, not a functional miss for the main requirement. One nuance: the agent's broken.py returns early if the import fails, which is harmless.",
+      "The agent changed both places the upstream patch changed. In `disable_cdc` it pauses every former CDC table's schedule. In `mark_cdc_broken`, via `_pause_schedule`, it pauses each CDC schema's schedule when `pause=True`. That covers the core behavior in the request: disabling CDC and marking a source broken both stop the affected tables' syncs. The main gap is error handling in `disable_cdc`. Upstream pauses first and aborts with a 503 if a pause fails. The agent pauses after the commit and only logs failures, so a failed pause leaves that table running on its old schedule. That is a robustness difference, not a failure of the requested behavior on the normal path, so I scored it 1.",
+      "The agent changed both places the upstream patch changed. In `disable_cdc`, it pauses each former CDC table's schedule. In `mark_cdc_broken`, `_pause_schedule` now also pauses every CDC schema's schedule when `pause=True`, and a failed pause doesn't block persisting the broken state. The core behavior matches upstream: disabling CDC and marking a source broken both stop the tables' own schedules. The differences are in how `disable_cdc` handles a failed pause, and that is a robustness gap rather than a failure to do what was asked. One risk is that `base.logger` may not exist in that module, which I couldn't check."
+    ],
+    "reason": "The agent modified both places the upstream patch changed. In disable_cdc it pauses each former CDC schema's schedule. In mark_cdc_broken, when pause=True, it pauses every CDC schema's schedule in addition to the extraction schedule. This meets the request's core behavior. The upstream patch adds transactional safety: it pauses first, rolls back on failure, and returns a 503. The agent instead pauses after commit and logs failures. That is a robustness difference, not a functional miss for the main requirement. One nuance: the agent's broken.py returns early if the import fails, which is harmless.",
+    "mustHit": 2,
+    "mustTotal": 4,
+    "touched": [
+      "products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py",
+      "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py"
+    ],
+    "criteria": {
+      "essential": 0.75,
+      "all": 0.5714285714285714,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "After the atomic reset, `for schema_id in cdc_schema_ids: pause_external_data_schedule(str(schema_id))` pauses each former CDC table. Non-CDC tables are untouched (the update filters on sync_type=CDC). This assumes cdc_schema_ids holds the syncing CDC schemas, which the shown code does not confirm."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "The pause runs after the commit and wraps each call in `except Exception` that only logs and captures, so the request still returns 200. Engine cleanup (`adapter.cleanup_resources`) and the DB reset have already happened. A pause failure does not fail the request or leave CDC enabled."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "The patch has no abort path and no rollback that resumes schedules paused earlier in the request. Pause failures are swallowed and the request continues."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "`_pause_schedule(source, cdc_schemas, log)` loops over `cdc_schemas` and calls `pause_external_data_schedule(str(schema.id))`. `cdc_schemas` is the list of CDC schemas with should_sync=True that were marked broken, and the source-level `pause_cdc_extraction_schedule` call is kept."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "`if pause: _pause_schedule(source, cdc_schemas, log)` gates all pausing. `cdc_schemas` is filtered to `sync_type=CDC, should_sync=True` and excludes deleted schemas, so tables with sync off are not paused."
+        },
+        {
+          "id": "c6",
+          "verdict": "met",
+          "evidence": "The broken state is persisted inside the atomic block before `_pause_schedule` runs. Each per-schema pause sits in its own `try/except Exception` that calls `log.warning(...)`, so one failure does not stop the remaining tables from being paused."
+        },
+        {
+          "id": "c7",
+          "verdict": "unclear",
+          "evidence": "The patch does not add or change any function that checks whether a schedule is paused, and the code shown does not include one, so this cannot be determined."
+        }
+      ]
+    }
+  },
+  "result": "Disabling CDC and marking a CDC source broken now both pause each affected table's own sync schedule. I haven't run the tests or added one.\n\n- **Disabling CDC:** in `disable_cdc` (`presentation/views/external_data_source/change_data_capture.py`), each former CDC table's schedule is paused once the schema reset commits. Those tables were already set to `should_sync=False`, but the bulk `update()` never touched their schedules. A failed pause is logged and reported, and doesn't block the disable.\n- **Marking a source broken:** `_pause_schedule` in `temporal/data_imports/cdc/broken.py` now also pauses each CDC schema's schedule, in addition to the extraction schedule. It only runs when `pause=True`. Self-managed critical lag still leaves everything running, since that slot may recover.\n- **Repair:** I didn't change it. `_resume_schedules` in `repair.py` already unpauses each schema's schedule.",
+  "is_error": false,
+  "diff": "diff --git a/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py b/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py\nindex a4a8b293086..b788ca3c7a4 100644\n--- a/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py\n+++ b/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py\n@@ -13,7 +13,10 @@ from rest_framework.response import Response\n \n from posthog.api.utils import action\n \n-from products.data_warehouse.backend.facade.api import delete_cdc_extraction_schedule\n+from products.data_warehouse.backend.facade.api import (\n+    delete_cdc_extraction_schedule,\n+    pause_external_data_schedule,\n+)\n from products.warehouse_sources.backend.facade.models import (\n     DataWarehouseTable,\n     ExternalDataJob,\n@@ -530,6 +533,15 @@ class ExternalDataSourceCDCMixin(base.ExternalDataSourceViewSetBase):\n             instance.job_inputs = job_inputs\n             instance.save(update_fields=[\"job_inputs\", \"updated_at\"])\n \n+        # A table marked as not syncing must not keep firing on its own schedule (each run is billed).\n+        # After the commit so a rolled-back reset never leaves schedules paused.\n+        for schema_id in cdc_schema_ids:\n+            try:\n+                pause_external_data_schedule(str(schema_id))\n+            except Exception as e:\n+                base.logger.exception(\"Failed to pause schema schedule after disable_cdc\", exc_info=e)\n+                base.capture_exception(e, {\"source_id\": str(instance.id), \"schema_id\": str(schema_id)})\n+\n         return Response(status=status.HTTP_200_OK, data={\"success\": True})\n \n     @extend_schema(\ndiff --git a/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py b/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py\nindex 19dee2f0ecf..12566e1de0c 100644\n--- a/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py\n+++ b/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py\n@@ -99,7 +99,7 @@ def mark_cdc_broken(\n             )\n \n     if pause:\n-        _pause_schedule(source, log)\n+        _pause_schedule(source, cdc_schemas, log)\n \n     # Breakage often originates outside a run (the lag sweeper), so no FAILED job row exists.\n     # The failure digest email needs one: its schema query requires a failed job newer than the\n@@ -186,16 +186,31 @@ def _schedule_failure_digest(source: ExternalDataSource, log: typing.Any) -> Non\n         log.warning(\"cdc_broken_digest_schedule_failed\", exc_info=True)\n \n \n-def _pause_schedule(source: ExternalDataSource, log: typing.Any) -> None:\n+def _pause_schedule(source: ExternalDataSource, cdc_schemas: list[ExternalDataSchema], log: typing.Any) -> None:\n     try:\n         # Deferred: data_load.service participates in the CDC schedule<->workflow import cycle.\n-        from products.data_warehouse.backend.facade.api import pause_cdc_extraction_schedule\n+        from products.data_warehouse.backend.facade.api import (\n+            pause_cdc_extraction_schedule,\n+            pause_external_data_schedule,\n+        )\n+    except Exception:\n+        log.warning(\"cdc_broken_pause_schedule_failed\", exc_info=True)\n+        return\n \n+    try:\n         pause_cdc_extraction_schedule(str(source.id))\n     except Exception:\n         # Best-effort: a failed pause must not block persisting the broken state.\n         log.warning(\"cdc_broken_pause_schedule_failed\", exc_info=True)\n \n+    # Each table's own sync schedule keeps firing otherwise, recording a failed or billed run per tick.\n+    # Repair unpauses these in `_resume_schedules`.\n+    for schema in cdc_schemas:\n+        try:\n+            pause_external_data_schedule(str(schema.id))\n+        except Exception:\n+            log.warning(\"cdc_broken_pause_schema_schedule_failed\", schema_id=str(schema.id), exc_info=True)\n+\n \n def _notify(source: ExternalDataSource, message: str, log: typing.Any) -> None:\n     try:\n",
+  "distill": null
+}

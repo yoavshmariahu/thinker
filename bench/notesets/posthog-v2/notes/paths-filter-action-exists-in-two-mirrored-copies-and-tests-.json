@@ -1,0 +1,46 @@
+{
+  "id": "paths-filter-action-exists-in-two-mirrored-copies-and-tests-",
+  "title": "paths-filter action exists in two mirrored copies and tests read ci-frontend.yml filters",
+  "kind": "cochange",
+  "answers": [
+    "Where are paths-filter tests for the frontend_code filter?",
+    "Do I need to edit both .depot and .github paths-filter action tests?",
+    "How to test a change to ci-frontend.yml path filters?"
+  ],
+  "body": "`.depot/actions/paths-filter/__tests__/filter.test.ts` and `.github/actions/paths-filter/__tests__/filter.test.ts` are identical copies; update both together.\nThe new test 'runs frontend consumer tests when replay-shared source changes' loads `.github/workflows/ci-frontend.yml` with js-yaml, finds the `changes` job step with `id: filter`, and feeds its `with.filters` into `Filter`, asserting `frontend_code` matches. So edits to the `frontend_code` filter in the workflow are checked by these tests; add a similar case when adding paths.",
+  "applies": "Changes to paths-filter action tests or the frontend_code filter in ci-frontend.yml",
+  "tags": [
+    "ci",
+    "paths-filter",
+    "tests",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": ".github/actions/paths-filter/__tests__/filter.test.ts",
+      "hash": "sha256:c498293f79c186a496e7bca4",
+      "missing": false
+    },
+    {
+      "path": ".depot/actions/paths-filter/__tests__/filter.test.ts",
+      "hash": "sha256:c498293f79c186a496e7bca4",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/ci-frontend.yml",
+      "hash": "sha256:4032a1a9d2f0c1e15dcef2ed",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105391"
+  },
+  "created": "2026-09-27T00:04:38.696Z",
+  "verified": "2026-09-27T00:04:38.696Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

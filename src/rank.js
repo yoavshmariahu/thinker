@@ -75,9 +75,9 @@ function pathAffinity(note, file) {
   return best;
 }
 
-const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0.1, callpath: 0.05, location: 0.05, rationale: 0.05, overview: 0.1 };
+const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0.1, callpath: 0.05, location: 0.05, rationale: 0.05, overview: 0.1, invariant: 0.1, fix: 0.1 };
 
-export function rank(notes, { query = '', file = '', mode = 'orient' } = {}) {
+export function rank(notes, { query = '', file = '', mode = 'orient', loose = false } = {}) {
   const idx = buildIndex(notes);
   const qtoks = tokenize(query + ' ' + (file || ''));
   const Q = bm25(idx.q, qtoks), B = bm25(idx.b, qtoks);
@@ -88,7 +88,7 @@ export function rank(notes, { query = '', file = '', mode = 'orient' } = {}) {
   return notes.map(n => {
     const mq = Q.matched.get(n.id) || 0, mb = B.matched.get(n.id) || 0;
     const aff = pathAffinity(n, file);
-    const passes = mq >= need || (mq >= 1 && mb >= 3) || aff > 0;
+    const passes = loose ? (mq + mb) >= 1 || aff > 0 : (mq >= need || (mq >= 1 && mb >= 3) || aff > 0);
     const rel = passes ? 0.7 * (Q.scores.get(n.id) || 0) / maxQ + 0.3 * (B.scores.get(n.id) || 0) / maxB : 0;
     const prior = mode === 'orient' ? (KIND_PRIOR[n.kind] || 0) * 0.3 : 0;
     const conf = (n.confidence ?? 0.7);
@@ -101,11 +101,22 @@ export function rank(notes, { query = '', file = '', mode = 'orient' } = {}) {
 
 export const estTokens = s => Math.ceil(String(s).length / 3.6);
 
+// Pointers-only rendering: where to look, without prose that could be read as the whole picture.
+export function renderPointers(n) {
+  const deps = [...(n.deps || []).filter(d => d.symbol), ...(n.deps || []).filter(d => !d.symbol)].slice(0, Number(process.env.THINKER_MAX_POINTERS) || 6).map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''}${d.line ? ':L' + d.line : ''}`).join(', ');
+  const stale = n.status === 'stale' ? ' (STALE: confirm)' : '';
+  return `- [${n.kind}] ${n.title}${stale}  (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%)\n  → ${deps}`;
+}
+
 export function renderNote(n, { full = true } = {}) {
   const flag = n.status === 'stale'
     ? `\n> ⚠ STALE: ${(n.stale?.changed || []).map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'dependencies changed'} since this was verified. Confirm against the code before relying on it.`
     : '';
-  const deps = (n.deps || []).map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''}${d.line ? ':L' + d.line : ''}`).join(', ');
+  const maxPtr = Number(process.env.THINKER_MAX_POINTERS) || 6;
+  const all = (n.deps || []);
+  // symbol-level pointers first: they are the precise ones
+  const shown = [...all.filter(d => d.symbol), ...all.filter(d => !d.symbol)].slice(0, maxPtr);
+  const deps = shown.map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''}${d.line ? ':L' + d.line : ''}`).join(', ') + (all.length > shown.length ? ` (+${all.length - shown.length} more)` : '');
   const head = `### [${n.kind}] ${n.title}  (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%)`;
   if (!full) return `${head}${flag}\n${(n.body || '').split('\n')[0].slice(0, 200)}\n→ ${deps}`;
   const applies = n.applies ? `\nApplies: ${n.applies}` : '';
@@ -113,13 +124,13 @@ export function renderNote(n, { full = true } = {}) {
 }
 
 // Greedy pack ranked notes into a token budget; returns {text, included, omitted}
-export function pack(ranked, budget, { minRel = 0.05, force = process.env.THINKER_FORCE === '1' } = {}) {
+export function pack(ranked, budget, { minRel = 0.05, force = process.env.THINKER_FORCE === '1', pointers = false } = {}) {
   const parts = [], included = [], omitted = [];
   let used = 0;
   for (const r of ranked) {
     const n = r.note;
     if (!force && r.rel < minRel && r.aff === 0) { omitted.push(n); continue; }
-    const text = renderNote(n);
+    const text = pointers ? renderPointers(n) : renderNote(n);
     const t = estTokens(text);
     if (used + t <= budget) { parts.push(text); used += t; included.push(n); }
     else {

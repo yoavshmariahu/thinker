@@ -1,0 +1,75 @@
+{
+  "id": "PR8397-hard-nocache-1",
+  "task": "PR8397-hard",
+  "area": "encoding",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "b28d6619-7c1b-49cc-8c3c-4bb18c1cdffa",
+  "turns": 8,
+  "wall_ms": 18570,
+  "api_ms": 18082,
+  "cost": 0.09942980000000001,
+  "in_tokens": 138751,
+  "out_tokens": 1918,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 5,
+      "Read": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 4,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [
+      "Upstream adds backports.zstd for Python <3.14 as the fallback; the agent kept the third-party zstandard package as the fallback, so the dependency is not swapped.",
+      "uv.lock was not updated."
+    ],
+    "wrong": [
+      "The agent's fallback uses `zstandard` on Python <3.14. This is a reasonable reading of the request text, which says to fall back to the third-party zstandard package. But it differs from the merged patch, which uses backports.zstd. The agent's branching also leaves two code paths in each function."
+    ],
+    "reason": "The agent edited the right file and function. On Python 3.14+ the behavior matches upstream: `zstd.decompress(content)` and `zstd.compress(content, level=1)` from `compression.zstd`. The agent's try/except ImportError and the `_STDLIB_ZSTD` flag are functionally fine there. On older Pythons the agent keeps the zstandard package, so the fallback differs from upstream's backports.zstd. The request wording does allow this fallback, so it is a defensible reading. It means the change is only partly equivalent, and the dependency change and lockfile are not equivalent to upstream.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/net/encoding.py",
+      "pyproject.toml"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed `mitmproxy/net/encoding.py` in the right place. It imports `compression.zstd` and falls back to `zstandard` on `ImportError`. On the stdlib path, `decode_zstd` uses `zstd.decompress` and `encode_zstd` uses `zstd.compress(level=1)`, the same calls the upstream patch makes. The upstream patch falls back to `backports.zstd`, but the request asked for a fallback to `zstandard`, so the agent's fallback follows the request. Making `zstandard` conditional on Python below 3.14 in `pyproject.toml` is reasonable. The agent left `uv.lock` unregenerated, which doesn't affect behaviour.",
+      "The agent changed the same place as the merged patch. In mitmproxy/net/encoding.py it imports compression.zstd when available and calls zstd.decompress(content) and zstd.compress(content, level=1). Where the stdlib module is missing it falls back to the zstandard package, as the request asked. The merged patch falls back to backports.zstd instead, but the request explicitly names the zstandard package as the fallback. The agent also made the zstandard dependency conditional for Python below 3.14, which is consistent with this. The agent did not update uv.lock. That is a minor omission and does not affect behavior.",
+      "The agent changed the right file, `mitmproxy/net/encoding.py`. It imports `compression.zstd` when available and falls back to `zstandard` on `ImportError`. On the stdlib path, `decode_zstd` calls `zstd.decompress` and `encode_zstd` calls `zstd.compress(level=1)`. This matches the upstream behavior for Python 3.14+. The request asks for a fallback to the third-party `zstandard` package, and the agent's fallback keeps the old code path. Upstream instead falls back to `backports.zstd`, which is a different mechanism but not what the request describes. The agent also made the `zstandard` dependency conditional on `python_version < '3.14'` in `pyproject.toml` and added a changelog entry. Behavior is equivalent."
+    ]
+  },
+  "result": "zstd content encoding now uses the standard library's `compression.zstd` when it's available and falls back to `zstandard` otherwise. I haven't run the tests or installed anything, as you asked.\n\n- **`mitmproxy/net/encoding.py`**:\n  - It tries `from compression import zstd` first and falls back to `import zstandard as zstd` on `ImportError`. A `_STDLIB_ZSTD` flag records which one loaded.\n  - With the stdlib module, `decode_zstd` calls `zstd.decompress()`, which already handles multiple concatenated frames. That matches the `read_across_frames=True` behaviour the fallback path keeps.\n  - `encode_zstd` calls `zstd.compress(content, level=1)` on the stdlib path.\n- **`pyproject.toml`**: the `zstandard` dependency now only applies when `python_version < '3.14'`, since 3.14 is the first Python that ships `compression.zstd`.\n- **`CHANGELOG.md`**: added an entry.\n\nI didn't add a test. The existing `test_zstd` in `test/mitmproxy/net/test_encoding.py` calls `encode_zstd` and `decode_zstd` directly, including the single-frame and two-frame cases. It exercises whichever backend is installed, so it needs no change. I haven't confirmed the stdlib path passes it.\n\nBecause the `zstandard` dependency is now conditional, the lock file may need regenerating.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..f868ade27 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,8 @@\n \n ## Unreleased: mitmproxy next\n \n+- Use the standard library's `compression.zstd` (PEP 784) for zstd content encoding on Python 3.14+,\n+  falling back to the `zstandard` package on older versions.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/net/encoding.py b/mitmproxy/net/encoding.py\nindex 7be30d3d5..28dcce0ef 100644\n--- a/mitmproxy/net/encoding.py\n+++ b/mitmproxy/net/encoding.py\n@@ -10,7 +10,15 @@ from io import BytesIO\n from typing import overload\n \n import brotli\n-import zstandard as zstd\n+\n+try:\n+    from compression import zstd  # Python 3.14+ (PEP 784)\n+\n+    _STDLIB_ZSTD = True\n+except ImportError:  # pragma: no cover\n+    import zstandard as zstd\n+\n+    _STDLIB_ZSTD = False\n \n # We have a shared single-element cache for encoding and decoding.\n # This is quite useful in practice, e.g.\n@@ -182,12 +190,17 @@ def encode_brotli(content: bytes) -> bytes:\n def decode_zstd(content: bytes) -> bytes:\n     if not content:\n         return b\"\"\n+    if _STDLIB_ZSTD:\n+        # decompress() handles multiple concatenated frames.\n+        return zstd.decompress(content)\n     zstd_ctx = zstd.ZstdDecompressor()\n     return zstd_ctx.stream_reader(BytesIO(content), read_across_frames=True).read()\n \n \n def encode_zstd(content: bytes) -> bytes:\n     # Use level=1 for fastest compression speed.\n+    if _STDLIB_ZSTD:\n+        return zstd.compress(content, level=1)\n     zstd_ctx = zstd.ZstdCompressor(level=1)\n     return zstd_ctx.compress(content)\n \ndiff --git a/pyproject.toml b/pyproject.toml\nindex 7ddc3b834..d13347750 100644\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -57,7 +57,7 @@ dependencies = [\n     \"urwid>=2.6.14,<=3.0.5\",\n     \"wsproto>=1.0,<=1.3.2\",\n     \"publicsuffix2>=2.20190812,<=2.20191221\",\n-    \"zstandard>=0.25,<=0.25.0\",\n+    \"zstandard>=0.25,<=0.25.0; python_version < '3.14'\",\n ]\n \n [dependency-groups]\n",
+  "grade0": {
+    "score": 0.5,
+    "missing": [
+      "Upstream adds backports.zstd for Python <3.14 as the fallback; the agent kept the third-party zstandard package as the fallback, so the dependency is not swapped.",
+      "uv.lock was not updated."
+    ],
+    "wrong": [
+      "The agent's fallback uses `zstandard` on Python <3.14. This is a reasonable reading of the request text, which says to fall back to the third-party zstandard package. But it differs from the merged patch, which uses backports.zstd. The agent's branching also leaves two code paths in each function."
+    ],
+    "reason": "The agent edited the right file and function. On Python 3.14+ the behavior matches upstream: `zstd.decompress(content)` and `zstd.compress(content, level=1)` from `compression.zstd`. The agent's try/except ImportError and the `_STDLIB_ZSTD` flag are functionally fine there. On older Pythons the agent keeps the zstandard package, so the fallback differs from upstream's backports.zstd. The request wording does allow this fallback, so it is a defensible reading. It means the change is only partly equivalent, and the dependency change and lockfile are not equivalent to upstream.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/net/encoding.py",
+      "pyproject.toml"
+    ]
+  }
+}

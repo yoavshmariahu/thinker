@@ -1,0 +1,41 @@
+{
+  "id": "E8-usageerror-abort-rerank-0",
+  "task": "E8-usageerror-abort",
+  "area": "exceptions",
+  "arm": "rerank",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "d7be72b4-72b8-4e52-a52f-23d570e86c92",
+  "turns": 6,
+  "wall_ms": 28893,
+  "api_ms": 14567,
+  "cost": 0.051094400000000005,
+  "in_tokens": 111483,
+  "out_tokens": 1483,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Bash": 2,
+      "Read": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 2,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "Context.augment_usage_errors attaches ctx to UsageError raised from callback (core.py:120)",
+      "Exact stderr format with blank line before Error for UsageError (usage, hint, blank line, Error)",
+      "Context teardown/SystemExit mechanics and CliRunner behavior"
+    ],
+    "wrong": [],
+    "reason": "The agent matches every main fact in the reference. That covers the catching handlers and line numbers (1518, 1543, 1515), the printed output, and exit codes 2, 1 and 1. It also covers the KeyboardInterrupt to Abort conversion, the blank line then \"Aborted!\", and the standalone_mode=False behavior. It omits only secondary details, such as ctx augmentation, the exact blank-line format, and the teardown and CliRunner notes.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "All in standalone mode (`standalone_mode=True`), from `src/click/core.py:Command.main` (lines 1501–1547).\n\n**`click.UsageError`**\n- It is caught at `core.py:Command.main` by `except ClickException as e` (line 1518), because `UsageError` subclasses `ClickException`.\n- It calls `e.show()`, which is `exceptions.py:UsageError.show` (line 87). That prints to stderr:\n  - the usage line, from `ctx.get_usage()`\n  - the hint `Try '<cmd> --help' for help.`, only if the command has a help option\n  - `Error: <message>`\n- Then `sys.exit(e.exit_code)` runs (line 1522). `exceptions.py:UsageError.exit_code` is **2**, so the process exits with **2**.\n- With `standalone_mode=False`, the `raise` on line 1520 re-raises it instead.\n\n**`click.Abort`**\n- It is caught by the outer `except Abort:` (line 1543), which sits outside the inner try block.\n- It prints `Aborted!` to stderr (line 1546) and then calls `sys.exit(1)`, so the exit code is **1**.\n- With `standalone_mode=False`, it is re-raised (line 1545).\n\n**Plain `KeyboardInterrupt`**\n- It is caught first by the inner `except (EOFError, KeyboardInterrupt) as e:` (line 1515).\n- That prints an empty line to stderr with `echo(file=sys.stderr)`, then raises `Abort() from e` (line 1517).\n- The `Abort` propagates out of the inner try block to the outer `except Abort:` (line 1543). Nothing else in the inner block catches it, and the outer `except Exit` doesn't match.\n- The result is the same as a direct `Abort`: it prints `Aborted!` and exits with **1**.\n- Stderr therefore shows a blank line, then `Aborted!`. `EOFError`, for example from a prompt, follows the same path.\n- With `standalone_mode=False`, the `Abort` is re-raised, not `KeyboardInterrupt`.\n\n**Difference between the three**\n- `UsageError` prints usage, hint and message, and exits 2.\n- `Abort` prints only `Aborted!` and exits 1.\n- `KeyboardInterrupt` prints a blank line, then `Aborted!`, and exits 1.",
+  "is_error": false,
+  "diff": null
+}

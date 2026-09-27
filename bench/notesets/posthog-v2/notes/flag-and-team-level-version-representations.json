@@ -1,0 +1,76 @@
+{
+  "id": "flag-and-team-level-version-representations",
+  "title": "Flag and team-level version representations",
+  "kind": "overview",
+  "answers": [
+    "How is a flag's version bumped?",
+    "What is PropertyMatchingVersion?",
+    "How is flag history reconstructed?"
+  ],
+  "body": "- `FeatureFlag.version`: int, default 1, nullable; SDKs compare it in local-eval payload.\n- `flag_version_sync.py:_bump_flag_versions` does queryset UPDATE `Coalesce(\"version\",0)+1`; triggered by `bump_flag_versions_on_cohort_definition_change` and `bump_dependent_flag_versions_on_flag_definition_change`; writes activity entry via `_flag_version_bump_entry`. Cohort membership recalculation must NOT bump.\n- `version_history.py:reconstruct_flag_at_version` walks activity-log entries by `version`; raises `VersionNotFound` / `VersionHistoryIncomplete`; bounded by `MAX_HISTORY_ENTRIES`; fields from `RECONSTRUCTABLE_FIELDS`.\n- Team-level: `models/team_feature_flags_config.py:PropertyMatchingVersion` (LEGACY=1, EXPLICIT=2) on `TeamFeatureFlagsConfig`; blob carries `property_matching_version`, compared in `local_evaluation.py:_TOP_LEVEL_FIELDS_TO_COMPARE`.",
+  "tags": [
+    "versions",
+    "feature-flags"
+  ],
+  "deps": [
+    {
+      "path": "products/feature_flags/backend/flag_version_sync.py",
+      "hash": "sha256:89ee38873f68a691cb4bab91",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/version_history.py",
+      "hash": "sha256:0436e5263ef52cfbd04a4f4b",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/models/team_feature_flags_config.py",
+      "symbol": "PropertyMatchingVersion",
+      "hash": "sha256:5d52f97ec5aaba5e7c2e4339",
+      "line": 22,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/local_evaluation.py",
+      "hash": "sha256:c1d2981b2b697fbd2c93a037",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flag_version_sync.py",
+      "symbol": "_bump_flag_versions",
+      "hash": "sha256:5c38b1637f55110c2d91270a",
+      "line": 139,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/version_history.py",
+      "symbol": "reconstruct_flag_at_version",
+      "hash": "sha256:3d1ad0672d6597dd2feccac7",
+      "line": 80,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/local_evaluation.py",
+      "hash": "sha256:c1d2981b2b697fbd2c93a037",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "eecffbdd-fbb7-4ad8-b947-e8cdbabf746d"
+  },
+  "created": "2026-09-26T20:25:57.959Z",
+  "verified": "2026-09-26T20:25:57.959Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "feature-flag-filters-v1-v2-config-format-detection-and-handl",
+    "feature-flags-backend-lives-in-products-feature-flags-backen",
+    "how-cross-team-flag-jobs-iterate-commands-and-temporal-healt"
+  ],
+  "servedIn": [
+    "7963fd21-bd15-4e41-8e3c-274cd2823351"
+  ]
+}

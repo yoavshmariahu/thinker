@@ -1,0 +1,93 @@
+{
+  "id": "frontend-product-manifest-generated-products-tsx-scenes-urls",
+  "title": "Frontend product manifest -> generated products.tsx -> scenes/urls consumers",
+  "kind": "callpath",
+  "answers": [
+    "How does products/<name>/manifest.tsx get into the app?",
+    "Where do productRoutes/productUrls come from?",
+    "Can I edit frontend/src/products.tsx by hand?",
+    "What does build-products.mjs generate?"
+  ],
+  "body": "- Contract: `frontend/src/types.ts:ProductManifest` (name, scenes, routes[path]=[SceneName, sceneKey], redirects, urls, fileSystemTypes, treeItemsNew/Products/Games/Metadata, setupProbe). `SceneConfig` is in `frontend/src/scenes/sceneTypes.ts`.\n- Generator: `frontend/build-products.mjs` scans `products/*/manifest.tsx` via TS AST (no import), skips if input hash unchanged (`.cache/products.hash`).\n- Outputs: `frontend/src/products.tsx` (GENERATED, DO NOT EDIT: productRoutes, productRedirects, productConfiguration (import stripped), productUrls, fileSystemTypes, productSetupProbes, getTreeItems*), `frontend/src/productScenes.tsx` (productScenes: name -> lazy import; separate so jest doesn't treat every test as related to a scene change), `frontend/src/products.json` (tree item metadata, read by Python `posthog/products.py:Products`).\n- Consumers: `frontend/src/scenes/urls.ts` spreads `...productUrls`; `frontend/src/scenes/scenes.ts` spreads productConfiguration/productRedirects/productRoutes; `frontend/src/scenes/appScenes.ts` spreads `...productScenes`.\n- Generator does not copy imports: new icon/type used in a manifest must be imported in products.tsx by hand (products/README.md 'Manual setup').",
+  "tags": [
+    "products",
+    "manifest",
+    "frontend",
+    "codegen"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/types.ts",
+      "symbol": "ProductManifest",
+      "hash": "sha256:0a81ee977df59f5aaff2965c",
+      "line": 7899,
+      "missing": false
+    },
+    {
+      "path": "frontend/build-products.mjs",
+      "hash": "sha256:a9595a1a2c673277b07f3e4f",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/products.tsx",
+      "hash": "sha256:ee5983964e7dff4cb2423926",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/urls.ts",
+      "hash": "sha256:90b3f7e059dca2aeb7be20d9",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/scenes.ts",
+      "hash": "sha256:02967c8b5c765d1157685cdf",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/appScenes.ts",
+      "hash": "sha256:212aa8f6df35bdc27b916704",
+      "missing": false
+    },
+    {
+      "path": "products/README.md",
+      "hash": "sha256:8bb99e140e08594611301122",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/sceneTypes.ts",
+      "hash": "sha256:8398c97dfc088280f2336592",
+      "missing": false
+    },
+    {
+      "path": "posthog/products.py",
+      "symbol": "Products",
+      "hash": "sha256:4c7304aa1f9c92d944079935",
+      "line": 52,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "3a3272a0-af54-45ee-b4ca-e751f6a7ee0e"
+  },
+  "created": "2026-09-26T20:20:11.282Z",
+  "verified": "2026-09-26T20:20:11.282Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 7,
+  "related": [
+    "scene-registration-routing-manifest-generated-products-tsx-s",
+    "adding-a-product-scene-cochange-checklist",
+    "adding-a-route-to-a-product-what-changes-together"
+  ],
+  "servedIn": [
+    "e8364c5b-8eee-40a0-a1b8-10c91799e5a8",
+    "ea03cc1e-c980-4cdc-8fec-8d5c9957a0bf",
+    "52d4d931-0ed8-43c9-8786-b977cd5d97f5",
+    "5a249afb-50a6-4957-92de-b2855114cda9",
+    "2b226716-28e6-45cf-b288-7db6cee1a996",
+    "92fd9645-12fb-46fe-a369-c4ab5f669247",
+    "aa20e589-da32-4f5e-b3ee-0e115636b9b9"
+  ]
+}

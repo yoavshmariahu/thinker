@@ -1,0 +1,68 @@
+{
+  "id": "PR8408-hard-live-0",
+  "task": "PR8408-hard",
+  "area": "addons-browser",
+  "arm": "live",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "a6cd809c-4725-4456-8e79-e1d2042a4f32",
+  "turns": 4,
+  "wall_ms": 13861,
+  "api_ms": 13254,
+  "cost": 0.0981096,
+  "in_tokens": 79410,
+  "out_tokens": 1729,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Read": 1,
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "browser-addon-executable-lookup-and-launch-flags",
+      "browser-start-command-registration-and-dispatch",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the right place, `mitmproxy/addons/browser.py`. `start()` now dispatches \"edge\" to a new `launch_edge()`. That method searches the same Edge paths and binary names as the merged patch and falls back to the `com.microsoft.Edge` flatpak. When nothing is found it logs \"platform is not supported\". Edge is launched through a shared helper that Chrome also uses, so it gets the same isolated profile and proxy flags as the merged patch's Edge command. This assumes the existing Chrome launch flags match the merged patch's Edge flags, which the diff doesn't show. Beyond the merged patch, the agent added an \"msedge\" alias and an `msedge` binary name, which is harmless. The Chrome refactor into `_launch_chromium_based` should not change Chrome's behavior. Tests were added, and the changelog is not needed.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/browser.py",
+      "test/mitmproxy/addons/test_browser.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent added launch_edge() and an \"edge\" branch in Browser.start() in the same file as upstream. The executable lookup, flatpak fallback and \"not supported\" message match upstream. Edge is launched with the same isolated-profile and proxy flags as Chrome through a shared helper, which I believe matches upstream's hard-coded Edge flags but didn't verify against the file. The extra msedge alias is harmless.",
+      "The agent added `launch_edge()` and an \"edge\" branch in `start()`. It searches the same macOS, Windows, Linux and flatpak locations as the merged patch. It reuses the Chrome launch code, which the merged patch duplicates with the same flags, through a shared `_launch_chromium_based` helper. That refactor keeps Chrome's behaviour unchanged. It also accepts an extra \"msedge\" alias and an extra \"msedge\" binary name, which don't change the expected behaviour. The not-found path logs the same message. The tests mirror the merged ones.",
+      "The agent adds launch_edge() and an 'edge' branch in start() in the same file as upstream. Its executable search paths, Linux binary names and flatpak fallback match upstream. It reuses Chrome's launch code through a shared helper. I assumed those flags equal upstream's Edge flags without seeing the Chrome code. The extra 'msedge' alias is harmless. The tests match upstream."
+    ]
+  },
+  "result": "I added Microsoft Edge support to the browser addon in `mitmproxy/addons/browser.py`. I haven't run the tests or the linters.\n\n- **New command value:** `browser.start` now accepts `edge` or `msedge` and calls a new `launch_edge()`.\n- **Finding Edge:** `launch_edge()` looks for the macOS app bundle and the two Windows `msedge.exe` install paths. On Linux it tries `microsoft-edge`, `-stable`, `-beta`, `-dev` and `msedge`. If none is found, it falls back to the `com.microsoft.Edge` flatpak.\n- **How it launches:** Edge is Chromium-based, so it takes the same isolated-profile and proxy flags as Chrome. I moved that launch code out of `launch_chrome()` into a shared `_launch_chromium_based(cmd)` that both Chrome and Edge call. Chrome's behaviour is unchanged.\n- **Tests:** I added two tests in `test/mitmproxy/addons/test_browser.py`. One checks that Edge launches when found, and one checks the \"platform is not supported\" message when it isn't.\n\nI didn't touch the console key binding, so `B` still defaults to Chrome.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/browser.py b/mitmproxy/addons/browser.py\nindex ccc920953..e7c8edd53 100644\n--- a/mitmproxy/addons/browser.py\n+++ b/mitmproxy/addons/browser.py\n@@ -45,6 +45,8 @@ class Browser:\n             self.launch_chrome()\n         elif browser == \"firefox\":\n             self.launch_firefox()\n+        elif browser in (\"edge\", \"msedge\"):\n+            self.launch_edge()\n         else:\n             logging.log(ALERT, \"Invalid browser name.\")\n \n@@ -78,6 +80,34 @@ class Browser:\n             )\n             return\n \n+        self._launch_chromium_based(cmd)\n+\n+    def launch_edge(self) -> None:\n+        \"\"\"\n+        Start an isolated instance of Microsoft Edge that points to the currently\n+        running proxy.\n+        \"\"\"\n+        cmd = find_executable_cmd(\n+            \"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge\",\n+            r\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            r\"C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            # Linux binary names\n+            \"microsoft-edge\",\n+            \"microsoft-edge-stable\",\n+            \"microsoft-edge-beta\",\n+            \"microsoft-edge-dev\",\n+            \"msedge\",\n+        ) or find_flatpak_cmd(\"com.microsoft.Edge\")\n+\n+        if not cmd:\n+            logging.log(\n+                ALERT, \"Your platform is not supported yet - please submit a patch.\"\n+            )\n+            return\n+\n+        self._launch_chromium_based(cmd)\n+\n+    def _launch_chromium_based(self, cmd: list[str]) -> None:\n         tdir = tempfile.TemporaryDirectory()\n         self.tdir.append(tdir)\n         self.browser.append(\ndiff --git a/test/mitmproxy/addons/test_browser.py b/test/mitmproxy/addons/test_browser.py\nindex d5bd38c5c..1c4fa8422 100644\n--- a/test/mitmproxy/addons/test_browser.py\n+++ b/test/mitmproxy/addons/test_browser.py\n@@ -95,3 +95,22 @@ async def test_browser_start_firefox_not_found(caplog):\n         which.return_value = False\n         browser.Browser().start(\"firefox\")\n         assert \"platform is not supported\" in caplog.text\n+\n+\n+async def test_browser_start_edge():\n+    with (\n+        mock.patch(\"shutil.which\") as which,\n+        mock.patch(\"subprocess.Popen\") as po,\n+        taddons.context(),\n+    ):\n+        which.return_value = \"microsoft-edge\"\n+        browser.Browser().start(\"edge\")\n+        assert po.called\n+\n+\n+async def test_browser_start_edge_not_found(caplog):\n+    caplog.set_level(\"INFO\")\n+    with mock.patch(\"shutil.which\") as which:\n+        which.return_value = False\n+        browser.Browser().start(\"edge\")\n+        assert \"platform is not supported\" in caplog.text\n",
+  "distill": "attest  confirmed    browser-addon-executable-lookup-and-launch-flags → c=90%\nattest  confirmed    browser-start-command-registration-and-dispatch → c=90%\nattest  unused       python-test-lint-typecheck-commands-tox-in-pyproject-run-via → c=65%\ndistilled 5 events (3 exploration calls) → 0 new, 0 merged; cost $0.034\n",
+  "grade0": {
+    "score": 0.97,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the right place, `mitmproxy/addons/browser.py`. `start()` now dispatches \"edge\" to a new `launch_edge()`. That method searches the same Edge paths and binary names as the merged patch and falls back to the `com.microsoft.Edge` flatpak. When nothing is found it logs \"platform is not supported\". Edge is launched through a shared helper that Chrome also uses, so it gets the same isolated profile and proxy flags as the merged patch's Edge command. This assumes the existing Chrome launch flags match the merged patch's Edge flags, which the diff doesn't show. Beyond the merged patch, the agent added an \"msedge\" alias and an `msedge` binary name, which is harmless. The Chrome refactor into `_launch_chromium_based` should not change Chrome's behavior. Tests were added, and the changelog is not needed.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/browser.py",
+      "test/mitmproxy/addons/test_browser.py"
+    ]
+  }
+}

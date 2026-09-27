@@ -1,0 +1,41 @@
+{
+  "id": "tests-posting-claude-model-access-must-authenticate-as-a-des",
+  "title": "Tests posting claude_model_access must authenticate as a Desktop OAuth client",
+  "kind": "convention",
+  "answers": [
+    "Why does my test for claude_model_access return 400?",
+    "How do I test own-subscription task run creation?"
+  ],
+  "body": "Tests that send `claude_model_access` (e.g. `own-subscription` in run or resume flows) must use an OAuth client with a Desktop client id. Plain `self.client` (session auth) is now rejected.\n- In `products/tasks/backend/tests/test_api.py`, use `self._oauth_client(ARRAY_APP_CLIENT_ID_DEV).post(...)`. See `test_run_endpoint_persists_agent_toggle` and `test_resume_requires_explicit_claude_billing_choice`.\n- Serializer-level tests in `products/tasks/backend/tests/test_presentation_serializers.py` (`test_subscription_checks_oauth_origin`) build `OAuthAccessTokenAuthentication` with an `OAuthAccessToken` that sets `source_refresh_token_id`. This makes `is_interactive_desktop_grant` pass. Without it the token isn't treated as an interactive Desktop grant.\n- Negative cases to cover: personal API key, session, mobile and sandbox callers, all expecting a 400 with `attr == \"claude_model_access\"` and no TaskRun created.",
+  "applies": "products/tasks backend tests",
+  "tags": [
+    "tasks",
+    "testing",
+    "oauth"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/tests/test_api.py",
+      "hash": "sha256:a2b2aaf2eeef7222ed168cb2",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/tests/test_presentation_serializers.py",
+      "symbol": "test_subscription_checks_oauth_origin",
+      "hash": "sha256:8a3aae4753e6fdee5377965a",
+      "line": 137,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105218"
+  },
+  "created": "2026-09-27T00:11:28.935Z",
+  "verified": "2026-09-27T00:11:28.935Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

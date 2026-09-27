@@ -1,0 +1,68 @@
+{
+  "id": "PR8288-hard-nocache-1",
+  "task": "PR8288-hard",
+  "area": "web-frontend",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "ab0a504e-8a02-45f2-bd36-f3e13bfc5b75",
+  "turns": 16,
+  "wall_ms": 60044,
+  "api_ms": 59415,
+  "cost": 0.2823102,
+  "in_tokens": 533582,
+  "out_tokens": 5299,
+  "tools": {
+    "calls": 15,
+    "byTool": {
+      "Bash": 15
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 15,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [
+      "No test added; the test state fixture was not updated with the new field"
+    ],
+    "wrong": [
+      "Also prepends to the internal `list` and rebuilds the index in O(n) on each add. Upstream only changes the view and keeps the list append-only. This is harmless for behavior but less efficient."
+    ],
+    "reason": "The agent changed the same file and reducer as upstream. It tracks the option from OPTIONS_RECEIVE and OPTIONS_UPDATE. In FLOWS_ADD it puts the new flow at the front of the view when the option is on and no sort column is active. Otherwise it uses the existing sorted insert or append. The visible view behaves the same as upstream. The only differences are that it also prepends to the underlying list, at O(n) cost, and it adds no tests.",
+    "mustHit": 1,
+    "mustTotal": 2,
+    "touched": [
+      "web/src/js/ducks/flows/index.ts"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the same place as upstream, the flows reducer in `web/src/js/ducks/flows/index.ts`. It tracks `view_order_reversed` from `OPTIONS_RECEIVE` and `OPTIONS_UPDATE`. In `FLOWS_ADD`, when the option is on and no sort column is active, it puts the new flow at the front of the view. An active column sort still takes precedence, and the non-reversed path is unchanged. That is the same behavior as the merged patch. The agent also prepends to `list` and rebuilds `_listIndex`. This is consistent with the server sending the list reversed, so it does no harm. It is O(n) per add, which the summary notes. It didn't update `testState` in the test utilities for the new state field. That only affects tests, so it doesn't change the score.",
+      "The agent changed the same reducer as upstream (web/src/js/ducks/flows/index.ts). It tracks view_order_reversed from OPTIONS_RECEIVE and OPTIONS_UPDATE. In FLOWS_ADD it prepends to the view when the option is on and no sort column is active, and otherwise appends or sorts as before. The flag name and the extra list prepend differ from upstream but do not change the behavior the request asks for.",
+      "The agent changed the same reducer as upstream. It tracks view_order_reversed from OPTIONS_RECEIVE/OPTIONS_UPDATE and puts live flows at the front of the view when the option is on and no sort column is active. With a sort column or without the option, behaviour is unchanged. It also prepends to the list, which is slower but consistent. The field is named viewOrderReversed instead of orderReversed, and OPTIONS_RECEIVE resets to false when the option is missing; both are minor."
+    ]
+  },
+  "result": "In the web UI, live flows now go to the top of the list when \"reverse view order\" is on. I haven't run the tests, type-check or the app, and I didn't add a test.\n\nThe Python `View` already reverses the initial flow list it sends to the browser, but the JS flows reducer always appended new flows at the end. The reducer also never read the `view_order_reversed` option.\n\nAll changes are in `web/src/js/ducks/flows/index.ts`:\n- **State:** `FlowsState` gets a `viewOrderReversed` flag, which defaults to `false`. It is kept up to date from `OPTIONS_RECEIVE` and `OPTIONS_UPDATE`.\n- **New flows:** `FLOWS_ADD` puts the flow at the front of the list, and of the view if it matches the filter. This applies only when the option is on and no sort column is chosen. Otherwise behaviour is unchanged.\n- **Other reducers:** The other reducer branches carry the flag through their explicit return objects.\n\n**Limits:**\n- **Sort columns:** With a sort column active, live flows still follow the sort order. The server-side reversal only affects the unsorted order.\n- **Cost:** Prepending rebuilds the flow index on each new flow, which is O(n) per add instead of O(log n). If that shows up in profiles, the index would need to change.\n\nTwo things still to do:\n- **Tests:** The obvious one is a `FLOWS_ADD` case with `viewOrderReversed: true` in the flows duck test. Say if you want me to write it.\n- **Built bundle:** `mitmproxy/tools/web/static` holds a built bundle, so the web app will need a rebuild to pick this up.",
+  "is_error": false,
+  "diff": "diff --git a/web/src/js/ducks/flows/index.ts b/web/src/js/ducks/flows/index.ts\nindex 323f2901a..0a07b47aa 100644\n--- a/web/src/js/ducks/flows/index.ts\n+++ b/web/src/js/ducks/flows/index.ts\n@@ -15,6 +15,7 @@ import {\n     withElemRemoved,\n } from \"./_utils\";\n import { toSorted, toSpliced } from \"./_compat\";\n+import { OPTIONS_RECEIVE, OPTIONS_UPDATE } from \"../options\";\n \n export * from \"./_backend_actions\";\n \n@@ -47,6 +48,7 @@ export interface FlowsState {\n     _viewIndex: Map<string, number>;\n \n     sort: { column?: keyof typeof sortFunctions; desc: boolean };\n+    viewOrderReversed: boolean;\n     selected: Flow[];\n     selectedIds: Set<string>;\n     highlightedIds: Set<string>;\n@@ -60,6 +62,7 @@ export const defaultState: FlowsState = {\n     _viewIndex: new Map(),\n \n     sort: { column: undefined, desc: false },\n+    viewOrderReversed: false,\n     selected: [],\n     selectedIds: new Set(),\n     highlightedIds: new Set(),\n@@ -77,7 +80,7 @@ export default function flowsReducer(\n     action: UnknownAction,\n ): FlowsState {\n     if (FLOWS_RECEIVE.match(action)) {\n-        const { sort } = state;\n+        const { sort, viewOrderReversed } = state;\n         const list = action.payload;\n         const _listIndex = buildIndex(list);\n         const byId = new Map(list.map((f) => [f.id, f]));\n@@ -97,6 +100,7 @@ export default function flowsReducer(\n             view,\n             _viewIndex,\n             sort,\n+            viewOrderReversed,\n             selected,\n             selectedIds,\n             highlightedIds,\n@@ -106,12 +110,21 @@ export default function flowsReducer(\n         if (state._listIndex.has(flow.id)) {\n             return state; // WebSocket/HTTP race\n         }\n-        const { sort, selected, selectedIds } = state;\n+        const { sort, viewOrderReversed, selected, selectedIds } = state;\n         let { view, _viewIndex, highlightedIds } = state;\n+        // With view_order_reversed, the server lists newest flows first, so live flows go to the front.\n+        const prepend = viewOrderReversed && !sort.column;\n         // Update list\n-        const _listIndex = new Map(state._listIndex);\n-        _listIndex.set(flow.id, state.list.length);\n-        const list = [...state.list, flow];\n+        let _listIndex: Map<string, number>;\n+        let list: Flow[];\n+        if (prepend) {\n+            list = [flow, ...state.list];\n+            _listIndex = buildIndex(list);\n+        } else {\n+            _listIndex = new Map(state._listIndex);\n+            _listIndex.set(flow.id, state.list.length);\n+            list = [...state.list, flow];\n+        }\n         const byId = new Map(state.byId);\n         byId.set(flow.id, flow);\n         // Update view if filter matches (true) or is unset (undefined).\n@@ -119,12 +132,17 @@ export default function flowsReducer(\n             matching_filters[FilterName.Search] === true ||\n             matching_filters[FilterName.Search] === undefined\n         ) {\n-            ({ view, _viewIndex } = insertViewItem(\n-                view,\n-                _viewIndex,\n-                flow,\n-                makeSort(sort),\n-            ));\n+            if (prepend) {\n+                view = [flow, ...view];\n+                _viewIndex = buildIndex(view);\n+            } else {\n+                ({ view, _viewIndex } = insertViewItem(\n+                    view,\n+                    _viewIndex,\n+                    flow,\n+                    makeSort(sort),\n+                ));\n+            }\n         }\n         // Update highlight\n         if (matching_filters[FilterName.Highlight] === true) {\n@@ -139,13 +157,14 @@ export default function flowsReducer(\n             view,\n             _viewIndex,\n             sort,\n+            viewOrderReversed,\n             selected,\n             selectedIds,\n             highlightedIds,\n         };\n     } else if (FLOWS_UPDATE.match(action)) {\n         const { flow, matching_filters } = action.payload;\n-        const { _listIndex, sort, selectedIds } = state;\n+        const { _listIndex, sort, viewOrderReversed, selectedIds } = state;\n         let { view, _viewIndex, selected, highlightedIds } = state;\n         // Update list\n         const listPos = state._listIndex.get(flow.id);\n@@ -209,13 +228,14 @@ export default function flowsReducer(\n             view,\n             _viewIndex,\n             sort,\n+            viewOrderReversed,\n             selected,\n             selectedIds,\n             highlightedIds,\n         };\n     } else if (FLOWS_REMOVE.match(action)) {\n         const flow_id = action.payload;\n-        const { sort } = state;\n+        const { sort, viewOrderReversed } = state;\n         let { view, _viewIndex, selected, selectedIds } = state;\n         const listPos = state._listIndex.get(flow_id);\n         if (listPos === undefined) {\n@@ -256,6 +276,7 @@ export default function flowsReducer(\n             view,\n             _viewIndex,\n             sort,\n+            viewOrderReversed,\n             selected,\n             selectedIds,\n             highlightedIds,\n@@ -305,6 +326,17 @@ export default function flowsReducer(\n             view,\n             _viewIndex,\n         };\n+    } else if (OPTIONS_RECEIVE.match(action)) {\n+        return {\n+            ...state,\n+            viewOrderReversed:\n+                action.payload.view_order_reversed?.value ?? false,\n+        };\n+    } else if (OPTIONS_UPDATE.match(action)) {\n+        const opt = action.payload.view_order_reversed;\n+        return opt === undefined\n+            ? state\n+            : { ...state, viewOrderReversed: opt.value };\n     } else if (select.match(action)) {\n         return {\n             ...state,\n",
+  "grade0": {
+    "score": 0.95,
+    "missing": [
+      "No test added; the test state fixture was not updated with the new field"
+    ],
+    "wrong": [
+      "Also prepends to the internal `list` and rebuilds the index in O(n) on each add. Upstream only changes the view and keeps the list append-only. This is harmless for behavior but less efficient."
+    ],
+    "reason": "The agent changed the same file and reducer as upstream. It tracks the option from OPTIONS_RECEIVE and OPTIONS_UPDATE. In FLOWS_ADD it puts the new flow at the front of the view when the option is on and no sort column is active. Otherwise it uses the existing sorted insert or append. The visible view behaves the same as upstream. The only differences are that it also prepends to the underlying list, at O(n) cost, and it adds no tests.",
+    "mustHit": 1,
+    "mustTotal": 2,
+    "touched": [
+      "web/src/js/ducks/flows/index.ts"
+    ]
+  }
+}

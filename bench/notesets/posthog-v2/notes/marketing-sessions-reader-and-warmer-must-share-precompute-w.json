@@ -1,0 +1,54 @@
+{
+  "id": "marketing-sessions-reader-and-warmer-must-share-precompute-w",
+  "title": "Marketing sessions reader and warmer must share precompute_window_start",
+  "kind": "invariant",
+  "answers": [
+    "Last 90 days marketing attribution falls back to live calculation despite backfill",
+    "Why is attribution session cache not used for relative date range",
+    "Where is the precompute coverage boundary defined for marketing sessions"
+  ],
+  "body": "The cache coverage boundary is one function: `precompute_window_start(team, end)` in products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py.\n- Writer/warmer: `ensure_marketing_sessions_precompute_op` in products/marketing_analytics/dags/marketing_sessions_precompute.py uses it as `start`.\n- Reader: `ineligible_reason` in products/marketing_analytics/backend/hogql_queries/attribution_sessions_read.py returns `window_over_max` if `read.start - SESSION_READ_REACHBACK_DAYS < precompute_window_start(team, read.end)`.\n- Boundary = local midnight (team.timezone_info) PRECOMPUTE_WINDOW_DAYS before end, converted to UTC, minus attribution_window_days + SESSION_READ_REACHBACK_DAYS as elapsed UTC days.\n- If reader and warmer use different boundaries (e.g. elapsed seconds vs calendar day), full relative ranges like -90d wrongly become ineligible. Change both together.",
+  "applies": "Marketing analytics attribution session precompute reader/warmer eligibility",
+  "tags": [
+    "marketing_analytics",
+    "sessions-precompute",
+    "timezone",
+    "dagster"
+  ],
+  "deps": [
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py",
+      "symbol": "precompute_window_start",
+      "hash": "sha256:c9e0334b97e17c0557facee5",
+      "line": 94,
+      "missing": false
+    },
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/attribution_sessions_read.py",
+      "symbol": "ineligible_reason",
+      "hash": "sha256:947e76a8db5ba4713afb98a4",
+      "line": 87,
+      "missing": false
+    },
+    {
+      "path": "products/marketing_analytics/dags/marketing_sessions_precompute.py",
+      "symbol": "ensure_marketing_sessions_precompute_op",
+      "hash": "sha256:5f1ccd4036bec36c7bd2ca6a",
+      "line": 75,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105637"
+  },
+  "created": "2026-09-27T00:01:06.233Z",
+  "verified": "2026-09-27T00:01:06.233Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "display-days-are-calendar-based-lookback-reachback-are-elaps"
+  ]
+}

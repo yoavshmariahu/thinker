@@ -1,0 +1,62 @@
+{
+  "id": "PR8326-hard-irrelevant-0",
+  "task": "PR8326-hard",
+  "area": "proxy-http",
+  "arm": "irrelevant",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "3a8c3ce2-7d4e-4adf-9d6b-b1b029548060",
+  "turns": 7,
+  "wall_ms": 17498,
+  "api_ms": 17074,
+  "cost": 0.0937138,
+  "in_tokens": 140957,
+  "out_tokens": 1414,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Bash": 3,
+      "bash": 1,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent edited the same place as the merged patch, `HttpUpstreamProxy.start_handshake`. It detects IPv6 literals with `ipaddress.ip_address` and wraps them in brackets. The bracketed authority is used for both the CONNECT target and the Host header, as in the merged patch. The agent encodes the bracketed string with `.encode(\"idna\")`, while the merged patch encodes the IPv6 case with plain `.encode()`. The two give the same result. The bracketed string is pure ASCII, and the idna codec passes ASCII labels through unchanged, including when the address contains dots. The agent added no test, which does not affect the score.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the same place as the merged patch, `HttpUpstreamProxy.start_handshake`. It brackets IPv6 literals in the authority, which is also used for the Host header. Hostnames and IPv4 addresses are unchanged. Its version applies `.encode(\"idna\")` to the bracketed string, whereas upstream encodes the bracketed host as plain ASCII. The result is the same: the bracketed IPv6 string is pure ASCII with no empty labels and labels under 63 characters, so the idna codec passes it through unchanged. The agent didn't add a test, which doesn't affect the score.",
+      "Same location and same logic as the merged patch: IPv6 literals are detected and bracketed in the CONNECT authority, which also feeds the Host header. The agent brackets first and then idna-encodes, which yields the same ASCII bytes for IPv6 literals. No test was added, which doesn't affect the score.",
+      "The agent changed the same place as the merged patch (`HttpUpstreamProxy.start_handshake`). It detects IPv6 literals with `ipaddress` and brackets them before building the authority, which is also used for the Host header. Passing the bracketed ASCII string through `.encode(\"idna\")` leaves it unchanged, so the output matches the merged patch's `[2001:db8::1]:443`. The agent added no test, which does not affect the score."
+    ]
+  },
+  "result": "In upstream proxy mode, the CONNECT authority now brackets IPv6 literals, so a target of `::1` port 443 gives `[::1]:443`. I didn't run any tests, and I didn't add one.\n\nThe change is in `HttpUpstreamProxy.start_handshake` in `mitmproxy/proxy/layers/http/_upstream_proxy.py`. It checks the host with `ipaddress.ip_address` and wraps it in `[...]` only when it is IPv6. Hostnames and IPv4 addresses are unchanged. The same authority is used for the `Host` header when `http_connect_send_host_header` is on, so that header is bracketed too.\n\nI didn't confirm that `.encode(\"idna\")` passes the bracketed host through unchanged. I expect it does, because the bracketed string is pure ASCII.\n\nThe natural test would be a case in `test/mitmproxy/proxy/layers/http/test_http.py`, next to the existing upstream-proxy CONNECT tests, that expects `CONNECT [::1]:443`.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/proxy/layers/http/_upstream_proxy.py b/mitmproxy/proxy/layers/http/_upstream_proxy.py\nindex f40b26ce6..2da26f90b 100644\n--- a/mitmproxy/proxy/layers/http/_upstream_proxy.py\n+++ b/mitmproxy/proxy/layers/http/_upstream_proxy.py\n@@ -1,3 +1,4 @@\n+import ipaddress\n import time\n from logging import DEBUG\n \n@@ -50,9 +51,14 @@ class HttpUpstreamProxy(tunnel.TunnelLayer):\n             return (yield from super().start_handshake())\n         assert self.conn.address\n         flow = http.HTTPFlow(self.context.client, self.tunnel_connection)\n-        authority = (\n-            self.conn.address[0].encode(\"idna\") + f\":{self.conn.address[1]}\".encode()\n-        )\n+        host = self.conn.address[0]\n+        try:\n+            is_ipv6 = ipaddress.ip_address(host).version == 6\n+        except ValueError:\n+            is_ipv6 = False\n+        if is_ipv6:\n+            host = f\"[{host}]\"\n+        authority = host.encode(\"idna\") + f\":{self.conn.address[1]}\".encode()\n         headers = http.Headers()\n         if self.context.options.http_connect_send_host_header:\n             headers.insert(0, b\"Host\", authority)\n",
+  "grade0": {
+    "score": 0.97,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent edited the same place as the merged patch, `HttpUpstreamProxy.start_handshake`. It detects IPv6 literals with `ipaddress.ip_address` and wraps them in brackets. The bracketed authority is used for both the CONNECT target and the Host header, as in the merged patch. The agent encodes the bracketed string with `.encode(\"idna\")`, while the merged patch encodes the IPv6 case with plain `.encode()`. The two give the same result. The bracketed string is pure ASCII, and the idna codec passes ASCII labels through unchanged, including when the address contains dots. The agent added no test, which does not affect the score.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+    ]
+  }
+}

@@ -4,10 +4,11 @@ import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
 import { hashDep, checkNote, symbolText } from './deps.js';
-import { rank, pack, renderNote, estTokens } from './rank.js';
+import { rank, pack, renderNote, renderPointers, estTokens } from './rank.js';
 import { complete } from './llm.js';
 import { loadCochange, renderCochange } from './cochange.js';
-import { anchoringGuard } from './guard.js';
+import { anchoringGuard, explicitIdents, existsInRepo } from './guard.js';
+import { partners } from './cochange.js';
 
 export { KINDS };
 
@@ -148,25 +149,79 @@ async function rerank(ranked, task, file, model) {
   return cands.filter(r => pick.has(r.note.id));
 }
 
-export async function orient(store, { task, file, session, budget = 1000, maxNotes = 3, refreshFirst = !NAIVE, rerankModel = store.config().rerank || process.env.THINKER_RERANK }) {
+const ROUTE_SCHEMA = { type: 'object', properties: {
+  request_type: { type: 'string', enum: ['specified', 'symptom', 'question', 'other'] },
+  mode: { type: 'string', enum: ['full', 'pointers', 'none'] },
+  ids: { type: 'array', items: { type: 'string' } },
+  reason: { type: 'string' } }, required: ['request_type', 'mode', 'ids', 'reason'] };
+
+// A small model decides what the cache says at the start of a task: which
+// candidate notes (if any) and in what form. Falls back to the heuristic.
+export async function route(store, ranked, task, file, model) {
+  const cands = ranked.slice(0, 8);
+  if (!cands.length) return { mode: 'none', picked: [], reason: 'no candidates' };
+  const list = cands.map((r, i) => `[${i + 1}] id=${r.note.id} kind=${r.note.kind} confidence=${Math.round((r.note.confidence ?? 0.7) * 100)}%${r.note.status === 'stale' ? ' STALE' : ''}\n    title: ${r.note.title}\n    answers: ${(r.note.answers || []).slice(0, 3).join(' | ')}\n    first lines: ${r.note.body.slice(0, 260).replace(/\n/g, ' ')}`).join('\n');
+  const res = await complete({ model, schema: ROUTE_SCHEMA, maxTokens: 400,
+    system: `You decide what a cache of notes about a codebase injects into a coding agent's context at the start of a task. Evidence from experiments you must apply:
+- Notes with explanatory prose save the agent work when the request already says WHAT to change (it names code, components or the exact behavior change). Then mode=full.
+- When the request only describes a symptom or a wish in product words, prose makes the agent commit to a narrower fix than it would have designed on its own. Locations alone still shorten the search. Then mode=pointers.
+- Injecting a note that is not about what the task must touch costs tokens and can misdirect. If no candidate clearly concerns the feature or code the request is about, mode=none with no ids.
+- Prefer one or two precise notes over three loosely related ones. Never pick a note only because it shares generic words with the request.
+Classify the request (specified / symptom / question / other), choose the mode, and list the ids worth serving (0-3), best first.`,
+    prompt: `REQUEST:\n${String(task).slice(0, 3000)}${file ? `\nCURRENT FILE: ${file}` : ''}\n\nCANDIDATE NOTES:\n${list}` });
+  const j = res.json || {};
+  const norm = x => String(x).replace(/^\[?(\d+)\]?$/, (_, i) => cands[Number(i) - 1]?.note.id || x).replace(/^id=/, '');
+  const ids = (j.ids || []).map(norm);
+  const picked = ids.map(id => cands.find(c => c.note.id === id)).filter(Boolean).slice(0, 3);
+  const mode = picked.length ? (j.mode === 'none' ? 'pointers' : j.mode) : 'none';
+  store.log({ op: 'route', type: j.request_type, mode, ids: picked.map(p => p.note.id), reason: String(j.reason || '').slice(0, 200), cost: res.cost });
+  return { mode, picked, type: j.request_type, reason: j.reason };
+}
+
+// How specific is the request? Count identifiers in it that exist in the repo.
+export function specificity(repo, task) {
+  let n = 0;
+  for (const id of explicitIdents(String(task)).filter(x => x.length >= 5).slice(0, 12)) if (existsInRepo(repo, id) > 0) n++;
+  return n;
+}
+
+// early: 'full' (notes with prose), 'pointers' (titles + anchors only),
+// 'auto' (full when the request names code that exists, else pointers), 'none'.
+export async function orient(store, { task, file, session, budget = 600, maxNotes = 2, refreshFirst = !NAIVE, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
+  if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
+  const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
+  if (early === 'auto' || early === 'router') early = specificity(store.repo, task) >= 1 ? 'full' : 'pointers'; // heuristic, also the router's fallback
   let notes = store.list();
   if (NAIVE) notes = notes.map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; });
   if (refreshFirst) notes = refresh(store, notes);
   let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient' });
   if (process.env.THINKER_FORCE === '1') ranked = rank(notes, { query: '', mode: 'orient' }).map(r => ({ ...r, rel: 1 })); // control arm: inject regardless of relevance
   else if (rerankModel && ranked.length) { try { ranked = await rerank(ranked, task, file, rerankModel); } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
+  let routed = null;
+  if (routerModel && process.env.THINKER_FORCE !== '1') {
+    try {
+      const loose = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', loose: true });
+      routed = await route(store, loose, task, file, routerModel);
+      if (routed.mode === 'none') { store.log({ op: 'orient', session, task: String(task).slice(0, 200), served: [], routed: 'none' }); return { text: '', included: [], omitted: [], tokens: 0, mode: 'none', routed }; }
+      ranked = routed.picked.map(r => ({ ...r, rel: Math.max(r.rel, 0.5) })); early = routed.mode;
+    } catch (e) { store.log({ op: 'route-error', error: String(e.message).slice(0, 200) }); }
+  }
   let top = ranked.slice(0, maxNotes);
+  if (routed) process.env.THINKER_NO_LINKS = '1'; // the router's selection is final
   // cross-note links: pull in one note linked from the best hit when it has
   // at least some lexical relevance of its own and is not already selected
   if (top.length && process.env.THINKER_NO_LINKS !== '1') {
     const rel = ranked.filter(r => (top[0].note.related || []).includes(r.note.id) && !top.includes(r) && r.rel >= 0.15)[0];
     if (rel) top = [...top.slice(0, maxNotes - 1), rel];
   }
-  const packed = pack(top, budget, { minRel: 0.35 });
+  const packed = pack(top, budget, { minRel: 0.35, pointers: early === 'pointers' });
+  packed.mode = early;
   for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (!NAIVE) scheduleVerify(store, packed.included.filter(n => n.status === 'stale'));
   // co-change edges for the files the served notes (and the current file) point at
-  const cc = process.env.THINKER_NO_COCHANGE === '1' ? null : loadCochange(store.repo);
+  // co-change lines are carried through every later model call, so they are
+  // off at the start by default; the end-of-task nudge uses them instead
+  const cc = process.env.THINKER_EARLY_COCHANGE === '1' && process.env.THINKER_NO_COCHANGE !== '1' ? loadCochange(store.repo) : null;
   if (cc && packed.included.length) {
     const files = [...new Set([file, ...packed.included.flatMap(n => (n.deps || []).map(d => d.path))].filter(Boolean))].slice(0, 6);
     const block = renderCochange(cc, files);
@@ -174,7 +229,7 @@ export async function orient(store, { task, file, session, budget = 1000, maxNot
   }
   // anchoring guard: name what the request mentions that the notes do not cover
   if (packed.included.length && process.env.THINKER_NO_GUARD !== '1') {
-    try { const g = anchoringGuard(store.repo, String(task), packed.included); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
+    try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: process.env.THINKER_GUARD_PHRASES !== '1', max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   store.log({ op: 'orient', session, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id) });
   return packed;
@@ -207,6 +262,52 @@ export function attest(store, assessments, { session } = {}) {
   }
   if (applied.length) store.log({ op: 'attest', session, applied });
   return applied;
+}
+
+// --- late, file-keyed injection ---------------------------------------------
+// Notes that depend on files the agent just opened, each served once per
+// session. Rules about the code (invariant, gotcha, convention, cochange,
+// rationale, fix) come before maps of it.
+const LATE_PRIORITY = { invariant: 0, gotcha: 1, convention: 2, cochange: 3, fix: 4, rationale: 5, howto: 6, callpath: 7, location: 8, overview: 9 };
+function sessionState(store, session) {
+  const f = path.join(store.dir, 'state', `session-${String(session).replace(/[^\w-]/g, '')}.json`);
+  let st = { late: [], nudged: false }; try { st = { ...st, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch {}
+  return { st, save: () => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(st)); } };
+}
+export function lateNotes(store, { session, files, perEvent = 2, perSession = 5 }) {
+  const rel = [...new Set((files || []).map(f => normPath(store.repo, f)).filter(Boolean))];
+  if (!rel.length) return { text: '', included: [] };
+  const { st, save } = sessionState(store, session);
+  if (st.late.length >= perSession) return { text: '', included: [] };
+  let notes = store.list().filter(n => n.status !== 'invalid' && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
+  if (!NAIVE) notes = refresh(store, notes);
+  notes.sort((a, b) => (LATE_PRIORITY[a.kind] ?? 9) - (LATE_PRIORITY[b.kind] ?? 9) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7));
+  const pick = notes.slice(0, Math.min(perEvent, perSession - st.late.length));
+  if (!pick.length) return { text: '', included: [] };
+  for (const n of pick) { st.late.push(n.id); n.uses = (n.uses || 0) + 1; n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
+  save();
+  store.log({ op: 'late', session, files: rel, served: pick.map(n => n.id) });
+  return { included: pick, text: `<thinker-cache>\nCached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>` };
+}
+
+// --- completeness nudge -------------------------------------------------------
+// At the end of a session that edited files: co-change partners that were not
+// touched, and rule notes on the edited files that were never served.
+export function completenessNudge(store, { session, changed, cochange }) {
+  const { st, save } = sessionState(store, session);
+  if (st.nudged || !changed.length) return { text: '' };
+  const lines = [];
+  const isTest = f => /(^|\/)(tests?|__tests__)\/|(^|\/)test_[^/]*$|\.(test|spec)\.\w+$|_test\.\w+$/.test(f);
+  if (cochange) for (const f of changed.filter(f => !isTest(f)).slice(0, 8)) {
+    const miss = partners(cochange, f, { minSupport: 3, minConf: 0.5, limit: 3 }).filter(p => !changed.includes(p.file) && fs.existsSync(path.join(store.repo, p.file)));
+    if (miss.length) lines.push(`${f} was edited; in past commits it changed together with ${miss.map(p => `${p.file} (${Math.round(p.conf * 100)}%, n=${p.support})`).join(', ')}, which you did not touch.`);
+  }
+  const rules = store.list().filter(n => ['invariant', 'cochange', 'convention', 'gotcha'].includes(n.kind) && n.status !== 'invalid' && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => changed.includes(d.path))).slice(0, 3);
+  for (const n of rules) { lines.push(`Rule not yet seen this session, [${n.kind}] ${n.title}: ${n.body.split('\n').slice(0, 4).join(' ').slice(0, 400)}`); n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
+  if (!lines.length) return { text: '' };
+  st.nudged = true; save();
+  store.log({ op: 'nudge', session, changed, lines: lines.length });
+  return { text: `Before finishing, check completeness against what this repository's history and notes say:\n- ${lines.slice(0, 6).join('\n- ')}\nFor each item decide whether your change needs it. Make the additional edits if so; if not, say why in one line, then finish.` };
 }
 
 // --- outcome signals -----------------------------------------------------

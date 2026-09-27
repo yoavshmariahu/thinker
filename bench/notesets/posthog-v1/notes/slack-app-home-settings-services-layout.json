@@ -1,0 +1,75 @@
+{
+  "id": "slack-app-home-settings-services-layout",
+  "title": "Slack app home / settings services layout",
+  "kind": "location",
+  "answers": [
+    "Where is the Slack app home rendered?",
+    "Where are Slack run preferences / untagged followup settings resolved?",
+    "Which models does slack_app have?"
+  ],
+  "body": "- `backend/services/slack_app_home.py` (~2,600 lines): render side = frozen state dataclasses (`HomeViewState`, `ProjectState`, `TasksState`, `RunDefaultsState`, ...) → `render_home_view`/`render_edit_modal` via `_*_blocks`; handle side = `handle_app_home_opened`, `handle_ai_preferences_block_action`, `handle_app_home_view_submission`; `_resolve_*_state`, `_build_home_view`, `_republish_home`, `_apply_*`/`_reset_*` write prefs.\n- Stats: `slack_app_home_stats.py:build_stats_state`.\n- `slack_settings.py`: `AIPreferences`, `resolve_untagged_followup_mode`. `run_preferences.py`: `resolve_run_preferences`, `resolve_live_run_override` (user → workspace → central defaults). `model_catalogue.py` feeds pickers.\n- Models in `backend/models.py`: `SlackThreadTaskMapping`, `SlackUserProfileCache`, `SlackSettings` (row with slack_user_id = personal; NULL = workspace fallback), `SlackChannel`. Migrations up to 0018; `ai_preferences` added then dropped (0017/0018).",
+  "tags": [
+    "slack_app",
+    "app-home"
+  ],
+  "deps": [
+    {
+      "path": "products/slack_app/backend/services/slack_app_home.py",
+      "hash": "sha256:ca357ff3087ab2708647b6c8",
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/services/slack_settings.py",
+      "hash": "sha256:eda0a12b54b1bee109dcff0d",
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/services/run_preferences.py",
+      "hash": "sha256:984f54696b4f0f6cdb6ae6d2",
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/models.py",
+      "hash": "sha256:9525c41379c221d00d93ae54",
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/services/slack_app_home_stats.py",
+      "symbol": "build_stats_state",
+      "hash": "sha256:2e0908606394867da5424c33",
+      "line": 165,
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/services/model_catalogue.py",
+      "hash": "sha256:0c2dc4fd81aacb02bd5ddb7a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "031b9d1f-6e11-4c18-b033-1e2623383119"
+  },
+  "created": "2026-09-26T20:27:59.971Z",
+  "verified": "2026-09-26T20:27:59.971Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 12,
+  "related": [],
+  "lastUsed": "2026-09-27T00:25:13.402Z",
+  "servedIn": [
+    "157a3868-f053-4836-b02b-bb30c31d0106",
+    "d27dca9c-b428-46f8-813e-21b6c57ea83d",
+    "c1c890eb-7c20-47ea-b6ac-20ec42ebf2b2",
+    "33ce2ba1-e38c-41a2-89d5-60c3437c6267",
+    "c7fe9d18-c4f5-4f70-8092-d89f9c72b91d",
+    "659863fb-2f91-467c-9073-412fae3a0d4f",
+    "7b2e180b-5a27-4d44-847d-0a7d9cc8d9fe",
+    "5e5e9a14-f0c5-4b39-b906-0107232fe274",
+    "1399922f-71c2-42a0-92f6-dd4ba256cec5",
+    "29c7afad-25e8-4a46-a953-1964ad7a1efb",
+    "67ae52c5-5a9b-4c1d-83ed-295974ae699a",
+    "7f58d9dd-5c0a-40ad-b3c6-d6992347a54f"
+  ]
+}

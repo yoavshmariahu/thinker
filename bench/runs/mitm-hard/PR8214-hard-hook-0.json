@@ -1,0 +1,68 @@
+{
+  "id": "PR8214-hard-hook-0",
+  "task": "PR8214-hard",
+  "area": "certs",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "b2756df8-00f9-4c76-bd0b-d5aeaa972721",
+  "turns": 7,
+  "wall_ms": 18238,
+  "api_ms": 17664,
+  "cost": 0.106516,
+  "in_tokens": 151218,
+  "out_tokens": 1767,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Bash": 2,
+      "Read": 2,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 2,
+    "greps": 2,
+    "injected": [
+      "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-",
+      "ca-cert-store-location-creation-and-loading",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same place in dummy_cert. It reads the issuer's SubjectKeyIdentifier and builds the AKI with from_issuer_subject_key_identifier. If the SKI extension is missing, it falls back to from_issuer_public_key. This is functionally identical to the merged patch. The test differences and the missing changelog entry do not affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/certs.py",
+      "test/mitmproxy/test_certs.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the same place as upstream, in dummy_cert in mitmproxy/certs.py. It copies the issuer's SubjectKeyIdentifier into the AKI with from_issuer_subject_key_identifier. It falls back to from_issuer_public_key when the SKI extension is missing (x509.ExtensionNotFound). That is functionally identical to the merged patch. The test differs from upstream's but is fine.",
+      "The agent changed the same place in dummy_cert. It copies the AKI from the issuer's SubjectKeyIdentifier using from_issuer_subject_key_identifier. When the CA has no SKI extension, it falls back to from_issuer_public_key. This is functionally identical to the merged patch. Only the tests and changelog differ, which don't affect the score.",
+      "The agent changed the same place in dummy_cert as the merged patch. It copies the AKI from the issuer's SubjectKeyIdentifier with from_issuer_subject_key_identifier, and falls back to from_issuer_public_key on ExtensionNotFound. Behavior is functionally identical to the merged patch. The test is lighter but fine."
+    ]
+  },
+  "result": "Leaf certificates already carried an AuthorityKeyIdentifier. It was computed from the CA's public key, not copied from the CA's SubjectKeyIdentifier. I changed it to copy the SKI, but I haven't run the tests or the type check.\n\n- **`mitmproxy/certs.py`, `dummy_cert`:** it now reads the CA's `SubjectKeyIdentifier` extension and builds the AKI with `from_issuer_subject_key_identifier`. If the CA has no SKI, for example a user-supplied CA, it falls back to the old key-derived value. Leaf certificates still get no SKI of their own, because a matching SKI breaks SChannel (issue 6494).\n- **`test/mitmproxy/test_certs.py`, `TestDummyCert.test_with_ca`:** added an assertion that the leaf's AKI `key_identifier` equals the CA's SKI digest.\n\nFor mitmproxy-generated CAs the SKI is derived from the CA's public key, so the AKI value is probably unchanged. The difference only shows for CAs whose SKI was set some other way.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/certs.py b/mitmproxy/certs.py\nindex 2f421e25e..7264fffd1 100644\n--- a/mitmproxy/certs.py\n+++ b/mitmproxy/certs.py\n@@ -356,10 +356,16 @@ def dummy_cert(\n     )\n \n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1\n-    builder = builder.add_extension(\n-        x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key()),  # type: ignore\n-        critical=False,\n-    )\n+    # The keyIdentifier is copied from the issuer's SubjectKeyIdentifier if present.\n+    try:\n+        ca_ski = cacert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier)\n+    except x509.ExtensionNotFound:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())  # type: ignore\n+    else:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(\n+            ca_ski.value\n+        )\n+    builder = builder.add_extension(aki, critical=False)\n     # If CA and leaf cert have the same Subject Key Identifier, SChannel breaks in funny ways,\n     # see https://github.com/mitmproxy/mitmproxy/issues/6494.\n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2 states\ndiff --git a/test/mitmproxy/test_certs.py b/test/mitmproxy/test_certs.py\nindex aba66a733..3d9ad8c5b 100644\n--- a/test/mitmproxy/test_certs.py\n+++ b/test/mitmproxy/test_certs.py\n@@ -156,6 +156,11 @@ class TestDummyCert:\n             crl_url=\"https://example.com/example.crl\",\n         )\n         assert r.cn == \"foo.com\"\n+        ca_ski = tstore.default_ca._cert.extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        )\n+        aki = r._cert.extensions.get_extension_for_class(x509.AuthorityKeyIdentifier)\n+        assert aki.value.key_identifier == ca_ski.value.digest\n         assert r.altnames == x509.GeneralNames(\n             [\n                 x509.DNSName(\"one.com\"),\n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same place in dummy_cert. It reads the issuer's SubjectKeyIdentifier and builds the AKI with from_issuer_subject_key_identifier. If the SKI extension is missing, it falls back to from_issuer_public_key. This is functionally identical to the merged patch. The test differences and the missing changelog entry do not affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/certs.py",
+      "test/mitmproxy/test_certs.py"
+    ]
+  }
+}

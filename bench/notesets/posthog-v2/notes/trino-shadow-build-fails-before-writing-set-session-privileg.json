@@ -1,0 +1,52 @@
+{
+  "id": "trino-shadow-build-fails-before-writing-set-session-privileg",
+  "title": "Trino shadow build fails before writing: SET SESSION privileged property",
+  "kind": "fix",
+  "answers": [
+    "Trino shadow model build fails before creating the table",
+    "Managed warehouse materialization fails with permission error on session property",
+    "Trino connection user cannot set query_max_run_time",
+    "Alias refresh fails on SET SESSION in Trino"
+  ],
+  "body": "Symptom: Trino shadow model builds (and alias refreshes) fail before any table is written because the connection user cannot change system session properties.\nRoot cause: products/managed_warehouse/backend/trino_materialization.py:execute_trino_shadow_materialization and products/managed_warehouse/backend/trino_model_aliases.py:reconcile_trino_model_aliases issued `SET SESSION query_max_run_time = ...` as the first statement.\nFix pattern: Remove server-side session-property statements and rely on client-enforced deadlines plus cancellation through the attached cursor (control.attach(cursor) / checkpoint()).\nConstraints: Applies to any Trino path in managed_warehouse using a restricted connection user; do not reintroduce privileged SET SESSION calls. Note fetchall side_effect lists in tests must match the exact statement sequence, so removing or adding a statement shifts them.",
+  "applies": "products/managed_warehouse Trino execution paths (shadow materialization, model alias reconcile)",
+  "tags": [
+    "trino",
+    "managed-warehouse",
+    "session"
+  ],
+  "deps": [
+    {
+      "path": "products/managed_warehouse/backend/trino_materialization.py",
+      "symbol": "execute_trino_shadow_materialization",
+      "hash": "sha256:f4ebc78f33533b2334607b81",
+      "line": 19,
+      "missing": false
+    },
+    {
+      "path": "products/managed_warehouse/backend/trino_model_aliases.py",
+      "symbol": "reconcile_trino_model_aliases",
+      "hash": "sha256:3ecd26ce95b617cbf3af7636",
+      "line": 200,
+      "missing": false
+    },
+    {
+      "path": "products/managed_warehouse/backend/trino_model_aliases.py",
+      "symbol": "checkpoint",
+      "hash": "sha256:ed5635c33159b59c2b282d55",
+      "line": 234,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105511"
+  },
+  "created": "2026-09-27T00:02:22.346Z",
+  "verified": "2026-09-27T00:02:22.346Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

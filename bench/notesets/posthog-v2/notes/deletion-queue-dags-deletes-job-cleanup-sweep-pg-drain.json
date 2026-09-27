@@ -1,0 +1,67 @@
+{
+  "id": "deletion-queue-dags-deletes-job-cleanup-sweep-pg-drain",
+  "title": "Deletion queue DAGs: deletes_job → cleanup sweep → PG drain",
+  "kind": "callpath",
+  "answers": [
+    "How does the person deletion queue DAG work?",
+    "What runs after deletes_job?",
+    "Where is clickhouse_deletion_sweep_job defined?",
+    "How do tombstoned persons get removed from Postgres?"
+  ],
+  "body": "- posthog/dags/deletes.py:`deletes_job` (~L1153) processes pending AsyncDeletion rows (events, then person, person_distinct_id2, groups).\n- posthog/dags/clickhouse_cleanup.py:`run_cleanup_sweep_after_deletes` (run_status_sensor) launches the sweep when deletes_job succeeds, skipping if one is active.\n- `clickhouse_deletion_sweep_job` ops chained by output to serialize cluster mutations: clear_removed_cohort_data → snapshot_deleted_persons → snapshot_orphaned_distinct_ids → recheck (before distinct id delete) → delete_orphaned_distinct_ids → recheck (before person delete) → persist_deleted_persons → delete_persons → publish_sweep_metrics → drop_snapshot_assets.\n- Why snapshots: the sweep destroys the tombstones its worklist derives from, so the worklist is frozen in run-id-scoped snapshot tables; the recheck ops exclude revived persons.\n- Job tag `clickhouse_deletion_sweep_concurrency: v1` relies on a run-queue limit of 1 in charts; max_runtime 43200.\n- Sweep queues persons into person_pg_cleanup_queue; posthog/dags/person_pg_cleanup_drain.py drains it via personhog DeleteTombstonedPersons, which only deletes persons still tombstoned (queue is advisory; persons may be revived).",
+  "tags": [
+    "dagster",
+    "deletion-queue",
+    "clickhouse-sweep"
+  ],
+  "deps": [
+    {
+      "path": "posthog/dags/deletes.py",
+      "symbol": "deletes_job",
+      "hash": "sha256:3e4657a79138e35e40d5332c",
+      "line": 1153,
+      "missing": false
+    },
+    {
+      "path": "posthog/dags/clickhouse_cleanup.py",
+      "symbol": "clickhouse_deletion_sweep_job",
+      "hash": "sha256:205cf3098591b7177f4f5dae",
+      "line": 1506,
+      "missing": false
+    },
+    {
+      "path": "posthog/dags/person_pg_cleanup_drain.py",
+      "hash": "sha256:08c4531bda18fd9659a600e5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "7cf2f0b3-71d7-4042-9ecf-dfa8df682419"
+  },
+  "created": "2026-09-26T20:34:12.306Z",
+  "verified": "2026-09-26T20:34:12.306Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 12,
+  "related": [
+    "deletes-job-survivor-count-is-report-only-do-not-turn-it-bac",
+    "postgres-cleanup-queue-handoff-and-drain-advisory-queue"
+  ],
+  "lastUsed": "2026-09-27T01:00:39.084Z",
+  "servedIn": [
+    "38139613-8f36-490d-9da7-04d2be397347",
+    "323d2389-cbc9-42d3-82b3-929873b67b40",
+    "ee433ad0-d66f-48db-8907-d2c3054079aa",
+    "d75a4dcc-756a-4789-9b7b-510f352500fc",
+    "daf602ff-a237-4d68-8a7f-b954e4b08514",
+    "b4bb9570-b2c8-4f83-9e04-073a544577f2",
+    "5c851437-f354-45f3-8504-0a898a6f0d51",
+    "33676976-fd18-4be2-866b-1b8b81e8d5b2",
+    "231a9dd0-7188-4586-8849-6e6b866d19a4",
+    "adcee338-64ea-4441-8bfb-db43173e8dd9",
+    "44edde1f-5bf3-4596-bb15-0a811e04a28f",
+    "5c8e7539-6b19-4050-88bd-69c110e19dd7"
+  ]
+}

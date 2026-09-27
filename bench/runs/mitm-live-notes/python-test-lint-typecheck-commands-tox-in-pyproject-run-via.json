@@ -1,0 +1,83 @@
+{
+  "id": "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+  "title": "Python test/lint/typecheck commands (tox in pyproject, run via uv)",
+  "kind": "howto",
+  "answers": [
+    "How do I run Python tests in mitmproxy?",
+    "How to run a single test file?",
+    "What linters and type checkers does mitmproxy use?",
+    "Is there a tox.ini?"
+  ],
+  "body": "- No tox.ini: tox is configured in `pyproject.toml` `[tool.tox]` (env_list = lint, mypy, py; runner uv-venv-lock-runner, dependency group `dev`). AGENTS.md says use `uv` for everything.\n- All: `uv run tox`; tests only: `uv run tox -e py` (pytest -vv --cov=mitmproxy --cov=release, default `--timeout 60`).\n- Single file: `uv run pytest test/mitmproxy/test_http.py[::test_name]` (or `-k expr`).\n- Pytest config `[tool.pytest.ini_options]`: testpaths=test, asyncio_mode=auto, RuntimeWarning and PytestUnraisableExceptionWarning are errors.\n- Other envs: `test-offline` (test/run-tests-offline.sh), `filename_matching` (test/filename_matching.py), `individual_coverage -- FILE` (test/individual_coverage.py; AGENTS.md asks for it on new source files; exclusions in `[tool.pytest.individual_coverage]`).\n- Lint: `uv run tox -e lint` = `ruff check .` (rules E,F,I force-single-line,TID251; contrib excluded). Autofix/format: `uv run tox -e fix`.\n- Types: `uv run tox -e mypy` (files: mitmproxy, examples/addons, release/*.py; check_untyped_defs).\n- Note: agent only read configs, did not execute these.",
+  "tags": [
+    "testing",
+    "tox",
+    "ruff",
+    "mypy",
+    "uv"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:38b3830011f89ac532b252b3",
+      "missing": false
+    },
+    {
+      "path": "AGENTS.md",
+      "hash": "sha256:515b980fa348d9c62cc1964b",
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/test_http.py",
+      "hash": "sha256:ad7ec4f98e53ab405b9da3a3",
+      "missing": false
+    },
+    {
+      "path": "test/run-tests-offline.sh",
+      "hash": "sha256:d833b92348008f70ef322a68",
+      "missing": false
+    },
+    {
+      "path": "test/filename_matching.py",
+      "hash": "sha256:568468f3b9a62f535366313d",
+      "missing": false
+    },
+    {
+      "path": "test/individual_coverage.py",
+      "hash": "sha256:99e1139d6e04e20a7784896e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "4e60b02e-b99f-4f62-946e-cc0b3f2f82b5"
+  },
+  "created": "2026-09-26T09:26:38.372Z",
+  "verified": "2026-09-26T09:26:38.372Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.5299999999999998,
+  "status": "fresh",
+  "uses": 56,
+  "lastUsed": "2026-09-26T19:53:14.085Z",
+  "related": [],
+  "servedIn": [
+    "b68ed588-2ebb-4f6e-a352-1f2a5d45e016",
+    "450aa3a1-532d-4d1b-bbc2-156bb95acbf9",
+    "bc30eb19-c9ec-4988-bd70-b1e4d31d87f9",
+    "3a8007e5-0d45-448c-b3b2-02615498e65c",
+    "fe4e77c4-55a8-43d4-bee1-8d22785065b3",
+    "f3f51feb-d418-405d-84e1-70acaaebfe4f",
+    "d165ec15-0e2c-4d80-aea5-8efd861df2d2",
+    "ef9375d6-78ac-47b9-b9e8-2c57749d6f6b",
+    "a6cd809c-4725-4456-8e79-e1d2042a4f32",
+    "d405231e-a052-4bc3-af52-8682579ca4ba",
+    "1c05ba3d-f8f4-46c6-abb4-668ebc15cdc6",
+    "d3baff78-3811-4c2b-84f9-761b1ea25a2f",
+    "5524209d-9f0d-4e3a-9bd0-c5dee8076b71"
+  ],
+  "attest": {
+    "confirmed": 0,
+    "contradicted": 0,
+    "unused": 13
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "PR8175-irrelevant-1",
+  "task": "PR8175",
+  "area": "addons-dump",
+  "arm": "irrelevant",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "b5b2c757-e9c0-4f06-8811-516156cc57b9",
+  "turns": 9,
+  "wall_ms": 20877,
+  "api_ms": 20350,
+  "cost": 0.071771,
+  "in_tokens": 170309,
+  "out_tokens": 1781,
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "Bash": 5,
+      "Read": 1,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 5,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added `http_connect_error` to the Dumper addon in mitmproxy/addons/dumper.py. It calls `echo_flow` behind the same `match` check, which is the same logic as the merged patch. The only additions are a type annotation and a comment. The agent's test addition is also reasonable. The changelog difference does not matter.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/dumper.py",
+      "test/mitmproxy/addons/test_dumper.py"
+    ]
+  },
+  "result": "mitmdump now prints failed CONNECT requests. I haven't run the tests or mitmdump itself.\n\nThe `Dumper` addon in `mitmproxy/addons/dumper.py` has a new `http_connect_error` handler for `HttpConnectErrorHook`. It uses the same `match()` check and `echo_flow()` output as the `response` and `error` handlers. A failed CONNECT (for example a DNS error) never fires `response`, and `error` isn't guaranteed to fire either, so nothing was printed before. The request line and the error response now appear, and the output still respects `flow_detail` and the dumper filter.\n\nIf `flow.error` is also set on such a flow, the later `error` hook could print the same flow a second time. I didn't check whether that happens in practice.\n\nI also added a case to the existing dumper test in `test/mitmproxy/addons/test_dumper.py`. It calls `http_connect_error` on a flow with a response and asserts that output is produced.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/dumper.py b/mitmproxy/addons/dumper.py\nindex ea7569064..ccd59d70d 100644\n--- a/mitmproxy/addons/dumper.py\n+++ b/mitmproxy/addons/dumper.py\n@@ -294,6 +294,11 @@ class Dumper:\n         if self.match(f):\n             self.echo_flow(f)\n \n+    def http_connect_error(self, f: http.HTTPFlow):\n+        # Failed CONNECT requests (e.g. DNS errors) never reach `response`.\n+        if self.match(f):\n+            self.echo_flow(f)\n+\n     def websocket_message(self, f: http.HTTPFlow):\n         assert f.websocket is not None  # satisfy type checker\n         if self.match(f):\ndiff --git a/test/mitmproxy/addons/test_dumper.py b/test/mitmproxy/addons/test_dumper.py\nindex 7adf4e86e..b39bcb0a5 100644\n--- a/test/mitmproxy/addons/test_dumper.py\n+++ b/test/mitmproxy/addons/test_dumper.py\n@@ -52,6 +52,11 @@ def test_simple():\n         assert sio.getvalue()\n         sio.truncate(0)\n \n+        ctx.configure(d, flow_detail=1)\n+        d.http_connect_error(tflow.tflow(resp=True))\n+        assert sio.getvalue()\n+        sio.truncate(0)\n+\n         ctx.configure(d, flow_detail=4)\n         d.response(tflow.tflow(resp=True))\n         assert sio.getvalue()\n"
+}

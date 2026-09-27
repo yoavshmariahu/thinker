@@ -1,0 +1,50 @@
+{
+  "id": "PR8397-hook-0",
+  "task": "PR8397",
+  "area": "encoding",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "3430f291-7fde-443c-9cfe-c8ca356a5469",
+  "turns": 7,
+  "wall_ms": 18902,
+  "api_ms": 18263,
+  "cost": 0.1055178,
+  "in_tokens": 172345,
+  "out_tokens": 1641,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Bash": 5,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 5,
+    "injected": [
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "uv.lock was not regenerated (not functionally required)",
+      "changelog entry (not required)"
+    ],
+    "wrong": [
+      "backports.zstd version bounds (>=1.0.0,<=1.3.0) differ from upstream's 1.7.0 pin; the bounds were guessed, but they still allow a valid backports.zstd release"
+    ],
+    "reason": "The agent's encoding.py change matches the upstream change: version-conditional import of compression.zstd vs backports.zstd, with zstd.decompress(content) and zstd.compress(content, level=1). pyproject.toml swaps zstandard for backports.zstd with the marker python_version<'3.14', as upstream does. The only differences are the version bounds, the lockfile and the changelog, none of which change behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/encoding.py",
+      "pyproject.toml"
+    ]
+  },
+  "result": "mitmproxy now uses the standard library's `compression.zstd` on Python 3.14+ and the `backports.zstd` package on older versions. I didn't run the tests or install anything, and I didn't regenerate `uv.lock`.\n\n- **`pyproject.toml`**: replaced `zstandard>=0.25,<=0.25.0` with `backports.zstd>=1.0.0,<=1.3.0; python_version<'3.14'`. The version bounds are my guess, so check them against what's actually published. Run `uv lock` to update the lockfile.\n- **`mitmproxy/net/encoding.py`**: the import now depends on the Python version, and the two functions use the module-level API:\n  - `decode_zstd` calls `zstd.decompress(content)`. That call reads across multiple frames, which the old code did explicitly with `read_across_frames=True`.\n  - `encode_zstd` calls `zstd.compress(content, level=1)`.\n\nThe existing `test_zstd` in `test/mitmproxy/net/test_encoding.py` already covers single-frame and multi-frame decoding, so I didn't change any tests.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/net/encoding.py b/mitmproxy/net/encoding.py\nindex 7be30d3d5..bcba77a7a 100644\n--- a/mitmproxy/net/encoding.py\n+++ b/mitmproxy/net/encoding.py\n@@ -5,12 +5,17 @@ Utility functions for decoding response bodies.\n import codecs\n import collections\n import gzip\n+import sys\n import zlib\n from io import BytesIO\n from typing import overload\n \n import brotli\n-import zstandard as zstd\n+\n+if sys.version_info >= (3, 14):\n+    from compression import zstd\n+else:\n+    from backports import zstd\n \n # We have a shared single-element cache for encoding and decoding.\n # This is quite useful in practice, e.g.\n@@ -182,14 +187,12 @@ def encode_brotli(content: bytes) -> bytes:\n def decode_zstd(content: bytes) -> bytes:\n     if not content:\n         return b\"\"\n-    zstd_ctx = zstd.ZstdDecompressor()\n-    return zstd_ctx.stream_reader(BytesIO(content), read_across_frames=True).read()\n+    return zstd.decompress(content)\n \n \n def encode_zstd(content: bytes) -> bytes:\n     # Use level=1 for fastest compression speed.\n-    zstd_ctx = zstd.ZstdCompressor(level=1)\n-    return zstd_ctx.compress(content)\n+    return zstd.compress(content, level=1)\n \n \n def decode_deflate(content: bytes) -> bytes:\ndiff --git a/pyproject.toml b/pyproject.toml\nindex 7ddc3b834..c1d3c5c4e 100644\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -57,7 +57,7 @@ dependencies = [\n     \"urwid>=2.6.14,<=3.0.5\",\n     \"wsproto>=1.0,<=1.3.2\",\n     \"publicsuffix2>=2.20190812,<=2.20191221\",\n-    \"zstandard>=0.25,<=0.25.0\",\n+    \"backports.zstd>=1.0.0,<=1.3.0; python_version<'3.14'\",\n ]\n \n [dependency-groups]\n"
+}

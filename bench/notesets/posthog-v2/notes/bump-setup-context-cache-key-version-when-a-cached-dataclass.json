@@ -1,0 +1,47 @@
+{
+  "id": "bump-setup-context-cache-key-version-when-a-cached-dataclass",
+  "title": "Bump setup-context cache key version when a cached dataclass changes shape",
+  "kind": "invariant",
+  "answers": [
+    "I added a field to a setup context dataclass, do I need to bump the cache key?",
+    "Experiment setup context returns stale or broken cached TargetSurface after deploy",
+    "Why is experiment_setup_context cache key versioned?"
+  ],
+  "body": "Setup-context sections are cached as pickled dataclasses (TargetSurface, etc.).\nEnforced by convention in products/experiments/backend/setup_context.py:_cache_key (comment: bump the version whenever a cached dataclass changes shape).\nIf skipped, after deploy the cache restores old instances that lack the new field, so the serializer fails or returns wrong data.\nAdding `libs_truncated` to TargetSurface moved the prefix from experiment_setup_context_v2_ to experiment_setup_context_v3_.\nAny new field on a cached dataclass in setup_context.py needs the same bump.",
+  "applies": "products/experiments/backend/setup_context.py cached dataclasses",
+  "tags": [
+    "experiments",
+    "cache",
+    "setup-context"
+  ],
+  "deps": [
+    {
+      "path": "products/experiments/backend/setup_context.py",
+      "symbol": "_cache_key",
+      "hash": "sha256:a6ec939f5374cacf3c352d55",
+      "line": 520,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/setup_context.py",
+      "symbol": "TargetSurface",
+      "hash": "sha256:f8b576a8861b7b23c8f02596",
+      "line": 266,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105283"
+  },
+  "created": "2026-09-27T00:08:02.522Z",
+  "verified": "2026-09-27T00:08:02.522Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-setup-context-response-field-files-that-must-change",
+    "detect-list-truncation-by-querying-limit-1-rows-then-slicing"
+  ]
+}

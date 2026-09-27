@@ -1,0 +1,86 @@
+{
+  "id": "chunk-map-file-and-preload-manifest",
+  "title": "Chunk map file and preload manifest",
+  "kind": "callpath",
+  "answers": [
+    "What is chunk-map-*.js?",
+    "How does the preload manifest get produced and consumed?",
+    "How does the backend emit modulepreload tags?"
+  ],
+  "body": "- chunkLoader.mjs: `chunkMapFileName(entry, chunks)` → `chunk-map-<entry>-<8hex sha256>.js` (hash over exact emitted bytes). Full map served as separate immutable static file setting `window.ESBUILD_CHUNK_MAP`; only the `index` list is inline in HTML. `ESBUILD_LOAD_CHUNKS(name)` loads `chunk-<hash>.js` not in ESBUILD_LOADED_CHUNKS; scenes requested before the map arrives queue in ESBUILD_PENDING_CHUNK_SCENES. Map is prefetch-only optimization.\n- frontend/build.mjs:`writePreloadManifest` writes dist/preload-manifest.json: css, font, js (entry + chunks >= PRELOAD_MIN_CHUNK_BYTES 50KB from index.tsx and App.tsx), authenticatedJs (AuthenticatedShell.tsx). Throws if a field is empty.\n- posthog/utils.py:`_resolve_entry_assets(include_authenticated_shell)` reads that manifest from BASE_DIR/frontend/dist (cached per process; empty in debug/test or if missing) → context preload_css_url/preload_js_urls/preload_font_url, set only when template_name == \"index.html\".\n- frontend/src/index.html renders them as <link rel=preload/modulepreload href=\"{{ js_url }}/{{ ... }}\">.",
+  "tags": [
+    "preload",
+    "chunks"
+  ],
+  "deps": [
+    {
+      "path": "common/esbuilder/chunkLoader.mjs",
+      "hash": "sha256:7837d7ba9826a18b6a4e5727",
+      "missing": false
+    },
+    {
+      "path": "frontend/build.mjs",
+      "symbol": "writePreloadManifest",
+      "hash": "sha256:632aa45587aecd6755a931ea",
+      "line": 111,
+      "missing": false
+    },
+    {
+      "path": "posthog/utils.py",
+      "symbol": "_resolve_entry_assets",
+      "hash": "sha256:c1dbb743e99a7b4a49b9ddce",
+      "line": 431,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/index.html",
+      "hash": "sha256:090816ef12a2bc691ae635f1",
+      "missing": false
+    },
+    {
+      "path": "rust/cohort-stream-processor/src/store/durability/manifest.rs",
+      "symbol": "json",
+      "hash": "sha256:45b13c44a7709c5045125ff6",
+      "line": 100,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e50c32b1-74f3-41fc-b8cb-66aec7f3c784"
+  },
+  "created": "2026-09-26T20:35:13.132Z",
+  "verified": "2026-09-26T20:35:13.132Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "stale",
+  "uses": 6,
+  "related": [
+    "build-output-naming-must-stay-in-sync-with-server-preload-ma",
+    "how-django-picks-which-frontend-build-assets-to-serve-debug-",
+    "self-update-must-match-the-generated-installers-receipt-loca",
+    "frontend-build-esbuild-config-chunk-naming-index-html-genera"
+  ],
+  "servedIn": [
+    "2de383db-5d63-43c9-9226-cd2cf77e2c10",
+    "aa0facb4-3469-4ea0-a240-86f0eb879eca",
+    "4d1906e5-79ec-4b4b-a088-06d0c30914e3",
+    "28603e98-37bf-447a-8663-6a7c6b802c85",
+    "01de268d-b79f-4536-878a-05cd626d33e6",
+    "14bdd8ea-719f-4bca-937b-f2b36407619a"
+  ],
+  "stale": {
+    "since": "2026-09-27T06:28:56.551Z",
+    "changed": [
+      {
+        "path": "frontend/build.mjs",
+        "symbol": "writePreloadManifest",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "frontend/src/index.html",
+        "reason": "file changed"
+      }
+    ]
+  }
+}

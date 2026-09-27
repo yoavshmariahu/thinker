@@ -1,0 +1,99 @@
+{
+  "id": "PR106672-hard-nocache-1",
+  "task": "PR106672-hard",
+  "area": "experiments",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "ea059d33-be9f-4047-9973-079db7fcfbca",
+  "turns": 14,
+  "wall_ms": 37678,
+  "api_ms": 36830,
+  "cost": 0.33858119999999997,
+  "in_tokens": 537682,
+  "out_tokens": 3882,
+  "tools": {
+    "calls": 13,
+    "byTool": {
+      "Bash": 9,
+      "bash_placeholder": 1,
+      "Edit": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 9,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.5,
+    "samples": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "reasons": [
+      "The agent found all three right places. Dropping the uuid in `create_saved_metric` is functionally close to the upstream change, and the guidance no longer recommends promote-then-attach. The attach-only update path pulls in the colliding stored list, so the inline metric gets a new uuid. But the agent skipped the ordering-sync fix. After dedup, the shared metric's uuid is treated as removed and dropped from the primary or secondary ordering array. Upstream tests explicitly assert that the shared uuid stays in that array. So the change is directionally right but incomplete.",
+      "The agent found the right places. Stripping the uuid on create handles promotion, and pulling the colliding stored inline list into the update handles the attach-only case. The ordering-array handling is incomplete: the upstream patch keeps the shared metric's uuid in the ordering, and the agent's patch does not. The guidance rewrite drops the promote flow rather than giving the corrected steps. The change is directionally right but partial.",
+      "The agent found the right places. It strips the uuid on saved-metric create, forces the stored inline list through dedup on attach-only updates, and revises the agent guidance. However, it misses the ordering-sync fix that upstream needed, so the shared metric's uuid gets dropped from the ordering after dedup. It also puts the uuid stripping in a narrower place than upstream and may interact badly with the seeding order. The direction is right but the change is incomplete."
+    ],
+    "reason": "The agent found all three right places. Dropping the uuid in `create_saved_metric` is functionally close to the upstream change, and the guidance no longer recommends promote-then-attach. The attach-only update path pulls in the colliding stored list, so the inline metric gets a new uuid. But the agent skipped the ordering-sync fix. After dedup, the shared metric's uuid is treated as removed and dropped from the primary or secondary ordering array. Upstream tests explicitly assert that the shared uuid stays in that array. So the change is directionally right but incomplete.",
+    "mustHit": 3,
+    "mustTotal": 3,
+    "touched": [
+      "products/experiments/backend/experiment_saved_metric_service.py",
+      "products/experiments/backend/experiment_service.py",
+      "products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2"
+    ],
+    "criteria": {
+      "essential": 0.8571428571428571,
+      "all": 0.875,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "create_saved_metric passes `{k: v for k, v in query.items() if k != \"uuid\"}` to normalize_query_for_write, so a supplied uuid is discarded. The rest of the query is passed through unchanged. Generating a fresh uuid happens in the unseen remainder of normalize_query_for_write; the existing_uuid/incoming_uuid logic suggests it does."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "update_saved_metric is unchanged. It still calls `normalize_query_for_write(update_data[\"query\"], existing_uuid=existing_uuid)` and rejects a changed uuid, so the existing uuid is preserved."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "When `saved_metrics_ids` is in update_data, the patch loops over `(\"metrics\", \"metrics_secondary\")`. If the stored list has a uuid in `saved_uuids`, it sets `update_data[field] = stored`. The existing `_assign_uuids_to_metrics(..., seen=seen_metric_uuids)` step then regenerates the clashing inline uuid, since seen already contains the saved uuids."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "The stored list is injected only when `any(m.get(\"uuid\") in saved_uuids ...)`. With no clash, update_data is untouched, so the stored inline metrics and their ordering are unchanged."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "The code comment says the original uuid stays in the ordering and `_sync_ordering_with_metric_changes` appends the new regenerated uuids as additions. The sync code itself is not shown, but the design keeps both uuids."
+        },
+        {
+          "id": "c6",
+          "verdict": "met",
+          "evidence": "Only the inline list in update_data is modified. The saved metric rows and the `saved_metrics_ids` link handling are not touched, so the shared metric keeps its uuid and the requested links."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "The new guidance reads \"To reuse a metric across experiments, call `experiment-saved-metrics-create` with the `query`...\". It tells the agent to remove the inline copy when attaching, but it never tells the agent to omit the identifier (uuid) when creating the shared metric, and it does not say to remove the inline metric in the same update."
+        },
+        {
+          "id": "c8",
+          "verdict": "met",
+          "evidence": "When the payload resends `metrics`, the existing seed adds the saved-metric uuids (from the payload or the current links) to `seen_metric_uuids`. `_assign_uuids_to_metrics` then regenerates the inline copy, and the original uuid stays in the ordering."
+        }
+      ]
+    }
+  },
+  "result": "Inline and shared metrics on an experiment now get distinct identifiers in both scenarios, and the agent guidance no longer recommends promote-then-attach. I haven't run the tests or added one.\n\n- **Promotion:** `create_saved_metric` in `experiment_saved_metric_service.py` now drops any incoming `uuid` from the query before saving, so a shared metric always gets its own fresh identifier. This applies to every creation, not only promotion, so a client-supplied `uuid` on create is now ignored. Existing tests that expect a supplied `uuid` to be kept on create would need updating.\n- **Attach-only update:** In `experiment_service.py`, when an update carries `saved_metrics_ids` but no `metrics` or `metrics_secondary`, the stored inline list is now checked against the attached shared metrics' identifiers. If one collides, that list joins the update, and the existing dedup step regenerates the inline metric's identifier. The shared metric keeps its own, and the ordering arrays are updated by the existing sync.\n- **Agent guidance:** In `metric-configuration.md.j2`, the \"promote with the same query, then attach\" instruction is replaced. It now says to create the shared metric for reuse across experiments, and to remove the inline copy when attaching the shared one.\n\nExperiments that already have a clash are not repaired until their next update that attaches shared metrics.",
+  "is_error": false,
+  "diff": "diff --git a/products/experiments/backend/experiment_saved_metric_service.py b/products/experiments/backend/experiment_saved_metric_service.py\nindex 7b03bf6b166..75eb0a213ae 100644\n--- a/products/experiments/backend/experiment_saved_metric_service.py\n+++ b/products/experiments/backend/experiment_saved_metric_service.py\n@@ -87,7 +87,9 @@ class ExperimentSavedMetricService:\n         description: str | None = None,\n     ) -> ExperimentSavedMetric:\n         \"\"\"Create a saved metric with full business-logic validation.\"\"\"\n-        normalized_query = self.normalize_query_for_write(query)\n+        # A promoted inline metric arrives with its inline uuid. Drop it so the saved metric gets its\n+        # own identifier and cannot collide with the inline copy on an experiment.\n+        normalized_query = self.normalize_query_for_write({k: v for k, v in query.items() if k != \"uuid\"})\n         enforce_warehouse_metric_access([normalized_query], team=self.team, user=self.user)\n \n         return ExperimentSavedMetric.objects.create(\ndiff --git a/products/experiments/backend/experiment_service.py b/products/experiments/backend/experiment_service.py\nindex 7c33bc325ee..8c8ede4f161 100644\n--- a/products/experiments/backend/experiment_service.py\n+++ b/products/experiments/backend/experiment_service.py\n@@ -3653,6 +3653,16 @@ class ExperimentService:\n                 if link.saved_metric.query and (uuid := link.saved_metric.query.get(\"uuid\")):\n                     seen_metric_uuids.add(uuid)\n \n+        # An update that only changes the attached saved metrics still has to check the\n+        # stored inline metrics against them, so pull a colliding list into the update\n+        # and let the dedup below regenerate the inline uuid.\n+        if \"saved_metrics_ids\" in update_data:\n+            saved_uuids = self._collect_saved_metric_uuids(update_data[\"saved_metrics_ids\"])\n+            for field in (\"metrics\", \"metrics_secondary\"):\n+                stored = getattr(experiment, field) or []\n+                if field not in update_data and any(m.get(\"uuid\") in saved_uuids for m in stored):\n+                    update_data[field] = stored\n+\n         # Regenerated dups don't need an ordering remap: the original uuid is\n         # kept on the incumbent so any ordering reference to it remains valid\n         # (including references to saved-metric uuids that happen to be inlined).\ndiff --git a/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2 b/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2\nindex 3e912ad5850..1cf479e1699 100644\n--- a/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2\n+++ b/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2\n@@ -296,9 +296,12 @@ resend — sending the link `id` attaches the wrong metric or fails validation.\n `metadata` is optional and defaults to `primary`. Pass an empty array to detach\n all shared metrics.\n \n-To promote a one-off inline metric into a reusable shared metric, call\n-`experiment-saved-metrics-create` with the same `query` (the `ExperimentMetric`\n-object), then attach it via `saved_metrics_ids` as above.\n+To reuse a metric across experiments, call `experiment-saved-metrics-create`\n+with the `query` (the `ExperimentMetric` object), then attach it via\n+`saved_metrics_ids` as above.\n+Do not also keep an inline copy of the same metric on the experiment,\n+because the experiment would show the metric twice.\n+Remove the inline copy from `metrics` or `metrics_secondary` when you attach the shared one.\n \n ## Property filters\n \n",
+  "distill": null
+}

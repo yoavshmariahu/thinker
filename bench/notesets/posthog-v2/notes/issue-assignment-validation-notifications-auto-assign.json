@@ -1,0 +1,77 @@
+{
+  "id": "issue-assignment-validation-notifications-auto-assign",
+  "title": "Issue assignment: validation, notifications, auto-assign",
+  "kind": "location",
+  "answers": [
+    "Where is issue assignment implemented?",
+    "Who sends assignment notifications?",
+    "Where are assignment rules applied?"
+  ],
+  "body": "- EB/logic/issue_mutations.py:_assign_one: validates org membership/role org (AssigneeValidationError → 400), update_or_create ErrorTrackingIssueAssignment (one-to-one, user or role; role deprecated but still used) or delete to unassign, writes 'assigned' activity log, returns PendingLifecycleEvent.\n- API: view actions assign and bulk(action=assign); ErrorTrackingIssueAssigneeWriteSerializer; assignee:null unassigns.\n- Notifications on assign only (not clear), sent synchronously inside the transaction: posthog/tasks/email.py:send_error_tracking_issue_assigned, EB/notifications.py:dispatch_issue_assigned_realtime.\n- Auto-assignment by rules happens in cymbal at ingestion (rules/assignment.rs); Django only does CRUD in EB/logic/rules.py.",
+  "tags": [
+    "error_tracking",
+    "assignee"
+  ],
+  "deps": [
+    {
+      "path": "products/error_tracking/backend/logic/issue_mutations.py",
+      "symbol": "_assign_one",
+      "hash": "sha256:8313ff7376cca3356b0507db",
+      "line": 357,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/notifications.py",
+      "symbol": "dispatch_issue_assigned_realtime",
+      "hash": "sha256:cc8efc5bb61b087e441ba480",
+      "line": 32,
+      "missing": false
+    },
+    {
+      "path": "posthog/tasks/email.py",
+      "symbol": "send_error_tracking_issue_assigned",
+      "hash": "sha256:d8b93d0f7223d72236d1c9e6",
+      "line": 1858,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/logic/rules.py",
+      "hash": "sha256:c753078d7def55e5d499c255",
+      "missing": false
+    },
+    {
+      "path": "rust/cymbal/src/modes/processing/rules/assignment.rs",
+      "hash": "sha256:f0567ec60a07c717b494930c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c78d59b1-60fc-4a6c-8eac-edc5dfa51f9e"
+  },
+  "created": "2026-09-26T20:32:08.005Z",
+  "verified": "2026-09-26T20:32:08.005Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 13,
+  "related": [
+    "error-tracking-issue-writes-which-mutations-emit-lifecycle-e"
+  ],
+  "lastUsed": "2026-09-27T00:58:52.995Z",
+  "servedIn": [
+    "36ed048a-8bbd-4dbe-a047-a2bd1591f964",
+    "e530ac93-95f2-44ae-bbf2-7fc345286ef6",
+    "a9bb7107-4a9e-4ae1-81f0-15c93d3f08ba",
+    "287589bf-f6a0-49fe-8802-6a78218b2c92",
+    "ed597624-1717-4457-b82c-06dd9dea399c",
+    "db2ac0f3-193d-48ed-a2a8-c7fc90a6215a",
+    "ddbd884d-ef4d-41a4-9d62-94f6ffe130b2",
+    "5eebb144-500a-4ee7-b484-68f19134555f",
+    "bada6a04-90ca-402b-b4a8-ac0932a722e5",
+    "50d00da5-e8ed-4cbd-b114-2290506e0b28",
+    "13935055-b92f-4957-9b47-f87439c7994c",
+    "043b894d-7483-463a-981a-37bca4b0739d",
+    "72ef30ba-b28a-471e-966b-ddf41a97cbbb"
+  ]
+}

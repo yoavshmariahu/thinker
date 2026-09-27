@@ -1,0 +1,49 @@
+{
+  "id": "E8-usageerror-abort-cache-0",
+  "task": "E8-usageerror-abort",
+  "area": "exceptions",
+  "arm": "cache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "6a15df91-3727-496d-b6cb-151e435f06e8",
+  "turns": 4,
+  "wall_ms": 12745,
+  "api_ms": 12140,
+  "cost": 0.036812,
+  "in_tokens": 87299,
+  "out_tokens": 1105,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "ToolSearch": 1,
+      "mcp__thinker__orient": 1,
+      "Bash": 1
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 1,
+    "injected": [
+      "command-main-exception-handling-and-exit-code-flow",
+      "exception-hierarchy-and-exit-codes-in-exceptions-py",
+      "clirunner-invoke-exception-exit-code-handling-and-result"
+    ]
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "Exact stderr format for UsageError (blank line before Error:, hint uses longest help name; no usage block if ctx is None)",
+      "augment_usage_errors attaching ctx in Context.invoke",
+      "Detail that the KeyboardInterrupt->Abort conversion occurs regardless of standalone_mode",
+      "Context teardown (__exit__) happens before message printing",
+      "CliRunner exit_code mapping"
+    ],
+    "wrong": [
+      "The answer says it did not run anything, relying on cached notes, but the claims all match the reference; no factual errors found"
+    ],
+    "reason": "All key facts match the reference. The line numbers are correct: 1518/1522 for UsageError, 1543/1546/1547 for Abort, and 1515/1517 for KeyboardInterrupt. The exit codes are correct: 2, 1 and 1. The printed output is correct: usage, hint and Error for UsageError; Aborted! for Abort; a blank line then Aborted! for KeyboardInterrupt. The Abort re-raise handling in non-standalone mode is also correct. The omissions are secondary details.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "All three are handled in `src/click/core.py:Command.main`, and each ends with exit code 1 or 2 in standalone mode. I read the handler lines directly and took the printed output and exit codes from the cached notes and the handler lines, without running anything.\n\n**`click.UsageError`** (`src/click/core.py:Command.main`, `except ClickException` at L1518)\n- It subclasses `ClickException`, so this handler catches it.\n- In standalone mode it calls `e.show()` and then `sys.exit(e.exit_code)` (L1522). With `standalone_mode=False` it is re-raised at L1520.\n- `UsageError.show` (`src/click/exceptions.py:UsageError`) prints to stderr:\n  - the usage line from `ctx.get_usage()`\n  - a \"Try '... --help'\" hint, if the command has a help option\n  - `Error: <message>`\n- The exit code is **2**, from `UsageError.exit_code`.\n- Plain `ClickException` prints only `Error: msg` and exits with 1.\n\n**`click.Abort`** (outer `except Abort` at L1543)\n- `Abort` subclasses `RuntimeError`, not `ClickException`, so the inner handlers miss it.\n- In standalone mode it echoes `Aborted!` to stderr (L1546) and calls `sys.exit(1)` (L1547). With `standalone_mode=False` it is re-raised (L1545).\n- The exit code is **1**.\n\n**Plain `KeyboardInterrupt`** (inner `except (EOFError, KeyboardInterrupt)` at L1515)\n- The handler echoes a blank line to stderr, then raises `Abort() from e` (L1517).\n- That `Abort` is caught by the same outer `except Abort` at L1543, so it prints `Aborted!` and exits 1.\n- The output is a blank line followed by `Aborted!`, and the exit code is **1**. It is not the shell's usual 130 for Ctrl-C.\n- `EOFError`, for example from a prompt at end of input, takes the same path.\n\nThe `Exit` exception has its own handler at L1530, which does `sys.exit(e.exit_code)`. `Exit` isn't part of your question, but it is the path a normal successful run takes.",
+  "is_error": false
+}

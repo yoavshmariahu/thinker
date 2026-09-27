@@ -1,0 +1,44 @@
+{
+  "id": "PR8397-rerank-0",
+  "task": "PR8397",
+  "area": "encoding",
+  "arm": "rerank",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "0cf7b505-e0a4-4a77-8c19-0ec03e57660c",
+  "turns": 8,
+  "wall_ms": 30886,
+  "api_ms": 18976,
+  "cost": 0.10704,
+  "in_tokens": 165798,
+  "out_tokens": 1760,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 7
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 7,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "uv.lock was not regenerated (lockfile still lists zstandard); the summary states this openly",
+      "No upper pin on backports.zstd, unlike the repo's pin convention"
+    ],
+    "wrong": [],
+    "reason": "The agent's encoding.py change matches the upstream patch: the same conditional import (compression.zstd on 3.14+, backports.zstd otherwise) and the same zstd.decompress and zstd.compress(level=1) calls. In pyproject.toml it removes zstandard and adds backports.zstd restricted to python_version < '3.14'. The behavior is equivalent. The remaining differences are the unregenerated lockfile, the looser version bound and the missing `# pragma: no cover` comment. None of these change runtime behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/net/encoding.py",
+      "pyproject.toml"
+    ]
+  },
+  "result": "mitmproxy now uses the standard-library `compression.zstd` on Python 3.14+ and the `backports.zstd` package on older versions. I didn't run the tests or install anything. `uv.lock` is not regenerated, so it still lists `zstandard`.\n\n- **`mitmproxy/net/encoding.py`**:\n  - **Import:** `zstd` comes from `compression` on 3.14+ and from `backports` otherwise, chosen with a `sys.version_info` check.\n  - **Decode:** `decode_zstd` now calls `zstd.decompress(content)`, which decodes concatenated frames. That is the same multi-frame behaviour the old `read_across_frames=True` gave, so the existing `test_zstd` should still apply.\n  - **Encode:** `encode_zstd` now calls `zstd.compress(content, level=1)`.\n- **`pyproject.toml`**: I replaced `zstandard>=0.25,<=0.25.0` with `backports.zstd>=1.0.0; python_version < '3.14'`.\n- **`CHANGELOG.md`**: I added an entry under \"Unreleased\". It has no PR reference or author, since the file's header says CI adds those.\n\nThe `>=1.0.0` bound on `backports.zstd` is my guess at a sensible floor and I didn't check it against PyPI.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..c0a579d0e 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,9 @@\n \n ## Unreleased: mitmproxy next\n \n+- Use `compression.zstd` (PEP-784) on Python 3.14+, and the `backports.zstd` package on older versions,\n+  replacing the `zstandard` dependency.\n+\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/net/encoding.py b/mitmproxy/net/encoding.py\nindex 7be30d3d5..bcba77a7a 100644\n--- a/mitmproxy/net/encoding.py\n+++ b/mitmproxy/net/encoding.py\n@@ -5,12 +5,17 @@ Utility functions for decoding response bodies.\n import codecs\n import collections\n import gzip\n+import sys\n import zlib\n from io import BytesIO\n from typing import overload\n \n import brotli\n-import zstandard as zstd\n+\n+if sys.version_info >= (3, 14):\n+    from compression import zstd\n+else:\n+    from backports import zstd\n \n # We have a shared single-element cache for encoding and decoding.\n # This is quite useful in practice, e.g.\n@@ -182,14 +187,12 @@ def encode_brotli(content: bytes) -> bytes:\n def decode_zstd(content: bytes) -> bytes:\n     if not content:\n         return b\"\"\n-    zstd_ctx = zstd.ZstdDecompressor()\n-    return zstd_ctx.stream_reader(BytesIO(content), read_across_frames=True).read()\n+    return zstd.decompress(content)\n \n \n def encode_zstd(content: bytes) -> bytes:\n     # Use level=1 for fastest compression speed.\n-    zstd_ctx = zstd.ZstdCompressor(level=1)\n-    return zstd_ctx.compress(content)\n+    return zstd.compress(content, level=1)\n \n \n def decode_deflate(content: bytes) -> bytes:\ndiff --git a/pyproject.toml b/pyproject.toml\nindex 7ddc3b834..bc4d6318e 100644\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -57,7 +57,7 @@ dependencies = [\n     \"urwid>=2.6.14,<=3.0.5\",\n     \"wsproto>=1.0,<=1.3.2\",\n     \"publicsuffix2>=2.20190812,<=2.20191221\",\n-    \"zstandard>=0.25,<=0.25.0\",\n+    \"backports.zstd>=1.0.0; python_version < '3.14'\",\n ]\n \n [dependency-groups]\n"
+}

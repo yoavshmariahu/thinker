@@ -1,0 +1,54 @@
+{
+  "id": "clickhouse-sync-fails-on-hosts-rejecting-arrowstream-tinybir",
+  "title": "ClickHouse sync fails on hosts rejecting ArrowStream (Tinybird, no-Arrow builds)",
+  "kind": "fix",
+  "answers": [
+    "ClickHouse sync fails with invalid format ArrowStream",
+    "Tinybird ClickHouse source sync fails but schema discovery works",
+    "UNKNOWN_FORMAT ArrowStream error in warehouse source sync"
+  ],
+  "body": "Symptom: Sync from a ClickHouse-compatible host (Tinybird 403 `invalid format ArrowStream`, or a build without Arrow: `UNKNOWN_FORMAT`) fails every run while table discovery succeeds.\nRoot cause: clickhouse.py:get_rows asked for ArrowStream via `query_arrow_stream`, while metadata queries use Native format, so only extraction broke.\nFix pattern: `_stream_record_batches` catches `ClickHouseError`, matches the message with `_is_arrow_format_rejected` (substring \"format ArrowStream\"), then re-runs the same query with `query_column_block_stream` and converts each Native block to a `pa.RecordBatch` against the schema from `column.to_arrow_field()`.\nConstraints: Only fall back on the format-rejection message; other errors must re-raise (the server rejects before sending rows, so no duplicate data). Arrow stays first choice because Native is ~5x slower. Large-result limits on hosts like Tinybird are not handled (would need paged queries).",
+  "applies": "products/warehouse_sources ClickHouse source extraction (get_rows)",
+  "tags": [
+    "clickhouse",
+    "tinybird",
+    "arrow",
+    "data-imports"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clickhouse/clickhouse.py",
+      "symbol": "_stream_record_batches",
+      "hash": "sha256:b67bed3c18f80b7b04972118",
+      "line": 1453,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clickhouse/clickhouse.py",
+      "symbol": "_is_arrow_format_rejected",
+      "hash": "sha256:276cdfcbec4ef2c3fbb0f754",
+      "line": 1406,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clickhouse/clickhouse.py",
+      "symbol": "get_rows",
+      "hash": "sha256:89007a6765922ff54a3819e7",
+      "line": 1604,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105253"
+  },
+  "created": "2026-09-27T00:09:02.274Z",
+  "verified": "2026-09-27T00:09:02.274Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "native-fallback-must-stay-type-consistent-with-to-arrow-fiel"
+  ]
+}

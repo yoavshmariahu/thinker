@@ -1,0 +1,75 @@
+{
+  "id": "clickhouse-table-schema-changes-must-be-updated-in-hcl-gener",
+  "title": "ClickHouse table schema changes must be updated in HCL, generated goldens/SQL, Python definition, snapshot and migration together",
+  "kind": "cochange",
+  "answers": [
+    "What files change when I add a column or index to a ClickHouse table like metrics4_samples?",
+    "Adding a ClickHouse index to a logs table",
+    "Which generated HCL goldens and SQL need updating for a schema change?"
+  ],
+  "body": "Adding columns/indexes to a logs-role ClickHouse table touched all of these in one PR:\n- Source HCL: posthog/clickhouse/hcl/roles/logs/metrics/metrics4.hcl\n- Goldens: posthog/clickhouse/hcl/golden/{dev,prod-us,prod-eu,local-multi}/logs.hcl and golden/local-single/all.hcl\n- Generated SQL: posthog/clickhouse/hcl/sql/{dev,prod-us,prod-eu,local-multi}/logs.sql and sql/local-single/all.sql\n- Python table definition: posthog/clickhouse/metrics/metrics4.py:METRICS4_SAMPLES_TABLE_SQL\n- Snapshot: posthog/clickhouse/test/__snapshots__/test_schema.ambr (two CREATE TABLE occurrences)\n- New migration in posthog/clickhouse/migrations/ plus bump of max_migration.txt\nVerify with `bash posthog/clickhouse/hcl/diff.sh`, `gen-golden.sh`, `gen-sql.sh`, `check.sh` (goldens must match every node, SQL must be fresh). Skipping any one leaves drift between HCL, Python and the migration.",
+  "applies": "ClickHouse schema changes to tables managed via posthog/clickhouse/hcl (logs role, metrics4_samples)",
+  "tags": [
+    "clickhouse",
+    "hcl",
+    "migrations",
+    "metrics4"
+  ],
+  "deps": [
+    {
+      "path": "posthog/clickhouse/hcl/roles/logs/metrics/metrics4.hcl",
+      "hash": "sha256:d04802982b3735665a12f367",
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/metrics/metrics4.py",
+      "symbol": "METRICS4_SAMPLES_TABLE_SQL",
+      "hash": "sha256:3675a136180ee2ae41e70e8c",
+      "line": 188,
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/migrations/max_migration.txt",
+      "hash": "sha256:701c35f543d45c8a90109096",
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/test/__snapshots__/test_schema.ambr",
+      "hash": "sha256:8cef5275f9a6e040bc81992c",
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/hcl/diff.sh",
+      "hash": "sha256:7991d3c771c7deb2bde5bbe7",
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/hcl/gen-golden.sh",
+      "hash": "sha256:1dfffcfc6d970a0cede79a36",
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/hcl/gen-sql.sh",
+      "hash": "sha256:08735cc03e932ce9c3e914df",
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/hcl/check.sh",
+      "hash": "sha256:20e8abd7f1e69200bfb6c95a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105380"
+  },
+  "created": "2026-09-27T00:05:10.257Z",
+  "verified": "2026-09-27T00:05:10.257Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "metrics4-samples-time-range-filtering-must-use-the-arraymin-"
+  ]
+}

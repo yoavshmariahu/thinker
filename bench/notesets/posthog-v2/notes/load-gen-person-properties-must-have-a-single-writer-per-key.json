@@ -1,0 +1,44 @@
+{
+  "id": "load-gen-person-properties-must-have-a-single-writer-per-key",
+  "title": "Load-gen person properties must have a single writer per key (parity runs)",
+  "kind": "invariant",
+  "answers": [
+    "Shadow parity run reports property divergence on dangerous-merge pairs",
+    "Why does the load generator write loadgen_last_update_<user>?",
+    "Can I add a shared person property to capture-load-gen events?"
+  ],
+  "body": "Invariant: every person property key the load generator writes must have exactly one writer (one user / one partition).\nEnforced in rust/capture-load-gen/src/event.rs:EventFactory::person_update_event, which writes `loadgen_last_update_{user}` using the distinct_id.\nWhy: merged (dangerous-merge) pairs are written from two partitions, and each backend applies the writes in its own arrival order. A shared key therefore ends with different last values per backend, and verify reports a false property divergence.\nPer-seed keys already follow the same shape. Any new property the generator sets should be keyed per user or per seed, not shared.",
+  "applies": "rust/capture-load-gen event generation, especially $set payloads compared in shadow parity runs",
+  "tags": [
+    "capture-load-gen",
+    "parity",
+    "person-properties"
+  ],
+  "deps": [
+    {
+      "path": "rust/capture-load-gen/src/event.rs",
+      "hash": "sha256:aee804e3951afe62b42c76c0",
+      "missing": false
+    },
+    {
+      "path": "rust/capture-load-gen/src/event.rs",
+      "symbol": "EventFactory",
+      "hash": "sha256:3fe7eeb1cd81ccc873c4173b",
+      "line": 58,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105417"
+  },
+  "created": "2026-09-27T00:02:58.322Z",
+  "verified": "2026-09-27T00:02:58.322Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "person-update-event-signature-and-its-test-must-change-toget"
+  ]
+}

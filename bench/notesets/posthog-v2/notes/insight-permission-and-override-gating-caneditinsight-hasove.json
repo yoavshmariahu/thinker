@@ -1,0 +1,68 @@
+{
+  "id": "insight-permission-and-override-gating-caneditinsight-hasove",
+  "title": "Insight permission and override gating: canEditInsight, hasOverrides, editingDisabledReason",
+  "kind": "invariant",
+  "answers": [
+    "Where is canEditInsight computed?",
+    "Which components must honor canEditInsight?",
+    "What is editingDisabledReason and who uses it?",
+    "Where is isInDashboardContext computed?"
+  ],
+  "body": "- insightLogic.tsx selectors: `canEditInsight` (~L1009): true if `insight.user_access_level` missing else `accessLevelSatisfied(Insight, level, Editor)`; ignores mode/dashboard/overrides. `hasOverrides` (~L1052) from filtersOverride/variablesOverride/tileFiltersOverride; `editingDisabledReason` (~L1066) = 'Discard overrides to edit the insight.' or null. `isInDashboardContext` (~L967) = `!!props.dashboardId`. insightSceneLogic has its own separate `hasOverrides`.\n- canEditInsight must be honored by: InsightPageHeader (Edit button, name/description canEdit; Edit also wrapped in AccessControlAction minAccessLevel=Editor), InsightSceneMenuBar, SidePanel/InsightPanelInfo, InsightModals, InsightDisplayConfig (compare `disabled`), InsightVizDisplay (`canCheckUncheckSeries`), insightSceneLogic breadcrumb `forceEditMode`, and retention filters in products/product_analytics/frontend/insights/retention/filters/ (return null when !canEditInsight).\n- editingDisabledReason is only applied where passed as `disabledReason`: InsightDisplayConfig, InsightDateFilter, ColorCustomizationColumn, retention BreakdownFilter/DatePicker/ChartPicker, PathStepPicker. Retention pickers guarding on canEditInsight don't use it. New edit controls must add both checks.",
+  "applies": "Insight controls in scenes/insights and product_analytics; dashboard tiles use dashboardId props rather than scene state.",
+  "tags": [
+    "insights",
+    "permissions",
+    "overrides"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/insights/insightLogic.tsx",
+      "symbol": "canEditInsight",
+      "hash": "sha256:5d038b405dd237556a20c5c1",
+      "line": 515,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/insights/InsightPageHeader.tsx",
+      "hash": "sha256:16109336b354c57d6e8b33e7",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/nodes/InsightViz/InsightVizDisplay.tsx",
+      "hash": "sha256:462e0e0e6d740bf7b4340136",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/insights/insightSceneLogic.tsx",
+      "hash": "sha256:d63bd1866b4d2d453e38b7e4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "b65dbe06-4d9f-432e-bdf5-887a8d22c8a5"
+  },
+  "created": "2026-09-27T00:15:15.418Z",
+  "verified": "2026-09-27T00:15:15.418Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 9,
+  "related": [
+    "insight-scene-and-logic-layering",
+    "insight-view-edit-mode-computed-in-insightscenelogic-propaga",
+    "two-ways-to-detect-view-mode-insightmode-vs-regex-isinviewmo"
+  ],
+  "servedIn": [
+    "8a2027b0-97a9-496b-901f-da33440c4feb",
+    "17180cc9-00be-4854-86e4-b5d9eb4e8325",
+    "a260cb07-ddeb-4c4f-9e9e-8c1aa194e191",
+    "4d55e782-40c6-4757-a58b-277d24913095",
+    "9f2e5e8d-3340-4f2f-b40b-bebc0ae5b2ff",
+    "fbb19671-8730-46af-87c2-153efc2fcece",
+    "1cfaf927-1f4d-4277-93b9-234660a8a390",
+    "89189e0c-41b6-4792-9702-6cf5c9d8c7f1",
+    "80fdb8eb-165f-47b6-a31e-2e4f7f83357f"
+  ]
+}

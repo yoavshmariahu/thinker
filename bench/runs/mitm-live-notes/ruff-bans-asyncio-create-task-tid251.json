@@ -1,0 +1,33 @@
+{
+  "id": "ruff-bans-asyncio-create-task-tid251",
+  "title": "Ruff bans asyncio.create_task (TID251)",
+  "kind": "gotcha",
+  "answers": [
+    "Why does ruff reject asyncio.create_task?",
+    "Which create_task should I use in mitmproxy?"
+  ],
+  "body": "Ruff rule TID251 in `pyproject.toml` bans `asyncio.create_task`; use `mitmproxy.utils.asyncio_utils.create_task` instead. Lint fails otherwise (`uv run tox -e lint`).",
+  "tags": [
+    "ruff",
+    "asyncio",
+    "lint"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:38b3830011f89ac532b252b3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "4e60b02e-b99f-4f62-946e-cc0b3f2f82b5"
+  },
+  "created": "2026-09-26T09:26:38.424Z",
+  "verified": "2026-09-26T09:26:38.424Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

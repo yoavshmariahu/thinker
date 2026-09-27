@@ -1,0 +1,45 @@
+{
+  "id": "E12-ctx-obj-nocache-0",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "615331a9-3813-465c-93e4-09f285f2e9fc",
+  "turns": 3,
+  "wall_ms": 12866,
+  "api_ms": 12527,
+  "cost": 0.026019599999999997,
+  "in_tokens": 64623,
+  "out_tokens": 1077,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.9,
+    "missing": [
+      "Context._make_sub_context (core.py:837-843) used by Context.invoke also propagates obj",
+      "Command.main passing obj= to make_context for root context / context_settings seeding",
+      "ensure_object can clobber an unrelated existing obj on the current context (isinstance check only)",
+      "ensure_object requires zero-arg constructible type",
+      "Test is `obj is None`, not falsiness; passing obj=None can't block inheritance",
+      "Contrast with Context.meta and shell_completion _resolve_context",
+      "make_pass_decorator / pass_obj consumers"
+    ],
+    "wrong": [
+      "Says Group.invoke is at line ~1950 (approximate) but line 1982 is correct; minor imprecision, not a real error"
+    ],
+    "reason": "The agent correctly identifies Context.__init__ (core.py:374-378) as the propagation site, along with Group.invoke and Command.make_context with correct line numbers. It describes the find_object/ensure_object semantics accurately, including that the new object goes on the innermost context and that already-created siblings don't see it. The omissions are secondary sites and edge cases such as _make_sub_context, clobbering, and the meta contrast. The main points are all correct.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "## Propagation\n\nPropagation is a two-step process. It is a one-time copy at construction, not a live link.\n\n1. **`src/click/core.py:Group.invoke`** (line ~1950) creates each subcommand's context with `cmd.make_context(cmd_name, args, parent=ctx)` (line 1982). The chain-mode path at ~2005 also passes `parent=ctx`.\n2. **`src/click/core.py:Command.make_context`** (line 1311) builds the child with `self.context_class(self, info_name=info_name, parent=parent, **extra)`.\n3. **`src/click/core.py:Context.__init__`** (lines 374–378) does the actual copy:\n   ```python\n   if obj is None and parent is not None:\n       obj = parent.obj\n   self.obj = obj\n   ```\n\nBecause it is a copy of the reference at child-context creation time, the child shares the same object. That works if the group callback set `ctx.obj` before the subcommand context is created. The group callback runs before `Group.invoke` creates the sub-context, so it normally does. Mutations to the shared object are visible in both contexts. Reassigning `ctx.obj` in a child does not affect the parent. An explicit `obj=` passed to the child context overrides inheritance.\n\n## `find_object` vs `ensure_object`\n\nBoth are in `core.py` on `Context` (lines 736 and 748).\n\n- **`find_object(type)`** is read-only. It walks from the current context up through `.parent`. It returns the first `ctx.obj` that is an `isinstance` of `type`, or `None` if none matches.\n- **`ensure_object(type)`** calls `find_object` first. If that returns `None`, it creates `type()` and assigns it to the current context's `self.obj` (the innermost one, not the root). It then returns the object. If an object is found in an ancestor, it returns that one and assigns nothing.\n\nTwo practical differences follow. `find_object` may return `None`, and `ensure_object` never does. `ensure_object` also has a side effect: when it creates an object, only that context and the contexts created after it inherit it. Parents and already-created siblings do not.",
+  "is_error": false
+}

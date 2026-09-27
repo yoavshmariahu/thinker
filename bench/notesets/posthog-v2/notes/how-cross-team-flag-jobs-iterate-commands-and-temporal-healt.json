@@ -1,0 +1,116 @@
+{
+  "id": "how-cross-team-flag-jobs-iterate-commands-and-temporal-healt",
+  "title": "How cross-team flag jobs iterate (commands and Temporal health checks)",
+  "kind": "callpath",
+  "answers": [
+    "How do flag management commands iterate over teams?",
+    "How does the Temporal health check batch teams?",
+    "Where is get_teams_with_flags_queryset?"
+  ],
+  "body": "- Cache commands (`warm_flags_cache`, `warm_flag_definitions_cache`, `verify_*`) subclass `posthog/management/commands/_base_hypercache_command.py:BaseHyperCacheCommand`; team scope from `flags_cache.py:get_teams_with_flags_queryset` (uses `objects_including_soft_deleted`, teams that ever had a flag); verify chunks of 1000 via `process_teams_in_chunks`; per-team `flags_cache.py:verify_team_flags`, `local_evaluation.py:verify_team_flag_definitions`.\n- `audit_flag_filters` (products/.../management/commands) iterates flags directly by id keyset pagination, 500/page (`_iter_flag_rows`), since PgBouncer disables server-side cursors.\n- Temporal: `posthog/temporal/health_checks/activities.py:_get_team_id_batches_sync` (Team.objects.exclude(id=0), rollout % filter, batch_size chunks) → `workflows.py:HealthCheckWorkflow.run` → `run_health_check_batch` per batch → check's `detect(team_ids)`.\n- `StaleFeatureFlagsCheck.detect` queries FeatureFlag by team_id__in, active, not deleted/archived; weekly cron `0 6 * * 1`, dry_run=True.",
+  "tags": [
+    "management-commands",
+    "temporal",
+    "health-checks"
+  ],
+  "deps": [
+    {
+      "path": "posthog/management/commands/_base_hypercache_command.py",
+      "symbol": "BaseHyperCacheCommand",
+      "hash": "sha256:1bed480853d8d15c73767507",
+      "line": 24,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flags_cache.py",
+      "symbol": "get_teams_with_flags_queryset",
+      "hash": "sha256:0c49d3d4c9d95ad6f9895a54",
+      "line": 931,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/health_checks/activities.py",
+      "symbol": "_get_team_id_batches_sync",
+      "hash": "sha256:bd273e2e74671c7fcb920960",
+      "line": 25,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/health_checks/workflows.py",
+      "hash": "sha256:5c72df31a5a851fecb50c9c7",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
+      "symbol": "StaleFeatureFlagsCheck",
+      "hash": "sha256:5a85aa511c376c4db9e8710e",
+      "line": 54,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/management/commands/audit_flag_filters.py",
+      "hash": "sha256:d233df8d91f36b58b1485be4",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flags_cache.py",
+      "symbol": "verify_team_flags",
+      "hash": "sha256:b14e7482687cc6833524c673",
+      "line": 660,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/local_evaluation.py",
+      "symbol": "verify_team_flag_definitions",
+      "hash": "sha256:23f089e2ab187c05be2af3f0",
+      "line": 843,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/health_checks/workflows.py",
+      "symbol": "HealthCheckWorkflow.run",
+      "hash": "sha256:decb8e52a3725773e319e34d",
+      "line": 37,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
+      "symbol": "StaleFeatureFlagsCheck.detect",
+      "hash": "sha256:7431207233ae66cc58e4d995",
+      "line": 133,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "eecffbdd-fbb7-4ad8-b947-e8cdbabf746d"
+  },
+  "created": "2026-09-26T20:25:58.007Z",
+  "verified": "2026-09-26T20:25:58.007Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 14,
+  "related": [
+    "conventions-for-cross-team-flag-management-commands-and-temp",
+    "feature-flags-backend-lives-in-products-feature-flags-backen",
+    "feature-flag-filters-v1-v2-config-format-detection-and-handl",
+    "flag-and-team-level-version-representations"
+  ],
+  "lastUsed": "2026-09-27T00:58:45.860Z",
+  "servedIn": [
+    "43c683fc-0d94-44ca-ac96-4b6f130e707a",
+    "627ec169-fd04-4e99-832e-eef043c67e56",
+    "b5b797cd-a919-4a2e-803c-a4f38bd559b3",
+    "2b266a83-f261-409f-a7ea-e0152f5622f0",
+    "c96b79a8-4a4d-4a2d-b375-82e8fa9b1140",
+    "6ec7cf9b-2c7b-45c0-8688-6518df3645e2",
+    "123380bf-b49e-4ac3-b3eb-a3927e061811",
+    "08696bb9-9b76-4e26-aeda-ffbfe1cdf640",
+    "7963fd21-bd15-4e41-8e3c-274cd2823351",
+    "4bb7b6ba-817e-4bd2-a11a-2f55eb654532",
+    "7805d634-fdab-444e-9008-da1f664abcbe",
+    "f46d4b5d-42ec-4d38-853a-4179418ca6d6",
+    "38882f6a-dc45-46d6-ace3-4d87917567d7"
+  ]
+}

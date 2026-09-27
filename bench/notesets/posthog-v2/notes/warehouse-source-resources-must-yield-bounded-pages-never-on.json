@@ -1,0 +1,55 @@
+{
+  "id": "warehouse-source-resources-must-yield-bounded-pages-never-on",
+  "title": "Warehouse source resources must yield bounded pages, never one whole-report list",
+  "kind": "invariant",
+  "answers": [
+    "Bing Ads sync OOM kills the data warehouse worker pod",
+    "Why does a large source sync exhaust memory even though the batcher caps batch size?",
+    "How should a warehouse source yield large reports or tables?"
+  ],
+  "body": "Each item a source yields is materialized whole; the batcher only caps what it accumulates BETWEEN items, so one oversized item sets the activity's peak memory by itself.\n- Sources must yield bounded pages (list of rows), not one list of every row. Bing Ads: `REPORT_PAGE_ROWS = 50_000` in `products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/utils.py`, used by `iter_csv_row_pages`.\n- Paging keeps batch and file sizes unchanged; the batcher still regroups pages.\n- Each layer must stay streaming: `BingAdsClient.get_performance_report` and `get_data_by_resource` in `bing_ads/client.py` use `yield from`. Collecting pages back into a list (or yielding the generator itself) re-materializes the report.\n- The OOM kills the pod, taking co-tenant team syncs down, and the schema retries and repeats it.\n- No generic guard exists yet against a source yielding one oversized item.",
+  "applies": "Any warehouse_sources source that yields large API/report results (temporal/data_imports/sources/*).",
+  "tags": [
+    "bing-ads",
+    "memory",
+    "oom",
+    "data-warehouse",
+    "batching"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/utils.py",
+      "symbol": "iter_csv_row_pages",
+      "hash": "sha256:3b9f452d3909208fee4de543",
+      "line": 54,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/client.py",
+      "symbol": "get_performance_report",
+      "hash": "sha256:d0d65d61f29b88558267653e",
+      "line": 216,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/client.py",
+      "symbol": "BingAdsClient.get_performance_report",
+      "hash": "sha256:d0d65d61f29b88558267653e",
+      "line": 216,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105434"
+  },
+  "created": "2026-09-27T00:02:36.341Z",
+  "verified": "2026-09-27T00:02:36.341Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bing-ads-report-streaming-generator-lifetime-bom-and-lazines"
+  ]
+}

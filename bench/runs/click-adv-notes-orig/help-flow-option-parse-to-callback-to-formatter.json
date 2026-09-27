@@ -1,0 +1,113 @@
+{
+  "id": "help-flow-option-parse-to-callback-to-formatter",
+  "title": "--help flow: option parse to callback to formatter",
+  "kind": "callpath",
+  "answers": [
+    "How is --help output produced in click?",
+    "Where is the help option created and registered?",
+    "What happens when --help is parsed?"
+  ],
+  "body": "All paths in src/click/.\n1. core.py:Command.main → Command.make_context → Command.parse_args → make_parser, which loops core.py:Command.get_params(ctx) and calls param.add_to_parser.\n2. core.py:Command.get_params appends core.py:Command.get_help_option(ctx) to self.params. The help option is created lazily and cached in a private attr.\n3. core.py:Command.get_help_option_names takes ctx.help_option_names (default --help) minus names already used by params. It returns None if there are no names or add_help_option is False.\n4. The option's callback is decorators.py:show_help. It is invoked during parsing and echoes ctx.get_help(), then ctx exits.\n5. core.py:Context.get_help calls Command.get_help(ctx) → format_help, which writes the sections through a HelpFormatter from ctx.make_formatter().\n6. Command.get_usage(ctx) uses format_usage the same way.\nThe section writers live in formatting.py: HelpFormatter.write_usage, write_text, write_dl, section.\nThe trace only partially shows the format_help internals (output truncated), so verify the order of format_* calls.",
+  "tags": [
+    "help",
+    "formatter",
+    "options"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.get_help_option",
+      "hash": "sha256:2348a6de315872414a37638a",
+      "line": 1151,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.get_params",
+      "hash": "sha256:aa583d89e10f5f75fe89426b",
+      "line": 1099,
+      "missing": false
+    },
+    {
+      "path": "src/click/decorators.py",
+      "symbol": "show_help",
+      "hash": "sha256:0cfb845043ebc920f29e9201",
+      "line": 612,
+      "missing": false
+    },
+    {
+      "path": "src/click/formatting.py",
+      "symbol": "HelpFormatter",
+      "hash": "sha256:78423dbae44b55b4fc8cdeeb",
+      "line": 110,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.main",
+      "hash": "sha256:1be7083a9c79955a9edc633b",
+      "line": 1436,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.get_help_option_names",
+      "hash": "sha256:1eb250c90c9b7bdd57102428",
+      "line": 1143,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.get_help",
+      "hash": "sha256:a8bcd390fd79e002f599cd78",
+      "line": 831,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.make_context",
+      "hash": "sha256:839d3845e58a887e2d50f774",
+      "line": 1280,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.parse_args",
+      "hash": "sha256:b8e852a8b4f0fcf19be30071",
+      "line": 1317,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.get_help",
+      "hash": "sha256:447b4eaa8b653ce1b083b225",
+      "line": 1185,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.get_usage",
+      "hash": "sha256:9abbf4db540f02af7430c97e",
+      "line": 1090,
+      "missing": false
+    },
+    {
+      "path": "src/click/formatting.py",
+      "symbol": "HelpFormatter.write_usage",
+      "hash": "sha256:fb313937d36a9d6c9ee88130",
+      "line": 158,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "aac55c55-7b25-4d4a-ad38-c2ddd968ea2e"
+  },
+  "created": "2026-09-26T09:12:26.002Z",
+  "verified": "2026-09-26T09:12:26.002Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 16,
+  "lastUsed": "2026-09-26T09:34:05.588Z"
+}

@@ -1,0 +1,94 @@
+{
+  "id": "invite-validation-errors-reach-ui-only-as-a-global-toast",
+  "title": "Invite validation errors reach UI only as a global toast",
+  "kind": "callpath",
+  "answers": [
+    "How do invite validation errors reach the UI?",
+    "Why is there no inline field error in the invite modal?",
+    "Where is the 'Invite team members failed' toast produced?"
+  ],
+  "body": "- Backend: serializer errors/PermissionDenied → 4xx. In bulk, `first_bulk_invite_error` re-raises only the first failing row's errors as one ValidationError (per-row list would reach clients as a raw dict).\n- Client: `api.create` throws `ApiError` (frontend/src/lib/api-error.ts:ApiError.fromResponse) copying detail/code/attr/status.\n- Kea loader dispatches `inviteTeamMembersFailure`; inviteLogic has NO failure listener and no inline field errors. The global handler is frontend/src/initKea.ts `loadersPlugin({onFailure})`: ignores AbortError, skips statuses 200/201/204/401/409, shows `lemonToast.error(\"Invite team members failed: <detail||statusText>\")` (prefix via identifierToHuman of action name); 429 rewritten to \"Rate limit exceeded...\" (throttles OrganizationInviteBurstThrottle 50/hour and Sustained in posthog/rate_limit.py, only create/bulk); suppressed for 2FA/sensitive_action_required_reauth codes; 400 with code verified_domain_required must keep generic toast (only 403 gets dedicated apiStatusLogic toast).\n- Not verified: the DRF exception handler's exact 400 JSON shape.",
+  "tags": [
+    "invites",
+    "errors",
+    "toast"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/initKea.ts",
+      "hash": "sha256:5f3dc206b10175b749bd3972",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/lib/api-error.ts",
+      "symbol": "ApiError",
+      "hash": "sha256:0daff8120746d70a483d766b",
+      "line": 240,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/organization_invite.py",
+      "hash": "sha256:228b0e4074326a2d1d3654f0",
+      "missing": false
+    },
+    {
+      "path": "posthog/rate_limit.py",
+      "symbol": "OrganizationInviteBurstThrottle",
+      "hash": "sha256:7dd1dd6b59b26231cb5a4579",
+      "line": 1847,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/lib/api-error.ts",
+      "symbol": "ApiError.fromResponse",
+      "hash": "sha256:36b134bcb7c5d9238e90b5fa",
+      "line": 268,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/lib/api.ts",
+      "symbol": "create",
+      "hash": "sha256:af015d3ea7a8ced33816b9a0",
+      "line": 1891,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "b5dc3d06-44e6-42c6-8a9f-0f2bdb441ad6"
+  },
+  "created": "2026-09-26T20:37:10.111Z",
+  "verified": "2026-09-26T20:37:10.111Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 21,
+  "related": [
+    "org-invite-validation-server-vs-client-enforcement-map",
+    "bulk-invite-partial-failure-semantics",
+    "org-invite-flow-modal-invitelogic-bulk-api"
+  ],
+  "lastUsed": "2026-09-27T05:56:50.439Z",
+  "servedIn": [
+    "dc6d75e7-6e87-4c6a-9728-6eb5084f4ad9",
+    "5900d10d-5786-4ea4-b991-ee3f32f68dc0",
+    "cc12b8dc-e71c-4811-a896-5b8b0d1adf1a",
+    "16dc75e1-acc4-444e-a71c-ca1fa73dff92",
+    "23e46a07-2bec-4662-bb9d-5db4b227d3c7",
+    "83882f2f-7ff4-4752-b137-a0e75ba0c581",
+    "fc24e040-80bc-4ba6-9c98-b7abf32b55dc",
+    "02f3d8f2-9b89-4094-8521-b221128422fb",
+    "27e9d6cb-3cfa-4d7e-96e9-ebf19a6ff757",
+    "9d03eee3-3849-49b1-b40f-7246df872518",
+    "1496f670-d564-4f77-a3a8-9b73655484c0",
+    "eefc43a9-7ed5-4dad-924b-8c97b4d79809",
+    "08c19801-a7d7-4020-a810-5039faf472a6",
+    "757b5028-64cf-4783-930e-850f40b213f3",
+    "272e951d-10ea-4f07-a076-73905bf2484b",
+    "8343a249-277d-4e67-b6aa-c983610531d2",
+    "72ef30ba-b28a-471e-966b-ddf41a97cbbb",
+    "probe2",
+    "9672fc36-d960-495f-9a6a-5dd0266175fe",
+    "efd15676-bacc-435a-8ff1-7dde89514f28"
+  ]
+}

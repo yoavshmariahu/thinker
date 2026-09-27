@@ -1,0 +1,65 @@
+{
+  "id": "scene-enum-name-must-match-scene-s-exported-component",
+  "title": "Scene enum name must match scene's exported component",
+  "kind": "invariant",
+  "answers": [
+    "How must Scene enum names relate to scene components?",
+    "How to add a new core scene?"
+  ],
+  "body": "- `frontend/src/scenes/sceneTypes.ts:Scene` comment: enum value must match the first and only exported component of the scene, so its chunks can be preloaded in parallel.\n- Routes (`manifest.routes`, `scenes.ts:routes`) reference scenes by `Scene` name; `scenes/appScenes.ts:appScenes` maps Scene keys to imports; product scenes come via `...productScenes`.\n- New core scene: add `Scene` enum entry AND `appScenes` entry. Scene may export default component or `export const scene: SceneExport = { logic, component }`.\n- Unverified: no check was found that enforces the name match; how build-products.mjs resolves it wasn't confirmed.",
+  "applies": "Scene registration; preloading break is silent if names drift.",
+  "tags": [
+    "scenes",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/sceneTypes.ts",
+      "symbol": "Scene",
+      "hash": "sha256:eb046d60a67744b2978a2b2d",
+      "line": 11,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/appScenes.ts",
+      "symbol": "appScenes",
+      "hash": "sha256:e833deb93ec4f1c21da31dad",
+      "line": 6,
+      "missing": false
+    },
+    {
+      "path": "products/README.md",
+      "hash": "sha256:8bb99e140e08594611301122",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/scenes.ts",
+      "symbol": "routes",
+      "hash": "sha256:c80b0dd31e519e59fc0923a4",
+      "line": 738,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "0cbb20d0-428f-4c31-bcdb-2878d3e67c6a"
+  },
+  "created": "2026-09-27T00:26:39.447Z",
+  "verified": "2026-09-27T00:26:39.447Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "scene-registration-routing-manifest-generated-products-tsx-s",
+    "adding-a-product-scene-cochange-checklist",
+    "frontend-product-manifest-generated-products-tsx-scenes-urls",
+    "adding-changing-a-product-url-manifest-generated-products-ts"
+  ],
+  "servedIn": [
+    "17180cc9-00be-4854-86e4-b5d9eb4e8325",
+    "fbb19671-8730-46af-87c2-153efc2fcece",
+    "80fdb8eb-165f-47b6-a31e-2e4f7f83357f",
+    "4d474a5e-1000-48c6-99bd-6d78c155539d"
+  ]
+}

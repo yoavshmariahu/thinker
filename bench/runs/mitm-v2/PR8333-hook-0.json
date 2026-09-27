@@ -1,0 +1,45 @@
+{
+  "id": "PR8333-hook-0",
+  "task": "PR8333",
+  "area": "web-app",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "d3eb8b1f-8f81-4944-bca8-bb841a48c9fe",
+  "turns": 6,
+  "wall_ms": 16721,
+  "api_ms": 16128,
+  "cost": 0.09745959999999998,
+  "in_tokens": 147153,
+  "out_tokens": 1377,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Bash": 5
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 5,
+    "injected": [
+      "web-frontend-tests-web-npm",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "building-sending-the-upstream-connect-and-forming-the-author"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same places as upstream. The frontend now dispatches `{ response: { reason } }`. The backend now accepts `reason` instead of `msg`. Using `setattr(response, k, str(v))` for `reason` and `http_version` behaves the same as upstream's separate branches. The existing test was updated to use `reason`. The agent did not add the optional http_version-only test, which does not affect behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "mitmproxy/tools/web/app.py",
+      "test/mitmproxy/tools/web/test_app.py",
+      "web/src/js/components/FlowView/HttpMessages.tsx"
+    ]
+  },
+  "result": "Editing a response's reason phrase in the web UI now sends the new value. I haven't run any tests, per your instructions.\n\nThe frontend was sending `{ response: { msg } }`, and the backend copied that key onto the response object. Since `Response` has no `msg` attribute, the edited reason phrase was never applied. I switched both sides to `reason`:\n\n- **Frontend:** in `web/src/js/components/FlowView/HttpMessages.tsx`, the reason-phrase editor now dispatches `{ response: { reason } }`.\n- **Backend:** in `mitmproxy/tools/web/app.py`, the flow-update handler now accepts `reason` (and still `http_version`) instead of `msg` when setting response attributes.\n- **Test:** in `test/mitmproxy/tools/web/test_app.py`, the update test now sends `\"reason\"` and asserts `f.response.reason`.\n\nThe backend no longer accepts `msg` for responses. A client sending `response.msg` now gets a 400 \"Unknown update response.msg\" error. The web UI was the only caller I found.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..120cfca56 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -608,7 +608,7 @@ class FlowHandler(RequestHandler):\n                 elif a == \"response\" and hasattr(flow, \"response\"):\n                     response: mitmproxy.http.Response = flow.response\n                     for k, v in b.items():\n-                        if k in [\"msg\", \"http_version\"]:\n+                        if k in [\"reason\", \"http_version\"]:\n                             setattr(response, k, str(v))\n                         elif k == \"code\":\n                             response.status_code = int(v)\ndiff --git a/test/mitmproxy/tools/web/test_app.py b/test/mitmproxy/tools/web/test_app.py\nindex 7922484ef..ae1becbe2 100644\n--- a/test/mitmproxy/tools/web/test_app.py\n+++ b/test/mitmproxy/tools/web/test_app.py\n@@ -207,7 +207,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n                 \"content\": \"req\",\n             },\n             \"response\": {\n-                \"msg\": \"Non-Authorisé\",\n+                \"reason\": \"Non-Authorisé\",\n                 \"code\": 404,\n                 \"headers\": [(\"bar\", \"baz\")],\n                 \"trailers\": [(\"foo\", \"bar\")],\n@@ -221,7 +221,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n         assert f.request.port == 123\n         assert f.request.headers[\"foo\"] == \"bar\"\n         assert f.request.text == \"req\"\n-        assert f.response.msg == \"Non-Authorisé\"\n+        assert f.response.reason == \"Non-Authorisé\"\n         assert f.response.status_code == 404\n         assert f.response.headers[\"bar\"] == \"baz\"\n         assert f.response.text == \"resp\"\ndiff --git a/web/src/js/components/FlowView/HttpMessages.tsx b/web/src/js/components/FlowView/HttpMessages.tsx\nindex 9f1dcb20e..2a151167c 100644\n--- a/web/src/js/components/FlowView/HttpMessages.tsx\n+++ b/web/src/js/components/FlowView/HttpMessages.tsx\n@@ -104,9 +104,9 @@ function ResponseLine({ flow }: ResponseLineProps) {\n                     &nbsp;\n                     <ValueEditor\n                         content={flow.response.reason}\n-                        onEditDone={(msg) =>\n+                        onEditDone={(reason) =>\n                             dispatch(\n-                                flowActions.update(flow, { response: { msg } }),\n+                                flowActions.update(flow, { response: { reason } }),\n                             )\n                         }\n                         selectAllOnClick={true}\n"
+}

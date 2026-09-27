@@ -1,0 +1,54 @@
+{
+  "id": "warm-cloud-task-lease-must-be-keyed-on-every-setting-the-tas",
+  "title": "Warm cloud task lease must be keyed on every setting the task is created with",
+  "kind": "invariant",
+  "answers": [
+    "Plan mode not applied to prewarmed cloud task",
+    "Warm task starts in Default mode instead of selected permission mode",
+    "Why does the warm task lease key include permission mode?"
+  ],
+  "body": "A prewarmed cloud task is created before the user submits, so any launch setting that differs at submit time must be part of the warm lease identity. Otherwise a stale lease is reused with the wrong setting.\n- Lease key: `buildWarmTaskLeaseKey` in products/desktop/packages/ui/src/features/task-detail/hooks/warmTaskLease.ts (includes runtimeAdapter, model, permissionMode, sandbox env, custom image; reasoningEffort is deliberately NOT in the key).\n- `useWarmTask` in products/desktop/packages/ui/src/features/task-detail/hooks/useWarmTask.ts: the normalized value must be in the effect deps (re-warm on change), the warm request body (`initial_permission_mode`), and the lease key parts passed on store and take.\n- Consumer: `takeWarmTaskLease` call in taskCreationSaga.ts must pass the same values as TaskInput passes to `useWarmTask`, or the lease will not match.\n- Skipping any of these makes a task start in Default mode despite Plan being selected.",
+  "applies": "Desktop cloud task prewarm (useWarmTask, warmTaskLease, taskCreationSaga warm path)",
+  "tags": [
+    "desktop",
+    "warm-task",
+    "cloud",
+    "plan-mode"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/task-detail/hooks/warmTaskLease.ts",
+      "symbol": "buildWarmTaskLeaseKey",
+      "hash": "sha256:058338144e97ade616dd43ff",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/task-detail/hooks/useWarmTask.ts",
+      "symbol": "useWarmTask",
+      "hash": "sha256:eb14fa02bc2963a44eecaf56",
+      "line": 39,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/core/src/task-detail/taskCreationSaga.ts",
+      "symbol": "TaskCreationSaga",
+      "hash": "sha256:0c0b47dd05bce09da470ec02",
+      "line": 76,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105645"
+  },
+  "created": "2026-09-27T00:00:41.374Z",
+  "verified": "2026-09-27T00:00:41.374Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-warm-task-option-touches-client-hook-host-interface"
+  ]
+}

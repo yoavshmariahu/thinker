@@ -1,0 +1,65 @@
+{
+  "id": "quic-clienthello-detection-in-nextlayer-get-client-hello-and",
+  "title": "QUIC ClientHello detection in NextLayer._get_client_hello and multi-datagram handling",
+  "kind": "gotcha",
+  "answers": [
+    "Why do QUIC flows to ignored hosts stall?",
+    "How does next_layer parse QUIC ClientHello for SNI?",
+    "What does quic_parse_client_hello_from_datagrams return for incomplete hello?"
+  ],
+  "body": "- `next_layer.py:NextLayer._get_client_hello` for UDP calls `quic_parse_client_hello_from_datagrams([data_client])` (then falls back to `dtls_parse_client_hello`). Returns None if QUIC record incomplete, raises ValueError if not an Initial packet/invalid.\n- `data_client` (`layer.py:NextLayer.data_client`) is the b\"\".join of all DataReceived events so far, so it is passed to the QUIC parser as ONE datagram, not a list of datagrams.\n- Previously a None (incomplete) QUIC result was returned as 'no hello' so SNI was missing in `_ignore_connection`; the session changed it to raise NeedsMoreData (as TCP/DTLS do). Root cause of the reported stall was not confirmed and the fix is untested.\n- Parser lives in `proxy/layers/quic/_client_hello_parser.py`.",
+  "applies": "UDP/QUIC path in next_layer only; fix unverified",
+  "tags": [
+    "quic",
+    "next_layer",
+    "ignore_hosts"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer._get_client_hello",
+      "hash": "sha256:d89987596a90686862143a0f",
+      "line": 299,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/quic/_client_hello_parser.py",
+      "symbol": "quic_parse_client_hello_from_datagrams",
+      "hash": "sha256:d170d261fa4839f7797c3eff",
+      "line": 32,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layer.py",
+      "symbol": "NextLayer",
+      "hash": "sha256:d906978b0d59fd83d4ceec59",
+      "line": 248,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layer.py",
+      "symbol": "NextLayer.data_client",
+      "hash": "sha256:858be4055be3ba3839ccd3bc",
+      "line": 317,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "fe4e77c4-55a8-43d4-bee1-8d22785065b3"
+  },
+  "created": "2026-09-26T19:46:45.727Z",
+  "verified": "2026-09-26T19:52:13.249Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "bytes-heuristics-next-layer-inspects-quic-host-header-raw-tc",
+    "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn"
+  ],
+  "lastUsed": "2026-09-26T19:51:31.760Z",
+  "servedIn": [
+    "051e8720-b34d-4591-83bd-d588fcbbb1d0"
+  ]
+}

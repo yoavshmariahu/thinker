@@ -1,0 +1,109 @@
+{
+  "id": "schema-disable-delete-schedule-handling-coupled-flags-and-in",
+  "title": "Schema disable/delete: schedule handling, coupled flags, and in-flight teardown",
+  "kind": "invariant",
+  "answers": [
+    "What must change when a schema's should_sync is turned off?",
+    "Which schedules are paused vs deleted on schema/source delete?",
+    "How does auto_disabled_at relate to should_sync?",
+    "What tears down running syncs when a schema is disabled?"
+  ],
+  "body": "- Non-CDC schema: per-schema schedule (id = schema id) is paused on disable/unpaused on enable by `ExternalDataSchema.update_should_sync` (only if `source.supports_scheduled_sync`); creates schedule if missing and should_sync=True. `to_temporal_schedule`/`get_sync_schedule` in data_load/service.py set `paused=not should_sync`.\n- Deleted source/schema: schedules are DELETED, not paused: source `destroy` (source_setup.py) → `bulk_delete_external_data_schedules`, `delete_external_data_schedule(source.id)`, `delete_discover_schemas_schedule(source.id)`. DB soft-delete (source, schemas, tables, _cdc tables) is one `transaction.atomic()`; schedule/S3 cleanup is after, best-effort.\n- Coupled flags: `auto_disabled_at` stamped in `ExternalDataSchema.save()` via `_apply_auto_disabled_marker` only under `sync_disable_context(error_message=...)`; user disable leaves None; re-enable clears. `ExternalDataSchemaQuerySet.update` clears it on any bulk write naming should_sync. Digest uses `SCHEMA_STOPPED_BY_USER` (notifications.py). `deleted`+`deleted_at` set together (`soft_delete`, bulk update in destroy). `delete_table()` resets table_id/last_synced_at/status to None.\n- Teardown: `save()` → `_sync_teardown_kind` → `_schedule_sync_teardown`, and the QuerySet.update path (bulk bypasses save), dispatch Celery `cleanup_disabled_external_data_schema` on commit only on real transition and if a Running job exists. Task aborts if schema is re-enabled. `teardown_schema_syncs` (sync_teardown.py): fail job, fail queue batches/release v3 lock, release expired leases, cancel workflow (skip `exclude_workflow_id`). `sweep_stopped_schema_syncs` is the backstop.",
+  "applies": "Disabling via should_sync or soft-delete; auto-disable path passes disable_exclude_workflow_id (external_data_job.py) so the run doesn't cancel itself.",
+  "tags": [
+    "warehouse",
+    "schedules",
+    "teardown"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchema",
+      "hash": "sha256:b5922dd64807a0cbaac38e6d",
+      "line": 216,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/sync_teardown.py",
+      "symbol": "teardown_schema_syncs",
+      "hash": "sha256:cfcb3206868b947a70e0b739",
+      "line": 127,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/tasks/tasks.py",
+      "symbol": "cleanup_disabled_external_data_schema",
+      "hash": "sha256:2adbba6feb6908dafd64df8b",
+      "line": 66,
+      "missing": false
+    },
+    {
+      "path": "products/data_warehouse/backend/logic/data_load/service.py",
+      "hash": "sha256:2f4a01478aba6214f1c76b9d",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/presentation/views/external_data_source/source_setup.py",
+      "symbol": "destroy",
+      "hash": "sha256:167f66ee41e1c1944f1a273a",
+      "line": 1790,
+      "missing": false
+    },
+    {
+      "path": "products/data_warehouse/backend/logic/external_data_source/notifications.py",
+      "hash": "sha256:117802e9beb32dd03cfdc62e",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchema.save",
+      "hash": "sha256:01ff24ca95ca6111ceaa2520",
+      "line": 333,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchemaQuerySet.update",
+      "hash": "sha256:192f10051f4b1e98dd033773",
+      "line": 179,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "delete_table",
+      "hash": "sha256:3a429c4df1ab7235740168a2",
+      "line": 1155,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "save",
+      "hash": "sha256:01ff24ca95ca6111ceaa2520",
+      "line": 333,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "2fe69706-e92b-46d4-b17f-5d8d4cbee387"
+  },
+  "created": "2026-09-27T00:21:11.764Z",
+  "verified": "2026-09-27T00:21:11.764Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 5,
+  "related": [
+    "data-warehouse-split-models-temporal-in-warehouse-sources-sc",
+    "marking-a-cdc-source-broken-pausing-schemas",
+    "temporal-schedules-in-data-load-service-per-schema-sync-and-"
+  ],
+  "lastUsed": "2026-09-27T00:57:55.558Z",
+  "servedIn": [
+    "d33f1871-0064-497f-bd60-0a14a8b56836",
+    "16f5ca99-cdb8-4381-89ea-cf164c731422",
+    "b232bfe1-c89d-47ac-b37c-cfb38332354d",
+    "fa84a58b-0a14-4d54-8264-f2b328ad3f3d",
+    "db96b0a1-ba11-48a9-b06f-274055191171"
+  ]
+}

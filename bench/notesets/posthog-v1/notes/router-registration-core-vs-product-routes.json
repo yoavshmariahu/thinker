@@ -1,0 +1,73 @@
+{
+  "id": "router-registration-core-vs-product-routes",
+  "title": "Router registration: core vs product routes",
+  "kind": "callpath",
+  "answers": [
+    "How do I register a new endpoint with the router?",
+    "Where do product routes get registered?",
+    "Why does RouterRegistry.add raise for products?"
+  ],
+  "body": "- `posthog/api/routing.py:DefaultRouterPlusPlus` (drf-extensions ExtendedDefaultRouter, trailing slash optional `/?`).\n- `posthog/api/rest_router.py`: creates `router`, then `projects_router = routers.add(\"projects\", router.register(r\"projects\", project.RootProjectViewSet, \"projects\"))`; core viewsets: `projects_router.register(r\"file_system\", ViewSet, \"project_file_system\", [\"team_id\"])` (last arg = parent lookup kwargs).\n- Products: expose `register_routes(routers)` in `products/<name>/backend/routes.py`; loop near end of rest_router.py finds them via INSTALLED_APPS, so no edit to rest_router.py is needed.\n- `routing.py:RouterRegistry` exposes `routers.projects/organizations/root`; `add()` raises if called from `products.*` (parents are core-owned).\n- `posthog/api/__init__.py` is a lazy shim; real aggregation is in rest_router.py.\n- New team-nested endpoints: `routers.projects` with `project_<name>` basename; `/api/environments/` is a legacy alias (EnvironmentsRewriteMiddleware, per .agents/skills/improving-drf-endpoints/SKILL.md).",
+  "applies": "Registering DRF viewsets; not for non-DRF Django URLs.",
+  "tags": [
+    "router",
+    "drf",
+    "products"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/routing.py",
+      "symbol": "RouterRegistry",
+      "hash": "sha256:95bc101faf09e22a0f226536",
+      "line": 67,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/rest_router.py",
+      "hash": "sha256:b5c796ab969a12eaad30e3da",
+      "missing": false
+    },
+    {
+      "path": "posthog/api/__init__.py",
+      "hash": "sha256:bde1240bb85e619ed7e1b3c0",
+      "missing": false
+    },
+    {
+      "path": "posthog/api/routing.py",
+      "symbol": "DefaultRouterPlusPlus",
+      "hash": "sha256:0d7f46b6df6f6927b77f5341",
+      "line": 59,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/project.py",
+      "symbol": "RootProjectViewSet",
+      "hash": "sha256:c935ea52d5b9d5e115ff401c",
+      "line": 2244,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "15f28641-4ca2-42c0-ab18-b767a266712f"
+  },
+  "created": "2026-09-26T20:21:05.961Z",
+  "verified": "2026-09-26T20:21:05.961Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 5,
+  "related": [
+    "backend-product-route-auto-discovery",
+    "teamandorgviewsetmixin-scoping-and-permission-enforcement",
+    "ml-inference-route-registration-backend-auto-discovery-and-f"
+  ],
+  "lastUsed": "2026-09-27T00:21:59.741Z",
+  "servedIn": [
+    "39034c00-ed72-48f7-af96-e0ae7a43f8f4",
+    "3e130e93-9659-414e-9ddb-f73d4dcf819d",
+    "ca9e19dd-a3a9-4200-8b15-2865f303ae61",
+    "22d02288-1e05-4051-86b3-55ccc205be36",
+    "f3f0e47d-4259-4ce7-aa95-8e4b9421c18e"
+  ]
+}

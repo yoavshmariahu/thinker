@@ -1,0 +1,69 @@
+{
+  "id": "PR8224-hard-hook-1",
+  "task": "PR8224-hard",
+  "area": "web-app",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "dcdd0f6a-ab25-41d1-a1c8-187126d649ec",
+  "turns": 8,
+  "wall_ms": 18832,
+  "api_ms": 18254,
+  "cost": 0.1096598,
+  "in_tokens": 152100,
+  "out_tokens": 1789,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 4,
+      "Edit": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 4,
+    "injected": [
+      "web-frontend-tests-web-npm",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "mitmweb-xsrf-auth-and-header-protections"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's patch makes the same functional changes as the merged patch. It sets xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and changes the getCookie call in utils.ts to the new name. The only extras are a changelog entry and the absence of the explanatory comment, and neither affects behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/tools/web/app.py",
+      "web/src/js/utils.ts"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent's patch matches the merged patch functionally. It sets xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and reads \"_mitmproxy_xsrf\" in utils.ts. The only differences are the changelog entry and a missing explanatory comment, and neither affects behavior.",
+      "The agent's patch matches the upstream patch functionally. It sets xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and changes getCookie to read \"_mitmproxy_xsrf\" in utils.ts. The only extra is a changelog entry, which doesn't affect behavior.",
+      "The agent's patch matches the merged patch functionally. It sets xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and changes getCookie to read \"_mitmproxy_xsrf\" in utils.ts. The only extra is a changelog entry, which doesn't affect behavior."
+    ]
+  },
+  "result": "The web interface's XSRF cookie is now named `_mitmproxy_xsrf` in both the place it's set and the place it's read. I haven't run any tests, and I didn't add one.\n\n- **Set:** `mitmproxy/tools/web/app.py` now passes `xsrf_cookie_name=\"_mitmproxy_xsrf\"` to the Tornado `Application`, next to the existing `xsrf_cookie_kwargs`. Tornado uses that name for the cookie. It also checks the `_xsrf` form field against the cookie, so that field's name is unchanged.\n- **Read:** `web/src/js/utils.ts` now calls `getCookie(\"_mitmproxy_xsrf\")` instead of `getCookie(\"_xsrf\")`. It sends that value in the `X-XSRFToken` header.\n- **Changelog:** I added an entry to `CHANGELOG.md`.\n\n**Why this fixes Firefox:** browsers that hold the stale `_xsrf` cookie will now ignore it. The server issues a fresh cookie under the new name. That is what the change relies on for recovery, and I haven't confirmed it in Firefox.\n\nThe Python test in `test/mitmproxy/tools/web/test_app.py` turns XSRF checking off, and the JS test in `web/src/js/__tests__/utilsSpec.tsx` doesn't reference the cookie name. So no existing test needed adjusting.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..f22c6fa43 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmweb: Rename the XSRF cookie to `_mitmproxy_xsrf` to recover Firefox sessions broken by the old cookie.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..b18662dfd 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -925,6 +925,7 @@ class Application(tornado.web.Application):\n             template_path=os.path.join(os.path.dirname(__file__), \"templates\"),\n             static_path=os.path.join(os.path.dirname(__file__), \"static\"),\n             xsrf_cookies=True,\n+            xsrf_cookie_name=\"_mitmproxy_xsrf\",\n             xsrf_cookie_kwargs=dict(samesite=\"Strict\"),\n             cookie_secret=secrets.token_bytes(32),\n             debug=debug,\ndiff --git a/web/src/js/utils.ts b/web/src/js/utils.ts\nindex 7e76df609..89969f55c 100644\n--- a/web/src/js/utils.ts\n+++ b/web/src/js/utils.ts\n@@ -78,7 +78,7 @@ function getCookie(name) {\n }\n \n let xsrf = () => {\n-    const cached = getCookie(\"_xsrf\");\n+    const cached = getCookie(\"_mitmproxy_xsrf\");\n     xsrf = () => cached;\n     return xsrf();\n };\n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's patch makes the same functional changes as the merged patch. It sets xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and changes the getCookie call in utils.ts to the new name. The only extras are a changelog entry and the absence of the explanatory comment, and neither affects behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/tools/web/app.py",
+      "web/src/js/utils.ts"
+    ]
+  }
+}

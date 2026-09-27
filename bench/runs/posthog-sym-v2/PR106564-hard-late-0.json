@@ -1,0 +1,101 @@
+{
+  "id": "PR106564-hard-late-0",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "late",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "2de383db-5d63-43c9-9226-cd2cf77e2c10",
+  "turns": 10,
+  "wall_ms": 51804,
+  "api_ms": 22240,
+  "cost": 0.2962668,
+  "in_tokens": 509987,
+  "out_tokens": 2060,
+  "tools": {
+    "calls": 9,
+    "byTool": {
+      "Bash": 9
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 9,
+    "injected": [
+      "slack-app-http-entry-points-and-api-map",
+      "build-output-naming-must-stay-in-sync-with-server-preload-ma",
+      "frontend-build-esbuild-config-chunk-naming-index-html-genera",
+      "chunk-map-file-and-preload-manifest",
+      "how-django-picks-which-frontend-build-assets-to-serve-debug-"
+    ],
+    "lateEvents": 9,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty and made no functional change. The merged patch modifies posthog/stable_chunks.py, posthog/utils.py and the esbuilder script to add flag-based enrollment for logged-in users, so the agent's change does not achieve the request.",
+      "The agent's patch is empty and no functional change was made, so the request (flag-based enrollment of logged-in users into the stable chunk build) is not achieved.",
+      "The agent made no changes and asked for clarification instead of implementing. The relevant code (posthog/stable_chunks.py, posthog/utils.py, common/esbuilder/utils.mjs) exists upstream, so the change would have been achievable. No functional change means no credit."
+    ],
+    "reason": "The agent's patch is empty and made no functional change. The merged patch modifies posthog/stable_chunks.py, posthog/utils.py and the esbuilder script to add flag-based enrollment for logged-in users, so the agent's change does not achieve the request.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no feature-flag-based enrolment of logged-in users exists."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no logic gating on authentication for the flag."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag handling added. Author states no stable build code exists in the checkout."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; author reports no query parameter handling exists in the serving path."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no persistence of choice (cookie or otherwise) added."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; nothing links the deciding flag value to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no runtime-failure reload handling added."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no removal of the query parameter from the URL added."
+        }
+      ]
+    }
+  },
+  "result": "I didn't make any changes, because the stable chunk build isn't in this checkout. Your description assumes a build and an opt-in that I couldn't find, so I stopped instead of guessing.\n\n**What I searched for**\n- Terms like stable chunk, stable build, stable bundle, a `?stable` query parameter, and `location.search` / `URLSearchParams`.\n- The frontend build and the Python side that serves the page: `common/esbuilder/`, `frontend/build.mjs`, `posthog/utils.py`, `posthog/templates/`, and the index and layout HTML.\n- Recent history: a `stable` search of the git log, and the recent commits that touched the build.\n\n**What is there**\n- The build always produces one hashed set of chunks, plus a hashed chunk-map file (`chunk-map-<entry>-<hash>.js`). `frontend/build.mjs` and `copyIndexHtml` in `common/esbuilder/utils.mjs` do this.\n- Django serves `dist/index.html` and adds preload links from a manifest. Nothing in that path branches on a query parameter or a feature flag.\n- The only \"stable chunk\" hits are unrelated: the sourcemap CLI's `stable_chunk_id` and one HogQL test fixture.\n\nThe change may be on a branch or PR that isn't in this worktree, which only has `master`. It may also be unmerged work.\n\nBuilding a stable-chunk variant from scratch is a large change I'd be inventing, and it wouldn't match what you already have. Which do you want?\n\n1. Point me to the branch or PR with the stable build, and I'll add the flag-based enrollment on top. That means evaluating a feature flag for authenticated users only, treating the query parameter as an override, and adding a test.\n2. Have me build the stable variant itself, which needs a design decision on what \"stable\" means for the chunk naming.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

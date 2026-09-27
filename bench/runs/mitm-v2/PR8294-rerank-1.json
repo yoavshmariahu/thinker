@@ -1,0 +1,45 @@
+{
+  "id": "PR8294-rerank-1",
+  "task": "PR8294",
+  "area": "net-tls",
+  "arm": "rerank",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "cc1cc40c-6d5f-413e-b49b-5c162cf87811",
+  "turns": 6,
+  "wall_ms": 26732,
+  "api_ms": 12231,
+  "cost": 0.08269119999999999,
+  "in_tokens": 74056,
+  "out_tokens": 1416,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Read": 1,
+      "Bash": 2,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne",
+      "supported-tls-version-detection-and-warnings-lru-cache-gotch"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to mitmproxy/net/tls.py matches the merged patch. It moves set_min_proto_version, set_max_proto_version, SSL.Connection creation and set_connect_state into the existing try block, so a setup-time SSL.Error now returns False. It also adds an equivalent regression test. The only difference is the missing changelog entry, which doesn't affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/tls.py",
+      "test/mitmproxy/net/test_tls.py"
+    ]
+  },
+  "result": "`is_supported_version` now returns `False` when setting up the context raises `SSL.Error`, instead of letting it propagate. I haven't run the tests, as instructed.\n\n**Fix (`mitmproxy/net/tls.py`):** the `set_min_proto_version` and `set_max_proto_version` calls and the `SSL.Connection` and `set_connect_state()` setup now sit inside the existing `try`, alongside `recv()`. The `WantReadError` → `True` and `SSL.Error` → `False` handling is unchanged, so versions that are currently supported behave as before. `SSL.Context(...)` and `set_cipher_list` stay outside the `try`.\n\n**Test (`test/mitmproxy/net/test_tls.py`):** I added `test_supported_setup_error`. It monkeypatches `SSL.Context.set_min_proto_version` to raise `SSL.Error` and asserts `is_supported_version(Version.SSL3)` is `False`. That reproduces the crash on any OpenSSL build. The function is `@cache`d, so the test clears the cache before and after to avoid leaking the patched result into other tests.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py\nindex 14c0553ca..ecd745f28 100644\n--- a/mitmproxy/net/tls.py\n+++ b/mitmproxy/net/tls.py\n@@ -77,12 +77,13 @@ def is_supported_version(version: Version):\n     # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n     # https://github.com/pyca/cryptography/issues/9523\n     client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n-    client_ctx.set_min_proto_version(version.value)\n-    client_ctx.set_max_proto_version(version.value)\n-    client_conn = SSL.Connection(client_ctx)\n-    client_conn.set_connect_state()\n \n     try:\n+        # OpenSSL builds that dropped a version entirely raise SSL.Error here.\n+        client_ctx.set_min_proto_version(version.value)\n+        client_ctx.set_max_proto_version(version.value)\n+        client_conn = SSL.Connection(client_ctx)\n+        client_conn.set_connect_state()\n         client_conn.recv(4096)\n     except SSL.WantReadError:\n         return True\ndiff --git a/test/mitmproxy/net/test_tls.py b/test/mitmproxy/net/test_tls.py\nindex 8359e4a9d..0d7365e7c 100644\n--- a/test/mitmproxy/net/test_tls.py\n+++ b/test/mitmproxy/net/test_tls.py\n@@ -15,6 +15,18 @@ def test_supported(version):\n     assert tls.is_supported_version(version) == expected_support\n \n \n+def test_supported_setup_error(monkeypatch):\n+    def raise_error(self, version):\n+        raise SSL.Error(\"no such protocol\")\n+\n+    monkeypatch.setattr(SSL.Context, \"set_min_proto_version\", raise_error)\n+    tls.is_supported_version.cache_clear()\n+    try:\n+        assert tls.is_supported_version(tls.Version.SSL3) is False\n+    finally:\n+        tls.is_supported_version.cache_clear()\n+\n+\n def test_make_master_secret_logger():\n     assert tls.make_master_secret_logger(None) is None\n     assert isinstance(tls.make_master_secret_logger(\"filepath\"), tls.MasterSecretLogger)\n"
+}

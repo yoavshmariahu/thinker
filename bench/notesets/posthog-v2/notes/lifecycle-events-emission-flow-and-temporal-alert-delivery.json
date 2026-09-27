@@ -1,0 +1,63 @@
+{
+  "id": "lifecycle-events-emission-flow-and-temporal-alert-delivery",
+  "title": "Lifecycle events: emission flow and Temporal alert delivery",
+  "kind": "callpath",
+  "answers": [
+    "How are $error_tracking_issue_* events emitted?",
+    "What Temporal workflow runs on issue lifecycle events?",
+    "Which events come from Django vs cymbal?"
+  ],
+  "body": "Django-emitted events (EB/logic/lifecycle_events.py): $error_tracking_issue_resolved/suppressed/reopened(manual)/assigned/unassigned/merged/split. STATUS_CHANGE_EVENTS maps status change → event; only actual status changes emit.\nFlow: prepare_issue_lifecycle_event (snapshot issue, assignee, actor) → produce_issue_lifecycle_events_on_commit (on_commit hook) → produce_internal_event (CDP destinations); if team has enabled ErrorTrackingAlert → Celery dispatch_error_tracking_alert_deliveries (EB/tasks/tasks.py) → start_alert_delivery_workflows (EB/temporal/alerts/dispatch.py) → workflow 'error-tracking-alert-delivery'.\nCreated/reopened(auto)/spiking events originate in cymbal (Rust), not Django.\nAlert triggers: issue_created, issue_reopened, issue_spiking, issue_assigned (ErrorTrackingAlert).",
+  "tags": [
+    "error_tracking",
+    "lifecycle",
+    "temporal"
+  ],
+  "deps": [
+    {
+      "path": "products/error_tracking/backend/logic/lifecycle_events.py",
+      "hash": "sha256:d135bb464755f81e2a2bb6ae",
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/tasks/tasks.py",
+      "hash": "sha256:b45294ab995aa927edabbb67",
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/temporal/alerts/dispatch.py",
+      "hash": "sha256:41a67184240fddfdffef221e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c78d59b1-60fc-4a6c-8eac-edc5dfa51f9e"
+  },
+  "created": "2026-09-26T20:32:07.980Z",
+  "verified": "2026-09-26T20:32:07.980Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 14,
+  "related": [
+    "error-tracking-issue-writes-which-mutations-emit-lifecycle-e"
+  ],
+  "lastUsed": "2026-09-26T23:37:59.147Z",
+  "servedIn": [
+    "cd76606d-c96b-430c-ad43-581d2fce050c",
+    "36ed048a-8bbd-4dbe-a047-a2bd1591f964",
+    "e530ac93-95f2-44ae-bbf2-7fc345286ef6",
+    "60f35ce4-fb66-4a14-b930-15bdc40742fc",
+    "a9bb7107-4a9e-4ae1-81f0-15c93d3f08ba",
+    "287589bf-f6a0-49fe-8802-6a78218b2c92",
+    "352b3da7-2bd9-4504-820e-883bf29bb3d3",
+    "ed597624-1717-4457-b82c-06dd9dea399c",
+    "3e0cf021-68ff-4925-8a2a-8f6fa0cdde6f",
+    "db2ac0f3-193d-48ed-a2a8-c7fc90a6215a",
+    "a7d5d4fb-c990-4968-a691-0e057ce2e931",
+    "ddbd884d-ef4d-41a4-9d62-94f6ffe130b2",
+    "bada6a04-90ca-402b-b4a8-ac0932a722e5",
+    "043b894d-7483-463a-981a-37bca4b0739d"
+  ]
+}

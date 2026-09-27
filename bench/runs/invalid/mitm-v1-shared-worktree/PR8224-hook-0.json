@@ -1,0 +1,49 @@
+{
+  "id": "PR8224-hook-0",
+  "task": "PR8224",
+  "area": "web-app",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "a28ddd15-f884-4352-b52d-256a232f3992",
+  "turns": 9,
+  "wall_ms": 18592,
+  "api_ms": 18048,
+  "cost": 0.10698840000000001,
+  "in_tokens": 173382,
+  "out_tokens": 1610,
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "Bash": 5,
+      "Edit": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 5,
+    "injected": [
+      "mitmweb-xsrf-auth-and-header-protections",
+      "mitmweb-flow-update-path-http-put-view-update-websocket-broa"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [
+      "Unrelated certs.py and test_certs.py changes appear in the diff (the agent says it did not make them), but they don't affect the XSRF fix"
+    ],
+    "reason": "The agent made the same two functional changes as the merged patch. It set xsrf_cookie_name=\"_mitmproxy_xsrf\" in the Application settings in app.py. It also changed getCookie(\"_xsrf\") to getCookie(\"_mitmproxy_xsrf\") in web/src/js/utils.ts. The changelog entry is harmless. The certs.py and test changes are unrelated to this request, and the agent says it did not make them. They do not change the XSRF behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/certs.py",
+      "mitmproxy/tools/web/app.py",
+      "test/mitmproxy/test_certs.py",
+      "web/src/js/utils.ts"
+    ]
+  },
+  "result": "mitmweb now uses a `_mitmproxy_xsrf` cookie for XSRF instead of `_xsrf`, so a stale HttpOnly `_xsrf` cookie no longer breaks option updates. I haven't run any tests or the app.\n\n- **Backend:** `mitmproxy/tools/web/app.py` now sets `xsrf_cookie_name=\"_mitmproxy_xsrf\"` in the `Application` settings, next to `xsrf_cookies=True` and the `samesite=\"Strict\"` kwargs.\n- **Frontend:** `web/src/js/utils.ts` now reads `_mitmproxy_xsrf` before sending `X-XSRFToken`.\n- **Changelog:** I added a `CHANGELOG.md` entry, which you didn't ask for.\n\nI didn't touch any tests, as the task said to keep the fix to the cookie naming.\n\n`mitmproxy/certs.py` also shows as modified in the working tree. I didn't make that change, so I left it alone, and you may want to keep it out of this commit.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..bbefa09ca 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmweb: Rename the XSRF cookie to `_mitmproxy_xsrf` to recover sessions broken by a stale `_xsrf` cookie.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/certs.py b/mitmproxy/certs.py\nindex 2f421e25e..aae0dc997 100644\n--- a/mitmproxy/certs.py\n+++ b/mitmproxy/certs.py\n@@ -356,10 +356,17 @@ def dummy_cert(\n     )\n \n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1\n-    builder = builder.add_extension(\n-        x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key()),  # type: ignore\n-        critical=False,\n-    )\n+    # The AKI must match the issuer's stored SKI, which is not necessarily the SHA-1 of its public key.\n+    try:\n+        issuer_ski = cacert.extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        ).value\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(\n+            issuer_ski\n+        )\n+    except x509.ExtensionNotFound:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())  # type: ignore\n+    builder = builder.add_extension(aki, critical=False)\n     # If CA and leaf cert have the same Subject Key Identifier, SChannel breaks in funny ways,\n     # see https://github.com/mitmproxy/mitmproxy/issues/6494.\n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2 states\ndiff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..b18662dfd 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -925,6 +925,7 @@ class Application(tornado.web.Application):\n             template_path=os.path.join(os.path.dirname(__file__), \"templates\"),\n             static_path=os.path.join(os.path.dirname(__file__), \"static\"),\n             xsrf_cookies=True,\n+            xsrf_cookie_name=\"_mitmproxy_xsrf\",\n             xsrf_cookie_kwargs=dict(samesite=\"Strict\"),\n             cookie_secret=secrets.token_bytes(32),\n             debug=debug,\ndiff --git a/test/mitmproxy/test_certs.py b/test/mitmproxy/test_certs.py\nindex aba66a733..aa0ddafd6 100644\n--- a/test/mitmproxy/test_certs.py\n+++ b/test/mitmproxy/test_certs.py\n@@ -1,11 +1,15 @@\n+import hashlib\n import ipaddress\n import os\n from datetime import datetime\n+from datetime import timedelta\n from datetime import timezone\n from pathlib import Path\n \n import pytest\n from cryptography import x509\n+from cryptography.hazmat.primitives import hashes\n+from cryptography.hazmat.primitives.asymmetric import rsa\n from cryptography.x509 import NameOID\n \n from ..conftest import skip_windows\n@@ -176,6 +180,44 @@ class TestDummyCert:\n         assert r.altnames == x509.GeneralNames([])\n         assert r.crl_distribution_points == []\n \n+    @staticmethod\n+    def _make_ca(ski: bytes | None):\n+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, \"Test CA\")])\n+        now = datetime.now(timezone.utc)\n+        builder = (\n+            x509.CertificateBuilder()\n+            .subject_name(name)\n+            .issuer_name(name)\n+            .public_key(key.public_key())\n+            .serial_number(x509.random_serial_number())\n+            .not_valid_before(now)\n+            .not_valid_after(now + timedelta(days=365))\n+            .add_extension(x509.BasicConstraints(ca=True, path_length=None), True)\n+        )\n+        if ski is not None:\n+            builder = builder.add_extension(x509.SubjectKeyIdentifier(ski), False)\n+        return key, builder.sign(key, hashes.SHA256())\n+\n+    def test_aki_copies_issuer_ski_non_sha1(self):\n+        # truncated SHA-256 SKI, as produced by cert-manager / Go 1.25+\n+        ski = hashlib.sha256(b\"arbitrary\").digest()[:20]\n+        key, ca = self._make_ca(ski)\n+        r = certs.dummy_cert(key, ca, \"foo.com\", [])\n+        aki = r._cert.extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        ).value\n+        assert aki.key_identifier == ski\n+\n+    def test_aki_falls_back_when_issuer_has_no_ski(self):\n+        key, ca = self._make_ca(None)\n+        r = certs.dummy_cert(key, ca, \"foo.com\", [])\n+        aki = r._cert.extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        ).value\n+        expected = x509.AuthorityKeyIdentifier.from_issuer_public_key(ca.public_key())\n+        assert aki.key_identifier == expected.key_identifier\n+\n \n class TestCert:\n     def test_simple(self, tdata):\ndiff --git a/web/src/js/utils.ts b/web/src/js/utils.ts\nindex 7e76df609..89969f55c 100644\n--- a/web/src/js/utils.ts\n+++ b/web/src/js/utils.ts\n@@ -78,7 +78,7 @@ function getCookie(name) {\n }\n \n let xsrf = () => {\n-    const cached = getCookie(\"_xsrf\");\n+    const cached = getCookie(\"_mitmproxy_xsrf\");\n     xsrf = () => cached;\n     return xsrf();\n };\n"
+}

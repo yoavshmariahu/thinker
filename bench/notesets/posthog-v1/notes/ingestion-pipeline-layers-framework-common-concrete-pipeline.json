@@ -1,0 +1,101 @@
+{
+  "id": "ingestion-pipeline-layers-framework-common-concrete-pipeline",
+  "title": "Ingestion pipeline layers: framework, common, concrete pipelines",
+  "kind": "overview",
+  "answers": [
+    "How are ingestion pipelines structured?",
+    "Where is the analytics ingestion pipeline composed?",
+    "How do I write a pipeline step?"
+  ],
+  "body": "Framework `nodejs/src/ingestion/framework/`:\n- `steps.ts:ProcessingStep` = value => Promise<PipelineResult>; built by factories like `createDenyEventsStep`.\n- `results.ts`: PipelineResult = OK|DLQ|DROP|REDIRECT (`ok/dlq/drop/redirect`), each with `sideEffects: Promise[]` and `warnings`.\n- `pipeline.interface.ts:PipelineContext`; builders in `builders/pipeline-builders.ts` and `builders/chunk-pipeline-builders.ts` (`newPipelineBuilder`, `newChunkPipelineBuilder`): `.pipe/.pipeChunk/.sequentially/.concurrentlyPerGroup/.compose`, end with `.handleResults()/.handleSideEffects()/.build()`.\n- Docs-as-tests: `framework/docs/01-…17-*.test.ts`.\nShared `src/ingestion/common/`: `common-ingestion-pipeline.ts:newCommonIngestionPipeline` (beforeBatch, per-event steps, afterBatch); `ingestion-consumer.ts:CommonIngestionConsumer`; `steps/`, `subpipelines/`.\nConcrete `src/ingestion/pipelines/{analytics,ai,clientwarnings,errortracking,heatmaps,metrics,sessionreplay}`.\nAnalytics: `pipelines/analytics/joined-ingestion-pipeline.ts:createJoinedIngestionPipeline` → per-chunk rate limit/prefetch → parseMessage/resolveTeam → `createPostTeamPreprocessingSubpipeline` → `concurrentlyPerGroup(getTokenAndDistinctId)` → `sequentially(createEventSubpipeline)` (event-subpipeline.ts) → `createCreateEventStep`. Consumer: `src/ingestion/ingestion-consumer.ts:IngestionConsumer`.",
+  "tags": [
+    "ingestion",
+    "pipeline"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/ingestion/framework/steps.ts",
+      "hash": "sha256:ab21715847cc4f35cbc9ece5",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/framework/results.ts",
+      "hash": "sha256:d59c83e95c66beb2cfecb738",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/framework/pipeline.interface.ts",
+      "hash": "sha256:9bc78142edfdf0dc036deff7",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/framework/builders/pipeline-builders.ts",
+      "hash": "sha256:914cef40c0b10bdd226560e3",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/framework/builders/chunk-pipeline-builders.ts",
+      "hash": "sha256:0d2be838ba70acdbc8b7df76",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/pipelines/analytics/joined-ingestion-pipeline.ts",
+      "symbol": "createJoinedIngestionPipeline",
+      "hash": "sha256:a4426b19fca0bec5ef537c4e",
+      "line": 124,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+      "symbol": "IngestionConsumer",
+      "hash": "sha256:29959869dadbd05a68bf2ae9",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/framework/steps.ts",
+      "symbol": "ProcessingStep",
+      "hash": "sha256:9cde7bb3b2af6b8832298958",
+      "line": 3,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/framework/pipeline.interface.ts",
+      "symbol": "PipelineContext",
+      "hash": "sha256:98877623bee6054dba48be38",
+      "line": 49,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/common/common-ingestion-pipeline.ts",
+      "symbol": "newCommonIngestionPipeline",
+      "hash": "sha256:e9630eaeb85a05ee22feb14d",
+      "line": 203,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/ingestion-consumer.ts",
+      "hash": "sha256:302dfd56c26d0a17337ee55e",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/pipelines/analytics/event-subpipeline.ts",
+      "hash": "sha256:433ba659eadcc1dbf563dde9",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "461ca948-a93f-493d-91a4-9b58d68b1251"
+  },
+  "created": "2026-09-26T20:39:55.750Z",
+  "verified": "2026-09-26T20:39:55.750Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "servedIn": [
+    "ddadff7f-c097-4006-9e59-599cfe88da51"
+  ]
+}

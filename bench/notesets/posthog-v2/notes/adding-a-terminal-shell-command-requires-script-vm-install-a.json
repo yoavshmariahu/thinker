@@ -1,0 +1,59 @@
+{
+  "id": "adding-a-terminal-shell-command-requires-script-vm-install-a",
+  "title": "Adding a terminal shell command requires script, VM install, and PosthogCommands changes together",
+  "kind": "cochange",
+  "answers": [
+    "How do I add a new command to the PostHog terminal?",
+    "Why is my new terminal command not found in the shell?",
+    "open command terminal wiring"
+  ],
+  "body": "A shell-level terminal command like `open` touches several files that must stay in sync:\n- `frontend/src/scenes/terminal/terminalCommands.ts`: define the sh script (e.g. OPEN_SCRIPT) and register it with `filesystem.text('open', filesystem.directory('bin', ...))` in TerminalCommands.\n- `frontend/src/scenes/terminal/terminalRuntime.ts`: add a `cp /posthog/bin/<name> /usr/bin/<name> && chmod +x` line to the boot commands, otherwise the VM shell cannot find it.\n- `frontend/src/scenes/terminal/posthogCommands.ts`: `PosthogCommands.execute` handles the `ph <name>` subcommand; add it to the `help` text too.\n- `frontend/src/scenes/terminal/posthogFilesystem.ts`: update the README/help text shown in the terminal (usage docs live there, not in handbook docs).\nThe shell wrapper resolves the path with `realpath` and calls `ph <cmd>`, so symlinks are resolved in the VM before the browser sees them.",
+  "applies": "frontend/src/scenes/terminal — adding or changing shell commands",
+  "tags": [
+    "terminal",
+    "kea",
+    "shell"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/terminal/terminalCommands.ts",
+      "symbol": "OPEN_SCRIPT",
+      "hash": "sha256:c57ec973943a08ff5e86c4df",
+      "line": 3,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/terminalRuntime.ts",
+      "hash": "sha256:48790c5a6e88ffa2244f1f14",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/posthogCommands.ts",
+      "symbol": "PosthogCommands.execute",
+      "hash": "sha256:1bce922d7e142150a28701e4",
+      "line": 375,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/posthogFilesystem.ts",
+      "hash": "sha256:4faec1accb7d516c4d3d7f6c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105371"
+  },
+  "created": "2026-09-27T00:05:41.888Z",
+  "verified": "2026-09-27T00:05:41.888Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "terminal-open-must-not-navigate-to-external-urls-or-after-th",
+    "adding-an-optional-terminal-tool-manifest-entry-drives-mount",
+    "terminal-filesystem-listings-must-never-fetch-notebook-insig",
+    "terminal-vm-sizing-and-storybook-live-runtime"
+  ]
+}

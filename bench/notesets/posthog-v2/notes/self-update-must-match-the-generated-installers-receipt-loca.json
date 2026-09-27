@@ -1,0 +1,80 @@
+{
+  "id": "self-update-must-match-the-generated-installers-receipt-loca",
+  "title": "Self-update must match the generated installers' receipt location, install dir override, and Windows limits",
+  "kind": "invariant",
+  "answers": [
+    "Why does posthog-cli update on Windows only print an irm command?",
+    "Where does the posthog-cli install receipt live?",
+    "Update installed a second copy instead of replacing my CLI"
+  ],
+  "body": "`cli/src/update.rs` must mirror what the cargo-dist generated installers do:\n- `receipt_path`: check `XDG_CONFIG_HOME` first on ALL platforms, then `LOCALAPPDATA` on Windows or `~/.config` elsewhere, joined with `posthog-cli/posthog-cli-receipt.json`. Checking only LOCALAPPDATA misclassifies XDG installs as Unknown.\n- `run_installer` must set `POSTHOG_CLI_INSTALL_DIR` to the receipt's prefix; otherwise the installer writes to its default `~/.posthog`, leaves the running binary stale, and the command still reports success.\n- Windows: install.ps1 uses `Copy-Item` over the exe, which fails while it is running, so `InstallMethod::ScriptWindows` prints `irm <install.ps1> | iex` rather than self-updating.\n- Versions come from `posthog-cli/stable/dist-manifest.json` (`releases[0].app_version`), never the GitHub API; check is equality, not semver.\n- Re-verify against the published installer if cargo-dist is upgraded.",
+  "applies": "cli/src/update.rs and cargo-dist installer behavior (dist-workspace.toml)",
+  "tags": [
+    "posthog-cli",
+    "windows",
+    "installer",
+    "cargo-dist",
+    "receipt"
+  ],
+  "deps": [
+    {
+      "path": "cli/src/update.rs",
+      "symbol": "receipt_path",
+      "hash": "sha256:ec0d9c783ca6e38a0ef79d16",
+      "line": 89,
+      "missing": false
+    },
+    {
+      "path": "cli/src/update.rs",
+      "symbol": "run_installer",
+      "hash": "sha256:6897a142ed882c25b6d32faf",
+      "line": 187,
+      "missing": false
+    },
+    {
+      "path": "cli/src/update.rs",
+      "symbol": "InstallMethod::ScriptWindows",
+      "hash": "sha256:0aa0f5827d6bd152344e13d7",
+      "line": 52,
+      "missing": false
+    },
+    {
+      "path": "rust/cohort-stream-processor/src/store/durability/manifest.rs",
+      "symbol": "json",
+      "hash": "sha256:45b13c44a7709c5045125ff6",
+      "line": 100,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105864"
+  },
+  "created": "2026-09-26T23:56:47.192Z",
+  "verified": "2026-09-26T23:56:47.192Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 12,
+  "related": [
+    "build-output-naming-must-stay-in-sync-with-server-preload-ma",
+    "chunk-map-file-and-preload-manifest",
+    "how-django-picks-which-frontend-build-assets-to-serve-debug-",
+    "posthog-cli-update-only-script-installs-whose-receipt-prefix"
+  ],
+  "lastUsed": "2026-09-27T04:13:37.502Z",
+  "servedIn": [
+    "5aaee5b7-e296-4b13-92ed-c17b05bd0815",
+    "ffd5d7a2-4585-4abf-82a8-6ebeb4e1eab6",
+    "94c4f715-51d3-47f5-84dd-cce53a15f20e",
+    "7509243b-8859-4cf6-a36d-f2a353754833",
+    "f6ea5c04-94aa-4f01-a8eb-ed3b71cdbfeb",
+    "ae1a237e-7db7-4fe1-957d-c7b8fdddebe2",
+    "5b88942a-6004-42f8-9e68-f19ea1cf0bb0",
+    "c4b634ff-422c-475d-afa9-f7a795ebe7cc",
+    "672f69c3-5335-4ede-a2d5-12c5d57e495f",
+    "c69af017-cce4-4452-be45-169e91d6a1b0",
+    "df08fa0c-693c-47b2-965e-dff04c5bcc38",
+    "02a562b6-0187-47bf-a33c-19cbc171d1c8"
+  ]
+}

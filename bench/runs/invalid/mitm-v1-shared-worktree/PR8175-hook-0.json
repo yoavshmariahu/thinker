@@ -1,0 +1,45 @@
+{
+  "id": "PR8175-hook-0",
+  "task": "PR8175",
+  "area": "addons-dump",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "8e9e7b48-52d5-4c3b-a773-9d98771aede3",
+  "turns": 8,
+  "wall_ms": 17838,
+  "api_ms": 17159,
+  "cost": 0.10731120000000001,
+  "in_tokens": 147758,
+  "out_tokens": 1671,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 4,
+      "Edit": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 4,
+    "injected": [
+      "mitmdump-flow-printing-is-the-dumper-addon-response-error-ho",
+      "flow-event-dispatch-layer-hook-connectionhandler-addonmanage"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added the same `http_connect_error` method to the Dumper addon, guarded by `self.match(f)` and calling `echo_flow(f)`. This matches the merged patch exactly, apart from a type annotation. The agent also added tests and a changelog entry, which don't affect the grade.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/dumper.py",
+      "test/mitmproxy/addons/test_dumper.py"
+    ]
+  },
+  "result": "mitmdump now prints failed CONNECT requests, such as DNS resolution errors. I haven't run the tests, as you asked.\n\nThe dumper addon (`mitmproxy/addons/dumper.py`) had no handler for `HttpConnectErrorHook`, so those failures were never printed. I added an `http_connect_error` method that does what `response` and `error` already do. It checks `self.match(f)`, which respects `flow_detail` and the flow filter, then calls `echo_flow(f)`. That prints the request line, a response line if the proxy got one (for example a 407), and the error message if `flow.error` is set. The hook doesn't guarantee `flow.error`, and the code handles that case.\n\nI also added a test in `test/mitmproxy/addons/test_dumper.py`, next to the existing `d.error(...)` check, and a CHANGELOG entry.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..c3d31b31f 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmdump: Display failed CONNECT requests (e.g. DNS resolution errors).\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/addons/dumper.py b/mitmproxy/addons/dumper.py\nindex ea7569064..3b088ed4f 100644\n--- a/mitmproxy/addons/dumper.py\n+++ b/mitmproxy/addons/dumper.py\n@@ -294,6 +294,10 @@ class Dumper:\n         if self.match(f):\n             self.echo_flow(f)\n \n+    def http_connect_error(self, f: http.HTTPFlow):\n+        if self.match(f):\n+            self.echo_flow(f)\n+\n     def websocket_message(self, f: http.HTTPFlow):\n         assert f.websocket is not None  # satisfy type checker\n         if self.match(f):\ndiff --git a/test/mitmproxy/addons/test_dumper.py b/test/mitmproxy/addons/test_dumper.py\nindex 7adf4e86e..ffed85c7a 100644\n--- a/test/mitmproxy/addons/test_dumper.py\n+++ b/test/mitmproxy/addons/test_dumper.py\n@@ -52,6 +52,11 @@ def test_simple():\n         assert sio.getvalue()\n         sio.truncate(0)\n \n+        ctx.configure(d, flow_detail=1)\n+        d.http_connect_error(tflow.tflow(err=True))\n+        assert sio.getvalue()\n+        sio.truncate(0)\n+\n         ctx.configure(d, flow_detail=4)\n         d.response(tflow.tflow(resp=True))\n         assert sio.getvalue()\n@@ -325,3 +330,15 @@ def test_styling():\n def test_has_styles_for_tags():\n     missing = set(mitmproxy_rs.syntax_highlight.tags()) - set(CONTENTVIEW_STYLES)\n     assert not missing, f\"Missing styles for tags: {missing}\"\n+\n+\n+def test_http_connect_error():\n+    sio = io.StringIO()\n+    d = dumper.Dumper(sio)\n+    with taddons.context(d) as ctx:\n+        ctx.configure(d, flow_detail=1)\n+        f = tflow.tflow(err=True)\n+        f.request.method = \"CONNECT\"\n+        d.http_connect_error(f)\n+        assert \"CONNECT\" in sio.getvalue()\n+        assert \"error\" in sio.getvalue()\n"
+}

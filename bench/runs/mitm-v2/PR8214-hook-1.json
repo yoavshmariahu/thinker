@@ -1,0 +1,45 @@
+{
+  "id": "PR8214-hook-1",
+  "task": "PR8214",
+  "area": "certs",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "d8119c19-a885-455f-918d-4cae264a87e8",
+  "turns": 4,
+  "wall_ms": 16190,
+  "api_ms": 15712,
+  "cost": 0.0475478,
+  "in_tokens": 79124,
+  "out_tokens": 2081,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 1,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 1,
+    "injected": [
+      "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-",
+      "ca-cert-store-location-creation-and-loading",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to dummy_cert in mitmproxy/certs.py is functionally identical to the merged patch. It reads the issuer's SubjectKeyIdentifier, passes it to from_issuer_subject_key_identifier, and falls back to from_issuer_public_key on ExtensionNotFound. It also added equivalent regression tests. Only the changelog entry is missing, and that does not affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/certs.py",
+      "test/mitmproxy/test_certs.py"
+    ]
+  },
+  "result": "`dummy_cert` in `mitmproxy/certs.py` now copies the issuer's stored `SubjectKeyIdentifier` into the leaf's `AuthorityKeyIdentifier` verbatim. I haven't run the tests, `ruff` or `mypy`, as you asked.\n\n- **The fix:** it uses `AuthorityKeyIdentifier.from_issuer_subject_key_identifier(...)` on the CA's stored SKI. If the CA has no `SubjectKeyIdentifier` extension, it falls back to the old `from_issuer_public_key(...)`. The output is unchanged for mitmproxy-generated CAs, whose SKI is already the SHA-1 of the public key.\n- **Why:** the old call always used the SHA-1 of the key, so CAs with truncated SHA-256 SKIs (cert-manager ≥ 1.18, Go ≥ 1.25, `hash:sha256` in OpenSSL) produced an AKI that didn't match the issuer's SKI. Strict clients reject that as `authority and subject key identifier mismatch`.\n- **Unchanged:** the leaf still gets no `SubjectKeyIdentifier` of its own, because of the SChannel issue noted in the existing comment.\n- **Tests:** I added two regression tests to `TestDummyCert` in `test/mitmproxy/test_certs.py`, using a small `_make_ca` helper.\n  - `test_aki_copies_issuer_ski_non_sha1` builds a CA with a non-SHA-1 SKI and checks the leaf's AKI equals it.\n  - `test_aki_falls_back_when_issuer_has_no_ski` builds a CA with no SKI and checks the leaf's AKI equals the SHA-1-of-public-key value.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/certs.py b/mitmproxy/certs.py\nindex 2f421e25e..2bb29414e 100644\n--- a/mitmproxy/certs.py\n+++ b/mitmproxy/certs.py\n@@ -356,10 +356,16 @@ def dummy_cert(\n     )\n \n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1\n-    builder = builder.add_extension(\n-        x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key()),  # type: ignore\n-        critical=False,\n-    )\n+    # The AKI must match the issuer's stored SKI (RFC 5280 §4.2.1.2), which is not necessarily\n+    # the SHA-1 of its public key (e.g. cert-manager, Go 1.25+ use truncated SHA-256).\n+    try:\n+        issuer_ski = cacert.extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        ).value\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(issuer_ski)\n+    except x509.ExtensionNotFound:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())  # type: ignore\n+    builder = builder.add_extension(aki, critical=False)\n     # If CA and leaf cert have the same Subject Key Identifier, SChannel breaks in funny ways,\n     # see https://github.com/mitmproxy/mitmproxy/issues/6494.\n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2 states\ndiff --git a/test/mitmproxy/test_certs.py b/test/mitmproxy/test_certs.py\nindex aba66a733..bee9518d5 100644\n--- a/test/mitmproxy/test_certs.py\n+++ b/test/mitmproxy/test_certs.py\n@@ -139,7 +139,47 @@ class TestCertStore:\n         assert certs.CertStore.asterisk_forms(input) == output\n \n \n+def _make_ca(ski: bytes | None):\n+    from cryptography.hazmat.primitives import hashes\n+    from cryptography.hazmat.primitives.asymmetric import rsa\n+\n+    key = rsa.generate_private_key(65537, 2048)\n+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, \"Test CA\")])\n+    now = datetime.now(timezone.utc)\n+    builder = (\n+        x509.CertificateBuilder()\n+        .subject_name(name)\n+        .issuer_name(name)\n+        .public_key(key.public_key())\n+        .serial_number(x509.random_serial_number())\n+        .not_valid_before(now)\n+        .not_valid_after(now.replace(year=now.year + 1))\n+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)\n+    )\n+    if ski is not None:\n+        builder = builder.add_extension(x509.SubjectKeyIdentifier(ski), critical=False)\n+    return key, builder.sign(key, hashes.SHA256())\n+\n+\n class TestDummyCert:\n+    def test_aki_copies_issuer_ski_non_sha1(self):\n+        ski = bytes(range(20))\n+        key, ca = _make_ca(ski)\n+        r = certs.dummy_cert(key, ca, \"foo.com\", [x509.DNSName(\"foo.com\")], None)\n+        aki = r._cert.extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        ).value\n+        assert aki.key_identifier == ski\n+\n+    def test_aki_falls_back_when_issuer_has_no_ski(self):\n+        key, ca = _make_ca(None)\n+        r = certs.dummy_cert(key, ca, \"foo.com\", [x509.DNSName(\"foo.com\")], None)\n+        aki = r._cert.extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        ).value\n+        expected = x509.AuthorityKeyIdentifier.from_issuer_public_key(ca.public_key())\n+        assert aki.key_identifier == expected.key_identifier\n+\n     def test_with_ca(self, tstore):\n         r = certs.dummy_cert(\n             tstore.default_privatekey,\n"
+}

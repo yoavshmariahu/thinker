@@ -1,0 +1,84 @@
+{
+  "id": "adding-changing-a-product-url-manifest-generated-products-ts",
+  "title": "Adding/changing a product URL: manifest → generated products.tsx → scenes redirects",
+  "kind": "cochange",
+  "answers": [
+    "How do I add or change a URL in a product?",
+    "Where do redirects for old paths go?",
+    "Which files are generated for product routing?",
+    "How to regenerate products.tsx?"
+  ],
+  "body": "- Define builder in `products/<name>/manifest.tsx` `urls`, route in `routes` as `[SceneName, sceneKey]`, scene in `scenes` (`ProductManifest` in frontend/src/types.ts).\n- `frontend/build-products.mjs` combines manifests into generated `frontend/src/products.tsx` (`productRoutes`, `productRedirects`, productUrls), plus `productScenes.tsx` and `products.json`. Header: DO NOT EDIT BY HAND. Regenerate with `pnpm build:products` (frontend/package.json); root lint-staged runs it and git-adds those three files.\n- Exception: new icon/other imports used in a manifest aren't copied; add them by hand once in `frontend/src/products.tsx` (products/README.md, Manual setup).\n- Renamed path: add old path to `manifest.redirects` (product) or `frontend/src/scenes/scenes.ts:redirects` (core; it spreads `...productRedirects`).\n- String redirects drop query/hash; use function form `(params, searchParams, hashParams) => string` (e.g. `/code_review` with `combineUrl`) to keep them. Auto-forward params via `scenes.ts:forwardedRedirectQueryParams` (currently ['modal']).\n- Don't let a redirect shadow a path that still has its own scene (e.g. `/billing/authorization_status`).\n- `frontend/src/scenes/urls.ts` merges `productUrls` from `~/products`; quirky builders get tests in `frontend/src/scenes/urls.test.ts`.\n- API generated types (frontend/src/generated/core, products/*/frontend/generated) regenerate via `hogli build:openapi`.",
+  "applies": "Product-based routing; core scenes are edited directly in scenes.ts/appScenes.ts.",
+  "tags": [
+    "routing",
+    "products",
+    "redirects",
+    "codegen"
+  ],
+  "deps": [
+    {
+      "path": "frontend/build-products.mjs",
+      "hash": "sha256:a9595a1a2c673277b07f3e4f",
+      "missing": false
+    },
+    {
+      "path": "products/README.md",
+      "hash": "sha256:8bb99e140e08594611301122",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/scenes.ts",
+      "symbol": "redirects",
+      "hash": "sha256:c20d20c3339534c41824875d",
+      "line": 606,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/urls.ts",
+      "hash": "sha256:90b3f7e059dca2aeb7be20d9",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/urls.test.ts",
+      "hash": "sha256:95fae5c8f830d3ea15e3b234",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/types.ts",
+      "hash": "sha256:f4b12a9f3c1440850110f00f",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/scenes.ts",
+      "symbol": "forwardedRedirectQueryParams",
+      "hash": "sha256:50117abe9f3e715c82b8150a",
+      "line": 603,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "0cbb20d0-428f-4c31-bcdb-2878d3e67c6a"
+  },
+  "created": "2026-09-27T00:26:39.334Z",
+  "verified": "2026-09-27T00:26:39.334Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 6,
+  "related": [
+    "frontend-product-manifest-generated-products-tsx-scenes-urls",
+    "adding-a-route-to-a-product-what-changes-together",
+    "scene-enum-name-must-match-scene-s-exported-component",
+    "scene-registration-routing-manifest-generated-products-tsx-s"
+  ],
+  "servedIn": [
+    "17180cc9-00be-4854-86e4-b5d9eb4e8325",
+    "8a2027b0-97a9-496b-901f-da33440c4feb",
+    "9f2e5e8d-3340-4f2f-b40b-bebc0ae5b2ff",
+    "fbb19671-8730-46af-87c2-153efc2fcece",
+    "80fdb8eb-165f-47b6-a31e-2e4f7f83357f",
+    "4d474a5e-1000-48c6-99bd-6d78c155539d"
+  ]
+}

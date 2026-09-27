@@ -1,0 +1,65 @@
+{
+  "id": "clirunner-invoke-isolation-stream-and-env-isolation-flow",
+  "title": "CliRunner.invoke/isolation stream and env isolation flow",
+  "kind": "callpath",
+  "answers": [
+    "How does CliRunner isolate stdin/stdout/stderr?",
+    "How does CliRunner restore environment variables?",
+    "What does capture='fd' do in CliRunner?",
+    "How does echo_stdin work?"
+  ],
+  "body": "All in src/click/testing.py.\n- `CliRunner.invoke` → optional `_FDCapture(1/2).start()` (os.dup + dup2 to tempfile; OSError falls back to sys mode) → `with self.isolation(...)` → `cli.main(args, prog_name)` → build `Result`.\n- `CliRunner.isolation`: `make_input_stream` → `_NamedTextIOWrapper` as sys.stdin (optionally wrapped in `EchoingStdin`, `_CHUNK_SIZE=1`); `StreamMixer` holds `output`, `stdout`, `stderr` BytesIO, where stdout/stderr are `BytesIOCopy` that mirror writes to the interleaved `output`. stderr uses errors=backslashreplace.\n- Monkeypatches on termui/utils/_compat/formatting: `visible_input`, `hidden_input`, `_getchar` (each with `_pause_echo`), `should_strip_ansi`, `FORCED_WIDTH=80`, `pdb.Pdb.__init__` via `_patched_pdb_init`.\n- Env: `make_env` merges runner env with per-call env (per-call wins); None deletes var; `finally` restores env, sys streams and all patches.\n- `_NamedTextIOWrapper.close` is a no-op; `fileno` raises unless `_original_fd` set (fd mode). fd mode rejected on Windows in `CliRunner.__init__`.",
+  "tags": [
+    "testing",
+    "clirunner",
+    "isolation"
+  ],
+  "deps": [
+    {
+      "path": "src/click/testing.py",
+      "symbol": "CliRunner.isolation",
+      "hash": "sha256:5aefe16bd24736d40fd3bcd8",
+      "line": 398,
+      "missing": false
+    },
+    {
+      "path": "src/click/testing.py",
+      "symbol": "CliRunner.invoke",
+      "hash": "sha256:241afb80c432246c67e5cf41",
+      "line": 596,
+      "missing": false
+    },
+    {
+      "path": "src/click/testing.py",
+      "symbol": "StreamMixer",
+      "hash": "sha256:baed8ad7711d3b2a4056e1e1",
+      "line": 138,
+      "missing": false
+    },
+    {
+      "path": "src/click/testing.py",
+      "symbol": "_FDCapture",
+      "hash": "sha256:92d407513232d6c038eb554c",
+      "line": 80,
+      "missing": false
+    },
+    {
+      "path": "src/click/testing.py",
+      "symbol": "CliRunner.__init__",
+      "hash": "sha256:533bcea6d51be10a3081ef88",
+      "line": 360,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "659d13a8-f34c-4ea1-aa3b-92413506aad3"
+  },
+  "created": "2026-09-26T09:14:01.835Z",
+  "verified": "2026-09-26T09:14:01.835Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 5,
+  "lastUsed": "2026-09-26T09:27:03.307Z"
+}

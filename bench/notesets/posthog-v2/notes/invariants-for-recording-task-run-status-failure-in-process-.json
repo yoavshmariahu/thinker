@@ -1,0 +1,76 @@
+{
+  "id": "invariants-for-recording-task-run-status-failure-in-process-",
+  "title": "Invariants for recording task run status/failure in process_task",
+  "kind": "invariant",
+  "answers": [
+    "Which fields must be set when the workflow marks a run failed?",
+    "Who writes TaskRun status in process_task?",
+    "Why are terminal statuses not overwritten?",
+    "How are timeout failures recorded?"
+  ],
+  "body": "- Single writer: activities/update_task_run_status.py:update_task_run_status, reached from workflow.py:ProcessTaskWorkflow._update_task_run_status. Analytics task_run_completed/failed are emitted only in _capture_terminal_analytics when old_status != input.status.\n- workflow's `_track_workflow_event(\"task_run_failed\")` in the generic except passes capture_analytics=False; flipping it double-counts.\n- Terminal statuses (_TERMINAL_STATUSES: completed/failed/cancelled) are final: row read under select_for_update; a change to a different status is skipped. Same-status repeat is allowed (retry idempotent).\n- Failure fields in UpdateTaskRunStatusInput: error_message (written only if truthy; truncate via error_telemetry.truncate_error_message, 500 chars tail; use Temporal cause .message, not str(ActivityError)); error_type (always set; from workflow.py:_failure_error_type; 'agent_reported', 'followup_delivery_failed'; default 'unspecified'; also passed to handle_loop_run_terminal).\n- Timeouts use timeout_marker in _TERMINAL_STATE_MARKERS (timed_out_inactivity, timed_out_wall_clock, sandbox_gone); other values ignored. Wall-clock failure has deliberately no error_message. State markers go through TaskRun.update_state_atomic, not the status save.\n- New input fields must be optional with defaults so in-flight workflow payloads deserialize.\n- Cancellation writes status=cancelled with no error fields, before sandbox cleanup, then re-raises.\n- Missing TaskRun row raises non-retryable ApplicationError type TaskRunDeletedError; status activity maximum_attempts=3, track_workflow_event 1. Analytics/loop bookkeeping wrapped in try/except so recording never fails the run.",
+  "applies": "process_task workflow runs; not other temporal workflows in products/tasks.",
+  "tags": [
+    "temporal",
+    "tasks",
+    "failure",
+    "status"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/update_task_run_status.py",
+      "symbol": "update_task_run_status",
+      "hash": "sha256:23f825be3c730042cec44557",
+      "line": 59,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "_failure_error_type",
+      "hash": "sha256:0f9e05d0f0911c88af586310",
+      "line": 167,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/error_telemetry.py",
+      "symbol": "truncate_error_message",
+      "hash": "sha256:eaf32239a0bffd13aea174b7",
+      "line": 6,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "ProcessTaskWorkflow._update_task_run_status",
+      "hash": "sha256:940d1eb981dfebcfb1a2d935",
+      "line": 2805,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "a841c6e4-fe41-4cdb-833d-4d8fbb58fc6f"
+  },
+  "created": "2026-09-27T00:19:55.109Z",
+  "verified": "2026-09-27T00:19:55.109Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 8,
+  "related": [
+    "how-task-run-failures-are-recorded",
+    "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+    "follow-up-loop-must-skip-ticks-while-a-push-would-eject-the-",
+    "new-skip-decision-branches-in-tasks-workflows-need-a-workflo"
+  ],
+  "lastUsed": "2026-09-27T06:14:44.740Z",
+  "servedIn": [
+    "17902b5e-665f-4276-998f-410cc6809daf",
+    "afad1150-74a1-4e9a-9a6e-93d48551d352",
+    "73edd0c0-2abf-4ef4-9b8b-e396ba9ebfaf",
+    "2e552557-6ce0-4e96-8d4c-138f629e75bd",
+    "8dfc0d85-c6b3-43c1-96c0-a9420b3bae33",
+    "0fbe9612-b859-4114-81f9-f77383771643",
+    "8b1b8dd1-9274-4c1d-b067-06a9ab20b32c",
+    "3d97abf4-32d2-46d3-be80-5c48d28855a7"
+  ]
+}

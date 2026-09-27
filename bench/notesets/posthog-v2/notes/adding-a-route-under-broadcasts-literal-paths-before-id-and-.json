@@ -1,0 +1,59 @@
+{
+  "id": "adding-a-route-under-broadcasts-literal-paths-before-id-and-",
+  "title": "Adding a route under /broadcasts: literal paths before :id, and products.tsx mirrors manifest",
+  "kind": "invariant",
+  "answers": [
+    "Why does /broadcasts/library open as 'Broadcast not found'?",
+    "How to add a new tab route under /broadcasts",
+    "Broadcasts tab URL resolves as a broadcast id"
+  ],
+  "body": "kea-router matches routes in declaration order, so literal paths under /broadcasts must be listed BEFORE '/broadcasts/:id' or the segment resolves as a broadcast id.\nEnforced in products/workflows/manifest.tsx (routes map: /broadcasts/library, channels, opt-outs, suppression, reputation, new, then :id).\nfrontend/src/products.tsx `productRoutes` and `productUrls` are generated from the manifest; regenerate rather than hand-edit.\nproducts/workflows/frontend/Broadcasts/broadcastsRoutes.test.ts asserts each literal path resolves to the 'Broadcasts' scene and uuid/new to 'Broadcast'; extend it when adding routes.\nUnknown segments like /broadcasts/bogus-tab still fall to :id and show 'Broadcast not found'.",
+  "applies": "products/workflows routing for /broadcasts/* and any scene with a literal-vs-param route mix",
+  "tags": [
+    "routing",
+    "kea-router",
+    "broadcasts",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/manifest.tsx",
+      "hash": "sha256:3bb598fa4e7c25039fd1804f",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/products.tsx",
+      "symbol": "productRoutes",
+      "hash": "sha256:11aa9887c069a88e245a9a8f",
+      "line": 61,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Broadcasts/broadcastsRoutes.test.ts",
+      "hash": "sha256:bf90fb1c0e252ec329f152ce",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105744"
+  },
+  "created": "2026-09-26T23:57:25.459Z",
+  "verified": "2026-09-26T23:57:25.459Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 7,
+  "related": [
+    "adding-a-scene-route-to-a-product-manifest-plus-generated-fi"
+  ],
+  "servedIn": [
+    "40295eae-3d13-4cbb-9471-89b9e10410a6",
+    "aef362ec-1476-47a5-a1bb-4ebb13906ee7",
+    "070540b0-f7fb-4a94-99dc-1d484c7b4d6b",
+    "aa6e2a76-2846-4e4b-92d3-c7f415d38f48",
+    "5e7fd372-cd68-44a7-9ca2-4c2265e30575",
+    "2e9c5e0e-8c55-49dd-8d88-b1af1258e010",
+    "4d474a5e-1000-48c6-99bd-6d78c155539d"
+  ]
+}

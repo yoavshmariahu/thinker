@@ -1,0 +1,56 @@
+{
+  "id": "teamandorgviewsetmixin-scoping-and-permission-enforcement",
+  "title": "TeamAndOrgViewSetMixin: scoping and permission enforcement",
+  "kind": "location",
+  "answers": [
+    "How is team/org scoping enforced in viewsets?",
+    "Which methods can't I override in a viewset?",
+    "What permission classes are applied by default?"
+  ],
+  "body": "`posthog/api/routing.py:TeamAndOrgViewSetMixin` must be the FIRST base class of viewsets.\n- `__init_subclass__` raises if subclass overrides get_queryset/get_object/get_permissions/get_authenticators. Use `safely_get_queryset`, `safely_get_object`, or the `permission_classes` attr; `dangerously_*` variants are escape hatches.\n- get_queryset applies `_filter_queryset_by_parents_lookups` (team_id, or `team__project_id` for project_id; `filter_rewrite_rules` remaps), and `_filter_queryset_by_access_level` on list only.\n- get_permissions chain: IsAuthenticated, APIScopePermission, AccessControlPermission, TeamMemberAccessPermission (or OrganizationMemberPermissions for org views), VerifiedDomainEnforcementPermission, MCPAccessPermission, ActiveOrganizationPermission, then class permission_classes (all in posthog/permissions.py).\n- Set `scope_object` (APIScopeObject in posthog/scopes.py) and optionally `required_scopes`.\n- `initial` sets ContextVar canonical team id for ORM fail-closed scoping (posthog/models/scoping/README.md, TeamScopeError); outside DRF use for_team()/team_scope()/@with_team_scope().\n- Serializers read team via `self.context[\"get_team\"]()`.",
+  "applies": "Viewsets under posthog/api and products using the mixin; permission list partly from a truncated read.",
+  "tags": [
+    "permissions",
+    "scoping",
+    "viewset"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/routing.py",
+      "symbol": "TeamAndOrgViewSetMixin",
+      "hash": "sha256:cc1e197f89d03262aa8e1c4c",
+      "line": 138,
+      "missing": false
+    },
+    {
+      "path": "posthog/permissions.py",
+      "hash": "sha256:ce43dd2061c18e69c595e1e7",
+      "missing": false
+    },
+    {
+      "path": "posthog/scopes.py",
+      "symbol": "APIScopeObject",
+      "hash": "sha256:01bb2212753e82d08faef37b",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/scoping/README.md",
+      "hash": "sha256:34a4d4eee18fe0aaf875e859",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "15f28641-4ca2-42c0-ab18-b767a266712f"
+  },
+  "created": "2026-09-26T20:21:05.979Z",
+  "verified": "2026-09-26T20:21:05.979Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "router-registration-core-vs-product-routes"
+  ]
+}

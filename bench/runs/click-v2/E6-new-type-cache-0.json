@@ -1,0 +1,58 @@
+{
+  "id": "E6-new-type-cache-0",
+  "task": "E6-new-type",
+  "area": "types",
+  "arm": "cache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "171e63c2-b2b2-4547-9bee-006a2601eb51",
+  "turns": 6,
+  "wall_ms": 23577,
+  "api_ms": 22952,
+  "cost": 0.06835380000000002,
+  "in_tokens": 117157,
+  "out_tokens": 2177,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "ToolSearch": 1,
+      "mcp__thinker__orient": 1,
+      "Bash": 2,
+      "Read": 1
+    },
+    "thinkerCalls": 1,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "implementing-a-custom-paramtype-required-members-failure-and",
+      "option-value-pipeline-argv-string-typed-callback-kwarg",
+      "type-to-paramtype-resolution-and-value-conversion-callpath"
+    ]
+  },
+  "grade": {
+    "score": 0.5,
+    "missing": [
+      "Failure mode without the branch: type=timedelta falls to FuncParamType(timedelta) and raises TypeError, not caught as ValueError",
+      "Call sites consuming convert_type (Parameter.__init__, Option.__init__, Tuple, termui.prompt)",
+      "Changes needed in tests/test_info_dict.py (param_type 'Duration') and tests/test_basic.py end-to-end option test",
+      "Import of timedelta alongside datetime at types.py:11; test_imports ALLOWED_IMPORTS needs no change",
+      "Optional DurationInfoDict TypedDict for configurable type",
+      "Docs build with -W; ruff isort ordering placement in __init__ (between DateTime and File)",
+      "Typing tests/strict mypy/pyright considerations",
+      "No changes needed in core.py, termui.py, shell_completion.py, decorators.py",
+      "gettext-wrapped error message convention",
+      "Type-cast of defaults via Parameter.type_cast_value calls convert"
+    ],
+    "wrong": [
+      "Changelog file named CHANGES.rst; the reference says CHANGES.md",
+      "Says __init__ export should go beside UUID (L69); reference says between DateTime (line 58) and File (59) due to sorted order",
+      "Claims 'four places' only, omitting test_info_dict/test_basic and CHANGES.md correctness",
+      "Lists get_metavar as optional for a custom one; okay, but omits that __repr__ is strongly expected by convention (listed only as optional)"
+    ],
+    "reason": "The agent gets the core points right: the convert_type branch before the is_guessed check, the _guess_type side effect, name and convert as the required members, the singleton placement and the docs entries. It misses several files and specifics from the reference: test_info_dict.py, test_basic.py, and the TypeError failure mode. It also names the wrong changelog file (CHANGES.rst instead of CHANGES.md) and gives an imprecise __init__ insertion point. It also downgrades __repr__ to optional. That leaves the main point right but important specifics missing or wrong.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "A built-in `DURATION` type touches four places: `types.py`, `__init__.py`, the docs and the tests.\n\n## Files and symbols to change\n\n**`src/click/types.py`**\n- **New class `DurationParamType(ParamType[timedelta])`**, placed near `DateTime` (L464) or `UUIDParameterType`. Use `datetime.timedelta` as the return type, and add `from datetime import timedelta` if it isn't already imported.\n- **New singleton** next to `UUID` (L1368):\n  ```python\n  #: A duration parameter, e.g. ``1h30m``.\n  #: .. versionadded:: 8.x\n  DURATION: t.Final[DurationParamType] = DurationParamType()\n  ```\n- **Shorthand mapping.** `convert_type` (L1294) has the chain that maps Python types to built-in ParamTypes: `if guessed is int: return INT` at L1313, then float and bool. To give `type=timedelta` a shorthand, add `if guessed is timedelta: return DURATION` there.\n- **Default guessing side effect.** `_guess_type` (L1249) returns `type(default)` when `type=` is omitted. A `timedelta` default would then also resolve to `DURATION`. Today it falls to `if is_guessed: return STRING` at L1322.\n- **Ordering in `convert_type`.** Put the new branch before the `is_guessed` check (L1322).\n- **Explicit type still works.** `type=DURATION` already works through the `ParamType` instance branch (L1307).\n\n**`src/click/__init__.py`**\n- Add `from .types import DURATION as DURATION` beside `UUID` (L69). Export the class only if the other type classes are exported there.\n\n**Docs and changelog**\n- `docs/api.md`: add `.. autodata:: DURATION` near `UUID` (L227).\n- `docs/parameter-types.md`: add a bullet near L123, saying whether it is auto-guessed.\n- `CHANGES.rst`: add an entry.\n\n**`tests/test_types.py`**\n- Cover parsing, invalid input, an already-converted `timedelta` passing through, `param=None` and `ctx=None`, the `type=timedelta` shorthand, and `to_info_dict`.\n\n## Methods the new class must implement\n\n- **`name`** is a class attribute, e.g. `name = \"duration\"`. It is required and is used for the metavar and error text.\n- **`convert(self, value, param, ctx) -> timedelta`** is the only strictly required method.\n  - Return `value` unchanged if it is already a `timedelta`.\n  - Parse strings such as `1h30m` with a regex over `\\d+(\\.\\d+)?[dhms]` units.\n  - On bad input, call `self.fail(..., param, ctx)`, which raises `BadParameter`.\n  - It must work with `param` and `ctx` set to `None`, since prompts call it that way.\n\nOptional overrides:\n- **`get_metavar(param, ctx)`** can return something like `\"DURATION\"`. The default already derives a metavar from `name`, so this is only needed for a custom one.\n- **`to_info_dict()`** is only needed if the type has extra fields. The base version reports `param_type` and `name`.\n- **`__repr__`** returns `\"DURATION\"`, following the other types.\n- **`shell_complete`** and **`split_envvar_value`** are not needed.\n\nThe type is not composite, so leave `is_composite` and `arity` alone.\n\n## Caveats\n- `ParamType.__call__` (L101) already skips `None`, so `convert` never sees `None`.\n- I confirmed the `convert_type` and `_guess_type` locations and the `UUID` export and docs pointers by reading the code. I took the `ParamType` method contract from the cached notes and did not re-read `ParamType` at L42.",
+  "is_error": false
+}

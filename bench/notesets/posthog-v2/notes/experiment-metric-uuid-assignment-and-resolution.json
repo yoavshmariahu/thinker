@@ -1,0 +1,80 @@
+{
+  "id": "experiment-metric-uuid-assignment-and-resolution",
+  "title": "Experiment metric uuid assignment and resolution",
+  "kind": "location",
+  "answers": [
+    "Where are experiment metric uuids assigned?",
+    "How is a metric uuid resolved to a definition?",
+    "How do saved metrics get uuids?"
+  ],
+  "body": "- Assignment: `products/experiments/backend/experiment_service.py:ExperimentService._assign_uuids_to_metrics` fills missing uuids and regenerates duplicates, sharing one uniqueness space across primary, secondary and saved-metric uuids (`_collect_saved_metric_uuids`); `validate_no_duplicate_metric_uuids` enforces it; `_regenerate_all_metric_uuids` is for clone flows.\n- Saved metrics: `experiment_saved_metric_service.py:ExperimentSavedMetricService.normalize_query_for_write` mints uuid on create, pins existing uuid on update and rejects changes. The uuid lives inside `ExperimentSavedMetric.query`.\n- Resolution: `temporal/metric_resolution.py:iter_metric_dicts` / `find_metric_dict` cover inline + saved metrics; saved ones merge per-experiment breakdowns from `ExperimentToSavedMetric.metadata` via `_merge_saved_metric_breakdowns`. `DAILY_TIMESERIES_METRIC_TYPES` = mean/funnel/ratio.",
+  "tags": [
+    "experiments",
+    "uuid",
+    "saved-metrics"
+  ],
+  "deps": [
+    {
+      "path": "products/experiments/backend/experiment_service.py",
+      "symbol": "ExperimentService._assign_uuids_to_metrics",
+      "hash": "sha256:739d466045dd953de7bdc4db",
+      "line": 1712,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/experiment_saved_metric_service.py",
+      "symbol": "ExperimentSavedMetricService.normalize_query_for_write",
+      "hash": "sha256:7a7961ca147a83b5e7d30e99",
+      "line": 130,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/temporal/metric_resolution.py",
+      "symbol": "find_metric_dict",
+      "hash": "sha256:97d46d910dc7dee0ad95fdfb",
+      "line": 84,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/temporal/metric_resolution.py",
+      "symbol": "iter_metric_dicts",
+      "hash": "sha256:ca7ed84cb51cd57f1416a214",
+      "line": 60,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "058f2cfe-013c-4365-b760-41bfce0daccd"
+  },
+  "created": "2026-09-26T20:24:59.957Z",
+  "verified": "2026-09-26T20:24:59.957Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 16,
+  "related": [
+    "experiment-metric-identity-uuid-vs-config-fingerprint",
+    "places-that-must-compute-the-same-metric-fingerprint-saved-v",
+    "map-an-experimentholdout-onto-flag-filters-via-apply-holdout"
+  ],
+  "lastUsed": "2026-09-26T23:34:11.979Z",
+  "servedIn": [
+    "5236f0e8-dfa7-4876-91bb-cce8adfe04ac",
+    "7c625711-0708-4f3b-bb82-483db78692b8",
+    "a3957af3-4ff1-42ac-ba0a-01f196ff67e8",
+    "a1845c80-16a4-421d-b6ef-8aa0d6d2b675",
+    "3f18e863-f78a-4435-8630-b7392695e84f",
+    "09514e22-ccbc-4bf8-8bde-89ed996869da",
+    "9c43ef34-676e-4f6f-8453-8819d5918020",
+    "ffd5d7a2-4585-4abf-82a8-6ebeb4e1eab6",
+    "bc7bdba1-1b39-43a1-acd9-79de7ec24874",
+    "dc57c855-9d09-4ae7-80f5-246632cf3126",
+    "8133243b-fdd5-4c85-abc4-b4e4fa374af0",
+    "7509243b-8859-4cf6-a36d-f2a353754833",
+    "b1480431-e51f-41d1-99be-1bdab52e1970",
+    "d6de17d5-8e0d-4f82-a244-1b3ad814b8b9",
+    "36249c18-3dd5-4db5-aceb-ad444635e403",
+    "9d7cb4d1-d895-491e-920b-ba43d2189f27"
+  ]
+}

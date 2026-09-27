@@ -1,0 +1,89 @@
+{
+  "id": "PR105887-hard-hook-1",
+  "task": "PR105887-hard",
+  "area": "posthog",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "09514e22-ccbc-4bf8-8bde-89ed996869da",
+  "turns": 5,
+  "wall_ms": 27376,
+  "api_ms": 13516,
+  "cost": 0.0878926,
+  "in_tokens": 255294,
+  "out_tokens": 1500,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 3,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "injected": [
+      "experiment-metric-fingerprints-computation-and-call-sites",
+      "experiment-metric-uuid-assignment-and-resolution"
+    ]
+  },
+  "grade": {
+    "score": 0.5,
+    "samples": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "reasons": [
+      "The agent fixed the core discovery fingerprint in _get_experiment_saved_metrics_for_hour_sync, and it matches the merged patch's discovery change. It trusted the request's claim that the chart already resolves through the merged config. In fact the serializer stamps the fingerprint from the raw saved query, and the merged patch fixes that too. Without that fix, the chart would look up the raw hash while the job now stores under the merged hash, so the chart would find nothing for breakdown metrics. The change is in the right direction but incomplete.",
+      "The agent fixed the key location: the discovery job in activities.py now fingerprints the saved query merged with the link's breakdowns, which matches the upstream change there. Upstream also changed the serializer to fingerprint the merged config, and the agent left that untouched. Without it, the chart read for breakdown-configured saved metrics still uses the raw-query hash, so that read path stays inconsistent with the job. The change is in the right direction but incomplete.",
+      "The agent correctly changed the discovery job's fingerprint in _get_experiment_saved_metrics_for_hour_sync to use the saved query merged with the link breakdowns. This is functionally the same as upstream's merge_saved_metric_breakdowns call there. However, upstream also fixed the serializer that stamps the fingerprint the frontend chart reads. The agent left it hashing the raw query, on the assumption that readers already used the merged form. That assumption was wrong for the chart. With the agent's change alone, the job and the chart would use different keys for breakdown metrics, so the fix is incomplete."
+    ],
+    "reason": "The agent fixed the core discovery fingerprint in _get_experiment_saved_metrics_for_hour_sync, and it matches the merged patch's discovery change. It trusted the request's claim that the chart already resolves through the merged config. In fact the serializer stamps the fingerprint from the raw saved query, and the merged patch fixes that too. Without that fix, the chart would look up the raw hash while the job now stores under the merged hash, so the chart would find nothing for breakdown metrics. The change is in the right direction but incomplete.",
+    "mustHit": 1,
+    "mustTotal": 5,
+    "touched": [
+      "posthog/temporal/experiments/activities.py"
+    ],
+    "criteria": {
+      "essential": 0.2,
+      "all": 0.3333333333333333,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "Discovery now fingerprints `metric_with_breakdowns`, which sets `\"breakdowns\": (exp_to_saved_metric.metadata or {}).get(\"breakdowns\") or []` inside `breakdownFilter`. It passes that to `compute_metric_fingerprint` instead of the bare `saved_metric.query`. With breakdowns present, the input differs from the raw query."
+        },
+        {
+          "id": "c2",
+          "verdict": "unclear",
+          "evidence": "The patch inlines its own merge. The reader-side `_merge_saved_metric_breakdowns` in metric_resolution.py is not shown. Byte-equality therefore depends on the two merges producing the same dict shape (key order, breakdownFilter handling, other fields), and I can only check that against the author's claim."
+        },
+        {
+          "id": "c3",
+          "verdict": "unclear",
+          "evidence": "The patch does not touch whatever serializer or API code returns the metric identifier to the frontend with an experiment's saved metrics. That code is not shown, so I can't tell whether it already includes the link's breakdowns."
+        },
+        {
+          "id": "c4",
+          "verdict": "unclear",
+          "evidence": "For a link with no breakdowns, the patch adds `breakdownFilter: {breakdowns: []}` to the fingerprinted dict, where before it was absent. It leaves the hash unchanged only if `compute_metric_fingerprint` strips empty breakdowns. The author cites `_strip_empty_breakdowns`, but that code is not shown."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "`(exp_to_saved_metric.metadata or {}).get(\"breakdowns\") or []` handles None metadata, missing keys and null breakdowns the same as an empty list. This covers the code the patch adds. Other places that build the effective config are not shown."
+        },
+        {
+          "id": "c6",
+          "verdict": "unclear",
+          "evidence": "The patch does not change `_calculate_experiment_saved_metric_sync`. It shows only the start of that function, so I can't confirm it runs the query with breakdowns applied or files results under the fingerprint passed in from discovery. The author's summary says it already merges, but that is a claim."
+        }
+      ]
+    }
+  },
+  "result": "I changed the overnight discovery job so it fingerprints a saved metric the same way the readers do. I haven't run any tests, and I didn't add one.\n\n**The fix:** in `posthog/temporal/experiments/activities.py`, `_get_experiment_saved_metrics_for_hour_sync` used to fingerprint the bare `saved_metric.query`. It now merges in the per-experiment breakdowns from the link (`ExperimentToSavedMetric.metadata[\"breakdowns\"]`) first. That is the same merge the calculation activity already does (`_calculate_experiment_saved_metric_sync`) and the one `_merge_saved_metric_breakdowns` does for the readers.\n\n**Why this fixes it:** the discovery job's fingerprint is passed to the calculation activity, which stores results under it. Before, that fingerprint left out the breakdowns, so results were stored under one key while the timeseries sync, cold-start fallback and results chart looked them up under another. Now both sides use the same key. Saved metrics with breakdowns should be found and published, and the experiment should open without a full recompute.\n\n**Saved metrics without breakdowns:** their fingerprints are unchanged, because an empty `breakdownFilter` already hashes the same as none (`_strip_empty_breakdowns`).\n\nI inlined the merge instead of importing `_merge_saved_metric_breakdowns`. The activities module reaches the experiments code through the facade, and that helper is private to `metric_resolution.py`. The catch is that the merge now lives in three places: the helper, the calculation activity and this discovery function. Making the helper public and exposing it through the facade would fix that, if you want it.",
+  "is_error": false,
+  "diff": "diff --git a/posthog/temporal/experiments/activities.py b/posthog/temporal/experiments/activities.py\nindex fdd32e7e7a6..b0f6b61f59e 100644\n--- a/posthog/temporal/experiments/activities.py\n+++ b/posthog/temporal/experiments/activities.py\n@@ -372,8 +372,16 @@ def _get_experiment_saved_metrics_for_hour_sync(hour: int) -> list[ExperimentSav\n                 )\n                 continue\n \n+            # Readers fingerprint the query merged with the per-experiment breakdowns from the link.\n+            metric_with_breakdowns = {\n+                **saved_metric.query,\n+                \"breakdownFilter\": {\n+                    **(saved_metric.query.get(\"breakdownFilter\") or {}),\n+                    \"breakdowns\": (exp_to_saved_metric.metadata or {}).get(\"breakdowns\") or [],\n+                },\n+            }\n             fingerprint = compute_metric_fingerprint(\n-                saved_metric.query,\n+                metric_with_breakdowns,\n                 experiment.start_date,\n                 get_experiment_stats_method(experiment),\n                 experiment.exposure_criteria,\n",
+  "distill": null
+}

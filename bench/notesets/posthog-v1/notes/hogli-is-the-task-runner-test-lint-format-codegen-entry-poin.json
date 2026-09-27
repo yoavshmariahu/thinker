@@ -1,0 +1,80 @@
+{
+  "id": "hogli-is-the-task-runner-test-lint-format-codegen-entry-poin",
+  "title": "hogli is the task runner: test, lint, format, codegen entry points",
+  "kind": "howto",
+  "answers": [
+    "How do I run a single backend test in posthog?",
+    "How do I run frontend tests?",
+    "What is hogli and where are commands defined?",
+    "How do I run lint/format for python and JS?"
+  ],
+  "body": "- `bin/hogli` is the central runner; commands declared in `hogli.yaml` (impl in `tools/hogli`, `tools/hogli-commands/hogli_commands`).\n- Tests: `hogli test <path>` autodetects pytest/jest/playwright/rust/go. Single test: `hogli test path/to/test.py::Class::test_method`. Variants: `--watch`, `--changed`, `hogli test:python`, `hogli test:js`, `hogli test:e2e`, `hogli test:quarantine` (edits `.test_quarantine.json`).\n- pytest config in `pytest.ini` (DJANGO_SETTINGS_MODULE=posthog.settings, TEST=1, --reuse-db, asyncio_mode=auto).\n- Frontend jest: `pnpm --filter=@posthog/frontend test` (runs `pnpm build:products` first; SHARD_INDEX/SHARD_COUNT sharding).\n- Python lint/format: `hogli lint:python:fix`, `hogli format:python` (ruff via `bin/ruff.sh`, config `[tool.ruff]` in pyproject.toml). Type check: `uv run mypy --cache-fine-grained .` repo-wide (per CLAUDE.md), plus `uv run --no-sync ty check`.\n- JS: oxlint (`.oxlintrc.json`) + oxfmt (`.oxfmtrc.json`); `hogli format:js`; types `pnpm --filter=@posthog/frontend typescript:check` (tsgo --noEmit).\n- Read from configs only; commands were not executed.",
+  "tags": [
+    "testing",
+    "lint",
+    "hogli",
+    "tooling"
+  ],
+  "deps": [
+    {
+      "path": "hogli.yaml",
+      "hash": "sha256:701482cc24d2ef297d1bd18e",
+      "missing": false
+    },
+    {
+      "path": "pytest.ini",
+      "hash": "sha256:7de59197c53007d967ddbe0d",
+      "missing": false
+    },
+    {
+      "path": "frontend/package.json",
+      "hash": "sha256:badec13ec1d8c4367eb4a5a6",
+      "missing": false
+    },
+    {
+      "path": "package.json",
+      "hash": "sha256:aea9121f42bdd80c0a5b6e85",
+      "missing": false
+    },
+    {
+      "path": "CLAUDE.md",
+      "hash": "sha256:b1d09957c9da935bd2719731",
+      "missing": false
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:86acc34ba49ab359119c61fb",
+      "missing": false
+    },
+    {
+      "path": "bin/ruff.sh",
+      "hash": "sha256:43bd7c826faa83eb10c79521",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "0655c45f-8654-4740-ad3c-fddeee2e923d"
+  },
+  "created": "2026-09-26T20:38:56.129Z",
+  "verified": "2026-09-26T20:38:56.129Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 9,
+  "related": [
+    "pre-commit-pre-push-hooks-and-required-codegen"
+  ],
+  "lastUsed": "2026-09-27T00:22:30.329Z",
+  "servedIn": [
+    "fab0dfcc-607d-4c4f-bfc6-277041dd7976",
+    "130f3e97-4b6b-418b-a41f-c582226c1678",
+    "a7d33789-154d-44cb-94f2-61838fb3d7d1",
+    "ba4504c9-f343-4848-8e36-352a336e9503",
+    "c8bc6301-026f-4fbe-b0ed-fd02857e9a68",
+    "b3a4c8cf-7501-496f-860f-248c8ea73720",
+    "1b55c9fc-8144-45a9-a509-f7df7f0ccf59",
+    "8af8e14a-de21-43f9-b6c5-2d5dcfb20b99",
+    "8786d233-8339-4e1e-888e-082ddb5924ff"
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "PR8294-hard-live-0",
+  "task": "PR8294-hard",
+  "area": "net-tls",
+  "arm": "live",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "3a8007e5-0d45-448c-b3b2-02615498e65c",
+  "turns": 4,
+  "wall_ms": 8283,
+  "api_ms": 7777,
+  "cost": 0.07372340000000001,
+  "in_tokens": 73202,
+  "out_tokens": 770,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Read": 1,
+      "Edit": 1,
+      "Bash": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+      "tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same function, is_supported_version in mitmproxy/net/tls.py. It wraps set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False. That is functionally equivalent to the upstream patch. Upstream also wraps Connection creation, but those calls don't raise SSL.Error in practice. The missing changelog entry doesn't affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/tls.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent wrapped set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False, which is functionally equivalent to the upstream fix. Upstream moves those calls, plus Connection creation, into the existing try block. Connection creation isn't the concern here, and the rest of the function's behavior is unchanged.",
+      "The agent changed the same function, is_supported_version in mitmproxy/net/tls.py. It wraps set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False, which matches the upstream behavior. The upstream patch also puts Connection creation inside the try block. That is not needed, because Connection creation doesn't raise here in the relevant case. Only the changelog and the try scope differ, so the behavior is equivalent.",
+      "The agent wrapped set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False. That is functionally equivalent to the upstream patch. Upstream also moves the Connection creation into the try block, but those calls don't raise SSL.Error in this context. Returning False for an unsupported version is the same result upstream gets."
+    ]
+  },
+  "result": "I'll leave the tests alone, since exercising this would need a monkeypatched `SSL.Context`.\n\nI changed `is_supported_version` in `mitmproxy/net/tls.py`. It now wraps the `set_min_proto_version` and `set_max_proto_version` calls in a `try/except SSL.Error` and returns `False` if either raises. On OpenSSL builds that refuse to set a given protocol version, that version is now reported as unsupported instead of crashing. The existing `recv()` probe below it is unchanged.\n\nI didn't run the test suite or add a test.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py\nindex 14c0553ca..e3c6f359a 100644\n--- a/mitmproxy/net/tls.py\n+++ b/mitmproxy/net/tls.py\n@@ -77,8 +77,12 @@ def is_supported_version(version: Version):\n     # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n     # https://github.com/pyca/cryptography/issues/9523\n     client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n-    client_ctx.set_min_proto_version(version.value)\n-    client_ctx.set_max_proto_version(version.value)\n+    try:\n+        client_ctx.set_min_proto_version(version.value)\n+        client_ctx.set_max_proto_version(version.value)\n+    except SSL.Error:\n+        # Some OpenSSL builds refuse to set certain protocol versions.\n+        return False\n     client_conn = SSL.Connection(client_ctx)\n     client_conn.set_connect_state()\n \n",
+  "distill": "attest  confirmed    supported-tls-version-detection-and-warnings-lru-cache-gotch → c=85%\nattest  unused       tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne → c=85%\nattest  unused       python-test-lint-typecheck-commands-tox-in-pyproject-run-via → c=80%\ndistilled 5 events (2 exploration calls) → 0 new, 0 merged; cost $0.034\n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same function, is_supported_version in mitmproxy/net/tls.py. It wraps set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False. That is functionally equivalent to the upstream patch. Upstream also wraps Connection creation, but those calls don't raise SSL.Error in practice. The missing changelog entry doesn't affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/tls.py"
+    ]
+  }
+}

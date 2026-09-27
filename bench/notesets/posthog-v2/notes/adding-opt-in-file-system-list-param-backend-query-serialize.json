@@ -1,0 +1,52 @@
+{
+  "id": "adding-opt-in-file-system-list-param-backend-query-serialize",
+  "title": "Adding opt-in file_system list param: backend query serializer, generated schema, and terminal mocks move together",
+  "kind": "cochange",
+  "answers": [
+    "include_content_type parameter file system API",
+    "Files API meta.content_type missing in tests",
+    "Why does file_system list validate query params explicitly?"
+  ],
+  "body": "`include_content_type` on the file_system list endpoint (posthog/api/file_system/file_system.py) is validated by a BooleanField query serializer (invalid values return 400), which also supplies the OpenAPI schema. Explicit validation is used because the query-only validated_request decorator would replace the ModelViewSet list-response inference (responses=None) and cause an operation-ID collision.\nContent-type enrichment must key by each row's team (short IDs can collide across environments) and check backing-object viewer access via entries_missing_access_level using the backing object's creator; denied objects get neutral `application/json`.\nChange together: file_system.py, frontend/src/generated/core/api.schemas.ts (FileSystemListParams), terminal callers, and mocks/stories that must now include `meta.content_type` (TerminalScene.stories.tsx, posthogFilesystem.test.ts).",
+  "applies": "posthog/api/file_system/file_system.py list endpoint and terminal consumers",
+  "tags": [
+    "file-system",
+    "openapi",
+    "permissions"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/file_system/file_system.py",
+      "hash": "sha256:cf49f0f847648fa6cfec4983",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/generated/core/api.schemas.ts",
+      "symbol": "FileSystemListParams",
+      "hash": "sha256:57e11f83880a21036b2c1446",
+      "line": 5355,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/TerminalScene.stories.tsx",
+      "hash": "sha256:5cfba108a04ea4897d1ee1b9",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/posthogFilesystem.test.ts",
+      "hash": "sha256:ac500d9907428d1713be9af5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105711"
+  },
+  "created": "2026-09-26T23:58:17.968Z",
+  "verified": "2026-09-26T23:58:17.968Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

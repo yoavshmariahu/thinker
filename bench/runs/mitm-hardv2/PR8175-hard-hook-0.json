@@ -1,0 +1,66 @@
+{
+  "id": "PR8175-hard-hook-0",
+  "task": "PR8175-hard",
+  "area": "addons-dump",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "613e8f82-86fe-4bbb-b540-25570a14941e",
+  "turns": 8,
+  "wall_ms": 18951,
+  "api_ms": 17835,
+  "cost": 0.125255,
+  "in_tokens": 182759,
+  "out_tokens": 1815,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 7
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "injected": [
+      "mitmdump-flow-printing-is-the-dumper-addon-response-error-ho",
+      "building-sending-the-upstream-connect-and-forming-the-author"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added the same `http_connect_error` hook handler to Dumper, with the same match check and echo_flow call as the merged patch. It is functionally identical. The added test is a reasonable equivalent.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/dumper.py",
+      "test/mitmproxy/addons/test_dumper.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent added the same `http_connect_error` handler to Dumper in dumper.py. It uses the same `match` check and calls `echo_flow`, exactly as the merged patch does. The added test is also reasonable.",
+      "The agent added Dumper.http_connect_error in mitmproxy/addons/dumper.py. It has the same match check and echo_flow call as the merged patch, so it behaves the same. The added test is also reasonable.",
+      "The agent added a `http_connect_error` handler to `Dumper` in `mitmproxy/addons/dumper.py`. It checks `self.match(f)` and calls `self.echo_flow(f)`, the same as the merged patch. The added test covers the same behavior."
+    ]
+  },
+  "result": "Failed CONNECT requests should now show up in mitmdump. I haven't run the tests, so the fix and the new test are untested.\n\n**Cause:** a failed CONNECT doesn't fire the `error` hook that `Dumper` already listens to. In `mitmproxy/proxy/layers/http/__init__.py`, `handle_connect_finish` fires `HttpConnectErrorHook` (`http_connect_error`) when the CONNECT response isn't 2xx. `Dumper` had no handler for that hook, so nothing was printed. The unreachable-host case sets a 502 response, and `flow.error` isn't guaranteed to be set, which is why `error` doesn't cover it.\n\n**Change:** I added `Dumper.http_connect_error` in `mitmproxy/addons/dumper.py`. It applies the same `match` check as the other handlers, so `flow_detail=0` and flow filters still work. It then calls `echo_flow`, which prints the CONNECT request line and the failure response line (e.g. 502). It also prints the error line if `flow.error` happens to be set.\n\n**Test:** I added `test_http_connect_error` in `test/mitmproxy/addons/test_dumper.py`. It checks that a CONNECT flow with a 502 response is printed at `flow_detail=1`, and that nothing is printed at `flow_detail=0`.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/dumper.py b/mitmproxy/addons/dumper.py\nindex ea7569064..8a4d46a94 100644\n--- a/mitmproxy/addons/dumper.py\n+++ b/mitmproxy/addons/dumper.py\n@@ -294,6 +294,11 @@ class Dumper:\n         if self.match(f):\n             self.echo_flow(f)\n \n+    def http_connect_error(self, f: http.HTTPFlow) -> None:\n+        # Failed CONNECT requests trigger this hook instead of `error`.\n+        if self.match(f):\n+            self.echo_flow(f)\n+\n     def websocket_message(self, f: http.HTTPFlow):\n         assert f.websocket is not None  # satisfy type checker\n         if self.match(f):\ndiff --git a/test/mitmproxy/addons/test_dumper.py b/test/mitmproxy/addons/test_dumper.py\nindex 7adf4e86e..c8a80455b 100644\n--- a/test/mitmproxy/addons/test_dumper.py\n+++ b/test/mitmproxy/addons/test_dumper.py\n@@ -96,6 +96,24 @@ def test_simple():\n         sio.truncate(0)\n \n \n+def test_http_connect_error():\n+    sio = io.StringIO()\n+    d = dumper.Dumper(sio)\n+    with taddons.context(d) as ctx:\n+        ctx.configure(d, flow_detail=1)\n+        f = tflow.tflow(resp=True)\n+        f.request.method = \"CONNECT\"\n+        f.response.status_code = 502\n+        d.http_connect_error(f)\n+        assert \"CONNECT\" in sio.getvalue()\n+        assert \"502\" in sio.getvalue()\n+        sio.truncate(0)\n+\n+        ctx.configure(d, flow_detail=0)\n+        d.http_connect_error(f)\n+        assert not sio.getvalue()\n+\n+\n def test_echo_body():\n     f = tflow.tflow(resp=True)\n     f.response.headers[\"content-type\"] = \"text/html\"\n",
+  "distill": null,
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added the same `http_connect_error` hook handler to Dumper, with the same match check and echo_flow call as the merged patch. It is functionally identical. The added test is a reasonable equivalent.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/dumper.py",
+      "test/mitmproxy/addons/test_dumper.py"
+    ]
+  }
+}

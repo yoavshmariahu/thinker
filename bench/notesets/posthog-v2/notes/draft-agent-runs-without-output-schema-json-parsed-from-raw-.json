@@ -1,0 +1,61 @@
+{
+  "id": "draft-agent-runs-without-output-schema-json-parsed-from-raw-",
+  "title": "Draft agent runs without output_schema; JSON parsed from raw text",
+  "kind": "gotcha",
+  "answers": [
+    "Why does the support draft not send output_schema?",
+    "Draft poll fails with 'no agent message'",
+    "How is the draft JSON parsed from the agent reply?"
+  ],
+  "body": "The support draft calls `MultiTurnSession.start_raw` with no `output_schema` in `products/conversations/backend/temporal/ai_reply/activities/draft.py:_draft_async`.\n- With a schema set, storing the output completes the task run before an agent message reaches the log, so the poll fails with \"no agent message\". Do not restore `output_schema` on the draft.\n- Parsing is `_parse_draft`. It takes the last JSON object in the text that validates as `SupportReplyDraft`, so example or ticket JSON before the answer is ignored.\n- If the first turn has no draft JSON, `_draft_from_session` sends one follow-up (`_DRAFT_JSON_NUDGE`) with `_DRAFT_NUDGE_POLL_SECONDS`. The first poll plus two nudge polls must fit in the activity's 20 minute start_to_close timeout.\n- Confidence 0–1 coercion still guards bad scores. The other one-shot model calls keep their JSON schemas.\n- Handling stays in `products/conversations`. Do not change the shared runner in `products/tasks`, which would affect other callers.",
+  "applies": "support reply draft activity and its use of MultiTurnSession from the tasks facade",
+  "tags": [
+    "draft",
+    "multiturnsession",
+    "output_schema",
+    "parsing"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_parse_draft",
+      "hash": "sha256:78a03c99859f120b00671770",
+      "line": 65,
+      "missing": false
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_draft_from_session",
+      "hash": "sha256:4a73c2839f265c623658cb84",
+      "line": 110,
+      "missing": false
+    },
+    {
+      "path": "products/conversations/backend/temporal/tests/test_pipeline.py",
+      "symbol": "TestDraftWithoutJson",
+      "hash": "sha256:707e0ee56fe39b8f891a89f9",
+      "line": 2129,
+      "missing": false
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_draft_async",
+      "hash": "sha256:bf4bdbd3ced84fc013fc1878",
+      "line": 232,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105707"
+  },
+  "created": "2026-09-26T23:58:30.341Z",
+  "verified": "2026-09-26T23:58:30.341Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "support-draft-activity-must-return-a-blocked-draft-on-its-la"
+  ]
+}

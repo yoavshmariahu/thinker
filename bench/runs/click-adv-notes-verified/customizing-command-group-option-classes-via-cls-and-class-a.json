@@ -1,0 +1,82 @@
+{
+  "id": "customizing-command-group-option-classes-via-cls-and-class-a",
+  "title": "Customizing Command/Group/Option classes via cls and class attributes",
+  "kind": "howto",
+  "answers": [
+    "How can the Command class be customized?",
+    "How do I make @group.command() use a custom Command class?",
+    "What do command_class and group_class do?"
+  ],
+  "body": "- `@click.command(cls=MyCommand, **attrs)`: `cls` replaces `Command` in `decorators.py:command`; extra attrs go to `MyCommand.__init__`. Likewise `@option(cls=MyOption)`, `@argument(cls=MyArgument)`.\n- `cls` cannot be combined with the bare `@command` form (assert in `command`).\n- `core.py:Group.command_class` / `Group.group_class` are defaults injected into `kwargs['cls']` by `Group.command` / `Group.group` when caller passes none (~core.py:1779, 1828). `group_class = type` means subgroups use the parent group's own class.\n- `core.py:Command.context_class` (class attr) selects the Context class used in `Command.make_context`.",
+  "tags": [
+    "customization",
+    "group",
+    "command_class",
+    "context_class"
+  ],
+  "deps": [
+    {
+      "path": "src/click/decorators.py",
+      "symbol": "command",
+      "hash": "sha256:8c38f37f6f8249e9618431ad",
+      "line": 137,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Group",
+      "hash": "sha256:ef81ae0965042f42da408f48",
+      "line": 1601,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command",
+      "hash": "sha256:dfd5a28c5949f4452444ff21",
+      "line": 956,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "hash": "sha256:6eade0e7a2ff938f1d0a156e",
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "hash": "sha256:6eade0e7a2ff938f1d0a156e",
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Group.command",
+      "hash": "sha256:a94e9b9b841c569d46d717f6",
+      "line": 1720,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Group.group",
+      "hash": "sha256:a9897767c3ee5c2e40fe579f",
+      "line": 1792,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.make_context",
+      "hash": "sha256:d5c3af4569981818abe92adf",
+      "line": 1280,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "05b822d5-2d22-4654-a10d-4c2cd75578ae"
+  },
+  "created": "2026-09-26T09:13:50.497Z",
+  "verified": "2026-09-26T09:35:03.697Z",
+  "verifiedCommit": "33a9ddb796d2c662a6c2f45eb9ef53fad85f33e6",
+  "confidence": 0.8500000000000001,
+  "status": "fresh",
+  "uses": 7,
+  "lastUsed": "2026-09-26T09:29:25.273Z"
+}

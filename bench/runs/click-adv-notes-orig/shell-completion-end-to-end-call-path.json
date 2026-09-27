@@ -1,0 +1,84 @@
+{
+  "id": "shell-completion-end-to-end-call-path",
+  "title": "Shell completion end-to-end call path",
+  "kind": "callpath",
+  "answers": [
+    "How does click shell completion work end to end?",
+    "Where is a completion request detected at runtime?",
+    "How are completion candidates produced for commands, options and params?"
+  ],
+  "body": "Detection: core.py:Command.main → self._main_shell_completion(extra, prog_name, complete_var) runs BEFORE make_context/invoke; default complete_var is `_{PROG_NAME}_COMPLETE` (upper, `-`/`.`→`_`). Value format `{shell}_{instruction}` e.g. `bash_source`, `bash_complete`.\nDispatch: shell_completion.py:shell_complete(cli, ctx_args, prog_name, complete_var, instruction) picks a ShellComplete subclass (comp_cls) and runs `source` (prints script) or `complete` (prints candidates).\nScript templates in shell_completion.py use %(complete_var)s/%(prog_name)s (bash/zsh/fish); user installs by eval'ing the program's `source` output (click never writes to disk).\nCandidate resolution: shell_completion.py:_resolve_context / _resolve_incomplete (ends returning `ctx.command` or a param plus incomplete) → then obj.shell_complete(ctx, incomplete):\n- core.py:Command.shell_complete: option names if incomplete starts with non-alnum; skips hidden and already-given non-multiple options; also chained-group sibling commands.\n- core.py:Group.shell_complete: subcommands via _complete_visible_commands + super().\n- core.py:Parameter.shell_complete: uses custom `shell_complete` callback (str results wrapped in CompletionItem) else type.shell_complete.\n- types.py:ParamType.shell_complete default; overridden in Choice/File/Path etc.",
+  "tags": [
+    "shell-completion",
+    "core"
+  ],
+  "deps": [
+    {
+      "path": "src/click/shell_completion.py",
+      "symbol": "shell_complete",
+      "hash": "sha256:cabce06989517cbb09367454",
+      "line": 19,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.main",
+      "hash": "sha256:1be7083a9c79955a9edc633b",
+      "line": 1436,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.shell_complete",
+      "hash": "sha256:5fa69b6cd98873ea370dfbfb",
+      "line": 1369,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Group.shell_complete",
+      "hash": "sha256:06411bd98ea0236a79d9ed3a",
+      "line": 2044,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.shell_complete",
+      "hash": "sha256:60a6a6df659f4a391e530e05",
+      "line": 2781,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.shell_complete",
+      "hash": "sha256:9ca87facc87df021d4f28849",
+      "line": 166,
+      "missing": false
+    },
+    {
+      "path": "src/click/shell_completion.py",
+      "symbol": "_resolve_context",
+      "hash": "sha256:df75f4a081338bb535fcb5ed",
+      "line": 599,
+      "missing": false
+    },
+    {
+      "path": "src/click/shell_completion.py",
+      "symbol": "super",
+      "hash": "sha256:0650bdfca8ed25bca411479a",
+      "line": 368,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "b73dd615-daa5-4f14-b87f-272519356210"
+  },
+  "created": "2026-09-26T09:13:03.300Z",
+  "verified": "2026-09-26T09:13:03.300Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 19,
+  "lastUsed": "2026-09-26T09:34:24.820Z"
+}

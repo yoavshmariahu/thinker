@@ -1,0 +1,39 @@
+{
+  "id": "PR8295-rerank-1",
+  "task": "PR8295",
+  "area": "next-layer",
+  "arm": "rerank",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "b618516d-be92-402a-9ba5-e1198fe19313",
+  "turns": 5,
+  "wall_ms": 25446,
+  "api_ms": 14318,
+  "cost": 0.053059800000000004,
+  "in_tokens": 121440,
+  "out_tokens": 1260,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 4
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to the UDP branch of `_get_client_hello` in next_layer.py is identical to the merged upstream code. It gates the QUIC parse on `_starts_like_quic` and the DTLS parse on `starts_like_dtls_record`. The agent added no tests or changelog entry, which doesn't affect the score.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py"
+    ]
+  },
+  "result": "I changed `_get_client_hello` in `mitmproxy/addons/next_layer.py` so QUIC flows no longer stall when `allow_hosts` or `ignore_hosts` is set. I haven't run the tests or added a new one.\n\nThe UDP branch used to try to parse every payload as QUIC and then DTLS. On the empty payload left after the QUIC handshake, the DTLS parse hit the `NeedsMoreData` path and aborted `_next_layer`, and it did so on every retry.\n\nEach parser now runs only if the data looks like that protocol, which matches the TCP branch:\n- **QUIC:** `_starts_like_quic(data_client, context.server.address)` gates the QUIC parse.\n- **DTLS:** `starts_like_dtls_record(data_client)` gates the DTLS parse.\n\nData that looks like neither returns `None`, so the ignore check moves on to the other hostname sources such as `context.client.sni`.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..614957808 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,19 +320,21 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n-\n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                if _starts_like_quic(data_client, context.server.address):\n+                    try:\n+                        return quic_parse_client_hello_from_datagrams([data_client])\n+                    except ValueError:\n+                        pass\n+\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\n"
+}

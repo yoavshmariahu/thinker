@@ -1,0 +1,183 @@
+{
+  "id": "option-value-pipeline-argv-string-typed-callback-kwarg",
+  "title": "Option value pipeline: argv string -> typed callback kwarg",
+  "kind": "callpath",
+  "answers": [
+    "How does --count 3 become an int in the callback?",
+    "Where do type conversion, defaults and envvar lookup happen in click?",
+    "What is the call order from Command.main to the callback?"
+  ],
+  "body": "NOTE (kind=callpath) \"Option value pipeline: argv string -> typed callback kwarg\"\nFlow (src/click):\n- core.py:Command.main -> Command.make_context -> Command.parse_args (drives parsing + per-param processing).\n- core.py:Command.make_parser -> Option.add_to_parser registers each param with parser.py's option parser; parser.py:parse_args / _process_args_for_options / _process_opts / _match_long_opt / _match_short_opt / _get_value_from_state pull raw strings; parser.py:_Option.process stores raw value in state.opts[dest] (actions store/append/count; count just increments an int).\n- Back in parse_args, params are handled in order from core.py:iter_params_for_processing; each calls Parameter.handle_parse_result -> consume_value (source order: command line, then envvar via resolve_envvar_value, then default_map/Context.lookup_default, then get_default) -> process_value -> type_cast_value.\n- Type conversion: types.py:ParamType.__call__ (skips None) -> ParamType.convert; for int: types.py:_NumberParamTypeBase.convert calls _number_class(value), fail() on ValueError.\n- Envvar: core.py:Parameter.resolve_envvar_value; Option.resolve_envvar_value adds fallback to auto_envvar_prefix + '__' + NAME (double underscore).\n- Defaults: core.py:Parameter.get_default / Option.get_default; no type cast at get_default time (8.0.2), cast happens later in process_value.\n- Callback: Command.invoke -> Context.invoke(callback, **ctx.params).",
+  "tags": [
+    "parsing",
+    "options",
+    "type-conversion",
+    "envvar",
+    "defaults"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.parse_args",
+      "hash": "sha256:874c5eafcf31b241b415f105",
+      "line": 1317,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Option.resolve_envvar_value",
+      "hash": "sha256:f7b33979de637e1af1ba861e",
+      "line": 3399,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.get_default",
+      "hash": "sha256:8a0bbf08616eb70101ed53a0",
+      "line": 2382,
+      "missing": false
+    },
+    {
+      "path": "src/click/parser.py",
+      "symbol": "_Option.process",
+      "hash": "sha256:e0674a77c8689ac45ebd2bee",
+      "line": 169,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "_NumberParamTypeBase",
+      "hash": "sha256:0e46e58f5731f5984e278ab6",
+      "line": 535,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType",
+      "hash": "sha256:febe780b5e16e608e37af329",
+      "line": 42,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.main",
+      "hash": "sha256:2c27cfde0606b79dcdf81f1a",
+      "line": 1416,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.make_parser",
+      "hash": "sha256:7056b19dd40c61b650999de8",
+      "line": 1178,
+      "missing": false
+    },
+    {
+      "path": "src/click/parser.py",
+      "symbol": "parse_args",
+      "hash": "sha256:f23274339a9f2e3aa793b2d5",
+      "line": 298,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "iter_params_for_processing",
+      "hash": "sha256:72d9fddbda7dc25b251d5124",
+      "line": 138,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.__call__",
+      "hash": "sha256:e46eee7c575869f0f081f80e",
+      "line": 101,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "hash": "sha256:d47837f5fe6839d052752441",
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.resolve_envvar_value",
+      "hash": "sha256:39504f490966f3e6ee332316",
+      "line": 2616,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.make_context",
+      "hash": "sha256:d5c3af4569981818abe92adf",
+      "line": 1280,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Option.add_to_parser",
+      "hash": "sha256:baf2754b34861833bfca4e10",
+      "line": 3181,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.handle_parse_result",
+      "hash": "sha256:9d3c653533675ba267d75acc",
+      "line": 2677,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.convert",
+      "hash": "sha256:6541614ee831dc25fddc65f9",
+      "line": 121,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "fail",
+      "hash": "sha256:7cb5ce0d8b9a438fd4474e65",
+      "line": 803,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Option.get_default",
+      "hash": "sha256:4af089478c55bfba3ea56dbe",
+      "line": 3081,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.invoke",
+      "hash": "sha256:9d8bd919375536ad83f022b2",
+      "line": 1353,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.invoke",
+      "hash": "sha256:f17ebf91c64247e878e8c0e2",
+      "line": 845,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "642c5c7d-890b-4f66-9759-2a74e61906ca"
+  },
+  "created": "2026-09-26T09:12:19.146Z",
+  "verified": "2026-09-26T09:35:45.944Z",
+  "verifiedCommit": "33a9ddb796d2c662a6c2f45eb9ef53fad85f33e6",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 16,
+  "lastUsed": "2026-09-26T09:36:23.089Z",
+  "history": [
+    {
+      "at": "2026-09-26T09:35:45.944Z",
+      "reason": "The envvar template in Option.resolve_envvar_value has changed from single to double underscore. The current code shows `f\"{ctx.auto_envvar_prefix}__{self.name.upper()}\"` but the note claims it uses `auto_envvar_prefix + '_' + NAME`. This is a concrete technical detail that changed.",
+      "prevBody": "Flow (src/click):\n- core.py:Command.main -> Command.make_context -> Command.parse_args (drives parsing + per-param processing).\n- core.py:Command.make_parser -> Option.add_to_parser registers each param with parser.py's option parser; parser.py:parse_args / _process_args_for_options / _process_opts / _match_long_opt / _match_short_opt / _get_value_from_state pull raw strings; parser.py:_Option.process stores raw value in state.opts[dest] (actions store/append/count; count just increments an int).\n- Back in parse_args, params are handled in order from core.py:iter_params_for_processing; each calls Parameter.handle_parse_result -> consume_value (source order: command line, then envvar via resolve_envvar_value, then default_map/Context.lookup_default, then get_default) -> process_value -> type_cast_value.\n- Type conversion: types.py:ParamType.__call__ (skips None) -> ParamType.convert; for int: types.py:_NumberParamTypeBase.convert calls _number_class(value), fail() on ValueError.\n- Envvar: core.py:Parameter.resolve_envvar_value; Option.resolve_envvar_value (~l.3399) adds fallback to auto_envvar_prefix + '_' + NAME.\n- Defaults: core.py:Parameter.get_default / Option.get_default; no type cast at get_default time (8.0.2), cast happens later in process_value.\n- Callback: Command.invoke -> Context.invoke(callback, **ctx.params)."
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "tables-read-directly-by-pre-aggregation-sql-must-be-in-the-p",
+  "title": "Tables read directly by pre-aggregation SQL must be in the pytest ClickHouse schema",
+  "kind": "cochange",
+  "answers": [
+    "Test fails because web_pre_aggregated_teams table does not exist",
+    "Adding a ClickHouse table to posthog/clickhouse/schema.py and the schema snapshot",
+    "test_schema.ambr snapshot update for a new table"
+  ],
+  "body": "The job now reads `web_pre_aggregated_teams` directly, so its CREATE statement, WEB_PRE_AGGREGATED_TEAM_SELECTION_TABLE_SQL, was added to the table list in posthog/clickhouse/schema.py.\nposthog/clickhouse/test/__snapshots__/test_schema.ambr also needed matching `test_create_table_query[...]` and `test_create_table_query_replicated_and_storage[...]` entries.\nAny SQL that reads a table in tests needs it registered in schema.py, and the snapshot must be regenerated alongside.",
+  "applies": "Adding or newly depending on a ClickHouse table in test environments",
+  "tags": [
+    "clickhouse",
+    "tests",
+    "schema-snapshot"
+  ],
+  "deps": [
+    {
+      "path": "posthog/clickhouse/schema.py",
+      "hash": "sha256:096ef5cf621aec9637cf4836",
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/test/__snapshots__/test_schema.ambr",
+      "hash": "sha256:8cef5275f9a6e040bc81992c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105406"
+  },
+  "created": "2026-09-27T00:03:44.027Z",
+  "verified": "2026-09-27T00:03:44.027Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

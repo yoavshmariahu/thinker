@@ -1,0 +1,66 @@
+{
+  "id": "PR8294-hard-hook-0",
+  "task": "PR8294-hard",
+  "area": "net-tls",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "a9d729ef-e67c-4e29-990f-76a18f3b52b9",
+  "turns": 3,
+  "wall_ms": 6715,
+  "api_ms": 6293,
+  "cost": 0.07012900000000001,
+  "in_tokens": 72772,
+  "out_tokens": 578,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Read": 1,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 0,
+    "injected": [
+      "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+      "tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent wrapped set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False, so the version is treated as unsupported. This is functionally equivalent to the upstream patch. Upstream also wraps the Connection setup in the try block, but those calls don't raise SSL.Error in practice. The missing changelog and test don't affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/tls.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent wrapped set_min/max_proto_version in try/except SSL.Error and returns False, in the same function as the upstream fix. This is functionally equivalent to the merged patch. The upstream patch also wraps Connection creation, but that call doesn't raise for this case. The remaining difference is the changelog entry, which doesn't affect behavior.",
+      "The agent wrapped set_min/max_proto_version in try/except SSL.Error and returned False. This is functionally equivalent to the upstream patch, which moves those calls into the existing try block. Upstream's existing handler for SSL.Error presumably returns False, so the behavior is the same.",
+      "The agent wrapped set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False, which is the same as the merged patch's behavior. The merged patch puts more calls inside the try block, but SSL.Connection creation and set_connect_state don't raise here, and the existing handler for recv is unchanged. Behavior is equivalent."
+    ]
+  },
+  "result": "I changed `is_supported_version` in `mitmproxy/net/tls.py`. It now returns `False` when setting the min or max protocol version raises `SSL.Error`, instead of crashing. Some OpenSSL builds reject versions they were compiled without, so those versions are now reported as unsupported.\n\nI didn't add a test or run the suite. A test would need to force `set_min_proto_version` to raise, and I didn't write one.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py\nindex 14c0553ca..d914857de 100644\n--- a/mitmproxy/net/tls.py\n+++ b/mitmproxy/net/tls.py\n@@ -77,8 +77,12 @@ def is_supported_version(version: Version):\n     # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n     # https://github.com/pyca/cryptography/issues/9523\n     client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n-    client_ctx.set_min_proto_version(version.value)\n-    client_ctx.set_max_proto_version(version.value)\n+    try:\n+        client_ctx.set_min_proto_version(version.value)\n+        client_ctx.set_max_proto_version(version.value)\n+    except SSL.Error:\n+        # Some OpenSSL builds reject versions they were compiled without.\n+        return False\n     client_conn = SSL.Connection(client_ctx)\n     client_conn.set_connect_state()\n \n",
+  "distill": null,
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent wrapped set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False, so the version is treated as unsupported. This is functionally equivalent to the upstream patch. Upstream also wraps the Connection setup in the try block, but those calls don't raise SSL.Error in practice. The missing changelog and test don't affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/tls.py"
+    ]
+  }
+}

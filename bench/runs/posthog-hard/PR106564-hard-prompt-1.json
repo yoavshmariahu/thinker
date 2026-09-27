@@ -1,0 +1,93 @@
+{
+  "id": "PR106564-hard-prompt-1",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "prompt",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "8f6c8ab4-f192-427f-967e-00a4b0e8f2c8",
+  "turns": 20,
+  "wall_ms": 79467,
+  "api_ms": 45389,
+  "cost": 0.3771758,
+  "in_tokens": 1158131,
+  "out_tokens": 4173,
+  "tools": {
+    "calls": 19,
+    "byTool": {
+      "Bash": 19
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 19,
+    "injected": []
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty and made no functional change. It failed to locate the existing stable_chunks.py module and the esbuilder code that the merged patch modifies, so the request was not achieved.",
+      "The agent's patch is empty, so it made no functional change and the requested feature-flag-driven stable chunk serving is not implemented.",
+      "The agent's patch is empty. It made no functional change and did not locate posthog/stable_chunks.py, where the existing opt-in lives. The request is not achieved."
+    ],
+    "reason": "The agent's patch is empty and made no functional change. It failed to locate the existing stable_chunks.py module and the esbuilder code that the merged patch modifies, so the request was not achieved.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "The patch is empty; no flag-based decision of the served build exists."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "The patch is empty; no logic gating enrolment on login exists."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "The patch is empty; no code handles a missing flag value in a stable-build decision. The author found no stable build code."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "The patch is empty. The author reports that no query-parameter opt-in for the stable build was found in the checkout."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "The patch is empty; no cookie or stored choice is set, and there is no 30-day expiry."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "The patch is empty; nothing links the deciding flag value to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "The patch is empty; no runtime-failure reload handling exists for a stable build."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "The patch is empty; nothing removes the query parameter from the address."
+        }
+      ]
+    }
+  },
+  "result": "I made no code change, because I couldn't find the stable chunk build or its query-parameter opt-in anywhere in this checkout (HEAD `a3b3c3685bc`).\n\nI searched the repo for \"stable chunk\" and its variants, and for any query parameter or `location.search` handling in the page-serving path. I also checked the Django template and page-context code, the esbuild build files (`frontend/build.mjs`, `common/esbuilder/`), `frontend/src/index.html` and the frontend entry point. None of them has it. The closest existing pieces are:\n- `common/esbuilder/chunkLoader.mjs`, which serves the chunk map as a hashed static file.\n- `_resolve_entry_assets` in `posthog/utils.py`, which handles preload hints.\n- The only request-parameter switch in that path is `no-preloaded-app-context`.\n\nThe change you describe probably sits on a branch or PR that isn't in this worktree. Implementing it here would mean inventing the opt-in and the stable build from scratch, and I'd likely conflict with the real one.\n\nHere is the shape I'd use once I know where the opt-in lives:\n1. **Feature flag:** add a multivariate flag such as `stable-chunk-build`, registered in `frontend/src/lib/constants.tsx`. Set it to a 50/50 rollout for the experiment, with LCP as the metric.\n2. **Server-side decision:** the flag is evaluated server-side in `_build_template_context`, next to the existing `get_all_flags` bootstrap. The stable build is served if the manual query parameter is present, or if the user is authenticated and the flag evaluates to the test variant. Anonymous users skip flag evaluation, so they are never enrolled.\n3. **Exposure:** the flag is read from the bootstrapped flags on the page, so exposure is recorded from the flag evaluation itself.\n4. **Test:** a Python test for the decision, covering parameter on, flag on, flag off, and anonymous.\n\nCan you point me to the branch or PR, or to the file and parameter name of the current opt-in? With that I can implement it as described.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

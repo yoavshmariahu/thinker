@@ -1,0 +1,46 @@
+{
+  "id": "PR8196-hook-0",
+  "task": "PR8196",
+  "area": "utils",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "da738cda-debb-41cd-b862-80d49eb0224a",
+  "turns": 5,
+  "wall_ms": 9817,
+  "api_ms": 9254,
+  "cost": 0.07569379999999999,
+  "in_tokens": 72842,
+  "out_tokens": 956,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Read": 1,
+      "Bash": 1,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to strutils.py is identical to the merged patch: `range(100, min(104, len(s)))`. The existing for-else fallback to `s[:100]` handles the case where every byte in the window is a continuation byte. The added regression test uses the same inputs (lengths 101–103) and also asserts non-binary, which is correct because the first 100 bytes are ASCII. Only the changelog is missing, and that doesn't matter here.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ]
+  },
+  "result": "I capped the lookahead loop in `is_mostly_bin` at the input length, so short tails no longer raise `IndexError`. I haven't run the tests, per your instructions.\n\n- **Fix:** in `mitmproxy/utils/strutils.py`, `range(100, 104)` is now `range(100, min(104, len(s)))`. When every byte in the shortened window is a continuation byte, the loop finishes without a break. The existing `for … else` then falls back to `s[:100]`.\n- **Test:** in `test/mitmproxy/utils/test_strutils.py`, `test_is_mostly_bin` now checks `b\"a\" * 100 + b\"\\x80\" * n` for n = 1, 2, 3, which are lengths 101–103. Each is expected to be non-binary. The first 100 bytes are plain ASCII, so the fallback slice classifies them as text.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..9c5cb7273 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -132,7 +132,7 @@ def is_mostly_bin(s: bytes) -> bool:\n     # Cut off at ~100 chars, but do it smartly so that if the input is UTF-8, we don't\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n-        for cut in range(100, 104):\n+        for cut in range(100, min(104, len(s))):\n             is_continuation_byte = (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..3f299d5e8 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,9 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # short tails must not read past the end of the input\n+    for n in (1, 2, 3):\n+        assert not strutils.is_mostly_bin(b\"a\" * 100 + b\"\\x80\" * n)\n \n \n def test_is_xml():\n"
+}

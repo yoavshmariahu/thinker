@@ -1,0 +1,98 @@
+{
+  "id": "PR106564-hard-hook-0",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "hook",
+  "rep": 0,
+  "model": "opus",
+  "session": "62dcccb3-560a-43e1-9b25-218ef0c70e4c",
+  "turns": 61,
+  "wall_ms": 333005,
+  "api_ms": 305264,
+  "cost": 3.9617120000000003,
+  "in_tokens": 5151164,
+  "out_tokens": 14433,
+  "tools": {
+    "calls": 60,
+    "byTool": {
+      "Bash": 51,
+      "Read": 9
+    },
+    "thinkerCalls": 0,
+    "filesRead": 6,
+    "greps": 51,
+    "injected": [
+      "feature-flag-gated-scene-flashes-404-before-flags-load",
+      "map-an-experimentholdout-onto-flag-filters-via-apply-holdout"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent patch is empty, so no functional change was made and the request is not achieved.",
+      "The agent patch is empty, so it made no functional change and does not implement the requested feature-flag rollout.",
+      "The agent produced an empty patch and made no functional change, so the requested feature-flag-driven A/B enrollment is not implemented."
+    ],
+    "reason": "The agent patch is empty, so no functional change was made and the request is not achieved.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "The patch is empty; no flag-based enrolment logic exists."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no change, so no flag-based logic or logged-in gating was added."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag handling was added, so this behaviour is not shown."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch; the request says the query parameter exists today, but precedence over flag isn't implemented since no flag path exists."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch; nothing shown that makes a stored choice outrank a flag, or expire after about 30 days."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch; the flag value is not passed to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no reload handling was shown or added."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no parameter removal from the address was added, and the surrounding code is not available."
+        }
+      ]
+    }
+  },
+  "is_error": true,
+  "diff": "",
+  "distill": null
+}

@@ -1,0 +1,93 @@
+{
+  "id": "PR106564-hard-nocache-2",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "nocache",
+  "rep": 2,
+  "model": "sonnet",
+  "session": "c2632f10-3a6f-473e-a612-b8ec2b08140a",
+  "turns": 20,
+  "wall_ms": 72590,
+  "api_ms": 42861,
+  "cost": 0.47703720000000005,
+  "in_tokens": 1082655,
+  "out_tokens": 4049,
+  "tools": {
+    "calls": 19,
+    "byTool": {
+      "Bash": 19
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 19,
+    "injected": []
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty, so it made no functional change. The upstream patch modifies the existing posthog/stable_chunks.py, which the agent failed to find. The agent's search did not surface it. It therefore did not implement flag-based enrollment of logged-in users.",
+      "The agent produced an empty patch, claiming the stable chunk build did not exist. The merged patch modifies posthog/stable_chunks.py and posthog/utils.py, which already hold the stable chunks code. No functional change was made, so the request is not achieved.",
+      "The agent's patch is empty and made no functional change. It wrongly concluded the stable chunk feature was absent and did not implement the feature-flag gating in stable_chunks.py and utils.py."
+    ],
+    "reason": "The agent's patch is empty, so it made no functional change. The upstream patch modifies the existing posthog/stable_chunks.py, which the agent failed to find. The agent's search did not surface it. It therefore did not implement flag-based enrollment of logged-in users.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag-based selection of the stable build exists."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag logic. Nothing gates anonymous users on a flag (stable build not present at all per author)."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-driven behaviour was added. Pages render only the single current build, but the requested handling of missing flags is not implemented."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch; author states no query parameter opt-in exists in this checkout."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no remembered choice (cookie ~30 days) implemented."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag value is tied to build selection or analytics bootstrap for this purpose."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no runtime-failure reload handling for a stable build."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no query parameter stripping added."
+        }
+      ]
+    }
+  },
+  "result": "I haven't changed anything, because the stable chunk build this task refers to doesn't exist in this checkout, so I have nothing to gate.\n\nI searched the repo for it under several names and found nothing:\n- **Search terms:** \"stable chunk\", \"stable build\", \"stableChunks\", a `stable=` query parameter, and `chunk` in the templates and Django views.\n- **Build and serving code:** `frontend/build.mjs`, `common/esbuilder/utils.mjs`, `common/esbuilder/chunkLoader.mjs`, `frontend/vite.config.mts`, `posthog/utils.py` and `posthog/templates/`.\n- **Git history:** `git log --grep=chunk`, checked against `master`, which is the only branch here.\n\nWhat does exist is a single build. It emits content-hashed chunks (`chunk-[name]-[hash].js`) and a hashed chunk map file. `copyIndexHtml` bakes an inline loader into `dist/index.html`, and `posthog/utils.py` adds preload hints for it (`_resolve_entry_assets`, `preload_js_urls`). Nothing reads a query parameter to pick between two builds, and there is no second build output.\n\nThe likeliest explanation is that the stable chunk build, with its query-parameter opt-in, is in an unmerged PR or a branch that isn't in this worktree. If that's right, I need one of these:\n- the branch or PR that adds it, so I can rebase onto it and add the flag check;\n- confirmation that you want me to build the stable chunk build here too.\n\nThe second is a much larger change. It means a second esbuild output with stable chunk names, a way for the loader to choose between the two, and the opt-in parameter. I'd rather not guess at its design.\n\nOnce the build exists, the flag change itself is small:\n- **Decision:** in `_build_template_context` in `posthog/utils.py`, serve the stable build when the query parameter is set, or when the user is logged in and a feature flag (name to be agreed) evaluates true for their distinct ID.\n- **Existing flag data:** the code already has that user's flags in `posthog_bootstrap[\"featureFlags\"]`.\n- **Anonymous users:** they skip the flag check, so they're never enrolled.\n- **Test:** I'd add one to `posthog/test/test_utils.py` covering the parameter, an enrolled user, a non-enrolled user, and an anonymous user.\n- **A/B setup:** the 50% rollout, the LCP metric and the experiment itself get configured in PostHog, not in code.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

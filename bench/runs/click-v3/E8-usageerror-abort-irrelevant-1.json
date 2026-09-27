@@ -1,0 +1,45 @@
+{
+  "id": "E8-usageerror-abort-irrelevant-1",
+  "task": "E8-usageerror-abort",
+  "area": "exceptions",
+  "arm": "irrelevant",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "8e6c3f86-50f6-4cd9-a4f0-3b371722dffb",
+  "turns": 3,
+  "wall_ms": 11141,
+  "api_ms": 10751,
+  "cost": 0.034732200000000005,
+  "in_tokens": 65035,
+  "out_tokens": 1055,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "Context attachment via augment_usage_errors in Context.invoke (ctx=None case)",
+      "Exact stderr string for UsageError including hint using longest help name",
+      "Abort output is just 'Aborted!' with no leading blank line (implied but not stated explicitly)",
+      "Context teardown ordering and SystemExit mechanics",
+      "Detail that KeyboardInterrupt inside prompt/confirm is already converted to Abort in termui"
+    ],
+    "wrong": [
+      "Minor: the answer cites Command.main at core.py:1417 (that is the overload; the def is at 1436)",
+      "Minor: the answer says 'This uses ClickException.show's format', while UsageError.show emits the Error line itself"
+    ],
+    "reason": "The answer gets all the main facts right. UsageError is caught at core.py:1518 and exits 2. Abort is caught at 1543, prints 'Aborted!' and exits 1. KeyboardInterrupt is caught at 1515, echoes a newline, and re-raises Abort, which the outer handler catches, so the output is '\\nAborted!\\n' and the exit code is 1. The line numbers match the reference. The omissions are secondary details, and the errors are small.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "All three are handled in `Command.main` at `src/click/core.py:1417`. The try block is at lines 1501–1547.\n\n**`click.UsageError`**\n- It is caught by `except ClickException as e` at `core.py:1518`, since `UsageError` subclasses `ClickException`.\n- In standalone mode it calls `e.show()` and then `sys.exit(e.exit_code)` (`core.py:1521-1522`).\n- `UsageError.show` (`exceptions.py:87`, `UsageError.show`) writes to stderr. The output is the usage line, then `Try '<cmd> --help' for help.` if a help option exists, then a blank line, then `Error: <message>`. This uses `ClickException.show`'s `\"Error: {message}\"` format.\n- The exit code is 2, from `UsageError.exit_code` (`exceptions.py:77`). A plain `ClickException` uses 1 (`exceptions.py:39`).\n- Outside standalone mode, the exception is re-raised.\n\n**`click.Abort`**\n- It is caught by the outer `except Abort:` at `core.py:1543`. The inner handlers don't match it, so it propagates out of the inner try.\n- In standalone mode it echoes `Aborted!` to stderr (`core.py:1546`) and calls `sys.exit(1)` (`core.py:1547`).\n- Outside standalone mode, it is re-raised.\n\n**Plain `KeyboardInterrupt`** (`EOFError` is handled the same way)\n- It is caught by the inner `except (EOFError, KeyboardInterrupt) as e:` at `core.py:1515`.\n- The handler first echoes an empty line (a bare newline) to stderr (`core.py:1516`). It then does `raise Abort() from e` (`core.py:1517`).\n- That `Abort` is caught by the outer `except Abort:` at `core.py:1543`, because the raise sits inside the outer try.\n- The result is the same as a direct `Abort`. The output is a newline followed by `Aborted!`, and the exit code is 1.\n- In non-standalone mode, the `Abort` is re-raised, not the original `KeyboardInterrupt`.\n\nThe usage error exits with 2. `Abort` and `KeyboardInterrupt` both exit with 1.",
+  "is_error": false,
+  "diff": null
+}

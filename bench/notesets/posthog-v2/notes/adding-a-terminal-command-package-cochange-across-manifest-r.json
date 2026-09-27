@@ -1,0 +1,51 @@
+{
+  "id": "adding-a-terminal-command-package-cochange-across-manifest-r",
+  "title": "Adding a terminal command package: cochange across manifest, README, story, and pinned assets commit",
+  "kind": "cochange",
+  "answers": [
+    "How do I add a new command to the PostHog terminal?",
+    "Where are on-demand terminal packages like doom, sl, figlet defined?",
+    "Why did terminal-packages.json baseUrl change?"
+  ],
+  "body": "Adding an on-demand terminal command touches several places together:\n- frontend/src/scenes/terminal/terminal-packages.json: a new entry under packages with name, version, file (archives/<name>-<ver>-linux-i386.tar.gz), sha256, size, archiveSize, dependencies, and commands (command -> /opt/posthog-packages/<name>-<ver>/bin/<cmd>).\n- The same file's baseUrl is pinned to a PostHog/terminal-assets commit SHA (not a branch). It must be bumped to the commit that publishes the new archives, which must already be on terminal-assets main.\n- frontend/src/scenes/terminal/posthogFilesystem.ts: the mounted README text must list the new commands and their exit controls.\n- frontend/src/scenes/terminal/TerminalScene.stories.tsx: optionally add a live story (see LiveDoom/LiveClassics).\nPackages download on first use, so nothing is added to boot download.",
+  "applies": "frontend/src/scenes/terminal package manifest and README when adding or updating commands",
+  "tags": [
+    "terminal",
+    "packages",
+    "v86"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/terminal/terminal-packages.json",
+      "hash": "sha256:abc2624f9835636b6c04eb5a",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/posthogFilesystem.ts",
+      "hash": "sha256:4faec1accb7d516c4d3d7f6c",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/TerminalScene.stories.tsx",
+      "symbol": "LiveClassics",
+      "hash": "sha256:068142179d1aa33ddbedd1a3",
+      "line": 393,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105606"
+  },
+  "created": "2026-09-27T00:01:17.458Z",
+  "verified": "2026-09-27T00:01:17.458Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "live-runtime-terminal-stories-must-be-excluded-from-tests",
+    "adding-an-optional-terminal-tool-manifest-entry-drives-mount",
+    "terminal-filesystem-listings-must-never-fetch-notebook-insig"
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "id": "build-output-naming-must-stay-in-sync-with-server-preload-ma",
+  "title": "Build-output naming must stay in sync with server (preload manifest, hashing, publicPath)",
+  "kind": "invariant",
+  "answers": [
+    "What must stay in sync between esbuild output and Django?",
+    "Why does the build throw 'preload-manifest.json field resolved empty'?",
+    "What breaks if I change hash format or entry names?"
+  ],
+  "body": "- `writePreloadManifest` (frontend/build.mjs) writes dist/preload-manifest.json keys `css`,`font`,`js`,`authenticatedJs`; `_read_preload_manifest` (posthog/utils.py) reads exactly these. Change both together.\n- It finds entries by source path: src/index.tsx, src/scenes/App.tsx, src/scenes/AuthenticatedShell.tsx (src/sharedChunkAnchors.ts also an entry); CSS regex `/\\/index(-[^./-]+)?\\.css$/`, font `/\\/Inter(-[^./-]+)?\\.woff2$/`. Renames that empty a field make the build throw deliberately. Only chunks >50KB (`PRELOAD_MIN_CHUNK_BYTES`) get preloads.\n- URLs are `static/<rel to dist>` prefixed by JS_URL: requires `STATIC_URL='/static/'` and `publicPath:'/static'` in `commonConfig` (common/esbuilder/utils.mjs).\n- Names: entryNames `[dir]/[name]-[hash]` prod / unhashed dev; chunkNames `[name]-[hash]`; assetNames `assets/[name]-[hash]`. `createHashlessEntrypoints` regex `/-([A-Z0-9]+).(js|css)$/` makes unhashed fallback used by `copyIndexHtml`; `chunkMapFileName` in common/esbuilder/chunkLoader.mjs writes `chunk-map-<entry>-<HASH8>.js`.\n- `copyIndexHtml` injects `<script nonce=\"{{ request.csp_nonce }}\">` → CSPMiddleware must set it.\n- `isDev`=`--dev` argv: no hashes/manifest; Python mirrors via DEBUG. Manifest is process-cached, so dist must not change under a running server.",
+  "tags": [
+    "frontend",
+    "build",
+    "esbuild",
+    "manifest"
+  ],
+  "deps": [
+    {
+      "path": "frontend/build.mjs",
+      "symbol": "writePreloadManifest",
+      "hash": "sha256:632aa45587aecd6755a931ea",
+      "line": 111,
+      "missing": false
+    },
+    {
+      "path": "posthog/utils.py",
+      "symbol": "_read_preload_manifest",
+      "hash": "sha256:1f8bcf3e831173175248c1a8",
+      "line": 445,
+      "missing": false
+    },
+    {
+      "path": "common/esbuilder/utils.mjs",
+      "symbol": "copyIndexHtml",
+      "hash": "sha256:12685859b64c1fa568d3bb8c",
+      "line": 71,
+      "missing": false
+    },
+    {
+      "path": "common/esbuilder/chunkLoader.mjs",
+      "symbol": "chunkMapFileName",
+      "hash": "sha256:f755f03e1f869ff4426b1dbc",
+      "line": 15,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/sharedChunkAnchors.ts",
+      "hash": "sha256:1a7a747e224d0bce09db637a",
+      "missing": false
+    },
+    {
+      "path": "rust/cohort-stream-processor/src/store/durability/manifest.rs",
+      "symbol": "json",
+      "hash": "sha256:45b13c44a7709c5045125ff6",
+      "line": 100,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "56b36f43-cd94-43ec-8082-2753133d1527"
+  },
+  "created": "2026-09-27T00:25:59.127Z",
+  "verified": "2026-09-27T00:25:59.127Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "stale",
+  "uses": 6,
+  "related": [
+    "how-django-picks-which-frontend-build-assets-to-serve-debug-",
+    "chunk-map-file-and-preload-manifest",
+    "frontend-build-esbuild-config-chunk-naming-index-html-genera",
+    "self-update-must-match-the-generated-installers-receipt-loca"
+  ],
+  "servedIn": [
+    "2de383db-5d63-43c9-9226-cd2cf77e2c10",
+    "aa0facb4-3469-4ea0-a240-86f0eb879eca",
+    "4d1906e5-79ec-4b4b-a088-06d0c30914e3",
+    "28603e98-37bf-447a-8663-6a7c6b802c85",
+    "01de268d-b79f-4536-878a-05cd626d33e6",
+    "14bdd8ea-719f-4bca-937b-f2b36407619a",
+    "2e9c5e0e-8c55-49dd-8d88-b1af1258e010"
+  ],
+  "stale": {
+    "since": "2026-09-27T06:28:56.508Z",
+    "changed": [
+      {
+        "path": "frontend/build.mjs",
+        "symbol": "writePreloadManifest",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "common/esbuilder/utils.mjs",
+        "symbol": "copyIndexHtml",
+        "reason": "symbol body changed"
+      }
+    ]
+  }
+}

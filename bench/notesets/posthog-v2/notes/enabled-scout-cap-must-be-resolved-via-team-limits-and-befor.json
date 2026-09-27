@@ -1,0 +1,81 @@
+{
+  "id": "enabled-scout-cap-must-be-resolved-via-team-limits-and-befor",
+  "title": "Enabled-scout cap must be resolved via team_limits and before any transaction/row lock",
+  "kind": "invariant",
+  "answers": [
+    "How is the max enabled scouts per project determined?",
+    "Where do I change the enabled scout limit for a project?",
+    "Why can't I read the signals-scout flag inside transaction.atomic in scout config writes?"
+  ],
+  "body": "The enabled-scout ceiling is NOT the constant `MAX_ENABLED_SCOUTS_PER_TEAM` (limits.py) at enforcement points; it is resolved via `scout_harness/team_limits.py`: `resolve_max_enabled_scouts(layers)` (layers already held) or `max_enabled_scouts_for_team(canonical_team_id)` (one flag read). Order: `team_configs[project]` -> `default_team_config` -> constant, key `max_enabled_scouts` in the `signals-scout` payload.\nInvalid values (None, 0, negative, float, str, bool) fall through to the next layer; a flag read failure yields the constant, never 0.\nEnforcement points that must all use it: `views._reject_if_enabled_cap_reached(..., cap=)`, `views.create_scout_for_source`, config `create`/`partial_update`, `config_registry.register_missing_configs`, and `SignalScoutConfig.transition_status_by_system` in models.py.\nResolve the cap BEFORE `transaction.atomic()` (flag read = network); locked callers pass the resolved value down (`max_enabled_scouts=` kwarg on `transition_status_by_system`, `reconcile_operational_configs`, `_resume_operational_config`).\nMetadata `limits.max_enabled_scouts` (ScoutLimitsSerializer) must report the same resolver's value.",
+  "applies": "products/signals scout_harness config write paths, auto-registration, system resume, metadata endpoint",
+  "tags": [
+    "signals",
+    "scouts",
+    "feature-flag",
+    "locking"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/scout_harness/team_limits.py",
+      "symbol": "resolve_max_enabled_scouts",
+      "hash": "sha256:7a28cda0d44e550fe20420d4",
+      "line": 318,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/team_limits.py",
+      "symbol": "max_enabled_scouts_for_team",
+      "hash": "sha256:660b0c8c16f80ec838f4e64c",
+      "line": 339,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/views.py",
+      "symbol": "_reject_if_enabled_cap_reached",
+      "hash": "sha256:74ed6b736e0efb8a691b848d",
+      "line": 2397,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/models.py",
+      "symbol": "SignalScoutConfig.transition_status_by_system",
+      "hash": "sha256:01d1d0373139a47a99f295a2",
+      "line": 2590,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/config_registry.py",
+      "symbol": "register_missing_configs",
+      "hash": "sha256:1fd76cb548f9516f3fe61703",
+      "line": 186,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/limits.py",
+      "hash": "sha256:f5fab53b2e7da0967f626482",
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/views.py",
+      "symbol": "create_scout_for_source",
+      "hash": "sha256:6197ddedfb4694759380538e",
+      "line": 2515,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105682"
+  },
+  "created": "2026-09-26T23:59:40.499Z",
+  "verified": "2026-09-26T23:59:40.499Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "lowering-the-enabled-scout-cap-pauses-nothing-tests-patch-th",
+    "adding-a-field-to-scout-team-limits-touches-resolver-datacla"
+  ]
+}

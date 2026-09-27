@@ -1,0 +1,48 @@
+{
+  "id": "PR105887-prompt-0",
+  "task": "PR105887",
+  "area": "posthog",
+  "arm": "prompt",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "9c819a7f-ed2a-4cc6-afe5-5aa08adfe408",
+  "turns": 9,
+  "wall_ms": 19088,
+  "api_ms": 16800,
+  "cost": 0.2821726,
+  "in_tokens": 464098,
+  "out_tokens": 1799,
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "Bash": 8
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 7,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.5,
+    "samples": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "reasons": [
+      "The agent fixed the daily discovery in activities.py, which is the core writer-side fix and matches upstream. The upstream patch also fixed the serializer stamp so the chart read uses the merged fingerprint. The agent left that unchanged. The serializer previously matched the raw-query writer, so after the agent's change the chart read no longer finds the daily rows for saved metrics with real breakdowns. The timeseries sync and cold-start paths are fixed. The fix is in the right direction but incomplete.",
+      "The agent correctly fixed the daily discovery to fingerprint the merged config, which matches the core upstream change in activities.py and fixes the timeseries sync and cold-start readers. However, upstream also fixed the serializer stamp, which the agent left hashing the raw saved query. The chart read would therefore look up a hash different from what the daily job now writes for breakdown-configured saved metrics. The fix is in the right direction but incomplete.",
+      "The agent fixed the daily discovery, which is the main writer-side bug. Discovery now hashes the merged config, so it matches the timeseries sync and cold-start readers. The merged patch also fixes the serializer stamp, which hashed the raw saved query. The frontend chart read uses that stamp. With only the discovery change, the stamped fingerprint still differs from the one the daily job writes under, so the chart read misses the rows for breakdown-configured saved metrics. The fix is in the right direction but incomplete."
+    ],
+    "reason": "The agent fixed the daily discovery in activities.py, which is the core writer-side fix and matches upstream. The upstream patch also fixed the serializer stamp so the chart read uses the merged fingerprint. The agent left that unchanged. The serializer previously matched the raw-query writer, so after the agent's change the chart read no longer finds the daily rows for saved metrics with real breakdowns. The timeseries sync and cold-start paths are fixed. The fix is in the right direction but incomplete.",
+    "mustHit": 1,
+    "mustTotal": 5,
+    "touched": [
+      "posthog/temporal/experiments/activities.py"
+    ]
+  },
+  "result": "I changed the saved-metric discovery in `posthog/temporal/experiments/activities.py` so the daily job fingerprints the same config the readers do. I did not run any tests and did not add one.\n\n**What changed:** the daily discovery used to hash `saved_metric.query` as stored, without the per-experiment breakdowns. It now hashes `_merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata)`. That helper is in `products/experiments/backend/temporal/metric_resolution.py` and is the same merge the timeseries sync, the cold-start fallback and the metric-execution activity use. I added an import of it to `activities.py`.\n\n**Why this fixes it:** the writer and the readers now hash the same config, so results filed for a saved metric with breakdowns are found under the hash the readers look up. The empty-breakdowns case from the earlier fix still hashes the same way.\n\nI made no test changes, so this fix has no regression test yet. A natural one would build an experiment with a saved-metric link that has real breakdowns. It would check that the fingerprint from discovery equals the one `timeseries_sync` computes.",
+  "is_error": false,
+  "diff": "diff --git a/posthog/temporal/experiments/activities.py b/posthog/temporal/experiments/activities.py\nindex fdd32e7e7a6..409c6901916 100644\n--- a/posthog/temporal/experiments/activities.py\n+++ b/posthog/temporal/experiments/activities.py\n@@ -39,6 +39,7 @@ from products.experiments.backend.models.experiment import (\n     Experiment,\n     ExperimentMetricResult as ExperimentMetricResultModel,\n )\n+from products.experiments.backend.temporal.metric_resolution import _merge_saved_metric_breakdowns\n from products.experiments.stats.shared.statistics import StatisticError\n \n logger = structlog.get_logger(__name__)\n@@ -373,7 +374,7 @@ def _get_experiment_saved_metrics_for_hour_sync(hour: int) -> list[ExperimentSav\n                 continue\n \n             fingerprint = compute_metric_fingerprint(\n-                saved_metric.query,\n+                _merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata),\n                 experiment.start_date,\n                 get_experiment_stats_method(experiment),\n                 experiment.exposure_criteria,\n",
+  "distill": null
+}

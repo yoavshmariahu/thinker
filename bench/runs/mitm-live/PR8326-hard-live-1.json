@@ -1,0 +1,66 @@
+{
+  "id": "PR8326-hard-live-1",
+  "task": "PR8326-hard",
+  "area": "proxy-http",
+  "arm": "live",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "d3baff78-3811-4c2b-84f9-761b1ea25a2f",
+  "turns": 4,
+  "wall_ms": 9263,
+  "api_ms": 8702,
+  "cost": 0.07777700000000001,
+  "in_tokens": 96421,
+  "out_tokens": 844,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 2,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "building-sending-the-upstream-connect-and-forming-the-author",
+      "upstream-proxy-mode-layer-composition-and-mode-selection",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same place as the merged patch, `HttpUpstreamProxy.start_handshake`. It detects IPv6 literals with `ipaddress.ip_address` and brackets them in the authority. Hostnames and IPv4 addresses keep the IDNA encoding. The Host header reuses the same authority, so it is bracketed too. This matches the merged behavior. The agent did not add a test or a changelog entry, which does not affect the score.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the same place as the merged patch, `HttpUpstreamProxy.start_handshake`. It detects IPv6 literals with `ipaddress.ip_address` and builds `[host]:port`. Non-IPv6 hosts keep the IDNA-encoded path. The Host header reuses the same authority, so it is bracketed as well. This is functionally equivalent to the upstream patch. The agent did not add a test or a changelog entry, which doesn't affect the score.",
+      "The agent changed the same place as the merged patch, `HttpUpstreamProxy.start_handshake`. It detects IPv6 with `ipaddress.ip_address`, brackets the host as `[host]:port`, and keeps IDNA encoding for other hosts. The `Host` header reuses the same authority, so it is bracketed too. This is functionally equivalent to the merged patch. Only the test and changelog are missing, which don't affect the score.",
+      "The agent changed the same place as the merged patch, `HttpUpstreamProxy.start_handshake`. It detects IPv6 literals with `ipaddress` and brackets them as `[host]:port`. Other hosts keep the IDNA encoding. The `Host` header reuses the same authority, so it is bracketed too. Behavior matches the merged patch. The agent skipped the changelog and test, which don't affect the score."
+    ]
+  },
+  "result": "In upstream proxy mode, the CONNECT authority now brackets IPv6 literals, so a target of `::1` port 443 is sent as `[::1]:443` instead of `::1:443`. I haven't run the tests or added one.\n\nThe change is in `HttpUpstreamProxy.start_handshake` in `mitmproxy/proxy/layers/http/_upstream_proxy.py`. It checks the host with `ipaddress.ip_address`. If the host is IPv6, the authority is `[host]:port`. Hostnames and IPv4 addresses keep the previous behaviour (IDNA-encoded host plus `:port`).\n\nThe `Host` header, when `http_connect_send_host_header` is set, reuses the same authority, so it is bracketed too.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/proxy/layers/http/_upstream_proxy.py b/mitmproxy/proxy/layers/http/_upstream_proxy.py\nindex f40b26ce6..8e670f2dd 100644\n--- a/mitmproxy/proxy/layers/http/_upstream_proxy.py\n+++ b/mitmproxy/proxy/layers/http/_upstream_proxy.py\n@@ -1,3 +1,4 @@\n+import ipaddress\n import time\n from logging import DEBUG\n \n@@ -50,9 +51,15 @@ class HttpUpstreamProxy(tunnel.TunnelLayer):\n             return (yield from super().start_handshake())\n         assert self.conn.address\n         flow = http.HTTPFlow(self.context.client, self.tunnel_connection)\n-        authority = (\n-            self.conn.address[0].encode(\"idna\") + f\":{self.conn.address[1]}\".encode()\n-        )\n+        host, port = self.conn.address\n+        try:\n+            is_ipv6 = ipaddress.ip_address(host).version == 6\n+        except ValueError:\n+            is_ipv6 = False\n+        if is_ipv6:\n+            authority = f\"[{host}]:{port}\".encode()\n+        else:\n+            authority = host.encode(\"idna\") + f\":{port}\".encode()\n         headers = http.Headers()\n         if self.context.options.http_connect_send_host_header:\n             headers.insert(0, b\"Host\", authority)\n",
+  "distill": "attest  confirmed    building-sending-the-upstream-connect-and-forming-the-author → c=85%\nattest  unused       upstream-proxy-mode-layer-composition-and-mode-selection → c=80%\nattest  unused       python-test-lint-typecheck-commands-tox-in-pyproject-run-via → c=56%\ndistilled 6 events (3 exploration calls) → 0 new, 0 merged; cost $0.034\n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same place as the merged patch, `HttpUpstreamProxy.start_handshake`. It detects IPv6 literals with `ipaddress.ip_address` and brackets them in the authority. Hostnames and IPv4 addresses keep the IDNA encoding. The Host header reuses the same authority, so it is bracketed too. This matches the merged behavior. The agent did not add a test or a changelog entry, which does not affect the score.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+    ]
+  }
+}

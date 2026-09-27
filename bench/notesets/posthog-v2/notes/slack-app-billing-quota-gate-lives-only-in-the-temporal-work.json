@@ -1,0 +1,72 @@
+{
+  "id": "slack-app-billing-quota-gate-lives-only-in-the-temporal-work",
+  "title": "Slack app billing quota gate lives only in the Temporal workflow",
+  "kind": "gotcha",
+  "answers": [
+    "Where is AI credits quota enforced for Slack mentions?",
+    "Is there a webhook-level quota check in slack_app api.py?",
+    "Why is post_quota_exhausted_denial in api.py?"
+  ],
+  "body": "Quota: `PostHogCodeSlackMentionWorkflow.run` runs `enforce_posthog_code_billing_quota_activity` (activities/billing.py) as the first activity, before the classifier (no LLM spend when over quota). It calls `block_if_team_over_quota` (posthog/temporal/ai/slack_app/helpers.py) -> `is_team_limited(..., QuotaResource.AI_CREDITS)`. Re-run after `classify_slack_app_project_route_activity` if the project switches.\nOn block, `post_quota_exhausted_denial` in products/slack_app/backend/api.py posts `QUOTA_EXHAUSTED_MESSAGE`; the temporal layer is the only side allowed to import `ee.billing`.\nThe workflow comment claims a webhook-level short-circuit in api.py, but grep found none, only the denial helper.",
+  "applies": "Applies to the PostHog Code Slack mention workflow; other Slack surfaces (DMs) not examined.",
+  "tags": [
+    "slack",
+    "billing"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/ai/slack_app/posthog_code_slack_mention.py",
+      "symbol": "PostHogCodeSlackMentionWorkflow",
+      "hash": "sha256:1c6e42c5d7ac2034a5fe48ac",
+      "line": 49,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/activities/billing.py",
+      "symbol": "enforce_posthog_code_billing_quota_activity",
+      "hash": "sha256:b658f040fbac70590d6c42c9",
+      "line": 8,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/helpers.py",
+      "symbol": "block_if_team_over_quota",
+      "hash": "sha256:75ec409d3dd47e2ad1edc435",
+      "line": 13,
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/api.py",
+      "symbol": "post_quota_exhausted_denial",
+      "hash": "sha256:abf417545a61e64b31796806",
+      "line": 268,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/posthog_code_slack_mention.py",
+      "symbol": "PostHogCodeSlackMentionWorkflow.run",
+      "hash": "sha256:647f5511ddbbe9a7fccca2b0",
+      "line": 72,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "42d88004-4889-4694-be0c-0150e5f2e201"
+  },
+  "created": "2026-09-27T00:25:05.473Z",
+  "verified": "2026-09-27T00:25:05.473Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "slack-app-untagged-thread-follow-up-decision-pipeline-webhoo",
+    "slack-app-temporal-workflows-and-activities"
+  ],
+  "servedIn": [
+    "dae3994c-821b-4590-b55d-a12fda3d03e4",
+    "935dec57-ba8d-4e31-9b6a-25dacfbe2e3d",
+    "9c933025-37f3-48d5-a938-05d64dd2de3d"
+  ]
+}

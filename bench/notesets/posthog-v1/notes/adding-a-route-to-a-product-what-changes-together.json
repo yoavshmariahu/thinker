@@ -1,0 +1,60 @@
+{
+  "id": "adding-a-route-to-a-product-what-changes-together",
+  "title": "Adding a route to a product: what changes together",
+  "kind": "cochange",
+  "answers": [
+    "What do I edit when adding a page route to a product?",
+    "Do I need to regenerate products.tsx after editing manifest?",
+    "What else changes when adding a backend endpoint?"
+  ],
+  "body": "Frontend page: in `products/<name>/manifest.tsx` edit together: `routes` entry ['SceneName','sceneKey'], `scenes` entry (name must match tuple[0]; has lazy import), `urls` builder (path identical to route; use combineUrl), optional `redirects`, optional `treeItems*`. Then rerun `frontend/build-products.mjs` and commit regenerated products.tsx / productScenes.tsx / products.json. New icon/enum imports go into products.tsx by hand. Hyphenated routes hit semgrep rule `frontend-route-hyphen` (existing ones use nosemgrep).\nBackend: viewset + register in routes.py; then `hogli build:openapi` to regenerate TS/MCP types.\nNot verified: how the server serves SPA paths, or `frontend/bin/build-app-url-manifest.mjs`.",
+  "applies": "Products with manifest.tsx; step ordering for treeItems assumes schema-general.ts types match.",
+  "tags": [
+    "products",
+    "cochange",
+    "routes"
+  ],
+  "deps": [
+    {
+      "path": "frontend/build-products.mjs",
+      "hash": "sha256:a9595a1a2c673277b07f3e4f",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/types.ts",
+      "symbol": "ProductManifest",
+      "hash": "sha256:0a81ee977df59f5aaff2965c",
+      "line": 7899,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/manifest.tsx",
+      "hash": "sha256:a621b956b569705e2b388f66",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "3a3272a0-af54-45ee-b4ca-e751f6a7ee0e"
+  },
+  "created": "2026-09-26T20:20:11.665Z",
+  "verified": "2026-09-26T20:20:11.665Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 8,
+  "related": [
+    "frontend-product-manifest-generated-products-tsx-scenes-urls"
+  ],
+  "lastUsed": "2026-09-27T00:22:30.328Z",
+  "servedIn": [
+    "43f42da0-86e9-4a86-a3ad-33584f3bacfc",
+    "fab0dfcc-607d-4c4f-bfc6-277041dd7976",
+    "130f3e97-4b6b-418b-a41f-c582226c1678",
+    "ba4504c9-f343-4848-8e36-352a336e9503",
+    "b3a4c8cf-7501-496f-860f-248c8ea73720",
+    "1b55c9fc-8144-45a9-a509-f7df7f0ccf59",
+    "8af8e14a-de21-43f9-b6c5-2d5dcfb20b99",
+    "8786d233-8339-4e1e-888e-082ddb5924ff"
+  ]
+}

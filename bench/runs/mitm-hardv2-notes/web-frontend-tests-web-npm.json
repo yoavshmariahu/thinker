@@ -1,0 +1,65 @@
+{
+  "id": "web-frontend-tests-web-npm",
+  "title": "Web frontend tests (web/ npm)",
+  "kind": "howto",
+  "answers": [
+    "How do I run the web frontend tests?",
+    "What does npm test do in mitmproxy web?"
+  ],
+  "body": "- Frontend in `web/`; CI (`.github/workflows/main.yml`) runs `npm ci` then `npm test`.\n- `web/package.json` `test` script = `eslint . && tsc --noEmit && jest --coverage`.\n- Run: `cd web && npm ci && npm test`. Single file (inferred, not verified): `npx jest path/to/file.test.tsx`.\n- Jest config in `web/jest.config.js`, setup files `web/setup-jest.js`, `web/setup-global-jest.js`; jsdom, @testing-library/react, jest-fetch-mock.\n- Lint/type/format: ESLint (`web/eslint.config.mjs`), tsc (`web/tsconfig.json`), prettier (`npm run prettier`, `npm run eslint` write changes). Dev server: `npm start` (vite).",
+  "tags": [
+    "web",
+    "jest",
+    "npm",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "web/package.json",
+      "hash": "sha256:27f5f9f72dcd3ab6fde91d8c",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/main.yml",
+      "hash": "sha256:361a92402aa094c3b7eddbba",
+      "missing": false
+    },
+    {
+      "path": "web/jest.config.js",
+      "hash": "sha256:aeb7b552219851e779aff85e",
+      "missing": false
+    },
+    {
+      "path": "web/setup-jest.js",
+      "hash": "sha256:ef74bd69096e7cb5ab66783b",
+      "missing": false
+    },
+    {
+      "path": "web/setup-global-jest.js",
+      "hash": "sha256:3ff37da1aa03b129b56cb248",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "4e60b02e-b99f-4f62-946e-cc0b3f2f82b5"
+  },
+  "created": "2026-09-26T09:26:38.477Z",
+  "verified": "2026-09-26T09:26:38.477Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 31,
+  "lastUsed": "2026-09-26T19:45:56.523Z",
+  "related": [],
+  "servedIn": [
+    "86758c63-4128-4196-8000-f9b6482b1162",
+    "c49d2dfa-8d17-47a4-a534-9164b432b5b3",
+    "58fe93f5-08d9-4742-a702-82d91c541a86",
+    "a2c2c164-ea9d-461e-a7da-5998ee3271fe",
+    "8563e8f1-b869-45b2-b19f-b190c93b7bcf",
+    "d28d4b8a-0a02-4b46-a0c7-17ad243a22f5",
+    "c207f4ce-6e37-434f-a665-78d8350a9385",
+    "953a4b4b-4b44-4d0e-a558-0103596ef18e"
+  ]
+}

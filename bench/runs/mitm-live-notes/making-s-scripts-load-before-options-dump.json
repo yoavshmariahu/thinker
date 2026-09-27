@@ -1,0 +1,140 @@
+{
+  "id": "making-s-scripts-load-before-options-dump",
+  "title": "Making -s scripts load before --options dump",
+  "kind": "gotcha",
+  "answers": [
+    "Why are script options missing from --options dump?",
+    "How to make scripts load before options dump at startup",
+    "Where is the first load of a Script deferred?"
+  ],
+  "body": "`Script.__init__(path, reload=True)` (addons/script.py) does NOT load synchronously: it starts `Script.watcher()` as an asyncio task, and the first `loadscript` happens after an `asyncio.sleep(0)`. Only reload=False loads immediately in `__init__`.\nIn `tools/main.py:run.main()` the `--options` dump happens before `master.run()`, so script-defined options aren't registered yet.\nFix pattern used: `Script.first_load = asyncio.Event()` set after first load attempt (also if file vanishes), `ScriptLoader.wait_for_scripts()` awaits all of them, and `main()` awaits `master.addons.get(\"scriptloader\").wait_for_scripts()` on the --options path before `dump_defaults`. `AddonManager.get(name)` (addonmanager.py) looks up by addon name.\n`main.run` is `# pragma: no cover`, so no direct unit test hook.",
+  "applies": "Only for scripts loaded with reload=True via ScriptLoader.configure; needs an event loop running (inside main()).",
+  "tags": [
+    "scripts",
+    "options",
+    "startup"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "Script",
+      "hash": "sha256:0020b51ba202cafd45f9b17c",
+      "line": 77,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/main.py",
+      "symbol": "run",
+      "hash": "sha256:559f5c53b7daa4c8b680941c",
+      "line": 45,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "AddonManager.get",
+      "hash": "sha256:14b04750ba1c9650178e9c42",
+      "line": 150,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/main.py",
+      "hash": "sha256:d36b0e41dc6bab78ec353339",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "Script.__init__",
+      "hash": "sha256:ce3329736419e8e9bb44a9b2",
+      "line": 82,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "Script.watcher",
+      "hash": "sha256:4131b84d949af915ca9d25ab",
+      "line": 135,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/master.py",
+      "symbol": "run",
+      "hash": "sha256:327466033f21defc3c6f6b18",
+      "line": 54,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/script.py",
+      "symbol": "ScriptLoader.wait_for_scripts",
+      "hash": "sha256:cb7b93f19142c6003c7ce199",
+      "line": 174,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/main.py",
+      "symbol": "main",
+      "hash": "sha256:70af5cfd085ab7ec72430f73",
+      "line": 56,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "0e0295f8-fa87-4c0d-b1fb-ad1e39afd334"
+  },
+  "created": "2026-09-26T19:43:40.868Z",
+  "verified": "2026-09-26T19:49:23.723Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.75,
+  "status": "invalid",
+  "uses": 1,
+  "related": [
+    "script-addons-s-loading-path",
+    "cli-startup-sequence-main-run-options-applied",
+    "flow-event-dispatch-layer-hook-connectionhandler-addonmanage",
+    "option-registration-deferred-options-and-argparse-generation"
+  ],
+  "stale": {
+    "since": "2026-09-26T19:43:54.983Z",
+    "changed": [
+      {
+        "path": "mitmproxy/addons/script.py",
+        "symbol": "Script",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "mitmproxy/tools/main.py",
+        "symbol": "run",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "mitmproxy/tools/main.py",
+        "reason": "file changed"
+      },
+      {
+        "path": "mitmproxy/addons/script.py",
+        "symbol": "Script.__init__",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "mitmproxy/addons/script.py",
+        "symbol": "Script.watcher",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "mitmproxy/addons/script.py",
+        "symbol": "ScriptLoader.wait_for_scripts",
+        "reason": "symbol not found"
+      },
+      {
+        "path": "mitmproxy/tools/main.py",
+        "symbol": "main",
+        "reason": "symbol body changed"
+      }
+    ]
+  },
+  "lastUsed": "2026-09-26T19:49:01.560Z",
+  "servedIn": [
+    "deadfd25-8df9-4436-999c-ef0dc9d62d8c"
+  ],
+  "invalidReason": "The fix pattern described in the note does not exist in the current code. The note claims Script.first_load, ScriptLoader class, and wait_for_scripts() method were implemented, but none of these appear in the codebase. The main() function in tools/main.py has no await call for script loading before dump_defaults. The fundamental async loading problem still exists but the proposed fix was never implemented."
+}

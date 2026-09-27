@@ -1,0 +1,54 @@
+{
+  "id": "sidebar-filter-inputs-share-lemoninput-style-chat-uses-input",
+  "title": "Sidebar filter inputs share LemonInput style; Chat uses inputComponent=Combobox.Input",
+  "kind": "convention",
+  "answers": [
+    "How to make the chat filter field look like the Apps/Files filter?",
+    "How do I use a custom input element inside LemonInput?",
+    "What placeholder/icon do sidebar filter fields use?"
+  ],
+  "body": "Apps, Files and Chat sidebar filters are all `LemonInput type=\"search\" size=\"small\"` with `min-h-[30px]`, an `IconSearch` prefix wrapped in `flex items-center justify-center size-4 ml-[2px] mr-px`, and placeholders 'Filter apps' / 'Filter files' / 'Filter chats'. Match these when adding a new sidebar filter.\nNavTabChat.tsx needs Base UI `Combobox.Input` for keyboard selection, so LemonInput gained an `inputComponent` prop (LemonInput.tsx) that replaces the native `input` (ignored when `autoWidth`). Use it instead of hand-rolling an `input-like` label.\nThe Chat styling also applies to the shared Chat history surface (inPanel), so check both.",
+  "applies": "Simple sidebar filter fields and LemonInput consumers needing a custom input element",
+  "tags": [
+    "sidebar",
+    "lemoninput",
+    "chat",
+    "ui"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/layout/panel-layout/navbar/tabs/NavTabChat.tsx",
+      "symbol": "NavTabChat",
+      "hash": "sha256:aa8d61b9d33fe4bb8630734d",
+      "line": 261,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/lib/lemon-ui/LemonInput/LemonInput.tsx",
+      "symbol": "LemonInput",
+      "hash": "sha256:aa46ec4683fa87b43b809552",
+      "line": 99,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/layout/panel-layout/navbar/tabs/NavTabApps.tsx",
+      "symbol": "NavTabApps",
+      "hash": "sha256:eb2fd5a9b32d716592857dce",
+      "line": 14,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105376"
+  },
+  "created": "2026-09-27T00:05:28.618Z",
+  "verified": "2026-09-27T00:05:28.618Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "sidebar-collapsible-sections-use-navtabsection-and-remount-i"
+  ]
+}

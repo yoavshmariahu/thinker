@@ -1,0 +1,53 @@
+{
+  "id": "E6-new-type-hook-1",
+  "task": "E6-new-type",
+  "area": "types",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "924163a4-1e41-4d3c-93eb-aca4d89b6f88",
+  "turns": 3,
+  "wall_ms": 18386,
+  "api_ms": 17900,
+  "cost": 0.085335,
+  "in_tokens": 70703,
+  "out_tokens": 1695,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": [
+      "implementing-a-custom-paramtype-required-members-failure-and",
+      "option-value-pipeline-argv-string-typed-callback-kwarg",
+      "type-to-paramtype-resolution-and-value-conversion-callpath"
+    ]
+  },
+  "grade": {
+    "score": 0.5,
+    "missing": [
+      "Wrong line for convert_type is given; reference: src/click/types.py:1294-1335, with the branch needed before line 1322 (agent did say before is_guessed, so fine)",
+      "Failure mode without the branch for type=timedelta: falls to FuncParamType(timedelta) raising TypeError, not a usage error (agent only mentions the default case)",
+      "CHANGES.md entry under Version 8.5.0 (agent failed to find the changelog)",
+      "Optional DurationInfoDict/to_info_dict/__init__ details for a configurable type (only partly covered)",
+      "tests/test_types.py parse tests and tests/typing/typing_options.py optional",
+      "Import of re, and the tests/test_imports.py ALLOWED_IMPORTS note",
+      "Call sites consuming convert_type (Parameter.__init__, Option.__init__, Tuple, prompt)",
+      "Explicit statement that ParamType declares no abstract methods, and the list of inherited methods not needed"
+    ],
+    "wrong": [
+      "Claims convert is 'the only abstract method'; ParamType is an ABC but declares no abstract methods, so convert is only conventionally required",
+      "Says convert_type is at L371; it is at ~L1294-1335 (L371 is Choice.get_metavar call site)",
+      "Says __init__ export near L62 (reference: between DateTime line 58 and File line 59)",
+      "Says without the branch a guessed timedelta silently falls to STRING but omits that explicit type=timedelta goes to FuncParamType and crashes with TypeError"
+    ],
+    "reason": "The agent gets the main design right: the convert_type branch, the DURATION singleton, the class name, the name attribute, convert semantics, __repr__ and the docs/tests files. It has several inaccuracies: convert is called 'the only abstract method', and the convert_type line number and the __init__ line are off. It also misses the changelog file, the type=timedelta crash behavior, and several details the reference lists.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "## Files and symbols to change\n\n**`src/click/types.py`** (the core change)\n- **New class `DurationParamType(ParamType[timedelta])`**. The nearest models are `UUIDParameterType` (L830, the simplest complete example) and `DateTime` (L464, which shows a `to_info_dict` override).\n- **New singleton** next to the others at L1349–1368: `DURATION: t.Final[DurationParamType] = DurationParamType()`. Add a `#:` doc comment with `.. versionadded::`, like the neighbours.\n- **`from datetime import timedelta`**. `datetime` is already imported for `DateTime`, so extend that import.\n- **`convert_type` (L371)** is where the shorthand mapping lives. It has the ladder `guessed is int: return INT`, `float → FLOAT`, `bool → BOOL`, `str/None → STRING`. Add `if guessed is timedelta: return DURATION` before the `is_guessed` and `FuncParamType` fallbacks.\n  - So the shorthand would be `type=timedelta`, not `type=int`-style.\n  - `_guess_type` (L1249) needs no change. A `default=timedelta(...)` already yields `type(default)`, which then hits your new branch. Without the branch, a guessed timedelta silently falls to `STRING`.\n- **Overload docs in `convert_type`**: no change needed.\n\n**`src/click/__init__.py`**: add `from .types import DURATION as DURATION` near L62 (INT, UUID and the others are re-exported there). Export the class too only if the other class-typed re-exports get the same treatment. `UUIDParameterType` isn't exported, so following that precedent you'd skip it.\n\n**Tests and docs**\n- `tests/test_basic.py`: conversion cases, invalid input, and the `type=timedelta` and `default=timedelta(...)` shorthand.\n- `tests/test_info_dict.py`: an entry for the new type's `to_info_dict` output. The tests that mention UUID are the model.\n- `docs/parameter-types.md`: a section for the new type.\n- `docs/api.md`: add `DURATION` to the list of types.\n- Changelog: I hit `CHANGES.rst: No such file`, so I didn't find where it lives. Check the repo root for the actual filename.\n\n## Methods the class must implement\n\n- **`name`**: a class attribute, e.g. `\"duration\"`. It is used for the default metavar (`DURATION`) and in `to_info_dict`.\n- **`convert(self, value, param, ctx) -> timedelta`**. This is the only abstract method.\n  - It must return `timedelta` values unchanged, because `convert` gets called on already-converted values such as defaults.\n  - It must work when `param` and `ctx` are `None`, as with prompt input.\n  - It should `.strip()` and parse `1h30m`. Compose units with a regex such as `(\\d+(?:\\.\\d+)?)([dhms])`, and require the whole string to match.\n  - On bad input, call `self.fail(_(\"{value!r} is not a valid duration.\").format(value=value), param, ctx)`. `fail` raises `BadParameter`.\n\nOptional overrides:\n- **`__repr__`** returns `\"DURATION\"`, matching the other types.\n- **`get_metavar(param, ctx)`** is only needed if you want something other than the default, e.g. `[1h30m]`.\n- **`shell_complete`**: not needed.\n- **`to_info_dict`**: not needed unless you add config fields.\n- **`get_missing_message`**: not needed.",
+  "is_error": false
+}

@@ -1,0 +1,63 @@
+{
+  "id": "ml-inference-decision-playground-frontend-scene-and-kea-logi",
+  "title": "ml_inference decision playground frontend scene and kea logic",
+  "kind": "location",
+  "answers": [
+    "Where is the decision playground logic?",
+    "How does the playground call the decide API?",
+    "How is the playground scene gated?"
+  ],
+  "body": "- frontend/DecisionPlaygroundScene.tsx: `scene: SceneExport` binds component to decisionPlaygroundLogic; gated on FEATURE_FLAGS.ML_INFERENCE_DECISIONS or preflight.is_debug; QuestionRow/OptionRow helpers; DecisionAnswerCell.tsx renders an answer.\n- frontend/decisionPlaygroundLogic.ts: pure helpers buildDecideRequest, questionsToJson, questionsFromJson, EXAMPLE_STATE/EXAMPLE_QUESTIONS. Kea logic connects teamLogic.currentTeamId; loader `decision.askDecision` calls generated mlInferenceDecisionsDecideCreate with selector requestBody. Reducers: state, questions, askedQuestions, questionsView, questionsJson. Selectors: requestBody, questionsJsonError, askDisabledReason.\n- Listeners: askDecision snapshots askedQuestions (answers labeled with asked questions); setQuestionsView serializes to JSON; setQuestionsJson parses valid JSON into questions.\n- Tests: decisionPlaygroundLogic.test.ts.",
+  "tags": [
+    "frontend",
+    "kea",
+    "ml_inference"
+  ],
+  "deps": [
+    {
+      "path": "products/ml_inference/frontend/decisionPlaygroundLogic.ts",
+      "symbol": "decisionPlaygroundLogic",
+      "hash": "sha256:e9019ac0f652182de45bc920",
+      "line": 308,
+      "missing": false
+    },
+    {
+      "path": "products/ml_inference/frontend/DecisionPlaygroundScene.tsx",
+      "symbol": "scene",
+      "hash": "sha256:b4e99e6a85e42025584a8f36",
+      "line": 37,
+      "missing": false
+    },
+    {
+      "path": "products/ml_inference/frontend/decisionPlaygroundLogic.test.ts",
+      "hash": "sha256:d1eba968e14fea49c1166563",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "7767f316-6663-4998-bee0-621e3632daf8"
+  },
+  "created": "2026-09-26T20:38:08.417Z",
+  "verified": "2026-09-26T20:38:08.417Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 12,
+  "related": [],
+  "lastUsed": "2026-09-27T05:02:27.024Z",
+  "servedIn": [
+    "2b19a50b-56fd-4370-9d5a-970da64f9822",
+    "39034c00-ed72-48f7-af96-e0ae7a43f8f4",
+    "3e130e93-9659-414e-9ddb-f73d4dcf819d",
+    "ca9e19dd-a3a9-4200-8b15-2865f303ae61",
+    "283cce98-5b41-48ae-8420-75460873179c",
+    "aef362ec-1476-47a5-a1bb-4ebb13906ee7",
+    "ca0f7fec-a191-44a8-820f-29d7f4de6c6e",
+    "aa6e2a76-2846-4e4b-92d3-c7f415d38f48",
+    "5e7fd372-cd68-44a7-9ca2-4c2265e30575",
+    "2e9c5e0e-8c55-49dd-8d88-b1af1258e010",
+    "bfd0b942-05ea-4de0-8124-617bfe642978",
+    "4fe0275b-9983-4db4-8bc8-786b37f97773"
+  ]
+}

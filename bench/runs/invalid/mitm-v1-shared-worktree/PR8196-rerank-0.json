@@ -1,0 +1,45 @@
+{
+  "id": "PR8196-rerank-0",
+  "task": "PR8196",
+  "area": "utils",
+  "arm": "rerank",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "c249aed5-f1e7-4b3f-91c8-af1f7345d5d9",
+  "turns": 4,
+  "wall_ms": 28714,
+  "api_ms": 11025,
+  "cost": 0.0716382,
+  "in_tokens": 69029,
+  "out_tokens": 1058,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 1,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 1,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [
+      "Unrelated certs.py AKI change and tests included in the diff (agent claims pre-existing); does not affect the is_mostly_bin fix"
+    ],
+    "reason": "The agent's strutils.py change is identical to the merged patch: range(100, min(104, len(s))). This fixes the IndexError, and the existing for-else fallback to s[:100] still covers the case where every lookahead byte is a continuation byte. The added regression test covers lengths 101-103. The extra certs.py modification is unrelated to the request, but it is not part of the functional fix and doesn't change is_mostly_bin behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/certs.py",
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/test_certs.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ]
+  },
+  "result": "I capped the lookahead loop in `is_mostly_bin` at the payload length, so short tails no longer raise `IndexError`. I haven't run the tests, as instructed.\n\n**The fix** is in `mitmproxy/utils/strutils.py`: the loop is now `range(100, min(104, len(s)))` instead of `range(100, 104)`. When every byte in the shortened window is a continuation byte, the loop finishes without a `break`. The existing `else: s = s[:100]` branch then handles it, as it already did for longer inputs.\n\n**The test** is in `test/mitmproxy/utils/test_strutils.py`: `test_is_mostly_bin` now checks lengths 101, 102 and 103. Each is 100 × `b\"a\"` followed by `b\"\\x80\"` bytes. It asserts that the call doesn't raise and that the payload isn't classified as binary, since the first 100 bytes are all ASCII.\n\n`git diff` also shows an uncommitted change to `mitmproxy/certs.py` (the AuthorityKeyIdentifier handling in `dummy_cert`), and `git status` at the start listed `strutils.py` as already modified. The `certs.py` change was there before I started and I didn't touch it. It isn't part of this fix, so leave it out of the commit for this fix.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/certs.py b/mitmproxy/certs.py\nindex 2f421e25e..12579d978 100644\n--- a/mitmproxy/certs.py\n+++ b/mitmproxy/certs.py\n@@ -356,10 +356,19 @@ def dummy_cert(\n     )\n \n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1\n-    builder = builder.add_extension(\n-        x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key()),  # type: ignore\n-        critical=False,\n-    )\n+    # The AKI must equal the issuer's stored SKI (RFC 5280 §4.2.1.2), which is not\n+    # necessarily the SHA-1 of its public key (e.g. RFC 7093, cert-manager, Go 1.25+).\n+    try:\n+        issuer_ski = cacert.extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        ).value\n+    except x509.ExtensionNotFound:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())  # type: ignore\n+    else:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(\n+            issuer_ski\n+        )\n+    builder = builder.add_extension(aki, critical=False)\n     # If CA and leaf cert have the same Subject Key Identifier, SChannel breaks in funny ways,\n     # see https://github.com/mitmproxy/mitmproxy/issues/6494.\n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2 states\ndiff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..9c5cb7273 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -132,7 +132,7 @@ def is_mostly_bin(s: bytes) -> bool:\n     # Cut off at ~100 chars, but do it smartly so that if the input is UTF-8, we don't\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n-        for cut in range(100, 104):\n+        for cut in range(100, min(104, len(s))):\n             is_continuation_byte = (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\ndiff --git a/test/mitmproxy/test_certs.py b/test/mitmproxy/test_certs.py\nindex aba66a733..5f24cb57e 100644\n--- a/test/mitmproxy/test_certs.py\n+++ b/test/mitmproxy/test_certs.py\n@@ -176,6 +176,46 @@ class TestDummyCert:\n         assert r.altnames == x509.GeneralNames([])\n         assert r.crl_distribution_points == []\n \n+    @staticmethod\n+    def _make_ca(ski: bytes | None):\n+        from cryptography.hazmat.primitives import hashes\n+        from cryptography.hazmat.primitives.asymmetric import rsa\n+\n+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, \"Test CA\")])\n+        builder = (\n+            x509.CertificateBuilder()\n+            .subject_name(name)\n+            .issuer_name(name)\n+            .public_key(key.public_key())\n+            .serial_number(x509.random_serial_number())\n+            .not_valid_before(datetime(2020, 1, 1))\n+            .not_valid_after(datetime(2040, 1, 1))\n+            .add_extension(x509.BasicConstraints(ca=True, path_length=None), True)\n+        )\n+        if ski is not None:\n+            builder = builder.add_extension(x509.SubjectKeyIdentifier(ski), False)\n+        return key, builder.sign(key, hashes.SHA256())\n+\n+    def test_aki_copies_issuer_ski_non_sha1(self):\n+        import hashlib\n+\n+        key, ca = self._make_ca(hashlib.sha256(b\"whatever\").digest()[:20])\n+        r = certs.dummy_cert(key, ca, \"foo.com\", [])\n+        aki = r._cert.extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        ).value\n+        assert aki.key_identifier == hashlib.sha256(b\"whatever\").digest()[:20]\n+\n+    def test_aki_falls_back_when_issuer_has_no_ski(self):\n+        key, ca = self._make_ca(None)\n+        r = certs.dummy_cert(key, ca, \"foo.com\", [])\n+        aki = r._cert.extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        ).value\n+        expected = x509.AuthorityKeyIdentifier.from_issuer_public_key(ca.public_key())\n+        assert aki.key_identifier == expected.key_identifier\n+\n \n class TestCert:\n     def test_simple(self, tdata):\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..3ed3c566e 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,9 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # short tail past the cutoff must not raise IndexError\n+    for n in (101, 102, 103):\n+        assert not strutils.is_mostly_bin(b\"a\" * 100 + b\"\\x80\" * (n - 100))\n \n \n def test_is_xml():\n"
+}

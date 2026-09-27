@@ -1,0 +1,98 @@
+{
+  "id": "PR106579-hard-prompt-1",
+  "task": "PR106579-hard",
+  "area": "error_tracking",
+  "arm": "prompt",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "71bf88e5-afec-4282-bc73-72538820291d",
+  "turns": 15,
+  "wall_ms": 58301,
+  "api_ms": 49115,
+  "cost": 0.3100222,
+  "in_tokens": 857881,
+  "out_tokens": 5483,
+  "tools": {
+    "calls": 14,
+    "byTool": {
+      "Bash": 14
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 14,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed both event paths: manual lifecycle events in lifecycle_events.py and ingestion-driven events in side_effects.py. Both now add `assignee_name`. It resolves to the user's full name, falling back to email, or to the role's name. Unassigned issues still omit the property, and `assignee` is unchanged. The assistant docs now describe the assignee shape and its name. This matches the requested behavior. On the reassigned-since-ingestion case, the agent looks up the snapshotted id, so the name matches `assignee`. The former-member privacy check and the email property are extras in the upstream patch that the request did not ask for.",
+      "The agent changed the same two event-building paths as upstream: manual lifecycle events and ingestion-driven events. Both now add `assignee_name`, resolved from the assignee's user or role, with a fallback to the user's email. When the issue is unassigned, the name is left off. The existing `assignee` string is unchanged. The event-triggers docs describe the assignee shape and the name. Resolving by the snapshot's id keeps the name consistent with `assignee` on ingestion events, which matches upstream's reassignment check in effect. The extras upstream added (email, the former-member guard) go beyond what the request asked for.",
+      "The agent changed the same two event-building paths as upstream: manual lifecycle events and ingestion-driven events. It added the same `assignee_name` property. Its value is the user's full name, falling back to email, or the role name. The property is absent when the issue is unassigned, and `assignee` is unchanged. It also documented the assignee and its shape for the AI assistant. The core request is met and the property name matches upstream. The gaps are edge-case hardening and the extra email property."
+    ],
+    "reason": "The agent changed both event paths: manual lifecycle events in lifecycle_events.py and ingestion-driven events in side_effects.py. Both now add `assignee_name`. It resolves to the user's full name, falling back to email, or to the role's name. Unassigned issues still omit the property, and `assignee` is unchanged. The assistant docs now describe the assignee shape and its name. This matches the requested behavior. On the reassigned-since-ingestion case, the agent looks up the snapshotted id, so the name matches `assignee`. The former-member privacy check and the email property are extras in the upstream patch that the request did not ask for.",
+    "mustHit": 2,
+    "mustTotal": 4,
+    "touched": [
+      "products/error_tracking/backend/logic/lifecycle_events.py",
+      "products/error_tracking/backend/temporal/alerts/assignee.py",
+      "products/error_tracking/backend/temporal/lifecycle/side_effects.py",
+      "products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md"
+    ],
+    "criteria": {
+      "essential": 1,
+      "all": 0.7142857142857143,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "Both emitters add `assignee_name` next to `assignee`: `**({\"assignee_name\": current_assignee_name} if current_assignee_name is not None else {})` in lifecycle_events.py and `properties[\"assignee_name\"] = assignee_name` in side_effects.py. It is a separate string property that a template can render directly."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "In `assignee_display_name`, the user branch returns `user.get_full_name() or user.email` and the role branch returns `role.name`."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "`assignee` is only set when `current_assignee is not None` (lifecycle_events.py) or `inputs.assignee is not None` (side_effects.py). `assignee_name` is only set when the helper returns non-None, and the helper returns None for an empty assignee. Nothing is emitted as null or empty for an unassigned issue."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "`assignee_property` and `_current_assignee_property` are unchanged, and `inputs.assignee` is passed through unchanged in side_effects.py. The `assignee` value is therefore identical to before."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "`return (user.get_full_name() or user.email) if user else None` falls back to the email when the user has no name."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "No `assignee_email` property is added anywhere in the patch. Only `assignee_name` is emitted."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "`assignee_display_name` looks up `User.objects.filter(id=assignee_id)` with no check that the user belongs to the issue's organization. In the ingestion path it names whatever `inputs.assignee` holds, with no comparison against the issue's current assignee. It does not omit the name in either case."
+        },
+        {
+          "id": "c8",
+          "verdict": "met",
+          "evidence": "event-triggers.md documents `assignee` as a JSON string like `{\"type\":\"user\",\"id\":1234}` and says it is absent when unassigned. It says the property \"holds ids only, so do not print it\". It also documents `assignee_name` as the property to use to show who owns the issue."
+        }
+      ]
+    }
+  },
+  "result": "Issue alert events now carry an `assignee_name` property next to the existing `assignee` string. I haven't run any tests or added one. I also didn't check for a circular import between the new helper and the two files that use it.\n\n- **New helper:** `assignee_display_name()` in `products/error_tracking/backend/temporal/alerts/assignee.py` reads the `assignee` JSON string and looks up the name. A user resolves to their full name, falling back to their email. A role resolves to the role's name.\n- **Unassigned or unresolvable:** when the issue is unassigned, or the id can't be resolved, the helper returns nothing and `assignee_name` is left off, just as `assignee` is.\n- **Manual changes:** `prepare_issue_lifecycle_event` in `logic/lifecycle_events.py` adds `assignee_name` to the event properties.\n- **Ingestion-driven events:** `produce_issue_lifecycle_internal_event` in `temporal/lifecycle/side_effects.py` adds it too.\n- **Existing behavior:** the `assignee` string, the alert filters and the workflow inputs are unchanged. The name is looked up in Python when the internal event is built, so the Rust cymbal producer needed no change.\n- **Assistant docs:** `skills/authoring-error-tracking-alerts/references/event-triggers.md` now describes `assignee` and `assignee_name`. It gives the `{\"type\":\"user\"|\"role\",\"id\":…}` shape, says both are absent when unassigned, and says to use the name rather than print the id.\n\nI called the property `assignee_name` rather than changing the shape of `assignee`, so existing templates and filters keep working. A template would use `event.properties.assignee_name`, guarded by a check that it is set.",
+  "is_error": false,
+  "diff": "diff --git a/products/error_tracking/backend/logic/lifecycle_events.py b/products/error_tracking/backend/logic/lifecycle_events.py\nindex 207f99094ab..90f7ca5a082 100644\n--- a/products/error_tracking/backend/logic/lifecycle_events.py\n+++ b/products/error_tracking/backend/logic/lifecycle_events.py\n@@ -25,6 +25,7 @@ from products.error_tracking.backend.models import (\n     ErrorTrackingIssueAssignment,\n     ErrorTrackingIssueFingerprintV2,\n )\n+from products.error_tracking.backend.temporal.alerts.assignee import assignee_display_name\n from products.error_tracking.backend.temporal.alerts.types import AlertDeliveryWorkflowInputs\n \n logger = structlog.get_logger(__name__)\n@@ -120,6 +121,7 @@ def prepare_issue_lifecycle_event(\n     # the mutation.\n     fingerprint = _issue_fingerprint_for_links(issue)\n     current_assignee = _current_assignee_property(issue)\n+    current_assignee_name = assignee_display_name(current_assignee)\n     issue_id = str(issue.id)\n     # The notification id names both the internal event and the alert delivery\n     # workflow, so redelivered starts and retries stay idempotent per transition.\n@@ -136,6 +138,7 @@ def prepare_issue_lifecycle_event(\n         \"status\": status_label(status if status is not None else issue.status),\n         **({\"fingerprint\": fingerprint} if fingerprint is not None else {}),\n         **({\"assignee\": current_assignee} if current_assignee is not None else {}),\n+        **({\"assignee_name\": current_assignee_name} if current_assignee_name is not None else {}),\n         **(extra_properties or {}),\n     }\n     internal_event = InternalEventEvent(event=event, distinct_id=issue_id, properties=properties, uuid=notification_id)\ndiff --git a/products/error_tracking/backend/temporal/alerts/assignee.py b/products/error_tracking/backend/temporal/alerts/assignee.py\nnew file mode 100644\nindex 00000000000..4029be47e2e\n--- /dev/null\n+++ b/products/error_tracking/backend/temporal/alerts/assignee.py\n@@ -0,0 +1,32 @@\n+import json\n+from typing import Any\n+\n+from posthog.models.user import User\n+\n+from products.access_control.backend.models.role import Role\n+\n+\n+def assignee_display_name(assignee: str | None) -> str | None:\n+    \"\"\"Readable name for a serialized assignee (`{\"type\":\"user\",\"id\":1}`), or None when unknown.\"\"\"\n+    if not assignee:\n+        return None\n+    try:\n+        parsed: Any = json.loads(assignee)\n+    except ValueError:\n+        return None\n+    if not isinstance(parsed, dict):\n+        return None\n+    assignee_id = parsed.get(\"id\")\n+    if assignee_id is None:\n+        return None\n+    try:\n+        if parsed.get(\"type\") == \"user\":\n+            user = User.objects.filter(id=assignee_id).only(\"first_name\", \"last_name\", \"email\").first()\n+            return (user.get_full_name() or user.email) if user else None\n+        if parsed.get(\"type\") == \"role\":\n+            role = Role.objects.filter(id=assignee_id).only(\"name\").first()\n+            return role.name if role else None\n+    except (ValueError, TypeError):\n+        # A malformed id must not block the alert.\n+        return None\n+    return None\ndiff --git a/products/error_tracking/backend/temporal/lifecycle/side_effects.py b/products/error_tracking/backend/temporal/lifecycle/side_effects.py\nindex 3dd43c24fe1..f75e3b78676 100644\n--- a/products/error_tracking/backend/temporal/lifecycle/side_effects.py\n+++ b/products/error_tracking/backend/temporal/lifecycle/side_effects.py\n@@ -14,6 +14,7 @@ from posthog.helpers.tiktoken_encoding import (\n )\n from posthog.models import Team\n \n+from products.error_tracking.backend.temporal.alerts.assignee import assignee_display_name\n from products.error_tracking.backend.temporal.alerts.dispatch import start_alert_delivery_workflow\n from products.error_tracking.backend.temporal.alerts.types import AlertDeliveryWorkflowInputs\n from products.error_tracking.backend.temporal.lifecycle.event_properties import (\n@@ -189,6 +190,9 @@ def produce_issue_lifecycle_internal_event(\n         properties[\"status\"] = status_property\n     if inputs.assignee is not None:\n         properties[\"assignee\"] = inputs.assignee\n+        assignee_name = assignee_display_name(inputs.assignee)\n+        if assignee_name is not None:\n+            properties[\"assignee_name\"] = assignee_name\n     if extra_properties is not None:\n         properties.update(extra_properties)\n \ndiff --git a/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md b/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md\nindex 5e6b2fc988b..51dbfac2537 100644\n--- a/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md\n+++ b/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md\n@@ -27,6 +27,10 @@ firehose into the user's primary channel will train them to ignore it.\n - `event.properties.status` — `\"active\"` at this point.\n - `event.properties.fingerprint` — used in the deep link.\n - `event.properties.exception_timestamp` — used in the deep link.\n+- `event.properties.assignee` — the current assignee as a JSON string like `{\"type\":\"user\",\"id\":1234}`\n+  (`type` is `user` or `role`). Absent when the issue is unassigned. It holds ids only, so do not print it.\n+- `event.properties.assignee_name` — the assigned user's name (falls back to their email) or the role's name.\n+  Absent when the issue is unassigned. Use it to show who owns the issue, guarded by a check that it is set.\n - `event.distinct_id` — the issue id.\n - The originating exception's event properties are also spread onto the alert event, so property\n   filters can reference keys like `$exception_issue_id` (per-issue scoping) and `$exception_types`.\n",
+  "distill": null
+}

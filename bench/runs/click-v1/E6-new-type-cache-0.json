@@ -1,0 +1,51 @@
+{
+  "id": "E6-new-type-cache-0",
+  "task": "E6-new-type",
+  "area": "types",
+  "arm": "cache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "0046e6ff-73d7-4e2b-bbf0-f0576fa2139e",
+  "turns": 6,
+  "wall_ms": 24039,
+  "api_ms": 23301,
+  "cost": 0.12665220000000002,
+  "in_tokens": 154945,
+  "out_tokens": 2256,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "ToolSearch": 1,
+      "mcp__thinker__orient": 1,
+      "Bash": 3
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 3
+  },
+  "grade": {
+    "score": 0.5,
+    "missing": [
+      "Doesn't state the singleton is placed after UUID at ~l.1368 with `#:` doc comment (says docstring instead)",
+      "Missing the explanation that type=timedelta without the branch raises TypeError (not caught ValueError in FuncParamType.convert) causing a traceback",
+      "Doesn't mention that other call sites (Option flag-value guessing, Tuple, Choice.get_metavar, click.prompt) get DURATION for free",
+      "Doesn't mention optional DurationInfoDict TypedDict for configurable types",
+      "Doesn't mention that name is the only hard requirement / that ParamType has no abstract methods",
+      "Doesn't mention tests/test_imports.py needing no change (datetime and re already allowed)",
+      "Doesn't mention optional tests/typing/typing_options.py / strict typing",
+      "Doesn't mention docs build with -W or the isort placement details in __init__ (between DateTime and File)",
+      "Doesn't specify that param_type in info dict is 'Duration' (it suggests wrongly 'UUID'-style)"
+    ],
+    "wrong": [
+      "Claims `convert` is 'the only abstract method'; ParamType declares no abstract methods, and the only hard requirement is the `name` attribute",
+      "Says __init__ export should be next to INT (l.62); reference says between DateTime (l.58) and File (l.59) due to sorted order",
+      "Says __repr__ affects how to_info_dict identifies the type; to_info_dict derives param_type from the class name",
+      "Suggests tests for the shorthand in tests/test_types.py and puts the parse test in tests/test_basic.py; roughly fine but the info-dict test guidance about name adjusting is muddled (param_type would be 'Duration')"
+    ],
+    "reason": "The main change surface and the convert_type hook are correct, including the placement before the is_guessed fallback. But the answer wrongly says convert is the only abstract method, misplaces the __init__ export, and misses several specifics: the exact TypeError behavior, the free call sites, and the DurationInfoDict class.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "Here's what needs to change to add a built-in DURATION type. I checked the locations below against the code.\n\n## Files and symbols\n\n**`src/click/types.py`** (most of the work)\n- **Imports (~l.11):** change `from datetime import datetime` to also import `timedelta`, and add `import re` if you parse with a regex.\n- **New class**, placed next to `UUIDParameterType` (l.830), which is the closest template. Call it `DurationParamType(ParamType[timedelta])`. It needs a `name = \"duration\"` class attribute.\n- **New singleton**, next to the others at l.1353–1368: `DURATION: t.Final[DurationParamType] = DurationParamType()`. Give it a docstring like the existing ones.\n- **Shorthand mapping:** `convert_type` (l.1294) is where `type=int` becomes `INT`. It's a chain of `if guessed is str/int/float/bool: return STRING/INT/FLOAT/BOOL` at l.1310–1320. Add `if guessed is timedelta: return DURATION` there.\n  - That single branch also covers inference from a default. `_guess_type` (l.1249) returns `type(default)`, so `default=timedelta(hours=1)` resolves to `timedelta` and then to `DURATION`.\n  - The branch has to sit before the `if is_guessed: return STRING` fallback at l.1322, and before the final `FuncParamType(guessed)`. Otherwise `type=timedelta` would call `timedelta(\"1h30m\")` and fail.\n  - Nothing else in `core.py` needs to change. `Parameter.__init__` (l.2251) already calls `types.convert_type(type, default)`.\n\n**`src/click/__init__.py`**\n- Add `from .types import DURATION as DURATION` next to `INT` (l.62), and the same for the class if you export classes.\n\n**Docs**\n- `docs/api.md` (~l.227): add `.. autodata:: DURATION`, next to the `UUID` entry.\n- `docs/parameter-types.md` (~l.123): add a bullet for `click.DURATION`, in the style of the `UUID` one.\n- `CHANGES.md`: add an entry.\n- Add `.. versionadded::` to the class docstring.\n\n**Tests**\n- `tests/test_basic.py` (~l.165): add a parse test, plus invalid-input error message cases.\n- `tests/test_info_dict.py` (~l.156): add an entry like `click.UUID, {\"param_type\": \"UUID\", \"name\": \"uuid\"}`, but for DURATION.\n- `tests/test_types.py`: add a `convert_type(timedelta)` shorthand test and a default-inference test.\n\n## Methods the class must implement\n\n**Required**\n- `convert(self, value, param, ctx)` is the only abstract method. It must:\n  - return `timedelta` values unchanged, because it can be called with an already-converted value;\n  - work when `param` and `ctx` are `None`, which happens for prompt input;\n  - parse the string, for example by stripping it and matching `(\\d+)([dhms])` groups (e.g. `1h30m`);\n  - call `self.fail(_(\"{value!r} is not a valid duration.\").format(value=value), param, ctx)` on bad input. `fail` raises `BadParameter`, and `augment_usage_errors` fills in the context.\n\n**Recommended**\n- `__repr__` returning `\"DURATION\"`. `UUIDParameterType` does this, and it's how the `to_info_dict` and help output identify the type.\n\n**Optional overrides**\n- `get_metavar(param, ctx)` to show something like `DURATION` or `[1h30m]` in help. The default is the upper-cased `name`.\n- `to_info_dict`, only if you add config attributes. The base one already reports `param_type` and `name`.\n- `shell_complete` and `get_missing_message` are not needed.\n- `split_envvar_value` is not needed either, because a duration is a single token.\n\n`name` is used in the default metavar and in the info dict, so if you pick a different name than `\"duration\"`, adjust the test in `tests/test_info_dict.py` to match.",
+  "is_error": false
+}

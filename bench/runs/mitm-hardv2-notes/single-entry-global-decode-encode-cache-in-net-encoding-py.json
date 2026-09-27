@@ -1,0 +1,71 @@
+{
+  "id": "single-entry-global-decode-encode-cache-in-net-encoding-py",
+  "title": "Single-entry global decode/encode cache in net/encoding.py",
+  "kind": "gotcha",
+  "answers": [
+    "How is decoded content cached?",
+    "Is there a per-message cache of decoded body?",
+    "Why is repeated .content access cheap?"
+  ],
+  "body": "- Cache is module-global `_cache = CachedDecode(encoded, encoding, errors, decoded)` (namedtuple) in `mitmproxy/net/encoding.py`; process-wide, ONE entry.\n- `decode()` hit: input is bytes and encoded/encoding/errors all equal cache → returns `_cache.decoded`. `encode()` checks the reverse (decoded equal → returns `_cache.encoded`), so an encode also primes a decode hit (round trip avoids recompression).\n- Only updated for gzip, deflate, deflateraw, br, zstd; identity/text codecs never cached.\n- `Message` (http.py) keeps no decoded copy; each `.content` access calls encoding.decode and relies on this cache. Keyed by full-body equality, so cost scales with body size; alternating between two bodies thrashes it.",
+  "tags": [
+    "cache",
+    "encoding",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/net/encoding.py",
+      "symbol": "_cache",
+      "hash": "sha256:052dff2e756d3182fab8f87b",
+      "line": 20,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/net/encoding.py",
+      "symbol": "CachedDecode",
+      "hash": "sha256:4feb89a963d0d4ef5623cb09",
+      "line": 19,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/http.py",
+      "symbol": "Message.get_content",
+      "hash": "sha256:85599b5ba1ed53254e010de7",
+      "line": 385,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/net/encoding.py",
+      "symbol": "decode",
+      "hash": "sha256:1e8b7f76709386e791cd616e",
+      "line": 35,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/net/encoding.py",
+      "symbol": "encode",
+      "hash": "sha256:4e423fe5722e2d392fc6967f",
+      "line": 93,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c1959ff6-27fb-429c-834a-e7aae01a5762"
+  },
+  "created": "2026-09-26T09:26:07.723Z",
+  "verified": "2026-09-26T09:26:07.723Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "content-encoding-codecs-and-message-decode-encode-callpath"
+  ],
+  "lastUsed": "2026-09-26T19:46:00.750Z",
+  "servedIn": [
+    "b3520ca2-bce3-4a7b-b15a-f1eac5031426",
+    "c05594ec-7284-4656-82ff-64aa9670a191"
+  ]
+}

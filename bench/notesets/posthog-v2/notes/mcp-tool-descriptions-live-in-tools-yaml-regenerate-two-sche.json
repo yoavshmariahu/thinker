@@ -1,0 +1,49 @@
+{
+  "id": "mcp-tool-descriptions-live-in-tools-yaml-regenerate-two-sche",
+  "title": "MCP tool descriptions live in tools.yaml; regenerate two schema JSONs together",
+  "kind": "cochange",
+  "answers": [
+    "Where do I edit the llma-prompt-get description?",
+    "Changing an MCP tool description for AI observability",
+    "generated-tool-definitions.json out of sync with tools.yaml"
+  ],
+  "body": "MCP tool descriptions for AI observability are authored in `products/ai_observability/mcp/tools.yaml` (entries like `llma-prompt-get`, `llma-prompt-list`, `llma-prompt-update`).\nThe same description text is mirrored verbatim in two generated files: `services/mcp/schema/generated-tool-definitions.json` and `services/mcp/schema/tool-definitions-all.json`.\nA description-only change needs no handler or schema changes, but both JSON files must be regenerated (not hand-edited) so they match the YAML.\nThe tool descriptions are the docs surface for these tools, so behavior notes belong there.",
+  "applies": "Editing MCP tool descriptions for products/ai_observability tools",
+  "tags": [
+    "mcp",
+    "tools.yaml",
+    "generated",
+    "prompts"
+  ],
+  "deps": [
+    {
+      "path": "products/ai_observability/mcp/tools.yaml",
+      "hash": "sha256:58dd81e642ae530391a1daab",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/schema/generated-tool-definitions.json",
+      "hash": "sha256:8756f46b844697d7d39dfbb5",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/schema/tool-definitions-all.json",
+      "hash": "sha256:9e4f457a85533d4390c3ecaa",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105656"
+  },
+  "created": "2026-09-27T00:00:16.419Z",
+  "verified": "2026-09-27T00:00:16.419Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "editing-prompts-via-mcp-must-fetch-raw-resolve-false-to-avoi",
+    "changing-mcp-tool-scopes-description-edit-tools-yaml-and-reg"
+  ]
+}

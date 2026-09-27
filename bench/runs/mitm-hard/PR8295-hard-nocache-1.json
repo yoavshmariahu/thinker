@@ -1,0 +1,78 @@
+{
+  "id": "PR8295-hard-nocache-1",
+  "task": "PR8295-hard",
+  "area": "next-layer",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "f28b0391-4f89-4f94-ac27-7f4c81077574",
+  "turns": 11,
+  "wall_ms": 44471,
+  "api_ms": 43831,
+  "cost": 0.1801826,
+  "in_tokens": 302690,
+  "out_tokens": 3781,
+  "tools": {
+    "calls": 10,
+    "byTool": {
+      "Bash": 10
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 9,
+    "injected": []
+  },
+  "grade": {
+    "score": 0,
+    "missing": [
+      "Gating QUIC ClientHello parsing in _get_client_hello on _starts_like_quic(data_client, server address)",
+      "Gating DTLS ClientHello parsing on starts_like_dtls_record so non-QUIC/non-DTLS UDP data is not mis-parsed",
+      "Handling of the UDP first-datagram path in _get_client_hello, which is where the stall originates"
+    ],
+    "wrong": [
+      "Changed the context.client.sni check in _ignore_connection to apply only to TCP, which is a different code path from the upstream fix",
+      "The diagnosis (split ClientHello / parent-layer SNI) does not match the real cause, which is UDP client-hello parsing in _get_client_hello",
+      "Added test does not cover the invalid-QUIC or http3-with-ignoring-active scenarios; the patch would not fix those"
+    ],
+    "reason": "The upstream fix changes the UDP branch of _get_client_hello so QUIC and DTLS parsing only happen when the data looks like QUIC or DTLS. The agent instead restricted the parent-layer SNI check to TCP in _ignore_connection. That is a different location and mechanism. It does not fix the upstream scenarios (invalid QUIC data, and h3 with ignoring active), and it could also stop a legitimate SNI match for later QUIC decisions.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py",
+      "test/mitmproxy/addons/test_next_layer.py"
+    ],
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The upstream fix gates UDP ClientHello parsing in `_get_client_hello`, so QUIC is only parsed if the data starts like QUIC and DTLS only if it starts like a DTLS record. The agent instead skipped the `context.client.sni` check for non-TCP transports, which is a different place and a different mechanism. It does not fix the reported stall, and it would regress SNI-based ignoring for DTLS and split QUIC ClientHellos.",
+      "The upstream fix gates the QUIC and DTLS client-hello parsing in `_get_client_hello` on the data actually looking like QUIC or DTLS. That stops non-QUIC or invalid UDP data from stalling when host ignoring is active. The agent instead restricted the `context.client.sni` check to TCP, which is a different code path. It leaves the parsing logic unchanged, so it would not fix the stall, and it may regress SNI matching for UDP.",
+      "Upstream fixes `_get_client_hello` so that UDP data is only parsed as QUIC or DTLS when it actually looks like QUIC or DTLS. The agent left that function alone and instead skipped the `context.client.sni` check for UDP in `_ignore_connection`. That is a different place and a different mechanism. It would not fix the upstream scenario, and it introduces a regression for split-ClientHello QUIC."
+    ]
+  },
+  "result": "I made a change that I think fixes the stall, but I haven't run it or the tests, and I haven't reproduced the stall itself. I found the cause by reading the code, not by running it.\n\n**Cause.** `NextLayer._ignore_connection` in `mitmproxy/addons/next_layer.py` also checks `context.client.sni`, the SNI a parent TLS layer has already negotiated. For QUIC, the QUIC layers have already started by the time SNI is set, if the ClientHello was split across datagrams. When the ignore check then matches, `next_layer` would put a passthrough `UDPLayer` inside a client connection that is already a QUIC tunnel. That layer can't relay the traffic, so the flow stalls.\n\n**Fix.** The `context.client.sni` check now applies only to TCP connections (`next_layer.py:238`). For UDP/QUIC, ignoring is decided from the address and from the ClientHello SNI in the first datagram, before any QUIC layer exists. In that case the connection goes to a plain passthrough layer.\n\n**Limitation.** If a QUIC ClientHello is split across datagrams, it can no longer be ignored by SNI. It is handled by mitmproxy as normal QUIC instead. Ignoring it by SNI would need the next-layer decision to wait for the later datagrams. I didn't attempt that, because the accumulated client data is joined bytes and can't be re-split into datagrams. The same restriction also now applies to DTLS, which I didn't check separately.\n\n**Test.** I added a case to `test_ignore_connection` in `test/mitmproxy/addons/test_next_layer.py`. Over UDP with an SNI inherited from the parent layer, that SNI is no longer matched. The existing TCP \"allow: sni from parent layer\" case still expects the SNI to be matched.\n\nIf you can reproduce the stall against a QUIC client, that would confirm this is the right cause.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..5f4c8e0ba 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -235,8 +235,9 @@ class NextLayer:\n                 client_hello := self._get_client_hello(context, data_client)\n             ) and client_hello.sni:\n                 hostnames.append(f\"{client_hello.sni}:{port}\")\n-            if context.client.sni:\n+            if context.client.sni and context.client.transport_protocol == \"tcp\":\n                 # Hostname may be allowed, TLS is already established, and we have another next layer decision.\n+                # This does not apply to QUIC: once the QUIC handshake has started, we cannot switch to passthrough.\n                 hostnames.append(f\"{context.client.sni}:{port}\")\n \n         if not hostnames:\ndiff --git a/test/mitmproxy/addons/test_next_layer.py b/test/mitmproxy/addons/test_next_layer.py\nindex 4694e3529..3d73e174d 100644\n--- a/test/mitmproxy/addons/test_next_layer.py\n+++ b/test/mitmproxy/addons/test_next_layer.py\n@@ -315,6 +315,15 @@ class TestNextLayer:\n                 False,\n                 id=\"allow: sni from parent layer\",\n             ),\n+            pytest.param(\n+                [],\n+                [\"existing-sni.example\"],\n+                \"udp\",\n+                \"192.0.2.1\",\n+                b\"\",\n+                True,\n+                id=\"allow: sni from parent layer ignored for udp\",\n+            ),\n             pytest.param(\n                 [],\n                 [\"example.com\"],\n",
+  "grade0": {
+    "score": 0.05,
+    "missing": [
+      "Gating QUIC ClientHello parsing in _get_client_hello on _starts_like_quic(data_client, server address)",
+      "Gating DTLS ClientHello parsing on starts_like_dtls_record so non-QUIC/non-DTLS UDP data is not mis-parsed",
+      "Handling of the UDP first-datagram path in _get_client_hello, which is where the stall originates"
+    ],
+    "wrong": [
+      "Changed the context.client.sni check in _ignore_connection to apply only to TCP, which is a different code path from the upstream fix",
+      "The diagnosis (split ClientHello / parent-layer SNI) does not match the real cause, which is UDP client-hello parsing in _get_client_hello",
+      "Added test does not cover the invalid-QUIC or http3-with-ignoring-active scenarios; the patch would not fix those"
+    ],
+    "reason": "The upstream fix changes the UDP branch of _get_client_hello so QUIC and DTLS parsing only happen when the data looks like QUIC or DTLS. The agent instead restricted the parent-layer SNI check to TCP in _ignore_connection. That is a different location and mechanism. It does not fix the upstream scenarios (invalid QUIC data, and h3 with ignoring active), and it could also stop a legitimate SNI match for later QUIC decisions.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py",
+      "test/mitmproxy/addons/test_next_layer.py"
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "id": "moving-product-event-filter-options-update-all-three-importe",
+  "title": "Moving product event filter options: update all three importers and the test file",
+  "kind": "cochange",
+  "answers": [
+    "Where are getProductEventFilterOptions defined?",
+    "Where is the test for getProductEventPropertyValues?",
+    "Adding a new hog function product event trigger option"
+  ],
+  "body": "The option lists live in `frontend/src/scenes/hog-functions/filters/productEventFilterOptions.ts`, with its test `productEventFilterOptions.test.ts` beside it. Consumers that import from it: `HogFunctionFiltersInternal.tsx` (which also imports the `FilterOption` type), `taxonomicFilterLogic.tsx` and `utils/buildTaxonomicGroups.tsx`. When adding or moving these helpers, update all of them together. Add new contexts or options in the `.ts` module, not the component file. Keep that module free of logic and component imports.",
+  "applies": "hog function Trigger field product event options and the taxonomic filter groups that use them",
+  "tags": [
+    "hog-functions",
+    "taxonomic-filter",
+    "refactor"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/hog-functions/filters/productEventFilterOptions.ts",
+      "symbol": "getProductEventPropertyValues",
+      "hash": "sha256:e4ce76f2a52e13af4f56d364",
+      "line": 161,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/hog-functions/filters/productEventFilterOptions.test.ts",
+      "hash": "sha256:e8542ed60a2e157294cf9ce8",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/hog-functions/filters/HogFunctionFiltersInternal.tsx",
+      "hash": "sha256:c3d4bc0dc292b0c1dddd5331",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105249"
+  },
+  "created": "2026-09-27T00:09:30.129Z",
+  "verified": "2026-09-27T00:09:30.129Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-shell-loaded-logics-from-importing-component-files-that"
+  ]
+}

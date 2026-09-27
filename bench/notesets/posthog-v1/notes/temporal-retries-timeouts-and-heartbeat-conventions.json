@@ -1,0 +1,95 @@
+{
+  "id": "temporal-retries-timeouts-and-heartbeat-conventions",
+  "title": "Temporal retries, timeouts and heartbeat conventions",
+  "kind": "convention",
+  "answers": [
+    "What retry policy should Temporal activities use?",
+    "How do I heartbeat in a long activity?",
+    "Where are named retry policies defined?"
+  ],
+  "body": "- Every `execute_activity` needs `start_to_close_timeout` or `schedule_to_close_timeout`; retries are unlimited by default so set `maximum_attempts` explicitly. `non_retryable_error_types` matches exact class names, not ancestors.\n- Named policies as constants: `alerts/retry_policy.py:ALERT_PREPARE_RETRY_POLICY`, `ALERT_EVALUATE_RETRY_POLICY`; `CheckAlertWorkflow` derives timeouts via `alert_timeouts(calculation_interval)`.\n- Heartbeats: long async activities use `async with Heartbeater():` from `common/heartbeat.py` and workflow sets `heartbeat_timeout` (e.g. 2 min in `CleanupAlertChecksWorkflow`). Sync activities use `common/heartbeat_sync.py:HeartbeaterSync`. Details are buffered, not guaranteed; `HeartbeatDetails` subclasses deserialize on retry.\n- `common/shutdown.py:ShutdownMonitor` lets long activities exit early on worker shutdown; `WorkerShuttingDownError` should be retried.\n- Test helpers for these live in `posthog/temporal/tests/utils/workflow.py`.",
+  "applies": "Activity scheduling from workflows; heartbeat details partly from README.",
+  "tags": [
+    "temporal",
+    "retry",
+    "heartbeat"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/retry_policy.py",
+      "hash": "sha256:9e232a791b5d69a6d8f20238",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/workflows.py",
+      "hash": "sha256:fb203981989877082ca89821",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/heartbeat.py",
+      "hash": "sha256:994a2471082fe44ea74c2b46",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/heartbeat_sync.py",
+      "hash": "sha256:0e000011624ba3164f7535c1",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/shutdown.py",
+      "hash": "sha256:35575a9ecd3ca164f9d06e05",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/README.md",
+      "hash": "sha256:6d3e5eed868ef5df15a3987a",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/retry_policy.py",
+      "symbol": "ALERT_PREPARE_RETRY_POLICY",
+      "hash": "sha256:86ac521f89dac8ad7f2cec1c",
+      "line": 15,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/heartbeat_sync.py",
+      "symbol": "HeartbeaterSync",
+      "hash": "sha256:298fd3f9461064db89dead76",
+      "line": 13,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/shutdown.py",
+      "symbol": "ShutdownMonitor",
+      "hash": "sha256:a1fba9be1fa294ab046b1ee3",
+      "line": 50,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/tests/utils/workflow.py",
+      "hash": "sha256:7b944f255a1013c9c7190923",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/heartbeat.py",
+      "symbol": "Heartbeater",
+      "hash": "sha256:0376e507cc24b2f66e64af39",
+      "line": 17,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e64496e3-34ea-4415-8688-589f00033e63"
+  },
+  "created": "2026-09-26T20:23:00.710Z",
+  "verified": "2026-09-26T20:23:00.710Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "workflow-and-activity-declaration-conventions-posthog-tempor"
+  ]
+}

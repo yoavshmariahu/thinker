@@ -1,0 +1,41 @@
+{
+  "id": "PR8224-irrelevant-0",
+  "task": "PR8224",
+  "area": "web-app",
+  "arm": "irrelevant",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "f36f2035-cc7e-4fb1-a7a2-e3ff741b6ff0",
+  "turns": 5,
+  "wall_ms": 9708,
+  "api_ms": 9293,
+  "cost": 0.0656382,
+  "in_tokens": 67401,
+  "out_tokens": 866,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 2,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's patch is functionally identical to the merged upstream patch. It sets xsrf_cookie_name=\"_mitmproxy_xsrf\" in the Tornado Application settings and changes the frontend getCookie lookup to \"_mitmproxy_xsrf\". The only difference is that the upstream patch adds a comment.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "mitmproxy/tools/web/app.py",
+      "web/src/js/utils.ts"
+    ]
+  },
+  "result": "mitmweb now uses a cookie named `_mitmproxy_xsrf` for XSRF protection instead of `_xsrf`. Browsers with a stale HttpOnly `_xsrf` cookie no longer conflict with it. I didn't run any tests, as you asked.\n\n- **Backend:** `mitmproxy/tools/web/app.py` now passes `xsrf_cookie_name=\"_mitmproxy_xsrf\"` in the `Application` settings, next to `xsrf_cookies=True`.\n- **Frontend:** in `web/src/js/utils.ts`, `fetchApi` now reads `_mitmproxy_xsrf` (it read `_xsrf` before) when it sets the `X-XSRFToken` header.\n\nI found no other references to `_xsrf` in `web/src` or the tests, so nothing else needed changing. I added no test.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..b18662dfd 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -925,6 +925,7 @@ class Application(tornado.web.Application):\n             template_path=os.path.join(os.path.dirname(__file__), \"templates\"),\n             static_path=os.path.join(os.path.dirname(__file__), \"static\"),\n             xsrf_cookies=True,\n+            xsrf_cookie_name=\"_mitmproxy_xsrf\",\n             xsrf_cookie_kwargs=dict(samesite=\"Strict\"),\n             cookie_secret=secrets.token_bytes(32),\n             debug=debug,\ndiff --git a/web/src/js/utils.ts b/web/src/js/utils.ts\nindex 7e76df609..89969f55c 100644\n--- a/web/src/js/utils.ts\n+++ b/web/src/js/utils.ts\n@@ -78,7 +78,7 @@ function getCookie(name) {\n }\n \n let xsrf = () => {\n-    const cached = getCookie(\"_xsrf\");\n+    const cached = getCookie(\"_mitmproxy_xsrf\");\n     xsrf = () => cached;\n     return xsrf();\n };\n"
+}

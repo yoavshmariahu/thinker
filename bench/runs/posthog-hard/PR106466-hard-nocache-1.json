@@ -1,0 +1,101 @@
+{
+  "id": "PR106466-hard-nocache-1",
+  "task": "PR106466-hard",
+  "area": "workflows",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "00c1805e-3158-4451-962b-7e70bd8caea4",
+  "turns": 11,
+  "wall_ms": 38416,
+  "api_ms": 36308,
+  "cost": 0.4041257999999999,
+  "in_tokens": 650037,
+  "out_tokens": 4370,
+  "tools": {
+    "calls": 10,
+    "byTool": {
+      "Bash": 10
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 8,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "samples": [
+      0.5,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent modified the right files: the wizard logic for moveToDraft and schedule replacement on launch, plus a summary button. The core behavior is in the right direction. Move-to-draft sets the status to draft, and launch replaces existing schedules with a fresh active one. That covers the main request. The patch is incomplete and less robust than upstream. The eligibility check is cruder and wrongly excludes recurring broadcasts that have already run. It doesn't guard against a completed schedule or a non-editable graph. Launch ordering is also less safe. The upstream backend race fix and the cancellation of just-started jobs are missing. Because the core is right but the patch is partial, I score it 0.5.",
+      "The agent edited the same two frontend files as the upstream patch and covered both requested behaviours. First, a \"Move to draft\" button on the summary page sets a live broadcast back to draft and reopens the review step. Second, launching a scheduled broadcast now deletes existing schedules and creates a fresh active one, which fixes the silently paused schedule. Its stop condition is narrower than upstream's and it lacks some safeguards. The core behaviour still matches, and the upstream backend change is a separate race fix.",
+      "The agent changed the same frontend places as the merged patch. It adds a \"Move to draft\" action and button on the broadcast summary, which sets status to draft and returns to the review step. Launch now destroys any existing schedules and creates a fresh active one, which fixes the paused-schedule relaunch bug. The request is met in behavior. The gaps are the upstream hardening and edge cases listed under missing (the backend race fix, the confirmation dialog, and some guards), which don't change the core outcome."
+    ],
+    "reason": "The agent modified the right files: the wizard logic for moveToDraft and schedule replacement on launch, plus a summary button. The core behavior is in the right direction. Move-to-draft sets the status to draft, and launch replaces existing schedules with a fresh active one. That covers the main request. The patch is incomplete and less robust than upstream. The eligibility check is cruder and wrongly excludes recurring broadcasts that have already run. It doesn't guard against a completed schedule or a non-editable graph. Launch ordering is also less safe. The upstream backend race fix and the cancellation of just-started jobs are missing. Because the core is right but the patch is partial, I score it 0.5.",
+    "mustHit": 2,
+    "mustTotal": 4,
+    "touched": [
+      "products/workflows/frontend/Broadcasts/BroadcastSummary.tsx",
+      "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts"
+    ],
+    "criteria": {
+      "essential": 0.3333333333333333,
+      "all": 0.1111111111111111,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "BroadcastSummary shows a 'Move to draft' button calling moveToDraft, which does hogFlowsPartialUpdate(..., {status:'draft'}) and saveBroadcastFinished(draft); isReadOnly is `broadcast.status !== 'draft'` so it becomes editable. Scheduled send not firing while draft depends on the scheduler checking status (not shown, c8 not implemented), so it's plausible but the button and edit flow are present. Schedule is still present though; the scheduler is unchanged, so a draft's schedule may still fire and create a run. Not fully assured."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "`canMoveToDraft = broadcast?.status === 'active' && !batchJobsLoading && batchJobs.length === 0` — it never checks that a pending schedule exists, so an immediate send whose batch job creation... (jobs exist then) is hidden, but a live broadcast with no schedule and no jobs would still show the control."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Schedules are destroyed then created for the scheduled branch: `for (const existing of values.broadcast?.schedules ?? []) { await hogFlowsSchedulesDestroy(...) }`. But the 'now' branch does not delete existing schedules, so immediate send leaves a leftover schedule that could fire later."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "`activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })` runs before the schedule destroy/create. Activation precedes replacement; only the catch block reverts to draft on error, which doesn't cover interruption."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Only checks `!batchJobsLoading && batchJobs.length === 0`; no check for multiple schedules or for workflow shape being editable by the wizard. Run-in-progress is covered indirectly by no runs, but the other conditions are missing."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "The button's `onClick={moveToDraft}` dispatches immediately; no confirmation dialog anywhere in the patch."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "moveToDraft only patches status to draft and shows 'Broadcast moved to draft'; no cancellation of runs and no warning variants."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Patch contains no scheduler/backend changes; no status re-verification before run creation."
+        },
+        {
+          "id": "c9",
+          "verdict": "not_met",
+          "evidence": "The new schedule is built with only rrule, starts_at, timezone; existing schedules are destroyed without carrying over their variables."
+        }
+      ]
+    }
+  },
+  "result": "I made both changes in the frontend. I didn't run tests, typecheck or lint, and I didn't add a test.\n\n- **Move to draft:** the broadcast summary page now shows a \"Move to draft\" button. It appears only when the broadcast is live and has no send runs yet, meaning it's still waiting on its schedule. Once a send has started or finished it can't be undone, so the button doesn't appear. Clicking it sets the status back to draft and reopens the wizard on the review step.\n- **Relaunch fix:** launching a scheduled broadcast now deletes any existing schedules first, then creates a fresh one. A schedule that was paused after an audience edit is replaced rather than left in place. Because the schedule API can't change a schedule's status, replacing it was the only way to fix this without a backend change.\n- **Failure during relaunch:** the existing error handling still sets the broadcast back to draft. So if creating the new schedule fails after the old one is deleted, the broadcast ends up as a draft rather than live with nothing scheduled.\n\nThe changes are in `broadcastWizardLogic.ts` (new `moveToDraft` action and the schedule replacement in `launchBroadcast`) and `BroadcastSummary.tsx` (the button). I added the new action to the hand-written type declarations in `broadcastWizardLogic.ts` myself, so a typecheck should confirm they match. The new toast strings weren't checked against the user-facing copy rules.",
+  "is_error": false,
+  "diff": "diff --git a/products/workflows/frontend/Broadcasts/BroadcastSummary.tsx b/products/workflows/frontend/Broadcasts/BroadcastSummary.tsx\nindex 8a6252fe469..2db06dff4c9 100644\n--- a/products/workflows/frontend/Broadcasts/BroadcastSummary.tsx\n+++ b/products/workflows/frontend/Broadcasts/BroadcastSummary.tsx\n@@ -1,4 +1,4 @@\n-import { useValues } from 'kea'\n+import { useActions, useValues } from 'kea'\n \n import { IconArrowLeft, IconExternal } from '@posthog/icons'\n import { LemonButton, LemonTag } from '@posthog/lemon-ui'\n@@ -26,8 +26,18 @@ const BATCH_JOB_STATUS_TAG: Record<string, 'success' | 'default' | 'warning' | '\n }\n \n export function BroadcastSummary(): JSX.Element {\n-    const { broadcast, broadcastId, name, audienceProperties, email, scheduleSummary, batchJobs, batchJobsLoading } =\n-        useValues(broadcastWizardLogic)\n+    const {\n+        broadcast,\n+        broadcastId,\n+        name,\n+        audienceProperties,\n+        email,\n+        scheduleSummary,\n+        batchJobs,\n+        batchJobsLoading,\n+        movingToDraft,\n+    } = useValues(broadcastWizardLogic)\n+    const { moveToDraft } = useActions(broadcastWizardLogic)\n \n     // Email metrics from a batch send are attributed to the batch job, not the flow (see\n     // `parentRunId ?? functionId` in the plugin server's email service), so a flow-scoped query\n@@ -55,6 +65,9 @@ export function BroadcastSummary(): JSX.Element {\n         })\n     )\n \n+    // A run in flight or finished can't be undone; only a broadcast still waiting on its schedule can go back.\n+    const canMoveToDraft = broadcast?.status === 'active' && !batchJobsLoading && batchJobs.length === 0\n+\n     const batchJobColumns: LemonTableColumns<HogFlowBatchJobApi> = [\n         {\n             title: 'Started',\n@@ -102,6 +115,18 @@ export function BroadcastSummary(): JSX.Element {\n                     <LemonTag type={broadcast?.status === 'active' ? 'success' : 'default'}>\n                         {capitalizeFirstLetter(broadcast?.status ?? 'draft')}\n                     </LemonTag>\n+                    {canMoveToDraft && (\n+                        <LemonButton\n+                            type=\"secondary\"\n+                            size=\"small\"\n+                            className=\"ml-auto\"\n+                            loading={movingToDraft}\n+                            onClick={moveToDraft}\n+                            data-attr=\"broadcast-move-to-draft\"\n+                        >\n+                            Move to draft\n+                        </LemonButton>\n+                    )}\n                 </div>\n \n                 <div className=\"flex flex-col gap-3 rounded-lg border border-border bg-surface-primary p-4\">\ndiff --git a/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts b/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts\nindex 491dd77752f..831272b2c9a 100644\n--- a/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts\n+++ b/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts\n@@ -21,6 +21,7 @@ import {\n     hogFlowsPartialUpdate,\n     hogFlowsRetrieve,\n     hogFlowsSchedulesCreate,\n+    hogFlowsSchedulesDestroy,\n     hogFlowsUserBlastRadiusCreate,\n } from 'products/workflows/frontend/generated/api'\n import type {\n@@ -120,6 +121,7 @@ export interface broadcastWizardLogicValues {\n     hasHydrated: boolean\n     isReadOnly: boolean\n     launching: boolean\n+    movingToDraft: boolean\n     name: string\n     rateLimitedSendDuration: string\n     recurringRepeating: boolean\n@@ -147,6 +149,12 @@ export interface broadcastWizardLogicActions {\n     launchBroadcastFinished: () => {\n         value: true\n     }\n+    moveToDraft: () => {\n+        value: true\n+    }\n+    moveToDraftFinished: () => {\n+        value: true\n+    }\n     loadBatchJobs: () => any\n     loadBatchJobsFailure: (\n         error: string,\n@@ -334,6 +342,8 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n         saveBroadcastFinished: (broadcast: HogFlowApi | null) => ({ broadcast }),\n         launchBroadcast: true,\n         launchBroadcastFinished: true,\n+        moveToDraft: true,\n+        moveToDraftFinished: true,\n     }),\n \n     loaders(({ props, values }) => ({\n@@ -520,6 +530,13 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                 launchBroadcastFinished: () => false,\n             },\n         ],\n+        movingToDraft: [\n+            false,\n+            {\n+                moveToDraft: () => true,\n+                moveToDraftFinished: () => false,\n+            },\n+        ],\n         // Set once the initial load of an existing draft has hydrated the reducers, so the wizard can\n         // resume at the first incomplete step exactly once.\n         hasHydrated: [\n@@ -808,6 +825,11 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                         starts_at: (values.scheduleMode === 'recurring' ? values.recurringStartsAt : values.sendAt)!,\n                         timezone: values.effectiveTimezone,\n                     }\n+                    // A relaunch must not inherit a paused or stale schedule, and the API can't\n+                    // reactivate one, so replace whatever exists with a fresh active schedule.\n+                    for (const existing of values.broadcast?.schedules ?? []) {\n+                        await hogFlowsSchedulesDestroy(projectId, broadcastId, existing.id)\n+                    }\n                     await hogFlowsSchedulesCreate(projectId, broadcastId, schedule as any)\n                     lemonToast.success('Broadcast scheduled')\n                 }\n@@ -832,6 +854,26 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                 lemonToast.error(`Couldn't launch the broadcast: ${error?.detail || error?.message || 'unknown error'}`)\n             }\n         },\n+        moveToDraft: async () => {\n+            const broadcastId = values.broadcastId\n+            if (!values.currentProjectId || !broadcastId) {\n+                actions.moveToDraftFinished()\n+                return\n+            }\n+            try {\n+                const draft = await hogFlowsPartialUpdate(String(values.currentProjectId), broadcastId, {\n+                    status: 'draft',\n+                })\n+                actions.saveBroadcastFinished(draft)\n+                actions.setStep('review')\n+                lemonToast.success('Broadcast moved to draft')\n+            } catch (error: any) {\n+                lemonToast.error(\n+                    `Couldn't move the broadcast to draft: ${error?.detail || error?.message || 'unknown error'}`\n+                )\n+            }\n+            actions.moveToDraftFinished()\n+        },\n         loadBroadcastSuccess: ({ broadcast }) => {\n             if (!broadcast || values.hasHydrated) {\n                 return\n",
+  "distill": null
+}

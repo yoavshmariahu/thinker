@@ -1,0 +1,40 @@
+{
+  "id": "E8-usageerror-abort-nocache-1",
+  "task": "E8-usageerror-abort",
+  "area": "exceptions",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "559cc107-4e82-45ba-a6e0-3f2e034001c6",
+  "turns": 4,
+  "wall_ms": 12601,
+  "api_ms": 12308,
+  "cost": 0.0379286,
+  "in_tokens": 64254,
+  "out_tokens": 1304,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 2,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "Exact stderr strings not shown, e.g. blank line between hint and Error, and no usage block if ctx is None",
+      "augment_usage_errors attaching ctx to UsageError",
+      "Abort raised from an inner handler escapes the inner try because it is raised inside the handler"
+    ],
+    "wrong": [],
+    "reason": "The answer matches the reference on every main point. UsageError is caught at 1518 and gives exit 2. Abort is caught at 1543, prints \"Aborted!\" and gives exit 1. KeyboardInterrupt is caught at 1515, prints a blank line and then raises Abort, which gives \"Aborted!\" and exit 1. The line numbers are correct. The gaps are minor details such as the exact output format and the augment_usage_errors mechanism.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "All of this is in `Command.main` in `src/click/core.py` (lines 1501–1547), with `show()` and `exit_code` defined in `src/click/exceptions.py`. This is read from the source; I haven't run it.\n\n**`click.UsageError`**\n- It is caught by `except ClickException as e` at `core.py:1518`, since `UsageError` subclasses `ClickException`.\n- In standalone mode, `main` calls `e.show()` and then `sys.exit(e.exit_code)` (`core.py:1521-1522`).\n- `UsageError.show` (`exceptions.py:87`) prints to stderr:\n  - the context's usage line, if `ctx` is set;\n  - the hint `Try '<cmd> --help' for help.`, if the command has a help option;\n  - `Error: <message>`.\n- The exit code is **2**, from `UsageError.exit_code` (`exceptions.py:77`).\n- Non-standalone mode re-raises the exception (`core.py:1519-1520`).\n\n**`click.Abort`**\n- It is caught by the outer `except Abort` at `core.py:1543`. The inner `try` doesn't catch it, so it propagates out to this handler.\n- In standalone mode, `main` echoes `Aborted!` to stderr (`core.py:1546`) and calls `sys.exit(1)`. The exit code is **1**.\n- Non-standalone mode re-raises it.\n\n**Plain `KeyboardInterrupt`** (`EOFError` is handled the same way)\n- It is caught by `except (EOFError, KeyboardInterrupt) as e` at `core.py:1515`.\n- The handler prints an empty line to stderr with `echo(file=sys.stderr)`, then raises `Abort() from e` (`core.py:1516-1517`).\n- That `Abort` is not caught by the sibling handlers of the inner `try`. It propagates to the outer `except Abort` at `core.py:1543`, which behaves as above.\n- So the output is a blank line, then `Aborted!`, and the exit code is **1**.\n- The process exits with 1, not the conventional 130 for Ctrl-C.\n- This runs regardless of `standalone_mode` up to the `Abort` re-raise. In non-standalone mode, the caller sees an `Abort` exception rather than the original `KeyboardInterrupt`.\n\n`ctx.exit()` and `Exit` are a separate path. They are caught at `core.py:1530` and end in `sys.exit(e.exit_code)`.",
+  "is_error": false
+}

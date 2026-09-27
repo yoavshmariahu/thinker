@@ -1,0 +1,47 @@
+{
+  "id": "broadcast-wizard-launch-flow-launchbroadcast",
+  "title": "Broadcast wizard launch flow (launchBroadcast)",
+  "kind": "callpath",
+  "answers": [
+    "What happens when a broadcast is launched?",
+    "Where is the broadcast wizard logic?",
+    "How does the wizard resume a draft?"
+  ],
+  "body": "`frontend/Broadcasts/broadcastWizardLogic.ts`:\n- Steps: `BROADCAST_WIZARD_STEPS` = recipients, goal, content, schedule, review; `firstInvalidStep` derived from validation errors; `isReadOnly` when status != draft.\n- `buildBroadcastPayload` always sends `status: 'draft'`.\n- `launchBroadcast` listener: save draft → blast-radius preview for confirm token (stop if over batch limit) → PATCH `status:'active'` → create batch job (send now) or schedule (scheduled/recurring) → on failure after activation, PATCH back to `draft`.\n- `loadBroadcastSuccess` + `hydrateFromBroadcast` resume at first invalid step or `review`.",
+  "tags": [
+    "workflows",
+    "broadcast",
+    "wizard"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+      "symbol": "launchBroadcast",
+      "hash": "sha256:015671b8ee4dbbcb74eb03bd",
+      "line": 144,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "3ec4dd80-785e-4bab-8bfd-c8caaa125787"
+  },
+  "created": "2026-09-26T20:24:01.533Z",
+  "verified": "2026-09-26T20:24:01.533Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 8,
+  "related": [],
+  "lastUsed": "2026-09-27T00:19:02.450Z",
+  "servedIn": [
+    "72bb7345-28dc-4f61-9301-4a809d56cef9",
+    "c6af33c6-9cbe-4bcb-8bc5-1c6f87b0efef",
+    "ff757a24-4daa-4fa9-a5c5-8218b29aa8a5",
+    "944d9c5a-5c65-4014-863b-e8c16e823a2e",
+    "14c2ec40-2468-4788-b4a9-dc244490763f",
+    "04a5a3f1-32cf-4cff-8991-68c57332f4cf",
+    "1927ecc9-c54d-4e30-9df0-680b80020632",
+    "acd2b418-c221-48f9-b922-82dd3e9b0cdd"
+  ]
+}

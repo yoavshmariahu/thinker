@@ -1,0 +1,42 @@
+{
+  "id": "serializer-openapi-annotation-rules-for-endpoints",
+  "title": "Serializer/OpenAPI annotation rules for endpoints",
+  "kind": "convention",
+  "answers": [
+    "Where should input validation go in a PostHog endpoint?",
+    "What OpenAPI annotations do custom actions need?",
+    "What does validated_request do?"
+  ],
+  "body": "- Validation lives in serializer `validate_<field>`/`validate`, not viewset methods.\n- Prefer `@validated_request` (posthog/api/mixins.py) over manual `is_valid()` + `@extend_schema`.\n- Every custom `@action` needs `@extend_schema` or `@validated_request`, otherwise drf-spectacular finds zero parameters. Plain `ViewSet` methods need annotations; `ModelViewSet` with `serializer_class` is auto-discovered. Put the decorator on the actual method (get/post/list/create).\n- Errors are typed with `OpenApiResponse(response=ErrorSerializer)`; list endpoints declare pagination.\n- Fields need `help_text`; `SerializerMethodField` needs `@extend_schema_field`.\n- Source: .agents/skills/improving-drf-endpoints/SKILL.md checklist.",
+  "applies": "Applies to endpoints that feed the generated OpenAPI/TS clients; the SKILL checklist was read only in part, so check the file for the full list.",
+  "tags": [
+    "openapi",
+    "serializers",
+    "drf-spectacular"
+  ],
+  "deps": [
+    {
+      "path": ".agents/skills/improving-drf-endpoints/SKILL.md",
+      "hash": "sha256:8489e2b4937895fc234ed9d7",
+      "missing": false
+    },
+    {
+      "path": "posthog/api/mixins.py",
+      "symbol": "validated_request",
+      "hash": "sha256:6b01d887bf8ee5e3412c2f0a",
+      "line": 230,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "d4e47a02-7a4e-4dec-b5bd-484f4671e692"
+  },
+  "created": "2026-09-27T00:27:32.812Z",
+  "verified": "2026-09-27T00:27:32.812Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

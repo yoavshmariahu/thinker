@@ -1,0 +1,1167 @@
+[
+  {
+    "id": "PR8175-hard-hook-0",
+    "task": "PR8175-hard",
+    "area": "addons-dump",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "613e8f82-86fe-4bbb-b540-25570a14941e",
+    "turns": 8,
+    "wall_ms": 18951,
+    "api_ms": 17835,
+    "cost": 0.125255,
+    "in_tokens": 182759,
+    "out_tokens": 1815,
+    "tools": {
+      "calls": 7,
+      "byTool": {
+        "Bash": 7
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 6,
+      "injected": [
+        "mitmdump-flow-printing-is-the-dumper-addon-response-error-ho",
+        "building-sending-the-upstream-connect-and-forming-the-author"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent added the same `http_connect_error` hook handler to Dumper, with the same match check and echo_flow call as the merged patch. It is functionally identical. The added test is a reasonable equivalent.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/addons/dumper.py",
+        "test/mitmproxy/addons/test_dumper.py"
+      ]
+    },
+    "result": "Failed CONNECT requests should now show up in mitmdump. I haven't run the tests, so the fix and the new test are untested.\n\n**Cause:** a failed CONNECT doesn't fire the `error` hook that `Dumper` already listens to. In `mitmproxy/proxy/layers/http/__init__.py`, `handle_connect_finish` fires `HttpConnectErrorHook` (`http_connect_error`) when the CONNECT response isn't 2xx. `Dumper` had no handler for that hook, so nothing was printed. The unreachable-host case sets a 502 response, and `flow.error` isn't guaranteed to be set, which is why `error` doesn't cover it.\n\n**Change:** I added `Dumper.http_connect_error` in `mitmproxy/addons/dumper.py`. It applies the same `match` check as the other handlers, so `flow_detail=0` and flow filters still work. It then calls `echo_flow`, which prints the CONNECT request line and the failure response line (e.g. 502). It also prints the error line if `flow.error` happens to be set.\n\n**Test:** I added `test_http_connect_error` in `test/mitmproxy/addons/test_dumper.py`. It checks that a CONNECT flow with a 502 response is printed at `flow_detail=1`, and that nothing is printed at `flow_detail=0`.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/addons/dumper.py b/mitmproxy/addons/dumper.py\nindex ea7569064..8a4d46a94 100644\n--- a/mitmproxy/addons/dumper.py\n+++ b/mitmproxy/addons/dumper.py\n@@ -294,6 +294,11 @@ class Dumper:\n         if self.match(f):\n             self.echo_flow(f)\n \n+    def http_connect_error(self, f: http.HTTPFlow) -> None:\n+        # Failed CONNECT requests trigger this hook instead of `error`.\n+        if self.match(f):\n+            self.echo_flow(f)\n+\n     def websocket_message(self, f: http.HTTPFlow):\n         assert f.websocket is not None  # satisfy type checker\n         if self.match(f):\ndiff --git a/test/mitmproxy/addons/test_dumper.py b/test/mitmproxy/addons/test_dumper.py\nindex 7adf4e86e..c8a80455b 100644\n--- a/test/mitmproxy/addons/test_dumper.py\n+++ b/test/mitmproxy/addons/test_dumper.py\n@@ -96,6 +96,24 @@ def test_simple():\n         sio.truncate(0)\n \n \n+def test_http_connect_error():\n+    sio = io.StringIO()\n+    d = dumper.Dumper(sio)\n+    with taddons.context(d) as ctx:\n+        ctx.configure(d, flow_detail=1)\n+        f = tflow.tflow(resp=True)\n+        f.request.method = \"CONNECT\"\n+        f.response.status_code = 502\n+        d.http_connect_error(f)\n+        assert \"CONNECT\" in sio.getvalue()\n+        assert \"502\" in sio.getvalue()\n+        sio.truncate(0)\n+\n+        ctx.configure(d, flow_detail=0)\n+        d.http_connect_error(f)\n+        assert not sio.getvalue()\n+\n+\n def test_echo_body():\n     f = tflow.tflow(resp=True)\n     f.response.headers[\"content-type\"] = \"text/html\"\n",
+    "distill": null
+  },
+  {
+    "id": "PR8196-hard-hook-0",
+    "task": "PR8196-hard",
+    "area": "utils",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "86758c63-4128-4196-8000-f9b6482b1162",
+    "turns": 5,
+    "wall_ms": 13624,
+    "api_ms": 13078,
+    "cost": 0.09350739999999999,
+    "in_tokens": 98728,
+    "out_tokens": 1362,
+    "tools": {
+      "calls": 4,
+      "byTool": {
+        "Read": 1,
+        "Edit": 2,
+        "Bash": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 1,
+      "injected": [
+        "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "web-frontend-tests-web-npm"
+      ]
+    },
+    "grade": {
+      "score": 0.93,
+      "missing": [],
+      "wrong": [
+        "On 101-103 byte inputs whose tail bytes are all continuation bytes, the agent cuts at len(s) and keeps the whole input. Upstream ends the loop without a break, so it probably takes the fallback cut. The sample can differ by a few bytes, which is unlikely to change the result."
+      ],
+      "reason": "The agent edited the same loop in is_mostly_bin and removed the IndexError. Its `cut < len(s)` guard treats the end of the input as a character boundary. Upstream instead shortens the range to `min(104, len(s))`. Inputs of 100 bytes or fewer, and of 104 or more, behave as before. The two versions differ only in which few tail bytes are sampled in the edge case, so the result should be the same in practice.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/utils/strutils.py",
+        "test/mitmproxy/utils/test_strutils.py"
+      ]
+    },
+    "result": "`is_mostly_bin` no longer raises `IndexError` on inputs of 101–103 bytes. I haven't run the tests.\n\n**Cause:** when the input is longer than 100 bytes, the function looks at `s[100]` through `s[103]` to find a spot to cut that doesn't split a UTF-8 character. If the input is only 101–103 bytes and those tail bytes are continuation bytes (`0b10xxxxxx`), the loop indexed past the end of the data.\n\n**Fix:** in `mitmproxy/utils/strutils.py`, the continuation-byte check now reads `cut < len(s) and (s[cut] >> 6) == 0b10`. Reaching the end of the input counts as a character boundary, and the slice `s[:cut]` then keeps the whole input. Inputs of 100 bytes or fewer, or of 104 or more, take the same path as before, so their results don't change.\n\n**Test:** in `test/mitmproxy/utils/test_strutils.py`, I added cases for `101 * b\"\\x80\"`, `102 * b\"\\x80\"` and `103 * b\"\\x80\"`, which previously raised `IndexError`. All three should return `True` (binary).",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..44b09598e 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -133,7 +133,8 @@ def is_mostly_bin(s: bytes) -> bool:\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n         for cut in range(100, 104):\n-            is_continuation_byte = (s[cut] >> 6) == 0b10\n+            # Reaching the end of the input also counts as a character boundary.\n+            is_continuation_byte = cut < len(s) and (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\n                 s = s[:cut]\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..44b0b65c3 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,10 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # input just past the cut-off, ending in continuation bytes\n+    assert strutils.is_mostly_bin(101 * b\"\\x80\")\n+    assert strutils.is_mostly_bin(102 * b\"\\x80\")\n+    assert strutils.is_mostly_bin(103 * b\"\\x80\")\n \n \n def test_is_xml():\n",
+    "distill": null
+  },
+  {
+    "id": "PR8176-hard-hook-0",
+    "task": "PR8176-hard",
+    "area": "startup-options",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "062c2bab-9b64-44cc-8616-9f9b0fbff3c1",
+    "turns": 4,
+    "wall_ms": 11783,
+    "api_ms": 11103,
+    "cost": 0.09293420000000001,
+    "in_tokens": 77817,
+    "out_tokens": 1086,
+    "tools": {
+      "calls": 3,
+      "byTool": {
+        "Read": 2,
+        "Edit": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 2,
+      "greps": 0,
+      "injected": [
+        "cli-startup-sequence-main-run-options-applied",
+        "script-addons-s-loading-path"
+      ]
+    },
+    "grade": {
+      "score": 0.05,
+      "missing": [
+        "Explicit loading of pending scripts (calling loadscript() on scriptloader addons whose ns is None) before dump_defaults"
+      ],
+      "wrong": [
+        "A single `await asyncio.sleep(0)` in main() does not reliably run loadscript(). By the agent's own account, Script.watcher() begins with its own `await asyncio.sleep(0)`. The watcher task is already queued, so it runs first and yields again. main() then resumes ahead of it and dumps the options before the script is loaded.",
+        "The patch relies on event-loop scheduling order rather than forcing the load, so it is fragile even where it might work."
+      ],
+      "reason": "The agent edited the right spot in main.py, but the fix depends on event-loop timing. The watcher task's first step is itself a sleep(0), so one yield from main() lets the watcher run only up to that sleep. main() resumes before loadscript() runs, and the options dump still lacks the addon's custom options. The upstream patch avoids this by calling loadscript() directly on scripts whose ns is None.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/tools/main.py"
+      ]
+    },
+    "result": "I added one line to `mitmproxy/tools/main.py` so that scripts passed with `-s` are loaded before `--options` or `--commands` dumps anything. I haven't run it or the test suite, and I didn't add a test because `run()` is marked `# pragma: no cover`.\n\n**Cause:** `-s` scripts are loaded by a task that `Script.watcher()` starts. It begins with `await asyncio.sleep(0)`, so nothing loads until the event loop gets control. `main()` was reading the options and commands without yielding, so the script's options and commands were never registered.\n\n**Fix:** in `main()`, right after `process_options(...)` and before the `args.options` / `args.commands` checks, I added `await asyncio.sleep(0)`. That gives the watcher tasks one turn to run `loadscript()`. The script gets imported and registered, and its options and commands are then included in the dump. It also applies to the `extra(args)` step that follows.\n\nI only checked this by reading the code. Since `Script.watcher()` starts the load on that first turn, I expect a single yield to be enough.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/tools/main.py b/mitmproxy/tools/main.py\nindex 5190820a0..62964bc68 100644\n--- a/mitmproxy/tools/main.py\n+++ b/mitmproxy/tools/main.py\n@@ -90,6 +90,11 @@ def run(\n             )\n             process_options(parser, opts, args)\n \n+            # Script loading is deferred to a task (see Script.watcher). Yield to the\n+            # event loop once so that scripts get loaded and their custom options\n+            # and commands are registered before we dump them.\n+            await asyncio.sleep(0)\n+\n             if args.options:\n                 optmanager.dump_defaults(opts, sys.stdout)\n                 sys.exit(0)\n",
+    "distill": null
+  },
+  {
+    "id": "PR8224-hard-hook-0",
+    "task": "PR8224-hard",
+    "area": "web-app",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "c49d2dfa-8d17-47a4-a534-9164b432b5b3",
+    "turns": 7,
+    "wall_ms": 16340,
+    "api_ms": 15674,
+    "cost": 0.0932232,
+    "in_tokens": 120030,
+    "out_tokens": 1663,
+    "tools": {
+      "calls": 6,
+      "byTool": {
+        "Bash": 3,
+        "Edit": 3
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 3,
+      "injected": [
+        "web-frontend-tests-web-npm",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "mitmweb-xsrf-auth-and-header-protections"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent made the same functional changes as the merged patch. It set xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and changed the frontend getCookie call in utils.ts to the new name. The only differences are the changelog entry and a missing explanatory comment, which don't affect behavior.",
+      "mustHit": 2,
+      "mustTotal": 2,
+      "touched": [
+        "CHANGELOG.md",
+        "mitmproxy/tools/web/app.py",
+        "web/src/js/utils.ts"
+      ]
+    },
+    "result": "The web interface's XSRF cookie is now named `_mitmproxy_xsrf`, both where it is set and where it is read. I haven't run any tests, per your instructions.\n\n- **Where it's set:** in `mitmproxy/tools/web/app.py` I added `xsrf_cookie_name=\"_mitmproxy_xsrf\"` to the Tornado `Application` settings, next to the existing `xsrf_cookie_kwargs`. Tornado's XSRF check reads the same setting, so server-side validation follows the new name without further changes.\n- **Where it's read:** in `web/src/js/utils.ts` the frontend now calls `getCookie(\"_mitmproxy_xsrf\")` instead of `getCookie(\"_xsrf\")`. It still sends the value in the `X-XSRFToken` header.\n- **Changelog:** I added an entry to `CHANGELOG.md`.\n\nA browser with the old `_xsrf` cookie just ignores it and is issued the new one.\n\nI didn't add a test. The only XSRF reference in the existing tests is `test_app.py` disabling `xsrf_cookies`, so nothing there depended on the cookie name.",
+    "is_error": false,
+    "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..09e62b4c4 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmweb: Rename the XSRF cookie to `_mitmproxy_xsrf` to fix Firefox sessions broken by the old cookie.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..b18662dfd 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -925,6 +925,7 @@ class Application(tornado.web.Application):\n             template_path=os.path.join(os.path.dirname(__file__), \"templates\"),\n             static_path=os.path.join(os.path.dirname(__file__), \"static\"),\n             xsrf_cookies=True,\n+            xsrf_cookie_name=\"_mitmproxy_xsrf\",\n             xsrf_cookie_kwargs=dict(samesite=\"Strict\"),\n             cookie_secret=secrets.token_bytes(32),\n             debug=debug,\ndiff --git a/web/src/js/utils.ts b/web/src/js/utils.ts\nindex 7e76df609..89969f55c 100644\n--- a/web/src/js/utils.ts\n+++ b/web/src/js/utils.ts\n@@ -78,7 +78,7 @@ function getCookie(name) {\n }\n \n let xsrf = () => {\n-    const cached = getCookie(\"_xsrf\");\n+    const cached = getCookie(\"_mitmproxy_xsrf\");\n     xsrf = () => cached;\n     return xsrf();\n };\n",
+    "distill": null
+  },
+  {
+    "id": "PR8214-hard-hook-0",
+    "task": "PR8214-hard",
+    "area": "certs",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "095700eb-fb67-4d0e-836e-1f210c9d21d2",
+    "turns": 7,
+    "wall_ms": 18777,
+    "api_ms": 18235,
+    "cost": 0.11477339999999998,
+    "in_tokens": 156661,
+    "out_tokens": 1923,
+    "tools": {
+      "calls": 6,
+      "byTool": {
+        "Bash": 3,
+        "Read": 1,
+        "Edit": 2
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 3,
+      "injected": [
+        "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-",
+        "ca-cert-store-location-creation-and-loading",
+        "certstore-leaf-cert-cache-keys-lookup-order-eviction"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent's change to dummy_cert in mitmproxy/certs.py matches the merged patch in behavior. It reads the CA's SubjectKeyIdentifier and builds the AKI with from_issuer_subject_key_identifier. If the CA has no SKI (ExtensionNotFound), it falls back to from_issuer_public_key. The extension is still added as non-critical. The test and changelog differences do not affect the score.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/certs.py",
+        "test/mitmproxy/test_certs.py"
+      ]
+    },
+    "result": "Leaf certs already had an AuthorityKeyIdentifier, so I changed how it's built: it is now copied from the issuing CA's SubjectKeyIdentifier. I haven't run any tests, as you asked.\n\n- **The change:** in `dummy_cert` (`mitmproxy/certs.py`), the AKI was derived from the CA's public key. It now uses `AuthorityKeyIdentifier.from_issuer_subject_key_identifier` on the CA's SKI extension. If a user-supplied CA has no SKI, it falls back to the old public-key derivation, so those CAs keep working.\n- **What stays the same:** the AKI is still non-critical, and leaf certs still get no SubjectKeyIdentifier of their own. Giving a leaf the same SKI as the CA breaks SChannel (issue 6494), which is why the code deliberately skips it.\n- **Practical effect:** for CAs generated by mitmproxy the AKI value is probably unchanged, since their SKI is the hash of the same public key. The difference shows up for imported CAs whose SKI was computed differently.\n- **Test:** I added `test_leaf_authority_key_identifier` to `test/mitmproxy/test_certs.py`. It checks that a leaf's AKI key identifier equals the default CA's SKI digest.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/certs.py b/mitmproxy/certs.py\nindex 2f421e25e..9195bfbd3 100644\n--- a/mitmproxy/certs.py\n+++ b/mitmproxy/certs.py\n@@ -356,10 +356,16 @@ def dummy_cert(\n     )\n \n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1\n-    builder = builder.add_extension(\n-        x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key()),  # type: ignore\n-        critical=False,\n-    )\n+    # The AKI is copied from the CA's SKI where present (RFC 5280 §4.2.1.2),\n+    # otherwise we derive it from the CA's public key.\n+    try:\n+        ca_ski = cacert.extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        ).value\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(ca_ski)\n+    except x509.ExtensionNotFound:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())  # type: ignore\n+    builder = builder.add_extension(aki, critical=False)\n     # If CA and leaf cert have the same Subject Key Identifier, SChannel breaks in funny ways,\n     # see https://github.com/mitmproxy/mitmproxy/issues/6494.\n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2 states\ndiff --git a/test/mitmproxy/test_certs.py b/test/mitmproxy/test_certs.py\nindex aba66a733..1e7001ccf 100644\n--- a/test/mitmproxy/test_certs.py\n+++ b/test/mitmproxy/test_certs.py\n@@ -61,6 +61,16 @@ class TestCertStore:\n     def test_create_no_common_name(self, tstore):\n         assert tstore.get_cert(None, []).cert.cn is None\n \n+    def test_leaf_authority_key_identifier(self, tstore):\n+        leaf = tstore.get_cert(\"example.com\", []).cert\n+        ca_ski = tstore.default_ca.to_cryptography().extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        )\n+        aki = leaf.to_cryptography().extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        )\n+        assert aki.value.key_identifier == ca_ski.value.digest\n+\n     def test_chain_file(self, tdata, tmp_path):\n         cert = Path(tdata.path(\"mitmproxy/data/confdir/mitmproxy-ca.pem\")).read_bytes()\n         (tmp_path / \"mitmproxy-ca.pem\").write_bytes(cert)\n",
+    "distill": null
+  },
+  {
+    "id": "PR8294-hard-hook-0",
+    "task": "PR8294-hard",
+    "area": "net-tls",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "a9d729ef-e67c-4e29-990f-76a18f3b52b9",
+    "turns": 3,
+    "wall_ms": 6715,
+    "api_ms": 6293,
+    "cost": 0.07012900000000001,
+    "in_tokens": 72772,
+    "out_tokens": 578,
+    "tools": {
+      "calls": 2,
+      "byTool": {
+        "Read": 1,
+        "Edit": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 0,
+      "injected": [
+        "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+        "tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent wrapped set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False, so the version is treated as unsupported. This is functionally equivalent to the upstream patch. Upstream also wraps the Connection setup in the try block, but those calls don't raise SSL.Error in practice. The missing changelog and test don't affect behavior.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/net/tls.py"
+      ]
+    },
+    "result": "I changed `is_supported_version` in `mitmproxy/net/tls.py`. It now returns `False` when setting the min or max protocol version raises `SSL.Error`, instead of crashing. Some OpenSSL builds reject versions they were compiled without, so those versions are now reported as unsupported.\n\nI didn't add a test or run the suite. A test would need to force `set_min_proto_version` to raise, and I didn't write one.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py\nindex 14c0553ca..d914857de 100644\n--- a/mitmproxy/net/tls.py\n+++ b/mitmproxy/net/tls.py\n@@ -77,8 +77,12 @@ def is_supported_version(version: Version):\n     # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n     # https://github.com/pyca/cryptography/issues/9523\n     client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n-    client_ctx.set_min_proto_version(version.value)\n-    client_ctx.set_max_proto_version(version.value)\n+    try:\n+        client_ctx.set_min_proto_version(version.value)\n+        client_ctx.set_max_proto_version(version.value)\n+    except SSL.Error:\n+        # Some OpenSSL builds reject versions they were compiled without.\n+        return False\n     client_conn = SSL.Connection(client_ctx)\n     client_conn.set_connect_state()\n \n",
+    "distill": null
+  },
+  {
+    "id": "PR8326-hard-hook-0",
+    "task": "PR8326-hard",
+    "area": "proxy-http",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "8b9614ce-b69a-4c57-9d73-ff2a5fbf53f8",
+    "turns": 4,
+    "wall_ms": 9940,
+    "api_ms": 9434,
+    "cost": 0.0794232,
+    "in_tokens": 96805,
+    "out_tokens": 863,
+    "tools": {
+      "calls": 3,
+      "byTool": {
+        "Bash": 2,
+        "Read": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 2,
+      "injected": [
+        "building-sending-the-upstream-connect-and-forming-the-author",
+        "upstream-proxy-mode-layer-composition-and-mode-selection",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+      ]
+    },
+    "grade": {
+      "score": 0.97,
+      "missing": [
+        "No regression test added (not required for functional equivalence)"
+      ],
+      "wrong": [],
+      "reason": "The agent edited the same spot in HttpUpstreamProxy.start_handshake. Any host containing \":\" is bracketed, and the bracketed authority feeds both the CONNECT request and the Host header. That matches the merged patch, which uses ipaddress to detect IPv6. IPv6 literals are pure ASCII, so the idna encoding leaves them unchanged and the output is the same. A colon in a hostname is not valid, so the simpler check gives the same result in practice.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+      ]
+    },
+    "result": "I changed the upstream CONNECT authority so an IPv6 literal target is now bracketed, for example `[::1]:443` instead of `::1:443`. I didn't add a test, run the test suite, or run the code.\n\nThe fix is in `HttpUpstreamProxy.start_handshake` in `mitmproxy/proxy/layers/http/_upstream_proxy.py`. After the host is IDNA-encoded, any host containing `:` is wrapped in `[...]` before the port is appended. The bracketed authority is also what goes into the optional `Host` header and the request's `authority` field, so both stay consistent.\n\nI didn't look closely at the existing CONNECT tests in `test/mitmproxy/proxy/layers/http/test_http.py`, so I don't know how easily an IPv6 case would fit there.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/proxy/layers/http/_upstream_proxy.py b/mitmproxy/proxy/layers/http/_upstream_proxy.py\nindex f40b26ce6..d25c44e23 100644\n--- a/mitmproxy/proxy/layers/http/_upstream_proxy.py\n+++ b/mitmproxy/proxy/layers/http/_upstream_proxy.py\n@@ -50,9 +50,10 @@ class HttpUpstreamProxy(tunnel.TunnelLayer):\n             return (yield from super().start_handshake())\n         assert self.conn.address\n         flow = http.HTTPFlow(self.context.client, self.tunnel_connection)\n-        authority = (\n-            self.conn.address[0].encode(\"idna\") + f\":{self.conn.address[1]}\".encode()\n-        )\n+        host = self.conn.address[0].encode(\"idna\")\n+        if b\":\" in host:  # IPv6 literal\n+            host = b\"[\" + host + b\"]\"\n+        authority = host + f\":{self.conn.address[1]}\".encode()\n         headers = http.Headers()\n         if self.context.options.http_connect_send_host_header:\n             headers.insert(0, b\"Host\", authority)\n",
+    "distill": null
+  },
+  {
+    "id": "PR8295-hard-hook-0",
+    "task": "PR8295-hard",
+    "area": "next-layer",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "7f033eb6-a554-4996-aeb0-5d407bb18fce",
+    "turns": 9,
+    "wall_ms": 35237,
+    "api_ms": 34690,
+    "cost": 0.1770992,
+    "in_tokens": 271399,
+    "out_tokens": 3305,
+    "tools": {
+      "calls": 8,
+      "byTool": {
+        "Read": 2,
+        "Bash": 5,
+        "Edit": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 5,
+      "injected": [
+        "ignore-allow-hosts-semantics-in-ignore-connection",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn"
+      ]
+    },
+    "grade": {
+      "score": 0,
+      "missing": [
+        "Guard the QUIC parse with _starts_like_quic(data_client, context.server.address) so that non-QUIC or invalid-QUIC UDP datagrams are not treated as QUIC",
+        "Guard the DTLS parse with starts_like_dtls_record(data_client)",
+        "Handling of the case where an ignored-host check sees a UDP packet that only looks vaguely like QUIC, so that it is passed through instead of waiting for more data"
+      ],
+      "wrong": [
+        "Raises NeedsMoreData whenever quic_parse_client_hello_from_datagrams returns None. This is the opposite of the upstream fix and would make stalls worse.",
+        "With ignoring active, an invalid or non-QUIC UDP packet whose parse returns None would now raise NeedsMoreData and wait indefinitely. The upstream test 'invalid quic' expects no stall.",
+        "The agent admits it never found the actual stall, and its diagnosis (partial ClientHello) is not the real cause. The real cause is that QUIC parsing was attempted on datagrams that don't look like QUIC."
+      ],
+      "reason": "The agent edited the right function, but the change points the wrong way. Upstream stops attempting QUIC and DTLS parsing on datagrams that don't look like QUIC or DTLS, using the _starts_like_quic and starts_like_dtls_record guards. The agent instead makes the QUIC path raise NeedsMoreData on an incomplete parse. That can cause stalls, and it does not fix the reported one.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/addons/next_layer.py"
+      ]
+    },
+    "result": "I changed `_get_client_hello` in `mitmproxy/addons/next_layer.py`, but I'm not certain it fixes the stall you saw. I didn't run any tests, and I didn't add or change a test.\n\n**What I found:** for UDP, `_get_client_hello` returned whatever `quic_parse_client_hello_from_datagrams` gave back. That function returns `None` when the QUIC Initial packet holds only part of the ClientHello, which is common when the hello is large or split across datagrams. The code treated `None` as \"no hello here\", so `_ignore_connection` never saw the SNI and never matched it against `ignore_hosts`. The connection then fell through to the normal QUIC layers instead of being passed through as ignored. The DTLS path and the TCP TLS path already raise `NeedsMoreData` for an incomplete hello; the QUIC path did not.\n\n**What I changed:** the QUIC branch now raises `NeedsMoreData` when the hello is incomplete. The decision waits for the next datagram, and `NextLayer` re-asks once more data is buffered. A non-QUIC UDP packet still raises `ValueError` from the parser and is handled as before.\n\n**Not confirmed:** I never located a code path that produces an outright stall. Reading `UDPLayer` and `NextLayer`, the ignored-host pass-through logic looks correct. What I did confirm is that an ignored QUIC host with a split ClientHello was being intercepted instead of ignored. Please check that this matches the stall you're seeing.\n\n**Possible test:** a case in `test/mitmproxy/addons/test_next_layer.py` that feeds a partial QUIC Initial with an `ignore_hosts` match on the SNI and expects the ignore layer once the hello is complete.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..baf0ff5c2 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -321,9 +321,13 @@ class NextLayer:\n                 return None\n             case \"udp\":\n                 try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n+                    ch = quic_parse_client_hello_from_datagrams([data_client])\n                 except ValueError:\n                     pass\n+                else:\n+                    if ch is None:\n+                        raise NeedsMoreData\n+                    return ch\n \n                 try:\n                     ch = dtls_parse_client_hello(data_client)\n",
+    "distill": null
+  },
+  {
+    "id": "PR8288-hard-hook-0",
+    "task": "PR8288-hard",
+    "area": "web-frontend",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "58fe93f5-08d9-4742-a702-82d91c541a86",
+    "turns": 16,
+    "wall_ms": 55561,
+    "api_ms": 54647,
+    "cost": 0.24304439999999997,
+    "in_tokens": 479131,
+    "out_tokens": 5145,
+    "tools": {
+      "calls": 15,
+      "byTool": {
+        "Bash": 15
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 15,
+      "injected": [
+        "web-frontend-tests-web-npm",
+        "flow-arrival-and-filter-evaluation-websocket-to-view-update",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+      ]
+    },
+    "grade": {
+      "score": 0,
+      "missing": [
+        "Tracking of the view_order_reversed option via OPTIONS_RECEIVE/OPTIONS_UPDATE in the flows reducer",
+        "An orderReversed state field used when inserting new flows",
+        "Inserting live flows at index 0 when the option is set and no column sort is active"
+      ],
+      "wrong": [
+        "Keyed the behavior off sort.desc with no column, which is a different state from the view_order_reversed option, so the option never affects insertion",
+        "Explicitly did not wire in the view_order_reversed option; the agent's own summary admits it is not read",
+        "Changed how FLOWS_RECEIVE, filter updates and setSort build the view, so a descending sort with no column now reverses the list. This is unrelated behavior that was not requested"
+      ],
+      "reason": "The request is to honor the view_order_reversed option for live flows. The merged patch adds an orderReversed state field that mirrors the option through OPTIONS_RECEIVE and OPTIONS_UPDATE, and inserts new flows at the front when it is set. The agent never connected the option to the reducer. It treated sort.desc with no column as the reversal signal. Enabling the option therefore still appends live flows at the bottom, so the reported bug remains. The agent also said it did not wire the option in.",
+      "mustHit": 2,
+      "mustTotal": 2,
+      "touched": [
+        "web/src/js/__tests__/ducks/flows/indexSpec.tsx",
+        "web/src/js/ducks/flows/_utils.ts",
+        "web/src/js/ducks/flows/index.ts"
+      ]
+    },
+    "result": "I changed the web flow reducer so that, when the view order is reversed, live flows are inserted at the front of the list. I haven't run the tests or the type checker.\n\n**What I found:** the flow table has no separate \"reverse view order\" setting. Reversal is the sort state, and a reversed sort with no column selected means newest-first. That case was broken: with no column, the comparator returns 0 for every pair, so new flows were always appended at the end.\n\n**What I changed:**\n- **`web/src/js/ducks/flows/index.ts`:**\n  - **Live flows:** when there is no sort column and `desc` is true, new live flows (`FLOWS_ADD` and `FLOWS_UPDATE`) are inserted at position 0.\n  - **Rebuilds:** the initial flow fetch, a filter update, and `setSort` with no column now go through a new `makeView` helper. It reverses arrival order for that case and otherwise sorts as before.\n- **`web/src/js/ducks/flows/_utils.ts`:** `insertViewItem` takes an optional `pos` argument that overrides the comparator-based lookup.\n- **`web/src/js/__tests__/ducks/flows/indexSpec.tsx`:** I added a test that sets a reversed sort with no column, adds a live flow, and checks it lands at index 0 with a correct `_viewIndex`.\n\nThe `view_order_reversed` option in `_options_gen.ts` isn't read anywhere in the web code, so I didn't wire it in. If that option is what you meant, it still needs to be fed into the flows sort state, which I haven't done.",
+    "is_error": false,
+    "diff": "diff --git a/web/src/js/__tests__/ducks/flows/indexSpec.tsx b/web/src/js/__tests__/ducks/flows/indexSpec.tsx\nindex 5b69deeb4..b6a5de97b 100644\n--- a/web/src/js/__tests__/ducks/flows/indexSpec.tsx\n+++ b/web/src/js/__tests__/ducks/flows/indexSpec.tsx\n@@ -353,6 +353,20 @@ describe(\"flow reducer\", () => {\n     });\n \n     describe(\"sorting\", () => {\n+        it(\"should insert live flows at the front when reversed\", () => {\n+            let s = reduceFlows(\n+                state,\n+                flowActions.setSort({ column: undefined, desc: true }),\n+            );\n+            expect(s.view).toEqual([...state.view].reverse());\n+            const newFlow = TFlow();\n+            s = reduceFlows(\n+                s,\n+                flowActions.FLOWS_ADD({ flow: newFlow, matching_filters: {} }),\n+            );\n+            expect(s.view[0]).toEqual(newFlow);\n+            expect(s._viewIndex.get(newFlow.id)).toBe(0);\n+        });\n         it(\"should sort\", () => {\n             const sort = { column: \"comment\" as const, desc: true };\n             expect(reduceFlows(state, flowActions.setSort(sort))).toEqual({\ndiff --git a/web/src/js/ducks/flows/_utils.ts b/web/src/js/ducks/flows/_utils.ts\nindex 22ad4dde6..d256df139 100644\n--- a/web/src/js/ducks/flows/_utils.ts\n+++ b/web/src/js/ducks/flows/_utils.ts\n@@ -81,8 +81,8 @@ export function insertViewItem<T extends Item>(\n     prevViewIndex: Map<string, number>,\n     item: T,\n     sort: Comparer<T>,\n+    pos: number = findInsertPos(prevView, item, sort),\n ): { view: T[]; _viewIndex: Map<string, number> } {\n-    const pos = findInsertPos(prevView, item, sort);\n \n     const view = toSpliced(prevView, pos, 0, item);\n \ndiff --git a/web/src/js/ducks/flows/index.ts b/web/src/js/ducks/flows/index.ts\nindex 323f2901a..5a0cbec05 100644\n--- a/web/src/js/ducks/flows/index.ts\n+++ b/web/src/js/ducks/flows/index.ts\n@@ -82,7 +82,7 @@ export default function flowsReducer(\n         const _listIndex = buildIndex(list);\n         const byId = new Map(list.map((f) => [f.id, f]));\n         // No filter information yet, we expect that to come immediately after.\n-        const view = toSorted(list, makeSort(sort));\n+        const view = makeView(list, sort);\n         const _viewIndex = buildIndex(view);\n         const selected = state.selected\n             .map((flow) => byId.get(flow.id))\n@@ -124,6 +124,7 @@ export default function flowsReducer(\n                 _viewIndex,\n                 flow,\n                 makeSort(sort),\n+                insertPosOverride(sort),\n             ));\n         }\n         // Update highlight\n@@ -171,6 +172,7 @@ export default function flowsReducer(\n                 _viewIndex,\n                 flow,\n                 makeSort(sort),\n+                insertPosOverride(sort),\n             ));\n         } else if (!hasNewFlow && hasOldFlow) {\n             ({ view, _viewIndex } = removeViewItemAt(\n@@ -264,14 +266,14 @@ export default function flowsReducer(\n         const { name, matching_flow_ids } = action.payload;\n         switch (name) {\n             case FilterName.Search: {\n-                const view = toSorted(\n+                const view = makeView(\n                     matching_flow_ids === null\n                         ? state.list\n                         : matching_flow_ids\n                               .map((id) => state.byId.get(id))\n                               // WebSocket/HTTP race\n                               .filter((f) => f !== undefined),\n-                    makeSort(state.sort),\n+                    state.sort,\n                 );\n                 const _viewIndex = buildIndex(view);\n                 return {\n@@ -296,7 +298,10 @@ export default function flowsReducer(\n             view = toSorted(state.view, makeSort(sort));\n         } else {\n             // Restore original order if column isn't specified.\n-            view = state.list.filter((f) => state._viewIndex.has(f.id));\n+            view = makeView(\n+                state.list.filter((f) => state._viewIndex.has(f.id)),\n+                sort,\n+            );\n         }\n         const _viewIndex = buildIndex(view);\n         return {\n@@ -316,6 +321,23 @@ export default function flowsReducer(\n     }\n }\n \n+/// Without a sort column, a descending sort means reversed arrival order.\n+function isReversedArrival(sort: FlowsState[\"sort\"]): boolean {\n+    return !sort.column && sort.desc;\n+}\n+\n+/// Insertion position that overrides the comparator-based lookup (undefined = use comparator).\n+function insertPosOverride(sort: FlowsState[\"sort\"]): number | undefined {\n+    return isReversedArrival(sort) ? 0 : undefined;\n+}\n+\n+function makeView(flows: Flow[], sort: FlowsState[\"sort\"]): Flow[] {\n+    if (isReversedArrival(sort)) {\n+        return [...flows].reverse();\n+    }\n+    return toSorted(flows, makeSort(sort));\n+}\n+\n export function makeSort({\n     column,\n     desc,\n",
+    "distill": null
+  },
+  {
+    "id": "PR8333-hard-hook-0",
+    "task": "PR8333-hard",
+    "area": "web-app",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "a2c2c164-ea9d-461e-a7da-5998ee3271fe",
+    "turns": 7,
+    "wall_ms": 18144,
+    "api_ms": 17513,
+    "cost": 0.1099488,
+    "in_tokens": 176776,
+    "out_tokens": 1541,
+    "tools": {
+      "calls": 6,
+      "byTool": {
+        "Bash": 6
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 5,
+      "injected": [
+        "web-frontend-tests-web-npm",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "building-sending-the-upstream-connect-and-forming-the-author"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent made the same fix as upstream in both places. The frontend now sends `reason` instead of `msg`. The backend now sets `response.reason` for the `reason` key. It also keeps `msg` as an alias for `reason`, which is harmless. `http_version` is handled the same way. The tests were updated to match. The agent did not add the http_version-only test, but tests don't affect the score.",
+      "mustHit": 2,
+      "mustTotal": 2,
+      "touched": [
+        "mitmproxy/tools/web/app.py",
+        "test/mitmproxy/tools/web/test_app.py",
+        "web/src/js/components/FlowView/HttpMessages.tsx"
+      ]
+    },
+    "result": "Editing a response's reason phrase in the web UI now changes the flow's actual `response.reason`. I haven't run the Python tests or the frontend checks.\n\n**Cause:** the frontend sent the edit as `response: { msg }`. The backend ran `setattr(response, \"msg\", ...)`, which just attached an unused attribute to the object. `response.reason`, the field that goes out on the wire, was never touched, so the edit looked saved but had no effect.\n\n**Changes:**\n- `mitmproxy/tools/web/app.py`: the flow update handler now writes `reason` to `response.reason`. It still accepts `msg` as an alias so older clients keep working. `http_version` is handled as before.\n- `web/src/js/components/FlowView/HttpMessages.tsx`: the reason editor now sends `response: { reason }`, matching the field the API returns on GET.\n- `test/mitmproxy/tools/web/test_app.py`: the update test now sends `reason` and asserts on `f.response.reason`. The old `msg` assertion only passed because of the stray attribute.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..7e5ca9b8b 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -608,8 +608,10 @@ class FlowHandler(RequestHandler):\n                 elif a == \"response\" and hasattr(flow, \"response\"):\n                     response: mitmproxy.http.Response = flow.response\n                     for k, v in b.items():\n-                        if k in [\"msg\", \"http_version\"]:\n-                            setattr(response, k, str(v))\n+                        if k == \"http_version\":\n+                            response.http_version = str(v)\n+                        elif k in [\"reason\", \"msg\"]:\n+                            response.reason = str(v)\n                         elif k == \"code\":\n                             response.status_code = int(v)\n                         elif k == \"headers\":\ndiff --git a/test/mitmproxy/tools/web/test_app.py b/test/mitmproxy/tools/web/test_app.py\nindex 7922484ef..ae1becbe2 100644\n--- a/test/mitmproxy/tools/web/test_app.py\n+++ b/test/mitmproxy/tools/web/test_app.py\n@@ -207,7 +207,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n                 \"content\": \"req\",\n             },\n             \"response\": {\n-                \"msg\": \"Non-Authorisé\",\n+                \"reason\": \"Non-Authorisé\",\n                 \"code\": 404,\n                 \"headers\": [(\"bar\", \"baz\")],\n                 \"trailers\": [(\"foo\", \"bar\")],\n@@ -221,7 +221,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n         assert f.request.port == 123\n         assert f.request.headers[\"foo\"] == \"bar\"\n         assert f.request.text == \"req\"\n-        assert f.response.msg == \"Non-Authorisé\"\n+        assert f.response.reason == \"Non-Authorisé\"\n         assert f.response.status_code == 404\n         assert f.response.headers[\"bar\"] == \"baz\"\n         assert f.response.text == \"resp\"\ndiff --git a/web/src/js/components/FlowView/HttpMessages.tsx b/web/src/js/components/FlowView/HttpMessages.tsx\nindex 9f1dcb20e..6c612e997 100644\n--- a/web/src/js/components/FlowView/HttpMessages.tsx\n+++ b/web/src/js/components/FlowView/HttpMessages.tsx\n@@ -104,9 +104,11 @@ function ResponseLine({ flow }: ResponseLineProps) {\n                     &nbsp;\n                     <ValueEditor\n                         content={flow.response.reason}\n-                        onEditDone={(msg) =>\n+                        onEditDone={(reason) =>\n                             dispatch(\n-                                flowActions.update(flow, { response: { msg } }),\n+                                flowActions.update(flow, {\n+                                    response: { reason },\n+                                }),\n                             )\n                         }\n                         selectAllOnClick={true}\n",
+    "distill": null
+  },
+  {
+    "id": "PR8397-hard-hook-0",
+    "task": "PR8397-hard",
+    "area": "encoding",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "b3520ca2-bce3-4a7b-b15a-f1eac5031426",
+    "turns": 6,
+    "wall_ms": 14688,
+    "api_ms": 14066,
+    "cost": 0.09073819999999999,
+    "in_tokens": 98707,
+    "out_tokens": 1627,
+    "tools": {
+      "calls": 5,
+      "byTool": {
+        "Bash": 2,
+        "Read": 3
+      },
+      "thinkerCalls": 0,
+      "filesRead": 2,
+      "greps": 1,
+      "injected": [
+        "content-encoding-codecs-and-message-decode-encode-callpath",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "single-entry-global-decode-encode-cache-in-net-encoding-py"
+      ]
+    },
+    "grade": {
+      "score": 0.6,
+      "missing": [
+        "No backports.zstd fallback for Python <3.14; the upstream uses backports.zstd (same API as compression.zstd) as the fallback and dependency",
+        "Dependency swap in pyproject.toml: upstream adds backports.zstd for <3.14 and removes zstandard"
+      ],
+      "wrong": [
+        "Fallback keeps the third-party zstandard package with a duplicate code path (_STDLIB_ZSTD flag and branching), instead of the single unified API",
+        "Kept zstandard as a conditional dependency (<3.14), which is compatible with the request wording but differs from upstream"
+      ],
+      "reason": "The agent edited the right file and the stdlib path on 3.14+ (compression.zstd with decompress and compress level=1) matches upstream. The request text literally says to fall back to the third-party zstandard package, and the agent's code does that, so the behavior is reasonable and works. Upstream instead uses backports.zstd as the fallback, which needs no code branching. The agent's approach also functions, but it diverges from the merged patch in its dependency choice and adds branching. Its pyproject marker is consistent with its own code.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/net/encoding.py",
+        "pyproject.toml"
+      ]
+    },
+    "result": "zstd content encoding now uses the standard library's `compression.zstd` when it can be imported, and falls back to `zstandard` otherwise. I haven't run the tests or the linters.\n\n- **`mitmproxy/net/encoding.py`**:\n  - **Import:** it tries `from compression import zstd` and sets a `_STDLIB_ZSTD` flag. If that raises `ImportError`, it imports `zstandard` as `zstd` instead.\n  - **Decode:** with the stdlib module, `decode_zstd` calls `zstd.decompress(content)`, which handles multiple concatenated frames. The `zstandard` path is unchanged and still uses `read_across_frames=True`.\n  - **Encode:** with the stdlib module, `encode_zstd` calls `zstd.compress(content, level=1)`. The `zstandard` path is unchanged.\n- **`pyproject.toml`**: the `zstandard` dependency is now marked `python_version < '3.14'`, since 3.14 ships `compression.zstd`. I didn't touch `uv.lock`, so it may need regenerating with `uv lock`.\n\nI didn't add a test because the existing zstd round-trip tests in the encoding tests already cover whichever backend is imported.\n\nI inferred that the stdlib module arrives in Python 3.14, so the `< '3.14'` marker rests on that.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/net/encoding.py b/mitmproxy/net/encoding.py\nindex 7be30d3d5..75ae89073 100644\n--- a/mitmproxy/net/encoding.py\n+++ b/mitmproxy/net/encoding.py\n@@ -10,7 +10,15 @@ from io import BytesIO\n from typing import overload\n \n import brotli\n-import zstandard as zstd\n+\n+try:\n+    from compression import zstd  # Python 3.14+, PEP 784\n+\n+    _STDLIB_ZSTD = True\n+except ImportError:  # pragma: no cover\n+    import zstandard as zstd\n+\n+    _STDLIB_ZSTD = False\n \n # We have a shared single-element cache for encoding and decoding.\n # This is quite useful in practice, e.g.\n@@ -182,12 +190,17 @@ def encode_brotli(content: bytes) -> bytes:\n def decode_zstd(content: bytes) -> bytes:\n     if not content:\n         return b\"\"\n+    if _STDLIB_ZSTD:\n+        # decompress() handles multiple concatenated frames.\n+        return zstd.decompress(content)\n     zstd_ctx = zstd.ZstdDecompressor()\n     return zstd_ctx.stream_reader(BytesIO(content), read_across_frames=True).read()\n \n \n def encode_zstd(content: bytes) -> bytes:\n     # Use level=1 for fastest compression speed.\n+    if _STDLIB_ZSTD:\n+        return zstd.compress(content, level=1)\n     zstd_ctx = zstd.ZstdCompressor(level=1)\n     return zstd_ctx.compress(content)\n \ndiff --git a/pyproject.toml b/pyproject.toml\nindex 7ddc3b834..d13347750 100644\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -57,7 +57,7 @@ dependencies = [\n     \"urwid>=2.6.14,<=3.0.5\",\n     \"wsproto>=1.0,<=1.3.2\",\n     \"publicsuffix2>=2.20190812,<=2.20191221\",\n-    \"zstandard>=0.25,<=0.25.0\",\n+    \"zstandard>=0.25,<=0.25.0; python_version < '3.14'\",\n ]\n \n [dependency-groups]\n",
+    "distill": null
+  },
+  {
+    "id": "PR8408-hard-hook-0",
+    "task": "PR8408-hard",
+    "area": "addons-browser",
+    "arm": "hook",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "202868ab-c563-4deb-9bc9-0b514d11d8e1",
+    "turns": 4,
+    "wall_ms": 15031,
+    "api_ms": 14452,
+    "cost": 0.10351060000000001,
+    "in_tokens": 80695,
+    "out_tokens": 1909,
+    "tools": {
+      "calls": 3,
+      "byTool": {
+        "Read": 1,
+        "Bash": 2
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 1,
+      "injected": [
+        "browser-addon-executable-lookup-and-launch-flags",
+        "browser-start-command-registration-and-dispatch",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent added `launch_edge()` in `browser.py` and dispatched `edge` to it in `start()`. It searched the same macOS, Windows and Linux paths and the same flatpak fallback as the merged patch. It also added `msedge` as an extra alias and binary name. It moved Chrome's launch code into a shared helper that Edge reuses. Chrome and Edge are both Chromium-based and take the same flags, so Edge gets the same isolated profile and `--proxy-server` setup as the merged patch. The not-found case logs the same message. The tests and changelog are also equivalent.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "CHANGELOG.md",
+        "mitmproxy/addons/browser.py",
+        "test/mitmproxy/addons/test_browser.py"
+      ]
+    },
+    "result": "`browser.start` now accepts `edge` (or `msedge`) and launches an isolated Microsoft Edge pointed at the running proxy. I haven't run the tests or the linter.\n\n**`mitmproxy/addons/browser.py`**\n- **Launcher:** new `Browser.launch_edge()` looks for Edge in these places, then falls back to flatpak `com.microsoft.Edge`:\n  - the macOS app bundle;\n  - the two Windows `Program Files` paths for `msedge.exe`;\n  - Linux binaries `microsoft-edge`, `microsoft-edge-stable`, `microsoft-edge-beta`, `microsoft-edge-dev` and `msedge`.\n- **Shared launch code:** Edge is Chromium-based and takes the same flags, so I moved Chrome's launch code into a new `_launch_chromium_based(cmd)` helper. Chrome and Edge both call it. It sets up a temp `--user-data-dir`, passes `--proxy-server`, and applies the first-run and extension flags. Chrome's behaviour is unchanged.\n- **Not found:** if Edge isn't found, it logs the same \"platform is not supported\" message as the other browsers.\n\n**`test/mitmproxy/addons/test_browser.py`**\n- One test starts Edge and checks that `--proxy-server=127.0.0.1:8080` is passed.\n- One test checks the \"not supported\" message when Edge is missing.\n\n**`CHANGELOG.md`**\nI added an entry under Unreleased.\n\nI did not add an Edge key binding in the console, since `B` already maps to `browser.start` with its default browser.",
+    "is_error": false,
+    "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..e6d3b4d18 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- Add Microsoft Edge support to the `browser.start` command (`edge` / `msedge`).\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/addons/browser.py b/mitmproxy/addons/browser.py\nindex ccc920953..4e98162d3 100644\n--- a/mitmproxy/addons/browser.py\n+++ b/mitmproxy/addons/browser.py\n@@ -43,6 +43,8 @@ class Browser:\n \n         if browser in (\"chrome\", \"chromium\"):\n             self.launch_chrome()\n+        elif browser in (\"edge\", \"msedge\"):\n+            self.launch_edge()\n         elif browser == \"firefox\":\n             self.launch_firefox()\n         else:\n@@ -78,6 +80,34 @@ class Browser:\n             )\n             return\n \n+        self._launch_chromium_based(cmd)\n+\n+    def launch_edge(self) -> None:\n+        \"\"\"\n+        Start an isolated instance of Microsoft Edge that points to the currently\n+        running proxy.\n+        \"\"\"\n+        cmd = find_executable_cmd(\n+            \"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge\",\n+            r\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            r\"C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            # Linux binary names\n+            \"microsoft-edge\",\n+            \"microsoft-edge-stable\",\n+            \"microsoft-edge-beta\",\n+            \"microsoft-edge-dev\",\n+            \"msedge\",\n+        ) or find_flatpak_cmd(\"com.microsoft.Edge\")\n+\n+        if not cmd:\n+            logging.log(\n+                ALERT, \"Your platform is not supported yet - please submit a patch.\"\n+            )\n+            return\n+\n+        self._launch_chromium_based(cmd)\n+\n+    def _launch_chromium_based(self, cmd: list[str]) -> None:\n         tdir = tempfile.TemporaryDirectory()\n         self.tdir.append(tdir)\n         self.browser.append(\ndiff --git a/test/mitmproxy/addons/test_browser.py b/test/mitmproxy/addons/test_browser.py\nindex d5bd38c5c..77c5ec62a 100644\n--- a/test/mitmproxy/addons/test_browser.py\n+++ b/test/mitmproxy/addons/test_browser.py\n@@ -95,3 +95,23 @@ async def test_browser_start_firefox_not_found(caplog):\n         which.return_value = False\n         browser.Browser().start(\"firefox\")\n         assert \"platform is not supported\" in caplog.text\n+\n+\n+async def test_browser_start_edge():\n+    with (\n+        mock.patch(\"shutil.which\") as which,\n+        mock.patch(\"subprocess.Popen\") as po,\n+        taddons.context(),\n+    ):\n+        which.return_value = \"microsoft-edge\"\n+        browser.Browser().start(\"edge\")\n+        assert po.called\n+        assert \"--proxy-server=127.0.0.1:8080\" in po.call_args[0][0]\n+\n+\n+async def test_browser_start_edge_not_found(caplog):\n+    caplog.set_level(\"INFO\")\n+    with mock.patch(\"shutil.which\") as which:\n+        which.return_value = False\n+        browser.Browser().start(\"edge\")\n+        assert \"platform is not supported\" in caplog.text\n",
+    "distill": null
+  },
+  {
+    "id": "PR8175-hard-hook-1",
+    "task": "PR8175-hard",
+    "area": "addons-dump",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "f2e9c472-d166-40d0-b68a-f4c14972df6e",
+    "turns": 11,
+    "wall_ms": 24862,
+    "api_ms": 24175,
+    "cost": 0.1436284,
+    "in_tokens": 269104,
+    "out_tokens": 2182,
+    "tools": {
+      "calls": 10,
+      "byTool": {
+        "Bash": 8,
+        "Read": 1,
+        "Edit": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 8,
+      "injected": [
+        "mitmdump-flow-printing-is-the-dumper-addon-response-error-ho",
+        "building-sending-the-upstream-connect-and-forming-the-author"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent added the same `http_connect_error` hook to Dumper in dumper.py. It uses the same match check and echo_flow call as the merged patch. The only difference is a type annotation, and its test differs but is fine.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/addons/dumper.py",
+        "test/mitmproxy/addons/test_dumper.py"
+      ]
+    },
+    "result": "Failed CONNECT requests should now print in mitmdump like other failed flows. I haven't run the tests.\n\n**Why it was silent:** When a CONNECT fails, the HTTP layer fires `HttpConnectErrorHook` (`http_connect_error`) rather than the regular `error` hook. `Dumper` only handled `response` and `error`, so nothing was printed.\n\n**The change:**\n- **`mitmproxy/addons/dumper.py`:** I added a `Dumper.http_connect_error` hook. It uses the same `match` filtering and `echo_flow` output as `error`, so it prints the CONNECT request line, and the error message (`<< msg`) if `flow.error` is set. If the failure produced a response, such as a 407 or 502, that prints too.\n- **`test/mitmproxy/addons/test_dumper.py`:** I added an assertion in the existing dumper test that `http_connect_error` produces output.\n\nI didn't check whether the regular `error` hook can also fire for the same failed CONNECT flow, which would print it twice. Nothing in the layer code suggests it does, and the hook's docstring describes them as distinct.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/addons/dumper.py b/mitmproxy/addons/dumper.py\nindex ea7569064..3b088ed4f 100644\n--- a/mitmproxy/addons/dumper.py\n+++ b/mitmproxy/addons/dumper.py\n@@ -294,6 +294,10 @@ class Dumper:\n         if self.match(f):\n             self.echo_flow(f)\n \n+    def http_connect_error(self, f: http.HTTPFlow):\n+        if self.match(f):\n+            self.echo_flow(f)\n+\n     def websocket_message(self, f: http.HTTPFlow):\n         assert f.websocket is not None  # satisfy type checker\n         if self.match(f):\ndiff --git a/test/mitmproxy/addons/test_dumper.py b/test/mitmproxy/addons/test_dumper.py\nindex 7adf4e86e..7ca7ff123 100644\n--- a/test/mitmproxy/addons/test_dumper.py\n+++ b/test/mitmproxy/addons/test_dumper.py\n@@ -52,6 +52,11 @@ def test_simple():\n         assert sio.getvalue()\n         sio.truncate(0)\n \n+        ctx.configure(d, flow_detail=1)\n+        d.http_connect_error(tflow.tflow(err=True))\n+        assert sio.getvalue()\n+        sio.truncate(0)\n+\n         ctx.configure(d, flow_detail=4)\n         d.response(tflow.tflow(resp=True))\n         assert sio.getvalue()\n",
+    "distill": null
+  },
+  {
+    "id": "PR8196-hard-hook-1",
+    "task": "PR8196-hard",
+    "area": "utils",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "8563e8f1-b869-45b2-b19f-b190c93b7bcf",
+    "turns": 5,
+    "wall_ms": 12873,
+    "api_ms": 12427,
+    "cost": 0.08659980000000002,
+    "in_tokens": 98864,
+    "out_tokens": 1275,
+    "tools": {
+      "calls": 4,
+      "byTool": {
+        "Read": 1,
+        "Edit": 2,
+        "Bash": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 1,
+      "injected": [
+        "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "web-frontend-tests-web-npm"
+      ]
+    },
+    "grade": {
+      "score": 0.95,
+      "missing": [],
+      "wrong": [
+        "For 101-103 byte inputs whose bytes at the cutoff are all continuation bytes, the agent keeps the whole input, while the merged patch exits the loop and takes the fallback path. This is a negligible difference on pathological inputs."
+      ],
+      "reason": "The agent fixed the right line in is_mostly_bin. Its bounds check (cut < len(s)) stops the IndexError, much as the merged min(104, len(s)) bound does. Normal inputs give the same result. The only difference is how the end of the data is handled inside the lookahead, and that affects only rare inputs. The agent's added test is reasonable.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/utils/strutils.py",
+        "test/mitmproxy/utils/test_strutils.py"
+      ]
+    },
+    "result": "I fixed the `IndexError` in `is_mostly_bin` (`mitmproxy/utils/strutils.py`) and added a test. I haven't run the tests.\n\n**Cause:** for inputs longer than 100 bytes, the function checks bytes 100–103 to avoid cutting a UTF-8 character in half. With 101–103 bytes of data, `s[cut]` ran past the end of the input.\n\n**Fix:** the continuation-byte check is now `cut < len(s) and (s[cut] >> 6) == 0b10`. When `cut` reaches the end of the data, nothing can be split, so it counts as a boundary and the whole input is kept. Inputs of 100 bytes or fewer, and inputs of 104 bytes or more, take exactly the same path as before, so their results don't change.\n\n**Test:** in `test_is_mostly_bin` (`test/mitmproxy/utils/test_strutils.py`), I added a loop over lengths 101–104. It asserts that `n * b\"a\"` is not binary and `n * b\"\\x00\"` is binary.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..3526961dc 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -133,7 +133,8 @@ def is_mostly_bin(s: bytes) -> bool:\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n         for cut in range(100, 104):\n-            is_continuation_byte = (s[cut] >> 6) == 0b10\n+            # For inputs of 101-103 bytes, we may reach the end of the data.\n+            is_continuation_byte = cut < len(s) and (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\n                 s = s[:cut]\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..7cd6d3cb3 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,10 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # inputs just over the 100 byte cutoff must not index past the end\n+    for n in (101, 102, 103, 104):\n+        assert not strutils.is_mostly_bin(n * b\"a\")\n+        assert strutils.is_mostly_bin(n * b\"\\x00\")\n \n \n def test_is_xml():\n",
+    "distill": null
+  },
+  {
+    "id": "PR8176-hard-hook-1",
+    "task": "PR8176-hard",
+    "area": "startup-options",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "a3cb686e-b9e3-481c-9105-5c192b93402a",
+    "turns": 4,
+    "wall_ms": 14864,
+    "api_ms": 14445,
+    "cost": 0.0898462,
+    "in_tokens": 77751,
+    "out_tokens": 1366,
+    "tools": {
+      "calls": 3,
+      "byTool": {
+        "Read": 2,
+        "Edit": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 2,
+      "greps": 0,
+      "injected": [
+        "cli-startup-sequence-main-run-options-applied",
+        "script-addons-s-loading-path"
+      ]
+    },
+    "grade": {
+      "score": 0.05,
+      "missing": [
+        "Explicit loading of pending scripts (iterating scriptloader addons with ns None and calling loadscript()) before dump_defaults"
+      ],
+      "wrong": [
+        "Two asyncio.sleep(0) yields depend on a watcher task that most likely hasn't been created yet, because Script watchers start on the running hook during master.run(), which happens after this point",
+        "Even if a watcher existed, the fix relies on exact event-loop scheduling, so it is fragile and probably does not register the options"
+      ],
+      "reason": "The agent edited the right place, but the fix is a timing hack. Scripts are probably not loaded by watcher tasks at this stage, since those tasks start only once the master is running. The upstream patch loads the pending scripts directly with loadscript(). Yielding to the event loop likely won't register the custom options, and the approach is fragile even if it works.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/tools/main.py"
+      ]
+    },
+    "result": "I made the `--options` dump wait for pending scripts to load. I haven't run it or any tests, and I didn't add a test, because `run()` is marked `# pragma: no cover`.\n\n**Cause.** A `-s` script is loaded by a background watcher task (`Script.watcher` in `mitmproxy/addons/script.py`). That task yields once with `asyncio.sleep(0)` before it loads the script. `run()` in `mitmproxy/tools/main.py` used to dump the options straight after `process_options`, so the watcher had not run yet. The script's custom options weren't registered, so they were missing from the dump.\n\n**Fix.** In the `if args.options:` branch, `run()` now awaits `asyncio.sleep(0)` twice before calling `optmanager.dump_defaults`. The first yield lets the watcher start. The second lets it get past its own initial `sleep(0)`. It then loads the script and registers its options. I added a comment explaining why there are two yields.\n\n**Limitation.** The two yields rely on the watcher deferring exactly once. If `Script.watcher` changes how many times it yields before loading, this needs updating. A sturdier alternative would be to have `ScriptLoader` expose an explicit \"load pending scripts now\" step and await that instead.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/tools/main.py b/mitmproxy/tools/main.py\nindex 5190820a0..048146e2d 100644\n--- a/mitmproxy/tools/main.py\n+++ b/mitmproxy/tools/main.py\n@@ -91,6 +91,11 @@ def run(\n             process_options(parser, opts, args)\n \n             if args.options:\n+                # Scripts are loaded by watcher tasks that first defer once\n+                # (see Script.watcher), so yield twice to let them load and\n+                # register the custom options they define.\n+                await asyncio.sleep(0)\n+                await asyncio.sleep(0)\n                 optmanager.dump_defaults(opts, sys.stdout)\n                 sys.exit(0)\n             if args.commands:\n",
+    "distill": null
+  },
+  {
+    "id": "PR8214-hard-hook-1",
+    "task": "PR8214-hard",
+    "area": "certs",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "97498399-b764-4b4e-8f0c-90ce737728b6",
+    "turns": 8,
+    "wall_ms": 20739,
+    "api_ms": 20221,
+    "cost": 0.11777940000000002,
+    "in_tokens": 178340,
+    "out_tokens": 2262,
+    "tools": {
+      "calls": 7,
+      "byTool": {
+        "Bash": 4,
+        "Edit": 2,
+        "Read": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 4,
+      "injected": [
+        "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-",
+        "ca-cert-store-location-creation-and-loading",
+        "certstore-leaf-cert-cache-keys-lookup-order-eviction"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent's change to dummy_cert in mitmproxy/certs.py is functionally identical to the merged patch. It reads the issuer's SubjectKeyIdentifier and builds the AKI with from_issuer_subject_key_identifier. If the extension is missing (ExtensionNotFound), it falls back to from_issuer_public_key. The agent's test differs from the upstream tests, and the changelog was not updated, but neither affects behavior.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/certs.py",
+        "test/mitmproxy/test_certs.py"
+      ]
+    },
+    "result": "Leaf certificates now get their AuthorityKeyIdentifier from the issuing CA's SubjectKeyIdentifier. I haven't run the tests, as you asked.\n\nThe leaf-cert code already added an AuthorityKeyIdentifier, but it derived the value by hashing the CA's public key. That matches the CA's SubjectKeyIdentifier only when the CA generated its own identifier the same way. A user-supplied CA with a different identifier would get a mismatched value.\n\nIn `dummy_cert` in `mitmproxy/certs.py`, it now reads the CA's SubjectKeyIdentifier extension and builds the AuthorityKeyIdentifier from it. If the CA has no SubjectKeyIdentifier, it falls back to the old public-key derivation.\n\nI left the leaf without its own SubjectKeyIdentifier, as before. The existing comment says a leaf SKI matching the CA's breaks SChannel (issue 6494).\n\nIn `test/mitmproxy/test_certs.py`, `TestDummyCert.test_with_ca` now asserts that the leaf's AuthorityKeyIdentifier `key_identifier` equals the CA's SubjectKeyIdentifier digest.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/certs.py b/mitmproxy/certs.py\nindex 2f421e25e..321657d8b 100644\n--- a/mitmproxy/certs.py\n+++ b/mitmproxy/certs.py\n@@ -356,10 +356,16 @@ def dummy_cert(\n     )\n \n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.1\n-    builder = builder.add_extension(\n-        x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key()),  # type: ignore\n-        critical=False,\n-    )\n+    # Copy the keyIdentifier from the issuing CA's SKI if it has one (RFC 5280 §4.2.1.2),\n+    # otherwise derive it from the CA's public key.\n+    try:\n+        ca_ski = cacert.extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        ).value\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier(ca_ski)\n+    except x509.ExtensionNotFound:\n+        aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())  # type: ignore\n+    builder = builder.add_extension(aki, critical=False)\n     # If CA and leaf cert have the same Subject Key Identifier, SChannel breaks in funny ways,\n     # see https://github.com/mitmproxy/mitmproxy/issues/6494.\n     # https://datatracker.ietf.org/doc/html/rfc5280#section-4.2.1.2 states\ndiff --git a/test/mitmproxy/test_certs.py b/test/mitmproxy/test_certs.py\nindex aba66a733..d4d7786a4 100644\n--- a/test/mitmproxy/test_certs.py\n+++ b/test/mitmproxy/test_certs.py\n@@ -168,6 +168,15 @@ class TestDummyCert:\n         assert r.organization == \"Foo Ltd.\"\n         assert r.crl_distribution_points == [\"https://example.com/example.crl\"]\n \n+        # RFC 5280 4.2.1.2: AKI is copied from the CA's SKI.\n+        ca_ski = tstore.default_ca._cert.extensions.get_extension_for_class(\n+            x509.SubjectKeyIdentifier\n+        ).value\n+        aki = r._cert.extensions.get_extension_for_class(\n+            x509.AuthorityKeyIdentifier\n+        ).value\n+        assert aki.key_identifier == ca_ski.digest\n+\n         r = certs.dummy_cert(\n             tstore.default_privatekey, tstore.default_ca._cert, None, [], None, None\n         )\n",
+    "distill": null
+  },
+  {
+    "id": "PR8294-hard-hook-1",
+    "task": "PR8294-hard",
+    "area": "net-tls",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "558a6683-30fa-43b4-ba2c-1698c26652b9",
+    "turns": 5,
+    "wall_ms": 11347,
+    "api_ms": 10854,
+    "cost": 0.040209999999999996,
+    "in_tokens": 99254,
+    "out_tokens": 1143,
+    "tools": {
+      "calls": 4,
+      "byTool": {
+        "Read": 1,
+        "Edit": 2,
+        "Bash": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 1,
+      "injected": [
+        "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+        "tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent wrapped set_min_proto_version and set_max_proto_version in try/except SSL.Error and returns False, in the same function as the upstream patch. This is functionally equivalent to upstream. Upstream also puts Connection creation inside the try, but that step doesn't raise SSL.Error in the relevant case. The added test is reasonable.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/net/tls.py",
+        "test/mitmproxy/net/test_tls.py"
+      ]
+    },
+    "result": "`is_supported_version` in `mitmproxy/net/tls.py` now returns `False` when setting the min or max protocol version raises `SSL.Error`, instead of letting the error escape. Some OpenSSL builds reject versions they were compiled without, and this treats those versions as unsupported. I haven't run the tests, as you asked.\n\nI added `test_supported_set_version_error` to `test/mitmproxy/net/test_tls.py`. It patches `SSL.Context.set_min_proto_version` to raise `SSL.Error` and checks the function returns `False`. The test calls `is_supported_version.__wrapped__` because the function is `@cache`d and a cached result would hide the patch.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py\nindex 14c0553ca..d914857de 100644\n--- a/mitmproxy/net/tls.py\n+++ b/mitmproxy/net/tls.py\n@@ -77,8 +77,12 @@ def is_supported_version(version: Version):\n     # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n     # https://github.com/pyca/cryptography/issues/9523\n     client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n-    client_ctx.set_min_proto_version(version.value)\n-    client_ctx.set_max_proto_version(version.value)\n+    try:\n+        client_ctx.set_min_proto_version(version.value)\n+        client_ctx.set_max_proto_version(version.value)\n+    except SSL.Error:\n+        # Some OpenSSL builds reject versions they were compiled without.\n+        return False\n     client_conn = SSL.Connection(client_ctx)\n     client_conn.set_connect_state()\n \ndiff --git a/test/mitmproxy/net/test_tls.py b/test/mitmproxy/net/test_tls.py\nindex 8359e4a9d..bfb603511 100644\n--- a/test/mitmproxy/net/test_tls.py\n+++ b/test/mitmproxy/net/test_tls.py\n@@ -15,6 +15,14 @@ def test_supported(version):\n     assert tls.is_supported_version(version) == expected_support\n \n \n+def test_supported_set_version_error(monkeypatch):\n+    def raise_error(self, version):\n+        raise SSL.Error(\"unsupported\")\n+\n+    monkeypatch.setattr(SSL.Context, \"set_min_proto_version\", raise_error)\n+    assert tls.is_supported_version.__wrapped__(tls.Version.TLS1_2) is False\n+\n+\n def test_make_master_secret_logger():\n     assert tls.make_master_secret_logger(None) is None\n     assert isinstance(tls.make_master_secret_logger(\"filepath\"), tls.MasterSecretLogger)\n",
+    "distill": null
+  },
+  {
+    "id": "PR8288-hard-hook-1",
+    "task": "PR8288-hard",
+    "area": "web-frontend",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "c207f4ce-6e37-434f-a665-78d8350a9385",
+    "turns": 15,
+    "wall_ms": 53344,
+    "api_ms": 52255,
+    "cost": 0.254444,
+    "in_tokens": 466620,
+    "out_tokens": 4908,
+    "tools": {
+      "calls": 14,
+      "byTool": {
+        "Bash": 14
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 14,
+      "injected": [
+        "web-frontend-tests-web-npm",
+        "flow-arrival-and-filter-evaluation-websocket-to-view-update",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+      ]
+    },
+    "grade": {
+      "score": 0,
+      "missing": [
+        "Tracking of the view_order_reversed option from OPTIONS_RECEIVE/OPTIONS_UPDATE in the flows reducer",
+        "An orderReversed state field used when inserting live flows"
+      ],
+      "wrong": [
+        "Used sort.desc with no column as a proxy for reversed order instead of the view_order_reversed option",
+        "Nothing in the UI sets that state, so enabling the option changes nothing",
+        "Changed initial view building, filter updates and setSort behavior, which is not requested"
+      ],
+      "reason": "The agent never connected the view_order_reversed option to the reducer. It invented a sort.desc-with-no-column mode that the UI cannot reach. Enabling the option therefore has no effect on where live flows are inserted, so the request is not met. The agent admitted this in its summary.",
+      "mustHit": 1,
+      "mustTotal": 2,
+      "touched": [
+        "web/src/js/ducks/flows/index.ts"
+      ]
+    },
+    "result": "I changed the flows reducer so live flows go to the front of the list when the order is reversed. I couldn't find a \"reverse view order\" option in the web frontend, so this rests on an assumption about what you meant. I didn't run the tests, the type-check or the linter, and I didn't add a test.\n\nThe only reverse-order state in the web frontend is `sort.desc` in `web/src/js/ducks/flows/index.ts`. The console UI has a `view_order_reversed` option, but nothing in `web/src` reads it. When no column is selected, `makeSort` compares every pair as equal, so `desc` did nothing. New flows were always appended at the end.\n\nI treated \"no sort column with `desc` set\" as reversed arrival order. In that mode:\n- **Live flows:** a new `flows/add` (or an `update` that makes a flow match the filter) is put at the front of the view. Before, it went at the end.\n- **View rebuilds:** the initial fetch, search-filter updates and `setSort` with no column now all build the view newest-first.\n\nThe change is in `web/src/js/ducks/flows/index.ts`. I added the helpers `isReversedArrival`, `sortFlows` and `insertNewViewItem`. Behaviour with a sort column, or with no column and `desc` unset, is unchanged.\n\nThe header-click cycle in `FlowTableHead` never produces \"no column with `desc` set\", so nothing in the UI reaches the reversed mode today. If you meant the `view_order_reversed` server option, it would need to be wired into the frontend to set `desc` (for example by dispatching `setSort({ column: undefined, desc: true })`). Tell me if that's what you wanted and I'll add it.",
+    "is_error": false,
+    "diff": "diff --git a/web/src/js/ducks/flows/index.ts b/web/src/js/ducks/flows/index.ts\nindex 323f2901a..a43834dc2 100644\n--- a/web/src/js/ducks/flows/index.ts\n+++ b/web/src/js/ducks/flows/index.ts\n@@ -82,7 +82,7 @@ export default function flowsReducer(\n         const _listIndex = buildIndex(list);\n         const byId = new Map(list.map((f) => [f.id, f]));\n         // No filter information yet, we expect that to come immediately after.\n-        const view = toSorted(list, makeSort(sort));\n+        const view = sortFlows(list, sort);\n         const _viewIndex = buildIndex(view);\n         const selected = state.selected\n             .map((flow) => byId.get(flow.id))\n@@ -119,11 +119,11 @@ export default function flowsReducer(\n             matching_filters[FilterName.Search] === true ||\n             matching_filters[FilterName.Search] === undefined\n         ) {\n-            ({ view, _viewIndex } = insertViewItem(\n+            ({ view, _viewIndex } = insertNewViewItem(\n                 view,\n                 _viewIndex,\n                 flow,\n-                makeSort(sort),\n+                sort,\n             ));\n         }\n         // Update highlight\n@@ -166,11 +166,11 @@ export default function flowsReducer(\n             matching_filters[FilterName.Search] === true ||\n             matching_filters[FilterName.Search] === undefined;\n         if (hasNewFlow && !hasOldFlow) {\n-            ({ view, _viewIndex } = insertViewItem(\n+            ({ view, _viewIndex } = insertNewViewItem(\n                 view,\n                 _viewIndex,\n                 flow,\n-                makeSort(sort),\n+                sort,\n             ));\n         } else if (!hasNewFlow && hasOldFlow) {\n             ({ view, _viewIndex } = removeViewItemAt(\n@@ -264,14 +264,14 @@ export default function flowsReducer(\n         const { name, matching_flow_ids } = action.payload;\n         switch (name) {\n             case FilterName.Search: {\n-                const view = toSorted(\n+                const view = sortFlows(\n                     matching_flow_ids === null\n                         ? state.list\n                         : matching_flow_ids\n                               .map((id) => state.byId.get(id))\n                               // WebSocket/HTTP race\n                               .filter((f) => f !== undefined),\n-                    makeSort(state.sort),\n+                    state.sort,\n                 );\n                 const _viewIndex = buildIndex(view);\n                 return {\n@@ -295,8 +295,11 @@ export default function flowsReducer(\n         if (sort.column) {\n             view = toSorted(state.view, makeSort(sort));\n         } else {\n-            // Restore original order if column isn't specified.\n-            view = state.list.filter((f) => state._viewIndex.has(f.id));\n+            // Restore original (or, if desc is set, reversed) order if column isn't specified.\n+            view = sortFlows(\n+                state.list.filter((f) => state._viewIndex.has(f.id)),\n+                sort,\n+            );\n         }\n         const _viewIndex = buildIndex(view);\n         return {\n@@ -316,6 +319,32 @@ export default function flowsReducer(\n     }\n }\n \n+type Sort = { column?: keyof typeof sortFunctions; desc: boolean };\n+\n+/// Without a sort column, flows are ordered by arrival; `desc` reverses that order.\n+function isReversedArrival(sort: Sort): boolean {\n+    return !sort.column && sort.desc;\n+}\n+\n+function sortFlows(flows: Flow[], sort: Sort): Flow[] {\n+    const sorted = toSorted(flows, makeSort(sort));\n+    return isReversedArrival(sort) ? sorted.reverse() : sorted;\n+}\n+\n+/// Insert a newly arrived flow into the view, honoring reversed arrival order.\n+function insertNewViewItem(\n+    view: Flow[],\n+    viewIndex: Map<string, number>,\n+    flow: Flow,\n+    sort: Sort,\n+) {\n+    if (isReversedArrival(sort)) {\n+        const newView = [flow, ...view];\n+        return { view: newView, _viewIndex: buildIndex(newView) };\n+    }\n+    return insertViewItem(view, viewIndex, flow, makeSort(sort));\n+}\n+\n export function makeSort({\n     column,\n     desc,\n",
+    "distill": null
+  },
+  {
+    "id": "PR8326-hard-hook-1",
+    "task": "PR8326-hard",
+    "area": "proxy-http",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "97ac8027-8b9f-448b-85b6-6a5a94f6c660",
+    "turns": 4,
+    "wall_ms": 9626,
+    "api_ms": 9104,
+    "cost": 0.08159519999999999,
+    "in_tokens": 98396,
+    "out_tokens": 858,
+    "tools": {
+      "calls": 3,
+      "byTool": {
+        "Bash": 2,
+        "Read": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 1,
+      "injected": [
+        "building-sending-the-upstream-connect-and-forming-the-author",
+        "upstream-proxy-mode-layer-composition-and-mode-selection",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent changed the same place as the merged patch, `HttpUpstreamProxy.start_handshake`. Its logic is functionally identical. It detects IPv6 with `ipaddress.ip_address(host).version == 6`, brackets the host, and otherwise keeps the IDNA encoding. The authority is reused for the Host header, so that is bracketed as well. The missing test and changelog do not affect behavior.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+      ]
+    },
+    "result": "In upstream proxy mode, the CONNECT authority now brackets IPv6 literals. A target of `::1` port 443 gives `CONNECT [::1]:443` instead of `CONNECT ::1:443`. I haven't run any tests, and I didn't add one.\n\nThe change is in `HttpUpstreamProxy.start_handshake` in `mitmproxy/proxy/layers/http/_upstream_proxy.py`. It checks the host with `ipaddress.ip_address` and wraps it in `[...]` if it is IPv6. Any other host still goes through IDNA encoding as before.\n\nThe optional `Host` header reuses the same authority, so it is bracketed as well.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/proxy/layers/http/_upstream_proxy.py b/mitmproxy/proxy/layers/http/_upstream_proxy.py\nindex f40b26ce6..b8677626d 100644\n--- a/mitmproxy/proxy/layers/http/_upstream_proxy.py\n+++ b/mitmproxy/proxy/layers/http/_upstream_proxy.py\n@@ -1,3 +1,4 @@\n+import ipaddress\n import time\n from logging import DEBUG\n \n@@ -50,9 +51,16 @@ class HttpUpstreamProxy(tunnel.TunnelLayer):\n             return (yield from super().start_handshake())\n         assert self.conn.address\n         flow = http.HTTPFlow(self.context.client, self.tunnel_connection)\n-        authority = (\n-            self.conn.address[0].encode(\"idna\") + f\":{self.conn.address[1]}\".encode()\n-        )\n+        host = self.conn.address[0]\n+        try:\n+            is_ipv6 = ipaddress.ip_address(host).version == 6\n+        except ValueError:\n+            is_ipv6 = False\n+        if is_ipv6:\n+            host_bytes = f\"[{host}]\".encode()\n+        else:\n+            host_bytes = host.encode(\"idna\")\n+        authority = host_bytes + f\":{self.conn.address[1]}\".encode()\n         headers = http.Headers()\n         if self.context.options.http_connect_send_host_header:\n             headers.insert(0, b\"Host\", authority)\n",
+    "distill": null
+  },
+  {
+    "id": "PR8295-hard-hook-1",
+    "task": "PR8295-hard",
+    "area": "next-layer",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "aebbddc1-1441-4026-950b-12f76eaaac79",
+    "turns": 14,
+    "wall_ms": 41239,
+    "api_ms": 40658,
+    "cost": 0.19922679999999998,
+    "in_tokens": 313242,
+    "out_tokens": 3870,
+    "tools": {
+      "calls": 13,
+      "byTool": {
+        "Bash": 7,
+        "Read": 5,
+        "Edit": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 3,
+      "greps": 7,
+      "injected": [
+        "ignore-allow-hosts-semantics-in-ignore-connection",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn"
+      ]
+    },
+    "grade": {
+      "score": 0.05,
+      "missing": [
+        "Guarding the QUIC parse with _starts_like_quic(data_client, context.server.address) so non-QUIC UDP payloads aren't parsed as QUIC",
+        "Guarding the DTLS parse with starts_like_dtls_record so only DTLS-looking datagrams are parsed and can raise NeedsMoreData",
+        "Handling invalid or non-QUIC UDP data so it is not treated as ignorable and doesn't wait for more data"
+      ],
+      "wrong": [
+        "Raising NeedsMoreData whenever the QUIC parser returns None. This adds a new wait state and can make QUIC flows stall rather than fixing the stall.",
+        "The diagnosis (a ClientHello split across datagrams) was not confirmed and does not match the upstream root cause, which is missing pre-checks on UDP payloads.",
+        "The agent's own summary admits the parser can return None when no ClientHello is found, so flows could wait forever for data that never comes."
+      ],
+      "reason": "The agent edited the right function but changed the wrong behavior. Upstream fixes the UDP branch by only attempting QUIC and DTLS parsing when the payload looks like that protocol. The agent instead raises NeedsMoreData when the QUIC parser returns None. That likely causes or worsens stalls for invalid or non-QUIC datagrams, and it would fail the upstream \"invalid quic\" case (not ignored) and the \"http3 with ignoring active\" case. The change is not functionally equivalent and probably does not fix the bug.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/addons/next_layer.py"
+      ]
+    },
+    "result": "I changed one spot in `mitmproxy/addons/next_layer.py`, in `NextLayer._get_client_hello`. I haven't run anything, and I didn't add a test.\n\nI didn't reproduce the stall. I traced it by reading the code, so the cause below is my best reading rather than something I confirmed.\n\n- **Cause:** With `ignore_hosts` or `allow_hosts` set, `_ignore_connection` parses the QUIC ClientHello to get the SNI. Modern clients such as Chrome often split the ClientHello across several UDP datagrams. In that case the parser returns `None` for the incomplete first datagram. The old code returned that `None` straight through. The host was then treated as not ignored, and the flow went to the QUIC layers instead of being passed through.\n- **Fix:** When the QUIC parser returns `None`, `_get_client_hello` now raises `NeedsMoreData`, as the TCP and DTLS branches already do. The decision waits for the next datagram, and `NextLayer._data` joins the datagrams before the hook re-runs. Once the SNI is available, the ignore/allow match works and the connection goes to the pass-through `UDPLayer`.\n- **Scope:** This only runs when `ignore_hosts` or `allow_hosts` is set, because `_ignore_connection` returns early otherwise.\n\n**Unverified assumption:** I'm assuming `quic_parse_client_hello_from_datagrams` copes with the joined datagrams being treated as coalesced packets in one datagram.\n\n**Risk:** The parser can also return `None` in a rare case where no ClientHello is found and no drop is logged. If that happens, a flow would wait for more data instead of proceeding.\n\nA natural test for `test/mitmproxy/addons/test_next_layer.py` is a first datagram carrying only part of a ClientHello, expecting `NeedsMoreData`, and then the full ClientHello with an ignored SNI expecting a `UDPLayer`.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..ef42f5a30 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -321,9 +321,14 @@ class NextLayer:\n                 return None\n             case \"udp\":\n                 try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n+                    ch = quic_parse_client_hello_from_datagrams([data_client])\n                 except ValueError:\n                     pass\n+                else:\n+                    if ch is None:\n+                        # The ClientHello may span multiple datagrams.\n+                        raise NeedsMoreData\n+                    return ch\n \n                 try:\n                     ch = dtls_parse_client_hello(data_client)\n",
+    "distill": null
+  },
+  {
+    "id": "PR8333-hard-hook-1",
+    "task": "PR8333-hard",
+    "area": "web-app",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "953a4b4b-4b44-4d0e-a558-0103596ef18e",
+    "turns": 9,
+    "wall_ms": 20679,
+    "api_ms": 20012,
+    "cost": 0.1209526,
+    "in_tokens": 225823,
+    "out_tokens": 1700,
+    "tools": {
+      "calls": 8,
+      "byTool": {
+        "Bash": 8
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 8,
+      "injected": [
+        "web-frontend-tests-web-npm",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "building-sending-the-upstream-connect-and-forming-the-author"
+      ]
+    },
+    "grade": {
+      "score": 1,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent changed the same three places as upstream: the frontend now sends `reason`, the backend accepts `reason` instead of `msg`, and the test was updated to match. Using `setattr(response, \"reason\", str(v))` is functionally the same as the upstream explicit `response.reason = str(v)`. Upstream also adds an http_version-only test and a changelog entry, but those don't affect behavior.",
+      "mustHit": 2,
+      "mustTotal": 2,
+      "touched": [
+        "mitmproxy/tools/web/app.py",
+        "test/mitmproxy/tools/web/test_app.py",
+        "web/src/js/components/FlowView/HttpMessages.tsx"
+      ]
+    },
+    "result": "Editing a response's reason phrase in the web UI should now change the real response. I haven't run any tests or the web frontend.\n\n**Cause:** the frontend sent the edit as `response: { msg }`, and the backend in `mitmproxy/tools/web/app.py` did `setattr(response, \"msg\", ...)`. `Response` has no `msg` field. Its real field is `reason`, which is backed by `data.reason`. So the edit created a stray attribute and never touched the reason phrase that gets sent.\n\n**Changes:**\n- `web/src/js/components/FlowView/HttpMessages.tsx`: the reason editor now sends `{ response: { reason } }`.\n- `mitmproxy/tools/web/app.py`: the flow update handler accepts `reason` instead of `msg`, so `setattr(response, \"reason\", ...)` uses the real setter.\n- `test/mitmproxy/tools/web/test_app.py`: the update test now sends `reason` and asserts `f.response.reason`. The old version asserted `f.response.msg`, which only passed because of the stray attribute.\n\n`msg` is no longer accepted by the update endpoint. It now returns a 400 \"Unknown update response.msg\". I found no other users of it in the web code I searched.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..120cfca56 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -608,7 +608,7 @@ class FlowHandler(RequestHandler):\n                 elif a == \"response\" and hasattr(flow, \"response\"):\n                     response: mitmproxy.http.Response = flow.response\n                     for k, v in b.items():\n-                        if k in [\"msg\", \"http_version\"]:\n+                        if k in [\"reason\", \"http_version\"]:\n                             setattr(response, k, str(v))\n                         elif k == \"code\":\n                             response.status_code = int(v)\ndiff --git a/test/mitmproxy/tools/web/test_app.py b/test/mitmproxy/tools/web/test_app.py\nindex 7922484ef..ae1becbe2 100644\n--- a/test/mitmproxy/tools/web/test_app.py\n+++ b/test/mitmproxy/tools/web/test_app.py\n@@ -207,7 +207,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n                 \"content\": \"req\",\n             },\n             \"response\": {\n-                \"msg\": \"Non-Authorisé\",\n+                \"reason\": \"Non-Authorisé\",\n                 \"code\": 404,\n                 \"headers\": [(\"bar\", \"baz\")],\n                 \"trailers\": [(\"foo\", \"bar\")],\n@@ -221,7 +221,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n         assert f.request.port == 123\n         assert f.request.headers[\"foo\"] == \"bar\"\n         assert f.request.text == \"req\"\n-        assert f.response.msg == \"Non-Authorisé\"\n+        assert f.response.reason == \"Non-Authorisé\"\n         assert f.response.status_code == 404\n         assert f.response.headers[\"bar\"] == \"baz\"\n         assert f.response.text == \"resp\"\ndiff --git a/web/src/js/components/FlowView/HttpMessages.tsx b/web/src/js/components/FlowView/HttpMessages.tsx\nindex 9f1dcb20e..2a151167c 100644\n--- a/web/src/js/components/FlowView/HttpMessages.tsx\n+++ b/web/src/js/components/FlowView/HttpMessages.tsx\n@@ -104,9 +104,9 @@ function ResponseLine({ flow }: ResponseLineProps) {\n                     &nbsp;\n                     <ValueEditor\n                         content={flow.response.reason}\n-                        onEditDone={(msg) =>\n+                        onEditDone={(reason) =>\n                             dispatch(\n-                                flowActions.update(flow, { response: { msg } }),\n+                                flowActions.update(flow, { response: { reason } }),\n                             )\n                         }\n                         selectAllOnClick={true}\n",
+    "distill": null
+  },
+  {
+    "id": "PR8397-hard-hook-1",
+    "task": "PR8397-hard",
+    "area": "encoding",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "c05594ec-7284-4656-82ff-64aa9670a191",
+    "turns": 4,
+    "wall_ms": 12870,
+    "api_ms": 12309,
+    "cost": 0.0840604,
+    "in_tokens": 96922,
+    "out_tokens": 1324,
+    "tools": {
+      "calls": 3,
+      "byTool": {
+        "Bash": 3
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 2,
+      "injected": [
+        "content-encoding-codecs-and-message-decode-encode-callpath",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "single-entry-global-decode-encode-cache-in-net-encoding-py"
+      ]
+    },
+    "grade": {
+      "score": 0.9,
+      "missing": [
+        "uv.lock was not updated (the agent said it needs `uv lock`)",
+        "No CHANGELOG entry"
+      ],
+      "wrong": [
+        "On Python <3.14 the agent keeps the third-party `zstandard` package as the fallback. Upstream switched to `backports.zstd`, which has the stdlib API, so it dropped `zstandard` entirely and removed the separate code path. The request text does say to fall back to `zstandard`, so this matches the request but not the merged patch."
+      ],
+      "reason": "The agent changed the right place, `mitmproxy/net/encoding.py`. It now imports `compression.zstd` when available and uses `zstd.decompress(content)` and `zstd.compress(content, level=1)`, the same calls as the merged patch. On Python 3.14+ the behaviour is the same as upstream. It also gated the `zstandard` dependency in `pyproject.toml` on `python_version < '3.14'`. The fallback differs from upstream, which uses `backports.zstd` and a `sys.version_info` check, but the request explicitly asks for `zstandard` as the fallback. The agent's version keeps a dual code path and a `_STDLIB_ZSTD` flag, which is more complex but works. It is a functionally equivalent and valid implementation of the request.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "mitmproxy/net/encoding.py",
+        "pyproject.toml"
+      ]
+    },
+    "result": "`mitmproxy/net/encoding.py` now uses the standard library's `compression.zstd` for zstd content encoding when it exists, and falls back to `zstandard` otherwise. I haven't run the tests or the lint and mypy checks.\n\n- **Import:** the module tries `from compression import zstd` first and sets a `_STDLIB_ZSTD` flag. On `ImportError` it imports `zstandard as zstd` instead.\n- **Decode:** with the stdlib module, `decode_zstd` calls `zstd.decompress(content)`, which reads multiple concatenated frames. The `zstandard` path is unchanged.\n- **Encode:** `encode_zstd` calls `zstd.compress(content, level=1)` on the stdlib path, using the same level as before. The `zstandard` path is unchanged.\n- **Dependency:** in `pyproject.toml` I made the requirement `zstandard>=0.25,<=0.25.0; python_version < '3.14'`, so it is only installed where the stdlib module is missing.\n\nI didn't add or change any tests; the existing zstd tests exercise whichever backend is active.\n\n- **`uv.lock`:** it will need regenerating with `uv lock` because of the new dependency marker. I didn't touch it since you said not to install anything.\n- **`import zstandard` fallback branch:** it is marked `# pragma: no cover`, since only one branch runs on any given interpreter.",
+    "is_error": false,
+    "diff": "diff --git a/mitmproxy/net/encoding.py b/mitmproxy/net/encoding.py\nindex 7be30d3d5..c293e1d1f 100644\n--- a/mitmproxy/net/encoding.py\n+++ b/mitmproxy/net/encoding.py\n@@ -10,7 +10,15 @@ from io import BytesIO\n from typing import overload\n \n import brotli\n-import zstandard as zstd\n+\n+try:\n+    from compression import zstd  # Python 3.14+, PEP 784\n+\n+    _STDLIB_ZSTD = True\n+except ImportError:  # pragma: no cover\n+    import zstandard as zstd\n+\n+    _STDLIB_ZSTD = False\n \n # We have a shared single-element cache for encoding and decoding.\n # This is quite useful in practice, e.g.\n@@ -182,12 +190,16 @@ def encode_brotli(content: bytes) -> bytes:\n def decode_zstd(content: bytes) -> bytes:\n     if not content:\n         return b\"\"\n+    if _STDLIB_ZSTD:\n+        return zstd.decompress(content)\n     zstd_ctx = zstd.ZstdDecompressor()\n     return zstd_ctx.stream_reader(BytesIO(content), read_across_frames=True).read()\n \n \n def encode_zstd(content: bytes) -> bytes:\n     # Use level=1 for fastest compression speed.\n+    if _STDLIB_ZSTD:\n+        return zstd.compress(content, level=1)\n     zstd_ctx = zstd.ZstdCompressor(level=1)\n     return zstd_ctx.compress(content)\n \ndiff --git a/pyproject.toml b/pyproject.toml\nindex 7ddc3b834..d13347750 100644\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -57,7 +57,7 @@ dependencies = [\n     \"urwid>=2.6.14,<=3.0.5\",\n     \"wsproto>=1.0,<=1.3.2\",\n     \"publicsuffix2>=2.20190812,<=2.20191221\",\n-    \"zstandard>=0.25,<=0.25.0\",\n+    \"zstandard>=0.25,<=0.25.0; python_version < '3.14'\",\n ]\n \n [dependency-groups]\n",
+    "distill": null
+  },
+  {
+    "id": "PR8408-hard-hook-1",
+    "task": "PR8408-hard",
+    "area": "addons-browser",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "dd6a1701-7aea-4ef5-bebc-b301ba8823f5",
+    "turns": 5,
+    "wall_ms": 16275,
+    "api_ms": 15732,
+    "cost": 0.1022868,
+    "in_tokens": 104548,
+    "out_tokens": 2016,
+    "tools": {
+      "calls": 4,
+      "byTool": {
+        "Read": 1,
+        "Bash": 2,
+        "Edit": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 2,
+      "injected": [
+        "browser-addon-executable-lookup-and-launch-flags",
+        "browser-start-command-registration-and-dispatch",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+      ]
+    },
+    "grade": {
+      "score": 0.97,
+      "missing": [],
+      "wrong": [],
+      "reason": "The agent added `launch_edge()` in `mitmproxy/addons/browser.py` and dispatched \"edge\" to it in `start()`. It searches the same macOS, Windows, Linux and flatpak locations as the upstream patch. It also adds an `msedge` binary name and an `msedge` alias, which don't change the core behavior. The launch flags come from a shared `_launch_chromium_based` helper extracted from Chrome's launch code. Upstream copies the Chrome flags into Edge, and this diff shows only the tail of `launch_chrome` moving into the helper, so I assume the flags are identical. Chrome should behave as before. The tests and changelog match the upstream additions.",
+      "mustHit": 1,
+      "mustTotal": 1,
+      "touched": [
+        "CHANGELOG.md",
+        "mitmproxy/addons/browser.py",
+        "test/mitmproxy/addons/test_browser.py"
+      ]
+    },
+    "result": "`browser.start` now accepts `edge` or `msedge` and launches an isolated Microsoft Edge pointed at the proxy. I didn't run the tests, as instructed.\n\n- **Launch code** (`mitmproxy/addons/browser.py`): I added `launch_edge()`, which looks for Edge in these places, in order, and falls back to the `com.microsoft.Edge` flatpak:\n  - the macOS app bundle;\n  - the two Windows `msedge.exe` paths;\n  - the Linux binary names `microsoft-edge`, `microsoft-edge-stable`, `microsoft-edge-beta`, `microsoft-edge-dev` and `msedge`.\n\n  If none is found, it logs the usual \"platform is not supported\" message.\n- **Shared launcher**: Edge is Chromium-based, so it takes the same flags as Chrome. I moved Chrome's launch code (temporary profile directory, `--proxy-server`, first-run and extension flags) into a private `_launch_chromium_based(cmd)`. `launch_chrome` and `launch_edge` both call it, so Chrome behaves as before.\n- **Tests** (`test/mitmproxy/addons/test_browser.py`): I added one test for starting Edge and one for Edge not being found.\n- **Changelog** (`CHANGELOG.md`): I added a bullet under the unreleased section.",
+    "is_error": false,
+    "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..e6d3b4d18 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- Add Microsoft Edge support to the `browser.start` command (`edge` / `msedge`).\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/addons/browser.py b/mitmproxy/addons/browser.py\nindex ccc920953..4e98162d3 100644\n--- a/mitmproxy/addons/browser.py\n+++ b/mitmproxy/addons/browser.py\n@@ -43,6 +43,8 @@ class Browser:\n \n         if browser in (\"chrome\", \"chromium\"):\n             self.launch_chrome()\n+        elif browser in (\"edge\", \"msedge\"):\n+            self.launch_edge()\n         elif browser == \"firefox\":\n             self.launch_firefox()\n         else:\n@@ -78,6 +80,34 @@ class Browser:\n             )\n             return\n \n+        self._launch_chromium_based(cmd)\n+\n+    def launch_edge(self) -> None:\n+        \"\"\"\n+        Start an isolated instance of Microsoft Edge that points to the currently\n+        running proxy.\n+        \"\"\"\n+        cmd = find_executable_cmd(\n+            \"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge\",\n+            r\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            r\"C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            # Linux binary names\n+            \"microsoft-edge\",\n+            \"microsoft-edge-stable\",\n+            \"microsoft-edge-beta\",\n+            \"microsoft-edge-dev\",\n+            \"msedge\",\n+        ) or find_flatpak_cmd(\"com.microsoft.Edge\")\n+\n+        if not cmd:\n+            logging.log(\n+                ALERT, \"Your platform is not supported yet - please submit a patch.\"\n+            )\n+            return\n+\n+        self._launch_chromium_based(cmd)\n+\n+    def _launch_chromium_based(self, cmd: list[str]) -> None:\n         tdir = tempfile.TemporaryDirectory()\n         self.tdir.append(tdir)\n         self.browser.append(\ndiff --git a/test/mitmproxy/addons/test_browser.py b/test/mitmproxy/addons/test_browser.py\nindex d5bd38c5c..1c4fa8422 100644\n--- a/test/mitmproxy/addons/test_browser.py\n+++ b/test/mitmproxy/addons/test_browser.py\n@@ -95,3 +95,22 @@ async def test_browser_start_firefox_not_found(caplog):\n         which.return_value = False\n         browser.Browser().start(\"firefox\")\n         assert \"platform is not supported\" in caplog.text\n+\n+\n+async def test_browser_start_edge():\n+    with (\n+        mock.patch(\"shutil.which\") as which,\n+        mock.patch(\"subprocess.Popen\") as po,\n+        taddons.context(),\n+    ):\n+        which.return_value = \"microsoft-edge\"\n+        browser.Browser().start(\"edge\")\n+        assert po.called\n+\n+\n+async def test_browser_start_edge_not_found(caplog):\n+    caplog.set_level(\"INFO\")\n+    with mock.patch(\"shutil.which\") as which:\n+        which.return_value = False\n+        browser.Browser().start(\"edge\")\n+        assert \"platform is not supported\" in caplog.text\n",
+    "distill": null
+  },
+  {
+    "id": "PR8224-hard-hook-1",
+    "task": "PR8224-hard",
+    "area": "web-app",
+    "arm": "hook",
+    "rep": 1,
+    "model": "sonnet",
+    "session": "d28d4b8a-0a02-4b46-a0c7-17ad243a22f5",
+    "turns": 15,
+    "wall_ms": 278398,
+    "api_ms": 31984,
+    "cost": 0.1717538,
+    "in_tokens": 328536,
+    "out_tokens": 3136,
+    "tools": {
+      "calls": 14,
+      "byTool": {
+        "Bash": 9,
+        "Read": 1,
+        "bash": 1,
+        "Edit": 3
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 9,
+      "injected": [
+        "web-frontend-tests-web-npm",
+        "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+        "mitmweb-xsrf-auth-and-header-protections"
+      ]
+    },
+    "grade": {
+      "score": 0.9,
+      "missing": [
+        "Doesn't use Tornado's built-in `xsrf_cookie_name` Application setting, which is the simpler approach.",
+        "Handlers that don't subclass AuthRequestHandler wouldn't get the rename."
+      ],
+      "wrong": [],
+      "reason": "The frontend change in utils.ts is identical to the merged patch. On the server, the agent overrides get_cookie and set_cookie in AuthRequestHandler to map `_xsrf` to `_mitmproxy_xsrf`. Tornado's xsrf_token and _get_raw_xsrf_token read and write the cookie through those methods with the literal name `_xsrf`, so the override should give the same behavior as the merged `xsrf_cookie_name` setting. It is more roundabout, and it only covers handlers that inherit from AuthRequestHandler, which in mitmweb should be all of the ones that matter. The agent could not check Tornado's source, and neither could I here, so this rests on my recollection of Tornado's code.",
+      "mustHit": 2,
+      "mustTotal": 2,
+      "touched": [
+        "CHANGELOG.md",
+        "mitmproxy/tools/web/app.py",
+        "web/src/js/utils.ts"
+      ]
+    },
+    "result": "The web interface's XSRF cookie is now named `_mitmproxy_xsrf`, both where it's set and where it's read. I didn't run any tests or the app, and I didn't add a test.\n\n- **Server (`mitmproxy/tools/web/app.py`):** Tornado hardcodes the cookie name `_xsrf` and offers no setting for it. `AuthRequestHandler` now overrides `get_cookie` and `set_cookie` to swap `_xsrf` for `_mitmproxy_xsrf`. This covers every handler, including the login form and the websocket handler.\n- **Frontend (`web/src/js/utils.ts`):** the `xsrf()` helper now reads `getCookie(\"_mitmproxy_xsrf\")`. It still sends the value in the `X-XSRFToken` header.\n- **Changelog (`CHANGELOG.md`):** added an entry under \"Unreleased\".\n\nAny old `_xsrf` cookie in the browser is now ignored, so the server issues a fresh token under the new name. The `_xsrf` form-field name and the `X-XSRFToken` header are unchanged.\n\nI couldn't check Tornado's source in this environment. The override relies on Tornado reading and writing the XSRF cookie through `get_cookie` and `set_cookie`, which is how I remember it working. Worth confirming with a quick login or POST against mitmweb.",
+    "is_error": false,
+    "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..a42f38dd3 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmweb: Rename the XSRF cookie to `_mitmproxy_xsrf` to fix broken sessions in Firefox.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..2c070e0da 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -224,6 +224,20 @@ class APIError(tornado.web.HTTPError):\n class AuthRequestHandler(tornado.web.RequestHandler):\n     AUTH_COOKIE_VALUE = b\"y\"\n \n+    # Tornado hardcodes the XSRF cookie name as `_xsrf`. We use a different name so that\n+    # stale `_xsrf` cookies (which break Firefox sessions) are ignored.\n+    XSRF_COOKIE_NAME = \"_mitmproxy_xsrf\"\n+\n+    def get_cookie(self, name: str, default: str | None = None) -> str | None:\n+        if name == \"_xsrf\":\n+            name = self.XSRF_COOKIE_NAME\n+        return super().get_cookie(name, default)\n+\n+    def set_cookie(self, name: str, value: str | bytes, *args, **kwargs) -> None:\n+        if name == \"_xsrf\":\n+            name = self.XSRF_COOKIE_NAME\n+        super().set_cookie(name, value, *args, **kwargs)\n+\n     def __init_subclass__(cls, **kwargs):\n         \"\"\"Automatically wrap all request handlers with `_require_auth`.\"\"\"\n         for method in cls.SUPPORTED_METHODS:\ndiff --git a/web/src/js/utils.ts b/web/src/js/utils.ts\nindex 7e76df609..89969f55c 100644\n--- a/web/src/js/utils.ts\n+++ b/web/src/js/utils.ts\n@@ -78,7 +78,7 @@ function getCookie(name) {\n }\n \n let xsrf = () => {\n-    const cached = getCookie(\"_xsrf\");\n+    const cached = getCookie(\"_mitmproxy_xsrf\");\n     xsrf = () => cached;\n     return xsrf();\n };\n",
+    "distill": null
+  }
+]

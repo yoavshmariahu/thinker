@@ -1,0 +1,53 @@
+{
+  "id": "v1-consumer-stalls-after-revoke-until-rebalance-timeout",
+  "title": "v1 consumer stalls after revoke until rebalance timeout",
+  "kind": "fix",
+  "answers": [
+    "Kafka v1 consumer paused for 20s after partition revoke",
+    "rebalancing_timeout_forcing_recovery logged after revokes",
+    "ingestion consumer stops consuming after rebalance"
+  ],
+  "body": "Symptom: v1 Kafka consumers stop consuming after a partition revoke and only recover after CONSUMER_REBALANCE_TIMEOUT_MS (20s), logging `rebalancing_timeout_forcing_recovery`.\nRoot cause: nodejs/src/common/kafka/consumer/consumer-v1.ts:rebalanceCallback set isRebalancing on revoke but only reset it on the next ASSIGN callback (or when assignments().length===0). node-rdkafka delivers assign callbacks only from consume(), and the loop is paused while isRebalancing, so it could never receive them.\nFix pattern: unassign and reset coordination unconditionally in one helper, with the reset in `finally` so a throwing unassign (disconnected consumer) still clears the pause. See consumer-v1.ts:completeRevocation.\nConstraints: all revoke paths (tasks done, task error, no tasks) must go through completeRevocation. Do not gate the reset on remaining assignments or on an assign callback.",
+  "applies": "nodejs/src/common/kafka/consumer/consumer-v1.ts rebalance handling",
+  "tags": [
+    "kafka",
+    "rebalance",
+    "consumer-v1"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/common/kafka/consumer/consumer-v1.ts",
+      "symbol": "completeRevocation",
+      "hash": "sha256:f81b80c93325d9f0fced7a34",
+      "line": 460,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/common/kafka/consumer/consumer-v1.ts",
+      "symbol": "rebalanceCallback",
+      "hash": "sha256:004553430ec146dc6431750f",
+      "line": 398,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/common/kafka/consumer/consumer-v1.ts",
+      "symbol": "assignments",
+      "hash": "sha256:f15fbaa72e8b4e3a8e59559e",
+      "line": 320,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105238"
+  },
+  "created": "2026-09-27T00:10:14.318Z",
+  "verified": "2026-09-27T00:10:14.318Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "v1-consumer-always-uses-rebalancecallback-wait-for-backgroun"
+  ]
+}

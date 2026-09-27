@@ -1,0 +1,37 @@
+{
+  "id": "live-runtime-terminal-stories-must-be-excluded-from-tests",
+  "title": "Live runtime terminal stories must be excluded from tests",
+  "kind": "convention",
+  "answers": [
+    "How do I write a Storybook story that boots the real terminal VM?",
+    "Why is tags: ['!test'] on LiveDoom/LiveClassics stories?"
+  ],
+  "body": "Stories that boot the real v86 guest (LiveDoom, LiveClassics in frontend/src/scenes/terminal/TerminalScene.stories.tsx) use:\n- tags: ['!test'] so they are skipped by the snapshot/test runner\n- parameters: { liveRuntime: true }\n- a play function that waits for terminalLogic.values.status === 'ready' with a long timeout (120_000), then calls window.posthogTerminal?.write('<cmd>\\n').\nFollow this pattern for any new live-command story.",
+  "applies": "Terminal Storybook stories that need the live guest runtime",
+  "tags": [
+    "storybook",
+    "terminal"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/terminal/TerminalScene.stories.tsx",
+      "symbol": "LiveClassics",
+      "hash": "sha256:068142179d1aa33ddbedd1a3",
+      "line": 393,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105606"
+  },
+  "created": "2026-09-27T00:01:17.492Z",
+  "verified": "2026-09-27T00:01:17.492Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-terminal-command-package-cochange-across-manifest-r"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "id": "type-to-paramtype-resolution-and-value-conversion-callpath",
+  "title": "type= to ParamType resolution and value conversion callpath",
+  "kind": "callpath",
+  "answers": [
+    "How is an option's type= turned into a ParamType?",
+    "Where does conversion of option values happen?",
+    "How does nargs/multiple affect type conversion?"
+  ],
+  "body": "- `core.py:Parameter.__init__` does `self.type = types.convert_type(type, default)`; Option/Argument share it.\n- `types.py:convert_type` → `_guess_type`: returns `ty` unchanged if not None; else infers from `default` (None→None, tuple/list→tuple of element types or None if empty, else `type(default)`).\n- Guessed tuple → `Tuple(guessed)` (composite); a ParamType instance is returned as-is; str/None → STRING; other Python types map to builtin ParamTypes.\n- Conversion: `core.py:Parameter.type_cast_value` — None → `()` if multiple/nargs==-1 else None; if `nargs == 1 or type.is_composite` it calls `self.type(value, param=self, ctx=ctx)`, otherwise wraps per-item conversion for nargs/multiple.\n- `ParamType.__call__` (`types.py`) returns None for None, else delegates to `convert`.",
+  "tags": [
+    "paramtype",
+    "conversion"
+  ],
+  "deps": [
+    {
+      "path": "src/click/types.py",
+      "symbol": "convert_type",
+      "hash": "sha256:06870df7678c3e84d7fccfaa",
+      "line": 371,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "_guess_type",
+      "hash": "sha256:7653f154eadf9d4580f71c4c",
+      "line": 1249,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.type_cast_value",
+      "hash": "sha256:eca3711b657933dc1ed2f098",
+      "line": 2476,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.__init__",
+      "hash": "sha256:5e4667b01f66ad01d7c951e7",
+      "line": 2251,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.__call__",
+      "hash": "sha256:9931ff2763678785b1f2deff",
+      "line": 101,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "ccef2877-697b-4b51-8c7f-a0bfe3da19a1"
+  },
+  "created": "2026-09-26T09:13:34.348Z",
+  "verified": "2026-09-26T09:13:34.348Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 10,
+  "lastUsed": "2026-09-26T09:27:51.641Z"
+}

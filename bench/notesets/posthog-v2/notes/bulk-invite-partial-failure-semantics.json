@@ -1,0 +1,67 @@
+{
+  "id": "bulk-invite-partial-failure-semantics",
+  "title": "Bulk invite partial failure semantics",
+  "kind": "gotcha",
+  "answers": [
+    "What happens when one row of a bulk invite fails?",
+    "Is bulk invite creation atomic?",
+    "Why do retried invites send duplicate emails?"
+  ],
+  "body": "`OrganizationInviteViewSet.bulk`: `serializer.is_valid()` runs on the whole list first (all-or-nothing on field validation); `first_bulk_invite_error` returns only the first failing row's error.\nBut `save()` calls `create` per row with NO `transaction.atomic()`. The already-a-member check lives in `create`, so a late such row raises after earlier rows were created and emailed -> 400 with some invites persisted.\nDuplicate emails in one request: `OrganizationInviteManager.delete_existing_invites` in each create, so last wins (`combine_pending_invites` default False; client never sets it).\nClient: `inviteLogic` resets `invitesToSend` only on `inviteTeamMembersSuccess`; after failure rows remain, so retry re-creates already-saved invites (second email, first link deleted).\nAnalytics: `report_team_member_invited` per row; `report_bulk_invited` once, skipped if save() raised.",
+  "applies": "Bulk endpoint invites/bulk/ only; validation-stage failures save nothing, create-stage failures do.",
+  "tags": [
+    "invites",
+    "bulk",
+    "atomicity"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/organization_invite.py",
+      "symbol": "OrganizationInviteViewSet.bulk",
+      "hash": "sha256:a2ab0b1f3a3d6f32fd87f3f6",
+      "line": 688,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/settings/organization/inviteLogic.ts",
+      "hash": "sha256:1ba7c1fa1a4d51cc10cd1f3f",
+      "missing": false
+    },
+    {
+      "path": "posthog/api/organization_invite.py",
+      "symbol": "OrganizationInviteManager.delete_existing_invites",
+      "hash": "sha256:09c094c974552644493519c1",
+      "line": 135,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "10d004c0-2900-4f08-9249-8b0791302d9b"
+  },
+  "created": "2026-09-27T00:16:17.907Z",
+  "verified": "2026-09-27T00:16:17.907Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 10,
+  "related": [
+    "org-invite-flow-modal-invitelogic-bulk-api",
+    "onboarding-and-settings-invite-flows-share-invitelogic",
+    "org-invite-validation-server-vs-client-enforcement-map",
+    "invite-validation-errors-reach-ui-only-as-a-global-toast"
+  ],
+  "lastUsed": "2026-09-27T05:56:50.434Z",
+  "servedIn": [
+    "08c19801-a7d7-4020-a810-5039faf472a6",
+    "eefc43a9-7ed5-4dad-924b-8c97b4d79809",
+    "ea4b1d4e-069e-4b41-8cab-b4c6d80f18e6",
+    "757b5028-64cf-4783-930e-850f40b213f3",
+    "272e951d-10ea-4f07-a076-73905bf2484b",
+    "8343a249-277d-4e67-b6aa-c983610531d2",
+    "ee0dce34-40ce-4fac-8407-70d21d106849",
+    "72ef30ba-b28a-471e-966b-ddf41a97cbbb",
+    "9672fc36-d960-495f-9a6a-5dd0266175fe",
+    "efd15676-bacc-435a-8ff1-7dde89514f28"
+  ]
+}

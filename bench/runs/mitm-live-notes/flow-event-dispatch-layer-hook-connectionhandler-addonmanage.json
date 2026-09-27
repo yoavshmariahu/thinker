@@ -1,0 +1,109 @@
+{
+  "id": "flow-event-dispatch-layer-hook-connectionhandler-addonmanage",
+  "title": "Flow event dispatch: layer hook -> ConnectionHandler -> AddonManager -> addon method",
+  "kind": "callpath",
+  "answers": [
+    "How does mitmproxy dispatch request/response/error events to addons?",
+    "Where are HTTP hooks yielded and handled?",
+    "How does flow.intercept block until resume?"
+  ],
+  "body": "1. Layers yield hook commands (commands.StartHook subclasses): proxy/layers/http/_hooks.py (HttpRequestHook, HttpResponseHook, HttpErrorHook, HttpConnectHook...), yielded in proxy/layers/http/__init__.py (HttpRequestHook ~348/377, HttpResponseHook ~511, HttpErrorHook ~616/679/713/744, HttpConnectHook ~775).\n2. proxy/server.py:ConnectionHandler.hook_task calls handle_hook(hook); if hook.blocking, sends events.HookCompleted(hook) back to the layer.\n3. proxy/mode_servers.py:handle_hook takes the flow arg, calls master.addons.handle_lifecycle(hook), then `await data.wait_for_resume()` if arg is a Flow (this implements intercept/resume).\n4. addonmanager.py:AddonManager.handle_lifecycle -> trigger_event(event); if first arg is a flow.Flow, also fires hooks.UpdateHook([flow]).\n5. trigger_event iterates self.chain in order, invoke_addon inside safecall(); exceptions.AddonHalt stops the chain. invoke_addon uses _iter_hooks: getattr(addon, event.name) over traverse([addon]) (children too), calls func(*event.args()), awaits if awaitable. invoke_addon_sync rejects coroutines.\nNote: proxy/server.py also has a separate handle_hook (~line 497) dispatching by hook.name to a handler table (not read in detail). Mapping event.name from hook class (hooks.py) was not verified.",
+  "tags": [
+    "addons",
+    "hooks",
+    "http",
+    "dispatch"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "AddonManager.handle_lifecycle",
+      "hash": "sha256:ed513d36fe2064f6e4151f49",
+      "line": 232,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/server.py",
+      "symbol": "ConnectionHandler.hook_task",
+      "hash": "sha256:3b1a1629926a3f22721e36c8",
+      "line": 356,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/mode_servers.py",
+      "symbol": "handle_hook",
+      "hash": "sha256:1444933f3c991d26c927b7de",
+      "line": 69,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/__init__.py",
+      "hash": "sha256:0e7b3474f7febddcf81cb696",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/_hooks.py",
+      "hash": "sha256:9919eae28b33fc8c7d1e8125",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/commands.py",
+      "symbol": "StartHook",
+      "hash": "sha256:78ad784b49f8fdfecf9c5f17",
+      "line": 114,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/events.py",
+      "symbol": "HookCompleted",
+      "hash": "sha256:2cae19c5e728c73d802c4d0a",
+      "line": 113,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/flow.py",
+      "symbol": "Flow",
+      "hash": "sha256:dbfb3687c5681ba2493b328d",
+      "line": 44,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/hooks.py",
+      "symbol": "UpdateHook",
+      "hash": "sha256:e15a5a3a96d50f6b8d5e0b91",
+      "line": 88,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "safecall",
+      "hash": "sha256:d3efc056da12166563b9a332",
+      "line": 44,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/exceptions.py",
+      "symbol": "AddonHalt",
+      "hash": "sha256:f6198c27ba727c947a7dcc3b",
+      "line": 48,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e72d6ada-3e88-482c-a1ee-ec01ef294fd7"
+  },
+  "created": "2026-09-26T09:23:03.350Z",
+  "verified": "2026-09-26T09:23:03.350Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 7,
+  "lastUsed": "2026-09-26T09:56:59.072Z",
+  "related": [
+    "upstream-proxy-mode-layer-composition-and-mode-selection",
+    "option-registration-deferred-options-and-argparse-generation",
+    "failed-connect-requests-are-printed-via-dumper-http-connect-",
+    "making-s-scripts-load-before-options-dump"
+  ]
+}

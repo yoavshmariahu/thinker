@@ -1,0 +1,47 @@
+{
+  "id": "E8-usageerror-abort-adv-hook-1",
+  "task": "E8-usageerror-abort-adv",
+  "area": "exceptions",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "d1a00149-f9d8-44f7-818b-a43ca7b03f73",
+  "turns": 3,
+  "wall_ms": 13619,
+  "api_ms": 13122,
+  "cost": 0.0342398,
+  "in_tokens": 67083,
+  "out_tokens": 1303,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": [
+      "command-main-exception-handling-and-exit-code-flow",
+      "exception-hierarchy-and-exit-codes-in-exceptions-py",
+      "clirunner-invoke-exception-exit-code-handling-and-result"
+    ]
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "Exact usage/hint stderr format details (e.g., blank line, --help longest name)",
+      "Context.augment_usage_errors attaching ctx",
+      "SystemExit mechanics and CliRunner details",
+      "Exact line numbers for echo/sys.exit calls"
+    ],
+    "wrong": [
+      "Claims the 'Interrupted!'/130 difference is caused by an 'adversarial mutations' commit, which is speculative and unverified (minor, not central)"
+    ],
+    "reason": "The answer matches the reference on all key points. UsageError is caught by the inner except ClickException at about line 1518, prints usage, hint and Error to stderr, and exits 2. Abort is caught by the outer except Abort at about line 1543 and, per the correction, prints \"Interrupted!\" and exits 130. KeyboardInterrupt is caught by the inner handler at about line 1515, which echoes a blank line and raises Abort. The outer handler then prints \"Interrupted!\" and exits 130. The only gaps are finer details and one speculative remark about the commit.",
+    "mustHit": 0,
+    "mustTotal": 0
+  },
+  "result": "All handlers are in `src/click/core.py:Command.main`, in the `try` block that starts at about line 1501. The Abort branch in this checkout differs from stock Click, and the cached note I had was wrong on it (details below).\n\n**`click.UsageError`** (a `ClickException` subclass)\n- **Caught by:** the inner `except ClickException` at about line 1518.\n- **Standalone mode:** it calls `e.show()` and then `sys.exit(e.exit_code)`.\n- **Printed (to stderr):** `UsageError.show` in `src/click/exceptions.py` prints the usage line, then a `Try '... --help' for help.` hint if a help option exists, then a blank line and `Error: <message>`.\n- **Exit code:** 2, from `UsageError.exit_code` in `src/click/exceptions.py`. Plain `ClickException` uses 1.\n- **Non-standalone mode:** it is re-raised.\n\n**`click.Abort`** (a `RuntimeError` subclass, not a `ClickException`)\n- **Caught by:** the outer `except Abort` at about line 1543. The inner handlers don't match it, so it propagates to the outer `try`.\n- **Standalone mode:** it runs `echo(_(\"Interrupted!\"), file=sys.stderr)` and then `sys.exit(130)`.\n- **Non-standalone mode:** it is re-raised.\n- **Differs from stock Click:** the upstream branch prints `Aborted!` and exits 1. The latest commit, \"adversarial mutations\", looks like the cause. Check `git diff` if that was not intended.\n\n**Plain `KeyboardInterrupt`** (or `EOFError`)\n- **Caught by:** the inner `except (EOFError, KeyboardInterrupt)` at about line 1515.\n- **What it does:** it prints an empty line to stderr with `echo(file=sys.stderr)` and raises `Abort() from e`.\n- **Then:** the outer `except Abort` handles it, so the output is a blank line followed by `Interrupted!`, and the exit code is 130 in standalone mode.\n- **Non-standalone mode:** the `Abort` is re-raised.\n\n**Related paths**\n- **`Exit`:** it is caught by the outer `except Exit` (about line 1530). Standalone mode calls `sys.exit(e.exit_code)` and non-standalone mode returns the code. A normal successful run reaches `ctx.exit()`, which raises `Exit(0)`.\n- **`Context.abort` / `Context.fail`:** `Context.abort` raises `Abort` and `Context.fail` raises `UsageError`, both in `src/click/core.py`.",
+  "is_error": false,
+  "diff": null
+}

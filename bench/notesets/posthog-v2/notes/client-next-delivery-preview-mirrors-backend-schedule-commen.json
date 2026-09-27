@@ -1,0 +1,46 @@
+{
+  "id": "client-next-delivery-preview-mirrors-backend-schedule-commen",
+  "title": "Client next-delivery preview mirrors backend schedule; comment pointers must stay in sync",
+  "kind": "cochange",
+  "answers": [
+    "Where is the subscription next delivery date computed?",
+    "Changing subscription scheduling logic, what else must I update?",
+    "Client preview of next delivery date differs from server"
+  ],
+  "body": "The authoritative schedule is `Subscription.set_next_delivery_date` in `products/exports/backend/models/subscription.py`; the client preview mirror is `getNextDeliveryDate` in `products/subscriptions/frontend/components/Subscriptions/nextDeliveryDate.ts`.\n- Backend comment in `set_next_delivery_date` names the frontend file; update it if the function moves again.\n- Schedule rule changes (RRULE fields, frequency, bysetpos, byweekday) should be reflected in both places.\n- Known existing gaps in the preview (not fixed here): it ignores `count`/`until_date` and the server's 15-minute scheduling buffer.\n- Note the comment inside nextDeliveryDate.ts still cites the older path `posthog/models/subscription.py`.",
+  "applies": "Subscription scheduling changes across backend model and frontend editor preview",
+  "tags": [
+    "subscriptions",
+    "rrule",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "products/exports/backend/models/subscription.py",
+      "symbol": "Subscription.set_next_delivery_date",
+      "hash": "sha256:4ff07ca4d5c0c8014812838a",
+      "line": 353,
+      "missing": false
+    },
+    {
+      "path": "products/subscriptions/frontend/components/Subscriptions/nextDeliveryDate.ts",
+      "symbol": "getNextDeliveryDate",
+      "hash": "sha256:47c5b32c1888abc99dc618c8",
+      "line": 22,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105248"
+  },
+  "created": "2026-09-27T00:09:42.297Z",
+  "verified": "2026-09-27T00:09:42.297Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keep-heavy-libraries-rrule-out-of-modules-imported-by-the-al"
+  ]
+}

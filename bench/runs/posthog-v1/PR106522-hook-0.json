@@ -1,0 +1,54 @@
+{
+  "id": "PR106522-hook-0",
+  "task": "PR106522",
+  "area": "tasks",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "c8bc6301-026f-4fbe-b0ed-fd02857e9a68",
+  "turns": 9,
+  "wall_ms": 25595,
+  "api_ms": 24059,
+  "cost": 0.309598,
+  "in_tokens": 486299,
+  "out_tokens": 2557,
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "Bash": 8
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 8,
+    "injected": [
+      "hogli-is-the-task-runner-test-lint-format-codegen-entry-poin",
+      "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+      "pre-commit-pre-push-hooks-and-required-codegen"
+    ]
+  },
+  "grade": {
+    "score": 0.5,
+    "samples": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "reasons": [
+      "The agent covers the model-level paths (mark_failed and the agent-reported PATCH) through shared analytics properties, with the same modal-default inference as upstream. It omits the resume/continue plumbing, which is the \"run continues\" part of the problem. It also omits passing the backend to the status-update activity's terminal analytics. So it is in the right direction but incomplete.",
+      "The agent's change to TaskRun.analytics_properties covers mark_failed, the agent-reported failure and the terminal capture. It infers the backend from state (modal if a sandbox exists and no backend is stamped), which matches the upstream failure_sandbox_backend_properties helper. It does not fix the continued-run problem. Upstream propagates the backend through the resumed sandbox state, the processing-context input and the status-update input. Without that, a continued run can re-resolve a different backend than the sandbox it holds, and the workflow-side events can report the wrong one. The agent's fix is in the right direction but incomplete.",
+      "The agent targeted the right area and probably covers the agent-reported and `mark_failed` failure events through the shared analytics properties, using state-derived logic close to upstream's helper. It misses the resumed/continued-run context fix and the backend passthrough into the status-update activity. Those are the \"run continues\" part of the problem, and a state-only inference can misreport the backend there. Partly correct, incomplete."
+    ],
+    "reason": "The agent covers the model-level paths (mark_failed and the agent-reported PATCH) through shared analytics properties, with the same modal-default inference as upstream. It omits the resume/continue plumbing, which is the \"run continues\" part of the problem. It also omits passing the backend to the status-update activity's terminal analytics. So it is in the right direction but incomplete.",
+    "mustHit": 3,
+    "mustTotal": 6,
+    "touched": [
+      "products/tasks/backend/models.py",
+      "products/tasks/backend/temporal/execute_sandbox/workflow.py",
+      "products/tasks/backend/temporal/process_task/workflow.py"
+    ]
+  },
+  "result": "Failure events now carry a `sandbox_backend` property, so alerts can be filtered by backend. I haven't run any tests, and I didn't add one.\n\nThe property was missing from the events emitted outside the workflow's own failure path. Those are the agent-reported failure (`error_type: agent_reported`) and the terminal capture in `update_task_run_status`. The gap was in the shared event properties.\n\n- **`products/tasks/backend/models.py`**: `TaskRun.analytics_properties()` now includes `sandbox_backend`, so every event captured through `TaskRun.capture_event` has it. That covers `task_run_failed` from the PATCH path, the status-update activity, `mark_failed`, and the workflow-start failure. It comes from the new `_analytics_sandbox_backend()` helper:\n  - The provisioning step only records a backend in run state for non-Modal runs. So the helper returns the recorded value when there is one.\n  - It returns `\"modal\"` when a sandbox exists but no backend was recorded.\n  - It returns `None` when no sandbox has been provisioned yet.\n- **`temporal/process_task/workflow.py` and `temporal/execute_sandbox/workflow.py`**: the workflow-side `task_run_failed` tracking payload now includes `sandbox_backend` from the task context. The `execute_sandbox` change assumes its context is the same `TaskProcessingContext` as in `process_task`. I only checked where it is assigned, not the class itself.\n\nOne thing to know when filtering: the `\"modal\"` value is inferred from the presence of a sandbox, not read from a stored field. A run that fails before its sandbox exists will have `sandbox_backend` as `None`, not `\"modal\"`.",
+  "is_error": false,
+  "diff": "diff --git a/products/tasks/backend/models.py b/products/tasks/backend/models.py\nindex e93030ce893..78f9d1b5bda 100644\n--- a/products/tasks/backend/models.py\n+++ b/products/tasks/backend/models.py\n@@ -3018,9 +3018,18 @@ class TaskRun(models.Model):\n             # local/cloud value under an unclobbered name too.\n             \"run_environment\": self.environment,\n             \"mode\": self.mode,\n+            \"sandbox_backend\": self._analytics_sandbox_backend(),\n             **self._analytics_usage_properties(),\n         }\n \n+    def _analytics_sandbox_backend(self) -> str | None:\n+        # Only non-Modal backends are stamped into state, so a run holding a sandbox without a stamp is on Modal.\n+        state = self.state if isinstance(self.state, dict) else {}\n+        backend = state.get(\"sandbox_backend\")\n+        if isinstance(backend, str) and backend:\n+            return backend\n+        return \"modal\" if state.get(\"sandbox_id\") else None\n+\n     def capture_event(\n         self,\n         event: str,\ndiff --git a/products/tasks/backend/temporal/execute_sandbox/workflow.py b/products/tasks/backend/temporal/execute_sandbox/workflow.py\nindex 72cf65d8166..35362871c57 100644\n--- a/products/tasks/backend/temporal/execute_sandbox/workflow.py\n+++ b/products/tasks/backend/temporal/execute_sandbox/workflow.py\n@@ -630,6 +630,7 @@ class ExecuteSandboxWorkflow(PostHogWorkflow):\n                         \"run_source\": self.context.run_source,\n                         \"runtime_adapter\": self.context.runtime_adapter,\n                         \"provider\": self.context.provider,\n+                        \"sandbox_backend\": self.context.sandbox_backend,\n                         \"model\": self.context.model,\n                         \"reasoning_effort\": self.context.reasoning_effort,\n                         \"error_type\": error_type,\ndiff --git a/products/tasks/backend/temporal/process_task/workflow.py b/products/tasks/backend/temporal/process_task/workflow.py\nindex ff5860a13a4..87e1f090ff3 100644\n--- a/products/tasks/backend/temporal/process_task/workflow.py\n+++ b/products/tasks/backend/temporal/process_task/workflow.py\n@@ -1676,6 +1676,7 @@ class ProcessTaskWorkflow(PostHogWorkflow):\n                         \"run_source\": self.context.run_source,\n                         \"runtime_adapter\": self.context.runtime_adapter,\n                         \"provider\": self.context.provider,\n+                        \"sandbox_backend\": self.context.sandbox_backend,\n                         \"model\": self.context.model,\n                         \"reasoning_effort\": self.context.reasoning_effort,\n                         \"error_type\": type(e).__name__,\n",
+  "distill": null
+}

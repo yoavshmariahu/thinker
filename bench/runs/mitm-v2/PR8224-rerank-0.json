@@ -1,0 +1,42 @@
+{
+  "id": "PR8224-rerank-0",
+  "task": "PR8224",
+  "area": "web-app",
+  "arm": "rerank",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "b715060d-d435-4b95-a663-4345390eb1fd",
+  "turns": 8,
+  "wall_ms": 35114,
+  "api_ms": 14676,
+  "cost": 0.0868344,
+  "in_tokens": 136630,
+  "out_tokens": 1299,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 4,
+      "Read": 1,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 3,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent patch makes the same functional changes as the merged patch. It sets xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and reads getCookie(\"_mitmproxy_xsrf\") in utils.ts. The only difference is that the agent left out the explanatory comment.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "mitmproxy/tools/web/app.py",
+      "web/src/js/utils.ts"
+    ]
+  },
+  "result": "mitmweb now uses a `_mitmproxy_xsrf` cookie instead of `_xsrf`, so a stale HttpOnly `_xsrf` cookie no longer breaks option updates. I didn't run the tests or try it in a browser.\n\n- **Backend:** in `mitmproxy/tools/web/app.py` I added `xsrf_cookie_name=\"_mitmproxy_xsrf\"` to the `Application` settings, next to `xsrf_cookies=True` and the existing `samesite=\"Strict\"` kwargs.\n- **Frontend:** in `web/src/js/utils.ts` the token lookup for the `X-XSRFToken` header now reads `getCookie(\"_mitmproxy_xsrf\")`.\n\nI made no test changes. The existing frontend test in `web/src/js/__tests__/utilsSpec.tsx` expects `X-XSRFToken` to be `undefined`, so it should be unaffected. A first attempt with `sed` failed and changed nothing, so I made both edits with the editor instead.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..b18662dfd 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -925,6 +925,7 @@ class Application(tornado.web.Application):\n             template_path=os.path.join(os.path.dirname(__file__), \"templates\"),\n             static_path=os.path.join(os.path.dirname(__file__), \"static\"),\n             xsrf_cookies=True,\n+            xsrf_cookie_name=\"_mitmproxy_xsrf\",\n             xsrf_cookie_kwargs=dict(samesite=\"Strict\"),\n             cookie_secret=secrets.token_bytes(32),\n             debug=debug,\ndiff --git a/web/src/js/utils.ts b/web/src/js/utils.ts\nindex 7e76df609..89969f55c 100644\n--- a/web/src/js/utils.ts\n+++ b/web/src/js/utils.ts\n@@ -78,7 +78,7 @@ function getCookie(name) {\n }\n \n let xsrf = () => {\n-    const cached = getCookie(\"_xsrf\");\n+    const cached = getCookie(\"_mitmproxy_xsrf\");\n     xsrf = () => cached;\n     return xsrf();\n };\n"
+}

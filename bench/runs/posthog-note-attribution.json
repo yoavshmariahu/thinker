@@ -1,0 +1,695 @@
+[
+ {
+  "id": "action-eligibility-backend-gates-vs-frontend-mirrors-launch-",
+  "n": 4,
+  "d": -1.6,
+  "kind": "location",
+  "src": "agent",
+  "title": "Action eligibility: backend gates vs frontend mirrors (launch, run, stop, edit, resend)",
+  "mean": -0.4
+ },
+ {
+  "id": "how-cross-team-flag-jobs-iterate-commands-and-temporal-healt",
+  "n": 5,
+  "d": -1.5,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "How cross-team flag jobs iterate (commands and Temporal health checks)",
+  "mean": -0.3
+ },
+ {
+  "id": "hogflowschedule-status-and-sync-with-flow-batch-job-state",
+  "n": 5,
+  "d": -1.5,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "HogFlowSchedule status and sync with flow/batch job state",
+  "mean": -0.3
+ },
+ {
+  "id": "broadcast-wizard-launch-flow-launchbroadcast",
+  "n": 10,
+  "d": -2.9999999999999996,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Broadcast wizard launch flow (launchBroadcast)",
+  "mean": -0.29999999999999993
+ },
+ {
+  "id": "issue-mutation-call-path-view-facade-logic-model",
+  "n": 5,
+  "d": -1.4999999999999998,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Issue mutation call path (view → facade → logic → model)",
+  "mean": -0.29999999999999993
+ },
+ {
+  "id": "team-organization-user-project-model-relationships",
+  "n": 6,
+  "d": -1.6999999999999997,
+  "kind": "overview",
+  "src": "agent",
+  "title": "Team/Organization/User/Project model relationships",
+  "mean": -0.28333333333333327
+ },
+ {
+  "id": "lifecycle-event-payload-fields-consumers-depend-on",
+  "n": 6,
+  "d": -1.6999999999999997,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Lifecycle event payload fields consumers depend on",
+  "mean": -0.28333333333333327
+ },
+ {
+  "id": "error-tracking-issue-writes-which-mutations-emit-lifecycle-e",
+  "n": 6,
+  "d": -1.6999999999999997,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Error tracking issue writes: which mutations emit lifecycle events",
+  "mean": -0.28333333333333327
+ },
+ {
+  "id": "broadcast-status-is-derived-in-frontend-from-hogflow-status-",
+  "n": 7,
+  "d": -1.7999999999999998,
+  "kind": "overview",
+  "src": "agent",
+  "title": "Broadcast status is derived in frontend from HogFlow.status + latest batch job",
+  "mean": -0.2571428571428571
+ },
+ {
+  "id": "writes-that-bypass-django-mutations-no-events-activity-log",
+  "n": 11,
+  "d": -2.6999999999999993,
+  "kind": "gotcha",
+  "src": "agent",
+  "title": "Writes that bypass Django mutations (no events/activity log)",
+  "mean": -0.2454545454545454
+ },
+ {
+  "id": "slack-app-untagged-thread-follow-up-decision-pipeline-webhoo",
+  "n": 5,
+  "d": -1,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Slack app untagged thread follow-up decision pipeline (webhook gates then workflow)",
+  "mean": -0.2
+ },
+ {
+  "id": "cdc-differs-from-regular-sync-per-source-schedule-halt-marke",
+  "n": 5,
+  "d": -1,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "CDC differs from regular sync: per-source schedule, halt markers, paused-is-normal",
+  "mean": -0.2
+ },
+ {
+  "id": "schema-disable-delete-schedule-handling-coupled-flags-and-in",
+  "n": 5,
+  "d": -1,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Schema disable/delete: schedule handling, coupled flags, and in-flight teardown",
+  "mean": -0.2
+ },
+ {
+  "id": "lifecycle-events-emission-flow-and-temporal-alert-delivery",
+  "n": 13,
+  "d": -2.0999999999999996,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Lifecycle events: emission flow and Temporal alert delivery",
+  "mean": -0.16153846153846152
+ },
+ {
+  "id": "issue-assignment-validation-notifications-auto-assign",
+  "n": 13,
+  "d": -1.8999999999999995,
+  "kind": "location",
+  "src": "agent",
+  "title": "Issue assignment: validation, notifications, auto-assign",
+  "mean": -0.1461538461538461
+ },
+ {
+  "id": "feature-flags-backend-lives-in-products-feature-flags-backen",
+  "n": 12,
+  "d": -1.6999999999999997,
+  "kind": "location",
+  "src": "agent",
+  "title": "Feature flags backend lives in products/feature_flags/backend (not posthog/models)",
+  "mean": -0.14166666666666664
+ },
+ {
+  "id": "slack-app-temporal-workflows-and-activities",
+  "n": 4,
+  "d": -0.5,
+  "kind": "location",
+  "src": "agent",
+  "title": "Slack app Temporal workflows and activities",
+  "mean": -0.125
+ },
+ {
+  "id": "untagged-follow-up-preference-defaults-to-never-opt-in-creat",
+  "n": 4,
+  "d": -0.5,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Untagged follow-up preference defaults to NEVER (opt-in), creator's setting governs thread",
+  "mean": -0.125
+ },
+ {
+  "id": "insight-editor-auto-saves-patch-on-chart-type-change-without",
+  "n": 4,
+  "d": -0.5,
+  "kind": "fix",
+  "src": "pr",
+  "title": "Insight editor auto-saves (PATCH) on chart-type change without clicking Save",
+  "mean": -0.125
+ },
+ {
+  "id": "guards-must-not-depend-on-insightscenelogic-insightlogicref-",
+  "n": 5,
+  "d": -0.625,
+  "kind": "invariant",
+  "src": "pr",
+  "title": "Guards must not depend on insightSceneLogic.insightLogicRef (lags insightId/dashboardId)",
+  "mean": -0.125
+ },
+ {
+  "id": "invariants-for-recording-task-run-status-failure-in-process-",
+  "n": 4,
+  "d": -0.5,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Invariants for recording task run status/failure in process_task",
+  "mean": -0.125
+ },
+ {
+  "id": "insight-list-default-ordering-must-use-an-indexed-column",
+  "n": 4,
+  "d": -0.5,
+  "kind": "fix",
+  "src": "pr",
+  "title": "Insight list default ordering must use an indexed column",
+  "mean": -0.125
+ },
+ {
+  "id": "files-sidebar-starred-tree-search-must-be-mirrored-from-the-",
+  "n": 4,
+  "d": -0.5,
+  "kind": "invariant",
+  "src": "pr",
+  "title": "Files sidebar: starred tree search must be mirrored from the project tree via navFilesTabLogic",
+  "mean": -0.125
+ },
+ {
+  "id": "changing-insight-list-ordering-requires-updating-ambr-query-",
+  "n": 4,
+  "d": -0.5,
+  "kind": "cochange",
+  "src": "pr",
+  "title": "Changing insight list ordering requires updating ambr query snapshot",
+  "mean": -0.125
+ },
+ {
+  "id": "adding-changing-a-product-url-manifest-generated-products-ts",
+  "n": 4,
+  "d": -0.5,
+  "kind": "cochange",
+  "src": "agent",
+  "title": "Adding/changing a product URL: manifest → generated products.tsx → scenes redirects",
+  "mean": -0.125
+ },
+ {
+  "id": "insightviz-render-path-query-insightviz-insightvizdisplay-pe",
+  "n": 13,
+  "d": -1.5,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "InsightViz render path: Query → InsightViz → InsightVizDisplay → per-type component",
+  "mean": -0.11538461538461539
+ },
+ {
+  "id": "chart-alternatives-previews-where-implemented-and-what-to-to",
+  "n": 19,
+  "d": -2,
+  "kind": "cochange",
+  "src": "agent",
+  "title": "Chart alternatives & previews: where implemented and what to touch for a new display",
+  "mean": -0.10526315789473684
+ },
+ {
+  "id": "slack-app-home-settings-services-layout",
+  "n": 10,
+  "d": -1,
+  "kind": "location",
+  "src": "agent",
+  "title": "Slack app home / settings services layout",
+  "mean": -0.1
+ },
+ {
+  "id": "code-outside-jest-roots-replay-shared-must-trigger-full-fron",
+  "n": 5,
+  "d": -0.5,
+  "kind": "invariant",
+  "src": "pr",
+  "title": "Code outside jest roots (replay-shared) must trigger full frontend jest run",
+  "mean": -0.1
+ },
+ {
+  "id": "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+  "n": 5,
+  "d": -0.5,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Cloud task run lifecycle: API → facade → Temporal process-task",
+  "mean": -0.1
+ },
+ {
+  "id": "adding-a-hogflow-status-transition-what-changes-together",
+  "n": 8,
+  "d": -0.6000000000000001,
+  "kind": "cochange",
+  "src": "agent",
+  "title": "Adding a HogFlow status transition: what changes together",
+  "mean": -0.07500000000000001
+ },
+ {
+  "id": "places-that-must-compute-the-same-metric-fingerprint-saved-v",
+  "n": 8,
+  "d": -0.5999999999999999,
+  "kind": "cochange",
+  "src": "agent",
+  "title": "Places that must compute the same metric fingerprint (saved vs inline)",
+  "mean": -0.07499999999999998
+ },
+ {
+  "id": "experiment-metric-uuid-assignment-and-resolution",
+  "n": 19,
+  "d": -1.2999999999999998,
+  "kind": "location",
+  "src": "agent",
+  "title": "Experiment metric uuid assignment and resolution",
+  "mean": -0.06842105263157894
+ },
+ {
+  "id": "temporal-schedules-in-data-load-service-per-schema-sync-and-",
+  "n": 12,
+  "d": -0.8000000000000003,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Temporal schedules in data_load service (per-schema sync and per-source CDC)",
+  "mean": -0.0666666666666667
+ },
+ {
+  "id": "experiment-metric-fingerprints-computation-and-call-sites",
+  "n": 23,
+  "d": -1.5,
+  "kind": "gotcha",
+  "src": "agent",
+  "title": "Experiment metric fingerprints: computation and call sites",
+  "mean": -0.06521739130434782
+ },
+ {
+  "id": "insight-permission-and-override-gating-caneditinsight-hasove",
+  "n": 8,
+  "d": -0.5,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Insight permission and override gating: canEditInsight, hasOverrides, editingDisabledReason",
+  "mean": -0.0625
+ },
+ {
+  "id": "uniqueness-constraints-for-experiment-metrics-and-results",
+  "n": 10,
+  "d": -0.5999999999999999,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Uniqueness constraints for experiment metrics and results",
+  "mean": -0.059999999999999984
+ },
+ {
+  "id": "marking-a-cdc-source-broken-pausing-schemas",
+  "n": 10,
+  "d": -0.5000000000000002,
+  "kind": "location",
+  "src": "agent",
+  "title": "Marking a CDC source broken / pausing schemas",
+  "mean": -0.050000000000000024
+ },
+ {
+  "id": "experiment-metric-identity-uuid-vs-config-fingerprint",
+  "n": 4,
+  "d": -0.19999999999999996,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Experiment metric identity: uuid vs config fingerprint",
+  "mean": -0.04999999999999999
+ },
+ {
+  "id": "slack-app-http-entry-points-and-api-map",
+  "n": 12,
+  "d": -0.5,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Slack app HTTP entry points and API map",
+  "mean": -0.041666666666666664
+ },
+ {
+  "id": "scene-registration-routing-manifest-generated-products-tsx-s",
+  "n": 11,
+  "d": -0.375,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Scene registration & routing: manifest → generated products.tsx → scenes.ts/appScenes.ts → sceneLogic",
+  "mean": -0.03409090909090909
+ },
+ {
+  "id": "frontend-product-manifest-generated-products-tsx-scenes-urls",
+  "n": 11,
+  "d": -0.375,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Frontend product manifest -> generated products.tsx -> scenes/urls consumers",
+  "mean": -0.03409090909090909
+ },
+ {
+  "id": "adding-a-product-scene-cochange-checklist",
+  "n": 7,
+  "d": -0.125,
+  "kind": "cochange",
+  "src": "agent",
+  "title": "Adding a product scene: cochange checklist",
+  "mean": -0.017857142857142856
+ },
+ {
+  "id": "bulk-invite-partial-failure-semantics",
+  "n": 6,
+  "d": -0.09999999999999987,
+  "kind": "gotcha",
+  "src": "agent",
+  "title": "Bulk invite partial failure semantics",
+  "mean": -0.016666666666666646
+ },
+ {
+  "id": "org-invite-validation-server-vs-client-enforcement-map",
+  "n": 6,
+  "d": -0.09999999999999987,
+  "kind": "location",
+  "src": "agent",
+  "title": "Org invite validation: server vs client enforcement map",
+  "mean": -0.016666666666666646
+ },
+ {
+  "id": "onboarding-and-settings-invite-flows-share-invitelogic",
+  "n": 6,
+  "d": -0.09999999999999987,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Onboarding and settings invite flows share inviteLogic",
+  "mean": -0.016666666666666646
+ },
+ {
+  "id": "deletion-queue-dags-deletes-job-cleanup-sweep-pg-drain",
+  "n": 15,
+  "d": 0,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Deletion queue DAGs: deletes_job → cleanup sweep → PG drain",
+  "mean": 0
+ },
+ {
+  "id": "bulk-person-delete-call-path-api-celery-dagster-bulk-delete-",
+  "n": 10,
+  "d": 0,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Bulk person delete call path (API/Celery/Dagster → bulk_delete.py)",
+  "mean": 0
+ },
+ {
+  "id": "how-task-run-failures-are-recorded",
+  "n": 6,
+  "d": 0,
+  "kind": "location",
+  "src": "agent",
+  "title": "How task run failures are recorded",
+  "mean": 0
+ },
+ {
+  "id": "sandbox-backend-selection-and-provider-class-resolution",
+  "n": 6,
+  "d": 0,
+  "kind": "location",
+  "src": "agent",
+  "title": "Sandbox backend selection and provider class resolution",
+  "mean": 0
+ },
+ {
+  "id": "ml-inference-decision-playground-frontend-scene-and-kea-logi",
+  "n": 9,
+  "d": 0,
+  "kind": "location",
+  "src": "agent",
+  "title": "ml_inference decision playground frontend scene and kea logic",
+  "mean": 0
+ },
+ {
+  "id": "adding-a-route-to-a-product-what-changes-together",
+  "n": 5,
+  "d": 0,
+  "kind": "cochange",
+  "src": "agent",
+  "title": "Adding a route to a product: what changes together",
+  "mean": 0
+ },
+ {
+  "id": "ml-inference-route-registration-backend-auto-discovery-and-f",
+  "n": 13,
+  "d": 0,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "ml_inference route registration: backend auto-discovery and frontend scene URL",
+  "mean": 0
+ },
+ {
+  "id": "router-registration-core-vs-product-routes",
+  "n": 4,
+  "d": 0,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Router registration: core vs product routes",
+  "mean": 0
+ },
+ {
+  "id": "adding-a-field-to-a-hogql-system-table-what-changes-together",
+  "n": 5,
+  "d": 0,
+  "kind": "cochange",
+  "src": "agent",
+  "title": "Adding a field to a HogQL system table: what changes together",
+  "mean": 0
+ },
+ {
+  "id": "hogli-is-the-task-runner-test-lint-format-codegen-entry-poin",
+  "n": 4,
+  "d": 0,
+  "kind": "howto",
+  "src": "agent",
+  "title": "hogli is the task runner: test, lint, format, codegen entry points",
+  "mean": 0
+ },
+ {
+  "id": "clickhouse-person-tombstones-and-repair-utilities",
+  "n": 7,
+  "d": 0,
+  "kind": "gotcha",
+  "src": "agent",
+  "title": "ClickHouse person tombstones and repair utilities",
+  "mean": 0
+ },
+ {
+  "id": "chunk-map-file-and-preload-manifest",
+  "n": 8,
+  "d": 0,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Chunk map file and preload manifest",
+  "mean": 0
+ },
+ {
+  "id": "frontend-build-esbuild-config-chunk-naming-index-html-genera",
+  "n": 7,
+  "d": 0,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Frontend build: esbuild config, chunk naming, index.html generation",
+  "mean": 0
+ },
+ {
+  "id": "backend-asset-serving-js-url-static-dirs-templates-from-dist",
+  "n": 6,
+  "d": 0,
+  "kind": "location",
+  "src": "agent",
+  "title": "Backend asset serving: JS_URL, static dirs, templates from dist",
+  "mean": 0
+ },
+ {
+  "id": "deletes-job-survivor-count-is-report-only-do-not-turn-it-bac",
+  "n": 4,
+  "d": 0,
+  "kind": "invariant",
+  "src": "pr",
+  "title": "deletes_job survivor count is report-only; do not turn it back into a gate",
+  "mean": 0
+ },
+ {
+  "id": "person-deletion-step-ordering-and-failure-invariants",
+  "n": 4,
+  "d": 0,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Person deletion step ordering and failure invariants",
+  "mean": 0
+ },
+ {
+  "id": "postgres-cleanup-queue-handoff-and-drain-advisory-queue",
+  "n": 4,
+  "d": 0,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Postgres cleanup queue handoff and drain (advisory queue)",
+  "mean": 0
+ },
+ {
+  "id": "person-tombstones-in-clickhouse-and-the-ordered-sweep",
+  "n": 4,
+  "d": 0,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Person tombstones in ClickHouse and the ordered sweep",
+  "mean": 0
+ },
+ {
+  "id": "feature-flag-gated-scene-flashes-404-before-flags-load",
+  "n": 4,
+  "d": 0,
+  "kind": "fix",
+  "src": "pr",
+  "title": "Feature-flag-gated scene flashes 404 before flags load",
+  "mean": 0
+ },
+ {
+  "id": "map-an-experimentholdout-onto-flag-filters-via-apply-holdout",
+  "n": 6,
+  "d": 0,
+  "kind": "convention",
+  "src": "pr",
+  "title": "Map an ExperimentHoldout onto flag filters via _apply_holdout, not set_holdout directly",
+  "mean": 0
+ },
+ {
+  "id": "posthog-cli-update-only-script-installs-whose-receipt-prefix",
+  "n": 4,
+  "d": 0,
+  "kind": "invariant",
+  "src": "pr",
+  "title": "posthog-cli update: only script installs whose receipt prefix contains the running binary self-update",
+  "mean": 0
+ },
+ {
+  "id": "build-output-naming-must-stay-in-sync-with-server-preload-ma",
+  "n": 4,
+  "d": 0,
+  "kind": "invariant",
+  "src": "agent",
+  "title": "Build-output naming must stay in sync with server (preload manifest, hashing, publicPath)",
+  "mean": 0
+ },
+ {
+  "id": "how-django-picks-which-frontend-build-assets-to-serve-debug-",
+  "n": 4,
+  "d": 0,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "How Django picks which frontend build/assets to serve (DEBUG vs prod, JS_URL, preload manifest)",
+  "mean": 0
+ },
+ {
+  "id": "adding-a-route-under-broadcasts-literal-paths-before-id-and-",
+  "n": 4,
+  "d": 0,
+  "kind": "invariant",
+  "src": "pr",
+  "title": "Adding a route under /broadcasts: literal paths before :id, and products.tsx mirrors manifest",
+  "mean": 0
+ },
+ {
+  "id": "adding-a-scene-route-to-a-product-manifest-plus-generated-fi",
+  "n": 4,
+  "d": 0,
+  "kind": "cochange",
+  "src": "pr",
+  "title": "Adding a scene/route to a product: manifest plus generated files must change together",
+  "mean": 0
+ },
+ {
+  "id": "shared-metrics-must-go-through-enrichsharedmetric-to-merge-l",
+  "n": 4,
+  "d": 0,
+  "kind": "invariant",
+  "src": "pr",
+  "title": "Shared metrics must go through enrichSharedMetric to merge link metadata",
+  "mean": 0
+ },
+ {
+  "id": "self-update-must-match-the-generated-installers-receipt-loca",
+  "n": 4,
+  "d": 0,
+  "kind": "invariant",
+  "src": "pr",
+  "title": "Self-update must match the generated installers' receipt location, install dir override, and Windows limits",
+  "mean": 0
+ },
+ {
+  "id": "org-invite-flow-modal-invitelogic-bulk-api",
+  "n": 13,
+  "d": 0.2000000000000003,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Org invite flow: modal → inviteLogic → bulk API",
+  "mean": 0.015384615384615406
+ },
+ {
+  "id": "data-warehouse-split-models-temporal-in-warehouse-sources-sc",
+  "n": 6,
+  "d": 0.09999999999999987,
+  "kind": "overview",
+  "src": "agent",
+  "title": "Data warehouse split: models/temporal in warehouse_sources, schedules/facade in data_warehouse",
+  "mean": 0.016666666666666646
+ },
+ {
+  "id": "insight-scene-and-logic-layering",
+  "n": 5,
+  "d": 0.125,
+  "kind": "overview",
+  "src": "agent",
+  "title": "Insight scene and logic layering",
+  "mean": 0.025
+ },
+ {
+  "id": "invite-validation-errors-reach-ui-only-as-a-global-toast",
+  "n": 20,
+  "d": 0.5750000000000003,
+  "kind": "callpath",
+  "src": "agent",
+  "title": "Invite validation errors reach UI only as a global toast",
+  "mean": 0.028750000000000015
+ }
+]

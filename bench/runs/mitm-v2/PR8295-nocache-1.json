@@ -1,0 +1,41 @@
+{
+  "id": "PR8295-nocache-1",
+  "task": "PR8295",
+  "area": "next-layer",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "674ebd27-0774-4e00-9cc8-b2bcf2ae7b09",
+  "turns": 8,
+  "wall_ms": 22332,
+  "api_ms": 21898,
+  "cost": 0.0924228,
+  "in_tokens": 189913,
+  "out_tokens": 2202,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 7
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 7,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's source change in next_layer.py is identical to the merged patch. It gates the QUIC and DTLS parsing on _starts_like_quic and starts_like_dtls_record, so b'' returns None instead of raising NeedsMoreData. The tests and changelog differ, which does not matter.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/next_layer.py",
+      "test/mitmproxy/addons/test_next_layer.py"
+    ]
+  },
+  "result": "I fixed the QUIC stall, but I haven't run any tests, as you asked.\n\n**Fix** (`mitmproxy/addons/next_layer.py`, `_get_client_hello`, UDP branch): it now only tries to parse a QUIC or DTLS ClientHello if the data looks like one, the same way the TCP branch already does.\n- **QUIC:** it parses only if `_starts_like_quic(data_client, context.server.address)` is true.\n- **DTLS:** it parses only if `starts_like_dtls_record(data_client)` is true.\n- **Empty data:** with `b''` after the QUIC handshake, neither check passes. The function returns `None` instead of raising `NeedsMoreData`, so `_next_layer` carries on and assigns an `HttpLayer`. The host checks still use `context.client.sni`.\n\n**Tests and changelog:**\n- I added a UDP case to `test_ignore_connection` in `test/mitmproxy/addons/test_next_layer.py`. It passes empty data with `allow_hosts` set and expects the connection to be ignored instead of raising `NeedsMoreData`.\n- I added a `CHANGELOG.md` entry.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..c7a853edb 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- Fix a bug where QUIC flows would stall after the TLS handshake if `allow_hosts` or `ignore_hosts` was set.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..614957808 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,19 +320,21 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n-\n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                if _starts_like_quic(data_client, context.server.address):\n+                    try:\n+                        return quic_parse_client_hello_from_datagrams([data_client])\n+                    except ValueError:\n+                        pass\n+\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\ndiff --git a/test/mitmproxy/addons/test_next_layer.py b/test/mitmproxy/addons/test_next_layer.py\nindex 4694e3529..9363e69e5 100644\n--- a/test/mitmproxy/addons/test_next_layer.py\n+++ b/test/mitmproxy/addons/test_next_layer.py\n@@ -343,6 +343,15 @@ class TestNextLayer:\n                 True,\n                 id=\"allow+ignore: allowed but ignored\",\n             ),\n+            pytest.param(\n+                [],\n+                [\"example.com\"],\n+                \"udp\",\n+                \"192.0.2.1\",\n+                b\"\",\n+                True,\n+                id=\"allow: udp with empty data (e.g. inside established QUIC stream)\",\n+            ),\n         ],\n     )\n     def test_ignore_connection(\n"
+}

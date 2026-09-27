@@ -1,0 +1,42 @@
+{
+  "id": "E8-usageerror-abort-cache-0",
+  "task": "E8-usageerror-abort",
+  "area": "exceptions",
+  "arm": "cache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "a4679898-9d84-4d13-82bd-4fc1c67fa5c6",
+  "turns": 4,
+  "wall_ms": 12174,
+  "api_ms": 11424,
+  "cost": 0.0754426,
+  "in_tokens": 88252,
+  "out_tokens": 1111,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "ToolSearch": 1,
+      "mcp__thinker__orient": 1,
+      "Bash": 1
+    },
+    "thinkerCalls": 1,
+    "filesRead": 0,
+    "greps": 1
+  },
+  "grade": {
+    "score": 0.9,
+    "missing": [
+      "Exact stderr format for UsageError (usage line, hint, blank line, then Error:) and that no usage block appears if ctx is None",
+      "augment_usage_errors attaching ctx in Context.invoke",
+      "Detail that KeyboardInterrupt to Abort conversion happens regardless of standalone_mode",
+      "SystemExit propagation/context teardown details and Exit path",
+      "Abort raised inside inner handler escapes inner try (explained partly via nesting)"
+    ],
+    "wrong": [],
+    "reason": "The answer correctly identifies the catching clauses and line numbers (1518/1522, 1543/1546/1547, 1515/1517), the printed output, and exit codes 2/1/1. It also gives the correct class hierarchy and the standalone_mode=False behavior. It omits secondary mechanics and the precise stderr format, but the key facts match and nothing contradicts the reference.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "All three cases are handled in `src/click/core.py:Command.main`. In standalone mode the handlers are these:\n\n| Raised in callback | Caught by | Printed (stderr) | Exit code |\n|---|---|---|---|\n| `click.UsageError` | `except ClickException as e` (core.py:1518). It calls `e.show()`, then `sys.exit(e.exit_code)` (core.py:1522). | `UsageError.show` in `src/click/exceptions.py` prints the usage line, a \"Try '… --help'\" hint if the command has a help option, then `Error: <message>`. | **2**, from `UsageError.exit_code`. |\n| `click.Abort` | The outer `except Abort:` (core.py:1543). | `Aborted!` via `echo(_(\"Aborted!\"), file=sys.stderr)` (core.py:1546). | **1**, from `sys.exit(1)` (core.py:1547). |\n| `KeyboardInterrupt` | The inner `except (EOFError, KeyboardInterrupt)` (core.py:1515). It echoes a blank line to stderr and raises `Abort() from e` (core.py:1517). The outer `except Abort:` then handles it. | A blank line, then `Aborted!`. | **1**, the same as `Abort`. |\n\n- **Nesting:** the `try` around `make_context`/`invoke` contains the inner handlers (`EOFError`/`KeyboardInterrupt`, `ClickException`, `OSError`). The outer handlers (`Exit`, `Abort`) sit around that. That is why the `Abort` raised from a `KeyboardInterrupt` is caught by the outer `except Abort`.\n- **Class hierarchy:** `UsageError` subclasses `ClickException` (`exit_code = 2`). `Abort` subclasses `RuntimeError`, not `ClickException`, so it takes the separate `except Abort` path.\n- **`standalone_mode=False`:** `ClickException` and `Abort` are re-raised instead of printed, and there is no `sys.exit`.\n\nI read the line numbers for the `except` clauses in `core.py` directly. The description of what `UsageError.show` prints and the exit codes come from cached notes, which I did not re-check against `exceptions.py`.",
+  "is_error": false
+}

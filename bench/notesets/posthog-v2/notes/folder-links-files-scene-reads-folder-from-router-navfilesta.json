@@ -1,0 +1,46 @@
+{
+  "id": "folder-links-files-scene-reads-folder-from-router-navfilesta",
+  "title": "Folder links: Files scene reads ?folder from router; navFilesTabLogic.openFolder reveals in side panel",
+  "kind": "gotcha",
+  "answers": [
+    "Folder link ignores folder query parameter",
+    "Files page doesn't follow ?folder= change",
+    "How to reveal a folder in the Files tab programmatically"
+  ],
+  "body": "ProjectFilesScene.tsx reads `searchParams.folder` via useValues(router) (not paramsToProps) so navigation between `/files?folder=...` URLs updates without remount; the explicit `folder` prop overrides for stories.\nTo reveal a folder in the nav Files tab, call navFilesTabLogic.actions.openFolder(folder) (navFilesTabLogic.ts). It resets search/sort/onlyFolders, expands folders, and keeps `folderToReveal` until the folder loads (subscription on viableItems), then scrolls once and clears it. NavTabFiles.tsx keys the section on `folderRevealCount` to remount.\nTerminal behavior needs `posthog-terminal`; Files-tab reveal also needs `simple-sidepanel`, otherwise open the Files page.",
+  "applies": "frontend/src/scenes/project-files and frontend/src/layout/panel-layout/navbar/tabs",
+  "tags": [
+    "files",
+    "navigation",
+    "kea"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/project-files/ProjectFilesScene.tsx",
+      "symbol": "ProjectFilesScene",
+      "hash": "sha256:ff05349ed5d36b64fa4c3243",
+      "line": 20,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/layout/panel-layout/navbar/tabs/navFilesTabLogic.ts",
+      "symbol": "navFilesTabLogic",
+      "hash": "sha256:3f7637522105e02c04da777c",
+      "line": 29,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105711"
+  },
+  "created": "2026-09-26T23:58:18.088Z",
+  "verified": "2026-09-26T23:58:18.088Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "files-sidebar-starred-tree-search-must-be-mirrored-from-the-"
+  ]
+}

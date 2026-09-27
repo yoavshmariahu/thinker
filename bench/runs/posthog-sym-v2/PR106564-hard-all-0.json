@@ -1,0 +1,104 @@
+{
+  "id": "PR106564-hard-all-0",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "all",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "aa0facb4-3469-4ea0-a240-86f0eb879eca",
+  "turns": 11,
+  "wall_ms": 73358,
+  "api_ms": 25748,
+  "cost": 0.33276740000000005,
+  "in_tokens": 587772,
+  "out_tokens": 2387,
+  "tools": {
+    "calls": 10,
+    "byTool": {
+      "Bash": 10
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 10,
+    "injected": [
+      "feature-flag-gated-scene-flashes-404-before-flags-load",
+      "map-an-experimentholdout-onto-flag-filters-via-apply-holdout",
+      "posthog-cli-update-only-script-installs-whose-receipt-prefix",
+      "build-output-naming-must-stay-in-sync-with-server-preload-ma",
+      "chunk-map-file-and-preload-manifest",
+      "frontend-build-esbuild-config-chunk-naming-index-html-genera",
+      "how-django-picks-which-frontend-build-assets-to-serve-debug-",
+      "kea-loader-error-toasts-automatic-via-loadersplugin-opt-out-"
+    ],
+    "lateEvents": 9,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty and made no functional change. It did not locate the existing stable chunks code that the merged patch modifies, so the request was not implemented.",
+      "The agent's patch is empty. It made no functional change, so it does not achieve the requested flag-based enrollment of logged-in users in the stable chunk build.",
+      "The agent produced an empty patch, claiming the stable chunk feature did not exist in the repo. The upstream change modifies existing code (posthog/stable_chunks.py, posthog/utils.py, esbuilder utils). The agent did not find or change any of it, so the request is not achieved."
+    ],
+    "reason": "The agent's patch is empty and made no functional change. It did not locate the existing stable chunks code that the merged patch modifies, so the request was not implemented.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "The patch is empty. No flag evaluation decides the build; the author states nothing in the serving path branches on a feature flag."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch. No logic exists that gates the stable build on login state and the flag."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch. The page renders only the current build, so a missing flag is not handled by any new code. The stable build does not exist here, so the required behaviour is not shown."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch. The author says no query-parameter switch exists in this checkout, so nothing forces the stable or current build."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch. There is no cookie or stored choice for a query-parameter override, and no 30-day persistence."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch. No flag value is passed to the analytics client as a result of any change."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch. No runtime-failure reload handling for a stable build exists, according to the author."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch. No code removes an override query parameter from the visible address."
+        }
+      ]
+    }
+  },
+  "result": "I haven't changed anything, because the \"stable chunk build\" and its query-parameter opt-in don't exist in this checkout.\n\nThe checkout is at `a3b3c3685bc` on master. I searched the repo and recent git history for stable-chunk, stable-build and build-variant terms, and for any query-parameter switch in the frontend build or its serving code. The only hits are unrelated: the CLI's `stable_chunk_id` for sourcemap injection, and a ClickHouse test fixture.\n\nHere is what the frontend serving path looks like today:\n- `common/esbuilder/utils.mjs:copyIndexHtml` builds `index.html` with a single set of hashed entry and chunk names.\n- `posthog/utils.py:_resolve_entry_assets` reads one preload manifest, `frontend/dist/preload-manifest.json`.\n- Nothing in that path branches on a query parameter or a feature flag.\n\nI could invent a stable-chunk build, a query-parameter switch and a flag gate. That would mean guessing what \"stable\" means (content-stable chunk names, a different splitting strategy, or something else), and the result would be unlikely to match your real implementation. I stopped instead.\n\nMost likely the stable build lives on a branch or PR that isn't in this worktree. It may also be a different repo or a different worktree.\n\nSend me the branch, PR or commit that introduces the stable build and its query-parameter opt-in. Then I'll add the flag decision on top of it, with these rules:\n- **Flag gate:** a logged-in user (`request.user.is_authenticated`) gets the stable build when a feature flag evaluates true. Users who aren't logged in are never evaluated, so they aren't enrolled.\n- **Manual opt-in:** the query parameter still forces the stable build on.\n- **Serving side:** the flag is evaluated server-side in the Django template context, next to `_resolve_entry_assets`. This keeps the choice before the first paint, which matters for measuring LCP.\n- **A/B setup:** the 50/50 split and the LCP metric are configured on the flag or experiment in PostHog, not in code.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

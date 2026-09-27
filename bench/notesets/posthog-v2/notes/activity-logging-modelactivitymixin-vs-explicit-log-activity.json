@@ -1,0 +1,50 @@
+{
+  "id": "activity-logging-modelactivitymixin-vs-explicit-log-activity",
+  "title": "Activity logging: ModelActivityMixin vs explicit log_activity",
+  "kind": "gotcha",
+  "answers": [
+    "How do I add activity logging to a model?",
+    "Why is my bulk update not in the activity log?",
+    "Where is log_activity defined?"
+  ],
+  "body": "- `ModelActivityMixin` (posthog/models/activity_logging/model_activity.py) sends a signal on `save()` for creates/updates; the scope is the class name. Set `activity_logging_on_delete = True` to log deletes.\n- Writes that bypass `save()` (e.g. `QuerySet.update`, `bulk_create`) are not seen by the signal. This is from the agent's summary, not verified in code. Call `log_activity` (posthog/models/activity_logging/activity_log.py) explicitly.\n- `changes_between` builds diffs. `ImpersonatedContext` (model_activity.py) covers impersonation.",
+  "applies": "Models that inherit ModelActivityMixin; other models need explicit log_activity calls.",
+  "tags": [
+    "activity-log",
+    "audit"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/activity_logging/model_activity.py",
+      "symbol": "ModelActivityMixin",
+      "hash": "sha256:79e4a0c92c8f8d86fee4b8d5",
+      "line": 32,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/activity_logging/activity_log.py",
+      "symbol": "log_activity",
+      "hash": "sha256:8d2bf4b0ab321dae093cc456",
+      "line": 1245,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/activity_logging/model_activity.py",
+      "symbol": "save",
+      "hash": "sha256:b2558c36d5b7d5c3878865aa",
+      "line": 46,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "d4e47a02-7a4e-4dec-b5bd-484f4671e692"
+  },
+  "created": "2026-09-27T00:27:32.827Z",
+  "verified": "2026-09-27T00:27:32.827Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

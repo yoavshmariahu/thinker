@@ -1,0 +1,67 @@
+{
+  "id": "onboarding-and-settings-invite-flows-share-invitelogic",
+  "title": "Onboarding and settings invite flows share inviteLogic",
+  "kind": "invariant",
+  "answers": [
+    "What must stay consistent between onboarding and settings invite flows?",
+    "Which components use inviteLogic?",
+    "Where does onboarding recompute invite validity?"
+  ],
+  "body": "Both `OnboardingInviteTeammates` (frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx) and settings `InviteModal` use `inviteLogic` and `InviteTeamMatesComponent` (InviteModal.tsx), and call the same invites/bulk/ endpoint.\n- `canSubmit` in inviteLogic is the single validity rule set; onboarding recomputes parts (hasInvalidEmail, owner confirmation, fill-all-fields) for `continueDisabledReason`. Changing canSubmit requires updating that too.\n- Hard-coded \"3 days\" expiry copy appears in InviteModal and OnboardingInviteTeammates; must match `INVITE_DAYS_VALIDITY` in posthog/constants.\n- `MAX_INVITES_AT_ONCE` (client) must match the server cap of 20 in `bulk`.\n- Name/message fields only shown when `preflight.email_service_available`.",
+  "applies": "Changes to invite form rules, limits, or copy.",
+  "tags": [
+    "invites",
+    "onboarding",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx",
+      "hash": "sha256:0012511949422b239a79377d",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/settings/organization/inviteLogic.ts",
+      "hash": "sha256:1ba7c1fa1a4d51cc10cd1f3f",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/settings/organization/InviteModal.tsx",
+      "hash": "sha256:4d71a53478f9e0c8706a73cd",
+      "missing": false
+    },
+    {
+      "path": "posthog/api/organization_invite.py",
+      "symbol": "OrganizationInviteViewSet.bulk",
+      "hash": "sha256:a2ab0b1f3a3d6f32fd87f3f6",
+      "line": 688,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "10d004c0-2900-4f08-9249-8b0791302d9b"
+  },
+  "created": "2026-09-27T00:16:18.026Z",
+  "verified": "2026-09-27T00:16:18.026Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 8,
+  "related": [
+    "org-invite-flow-modal-invitelogic-bulk-api",
+    "bulk-invite-partial-failure-semantics",
+    "org-invite-validation-server-vs-client-enforcement-map"
+  ],
+  "lastUsed": "2026-09-27T01:06:09.905Z",
+  "servedIn": [
+    "08c19801-a7d7-4020-a810-5039faf472a6",
+    "eefc43a9-7ed5-4dad-924b-8c97b4d79809",
+    "ea4b1d4e-069e-4b41-8cab-b4c6d80f18e6",
+    "757b5028-64cf-4783-930e-850f40b213f3",
+    "272e951d-10ea-4f07-a076-73905bf2484b",
+    "8343a249-277d-4e67-b6aa-c983610531d2",
+    "ee0dce34-40ce-4fac-8407-70d21d106849",
+    "72ef30ba-b28a-471e-966b-ddf41a97cbbb"
+  ]
+}

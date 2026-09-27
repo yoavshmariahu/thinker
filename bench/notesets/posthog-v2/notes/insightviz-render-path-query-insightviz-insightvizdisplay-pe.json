@@ -1,0 +1,77 @@
+{
+  "id": "insightviz-render-path-query-insightviz-insightvizdisplay-pe",
+  "title": "InsightViz render path: Query → InsightViz → InsightVizDisplay → per-type component",
+  "kind": "callpath",
+  "answers": [
+    "How does InsightViz render an insight?",
+    "Where does the chart component for a display type get chosen?",
+    "Where is the chart type control rendered?"
+  ],
+  "body": "- frontend/src/queries/Query/Query.tsx renders <InsightViz> for an InsightVizNode.\n- frontend/src/queries/nodes/InsightViz/InsightViz.tsx:InsightViz builds insightProps + dataNodeLogicProps, uses useAttachedLogic for dataNodeLogic/insightLogic/insightDataLogic/insightVizDataLogic, wraps in nested BindLogic, renders EditorFilters + InsightVizDisplay.\n- InsightVizDisplay.tsx: picks empty state first (order matters), then switches on activeView: TRENDS/STICKINESS/LIFECYCLE→TrendInsight, FUNNELS→Funnel, RETENTION→RetentionContainer, PATHS→Paths, JOURNEYS→Journeys, WEB_ANALYTICS→WebAnalyticsInsight.\n- products/product_analytics/frontend/insights/trends/Trends.tsx:TrendInsight dispatches on ChartDisplayType (bar/table/BoldNumber/Metric/WorldMap/RegionMap lazy via lazyWithRetry/CalendarHeatmap/BoxPlot/SlopeGraph; pie/line default).\n- Chart type control: InsightVizDisplay passes <ChartAlternatives> into InsightDisplayConfig's chartTypeControl slot.\n- Display metadata: InsightViz/displayTypes.ts, insightDisplayOptions.tsx.",
+  "tags": [
+    "insights",
+    "rendering",
+    "kea"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/InsightViz/InsightViz.tsx",
+      "symbol": "InsightViz",
+      "hash": "sha256:fa3298e9b18fb3a4ed886c7b",
+      "line": 46,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/nodes/InsightViz/InsightVizDisplay.tsx",
+      "hash": "sha256:462e0e0e6d740bf7b4340136",
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/insights/trends/Trends.tsx",
+      "symbol": "TrendInsight",
+      "hash": "sha256:6ee7dc80d1eb0d569c951bdd",
+      "line": 45,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/Query/Query.tsx",
+      "hash": "sha256:c56a9055aff2773e17d6f1c2",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/nodes/InsightViz/displayTypes.ts",
+      "hash": "sha256:c9ef71d48667767e35769256",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "b436f7a0-0071-423e-8d02-28b9ff005324"
+  },
+  "created": "2026-09-26T20:33:06.657Z",
+  "verified": "2026-09-26T20:33:06.657Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 14,
+  "related": [
+    "insight-view-edit-mode-computed-in-insightscenelogic-propaga"
+  ],
+  "lastUsed": "2026-09-26T23:38:42.997Z",
+  "servedIn": [
+    "a302ad28-26bc-41ee-a3b8-8fdfbaa6ce0a",
+    "2274930a-e576-464a-b536-5c41ced342b8",
+    "6a16f795-6bc9-4f7c-86dd-8aafc55338b8",
+    "e26d7b3b-8313-4ecb-a31e-bd0e0e9bf5f2",
+    "6696458d-9a18-4960-8085-858a940ecbcc",
+    "6efcc824-2f16-4d9f-a477-47f18ca3c68a",
+    "t",
+    "t",
+    "t",
+    "31add6de-c755-4bf5-891f-93d8e7fb9a1a",
+    "a260cb07-ddeb-4c4f-9e9e-8c1aa194e191",
+    "4d55e782-40c6-4757-a58b-277d24913095",
+    "1cfaf927-1f4d-4277-93b9-234660a8a390",
+    "89189e0c-41b6-4792-9702-6cf5c9d8c7f1"
+  ]
+}

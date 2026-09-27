@@ -1,0 +1,66 @@
+{
+  "id": "PR8175-hard-irrelevant-0",
+  "task": "PR8175-hard",
+  "area": "addons-dump",
+  "arm": "irrelevant",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "904a16cc-325b-45c7-844c-4cc82da44910",
+  "turns": 12,
+  "wall_ms": 24701,
+  "api_ms": 24144,
+  "cost": 0.1342178,
+  "in_tokens": 231953,
+  "out_tokens": 2454,
+  "tools": {
+    "calls": 11,
+    "byTool": {
+      "Bash": 5,
+      "Read": 2,
+      "Edit": 4
+    },
+    "thinkerCalls": 0,
+    "filesRead": 2,
+    "greps": 5,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added the same `http_connect_error` hook to Dumper, calling `echo_flow` when `self.match(f)` is true. This is functionally identical to the merged patch. The type annotation, test and changelog wording differ, but they don't change behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/dumper.py",
+      "test/mitmproxy/addons/test_dumper.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent added the same `http_connect_error` hook to the Dumper in mitmproxy/addons/dumper.py, which matches the flow and calls `echo_flow`. This is functionally identical to the merged patch. The type annotation, test and changelog differences don't affect behavior.",
+      "The agent added the same `http_connect_error` hook to the Dumper in mitmproxy/addons/dumper.py. It calls `echo_flow` when `self.match(f)` is true, which is the same behavior as the merged patch. The added type annotation, test and changelog wording differ, but that does not change behavior.",
+      "The agent added the same `http_connect_error` hook to Dumper as the merged patch. The hook calls `echo_flow(f)` when `self.match(f)` is true, so it behaves the same as upstream. The only differences are a type annotation, the test and the changelog wording, none of which affect behavior."
+    ]
+  },
+  "result": "Failed CONNECT requests should now show up in mitmdump's output. I haven't run the tests or the proxy, so none of this has been run.\n\n**Why nothing printed:** when a CONNECT fails, for example because the upstream host is unreachable, mitmproxy fires `http_connect_error` (see `mitmproxy/proxy/layers/http/__init__.py:827`). The dumper only handled `error`, so it never saw these.\n\n**Change:**\n- `mitmproxy/addons/dumper.py`: added an `http_connect_error` hook that prints the flow the same way `error` does. It prints the request line and the red `<< message`, and respects `flow_detail` and the view filter.\n- `test/mitmproxy/addons/test_dumper.py`: added a case calling `d.http_connect_error(tflow.tflow(err=True))` and asserting it produces output.\n- `CHANGELOG.md`: added an entry.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..71e33ba49 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,8 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmdump: Show failed CONNECT requests in the output.\n+\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/addons/dumper.py b/mitmproxy/addons/dumper.py\nindex ea7569064..3b088ed4f 100644\n--- a/mitmproxy/addons/dumper.py\n+++ b/mitmproxy/addons/dumper.py\n@@ -294,6 +294,10 @@ class Dumper:\n         if self.match(f):\n             self.echo_flow(f)\n \n+    def http_connect_error(self, f: http.HTTPFlow):\n+        if self.match(f):\n+            self.echo_flow(f)\n+\n     def websocket_message(self, f: http.HTTPFlow):\n         assert f.websocket is not None  # satisfy type checker\n         if self.match(f):\ndiff --git a/test/mitmproxy/addons/test_dumper.py b/test/mitmproxy/addons/test_dumper.py\nindex 7adf4e86e..7ca7ff123 100644\n--- a/test/mitmproxy/addons/test_dumper.py\n+++ b/test/mitmproxy/addons/test_dumper.py\n@@ -52,6 +52,11 @@ def test_simple():\n         assert sio.getvalue()\n         sio.truncate(0)\n \n+        ctx.configure(d, flow_detail=1)\n+        d.http_connect_error(tflow.tflow(err=True))\n+        assert sio.getvalue()\n+        sio.truncate(0)\n+\n         ctx.configure(d, flow_detail=4)\n         d.response(tflow.tflow(resp=True))\n         assert sio.getvalue()\n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added the same `http_connect_error` hook to Dumper, calling `echo_flow` when `self.match(f)` is true. This is functionally identical to the merged patch. The type annotation, test and changelog wording differ, but they don't change behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/dumper.py",
+      "test/mitmproxy/addons/test_dumper.py"
+    ]
+  }
+}

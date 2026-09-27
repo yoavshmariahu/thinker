@@ -1,0 +1,52 @@
+{
+  "id": "shared-state-activity-retry-and-schedule-to-close-for-replay",
+  "title": "Shared STATE_ACTIVITY_RETRY and schedule_to_close for Replay Vision state-write activities",
+  "kind": "convention",
+  "answers": [
+    "What retry policy should Replay Vision Postgres state-write activities use?",
+    "Where is STATE_ACTIVITY_RETRY defined?",
+    "Thumbnail workflow retry policy for prepare/finalize activities"
+  ],
+  "body": "Short Postgres writes that move an observation or its media between states use `STATE_ACTIVITY_RETRY` (5 attempts, 1s initial, 10s max interval, ~15s backoff) plus `schedule_to_close_timeout=STATE_ACTIVITY_SCHEDULE_TO_CLOSE` (3 min), both in products/replay_vision/backend/temporal/constants.py.\nUsed in workflow.py (ApplyScanner workflow) and media_workflow.py (prepare/finalize thumbnail). Don't define per-workflow copies like the old `_STATE_ACTIVITY_RETRY` / `_STATE_RETRY`.\nThe 3-min schedule_to_close is a ceiling that keeps the failure path inside APPLY_SCANNER_EXECUTION_TIMEOUT; maximum_attempts is what actually ends retries.\nevaluation_workflow.py still has its own policy (deliberately left out of scope).",
+  "applies": "Replay Vision temporal workflows executing state-write activities",
+  "tags": [
+    "replay-vision",
+    "temporal",
+    "retry"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/constants.py",
+      "symbol": "STATE_ACTIVITY_RETRY",
+      "hash": "sha256:3ce24d24e502eaa232f558e6",
+      "line": 23,
+      "missing": false
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/media_workflow.py",
+      "hash": "sha256:e53969bbd980bd63d109641e",
+      "missing": false
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/workflow.py",
+      "hash": "sha256:f5432c626c65cdce0ebe8f0d",
+      "missing": false
+    },
+    {
+      "path": "products/replay_vision/backend/temporal/evaluation_workflow.py",
+      "hash": "sha256:f3ff53da4de63bdce53ea7d7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-09-27T00:01:58.425Z",
+  "verified": "2026-09-27T00:01:58.425Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

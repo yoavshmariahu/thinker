@@ -1,0 +1,104 @@
+{
+  "id": "PR106322-hard-pointers-0",
+  "task": "PR106322-hard",
+  "area": "posthog",
+  "arm": "pointers",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "33676976-fd18-4be2-866b-1b8b81e8d5b2",
+  "turns": 17,
+  "wall_ms": 65414,
+  "api_ms": 43474,
+  "cost": 0.505198,
+  "in_tokens": 1071910,
+  "out_tokens": 4263,
+  "tools": {
+    "calls": 16,
+    "byTool": {
+      "Bash": 16
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 16,
+    "injected": [
+      "deletes-job-survivor-count-is-report-only-do-not-turn-it-bac",
+      "person-deletion-step-ordering-and-failure-invariants",
+      "deletion-queue-dags-deletes-job-cleanup-sweep-pg-drain"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty and made no functional change, so it does not implement any of the four requested metrics.",
+      "The agent's patch is empty, so it made no functional change and none of the four requested metrics exist. The merged patch adds them in posthog/models/person/bulk_delete.py, posthog/models/person/util.py and posthog/dags/person_tombstone_queue.py.",
+      "The agent's patch was empty, so it made no functional change. None of the four requested metrics were added, and the request was not achieved."
+    ],
+    "reason": "The agent's patch is empty and made no functional change, so it does not implement any of the four requested metrics.",
+    "mustHit": 0,
+    "mustTotal": 4,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no deletion-mode metric exists."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no mode-attributed deletion counter added."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no mode indicator metric exists."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no delivery-wait timing metric. Author states no ack-after-flush path exists."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no ack cycle or metrics emitted."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no ack failure counter added."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no ack success counting."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no batched ack code."
+        },
+        {
+          "id": "c9",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no weekly repair metrics added."
+        }
+      ]
+    }
+  },
+  "result": "I didn't make any changes. The code this task builds on isn't in this checkout, so I'd have to invent it, and I didn't want to guess.\n\n**Missing from the checkout:**\n- **The setting:** there is no tombstone-based deletion setting or \"deletion order\" config. I searched `posthog/settings`, `posthog/models/person`, the `personhog-*` Rust crates and `nodejs/src`.\n- **The acknowledgement path:** nothing acknowledges tombstone-queue items after a Kafka delivery wait.\n  - `ack_person_tombstones` exists only as the RPC. It's defined in the replica (`rust/personhog-replica/src/service/mod.rs:510`, `storage/postgres/person.rs:621`) and the Python client (`posthog/personhog_client/client.py:237`).\n  - No caller exists in Python, Node or Rust. Person delete (`delete_person` in `posthog/models/person/util.py`, `_tombstone_and_delete_persons` in `posthog/models/person/bulk_delete.py`) produces tombstones and deletes from Postgres with no queue involved.\n  - So there's no Kafka wait to time and no acknowledgement failure to count. The only trace of a failure today is the step-failure counter and log in `bulk_delete.py`.\n- **The weekly repair job:** none exists. The only related weekly jobs are `posthog/dags/clickhouse_cleanup.py` and `posthog/dags/person_pg_cleanup_drain.py`, and neither repairs the tombstone queue.\n- **The queue gauges:** the closest existing thing is the drain job's `PublishedGauge` set, which covers `person_pg_cleanup_queue`, not the tombstone queue.\n- **The dashboard:** I found no person-deletion dashboard definition.\n\nThe nearest history is `af50cdc57c7` (queue insert plus list and ack RPCs) and `c98fca31da1` (the `person_tombstone_publish_queue` table). The follow-up work you describe, which would add the setting, the ack-after-flush step, the weekly repair and its gauges, hasn't landed on this base.\n\nI could add the metrics to the code that does exist, but without the setting, the ack step and the repair job they'd have nothing to measure. Is that work on another branch, or should I build it here first?",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

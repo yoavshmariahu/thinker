@@ -1,0 +1,61 @@
+{
+  "id": "warehouse-destination-table-entries-per-table-match-on-sourc",
+  "title": "Warehouse destination table entries: per-table match on $source_table and table required for row filters",
+  "kind": "invariant",
+  "answers": [
+    "Destination with warehouse table filter runs on every row",
+    "Pick a table for each row filter validation error",
+    "Unfiltered warehouse table entry lets rows through filtered table",
+    "How are data_warehouse entries compiled into filters"
+  ],
+  "body": "`_build_warehouse_table_filters` (posthog/cdp/filters.py) compiles each `data_warehouse` entry as `properties.$source_table = table_name AND <entry filters>`, ORed across entries. Every entry checks its table, otherwise an unfiltered entry would match rows of filtered tables. It only runs if some entry has properties.\n- `WAREHOUSE_SOURCE_TABLE_PROPERTY` (`$source_table`) must stay equal to `DWH_SOURCE_TABLE_PROPERTY` in nodejs/src/cdp/schema/hogflow.ts.\n- Save-time guard in posthog/cdp/validation.py `HogFunctionFiltersSerializer.validate`: an entry with properties but no `table_name` (or the \"Select a table\" placeholder) raises \"Pick a table for each row filter.\" It must run before the placeholder is stripped, or the filter silently vanishes.",
+  "applies": "Destinations/hog functions with source data-warehouse-table; filters.py compiler plus validation serializer",
+  "tags": [
+    "cdp",
+    "warehouse",
+    "destinations",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "posthog/cdp/filters.py",
+      "symbol": "_build_warehouse_table_filters",
+      "hash": "sha256:70ddcabcc5afa1d695f5fc3c",
+      "line": 327,
+      "missing": false
+    },
+    {
+      "path": "posthog/cdp/validation.py",
+      "symbol": "HogFunctionFiltersSerializer",
+      "hash": "sha256:e1e16633af7a4ec30ad92677",
+      "line": 977,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/cdp/schema/hogflow.ts",
+      "hash": "sha256:957928d46f982d9e1c3c6402",
+      "missing": false
+    },
+    {
+      "path": "posthog/cdp/validation.py",
+      "symbol": "HogFunctionFiltersSerializer.validate",
+      "hash": "sha256:5de6410a3bb90ed160ea9eaf",
+      "line": 997,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105687"
+  },
+  "created": "2026-09-26T23:59:11.460Z",
+  "verified": "2026-09-26T23:59:11.460Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "warehouse-row-filters-must-resolve-columns-under-properties-",
+    "data-warehouse-sources-lives-in-posthog-cdp-filters-py-impor"
+  ]
+}

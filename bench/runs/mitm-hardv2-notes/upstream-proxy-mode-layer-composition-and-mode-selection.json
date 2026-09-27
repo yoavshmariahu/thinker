@@ -1,0 +1,123 @@
+{
+  "id": "upstream-proxy-mode-layer-composition-and-mode-selection",
+  "title": "Upstream proxy mode: layer composition and mode selection",
+  "kind": "callpath",
+  "answers": [
+    "How are layers composed in upstream proxy mode?",
+    "Where is context.server.via set?",
+    "When does mitmproxy skip sending CONNECT to the upstream proxy?",
+    "How does a client CONNECT get tunnelled through the upstream proxy?"
+  ],
+  "body": "- `mode_specs.py:UpstreamMode` parses scheme (http/https) + address via `server_spec.parse`; other schemes -> ValueError.\n- `layers/modes.py:HttpUpstreamProxy` is only a marker layer (starts NextLayer). `addons/next_layer.py:NextLayer._setup_explicit_http_proxy` checks `isinstance(context.layers[0], modes.HttpUpstreamProxy)` -> `layers.HttpLayer(context, HTTPMode.upstream)` (else HTTPMode.regular), optionally under ClientTLSLayer.\n- `layers/http/__init__.py:HttpLayer._handle_event` on Start in upstream mode: asserts proxy_mode is UpstreamMode, sets `context.server.via = (scheme, address)`.\n- `HttpLayer.get_connection` (handles GetHttpConnection) builds `tunnel.LayerStack`: if `event.via` -> `_upstream_proxy.HttpUpstreamProxy.make(context, send_connect)`; if `event.tls` -> ServerTLSLayer (or quic.ServerQuicLayer for UDP), end-to-end to origin; then `HttpClient`. Linked by `tunnel.py:LayerStack.__truediv__`.\n- `send_connect = event.tls or self.mode != HTTPMode.upstream`: only plaintext absolute-form request in upstream mode skips CONNECT.\n- Client CONNECT: `HttpStream.handle_connect` -> `handle_connect_upstream` sets `child_layer = HttpUpstreamProxy.make(self.context, True)[0]` (first layer only, self.context not forked), then `handle_connect_finish` replies synthetic 200.",
+  "tags": [
+    "upstream",
+    "http",
+    "layers"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/proxy/mode_specs.py",
+      "symbol": "UpstreamMode",
+      "hash": "sha256:88f757e1d72947e9959ff2f9",
+      "line": 207,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/modes.py",
+      "symbol": "HttpUpstreamProxy",
+      "hash": "sha256:cf8c2e9e240d64ef91deb919",
+      "line": 32,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer._setup_explicit_http_proxy",
+      "hash": "sha256:9bf3f8a17ce94639a03ffc22",
+      "line": 406,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/__init__.py",
+      "symbol": "HttpLayer",
+      "hash": "sha256:1c8e248eb78c5c6a0e7a13b0",
+      "line": 921,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/tunnel.py",
+      "symbol": "LayerStack",
+      "hash": "sha256:22d50e101fb2380743f5f990",
+      "line": 185,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/__init__.py",
+      "symbol": "HttpLayer._handle_event",
+      "hash": "sha256:5b38f757224c61be9fd3ea11",
+      "line": 951,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/tunnel.py",
+      "symbol": "LayerStack.__truediv__",
+      "hash": "sha256:cb1028738e67266329701247",
+      "line": 192,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/__init__.py",
+      "symbol": "HTTPMode.upstream",
+      "hash": "sha256:b9f94f52500e69e48d73f6da",
+      "line": 73,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/__init__.py",
+      "symbol": "HTTPMode.regular",
+      "hash": "sha256:686e486e17a305aa77818fa7",
+      "line": 71,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/__init__.py",
+      "symbol": "HttpLayer.get_connection",
+      "hash": "sha256:01339b335ddb885104fd0c23",
+      "line": 1067,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/_upstream_proxy.py",
+      "symbol": "HttpUpstreamProxy.make",
+      "hash": "sha256:18d31bd381306fc15576ab87",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/__init__.py",
+      "symbol": "HttpStream.handle_connect",
+      "hash": "sha256:798f257de2fb7bb5f0fd3aad",
+      "line": 773,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "89ec3b61-14d7-4711-ae58-8c36a5f8cd64"
+  },
+  "created": "2026-09-26T09:25:57.242Z",
+  "verified": "2026-09-26T09:25:57.242Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 7,
+  "lastUsed": "2026-09-26T19:45:43.964Z",
+  "related": [
+    "building-sending-the-upstream-connect-and-forming-the-author",
+    "bytes-heuristics-next-layer-inspects-quic-host-header-raw-tc",
+    "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn"
+  ],
+  "servedIn": [
+    "8b9614ce-b69a-4c57-9d73-ff2a5fbf53f8",
+    "97ac8027-8b9f-448b-85b6-6a5a94f6c660"
+  ]
+}

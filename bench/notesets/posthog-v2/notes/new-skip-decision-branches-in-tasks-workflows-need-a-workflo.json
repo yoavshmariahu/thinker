@@ -1,0 +1,60 @@
+{
+  "id": "new-skip-decision-branches-in-tasks-workflows-need-a-workflo",
+  "title": "New skip/decision branches in tasks workflows need a workflow.patched marker; skip queue read for terminal PRs",
+  "kind": "convention",
+  "answers": [
+    "How do I add a new skip condition to the process_task workflow without breaking replay?",
+    "Why is workflow.patched used alongside a new activity output field?",
+    "Why does get_pr_babysit_snapshot skip the merge queue read for closed PRs?"
+  ],
+  "body": "When a new activity-output field changes a workflow decision, gate the branch with `workflow.patched(<id>)` as well as the flag. During rolling deploys a new activity worker can record the flag while an old workflow worker still dispatches, so replay must keep the old path. See `_PATCH_ID_MERGE_QUEUE_SKIP` in process_task/workflow.py and in task_management/workflow.py (each file has its own constant, separate workflow classes).\nTest both paths by monkeypatching `process_task_workflow_module.workflow.patched` (see `test_merge_queue_skip_follows_the_patch_marker` in process_task/tests/test_ci_follow_up_decision.py).\nOptional new fields on activity outputs default to False (`GetPrContextOutput`, `PRSnapshot.from_raw` uses `is True`). Activity output dataclasses state `frozen=` (devex semgrep).\nExtra GitHub reads must skip closed/merged PRs (`get_pr_babysit_snapshot.py`, `get_pr_context`), so a flaky read cannot fail the terminal tick.",
+  "applies": "products/tasks/backend/temporal/process_task and task_management workflows and activities",
+  "tags": [
+    "temporal",
+    "replay",
+    "patched",
+    "determinism"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "_PATCH_ID_MERGE_QUEUE_SKIP",
+      "hash": "sha256:75ce18bbfde921b6c602d5e0",
+      "line": 439,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/get_pr_babysit_snapshot.py",
+      "symbol": "get_pr_babysit_snapshot",
+      "hash": "sha256:9de2e222be544fe4c45719f5",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/tests/test_ci_follow_up_decision.py",
+      "hash": "sha256:f6fae2da6119f8a56d9c3b2c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105311"
+  },
+  "created": "2026-09-27T00:06:48.047Z",
+  "verified": "2026-09-27T00:06:48.047Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+    "follow-up-loop-must-skip-ticks-while-a-push-would-eject-the-",
+    "how-task-run-failures-are-recorded",
+    "invariants-for-recording-task-run-status-failure-in-process-"
+  ],
+  "servedIn": [
+    "afad1150-74a1-4e9a-9a6e-93d48551d352",
+    "2e552557-6ce0-4e96-8d4c-138f629e75bd",
+    "0fbe9612-b859-4114-81f9-f77383771643"
+  ]
+}

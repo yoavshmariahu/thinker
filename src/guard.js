@@ -44,20 +44,20 @@ export function existsInRepo(repo, ident) {
 }
 
 // Returns {uncovered: [{ident, files}], text}
-export function anchoringGuard(repo, task, servedNotes, { maxGreps = 40 } = {}) {
+export function anchoringGuard(repo, task, servedNotes, { maxGreps = 40, explicitOnly = false, max = 6 } = {}) {
   const covered = servedNotes.map(n => `${n.title} ${n.body} ${(n.deps || []).map(d => d.path + ' ' + (d.symbol || '')).join(' ')}`).join('\n').toLowerCase();
   const isCovered = id => covered.includes(id.toLowerCase()) || (id.includes('.') && covered.includes(id.split('.').pop().toLowerCase()));
   const uncovered = [];
   let greps = 0;
   const seen = new Set();
-  for (const id of [...explicitIdents(task), ...phraseCandidates(task)]) {
+  for (const id of [...explicitIdents(task), ...(explicitOnly ? [] : phraseCandidates(task))]) {
     if (seen.has(id) || isCovered(id)) continue;
     seen.add(id);
     if (greps++ >= maxGreps) break;
     const files = existsInRepo(repo, id);
     if (files > 0) uncovered.push({ ident: id, files });
-    if (uncovered.length >= 6) break;
+    if (uncovered.length >= max) break;
   }
-  const text = uncovered.length ? `Not covered by these notes but present in the repo (search for them before deciding where the change goes): ${uncovered.map(u => `\`${u.ident}\` (${u.files} file${u.files > 1 ? 's' : ''})`).join(', ')}` : '';
+  const text = uncovered.length ? `Not covered by these notes, present in the repo: ${uncovered.map(u => `\`${u.ident}\` (${u.files} file${u.files > 1 ? 's' : ''})`).join(', ')}` : '';
   return { uncovered, text };
 }

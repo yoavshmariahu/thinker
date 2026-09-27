@@ -1,0 +1,69 @@
+{
+  "id": "lifecycle-event-payload-fields-consumers-depend-on",
+  "title": "Lifecycle event payload fields consumers depend on",
+  "kind": "invariant",
+  "answers": [
+    "What properties does an error tracking lifecycle event carry?",
+    "What does AlertDeliveryWorkflowInputs contain?",
+    "Why does the manual event omit exception_timestamp?"
+  ],
+  "body": "Built in `logic/lifecycle_events.py:prepare_issue_lifecycle_event`; must match cymbal's ingestion producer so destination property filters work on both paths.\n- Props: `name`, `description`, `issue_description` (duplicate of description, compat), `first_seen` (created_at ISO), `severity`, `status` (display label from `status_label`, same casing as cymbal), `fingerprint` (only if present; chosen by `_issue_fingerprint_for_links`: oldest first_seen then id), `assignee` (only if currently assigned), `previous_status` (status transitions), `previous_assignee` (unassign only), `merged_issue_ids`/`split_issue_ids` (string lists).\n- `exception_timestamp` deliberately omitted for manual events (scene falls back to latest exception).\n- Identity: `distinct_id` = issue id, `uuid` = `notification_id` (also names the alert delivery workflow -> idempotent redelivery).\n- `person` is minimal (id, distinct_id, email, first_name); default webhook body sends `{person}` verbatim, so don't add fields.\n- `temporal/alerts/types.py:AlertDeliveryWorkflowInputs` is slimmer: string status/assignee, actor_email, severity, fingerprint, first_seen; merge/split ids reduced to `merged_count`/`split_count` in `extra`. `temporal/alerts/filtering.py` (`LIFECYCLE_PROPERTY_KEYS`, `alert_filters_match`) reads these; keys include name, description, issue_description, first_seen, severity, status, exception_timestamp, fingerprint, assignee.",
+  "applies": "Adding/renaming payload fields requires checking alert filters and Temporal inputs; not for ingestion-side events.",
+  "tags": [
+    "error-tracking",
+    "events",
+    "payload",
+    "alerts"
+  ],
+  "deps": [
+    {
+      "path": "products/error_tracking/backend/logic/lifecycle_events.py",
+      "symbol": "prepare_issue_lifecycle_event",
+      "hash": "sha256:ed9e25351a00dd83d28bc0fa",
+      "line": 106,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/temporal/alerts/types.py",
+      "hash": "sha256:f40b6c25a0a0a9e9fdb2425b",
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/temporal/alerts/filtering.py",
+      "symbol": "LIFECYCLE_PROPERTY_KEYS",
+      "hash": "sha256:33432c2466eff351d611eaa7",
+      "line": 46,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/temporal/alerts/types.py",
+      "symbol": "AlertDeliveryWorkflowInputs",
+      "hash": "sha256:1eab94be2a636f8571547005",
+      "line": 15,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "cded38d8-1fbe-4117-887d-607f8f15cb75"
+  },
+  "created": "2026-09-27T00:22:18.901Z",
+  "verified": "2026-09-27T00:22:18.901Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 7,
+  "related": [
+    "error-tracking-issue-writes-which-mutations-emit-lifecycle-e"
+  ],
+  "lastUsed": "2026-09-27T06:28:57.288Z",
+  "servedIn": [
+    "5eebb144-500a-4ee7-b484-68f19134555f",
+    "bada6a04-90ca-402b-b4a8-ac0932a722e5",
+    "cf0e5e9b-2242-4b02-bb1d-22fefdd8a9aa",
+    "50d00da5-e8ed-4cbd-b114-2290506e0b28",
+    "13935055-b92f-4957-9b47-f87439c7994c",
+    "043b894d-7483-463a-981a-37bca4b0739d",
+    "fc32aa46-5e14-4b35-9f6b-aea5487d866a"
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "id": "tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne",
+  "title": "TLS context construction: proxy layer hook -> tlsconfig addon -> net/tls helpers",
+  "kind": "callpath",
+  "answers": [
+    "How does mitmproxy build client and server TLS contexts?",
+    "Where are min/max TLS versions set?",
+    "How does the TLS layer get its SSL context?",
+    "Where do I change TLS version option handling?"
+  ],
+  "body": "- proxy/layers/tls.py:TlsLayer.start_tls builds TlsData(conn, context, is_dtls), yields TlsStartClientHook (if conn == context.client) else TlsStartServerHook. If tls_start.ssl_conn stays None -> logs 'No TLS context was provided', yields CloseConnection.\n- addons/tlsconfig.py:TlsConfig.tls_start_client / tls_start_server implement the hooks; they return early if ssl_conn already set (user addon override).\n- They call net/tls.py:create_client_proxy_context / create_proxy_server_context with net_tls.Version[ctx.options.tls_version_{client,server}_{min,max}], then wrap in SSL.Connection (accept state for client; SNI + hostname/IP verify for server). Server passes legacy_server_connect=ctx.options.ssl_insecure.\n- Both create_* delegate to net/tls.py:_create_ssl_context, the only place that calls SSL._lib.SSL_CTX_set_min/max_proto_version on context._context; raises RuntimeError('Error setting TLS versions') if results don't sum to 2.\n- Defaults in net/tls.py: DEFAULT_MIN_VERSION=TLS1_2, DEFAULT_MAX_VERSION=UNBOUNDED; options registered in TlsConfig.load with choices from Version names.\n- Client ciphers: client.cipher_list or addons/tlsconfig.py:_default_ciphers(min_version), which uses INSECURE_TLS_MIN_VERSIONS.\n- QUIC does not use this path (TlsConfig.quic_start_client/server).",
+  "tags": [
+    "tls",
+    "options",
+    "hooks"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/net/tls.py",
+      "symbol": "_create_ssl_context",
+      "hash": "sha256:520802bb0005a427c2bb35c3",
+      "line": 149,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "TlsConfig.tls_start_client",
+      "hash": "sha256:de5b8153450284c0825f9e4e",
+      "line": 210,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "TlsConfig.tls_start_server",
+      "hash": "sha256:4748460efdf5f0700203287b",
+      "line": 273,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/tls.py",
+      "hash": "sha256:76e315d8e64355a757183d3f",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/net/tls.py",
+      "hash": "sha256:b948d59c83a8537b98db986d",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/net/tls.py",
+      "symbol": "create_client_proxy_context",
+      "hash": "sha256:8684305d8c91c79674a84694",
+      "line": 240,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "_default_ciphers",
+      "hash": "sha256:b9b41d20bfbb0a3efc2ef100",
+      "line": 66,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "TlsConfig.load",
+      "hash": "sha256:2cb3c7026c3eb7ed6cd6cf68",
+      "line": 136,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "TlsConfig.quic_start_client",
+      "hash": "sha256:ecade3820a47085d9027f9ba",
+      "line": 379,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "171b5826-1134-4602-985b-3fdb8f96b3b3"
+  },
+  "created": "2026-09-26T09:25:02.145Z",
+  "verified": "2026-09-26T09:25:02.145Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 9,
+  "lastUsed": "2026-09-26T19:44:55.148Z",
+  "related": [
+    "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+    "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-"
+  ],
+  "servedIn": [
+    "a9d729ef-e67c-4e29-990f-76a18f3b52b9",
+    "558a6683-30fa-43b4-ba2c-1698c26652b9"
+  ]
+}

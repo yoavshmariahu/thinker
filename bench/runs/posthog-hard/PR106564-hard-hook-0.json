@@ -1,0 +1,93 @@
+{
+  "id": "PR106564-hard-hook-0",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "fc24e040-80bc-4ba6-9c98-b7abf32b55dc",
+  "turns": 20,
+  "wall_ms": 209917,
+  "api_ms": 42466,
+  "cost": 0.4982944,
+  "in_tokens": 1110938,
+  "out_tokens": 4132,
+  "tools": {
+    "calls": 19,
+    "byTool": {
+      "Bash": 19
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 19,
+    "injected": []
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty, so no functional change was made and the request (flag-driven stable chunk serving for logged-in users) is not achieved.",
+      "The agent made no changes. The relevant code (posthog/stable_chunks.py and posthog/utils.py) exists upstream, and the agent failed to find it, so the request was not implemented.",
+      "The agent made no code changes and asked for clarification instead. The merged patch modifies posthog/stable_chunks.py and posthog/utils.py to gate the stable build behind a feature flag for authenticated users while keeping the query-param opt-in. The empty patch achieves none of this."
+    ],
+    "reason": "The agent's patch is empty, so no functional change was made and the request (flag-driven stable chunk serving for logged-in users) is not achieved.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag evaluation was added to choose the build for logged-in users."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-based enrolment exists, so there is no logic to keep anonymous users out of it."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-handling code was added. The author's summary says the checkout has no stable-build switch at all."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch. The author reports no query-parameter opt-in in the checkout, so nothing provides the override or its precedence."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no persisted choice (e.g. a ~30-day cookie) was added."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch; nothing connects the deciding flag value to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no runtime-failure reload handling was added, and the author found no stable build to fall back from."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no code removes the query parameter from the address."
+        }
+      ]
+    }
+  },
+  "result": "I didn't make any changes, because the stable chunk build this task builds on isn't in this checkout.\n\nI searched the whole repo, excluding `node_modules` and `.git`, for these patterns (case-insensitive):\n- `stable chunk`\n- `stable_chunk`\n- `stableChunk`\n- `stable-chunk`\n- `chunks=`\n- `?stable`\n\nThe only hits are unrelated. They are the source-map `stable_chunk_id` in `cli/`, a HogQL system-table test fixture, and two review_hog docs.\n\nI also checked where a query-parameter opt-in would have to live and found none:\n- **Template context:** `posthog/utils.py` reads only `no-preloaded-app-context` from the query string, and `_resolve_entry_assets` picks preload hints without any build variant.\n- **Loader script:** `common/esbuilder/utils.mjs` (`copyIndexHtml`) and `chunkLoader.mjs` bake a single build (one entry filename and one chunk map) into `dist/index.html`. Nothing selects a second build.\n- **Build config:** `frontend/build.mjs` produces one PostHog App bundle, with `chunkNames: '[name]-[hash]'` in `commonConfig`.\n- **Git history:** the commit-message search for \"chunk\" turns up only the chunk-map-as-static-file change (#94059) and the base-ui anchor change (#105289).\n\nWithout the existing build and opt-in, I can't wire a flag to it without guessing at the design, so I didn't invent one. The flag-gating part is small once the switch exists. In `_build_template_context`, for `index.html` and authenticated users only, I would evaluate a flag (for example `use-stable-chunk-build`) with `posthoganalytics.feature_flag_enabled` on the user's distinct ID and OR it with the query-parameter check. Anonymous users would never be evaluated. I'd also add a test for both paths.\n\nCould you tell me one of these?\n- The branch or PR that adds the stable chunk build.\n- Where the `?…` opt-in is read.\n- Whether you want me to build the stable variant myself, which is a much larger change (a second esbuild output with stable chunk names, plus a loader switch).",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

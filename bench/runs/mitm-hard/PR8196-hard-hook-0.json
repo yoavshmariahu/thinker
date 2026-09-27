@@ -1,0 +1,72 @@
+{
+  "id": "PR8196-hard-hook-0",
+  "task": "PR8196-hard",
+  "area": "utils",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "e73825d0-ad89-496f-a0dc-fdba0cdd0642",
+  "turns": 5,
+  "wall_ms": 15094,
+  "api_ms": 14563,
+  "cost": 0.0877108,
+  "in_tokens": 98441,
+  "out_tokens": 1409,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Read": 1,
+      "Edit": 2,
+      "Bash": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [
+      "On the early break, any post-loop fallback (for/else) is skipped. In upstream it would still run when the input ends inside the lookahead window. This only affects the analyzed slice in rare 101-103 byte edge cases."
+    ],
+    "reason": "The agent changed the same function and loop, and it removes the IndexError. Inputs of 104 bytes or more behave as before. Upstream bounds the range with min(104, len(s)), while the agent breaks when cut >= len(s). These are nearly identical, but the break also skips any for-else fallback. The result could differ slightly for 101-103 byte inputs that end in continuation bytes. That is an edge case, and the fix is otherwise equivalent.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent guards the lookahead loop against indexing past the end of the input, in the same function as the merged fix. That removes the IndexError for inputs of 101–103 bytes and leaves results for longer inputs unchanged. The only difference is an edge case where the tail is all continuation bytes. There, the agent's early break may skip loop-completion handling, but the effect on the heuristic is negligible.",
+      "The agent guards the lookahead loop against indexing past the end of the input, which fixes the IndexError in the same place as the merged patch. Inputs of 104 bytes or more are unaffected. For 101–103 byte inputs, the agent's break may keep the whole input where the merged patch may truncate to 100 (this depends on an else branch I haven't seen), which is a negligible difference.",
+      "The agent changed the same loop in `is_mostly_bin`. Its `if cut >= len(s): break` guard stops the loop before it indexes past the end, which is what upstream's `min(104, len(s))` bound does. Results for inputs of 104 bytes or more are unchanged, and the IndexError for 101–103 bytes is gone. One possible difference: if the loop has an `else` clause, `break` would skip it while upstream's natural loop end would run it. That could only matter for an edge case on short all-continuation-byte inputs, and the agent's summary suggests there is no such clause. The added test is also reasonable."
+    ]
+  },
+  "result": "`is_mostly_bin` no longer raises `IndexError` on inputs of 101–103 bytes. I haven't run the tests, as you asked.\n\n**Cause:** for inputs longer than 100 bytes, the function checks bytes 100–103 to avoid cutting a UTF-8 character in half. With 101–103 bytes, some of those indices are past the end of the data, so `s[cut]` failed.\n\n**Fix:** in `mitmproxy/utils/strutils.py`, the loop now stops as soon as `cut >= len(s)` and keeps the whole input, since there's nothing left to trim. Inputs of 104 bytes or more never reach that branch, so their results are unchanged.\n\n**Test:** in `test/mitmproxy/utils/test_strutils.py`, `test_is_mostly_bin` now covers lengths 101–104. Repeated `a` should be text and repeated `\\x80` should be binary.\n\nOne judgement call: for short inputs I keep the full data rather than cutting at 100. It's the same amount of data the heuristic would look at anyway, and it avoids splitting a character at the very end.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..613062bb1 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -133,6 +133,9 @@ def is_mostly_bin(s: bytes) -> bool:\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n         for cut in range(100, 104):\n+            if cut >= len(s):\n+                # The input ends here, so there is nothing left to cut off.\n+                break\n             is_continuation_byte = (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..0ddb1486b 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,10 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # inputs just over 100 bytes must not index past the end\n+    for n in (101, 102, 103, 104):\n+        assert not strutils.is_mostly_bin(n * b\"a\")\n+        assert strutils.is_mostly_bin(n * b\"\\x80\")\n \n \n def test_is_xml():\n",
+  "grade0": {
+    "score": 0.9,
+    "missing": [],
+    "wrong": [
+      "On the early break, any post-loop fallback (for/else) is skipped. In upstream it would still run when the input ends inside the lookahead window. This only affects the analyzed slice in rare 101-103 byte edge cases."
+    ],
+    "reason": "The agent changed the same function and loop, and it removes the IndexError. Inputs of 104 bytes or more behave as before. Upstream bounds the range with min(104, len(s)), while the agent breaks when cut >= len(s). These are nearly identical, but the break also skips any for-else fallback. The result could differ slightly for 101-103 byte inputs that end in continuation bytes. That is an edge case, and the fix is otherwise equivalent.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ]
+  }
+}

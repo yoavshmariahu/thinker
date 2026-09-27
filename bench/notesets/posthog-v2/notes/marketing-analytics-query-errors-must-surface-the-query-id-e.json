@@ -1,0 +1,45 @@
+{
+  "id": "marketing-analytics-query-errors-must-surface-the-query-id-e",
+  "title": "Marketing Analytics query errors must surface the query ID (error ID first, never previous response)",
+  "kind": "invariant",
+  "answers": [
+    "Marketing analytics error doesn't show query ID",
+    "How do I add a query ID to a failed marketing analytics query error?",
+    "Which query ID should an error banner display: response or error object?"
+  ],
+  "body": "Every Marketing Analytics surface that renders a query failure passes a query ID derived from the dataNodeLogic as `responseErrorObject?.queryId ?? queryId`.\n- The error object's ID wins over the current request `queryId`.\n- Never fall back to `response.query_status.id`: a previous successful response must not supply the ID (asserted in NewMarketingAnalyticsDashboard.test.tsx).\n- Applied in: products/marketing_analytics/frontend/dashboard/NewMarketingAnalyticsDashboard.tsx (traffic and customers use separate logics and separate IDs), frontend/src/scenes/web-analytics/tabs/marketing-analytics/frontend/components/AttributionTab/AttributionTable.tsx, AttributionTab/ConversionPaths.tsx, MarketingAnalyticsOverview/MarketingAnalyticsOverview.tsx, and products/marketing_analytics/frontend/retention/RetentionResults.tsx.\n- A new query surface must destructure `responseErrorObject, queryId` from useValues(logic) and pass the result to `InsightErrorState queryId=` or `MarketingQueryError queryId=`.",
+  "applies": "Any Marketing Analytics component that renders a dataNodeLogic error state.",
+  "tags": [
+    "marketing-analytics",
+    "error-handling",
+    "query-id"
+  ],
+  "deps": [
+    {
+      "path": "products/marketing_analytics/frontend/dashboard/NewMarketingAnalyticsDashboard.tsx",
+      "hash": "sha256:100e48096bd0a2c7cb9a81a0",
+      "missing": false
+    },
+    {
+      "path": "products/marketing_analytics/frontend/retention/RetentionResults.tsx",
+      "hash": "sha256:ac1a989fc6e6bab242767a42",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/web-analytics/tabs/marketing-analytics/frontend/components/MarketingAnalyticsOverview/MarketingAnalyticsOverview.tsx",
+      "hash": "sha256:9e79557cd0db1f539f00c602",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105217"
+  },
+  "created": "2026-09-27T00:11:42.601Z",
+  "verified": "2026-09-27T00:11:42.601Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

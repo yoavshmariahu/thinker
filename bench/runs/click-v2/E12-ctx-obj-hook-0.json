@@ -1,0 +1,49 @@
+{
+  "id": "E12-ctx-obj-hook-0",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "7d01e80e-7193-407b-844f-9b3e1aae81d9",
+  "turns": 4,
+  "wall_ms": 11187,
+  "api_ms": 10703,
+  "cost": 0.06637459999999999,
+  "in_tokens": 65268,
+  "out_tokens": 988,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 1,
+      "Read": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "customizing-command-group-option-classes-via-cls-and-class-a",
+      "augment-usage-errors-attaches-ctx-param-to-errors"
+    ]
+  },
+  "grade": {
+    "score": 0.6,
+    "missing": [
+      "Other propagation sites: Command.make_context (core.py ~1311), Group.invoke (core.py ~1982 / 2002-2008) passing parent=ctx, Context._make_sub_context (core.py:837-843), Command.main (~1503)",
+      "Clobbering caveat: ensure_object(T) overwrites an existing unrelated obj on the current context (docs/complex.md warning)",
+      "ensure_object requires zero-arg constructible type (object_type())",
+      "Chained groups: sub-contexts built up front so ensure_object in one chained command is invisible to siblings",
+      "Test is `obj is None` not falsiness; passing obj=None cannot block inheritance",
+      "Consumers make_pass_decorator / pass_obj in decorators.py",
+      "Contrast with ctx.meta shared dict"
+    ],
+    "wrong": [
+      "Claims ensure_object 'never replaces an existing match' and, when a nearer obj has a different type, just returns the ancestor's object; this ignores that if the ancestor match is absent it overwrites the current ctx.obj (clobbering an unrelated object). The stated ancestor-case is correct, but the omission of overwrite makes 'never replaces' misleading (it replaces a non-matching obj on self)."
+    ],
+    "reason": "The main propagation site (Context.__init__ lines 374-378) and the find/ensure semantics are correct, including innermost assignment and reference-copy behavior. However, the answer names only Context.__init__ as the \"where\" and omits the other sites that supply parent= (make_context, Group.invoke, _make_sub_context), and it omits key specifics like clobbering of a non-matching existing obj. The \"never replaces an existing match\" claim is technically fine, but the answer leaves out the overwrite of a non-matching obj.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "**Propagation**\n\nIt happens in `Context.__init__` at `src/click/core.py:374-378`:\n\n```python\nif obj is None and parent is not None:\n    obj = parent.obj\nself.obj = obj\n```\n\nWhen a group invokes a subcommand, the subcommand's `Context` is created with `parent=<group ctx>`. Unless an explicit `obj=` is passed, it copies the parent's `obj` at that moment. This is a reference copy, not a deep copy. A subcommand sees the same object the group set, for example via `ctx.obj = ...` or `@click.group()` with `obj=` passed to `main`/`make_context`.\n\nTwo consequences follow from the copy being made at construction time:\n- The group must set `ctx.obj` before it invokes the subcommand. The subcommand context is created after the group callback runs, so this normally works.\n- Reassigning `ctx.obj` in a child does not affect the parent, because the child only rebinds its own attribute. Mutating the shared object does affect the parent.\n\n**`find_object` vs `ensure_object`**\n\nBoth are in `src/click/core.py`.\n\n- `Context.find_object` (line 736) walks from the current context up through `parent` links. It returns the first `node.obj` that is an `isinstance` of `object_type`, or `None` if none matches. It is read-only.\n- `Context.ensure_object` (line 748) calls `find_object`. If that returns `None`, it creates `object_type()` and assigns it to `self.obj`, which is the innermost (current) context only. It then returns the object. It never replaces an existing match, and it does not put the new object on the parent or root.\n\nSince `find_object` checks the type, it can find an object in an ancestor even when a nearer `obj` has a different type. `ensure_object` in that case returns the ancestor's object and does not create a new one.",
+  "is_error": false
+}

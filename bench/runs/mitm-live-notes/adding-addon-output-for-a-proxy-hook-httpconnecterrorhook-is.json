@@ -1,0 +1,101 @@
+{
+  "id": "adding-addon-output-for-a-proxy-hook-httpconnecterrorhook-is",
+  "title": "Adding addon output for a proxy hook: HttpConnectErrorHook is not the error hook",
+  "kind": "gotcha",
+  "answers": [
+    "Why does mitmdump print nothing for failed CONNECT?",
+    "Which hook fires when HTTP CONNECT fails?",
+    "How do I make Dumper print a new hook event?"
+  ],
+  "body": "Failed CONNECT fires `HttpConnectErrorHook` (addon method name `http_connect_error`), defined in `proxy/layers/http/_hooks.py`, NOT `HttpErrorHook` (`error`). Its docstring: `flow.error` is not guaranteed to be set.\n- `addons/dumper.py:Dumper` only had `response`/`error`, so CONNECT failures were silent. Fix: add `Dumper.http_connect_error` mirroring `error` (`if self.match(f): self.echo_flow(f)`).\n- Test: `test/mitmproxy/addons/test_dumper.py` has a test that calls `d.error(tflow.tflow(err=True))` with `sio` capture; add `d.http_connect_error(...)` calls there.\n- CHANGELOG.md: add a bullet under `## Unreleased: mitmproxy next` (no PR ref needed).\n- Environment: `python` was not on PATH in the shell; use the edit tool.",
+  "applies": "Applies to HTTP CONNECT failures; other protocols have their own *_error hooks.",
+  "tags": [
+    "dumper",
+    "hooks",
+    "connect"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/dumper.py",
+      "symbol": "Dumper.error",
+      "hash": "sha256:9e7ba40cce4bccbb94df92c6",
+      "line": 293,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/_hooks.py",
+      "symbol": "HttpConnectErrorHook",
+      "hash": "sha256:3d3ca66af1a51bd3df82ef8c",
+      "line": 114,
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/addons/test_dumper.py",
+      "hash": "sha256:ecded49996f1129da7f40b99",
+      "missing": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "hash": "sha256:a53320f98f26950b6b9382d7",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/dumper.py",
+      "symbol": "Dumper",
+      "hash": "sha256:58fc1817f27a9dc1019a9a9e",
+      "line": 48,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/dumper.py",
+      "symbol": "Dumper.http_connect_error",
+      "hash": "sha256:17e7a1bbecaa01b73e223636",
+      "line": 297,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/test/tflow.py",
+      "symbol": "tflow",
+      "hash": "sha256:ded026e4dff17fa1792e1521",
+      "line": 160,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "223aef18-c941-47e5-b99b-2654d8518d30"
+  },
+  "created": "2026-09-26T19:48:58.341Z",
+  "verified": "2026-09-26T19:48:58.341Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "stale",
+  "uses": 0,
+  "related": [
+    "failed-connect-requests-are-printed-via-dumper-http-connect-",
+    "mitmdump-flow-printing-is-the-dumper-addon-response-error-ho"
+  ],
+  "stale": {
+    "since": "2026-09-26T19:49:01.443Z",
+    "changed": [
+      {
+        "path": "test/mitmproxy/addons/test_dumper.py",
+        "reason": "file changed"
+      },
+      {
+        "path": "CHANGELOG.md",
+        "reason": "file changed"
+      },
+      {
+        "path": "mitmproxy/addons/dumper.py",
+        "symbol": "Dumper",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "mitmproxy/addons/dumper.py",
+        "symbol": "Dumper.http_connect_error",
+        "reason": "symbol not found"
+      }
+    ]
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "id": "PR106491-hard-nocache-2",
+  "task": "PR106491-hard",
+  "area": "frontend",
+  "arm": "nocache",
+  "rep": 2,
+  "model": "sonnet",
+  "session": "10a3cfd9-f75a-4713-b5c0-aa98d9315c10",
+  "turns": 17,
+  "wall_ms": 45339,
+  "api_ms": 43575,
+  "cost": 0.3295618,
+  "in_tokens": 953613,
+  "out_tokens": 5115,
+  "tools": {
+    "calls": 16,
+    "byTool": {
+      "Bash": 16
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 15,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "samples": [
+      1,
+      0.5,
+      1
+    ],
+    "reasons": [
+      "Both patches change the same gate in chartAlternativesLogic. Each removes the editMode requirement, so the gallery shows in view mode and the dropdown no longer replaces it there. Edit-mode behavior is preserved. The differences are at the edges: how users without edit permission are handled, the dashboard-context exclusion, and the unremoved editMode prop. None of these change the core behavior the request asked for.",
+      "The agent found the right gate, the `isEditableSurface` selector in `chartAlternativesLogic`, and removed the `editMode` requirement. The gallery now appears in view mode for the common case, and edit mode is unchanged. But the resulting gate differs from upstream (`!embedded && !inSharedMode && canEditInsight`) in two ways. The agent still excludes dashboard context, and it shows a disabled gallery to non-editors instead of the dropdown. That leaves the change partly different from what was merged.",
+      "The agent changed the right gate, the isEditableSurface selector in chartAlternativesLogic. It removed the editMode requirement, so canShowAlternatives is true in view mode and ChartAlternatives renders the gallery instead of the dropdown. Edit mode is unchanged. The agent differs from upstream at the edges. It still excludes dashboard-context insights. It shows non-editors a disabled gallery trigger rather than the dropdown. The core behaviour the request asks for is the same."
+    ],
+    "reason": "Both patches change the same gate in chartAlternativesLogic. Each removes the editMode requirement, so the gallery shows in view mode and the dropdown no longer replaces it there. Edit-mode behavior is preserved. The differences are at the edges: how users without edit permission are handled, the dashboard-context exclusion, and the unremoved editMode prop. None of these change the core behavior the request asked for.",
+    "mustHit": 1,
+    "mustTotal": 4,
+    "touched": [
+      "products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.test.tsx",
+      "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts"
+    ],
+    "criteria": {
+      "essential": 1,
+      "all": 1,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "`canShowAlternatives` no longer requires `editMode`: `!!featureFlags[...CHART_ALTERNATIVES] && isSupportedSurface && isTrends && !!query && !!trendsSource`, with `isSupportedSurface = !embedded && !inSharedMode && !isInDashboardContext`. `options` and `alternatives` are unchanged, so view mode gets the same options. I did not see the component, but it presumably branches on this selector."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "The old fallback to the `ChartFilter` dropdown was driven by `canShowAlternatives` being false, which was true whenever `editMode` was false. That gate is removed, so in view mode the gallery is chosen instead of the dropdown. The component is not shown, but the summary says it switches on this selector."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "`options`, `alternatives`, the `galleryOpen` reducers and the `selectChart` listener are untouched. Permission and disabled-reason checks moved from `canShowAlternatives` to `canSelectCharts`, so an editable user in edit mode gets the same result as before."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "The `selectChart` listener only requires `canSelectCharts`, a trends source, a valid option and a changed display. `canSelectCharts` no longer depends on `editMode`, so it is true in view mode. The listener then calls `updateQuerySource({ trendsFilter, breakdownFilter })`, the same path as edit mode."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Embedded, shared and dashboard-tile surfaces are still excluded by `isSupportedSurface`. The `canEditInsight` check was removed from the gate, so users without edit permission are no longer excluded. The author confirms that a viewer without edit permission \"still sees the gallery trigger, disabled\". `canSelectCharts` only adds `!editingDisabledReason`, so the gallery is shown disabled rather than hidden."
+        },
+        {
+          "id": "c6",
+          "verdict": "met",
+          "evidence": "`canShowAlternatives` still requires the `PRODUCT_ANALYTICS_CHART_ALTERNATIVES` flag, `isTrends`, `!!query` and `!!trendsSource`. Only the `editMode` and permission terms were removed."
+        },
+        {
+          "id": "c7",
+          "verdict": "met",
+          "evidence": "The `galleryOpen` reducer and the `openGallery`, `closeGallery` and `toggleGallery` actions do not depend on `editMode`. `openGallery` only closes the gallery if `!values.canSelectCharts`, which is true in view mode for editors. The component is not shown, but the same gallery component and logic serve both modes."
+        }
+      ]
+    }
+  },
+  "result": "The chart type gallery now shows in view mode as well as edit mode, in place of the dropdown. I haven't run the tests or typecheck, so none of this is verified.\n\nThe gate was in `products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts`. The gallery only appeared when `editMode` was true, because an `isEditableSurface` selector required it. Otherwise `ChartAlternatives` fell back to the plain `ChartFilter` dropdown.\n\n- **Gate:** I replaced `isEditableSurface` with `isSupportedSurface`. It now drops the `editMode` requirement and keeps the existing exclusions for embedded, shared and dashboard-tile contexts. `canShowAlternatives` uses it.\n- **Permissions:** a viewer without edit permission still sees the gallery trigger, disabled with the reason. `canSelectCharts` now checks `editingDisabledReason`, the same reason the old dropdown used.\n- **Cleanup:** I removed the now-unused `canEditInsight` connection and updated the typegen-style interfaces by hand.\n- **Feature flag:** the gallery still depends on the `PRODUCT_ANALYTICS_CHART_ALTERNATIVES` feature flag and on trends insights. With the flag off, or on other insight types, the dropdown remains.\n- **Test:** I added a test in `ChartAlternatives.test.tsx` that renders with `editMode={false}` and checks the gallery trigger appears.\n- **Edit mode:** edit-mode behaviour is unchanged.\n\nIf you'd rather people who can't edit keep the plain dropdown instead of a disabled gallery button, that's a small change to the same gate.",
+  "is_error": false,
+  "diff": "diff --git a/products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.test.tsx b/products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.test.tsx\nindex bf94e9c5c06..1692f1a166f 100644\n--- a/products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.test.tsx\n+++ b/products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.test.tsx\n@@ -111,6 +111,22 @@ describe('ChartAlternatives', () => {\n         expect(logic.values.galleryOpen).toBe(false)\n     })\n \n+    it('shows the gallery trigger in view mode', () => {\n+        setQuery(makeTrendsQuery())\n+        render(\n+            <Provider>\n+                <BindLogic logic={insightLogic} props={insightProps}>\n+                    <ChartAlternatives insightProps={insightProps} editMode={false} embedded={false} />\n+                </BindLogic>\n+            </Provider>\n+        )\n+        const logic = chartAlternativesLogic.findMounted({ editMode: false, embedded: false, ...insightProps })!\n+\n+        expect(logic.values.canShowAlternatives).toBe(true)\n+        expect(document.querySelector('[data-attr=\"chart-alternatives-all\"]')).toBeInTheDocument()\n+        logic.unmount()\n+    })\n+\n     it('mounts preview state with the chart control', () => {\n         setQuery(makeTrendsQuery())\n         alternativesLogic()\ndiff --git a/products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts b/products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts\nindex 1a5c64cab6e..573e206e8c0 100644\n--- a/products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts\n+++ b/products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts\n@@ -50,7 +50,6 @@ const optionForDisplay = (\n // Generated by kea-typegen. Update if you're an agent, ignore if you're human.\n export interface chartAlternativesLogicValues {\n     featureFlags: FeatureFlagsSet // featureFlagLogic\n-    canEditInsight: boolean // insightLogic\n     editingDisabledReason: null // insightLogic\n     isInDashboardContext: boolean // insightLogic\n     display: ChartDisplayType | null | undefined // insightVizDataLogic\n@@ -79,7 +78,7 @@ export interface chartAlternativesLogicValues {\n     embedded: boolean\n     galleryOpen: boolean\n     inSharedMode: boolean | undefined\n-    isEditableSurface: boolean\n+    isSupportedSurface: boolean\n     options: ChartDisplayOptionGroup[]\n     selectionDisabledReason: string | undefined\n     trendsSource: TrendsQuery | null\n@@ -148,22 +147,23 @@ export interface chartAlternativesLogicMeta {\n             options: ChartDisplayOptionGroup[],\n             currentDisplay: ChartDisplayType\n         ) => ChartDisplayOption | undefined\n-        isEditableSurface: (\n-            editMode: boolean | undefined,\n+        isSupportedSurface: (\n             embedded: boolean,\n             inSharedMode: boolean | undefined,\n-            isInDashboardContext: boolean,\n-            canEditInsight: boolean,\n-            editingDisabledReason: null\n+            isInDashboardContext: boolean\n         ) => boolean\n         canShowAlternatives: (\n             featureFlags: FeatureFlagsSet,\n-            isEditableSurface: boolean,\n+            isSupportedSurface: boolean,\n             isTrends: boolean,\n             query: Node<Record<string, any>> | null,\n             trendsSource: TrendsQuery | null\n         ) => boolean\n-        canSelectCharts: (canShowAlternatives: boolean, insightDataLoading: boolean) => boolean\n+        canSelectCharts: (\n+            canShowAlternatives: boolean,\n+            insightDataLoading: boolean,\n+            editingDisabledReason: null\n+        ) => boolean\n         selectionDisabledReason: (\n             canShowAlternatives: boolean,\n             insightDataLoading: boolean,\n@@ -188,7 +188,7 @@ export const chartAlternativesLogic = kea<chartAlternativesLogicType>([\n             featureFlagLogic,\n             ['featureFlags'],\n             insightLogic(props),\n-            ['canEditInsight', 'editingDisabledReason', 'isInDashboardContext'],\n+            ['editingDisabledReason', 'isInDashboardContext'],\n             insightVizDataLogic(props),\n             ['display', 'insightDataLoading', 'isSingleSeriesOutput', 'isTrends', 'query', 'querySource', 'series'],\n         ],\n@@ -265,49 +265,30 @@ export const chartAlternativesLogic = kea<chartAlternativesLogicType>([\n             (options: ChartDisplayOptionGroup[], currentDisplay: ChartDisplayType): ChartDisplayOption | undefined =>\n                 optionForDisplay(options, currentDisplay),\n         ],\n-        isEditableSurface: [\n-            (s) => [\n-                s.editMode,\n-                s.embedded,\n-                s.inSharedMode,\n-                s.isInDashboardContext,\n-                s.canEditInsight,\n-                s.editingDisabledReason,\n-            ],\n-            (\n-                editMode: boolean | undefined,\n-                embedded: boolean,\n-                inSharedMode: boolean | undefined,\n-                isInDashboardContext: boolean,\n-                canEditInsight: boolean,\n-                editingDisabledReason: null\n-            ): boolean =>\n-                !!editMode &&\n-                !embedded &&\n-                !inSharedMode &&\n-                !isInDashboardContext &&\n-                canEditInsight &&\n-                !editingDisabledReason,\n+        isSupportedSurface: [\n+            (s) => [s.embedded, s.inSharedMode, s.isInDashboardContext],\n+            (embedded: boolean, inSharedMode: boolean | undefined, isInDashboardContext: boolean): boolean =>\n+                !embedded && !inSharedMode && !isInDashboardContext,\n         ],\n         canShowAlternatives: [\n-            (s) => [s.featureFlags, s.isEditableSurface, s.isTrends, s.query, s.trendsSource],\n+            (s) => [s.featureFlags, s.isSupportedSurface, s.isTrends, s.query, s.trendsSource],\n             (\n                 featureFlags: FeatureFlagsSet,\n-                isEditableSurface: boolean,\n+                isSupportedSurface: boolean,\n                 isTrends: boolean,\n                 query: Node | null,\n                 trendsSource: TrendsQuery | null\n             ): boolean =>\n                 !!featureFlags[FEATURE_FLAGS.PRODUCT_ANALYTICS_CHART_ALTERNATIVES] &&\n-                isEditableSurface &&\n+                isSupportedSurface &&\n                 isTrends &&\n                 !!query &&\n                 !!trendsSource,\n         ],\n         canSelectCharts: [\n-            (s) => [s.canShowAlternatives, s.insightDataLoading],\n-            (canShowAlternatives: boolean, insightDataLoading: boolean): boolean =>\n-                canShowAlternatives && !insightDataLoading,\n+            (s) => [s.canShowAlternatives, s.insightDataLoading, s.editingDisabledReason],\n+            (canShowAlternatives: boolean, insightDataLoading: boolean, editingDisabledReason: null): boolean =>\n+                canShowAlternatives && !insightDataLoading && !editingDisabledReason,\n         ],\n         selectionDisabledReason: [\n             (s) => [s.canShowAlternatives, s.insightDataLoading, s.editingDisabledReason],\n",
+  "distill": null
+}

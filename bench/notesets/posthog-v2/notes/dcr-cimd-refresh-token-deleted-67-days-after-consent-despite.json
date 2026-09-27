@@ -1,0 +1,46 @@
+{
+  "id": "dcr-cimd-refresh-token-deleted-67-days-after-consent-despite",
+  "title": "DCR/CIMD refresh token deleted ~67 days after consent despite daily refreshes",
+  "kind": "fix",
+  "answers": [
+    "MCP client (Claude Code, Cursor, v0) must re-authorize every ~67 days",
+    "refresh fails with invalid_grant even though client refreshes daily",
+    "OAuth refresh token deleted by cleanup job while still in use"
+  ],
+  "body": "Symptom: Users of DCR/CIMD-registered MCP clients get `invalid_grant` on refresh about 67 days after first consent, even if they refresh every day.\nRoot cause: posthog/api/oauth/views.py `_save_bearer_token` (non-rotating branch) inserted a new access token per refresh but left OAuthRefreshToken.access_token linked to the authorization-code AT. The daily cleanup job (products/growth/dags/oauth.py) deletes an RT once its linked AT expired >60 days ago (AT lives 7 days => 67 days).\nFix pattern: In the same transaction/per-connection lock as the insert, repoint the RT's `access_token` FK to the newly created AT (`OAuthRefreshToken.objects.filter(pk=...).update(access_token=access_token)`), so RT lifetime tracks last refresh. Avoided a last-used column + migration.\nConstraints: Applies to non-rotating refresh (DCR/CIMD). Rotating clients already create a new RT. Side effects: scopes for next refresh are read from the linked AT so narrowed scopes persist; the old AT stays valid until expiry and is then cleaned up as standalone.",
+  "applies": "posthog/api/oauth/views.py non-rotating refresh path and the OAuth cleanup dag",
+  "tags": [
+    "oauth",
+    "dcr",
+    "cimd",
+    "refresh-token"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/oauth/views.py",
+      "symbol": "_save_bearer_token",
+      "hash": "sha256:76ad4fd0e26e315c8a62c444",
+      "line": 952,
+      "missing": false
+    },
+    {
+      "path": "products/growth/dags/oauth.py",
+      "hash": "sha256:90eab7374f4db61bc10285d8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105394"
+  },
+  "created": "2026-09-27T00:04:28.085Z",
+  "verified": "2026-09-27T00:04:28.085Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cleanup-job-and-dot-scope-lookup-depend-on-rt-access-token-l",
+    "oauth-revoke-must-verify-token-belongs-to-requesting-client-"
+  ]
+}

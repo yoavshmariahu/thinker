@@ -1,0 +1,48 @@
+{
+  "id": "augment-usage-errors-attaches-ctx-param-to-errors",
+  "title": "augment_usage_errors attaches ctx/param to errors",
+  "kind": "location",
+  "answers": [
+    "Why do parse errors include usage line and param name?",
+    "Where is ctx added to BadParameter/UsageError?"
+  ],
+  "body": "core.py:augment_usage_errors is a context manager that catches BadParameter/UsageError, fills missing e.ctx (and e.param for BadParameter), and re-raises. Used in Parameter.handle_parse_result (value consumption, type conversion, param callbacks) and Context.invoke (`with augment_usage_errors(self): with ctx: return callback(...)`). Raising these without ctx in callbacks/types is therefore fine.",
+  "tags": [
+    "errors",
+    "context"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "augment_usage_errors",
+      "hash": "sha256:b2efe9fa7aee04aca13220de",
+      "line": 119,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.invoke",
+      "hash": "sha256:9f15352ee7a81488d14abf27",
+      "line": 853,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.handle_parse_result",
+      "hash": "sha256:3e8dfe3b68df93d477a3721c",
+      "line": 2677,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "15a441b0-429a-4e64-9a20-777f0e12b8c3"
+  },
+  "created": "2026-09-26T09:14:01.668Z",
+  "verified": "2026-09-26T09:14:01.668Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 8,
+  "lastUsed": "2026-09-26T09:29:25.274Z"
+}

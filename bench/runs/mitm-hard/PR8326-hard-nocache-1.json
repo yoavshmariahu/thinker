@@ -1,0 +1,66 @@
+{
+  "id": "PR8326-hard-nocache-1",
+  "task": "PR8326-hard",
+  "area": "proxy-http",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "c254c4a6-2b0f-4a8d-9c3b-2e46994e810d",
+  "turns": 5,
+  "wall_ms": 12948,
+  "api_ms": 12557,
+  "cost": 0.04503600000000001,
+  "in_tokens": 114471,
+  "out_tokens": 1053,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 4
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 4,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [
+      "No test added (not required)",
+      "No changelog entry (irrelevant to behavior)"
+    ],
+    "wrong": [],
+    "reason": "The agent changed the same place as upstream, the authority construction in start_handshake. It brackets IPv6 literals and leaves other hosts IDNA-encoded. It uses `\":\" in host` rather than ipaddress parsing. A hostname cannot contain a colon, so the two checks give the same result for real addresses. The one difference is a scoped IPv6 address with a zone ID (e.g. `fe80::1%eth0`), which ipaddress may reject on older Pythons but which this check still brackets. The Host header reuses the same authority, so it is bracketed too, as in upstream.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the same place as the merged patch, the authority construction in start_handshake. Both bracket IPv6 literals, and both leave other hosts IDNA-encoded as before. The Host header reuses the same authority, so it is bracketed too. The agent detects IPv6 with `\":\" in host`, while the merged patch uses ipaddress parsing. A hostname cannot contain a colon, so the two are equivalent in practice. Any address with a zone id, such as `fe80::1%eth0`, would be bracketed by both approaches or by neither. The agent added no test, but tests do not affect the score.",
+      "The agent edited the same code in _upstream_proxy.py and brackets IPv6 hosts in the CONNECT authority and Host header, as the merged patch does. Detecting IPv6 by ':' instead of ipaddress.ip_address is equivalent for real inputs. No test was added, which doesn't affect the score.",
+      "The agent changed the same place as the merged patch, `start_handshake` in `_upstream_proxy.py`. It brackets IPv6 hosts in the authority, which also feeds the `Host` header. It detects IPv6 with `\":\" in host` where upstream uses `ipaddress` parsing. The two differ only for hosts that contain a colon but are not valid IPv6, and those wouldn't be valid hostnames anyway. Behavior for real IPv6 literals and for hostnames is the same as upstream."
+    ]
+  },
+  "result": "In upstream proxy mode, the CONNECT authority now wraps IPv6 literal targets in brackets, e.g. `[::1]:443`. I haven't run any tests, and I didn't add one.\n\nThe change is in `mitmproxy/proxy/layers/http/_upstream_proxy.py`, where `start_handshake` builds the authority. Any host containing `:` is treated as an IPv6 literal and gets brackets. Other hosts are IDNA-encoded exactly as before. The bracketed authority is also what goes into the `Host` header when `http_connect_send_host_header` is on, since that header reuses the same value.\n\nThe existing CONNECT tests in `test/mitmproxy/proxy/layers/http/test_http.py` only use hostnames, so they shouldn't be affected.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/proxy/layers/http/_upstream_proxy.py b/mitmproxy/proxy/layers/http/_upstream_proxy.py\nindex f40b26ce6..b26824bae 100644\n--- a/mitmproxy/proxy/layers/http/_upstream_proxy.py\n+++ b/mitmproxy/proxy/layers/http/_upstream_proxy.py\n@@ -50,9 +50,13 @@ class HttpUpstreamProxy(tunnel.TunnelLayer):\n             return (yield from super().start_handshake())\n         assert self.conn.address\n         flow = http.HTTPFlow(self.context.client, self.tunnel_connection)\n-        authority = (\n-            self.conn.address[0].encode(\"idna\") + f\":{self.conn.address[1]}\".encode()\n-        )\n+        host = self.conn.address[0]\n+        if \":\" in host:\n+            # IPv6 literals must be bracketed in the authority.\n+            host_bytes = b\"[\" + host.encode() + b\"]\"\n+        else:\n+            host_bytes = host.encode(\"idna\")\n+        authority = host_bytes + f\":{self.conn.address[1]}\".encode()\n         headers = http.Headers()\n         if self.context.options.http_connect_send_host_header:\n             headers.insert(0, b\"Host\", authority)\n",
+  "grade0": {
+    "score": 0.97,
+    "missing": [
+      "No test added (not required)",
+      "No changelog entry (irrelevant to behavior)"
+    ],
+    "wrong": [],
+    "reason": "The agent changed the same place as upstream, the authority construction in start_handshake. It brackets IPv6 literals and leaves other hosts IDNA-encoded. It uses `\":\" in host` rather than ipaddress parsing. A hostname cannot contain a colon, so the two checks give the same result for real addresses. The one difference is a scoped IPv6 address with a zone ID (e.g. `fe80::1%eth0`), which ipaddress may reject on older Pythons but which this check still brackets. The Host header reuses the same authority, so it is bracketed too, as in upstream.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/proxy/layers/http/_upstream_proxy.py"
+    ]
+  }
+}

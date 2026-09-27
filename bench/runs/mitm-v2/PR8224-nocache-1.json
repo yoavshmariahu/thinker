@@ -1,0 +1,42 @@
+{
+  "id": "PR8224-nocache-1",
+  "task": "PR8224",
+  "area": "web-app",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "83ec1595-ae96-42af-b0bd-52e7a0302194",
+  "turns": 8,
+  "wall_ms": 16004,
+  "api_ms": 15643,
+  "cost": 0.0886126,
+  "in_tokens": 136861,
+  "out_tokens": 1381,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 4,
+      "Edit": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 4,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's backend and frontend changes match the merged patch. It set xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and made the getCookie call in utils.ts read \"_mitmproxy_xsrf\". The only differences are an added changelog entry and the missing explanatory comment, and neither affects behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/tools/web/app.py",
+      "web/src/js/utils.ts"
+    ]
+  },
+  "result": "mitmweb now uses a `_mitmproxy_xsrf` cookie for XSRF instead of `_xsrf`, so a stale HttpOnly `_xsrf` cookie in the browser no longer breaks option updates. I haven't run any tests, per your instructions.\n\n- **Backend:** in `mitmproxy/tools/web/app.py` I added `xsrf_cookie_name=\"_mitmproxy_xsrf\"` to the `Application` settings, next to `xsrf_cookies=True`.\n- **Frontend:** in `web/src/js/utils.ts`, `fetchApi` now reads `_mitmproxy_xsrf` before sending `X-XSRFToken`.\n- **Changelog:** I added an entry to `CHANGELOG.md`.\n\nI searched `test` and `web/src` for other `_xsrf` references and found none, so I didn't add or change any tests.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..bbefa09ca 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmweb: Rename the XSRF cookie to `_mitmproxy_xsrf` to recover sessions broken by a stale `_xsrf` cookie.\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..b18662dfd 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -925,6 +925,7 @@ class Application(tornado.web.Application):\n             template_path=os.path.join(os.path.dirname(__file__), \"templates\"),\n             static_path=os.path.join(os.path.dirname(__file__), \"static\"),\n             xsrf_cookies=True,\n+            xsrf_cookie_name=\"_mitmproxy_xsrf\",\n             xsrf_cookie_kwargs=dict(samesite=\"Strict\"),\n             cookie_secret=secrets.token_bytes(32),\n             debug=debug,\ndiff --git a/web/src/js/utils.ts b/web/src/js/utils.ts\nindex 7e76df609..89969f55c 100644\n--- a/web/src/js/utils.ts\n+++ b/web/src/js/utils.ts\n@@ -78,7 +78,7 @@ function getCookie(name) {\n }\n \n let xsrf = () => {\n-    const cached = getCookie(\"_xsrf\");\n+    const cached = getCookie(\"_mitmproxy_xsrf\");\n     xsrf = () => cached;\n     return xsrf();\n };\n"
+}

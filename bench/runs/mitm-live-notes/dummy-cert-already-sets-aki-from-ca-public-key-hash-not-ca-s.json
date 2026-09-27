@@ -1,0 +1,75 @@
+{
+  "id": "dummy-cert-already-sets-aki-from-ca-public-key-hash-not-ca-s",
+  "title": "dummy_cert already sets AKI from CA public key hash, not CA SKI",
+  "kind": "gotcha",
+  "answers": [
+    "How is AuthorityKeyIdentifier set on leaf certs?",
+    "Does mitmproxy leaf cert have SKI?",
+    "Where to change AKI in generated certs?"
+  ],
+  "body": "- `mitmproxy/certs.py:dummy_cert` already added an AKI via `x509.AuthorityKeyIdentifier.from_issuer_public_key(cacert.public_key())` (SHA-1 of CA pubkey), under an RFC 5280 4.2.1.1 comment.\n- That only equals the CA's SKI if the CA computed SKI the same way (mitmproxy's `create_ca` does; user-supplied CAs may not). Fix: `from_issuer_subject_key_identifier(ca_ski_ext.value)` with fallback to the hash form when the CA has no SKI.\n- Do NOT add a leaf SKI equal to the CA's (SChannel issue 6494, code comment).\n- Test: `test/mitmproxy/test_certs.py:TestDummyCert.test_with_ca` (uses `tstore.default_ca._cert`) can compare the leaf AKI `key_identifier` with the CA SKI `.digest`.",
+  "applies": "Only for leaf certs from dummy_cert; create_ca sets SKI on the CA itself.",
+  "tags": [
+    "x509",
+    "aki",
+    "ski"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/certs.py",
+      "symbol": "dummy_cert",
+      "hash": "sha256:0cea4695e4a0d7882132e6f8",
+      "line": 310,
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/test_certs.py",
+      "symbol": "TestDummyCert",
+      "hash": "sha256:35c40ecdcae02d9c33765351",
+      "line": 142,
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/test_certs.py",
+      "symbol": "TestDummyCert.test_with_ca",
+      "hash": "sha256:4aa4ca250a3adcc6964b178e",
+      "line": 143,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "5640c93e-5d01-4f56-8d3f-103ddb3c83db"
+  },
+  "created": "2026-09-26T19:50:25.749Z",
+  "verified": "2026-09-26T19:50:25.749Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "stale",
+  "uses": 0,
+  "related": [
+    "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-",
+    "certstore-leaf-cert-cache-keys-lookup-order-eviction",
+    "ca-cert-store-location-creation-and-loading"
+  ],
+  "stale": {
+    "since": "2026-09-26T19:50:28.862Z",
+    "changed": [
+      {
+        "path": "mitmproxy/certs.py",
+        "symbol": "dummy_cert",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "test/mitmproxy/test_certs.py",
+        "symbol": "TestDummyCert",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "test/mitmproxy/test_certs.py",
+        "symbol": "TestDummyCert.test_with_ca",
+        "reason": "symbol body changed"
+      }
+    ]
+  }
+}

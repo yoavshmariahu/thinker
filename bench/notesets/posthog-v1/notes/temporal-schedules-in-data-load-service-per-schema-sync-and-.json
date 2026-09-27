@@ -1,0 +1,77 @@
+{
+  "id": "temporal-schedules-in-data-load-service-per-schema-sync-and-",
+  "title": "Temporal schedules in data_load service (per-schema sync and per-source CDC)",
+  "kind": "callpath",
+  "answers": [
+    "How are external data sync schedules created?",
+    "How is the CDC extraction schedule scheduled/paused?",
+    "What is the CDC schedule id and interval?"
+  ],
+  "body": "All in `products/data_warehouse/backend/logic/data_load/service.py`:\n- Per-schema: `get_sync_schedule` (offset from `sync_time_of_day` else deterministic jitter seeded by schema id) → `to_temporal_schedule` (starts workflow `external-data-job`, workflow id = schema id, overlap SKIP, paused = `not should_sync`) → `sync_external_data_job_workflow` (create or update on ScheduleAlreadyRunningError).\n- `pause_/unpause_external_data_schedule` swallow NOT_FOUND; `bulk_*` variants use `_BULK_SCHEDULE_CONCURRENCY`=100.\n- CDC is one schedule per SOURCE: id `cdc-extraction-{source_id}` (`_get_cdc_extraction_schedule_id`), interval = `cdc_min_interval` (min sync_frequency_interval of active CDC schemas, default `CDC_DEFAULT_INTERVAL` 1h), built by `get_cdc_extraction_schedule`, (re)synced by `sync_cdc_extraction_schedule` (deleted if source type lacks CDC or no active CDC schemas). Pause via `pause_cdc_extraction_schedule`; does not stop in-flight run.\n- `ensure_cdc_slot_cleanup_schedule` = global hourly `cdc-slot-cleanup-global`. Discover schemas every `DISCOVER_SCHEMAS_INTERVAL` (6h). Feature gate: `is_cdc_enabled_for_team` (flag `dwh-postgres-cdc`).\n- Workflows: `warehouse_sources/backend/temporal/data_imports/external_data_job.py:ExternalDataJobWorkflow`, `cdc/workflows.py` (`CDCExtractionWorkflow`, `CDCSlotCleanupWorkflow`), `discover_schemas_workflow.py`.",
+  "tags": [
+    "schedule",
+    "cdc",
+    "temporal"
+  ],
+  "deps": [
+    {
+      "path": "products/data_warehouse/backend/logic/data_load/service.py",
+      "symbol": "sync_cdc_extraction_schedule",
+      "hash": "sha256:a2a73c51edc366cedb917177",
+      "line": 508,
+      "missing": false
+    },
+    {
+      "path": "products/data_warehouse/backend/logic/data_load/service.py",
+      "symbol": "to_temporal_schedule",
+      "hash": "sha256:681458a53a2302e9cd069c4f",
+      "line": 100,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/cdc/workflows.py",
+      "hash": "sha256:c85621cbc7d9d43bf4c9f66b",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/external_data_job.py",
+      "symbol": "ExternalDataJobWorkflow",
+      "hash": "sha256:ac739ca59f5ea75c977a1498",
+      "line": 749,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/discover_schemas_workflow.py",
+      "hash": "sha256:9bd61d53939116238d16ee3e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "28c9b241-3689-4e9e-a9ce-5bcb73623a52"
+  },
+  "created": "2026-09-26T20:29:19.033Z",
+  "verified": "2026-09-26T20:29:19.033Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 12,
+  "related": [
+    "marking-a-cdc-source-broken-pausing-schemas"
+  ],
+  "lastUsed": "2026-09-27T00:29:04.608Z",
+  "servedIn": [
+    "075bc015-05d2-43cd-863b-d22c9a868902",
+    "cf1c9e08-5e6f-4805-a931-6ede3643a6d6",
+    "dc4ec292-78d0-494e-aad1-52c00865e3f7",
+    "5a709b0a-89d1-4c20-9e1b-c154e331cdd0",
+    "f8db27e1-d0ea-4cbb-9a42-50d4486c7a9d",
+    "f3fc1bca-d141-4044-9012-e11e388d0f68",
+    "49dc4103-6b11-43fc-9ce9-046f7a3ab6c2",
+    "01db14f7-62e4-4cf6-b1a0-b1d657777c8b",
+    "1c48aea8-114e-4241-a5d7-bd0a0bf2dc63",
+    "d45c8288-7487-4865-b76f-f07c5338bf77",
+    "e488c56a-9e0b-4f41-bd23-623060841051",
+    "b33ef0fc-fb51-488b-9939-9c47612ddd42"
+  ]
+}

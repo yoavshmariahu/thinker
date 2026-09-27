@@ -1,0 +1,64 @@
+{
+  "id": "bing-ads-report-streaming-generator-lifetime-bom-and-lazines",
+  "title": "Bing Ads report streaming: generator lifetime, BOM and laziness pitfalls",
+  "kind": "gotcha",
+  "answers": [
+    "Why is the Bing Ads reporting manager not created when get_performance_report is called?",
+    "BOM appears in first column name of Bing Ads report",
+    "Testing generator-based Bing Ads report functions"
+  ],
+  "body": "`iter_report_row_pages` (bing_ads/utils.py) and `BingAdsClient.get_performance_report` (bing_ads/client.py) are generators now.\n- Nothing runs (manager creation, SDK working dir, download) until the generator is drained; tests must wrap calls in `list(...)` (see tests/test_bing_ads_client.py).\n- The `yield from` sits inside the SDK working directory and inside the try, so the SDK dir lives for the whole read and mid-download faults still go through `_wrap_with_fault_detail`.\n- The temp dir lives as long as iteration; an abandoned iterator must be closed.\n- The BOM is stripped by decoding with `utf-8-sig` in `io.TextIOWrapper(..., newline=\"\")` over `zip_file.open`. There is no manual prefix strip, so do not decode with plain utf-8 or the first column becomes `﻿TimePeriod`.\n- `iter_csv_row_pages` must not drain its source before yielding; `test_iter_csv_row_pages_reads_lazily` guards this.\n- `download_file` returning None still means empty report (yield nothing).",
+  "applies": "Editing or testing bing_ads/utils.py and client.py report download/parse path.",
+  "tags": [
+    "bing-ads",
+    "generators",
+    "csv",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/utils.py",
+      "symbol": "iter_report_row_pages",
+      "hash": "sha256:0d875414979128e46904de08",
+      "line": 212,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/client.py",
+      "symbol": "get_performance_report",
+      "hash": "sha256:d0d65d61f29b88558267653e",
+      "line": 216,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/tests/test_bing_ads.py",
+      "hash": "sha256:c4a04722d7920fc8edba2578",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/tests/test_bing_ads_client.py",
+      "hash": "sha256:70632ad928d5ef6baee257cd",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/client.py",
+      "symbol": "BingAdsClient.get_performance_report",
+      "hash": "sha256:d0d65d61f29b88558267653e",
+      "line": 216,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105434"
+  },
+  "created": "2026-09-27T00:02:36.465Z",
+  "verified": "2026-09-27T00:02:36.465Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "warehouse-source-resources-must-yield-bounded-pages-never-on"
+  ]
+}

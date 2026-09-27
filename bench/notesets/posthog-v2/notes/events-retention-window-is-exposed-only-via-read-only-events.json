@@ -1,0 +1,58 @@
+{
+  "id": "events-retention-window-is-exposed-only-via-read-only-events",
+  "title": "Events retention window is exposed only via read-only /events_retention/ endpoint, never as project fields",
+  "kind": "invariant",
+  "answers": [
+    "Where do I get the events retention window for a project?",
+    "Can I add event_retention_months back to the projects API?",
+    "How does the retention banner know the retention window?"
+  ],
+  "body": "The window is served by `EventsRetentionViewSet.list` in products/product_analytics/backend/presentation/events_retention.py at `GET /api/projects/:id/events_retention/`, returning `retention_months`, `retained_from`, `docs_url`.\n- Do not put the window back on the project/team serializer: agents enumerating `/api/projects/:id` read it as a setting and file tickets to change it (that is why PR 100207 fields were removed).\n- Source of truth stays `Team.event_retention_months`, read through `events_retention_months_for_team` in posthog/models/team/event_retention.py (HogQL floor and ClickHouse ETL read it there too).\n- Endpoint is a `viewsets.ViewSet` with only `list`, so writes return 405; keep it read-only.\n- `retained_from` must be computed in the project's timezone via `events_retention_floor_date(team, months)` (test covers UTC and Pacific/Auckland).",
+  "applies": "Events retention API and anything surfacing the retention window to callers or the UI",
+  "tags": [
+    "retention",
+    "api",
+    "product_analytics"
+  ],
+  "deps": [
+    {
+      "path": "products/product_analytics/backend/presentation/events_retention.py",
+      "symbol": "EventsRetentionViewSet",
+      "hash": "sha256:28655351973fed1c27bc0fed",
+      "line": 32,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/team/event_retention.py",
+      "symbol": "events_retention_floor_date",
+      "hash": "sha256:caf1a830c4e84f1aabe0e9aa",
+      "line": 74,
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/backend/tests/api/test_events_retention.py",
+      "hash": "sha256:1b2231c3ea56673cf9180ac8",
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/backend/presentation/events_retention.py",
+      "symbol": "EventsRetentionViewSet.list",
+      "hash": "sha256:4f6def02e12e73e4dd5be5a0",
+      "line": 47,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105350"
+  },
+  "created": "2026-09-27T00:06:11.107Z",
+  "verified": "2026-09-27T00:06:11.107Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "return-200-with-null-fields-for-not-applicable-state-not-404"
+  ]
+}

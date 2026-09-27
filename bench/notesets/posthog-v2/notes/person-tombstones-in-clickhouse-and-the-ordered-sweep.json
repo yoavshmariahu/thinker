@@ -1,0 +1,53 @@
+{
+  "id": "person-tombstones-in-clickhouse-and-the-ordered-sweep",
+  "title": "Person tombstones in ClickHouse and the ordered sweep",
+  "kind": "invariant",
+  "answers": [
+    "How are deleted persons tombstoned in ClickHouse?",
+    "Why does the cleanup sweep delete in two passes?",
+    "How is a revived person handled?"
+  ],
+  "body": "- Soft delete: `_delete_person` (posthog/models/person/util.py) writes `is_deleted=True` at version+100; `split_person` uses +101 to override deletes; plugin-server generateKafkaPersonUpdateMessage must stay in sync with the offset. `delete_person` also tombstones each distinct id via `_delete_ch_distinct_id`.\n- Deleted-ness = `argMax(is_deleted, version)`, never 'any row deleted' (`_LIVE_PERSONS_BASE` in models/person/deletion.py; `DeletedPersonsTable` in dags/clickhouse_cleanup.py).\n- Revive (deletion.py `reset_all_deleted_person_distinct_ids`, `_reset_person_in_clickhouse`): raise versions +100 (default 2500) and raise PG floors via SetPersonVersionFloor/SetPersonDistinctIdVersionFloor (never lower).\n- Sweep `_run_ordered_delete`: first delete versions below snapshot max (`below_max`), then max; never merged, bounded by snapshot max_version.\n- Sweep uses run_id-scoped snapshot tables (posthog/clickhouse/cleanup_snapshots); `_require_snapshot_intact` fails if 14-day TTL shrank one; `recheck_revived_persons` runs before distinct id and person deletes.",
+  "tags": [
+    "tombstone",
+    "clickhouse"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/person/deletion.py",
+      "hash": "sha256:fbe9c9b95a1452268c65b287",
+      "missing": false
+    },
+    {
+      "path": "posthog/dags/clickhouse_cleanup.py",
+      "symbol": "_run_ordered_delete",
+      "hash": "sha256:fdd125c88b7475fa1f894248",
+      "line": 965,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/person/util.py",
+      "hash": "sha256:2d0b74f8ec4883d8163b9b1d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "56b7f00e-a572-4ca0-b57b-9c0f9120117f"
+  },
+  "created": "2026-09-27T00:23:53.906Z",
+  "verified": "2026-09-27T00:23:53.906Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "clickhouse-person-tombstones-and-repair-utilities"
+  ],
+  "servedIn": [
+    "231a9dd0-7188-4586-8849-6e6b866d19a4",
+    "adcee338-64ea-4441-8bfb-db43173e8dd9",
+    "3c34e426-2e6a-494a-a22d-0f17c68ea8ac",
+    "5c8e7539-6b19-4050-88bd-69c110e19dd7"
+  ]
+}

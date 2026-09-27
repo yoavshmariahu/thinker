@@ -1,0 +1,41 @@
+{
+  "id": "PR8196-nocache-0",
+  "task": "PR8196",
+  "area": "utils",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "34da535a-90d9-48be-8f14-d50ad686967a",
+  "turns": 4,
+  "wall_ms": 9276,
+  "api_ms": 8938,
+  "cost": 0.0679632,
+  "in_tokens": 68146,
+  "out_tokens": 867,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 1,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 1,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to strutils.py is identical to the merged patch: `range(100, min(104, len(s)))`. The test addition is equivalent, and it asserts a result the merged test doesn't. The merged patch also adds a changelog entry, which doesn't affect behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ]
+  },
+  "result": "`is_mostly_bin` no longer raises `IndexError` on 101–103 byte inputs where byte 100 is a continuation byte. I haven't run the tests, as you asked.\n\n**The fix, in `mitmproxy/utils/strutils.py`:** the lookahead loop was `range(100, 104)`. It is now `range(100, min(104, len(s)))`, so it never reads past the end of the input. If every byte in the shortened window is a continuation byte, the existing `for/else` still falls back to `s[:100]`.\n\n**The test, in `test/mitmproxy/utils/test_strutils.py`:** I added a loop in `test_is_mostly_bin` over tails of 1, 2 and 3 `\\x80` bytes after 100 `a` bytes (lengths 101–103). Each case asserts the result is `False`, since the 100 `a` bytes are mostly printable ASCII. Before the fix these three cases raised `IndexError`.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..9c5cb7273 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -132,7 +132,7 @@ def is_mostly_bin(s: bytes) -> bool:\n     # Cut off at ~100 chars, but do it smartly so that if the input is UTF-8, we don't\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n-        for cut in range(100, 104):\n+        for cut in range(100, min(104, len(s))):\n             is_continuation_byte = (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..82d4a7c26 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,9 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # short tails must not read past the end of the input\n+    for tail in (1, 2, 3):\n+        assert not strutils.is_mostly_bin(b\"a\" * 100 + b\"\\x80\" * tail)\n \n \n def test_is_xml():\n"
+}

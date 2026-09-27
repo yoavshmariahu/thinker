@@ -1,0 +1,47 @@
+{
+  "id": "PR8397-nocache-1",
+  "task": "PR8397",
+  "area": "encoding",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "4706cf17-7363-4ada-8d39-e1088eba60dc",
+  "turns": 9,
+  "wall_ms": 25529,
+  "api_ms": 24955,
+  "cost": 0.1196694,
+  "in_tokens": 191065,
+  "out_tokens": 2556,
+  "tools": {
+    "calls": 8,
+    "byTool": {
+      "Bash": 6,
+      "bash": 1,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.9,
+    "missing": [
+      "uv.lock was not updated (lockfile regeneration)",
+      "CHANGELOG entry not added (irrelevant to behavior)"
+    ],
+    "wrong": [
+      "backports.zstd version bounds (>=1.0.0,<=1.3.0) are guessed and differ from upstream (1.7.0), a minor deviation that doesn't change behavior"
+    ],
+    "reason": "The agent's encoding.py change is functionally identical to the merged patch. It imports compression.zstd on Python 3.14+ and backports.zstd otherwise. It replaces the streaming decoder with zstd.decompress and the compressor with zstd.compress(level=1). In pyproject.toml it swaps zstandard for backports.zstd with the marker python_version < '3.14'. The version bounds differ from upstream, and uv.lock and the changelog are untouched. None of those affect the functional behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/encoding.py",
+      "pyproject.toml"
+    ]
+  },
+  "result": "mitmproxy now uses the standard-library `compression.zstd` on Python 3.14+ and the `backports.zstd` package on older versions. I haven't run the tests or installed anything, and I didn't update `uv.lock`.\n\n**`mitmproxy/net/encoding.py`**\n- The `zstandard` import is replaced by a version switch. It imports `compression.zstd` on 3.14+ and `backports.zstd` otherwise.\n- `decode_zstd` now calls `zstd.decompress(content)`. That function decompresses concatenated frames, so it keeps the multi-frame behaviour the old `read_across_frames=True` provided, and the existing multi-frame test still applies.\n- `encode_zstd` now calls `zstd.compress(content, level=1)`, which keeps the fastest-compression level.\n- The `BytesIO` import stays because the brotli/deflate code still uses it.\n\n**`pyproject.toml`**\n- The `zstandard` dependency is replaced with `backports.zstd>=1.0.0,<=1.3.0; python_version < '3.14'`. The version bounds are my guess and I haven't checked them against what's published.\n\n**Before merging**\n- Run `uv lock` to refresh `uv.lock`. That will also confirm the `backports.zstd` bounds resolve.\n- Run `uv run pytest test/mitmproxy/net/test_encoding.py` to check the existing zstd test.\n- I didn't add a test, since the existing zstd test already calls `encode_zstd` and `decode_zstd` directly.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/net/encoding.py b/mitmproxy/net/encoding.py\nindex 7be30d3d5..bcba77a7a 100644\n--- a/mitmproxy/net/encoding.py\n+++ b/mitmproxy/net/encoding.py\n@@ -5,12 +5,17 @@ Utility functions for decoding response bodies.\n import codecs\n import collections\n import gzip\n+import sys\n import zlib\n from io import BytesIO\n from typing import overload\n \n import brotli\n-import zstandard as zstd\n+\n+if sys.version_info >= (3, 14):\n+    from compression import zstd\n+else:\n+    from backports import zstd\n \n # We have a shared single-element cache for encoding and decoding.\n # This is quite useful in practice, e.g.\n@@ -182,14 +187,12 @@ def encode_brotli(content: bytes) -> bytes:\n def decode_zstd(content: bytes) -> bytes:\n     if not content:\n         return b\"\"\n-    zstd_ctx = zstd.ZstdDecompressor()\n-    return zstd_ctx.stream_reader(BytesIO(content), read_across_frames=True).read()\n+    return zstd.decompress(content)\n \n \n def encode_zstd(content: bytes) -> bytes:\n     # Use level=1 for fastest compression speed.\n-    zstd_ctx = zstd.ZstdCompressor(level=1)\n-    return zstd_ctx.compress(content)\n+    return zstd.compress(content, level=1)\n \n \n def decode_deflate(content: bytes) -> bytes:\ndiff --git a/pyproject.toml b/pyproject.toml\nindex 7ddc3b834..590b38f8e 100644\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -57,7 +57,7 @@ dependencies = [\n     \"urwid>=2.6.14,<=3.0.5\",\n     \"wsproto>=1.0,<=1.3.2\",\n     \"publicsuffix2>=2.20190812,<=2.20191221\",\n-    \"zstandard>=0.25,<=0.25.0\",\n+    \"backports.zstd>=1.0.0,<=1.3.0; python_version < '3.14'\",\n ]\n \n [dependency-groups]\n"
+}

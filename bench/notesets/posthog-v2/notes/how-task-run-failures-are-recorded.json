@@ -1,0 +1,81 @@
+{
+  "id": "how-task-run-failures-are-recorded",
+  "title": "How task run failures are recorded",
+  "kind": "location",
+  "answers": [
+    "Where are task run failures recorded?",
+    "How is error_type derived for a failed run?",
+    "How is error message truncated for telemetry?"
+  ],
+  "body": "- Workflow: `workflow.py:ProcessTaskWorkflow._update_task_run_status(status, error_message, error_type, timed_out_inactivity, ...)` calls the update_task_run_status activity; `workflow.py:_failure_error_type` maps temporal TimeoutType (lowercased name), string cause type, else exception class name.\n- Model: `models.py:TaskRun.mark_failed`; facade `fail_task_run` and `claim_and_fail_stale_run` are janitor/reaper paths.\n- Telemetry: `backend/error_telemetry.py:truncate_error_message` keeps the tail (500 chars) since root cause is at the end of agent output.",
+  "tags": [
+    "failure",
+    "telemetry"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "_failure_error_type",
+      "hash": "sha256:0f9e05d0f0911c88af586310",
+      "line": 167,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/error_telemetry.py",
+      "symbol": "truncate_error_message",
+      "hash": "sha256:eaf32239a0bffd13aea174b7",
+      "line": 6,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/models.py",
+      "symbol": "TaskRun",
+      "hash": "sha256:3dd57fdbe1a2164874d1e716",
+      "line": 2258,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "ProcessTaskWorkflow._update_task_run_status",
+      "hash": "sha256:940d1eb981dfebcfb1a2d935",
+      "line": 2805,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/models.py",
+      "symbol": "TaskRun.mark_failed",
+      "hash": "sha256:f066b7286a1376450ec46386",
+      "line": 3103,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "70385c83-3d41-4ac9-9824-8895a4a999bb"
+  },
+  "created": "2026-09-26T20:27:10.861Z",
+  "verified": "2026-09-26T20:27:10.861Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 10,
+  "related": [
+    "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+    "follow-up-loop-must-skip-ticks-while-a-push-would-eject-the-",
+    "sandbox-backend-selection-and-provider-class-resolution",
+    "new-skip-decision-branches-in-tasks-workflows-need-a-workflo"
+  ],
+  "lastUsed": "2026-09-27T06:14:44.742Z",
+  "servedIn": [
+    "cd76606d-c96b-430c-ad43-581d2fce050c",
+    "60f35ce4-fb66-4a14-b930-15bdc40742fc",
+    "352b3da7-2bd9-4504-820e-883bf29bb3d3",
+    "3e0cf021-68ff-4925-8a2a-8f6fa0cdde6f",
+    "a7d5d4fb-c990-4968-a691-0e057ce2e931",
+    "4ceaeafb-354c-413e-8554-2eeb1b99987f",
+    "8dfc0d85-c6b3-43c1-96c0-a9420b3bae33",
+    "0fbe9612-b859-4114-81f9-f77383771643",
+    "8b1b8dd1-9274-4c1d-b067-06a9ab20b32c",
+    "3d97abf4-32d2-46d3-be80-5c48d28855a7"
+  ]
+}

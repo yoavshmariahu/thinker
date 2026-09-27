@@ -1,0 +1,48 @@
+{
+  "id": "shared-png-image-url-falls-back-to-placeholder-redirect-whil",
+  "title": "Shared .png image URL falls back to placeholder redirect while export is pending",
+  "kind": "convention",
+  "answers": [
+    "Shared dashboard link shows no image in Slack/Twitter preview",
+    "What does /shared/<token>.png return before the export finishes?",
+    "Why is the fallback redirect Cache-Control no-store?"
+  ],
+  "body": "In `posthog/api/sharing.py:retrieve`, the `.png` branch calls `get_content_response(exported_asset, False)`. If that raises `NotFound` (export not ready), it returns `HttpResponseRedirect(static(\"blank-dashboard-hog.png\"))` with `Cache-Control: no-store`. This lets preview crawlers that hit the URL before the async export completes get an image, and the redirect is not cached, so the real export is served once ready.\nKeep `no-store` on the fallback. Missing exported asset (`not exported_asset`) still raises NotFound.\nTest: `test_shared_thing_uses_placeholder_while_open_graph_image_is_pending` in `posthog/api/test/test_sharing.py` (parameterized over insights and dashboards).",
+  "applies": "Shared insight/dashboard PNG image endpoint in posthog/api/sharing.py",
+  "tags": [
+    "sharing",
+    "export",
+    "png",
+    "opengraph",
+    "caching"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/sharing.py",
+      "symbol": "retrieve",
+      "hash": "sha256:4c948de2849ac78814576881",
+      "line": 993,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/test/test_sharing.py",
+      "symbol": "test_shared_thing_uses_placeholder_while_open_graph_image_is_pending",
+      "hash": "sha256:f3bcb7591398ae354f0a841a",
+      "line": 473,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105381"
+  },
+  "created": "2026-09-27T00:04:57.012Z",
+  "verified": "2026-09-27T00:04:57.012Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "shared-page-og-tags-split-safe-tags-vs-content-tags-password"
+  ]
+}

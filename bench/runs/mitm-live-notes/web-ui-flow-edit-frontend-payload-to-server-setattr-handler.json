@@ -1,0 +1,83 @@
+{
+  "id": "web-ui-flow-edit-frontend-payload-to-server-setattr-handler",
+  "title": "Web UI flow edit: frontend payload to server setattr handler",
+  "kind": "callpath",
+  "answers": [
+    "How does the web UI send response edits to the server?",
+    "Where is PUT /flows/<id> update handled?",
+    "Why did editing reason phrase not take effect?"
+  ],
+  "body": "Edit path for HTTP flow fields in web UI:\n- `web/src/js/components/FlowView/HttpMessages.tsx` (response status line: http_version / status_code / reason editors) → `flowActions.update(flow, { response: {...} })`.\n- Server: `mitmproxy/tools/web/app.py` flow PUT handler loops `for k, v in b.items()` for `request`/`response`, mapping keys to attributes via setattr / explicit branches.\n- Keys the server accepts for response: `http_version`, `code` (-> `status_code`), `reason` (formerly buggy `msg`, no longer accepted), `headers`, `trailers`, `content`. Unknown keys raise APIError(400).\n- Serialization (flow_to_json in app.py) emits `status_code` and `reason`, but the update payload uses `code`; names differ between read and write.\n- Test: `test/mitmproxy/tools/web/test_app.py` update test (PUT /flows/42) sends `reason` and asserts on `f.response.reason`.",
+  "tags": [
+    "web",
+    "api",
+    "flow-update"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "hash": "sha256:114102e05ef9e3e923af4401",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/components/FlowView/HttpMessages.tsx",
+      "hash": "sha256:bbd479b7a3476029597ec46a",
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/tools/web/test_app.py",
+      "hash": "sha256:614835b6854af80e487d50c6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "d165ec15-0e2c-4d80-aea5-8efd861df2d2"
+  },
+  "created": "2026-09-26T19:47:34.805Z",
+  "verified": "2026-09-26T19:52:48.071Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.55,
+  "status": "invalid",
+  "uses": 1,
+  "related": [
+    "mitmweb-xsrf-auth-and-header-protections",
+    "mitmweb-flow-update-path-http-put-view-update-websocket-broa",
+    "flow-arrival-and-filter-evaluation-websocket-to-view-update",
+    "xsrf-cookie-name-must-be-changed-in-both-app-py-and-utils-ts"
+  ],
+  "stale": {
+    "since": "2026-09-26T19:47:38.413Z",
+    "changed": [
+      {
+        "path": "mitmproxy/tools/web/app.py",
+        "reason": "file changed"
+      },
+      {
+        "path": "web/src/js/components/FlowView/HttpMessages.tsx",
+        "reason": "file changed"
+      },
+      {
+        "path": "test/mitmproxy/tools/web/test_app.py",
+        "reason": "file changed"
+      }
+    ]
+  },
+  "lastUsed": "2026-09-26T19:52:17.018Z",
+  "servedIn": [
+    "d9ec4539-b1de-4d4c-879c-d0a80836f96a"
+  ],
+  "invalidReason": "Code snippets provided are incomplete — missing the PUT handler in app.py and the update test in test_app.py, which are central to the note's claims about server-side key mapping and test assertions",
+  "attest": {
+    "confirmed": 0,
+    "contradicted": 1,
+    "unused": 0
+  },
+  "history": [
+    {
+      "at": "2026-09-26T19:52:48.071Z",
+      "reason": "contradicted in session d9ec4539-b1de-4d4c-879c-d0a80836f96a: Before the edit, app.py accepted \"msg\" not \"reason\", the test used \"msg\"/f.response.msg; agent removed msg (now 400), so 'reason (alias msg kept)' and the test claim were wrong pre-change.",
+      "prevBody": "Edit path for HTTP flow fields in web UI:\n- `web/src/js/components/FlowView/HttpMessages.tsx` (response status line: http_version / status_code / reason editors) → `flowActions.update(flow, { response: {...} })`.\n- Server: `mitmproxy/tools/web/app.py` flow PUT handler loops `for k, v in b.items()` for `request`/`response`, mapping keys to attributes via setattr / explicit branches.\n- Keys the server accepts for response: `http_version`, `code` (-> `status_code`), `reason` (alias `msg` kept), `headers`, `trailers`, `content`. Unknown keys raise APIError(400).\n- Serialization (flow_to_json in app.py) emits `status_code` and `reason`, but the update payload uses `code`; names differ between read and write.\n- Test: `test/mitmproxy/tools/web/test_app.py` update test (PUT /flows/42) asserts on `f.response.reason`."
+    }
+  ]
+}

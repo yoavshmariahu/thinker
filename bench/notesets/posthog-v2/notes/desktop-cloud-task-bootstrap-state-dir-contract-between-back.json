@@ -1,0 +1,50 @@
+{
+  "id": "desktop-cloud-task-bootstrap-state-dir-contract-between-back",
+  "title": "Desktop cloud-task bootstrap state-dir contract between backend launcher and wait script",
+  "kind": "cochange",
+  "answers": [
+    "How does the desktop cloud task bootstrap run in the background?",
+    "pnpm bootstrap:cloud-task:wait exits 2 or 124, what does it mean?",
+    "Changing the desktop bootstrap state directory or timeout"
+  ],
+  "body": "The backend launcher and the agent-side wait script share a file protocol and must change together.\n- Backend: `_prepare_posthog_desktop_cloud_task` and constants `DESKTOP_BOOTSTRAP_STATE_DIR`, `DESKTOP_BOOTSTRAP_WAIT_SCRIPT`, `DESKTOP_BOOTSTRAP_TIMEOUT_SECONDS` in products/tasks/backend/temporal/process_task/activities/provision_sandbox.py.\n- Agent side: products/desktop/scripts/wait-cloud-task-bootstrap.sh, wired as `bootstrap:cloud-task:wait` in products/desktop/package.json.\n- Files in the state dir: `started` (epoch), `log`, `build.pid`, `launcher.pid`, `exit` (written via exit.tmp then mv so it is never partial). The wait script reads `started`, `exit`, `log`.\n- Exit codes: 2 = nothing launched; 124 = build timed out; otherwise the build's own code.\n- The wait script's default timeout (960s) must stay longer than the backend timeout (900s) plus the `timeout -k 30` grace.\n- Docs to update too: products/desktop/AGENTS.md and docs/internal/cloud-task-sandbox.md.",
+  "applies": "Desktop bootstrap in posthog/posthog dev-stack cloud task sandboxes",
+  "tags": [
+    "tasks",
+    "desktop",
+    "sandbox",
+    "bootstrap"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/provision_sandbox.py",
+      "symbol": "_prepare_posthog_desktop_cloud_task",
+      "hash": "sha256:fdd6a7f6172aba44792c8fd6",
+      "line": 193,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/scripts/wait-cloud-task-bootstrap.sh",
+      "hash": "sha256:f253bf213c522cc7d9d071ce",
+      "missing": false
+    },
+    {
+      "path": "products/desktop/package.json",
+      "hash": "sha256:e8aad0a867e965c6ead0a2e3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105298"
+  },
+  "created": "2026-09-27T00:07:27.656Z",
+  "verified": "2026-09-27T00:07:27.656Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "desktop-bootstrap-launch-is-best-effort-detached-and-must-no"
+  ]
+}

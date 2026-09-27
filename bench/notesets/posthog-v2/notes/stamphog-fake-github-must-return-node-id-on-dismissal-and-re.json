@@ -1,0 +1,59 @@
+{
+  "id": "stamphog-fake-github-must-return-node-id-on-dismissal-and-re",
+  "title": "Stamphog fake GitHub must return node_id on dismissal and record GraphQL minimize",
+  "kind": "cochange",
+  "answers": [
+    "Why does the stamphog fake GitHub need node_id in the dismissal response?",
+    "How do I assert a stamphog review was hidden as outdated in tests?",
+    "Adding a new GraphQL call to stamphog test fakes"
+  ],
+  "body": "Client behavior and the fake GitHub in `products/stamphog/backend/tests/fakes.py` change together.\n- `dismiss_pr_review` reads `node_id` from the dismissal response, so `fakes.py:_dismiss_review` must return `node_id` (`PRR_<id>`); otherwise the hide is silently skipped.\n- `fakes.py:_graphql` routes by query shape and records `{kind: 'minimize_review', node_id, query}` in `github_writes` for `minimizeComment`. Any new GraphQL caller needs its own branch there.\n- `test_integration.py` asserts via `github_writes` (e.g. `test_failed_run_still_dismisses_the_stale_approval_first` checks `classifier: OUTDATED`).\n- Also update `products/stamphog/README.md` when retraction behavior changes.",
+  "applies": "stamphog tests and client GraphQL/dismissal changes",
+  "tags": [
+    "stamphog",
+    "tests",
+    "fakes",
+    "graphql"
+  ],
+  "deps": [
+    {
+      "path": "products/stamphog/backend/tests/fakes.py",
+      "symbol": "_graphql",
+      "hash": "sha256:613d4cf4450a58853fe79bbe",
+      "line": 310,
+      "missing": false
+    },
+    {
+      "path": "products/stamphog/backend/tests/fakes.py",
+      "symbol": "_dismiss_review",
+      "hash": "sha256:42d09e428a07f2800d14ad70",
+      "line": 423,
+      "missing": false
+    },
+    {
+      "path": "products/stamphog/backend/logic/github_client.py",
+      "symbol": "dismiss_pr_review",
+      "hash": "sha256:0f0cd5bcfe014172ff36bb81",
+      "line": 1287,
+      "missing": false
+    },
+    {
+      "path": "products/stamphog/backend/tests/test_integration.py",
+      "hash": "sha256:3c1d328f60442809ad73905a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105644"
+  },
+  "created": "2026-09-27T00:00:53.854Z",
+  "verified": "2026-09-27T00:00:53.854Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cosmetic-github-writes-in-stamphoggithubclient-must-fail-ope"
+  ]
+}

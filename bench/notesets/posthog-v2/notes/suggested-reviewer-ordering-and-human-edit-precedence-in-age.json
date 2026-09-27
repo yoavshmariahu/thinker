@@ -1,0 +1,53 @@
+{
+  "id": "suggested-reviewer-ordering-and-human-edit-precedence-in-age",
+  "title": "Suggested reviewer ordering and human-edit precedence in agentic report persistence",
+  "kind": "invariant",
+  "answers": [
+    "Why did research overwrite the reviewer I set on an inbox report?",
+    "In what order are suggested reviewers chosen for a signals report?",
+    "Where do CODEOWNERS and owners.yaml owners get merged with commit authors?"
+  ],
+  "body": "Suggested reviewers are ordered: owners.yaml owner, then a different CODEOWNERS owner, then commit-author fallbacks, capped at MAX_SUGGESTED_REVIEWERS (products/signals/backend/temporal/agentic/report.py:_build_reviewers_content).\nHuman edits win: `_append_agentic_report_artefacts` locks the SignalReport row (select_for_update) and skips any SuggestedReviewers draft if a SUGGESTED_REVIEWERS artefact with actor_kind=USER already exists. Skipping the lock/check lets later research runs replace a person's choice.\nIt returns `wrote_reviewers`; `_persist_agentic_report_artefacts` only fires `capture_suggested_reviewers_resolved` when that is true, so keep the event tied to an actual write.\nOwnership matching lives in products/signals/backend/report_generation/ownership_reviewers.py:suggest_repository_owners; it yields at most one reviewer per source (owners.yaml / CODEOWNERS) and prefers logins already among commit-author reviewers.",
+  "applies": "Signals agentic report generation: reviewer suggestion and artefact persistence",
+  "tags": [
+    "signals",
+    "reviewers",
+    "codeowners"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/temporal/agentic/report.py",
+      "symbol": "_append_agentic_report_artefacts",
+      "hash": "sha256:ce0486972db11ed2f5a9939f",
+      "line": 436,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/report_generation/ownership_reviewers.py",
+      "symbol": "suggest_repository_owners",
+      "hash": "sha256:8e5c582419d11beeddb36ed9",
+      "line": 65,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/temporal/agentic/report.py",
+      "symbol": "_build_reviewers_content",
+      "hash": "sha256:609f2f0a45f1cfc97fdec9c2",
+      "line": 300,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105268"
+  },
+  "created": "2026-09-27T00:08:31.606Z",
+  "verified": "2026-09-27T00:08:31.606Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "code-owner-resolution-only-yields-project-members-with-a-lin"
+  ]
+}

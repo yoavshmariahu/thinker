@@ -1,0 +1,45 @@
+{
+  "id": "PR8295-rerank-0",
+  "task": "PR8295",
+  "area": "next-layer",
+  "arm": "rerank",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "e8238785-cfd2-4aef-8063-fdf17beb91e5",
+  "turns": 6,
+  "wall_ms": 25966,
+  "api_ms": 14632,
+  "cost": 0.1103184,
+  "in_tokens": 136118,
+  "out_tokens": 1511,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Read": 1,
+      "Bash": 3,
+      "Edit": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 3,
+    "injected": [
+      "ignore-allow-hosts-semantics-in-ignore-connection",
+      "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn",
+      "bytes-heuristics-next-layer-inspects-quic-host-header-raw-tc"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to `_get_client_hello` in `mitmproxy/addons/next_layer.py` matches the merged upstream code hunk exactly. It gates QUIC parsing on `_starts_like_quic` and DTLS parsing on `starts_like_dtls_record`. The only differences are the changelog and tests, which don't affect the score.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py"
+    ]
+  },
+  "result": "I changed `_get_client_hello` in `mitmproxy/addons/next_layer.py` so QUIC and DTLS ClientHello parsing only runs when the bytes look like that protocol. I did not run the tests or add a new one.\n\n- **QUIC:** the parser is only tried if `_starts_like_quic(data_client, context.server.address)` is true. The empty `b\"\"` seen after the QUIC handshake fails that check.\n- **DTLS:** the parser is only tried if `starts_like_dtls_record(data_client)` is true.\n- **Result:** the function returns `None` for non-matching data, so `_ignore_connection` no longer raises `NeedsMoreData` and `_next_layer` carries on. QUIC flows should then get their `HttpLayer` and show up in the flow list when `allow_hosts` or `ignore_hosts` is set.\n\nThis mirrors the existing TCP branch, which already gates on `starts_like_tls_record`.\n\nI did not look at the existing tests in `test/mitmproxy/addons/test_next_layer.py`. A regression test would call `_ignore_connection` on a UDP context with `b\"\"` and check it returns without raising `NeedsMoreData`.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..614957808 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,19 +320,21 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n-\n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                if _starts_like_quic(data_client, context.server.address):\n+                    try:\n+                        return quic_parse_client_hello_from_datagrams([data_client])\n+                    except ValueError:\n+                        pass\n+\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\n"
+}

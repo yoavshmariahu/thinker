@@ -1,0 +1,47 @@
+{
+  "id": "E8-usageerror-abort-adv-naive-0",
+  "task": "E8-usageerror-abort-adv",
+  "area": "exceptions",
+  "arm": "naive",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "a8980476-e775-47d9-a0ce-63e5d26b6078",
+  "turns": 4,
+  "wall_ms": 13330,
+  "api_ms": 12938,
+  "cost": 0.0824758,
+  "in_tokens": 92732,
+  "out_tokens": 1157,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 2,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "command-main-exception-handling-and-exit-code-flow",
+      "exception-hierarchy-and-exit-codes-in-exceptions-py",
+      "clirunner-invoke-exception-exit-code-handling-and-result"
+    ]
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "Exact printed stderr string for UsageError (blank line before Error:) not spelled out",
+      "Did not mention ctx attachment via augment_usage_errors",
+      "Did not mention EOFError shares the KeyboardInterrupt path",
+      "Did not mention SystemExit/sys.exit mechanics or context teardown ordering",
+      "No mention of plain ClickException exit code 1 contrast"
+    ],
+    "wrong": [],
+    "reason": "The agent's answer matches the reference on all main points. UsageError is caught at core.py:1518 and exits with code 2. Abort is caught at core.py:1543, prints \"Interrupted!\" and exits 130, which is the version-specific correction. KeyboardInterrupt is caught at core.py:1515, prints a blank line, and is re-raised as Abort. It then ends as \"Interrupted!\" with exit 130. The agent also noted the difference from upstream. It leaves out only minor supplementary detail.",
+    "mustHit": 0,
+    "mustTotal": 0
+  },
+  "result": "All handlers are in `src/click/core.py:Command.main` (line 1436). Standalone mode is the default.\n\n| Raised in callback | Caught by | Printed (stderr) | Exit code |\n|---|---|---|---|\n| `click.UsageError` | `except ClickException` (core.py:1518) → `e.show()`, then `sys.exit(e.exit_code)` | `exceptions.py:UsageError.show` (line 87) prints the usage line and a \"Try '… --help'\" hint if a help option exists, then `Error: <message>` | 2 (`UsageError.exit_code`, `exceptions.py:77`) |\n| `click.Abort` | outer `except Abort` (core.py:1543) | `Interrupted!` | 130 |\n| plain `KeyboardInterrupt` | inner `except (EOFError, KeyboardInterrupt)` (core.py:1515): `echo(file=sys.stderr)` prints a blank line, then `raise Abort() from e`. The outer `except Abort` catches that. | a blank line, then `Interrupted!` | 130 |\n\n- **Abort does not derive from `ClickException`.** `Abort` (`exceptions.py:362`) subclasses `RuntimeError`, so it skips the `ClickException` handler and is only caught by the outer `except Abort`.\n- **`KeyboardInterrupt` reaches `Abort` through the inner handler.** The blank line comes from that handler, and the `Interrupted!` message and exit code come from the outer one.\n- **The code differs from upstream Click.** Upstream prints `Aborted!` and exits with 1. This checkout prints `Interrupted!` and exits with 130, which looks like the \"adversarial mutations\" commit. The cached notes I had said `Aborted!` / 1, and they are out of date for this checkout.\n- **`standalone_mode=False`.** `UsageError` and `Abort` are re-raised (core.py:1520 and 1545) instead of being printed and turned into an exit code.",
+  "is_error": false,
+  "diff": null
+}

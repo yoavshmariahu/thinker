@@ -1,0 +1,40 @@
+{
+  "id": "PR8294-nocache-0",
+  "task": "PR8294",
+  "area": "net-tls",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "59781f55-809e-4935-b146-b9ae3e608905",
+  "turns": 4,
+  "wall_ms": 14805,
+  "api_ms": 14319,
+  "cost": 0.0805166,
+  "in_tokens": 91738,
+  "out_tokens": 1497,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to mitmproxy/net/tls.py matches the merged patch. It moves set_min_proto_version, set_max_proto_version, SSL.Connection creation and set_connect_state into the existing try block, so a setup-time SSL.Error is handled the same way as a probe-time one. It also adds a regression test, which the request allows.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/tls.py",
+      "test/mitmproxy/net/test_tls.py"
+    ]
+  },
+  "result": "`is_supported_version()` now returns `False` when an `SSL.Error` is raised while setting up the context, instead of letting it propagate. I haven't run the tests, as you asked.\n\n- **Fix, in `mitmproxy/net/tls.py`:** `set_min_proto_version`, `set_max_proto_version`, the `SSL.Connection` creation and `set_connect_state()` now sit inside the existing `try`, next to the `recv()` probe. Versions that are currently supported behave as before.\n- **Test, in `test/mitmproxy/net/test_tls.py`:** `test_supported_setup_error` patches `SSL.Context.set_min_proto_version` to raise `SSL.Error`. It asserts that `is_supported_version(SSL3)` returns `False`, which reproduces the crash path on any OpenSSL build.\n- **Cache handling:** the function is decorated with `@cache`, so a result cached by `test_supported[SSL3]` would have let the new test pass without touching the setup path. The test therefore calls `cache_clear()` before and after, so the patched failure isn't cached for other tests.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/net/tls.py b/mitmproxy/net/tls.py\nindex 14c0553ca..ee4502295 100644\n--- a/mitmproxy/net/tls.py\n+++ b/mitmproxy/net/tls.py\n@@ -77,12 +77,11 @@ def is_supported_version(version: Version):\n     # Without SECLEVEL, recent OpenSSL versions forbid old TLS versions.\n     # https://github.com/pyca/cryptography/issues/9523\n     client_ctx.set_cipher_list(b\"@SECLEVEL=0:ALL\")\n-    client_ctx.set_min_proto_version(version.value)\n-    client_ctx.set_max_proto_version(version.value)\n-    client_conn = SSL.Connection(client_ctx)\n-    client_conn.set_connect_state()\n-\n     try:\n+        client_ctx.set_min_proto_version(version.value)\n+        client_ctx.set_max_proto_version(version.value)\n+        client_conn = SSL.Connection(client_ctx)\n+        client_conn.set_connect_state()\n         client_conn.recv(4096)\n     except SSL.WantReadError:\n         return True\ndiff --git a/test/mitmproxy/net/test_tls.py b/test/mitmproxy/net/test_tls.py\nindex 8359e4a9d..be81809c9 100644\n--- a/test/mitmproxy/net/test_tls.py\n+++ b/test/mitmproxy/net/test_tls.py\n@@ -15,6 +15,19 @@ def test_supported(version):\n     assert tls.is_supported_version(version) == expected_support\n \n \n+def test_supported_setup_error(monkeypatch):\n+    def raise_error(*args, **kwargs):\n+        raise tls.SSL.Error(\"protocol version not supported\")\n+\n+    # is_supported_version is cached, so make sure we actually hit the setup path.\n+    tls.is_supported_version.cache_clear()\n+    monkeypatch.setattr(tls.SSL.Context, \"set_min_proto_version\", raise_error)\n+    try:\n+        assert tls.is_supported_version(tls.Version.SSL3) is False\n+    finally:\n+        tls.is_supported_version.cache_clear()\n+\n+\n def test_make_master_secret_logger():\n     assert tls.make_master_secret_logger(None) is None\n     assert isinstance(tls.make_master_secret_logger(\"filepath\"), tls.MasterSecretLogger)\n"
+}

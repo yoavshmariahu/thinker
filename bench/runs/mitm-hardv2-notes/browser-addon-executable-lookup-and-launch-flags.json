@@ -1,0 +1,65 @@
+{
+  "id": "browser-addon-executable-lookup-and-launch-flags",
+  "title": "Browser addon: executable lookup and launch flags",
+  "kind": "location",
+  "answers": [
+    "How does the browser addon find chrome/firefox per platform?",
+    "What flags does the browser addon pass to Chrome?",
+    "How does Firefox get proxy config in browser addon?"
+  ],
+  "body": "- Lookup helpers in mitmproxy/addons/browser.py: find_executable_cmd(*paths) returns [path] for first shutil.which hit (absolute or PATH names); find_flatpak_cmd(*ids) needs flatpak, runs `flatpak info <id>`, returns [\"flatpak\",\"run\",\"-p\",id].\n- Each launcher tries native candidates (macOS app path, Windows Program Files paths, then Linux names) and falls back to flatpak. Not found → logs \"Your platform is not supported yet\" and returns. To support a new platform/browser path, add to the search list in launch_chrome/launch_firefox.\n- Chrome (launch_chrome): fresh tempfile.TemporaryDirectory as --user-data-dir, --proxy-server=<listen_host or 127.0.0.1>:<listen_port or 8080> from ctx.options, --disable-fre, --no-default-browser-check, --no-first-run, --disable-extensions, about:blank.\n- Firefox (launch_firefox): no proxy flag; writes prefs.js into temp profile (network.proxy.type=1, http/ssl host+port loop), launches `--profile <tmp> --new-window about:blank`.\n- Gotcha: missing comma between app.shield.optoutstudies.enabled and extensions.blocklist.enabled prefs merges them into one string; prefs are written without newlines via writelines. Apparently still works.\n- stdout/stderr go to DEVNULL.",
+  "tags": [
+    "browser",
+    "chrome",
+    "firefox",
+    "flatpak"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "symbol": "launch_chrome",
+      "hash": "sha256:95fcbfc3e2697143ca2f1a33",
+      "line": 51,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "symbol": "launch_firefox",
+      "hash": "sha256:76fca701a2bb238cf8422566",
+      "line": 103,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "symbol": "find_executable_cmd",
+      "hash": "sha256:2d1fd818dd59e4dd6c0d10c0",
+      "line": 11,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "symbol": "find_flatpak_cmd",
+      "hash": "sha256:e98c3daca982cb8c5b2da655",
+      "line": 19,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e6c6254e-23f5-4f06-951c-01f8e32a44ce"
+  },
+  "created": "2026-09-26T09:26:26.670Z",
+  "verified": "2026-09-26T09:26:26.670Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 10,
+  "lastUsed": "2026-09-26T19:46:20.079Z",
+  "related": [
+    "browser-start-command-registration-and-dispatch"
+  ],
+  "servedIn": [
+    "202868ab-c563-4deb-9bc9-0b514d11d8e1",
+    "dd6a1701-7aea-4ef5-bebc-b301ba8823f5"
+  ]
+}

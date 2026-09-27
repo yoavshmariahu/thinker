@@ -1,0 +1,77 @@
+{
+  "id": "unavailable-detector-copy-must-name-the-outcome-not-a-cause-",
+  "title": "Unavailable-detector copy must name the outcome, not a cause; keep surfaces in sync",
+  "kind": "cochange",
+  "answers": [
+    "Where is the AI detector could not complete this check message defined?",
+    "Renaming the provider_unavailable email template context key",
+    "Changing error copy for LLMDetectorUnavailableError"
+  ],
+  "body": "`LLMDetectorUnavailableError` covers rollout-lookup empty, no free model-call slot, provider transport failure and unreadable model reply, so copy must not claim a provider outage or that settings are correct.\nChange together:\n- `products/alerts/backend/judge/contract.py:LLM_DETECTOR_UNAVAILABLE_MESSAGE`\n- `posthog/temporal/alerts/activities.py:dispatch_alert_error_in_app_notifications` (in-app body)\n- `posthog/tasks/alerts/utils.py:send_notifications_for_errors` (context key `detector_unavailable`)\n- `posthog/templates/email/alert_check_failed_to_evaluate.html` (reads `detector_unavailable`)\n- assertions in `test_alerts_activities.py`, `test_email_notifications.py`, `products/alerts/backend/tests/api/test_alert.py` (allowlisted error code message).",
+  "applies": "Owner-facing error messaging for AI detector failures",
+  "tags": [
+    "alerts",
+    "email",
+    "notifications",
+    "copy"
+  ],
+  "deps": [
+    {
+      "path": "products/alerts/backend/judge/contract.py",
+      "symbol": "LLM_DETECTOR_UNAVAILABLE_MESSAGE",
+      "hash": "sha256:72c6fd13fd22f2270421c100",
+      "line": 62,
+      "missing": false
+    },
+    {
+      "path": "posthog/tasks/alerts/utils.py",
+      "symbol": "send_notifications_for_errors",
+      "hash": "sha256:52d1216670faa42f13e4739f",
+      "line": 300,
+      "missing": false
+    },
+    {
+      "path": "posthog/templates/email/alert_check_failed_to_evaluate.html",
+      "hash": "sha256:8cab7fad6063b8c448706a1b",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "dispatch_alert_error_in_app_notifications",
+      "hash": "sha256:ac4c6ea72d29e126ef1bf825",
+      "line": 671,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/tests/test_alerts_activities.py",
+      "hash": "sha256:d6e00140d2854e9a19bb519e",
+      "missing": false
+    },
+    {
+      "path": "products/alerts/backend/test/test_email_notifications.py",
+      "hash": "sha256:8a4578a1dc62a34910c6772b",
+      "missing": false
+    },
+    {
+      "path": "products/alerts/backend/tests/api/test_alert.py",
+      "hash": "sha256:6b4a46dff18ea87ef6314154",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-09-27T00:03:14.585Z",
+  "verified": "2026-09-27T00:03:14.585Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "owner-facing-alert-error-codes-contract-allowlist-email-and-",
+    "ai-detector-unavailable-counter-is-incremented-only-on-the-r",
+    "evaluate-alert-must-skip-when-detector-type-differs-from-the",
+    "workflow-and-activity-declaration-conventions-posthog-tempor"
+  ]
+}

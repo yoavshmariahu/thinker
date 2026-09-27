@@ -1,0 +1,55 @@
+{
+  "id": "E12-ctx-obj-cache-0",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "cache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "1feb4d0b-d56a-4e92-99c0-a244c09e5fbd",
+  "turns": 6,
+  "wall_ms": 15396,
+  "api_ms": 14835,
+  "cost": 0.0438744,
+  "in_tokens": 109653,
+  "out_tokens": 1189,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "ToolSearch": 1,
+      "mcp__thinker__orient": 1,
+      "Bash": 1,
+      "Read": 2
+    },
+    "thinkerCalls": 1,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "customizing-command-group-option-classes-via-cls-and-class-a",
+      "augment-usage-errors-attaches-ctx-param-to-errors"
+    ]
+  },
+  "grade": {
+    "score": 0.75,
+    "missing": [
+      "Specific line references for Group.invoke (core.py:1982 non-chain, 2002-2008 chain) and Command.make_context (:1311)",
+      "Context._make_sub_context (core.py:837-843), used by Context.invoke and to_info_dict",
+      "Command.main (core.py:1503) as the route for cli(obj=...) reaching the root context, and context_settings seeding obj",
+      "shell_completion._resolve_context propagation site",
+      "ensure_object requires zero-arg constructor (TypeError otherwise)",
+      "ensure_object can clobber an unrelated existing obj on the current context (docs/complex.md caveat)",
+      "Chained groups: sub-contexts built up front so siblings don't see each other's ensure_object",
+      "Test is `obj is None`, not falsiness; obj=None cannot block inheritance",
+      "Contrast with Context.meta shared dict",
+      "Consumers: pass_obj and make_pass_decorator (find vs ensure)"
+    ],
+    "wrong": [
+      "Says 'The copy is by value at construction' right after saying it is a reference, which is contradictory wording (it is a reference copy, not a value copy)",
+      "Says find_object 'mostly matters when a context's obj was overridden', which is a loose characterization not in the reference"
+    ],
+    "reason": "The main propagation site (Context.__init__ at 374-378) is correct, and the find_object/ensure_object semantics are correct, including that ensure_object writes to the innermost context. Group.invoke and make_context are named only generally, with no line numbers. The answer admits it didn't trace them. It omits several important specifics from the reference: _make_sub_context, Command.main, clobbering, zero-arg construction, and chained-group behavior. It also has a minor wording contradiction about 'by value'.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "**Propagation:** `src/click/core.py:Context.__init__` (lines 374–378):\n\n```python\nif obj is None and parent is not None:\n    obj = parent.obj\nself.obj = obj\n```\n\nA subcommand's `Context` is created with `parent=<group ctx>`. This happens in `Group.invoke`, which goes through `Command.make_context`, and that builds `Context(..., parent=ctx)`. If no explicit `obj` is passed, the child copies `parent.obj` at construction time.\n\n- The child gets a reference to the same object, not a copy. Mutating it is visible to both contexts.\n- The copy is by value at construction. If the group callback sets `ctx.obj = ...`, the child sees it, because the group callback runs before the subcommand context is created. Assigning `ctx.obj` in the child later only rebinds the child's attribute and doesn't affect the parent.\n- Passing `obj=` explicitly to a child context overrides inheritance.\n\n**`find_object` vs `ensure_object`** (`core.py:Context.find_object`, `core.py:Context.ensure_object`, lines 736–755):\n\n- `find_object(type)` walks from `self` up through `.parent`. It returns the first `node.obj` that is an `isinstance` of `type`, or `None` if there isn't one. It has no side effects.\n- `ensure_object(type)` calls `find_object`. If that returns `None`, it creates `type()` and assigns it to `self.obj`, which is the innermost context only, not the root or the group. It then returns the object. If an ancestor already has a matching object, it returns that one and sets nothing.\n\nBecause of the propagation above, `find_object` mostly matters when a context's `obj` was overridden with something of a different type. It then finds the nearest ancestor object of the requested type.\n\nI didn't trace `Group.invoke` and `Command.make_context` in this session. That part of the description comes from my recollection of click's structure, and only the `Context` code above was read directly.",
+  "is_error": false
+}

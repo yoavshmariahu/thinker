@@ -1,0 +1,59 @@
+{
+  "id": "deletes-job-survivor-count-is-report-only-do-not-turn-it-bac",
+  "title": "deletes_job survivor count is report-only; do not turn it back into a gate",
+  "kind": "invariant",
+  "answers": [
+    "Why does mark_deletions_verified not fail when survivors are found?",
+    "deletes_job erasure requests never drain / stuck pending",
+    "Can I make the unswept_rows count block marking deletions verified?"
+  ],
+  "body": "`mark_deletions_verified` in posthog/dags/deletes.py logs an error (`context.log.error`) and records `unswept_rows` metadata, but must never raise `dagster.Failure` on a non-zero or None count.\n- Why: no branch of `_DELETE_PREDICATE` can use the primary key (each keys a dictionary on `team_id`), so the count on `events` reads the whole table and hits ClickHouse code 307 (read-bytes limit). Unknown is the ordinary outcome, and a larger budget does not help.\n- Gating stalled every request in the run, and stranded requests grew the dictionaries the next count must read.\n- A non-zero count is not proof of skipped work: team/event arms have no `inserted_at` bound, so stragglers can match.\n- Safeguard against silent no-op sweeps lives upstream: `MutationRunner.reuse_since`.\n- Only restore blocking after the count is narrowed to teams named in the dictionaries. See docs/internal/clickhouse-deletion-coverage.md (\"The survivor count is a report, not a gate\").\n- Marking is not revisited: the adhoc tombstone keeps those uuids out of later runs.",
+  "applies": "posthog/dags/deletes.py deletes_job / mark_deletions_verified and DeleteConfig.verification_max_execution_time",
+  "tags": [
+    "dagster",
+    "deletes",
+    "clickhouse"
+  ],
+  "deps": [
+    {
+      "path": "posthog/dags/deletes.py",
+      "symbol": "mark_deletions_verified",
+      "hash": "sha256:45ac82c346e1908ffec63cd2",
+      "line": 1044,
+      "missing": false
+    },
+    {
+      "path": "posthog/dags/deletes.py",
+      "symbol": "DeleteConfig",
+      "hash": "sha256:e91e46a29f6c2466d177bbda",
+      "line": 60,
+      "missing": false
+    },
+    {
+      "path": "docs/internal/clickhouse-deletion-coverage.md",
+      "hash": "sha256:bc526b47a4ccface8a9931c1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105317"
+  },
+  "created": "2026-09-27T00:06:34.119Z",
+  "verified": "2026-09-27T00:06:34.119Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "keep-deletion-coverage-doc-in-sync-with-deletes-py-verificat",
+    "deletion-queue-dags-deletes-job-cleanup-sweep-pg-drain"
+  ],
+  "lastUsed": "2026-09-27T01:00:39.083Z",
+  "servedIn": [
+    "33676976-fd18-4be2-866b-1b8b81e8d5b2",
+    "adcee338-64ea-4441-8bfb-db43173e8dd9",
+    "44edde1f-5bf3-4596-bb15-0a811e04a28f",
+    "5c8e7539-6b19-4050-88bd-69c110e19dd7"
+  ]
+}

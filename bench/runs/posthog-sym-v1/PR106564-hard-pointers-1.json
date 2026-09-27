@@ -1,0 +1,98 @@
+{
+  "id": "PR106564-hard-pointers-1",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "pointers",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "0021b8c8-15af-4e20-831b-8dac1f1227be",
+  "turns": 20,
+  "wall_ms": 56847,
+  "api_ms": 43583,
+  "cost": 0.35205260000000005,
+  "in_tokens": 1135000,
+  "out_tokens": 4067,
+  "tools": {
+    "calls": 19,
+    "byTool": {
+      "Bash": 19
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 19,
+    "injected": [
+      "invite-validation-errors-reach-ui-only-as-a-global-toast",
+      "feature-flags-backend-lives-in-products-feature-flags-backen"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty and made no functional change, so the request is not achieved. The merged patch modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs.",
+      "The agent made no code change, so the feature-flag rollout of the stable chunk build was not implemented. It gave up on claimed absence of the feature, while the upstream patch modifies existing stable_chunks.py, utils.py and esbuilder utils.",
+      "The agent's patch is empty, so it made no functional change. It said the stable chunk feature was not in the repo, but the merged patch edits existing files (posthog/stable_chunks.py, posthog/utils.py, common/esbuilder/utils.mjs). The request is therefore not met."
+    ],
+    "reason": "The agent's patch is empty and made no functional change, so the request is not achieved. The merged patch modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no feature-flag-based build selection exists. The author states no code was changed."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-based enrolment logic, so nothing gates on authentication."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag handling was added, so the behaviour is not implemented (the author says no stable build exists in the checkout)."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch; the author reports the query-parameter opt-in for the stable build does not exist in this checkout."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no remembered choice (cookie or otherwise) with a ~30 day lifetime was added."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no change ties the deciding flag value to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no reload-onto-current-build handling was added."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no removal of the query parameter from the visible URL was added."
+        }
+      ]
+    }
+  },
+  "result": "I haven't made any changes: the stable chunk build isn't in this checkout, so there's no opt-in for a feature flag to sit beside.\n\nI searched the repo for the opt-in in several forms:\n- Names like `stable chunk`, `stable_chunk` and `stable-chunk`.\n- Query-parameter handling in `posthog/utils.py`, `posthog/views.py` and the templates.\n- The boot loader in `common/esbuilder/utils.mjs` and `common/esbuilder/chunkLoader.mjs`.\n- `frontend/build.mjs` and `frontend/src/index.html`.\n\nThe only match is the `no-preloaded-app-context` query parameter, which is unrelated.\n\nWhat the repo has today is a single hashed esbuild output. `frontend/build.mjs` writes `dist/index.html` with the boot loader inlined. `posthog/utils.py` (`_build_template_context`) renders it and adds preload hints for the same single build. The boot loader's `window.JS_URL` and `/static/` paths give no way to pick between two builds. So the \"current build\" and the \"stable build\" don't both exist here to be chosen between.\n\nThe change would probably touch four places:\n- **Build:** emit a second, stable-named chunk set alongside the hashed one, plus a manifest for it.\n- **Template context:** in `_build_template_context`, choose which build to serve. Use it if the query parameter is set. Otherwise, for authenticated users only, use it if a feature flag evaluates true for the user's distinct ID.\n- **Preload manifest:** read the matching manifest, since `_resolve_entry_assets` currently returns one set of preload URLs.\n- **Experiment flag:** record which build was served, so LCP can be split by variant.\n\nI'd rather not invent the stable build from scratch and guess at how it's meant to work. Is the stable build on an unmerged branch or PR? If so, point me to it and I'll wire the flag and query-parameter selection on top. If you want me to build the stable output too, say so and tell me what \"stable\" should mean here, for example content-hash-free chunk names or a fixed chunk grouping.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

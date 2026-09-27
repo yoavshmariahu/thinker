@@ -1,0 +1,116 @@
+{
+  "id": "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+  "title": "Cloud task run lifecycle: API → facade → Temporal process-task",
+  "kind": "callpath",
+  "answers": [
+    "How does a task run get started and executed?",
+    "Where is the process_task workflow and its activities?",
+    "Where is TaskRun model and facade?",
+    "How are run status changes applied?"
+  ],
+  "body": "- HTTP: `presentation/views/api.py:TaskViewSet.run` → facade `create_and_run_task`/`create_run` → `temporal/client.py:execute_task_processing_workflow` (async twin exists) → workflow `process-task`.\n- Status: `TaskRunViewSet.partial_update` → `facade/api.py:update_task_run`; cancel via `TaskRunViewSet.cancel`; `signal_workflow_completion` sends `ProcessTaskWorkflow.complete_task` (best-effort).\n- Workflow: `temporal/process_task/workflow.py:ProcessTaskWorkflow.run` → `_get_task_processing_context` (activity get_task_processing_context) → `_provision_and_start_agent` (in_progress, `_get_sandbox_for_repository`, `_run_wizard_if_configured`, `_start_agent_server`, `_await_agent_server_ready`) → side loops (event relay, credential refresh) → `_wait_for_event` main loop. finally: cleanup via `_read_sandbox_logs`/`_cleanup_sandbox`, skipped on continue_as_new (`ResumedSandboxState` carries sandbox).\n- Activities: one module each in `temporal/process_task/activities/`, registered in `temporal/__init__.py`.\n- Model: `models.py:TaskRun` (state/output/artifacts JSON). Mutate `state` only via `update_state_atomic`/`mutate_state_atomic`/`update_output_atomic`.\n- `temporal/process_task/README.md` is stale (cites old `backend/services/sandbox.py`; real path `logic/services/sandbox.py`).",
+  "tags": [
+    "tasks",
+    "temporal",
+    "taskrun"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "ProcessTaskWorkflow",
+      "hash": "sha256:93dde4c0552e41cc7a866238",
+      "line": 485,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/client.py",
+      "symbol": "execute_task_processing_workflow",
+      "hash": "sha256:384574ebb1f00d6292f0a43b",
+      "line": 355,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/facade/api.py",
+      "symbol": "update_task_run",
+      "hash": "sha256:f5ae1cd4b5d1dc0151357f8d",
+      "line": 3020,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/models.py",
+      "symbol": "TaskRun",
+      "hash": "sha256:3dd57fdbe1a2164874d1e716",
+      "line": 2258,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/presentation/views/api.py",
+      "symbol": "TaskViewSet.run",
+      "hash": "sha256:ac2813f5257f5bb30b15a063",
+      "line": 1046,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "ProcessTaskWorkflow.run",
+      "hash": "sha256:107bf2c2b9020efcc6c39a44",
+      "line": 1202,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/__init__.py",
+      "hash": "sha256:bc779bee69e1e2d67c7f1661",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/facade/sandbox.py",
+      "hash": "sha256:193cc56227edf91ec1f53967",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/sandbox.py",
+      "hash": "sha256:10f8b204ae874604742c98f8",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/presentation/views/api.py",
+      "symbol": "TaskRunViewSet.partial_update",
+      "hash": "sha256:750b6e4ceade658f3b9059ee",
+      "line": 1998,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/presentation/views/api.py",
+      "symbol": "TaskRunViewSet.cancel",
+      "hash": "sha256:8d2010fd09275403a4171573",
+      "line": 1945,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "ProcessTaskWorkflow.complete_task",
+      "hash": "sha256:00173a7581dd631db96c50c0",
+      "line": 3316,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "70385c83-3d41-4ac9-9824-8895a4a999bb"
+  },
+  "created": "2026-09-26T20:27:10.676Z",
+  "verified": "2026-09-26T20:27:10.676Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "sandbox-backend-selection-and-provider-class-resolution",
+    "how-task-run-failures-are-recorded"
+  ],
+  "lastUsed": "2026-09-26T22:42:56.750Z",
+  "servedIn": [
+    "a7d33789-154d-44cb-94f2-61838fb3d7d1",
+    "c8bc6301-026f-4fbe-b0ed-fd02857e9a68"
+  ]
+}

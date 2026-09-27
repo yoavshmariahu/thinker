@@ -19,7 +19,8 @@
    "layers": [
     "backend",
     "frontend"
-   ]
+   ],
+   "mergeCommit": "d964d1e66751be37de1e6330b660abfbf6e1ab92"
   },
   {
    "id": "PR106466",
@@ -37,7 +38,8 @@
    "layers": [
     "backend",
     "frontend"
-   ]
+   ],
+   "mergeCommit": "624323555554fa5233b76239195f08a6d1037b0a"
   },
   {
    "id": "PR106672",
@@ -54,7 +56,8 @@
    "layers": [
     "backend",
     "other"
-   ]
+   ],
+   "mergeCommit": "7bed05dd05795990f924d08907e5364ec676d6b1"
   },
   {
    "id": "PR106564",
@@ -71,7 +74,8 @@
    "layers": [
     "backend",
     "other"
-   ]
+   ],
+   "mergeCommit": "1fc927d58041671f41238b1367cbd1ea7f66ce34"
   },
   {
    "id": "PR106613",
@@ -87,7 +91,8 @@
    "layers": [
     "frontend",
     "other"
-   ]
+   ],
+   "mergeCommit": "0120a9906cd59f74ad4b5e93681fd1fe2d22ebea"
   },
   {
    "id": "PR107042",
@@ -106,7 +111,8 @@
    "goldTitle": "fix(insights): correct mobile actions and transfer navigation",
    "layers": [
     "frontend"
-   ]
+   ],
+   "mergeCommit": "3d58970f948c0c4487b7f96bd6b4f9622538eaff"
   },
   {
    "id": "PR106522",
@@ -125,7 +131,8 @@
    "goldTitle": "fix(tasks): identify sandbox backend on failure events",
    "layers": [
     "backend"
-   ]
+   ],
+   "mergeCommit": "9c1de2696efec4b8cbeae8e08f9ecb9130e02857"
   },
   {
    "id": "PR105793",
@@ -144,7 +151,8 @@
    "goldTitle": "feat(slack_app): ask before picking up unset thread follow-ups",
    "layers": [
     "backend"
-   ]
+   ],
+   "mergeCommit": "cf123d3954719cec9fc82c9f808601a259e9ccee"
   },
   {
    "id": "PR105887",
@@ -162,7 +170,8 @@
    "goldTitle": "fix(experiments): fingerprint saved metrics with their per-experiment breakdowns",
    "layers": [
     "backend"
-   ]
+   ],
+   "mergeCommit": "8eaa6abd5e213f032b6a7bb5707ede9ba388f769"
   },
   {
    "id": "PR105871",
@@ -180,7 +189,8 @@
    "goldTitle": "fix(flags): skip non-v1 configs in cross-team flag jobs",
    "layers": [
     "backend"
-   ]
+   ],
+   "mergeCommit": "42fcec00d4a9590fecb66498abbe7d37e6f56328"
   },
   {
    "id": "PR106917",
@@ -197,7 +207,8 @@
    "goldTitle": "fix(warehouse-sources): pause cdc table schedules on break and disable",
    "layers": [
     "backend"
-   ]
+   ],
+   "mergeCommit": "7cac99c34e42bb9e9d6366f587567273595bb048"
   },
   {
    "id": "PR106579",
@@ -214,7 +225,8 @@
    "goldTitle": "feat(error-tracking): name the assignee in issue alert events",
    "layers": [
     "backend"
-   ]
+   ],
+   "mergeCommit": "95301101328ffc7714584d08210b127b260703fc"
   },
   {
    "id": "PR106491",
@@ -231,7 +243,8 @@
    "goldTitle": "fix(insights): show the chart gallery on the insight page in view mode",
    "layers": [
     "frontend"
-   ]
+   ],
+   "mergeCommit": "d56746564886ccea46d8af2e4ad5405de5212cc6"
   },
   {
    "id": "PR106322",
@@ -248,7 +261,8 @@
    "goldTitle": "feat(persons): expose deletion mode, tombstone delivery wait, queue acks and repair counts",
    "layers": [
     "backend"
-   ]
+   ],
+   "mergeCommit": "3750b691bff541760ae017515ce208d13cb4d1ea"
   }
  ]
 }

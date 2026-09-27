@@ -1,0 +1,52 @@
+{
+  "id": "PR105887-hook-0",
+  "task": "PR105887",
+  "area": "posthog",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "a1845c80-16a4-421d-b6ef-8aa0d6d2b675",
+  "turns": 5,
+  "wall_ms": 36419,
+  "api_ms": 12456,
+  "cost": 0.224107,
+  "in_tokens": 209815,
+  "out_tokens": 1420,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 3,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "experiment-metric-fingerprints-computation-and-call-sites",
+      "experiment-metric-uuid-assignment-and-resolution"
+    ]
+  },
+  "grade": {
+    "score": 0.5,
+    "samples": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "reasons": [
+      "The agent fixed the daily discovery writer, which is the core of the fix, and the timeseries sync now finds the rows. It missed the second half, the serializer stamp. That stamp still hashes the raw query, so the chart read would look under a hash the daily job no longer writes to. The fix is in the right direction but incomplete.",
+      "The agent fixed the main writer bug in daily discovery, and that part matches upstream. It left the serializer stamp on the raw query. The problem statement names that stamp as one of the readers that hashes with breakdowns. The chart read therefore still looks up a different hash from the one the daily job now writes, so the fix is incomplete and partly regresses that path.",
+      "The agent fixed the daily discovery fingerprint in `_get_experiment_saved_metrics_for_hour_sync`, which is the main site and the same change the upstream patch makes there. That covers the timeseries sync and the cold-start fallback. It missed the second site upstream fixed: the serializer stamp that the chart read uses. The agent assumed the serializer already used the merged config, but it hashed the raw query. Because only discovery changed, the writer and the chart read now disagree for saved metrics with real breakdowns. The fix is right in direction but incomplete."
+    ],
+    "reason": "The agent fixed the daily discovery writer, which is the core of the fix, and the timeseries sync now finds the rows. It missed the second half, the serializer stamp. That stamp still hashes the raw query, so the chart read would look under a hash the daily job no longer writes to. The fix is in the right direction but incomplete.",
+    "mustHit": 1,
+    "mustTotal": 5,
+    "touched": [
+      "posthog/temporal/experiments/activities.py"
+    ]
+  },
+  "result": "The daily discovery for saved metrics now hashes the saved query with the per-experiment breakdowns merged in. Its fingerprint should now match the one the timeseries sync and the serializer stamp use. I haven't run the tests or the linter.\n\nThe change is in `_get_experiment_saved_metrics_for_hour_sync` in `posthog/temporal/experiments/activities.py`. It used to pass `saved_metric.query` straight to `compute_metric_fingerprint`. It now passes `_merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata)`. That is the helper in `metric_resolution.py` that readers already use, so the writer and readers no longer disagree. An empty breakdown list hashes like no breakdowns, so metrics without breakdowns keep their current fingerprint.\n\nThe calculate activity still builds its own breakdown-merged query inline. It takes the fingerprint as an input, so it needed no change.\n\nI imported `_merge_saved_metric_breakdowns` even though its name starts with an underscore, to avoid touching its other callers. Say if you'd rather I drop the underscore.\n\nI didn't add a test.",
+  "is_error": false,
+  "diff": "diff --git a/posthog/temporal/experiments/activities.py b/posthog/temporal/experiments/activities.py\nindex fdd32e7e7a6..b37b7ab2cf1 100644\n--- a/posthog/temporal/experiments/activities.py\n+++ b/posthog/temporal/experiments/activities.py\n@@ -33,6 +33,7 @@ from products.experiments.backend.facade.timeseries import (\n from products.experiments.backend.hogql_queries.base_query_utils import experiment_window_end\n from products.experiments.backend.hogql_queries.error_handling import capture_experiment_metric_error_event\n from products.experiments.backend.hogql_queries.experiment_metric_fingerprint import compute_metric_fingerprint\n+from products.experiments.backend.temporal.metric_resolution import _merge_saved_metric_breakdowns\n from products.experiments.backend.hogql_queries.experiment_query_runner import ExperimentQueryRunner\n from products.experiments.backend.hogql_queries.utils import get_experiment_stats_method, sanitize_non_finite\n from products.experiments.backend.models.experiment import (\n@@ -373,7 +374,7 @@ def _get_experiment_saved_metrics_for_hour_sync(hour: int) -> list[ExperimentSav\n                 continue\n \n             fingerprint = compute_metric_fingerprint(\n-                saved_metric.query,\n+                _merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata),\n                 experiment.start_date,\n                 get_experiment_stats_method(experiment),\n                 experiment.exposure_criteria,\n",
+  "distill": null
+}

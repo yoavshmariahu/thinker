@@ -1,0 +1,54 @@
+{
+  "id": "resumable-rest-warehouse-source-post-body-cursor-with-resume",
+  "title": "Resumable REST warehouse source: POST-body cursor with resume hook and frozen resume dataclass",
+  "kind": "convention",
+  "answers": [
+    "How do I build a warehouse source with a POST body cursor?",
+    "How do I make a warehouse source resume from a saved cursor?",
+    "Why did semgrep fail on my resume config dataclass?"
+  ],
+  "body": "Pattern for cursor-paged, resumable sources (clay is the template; autumn was the model):\n- clay/clay.py:clay_source builds a RESTAPIConfig with `JSONResponseCursorPaginator(cursor_path=\"cursor\", cursor_param=\"cursor\", param_location=\"json\")` for APIs that take the cursor in the request body.\n- Resume: `resumable_source_manager.can_resume()/load_state()` seeds `initial_paginator_state={\"cursor\": ...}`. `resume_hook=save_checkpoint` calls `save_state`. `save_state` only stages the cursor; the pipeline commits it after the batch is written.\n- clay/clay.py:ClayResumeConfig must be `@dataclasses.dataclass(frozen=True)`. A bare `@dataclass` failed semgrep and the repo invariants.\n- source.py subclasses `ResumableSource[Config, ResumeConfig]` and implements `get_resumable_source_manager` and `source_for_pipeline`.",
+  "applies": "warehouse_sources data_imports sources using ResumableSource and rest_source paginators",
+  "tags": [
+    "warehouse-sources",
+    "pagination",
+    "resumable"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clay/clay.py",
+      "symbol": "clay_source",
+      "hash": "sha256:2c23ea4b2cd314b2d13a50c8",
+      "line": 58,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clay/clay.py",
+      "symbol": "ClayResumeConfig",
+      "hash": "sha256:38085e8bffb6805c121c713b",
+      "line": 24,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clay/source.py",
+      "symbol": "ClaySource",
+      "hash": "sha256:667590fb5a925857f1c38c57",
+      "line": 25,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105270"
+  },
+  "created": "2026-09-27T00:08:19.034Z",
+  "verified": "2026-09-27T00:08:19.034Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "clay-flatten-record-column-fields-must-never-overwrite-a-rea",
+    "adding-a-source-config-field-source-py-fields-generated-conf"
+  ]
+}

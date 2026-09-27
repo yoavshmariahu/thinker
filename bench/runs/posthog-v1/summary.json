@@ -1,0 +1,707 @@
+[
+  {
+    "id": "PR106936-prompt-0",
+    "task": "PR106936",
+    "area": "frontend",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "eceb36bf-e0ea-47b0-9b06-611abf099499",
+    "turns": 8,
+    "wall_ms": 35612,
+    "api_ms": 17136,
+    "cost": 0.27461820000000003,
+    "in_tokens": 361797,
+    "out_tokens": 1804,
+    "tools": {
+      "calls": 7,
+      "byTool": {
+        "Bash": 4,
+        "Read": 1,
+        "Edit": 2
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 4,
+      "injected": []
+    },
+    "grade": {
+      "score": 0.5,
+      "samples": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "reasons": [
+        "The agent's backend change is functionally identical to the merged one. It moves the existing-member check into validate_target_email with code existing_member, so bulk batches fail before any row is saved. But the request's title is \"flag existing members on the invite row before submit\", and the merged patch's main change is on the frontend. It flags rows client-side, blocks submit, and stops reporting the expected failure to error tracking. The agent did none of that and said so in its summary. The fix is in the right direction but incomplete.",
+        "The agent's backend change matches the merged backend patch: it moves the existing-member check into validate_target_email with code existing_member, so bulk batches fail before any row saves. But the request is to flag existing members on the invite row before submit, and the merged patch does that with frontend changes. The agent did none of them: no client-side row flagging, no disabled submit, and no initKea change to stop the handled-exception reporting. It said openly that the frontend was not done. The core user-facing goal is unmet, so the patch is only partly complete.",
+        "The agent's backend change matches the merged one. It moves the existing-member check into validate_target_email with code existing_member, so a bulk batch is rejected before any row is saved. But the request title is to flag existing members on the invite row before submit, and the merged patch does that in the frontend. The agent did not touch the frontend. Users still get the error only after a round trip. Error tracking is also not addressed, because the merged patch suppresses captureException in initKea. The agent found the right server location and went in the right direction, but it delivered only part of the change."
+      ],
+      "reason": "The agent's backend change is functionally identical to the merged one. It moves the existing-member check into validate_target_email with code existing_member, so bulk batches fail before any row is saved. But the request's title is \"flag existing members on the invite row before submit\", and the merged patch's main change is on the frontend. It flags rows client-side, blocks submit, and stops reporting the expected failure to error tracking. The agent did none of that and said so in its summary. The fix is in the right direction but incomplete.",
+      "mustHit": 1,
+      "mustTotal": 5,
+      "touched": [
+        "posthog/api/organization_invite.py"
+      ]
+    },
+    "result": "I moved the existing-member check from `create()` into `validate_target_email` in `posthog/api/organization_invite.py`, so it now runs during `is_valid()`. I haven't run any tests, and I didn't add or change one.\n\n- **Bulk endpoint:** an existing member in row 3 now fails validation before any row is saved or emailed. Rows 1 and 2 are no longer created and emailed first.\n- **Single-invite endpoint:** it fails at validation too, with the same message as before. The error now has code `existing_member`. Self-invites are covered, because the inviter is a member of the organization.\n- **Error tracking:** the rejection is now an ordinary field-validation error, not an exception raised during `save()`. I did not confirm how those handled exceptions were reaching error tracking, so check that the noise stops.\n- **Not done:** this covers the server side only, and it still returns the error after a round trip. The title's \"flag existing members on the invite row\" needs frontend work that I haven't done. The frontend would need to check member emails, or read a per-row error from the bulk response, and show it on the row. `first_bulk_invite_error` currently collapses the bulk errors to the first one, so the client can't tell which row failed.",
+    "is_error": false,
+    "diff": "diff --git a/posthog/api/organization_invite.py b/posthog/api/organization_invite.py\nindex 58f971e0d95..fdf817c989d 100644\n--- a/posthog/api/organization_invite.py\n+++ b/posthog/api/organization_invite.py\n@@ -197,6 +197,15 @@ class OrganizationInviteSerializer(serializers.ModelSerializer):\n         email = EmailNormalizer.normalize(email)\n         reject_plus_addressed_email(email)\n         validate_invite_target_email_domain(self.context[\"get_organization\"](), email)\n+        # Checked here rather than in create() so a bulk batch fails as a whole before any row is saved or emailed.\n+        if OrganizationMembership.objects.filter(\n+            organization_id=self.context[\"organization_id\"],\n+            user__email__iexact=email,\n+        ).exists():\n+            raise exceptions.ValidationError(\n+                \"A user with this email address already belongs to the organization.\",\n+                code=\"existing_member\",\n+            )\n         return email\n \n     def validate_first_name(self, value: str) -> str:\n@@ -307,12 +316,6 @@ class OrganizationInviteSerializer(serializers.ModelSerializer):\n         return private_project_access\n \n     def create(self, validated_data: dict[str, Any], *args: Any, **kwargs: Any) -> OrganizationInvite:\n-        if OrganizationMembership.objects.filter(\n-            organization_id=self.context[\"organization_id\"],\n-            user__email__iexact=validated_data[\"target_email\"],\n-        ).exists():\n-            raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\")\n-\n         combine_pending_invites = validated_data.pop(\"combine_pending_invites\", False)\n         send_email = validated_data.pop(\"send_email\", True)\n \n",
+    "distill": null
+  },
+  {
+    "id": "PR106466-prompt-0",
+    "task": "PR106466",
+    "area": "workflows",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "923d7920-0f58-4aa6-b95c-51713465c41f",
+    "turns": 13,
+    "wall_ms": 51930,
+    "api_ms": 48491,
+    "cost": 0.43777879999999997,
+    "in_tokens": 723659,
+    "out_tokens": 5778,
+    "tools": {
+      "calls": 12,
+      "byTool": {
+        "Bash": 10,
+        "bash": 1,
+        "Edit": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 10,
+      "injected": []
+    },
+    "grade": {
+      "score": 0.5,
+      "samples": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "reasons": [
+        "The agent found the right frontend places. It added a stop-and-edit action that sets the broadcast to draft, and it replaces the old schedules on launch by deleting them. That is the core direction of the merged change. It is incomplete and partly unsafe. The stop button has no eligibility gating, so it shows for sent or completed broadcasts. Launch activates the flow before creating the new schedule, so a failure can still leave an active flow with no schedule. Schedule variables are dropped. Batch jobs that start during the stop are not cancelled. The backend race fix is missing. The result is in the right direction but only partly correct.",
+        "The agent edited the right files and matched the main direction. It adds a stop-to-draft action and makes launch delete old schedules, which fixes the paused-schedule no-op. But it is incomplete against the merged patch. The button is shown for any active broadcast, including sent ones. The launch order can leave an active flow with no schedule. It has no in-flight job cancellation, no variable carry-over, and no backend race fix.",
+        "The agent found the right frontend places. It added a Stop and edit action that sets the status to draft, and it makes launch delete old schedules instead of trying to resume a paused one. That covers both problems in the request. It leaves out the backend race fix, the eligibility guards, cancelling in-flight jobs and variable preservation. The button can also appear for already-sent broadcasts, so a relaunch could send again. The change goes in the right direction but is incomplete."
+      ],
+      "reason": "The agent found the right frontend places. It added a stop-and-edit action that sets the broadcast to draft, and it replaces the old schedules on launch by deleting them. That is the core direction of the merged change. It is incomplete and partly unsafe. The stop button has no eligibility gating, so it shows for sent or completed broadcasts. Launch activates the flow before creating the new schedule, so a failure can still leave an active flow with no schedule. Schedule variables are dropped. Batch jobs that start during the stop are not cancelled. The backend race fix is missing. The result is in the right direction but only partly correct.",
+      "mustHit": 2,
+      "mustTotal": 4,
+      "touched": [
+        "products/workflows/frontend/Broadcasts/BroadcastSummary.tsx",
+        "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts"
+      ]
+    },
+    "result": "A live broadcast can now go back to draft, and launching replaces any earlier schedule. I haven't run the type check, lint or tests, and I didn't add a test.\n\n**Back to draft.** The read-only summary page has a \"Stop and edit\" button while the broadcast is active. It sets the broadcast to `draft`, so the scene swaps back to the wizard on the review step, or on the first step with an error. The button is disabled while runs are loading or a send is in flight. Changes are in `BroadcastSummary.tsx` and `broadcastWizardLogic.ts` (new `returnToDraft` action and `returningToDraft` state).\n\n**Schedule replaced on launch.** `launchBroadcast` now deletes the broadcast's existing schedules before setting it to `active`. It then creates the new schedule, or dispatches the batch job for \"send now\". This fixes the silent no-op: a schedule paused by an audience edit is deleted rather than left paused, and an old schedule can't fire alongside the new one. The schedule ids come from the response of the save that runs at the start of launch. If a delete fails, the broadcast is still a draft and the existing error toast appears.\n\nI edited the hand-maintained kea typegen interfaces in the logic file to include the new action and value. A typegen run may reformat them.\n\nI chose the \"Stop and edit\" label and the toast wording myself, and I did not run the `/writing-user-facing-copy` skill, so please review both.",
+    "is_error": false,
+    "diff": "diff --git a/products/workflows/frontend/Broadcasts/BroadcastSummary.tsx b/products/workflows/frontend/Broadcasts/BroadcastSummary.tsx\nindex 8a6252fe469..6133fb83a3f 100644\n--- a/products/workflows/frontend/Broadcasts/BroadcastSummary.tsx\n+++ b/products/workflows/frontend/Broadcasts/BroadcastSummary.tsx\n@@ -1,4 +1,4 @@\n-import { useValues } from 'kea'\n+import { useActions, useValues } from 'kea'\n \n import { IconArrowLeft, IconExternal } from '@posthog/icons'\n import { LemonButton, LemonTag } from '@posthog/lemon-ui'\n@@ -26,8 +26,19 @@ const BATCH_JOB_STATUS_TAG: Record<string, 'success' | 'default' | 'warning' | '\n }\n \n export function BroadcastSummary(): JSX.Element {\n-    const { broadcast, broadcastId, name, audienceProperties, email, scheduleSummary, batchJobs, batchJobsLoading } =\n-        useValues(broadcastWizardLogic)\n+    const {\n+        broadcast,\n+        broadcastId,\n+        name,\n+        audienceProperties,\n+        email,\n+        scheduleSummary,\n+        batchJobs,\n+        batchJobsLoading,\n+        returningToDraft,\n+    } = useValues(broadcastWizardLogic)\n+    const { returnToDraft } = useActions(broadcastWizardLogic)\n+    const hasRunInFlight = batchJobs.some((job) => ['waiting', 'queued', 'active'].includes(job.status ?? ''))\n \n     // Email metrics from a batch send are attributed to the batch job, not the flow (see\n     // `parentRunId ?? functionId` in the plugin server's email service), so a flow-scoped query\n@@ -102,6 +113,25 @@ export function BroadcastSummary(): JSX.Element {\n                     <LemonTag type={broadcast?.status === 'active' ? 'success' : 'default'}>\n                         {capitalizeFirstLetter(broadcast?.status ?? 'draft')}\n                     </LemonTag>\n+                    {broadcast?.status === 'active' && (\n+                        <LemonButton\n+                            type=\"secondary\"\n+                            size=\"small\"\n+                            className=\"ml-auto\"\n+                            loading={returningToDraft}\n+                            disabledReason={\n+                                batchJobsLoading\n+                                    ? 'Loading runs'\n+                                    : hasRunInFlight\n+                                      ? 'Wait for the current send to finish, then you can edit it'\n+                                      : undefined\n+                            }\n+                            onClick={returnToDraft}\n+                            data-attr=\"broadcast-return-to-draft\"\n+                        >\n+                            Stop and edit\n+                        </LemonButton>\n+                    )}\n                 </div>\n \n                 <div className=\"flex flex-col gap-3 rounded-lg border border-border bg-surface-primary p-4\">\ndiff --git a/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts b/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts\nindex 491dd77752f..8efab278aa5 100644\n--- a/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts\n+++ b/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts\n@@ -21,6 +21,7 @@ import {\n     hogFlowsPartialUpdate,\n     hogFlowsRetrieve,\n     hogFlowsSchedulesCreate,\n+    hogFlowsSchedulesDestroy,\n     hogFlowsUserBlastRadiusCreate,\n } from 'products/workflows/frontend/generated/api'\n import type {\n@@ -124,6 +125,7 @@ export interface broadcastWizardLogicValues {\n     rateLimitedSendDuration: string\n     recurringRepeating: boolean\n     recurringStartsAt: string | null\n+    returningToDraft: boolean\n     saving: boolean\n     scheduleMode: BroadcastScheduleMode\n     scheduleState: ScheduleState\n@@ -147,6 +149,12 @@ export interface broadcastWizardLogicActions {\n     launchBroadcastFinished: () => {\n         value: true\n     }\n+    returnToDraft: () => {\n+        value: true\n+    }\n+    returnToDraftFinished: () => {\n+        value: true\n+    }\n     loadBatchJobs: () => any\n     loadBatchJobsFailure: (\n         error: string,\n@@ -334,6 +342,8 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n         saveBroadcastFinished: (broadcast: HogFlowApi | null) => ({ broadcast }),\n         launchBroadcast: true,\n         launchBroadcastFinished: true,\n+        returnToDraft: true,\n+        returnToDraftFinished: true,\n     }),\n \n     loaders(({ props, values }) => ({\n@@ -520,6 +530,13 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                 launchBroadcastFinished: () => false,\n             },\n         ],\n+        returningToDraft: [\n+            false,\n+            {\n+                returnToDraft: () => true,\n+                returnToDraftFinished: () => false,\n+            },\n+        ],\n         // Set once the initial load of an existing draft has hydrated the reducers, so the wizard can\n         // resume at the first incomplete step exactly once.\n         hasHydrated: [\n@@ -755,11 +772,13 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n             const projectId = String(values.currentProjectId)\n             let broadcastId = values.broadcastId\n             let activated: HogFlowApi | null = null\n+            let existingSchedules: HogFlowScheduleApi[] = []\n             try {\n                 // Save the latest edits (creating the draft if the user skipped ahead).\n                 if (!broadcastId) {\n                     const created = await hogFlowsCreate(projectId, buildBroadcastPayload(values) as any)\n                     broadcastId = created.id\n+                    existingSchedules = created.schedules ?? []\n                     actions.saveBroadcastFinished(created)\n                 } else {\n                     const saved = await hogFlowsPartialUpdate(\n@@ -767,6 +786,7 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                         broadcastId,\n                         buildBroadcastPayload(values) as any\n                     )\n+                    existingSchedules = saved.schedules ?? []\n                     actions.saveBroadcastFinished(saved)\n                 }\n \n@@ -790,6 +810,12 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                     return\n                 }\n \n+                // Editing the audience pauses a schedule and the API cannot resume it, so launching\n+                // replaces any earlier schedule instead of stacking a new one next to it.\n+                for (const existing of existingSchedules) {\n+                    await hogFlowsSchedulesDestroy(projectId, broadcastId, existing.id)\n+                }\n+\n                 activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })\n \n                 if (values.scheduleMode === 'now') {\n@@ -832,6 +858,25 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                 lemonToast.error(`Couldn't launch the broadcast: ${error?.detail || error?.message || 'unknown error'}`)\n             }\n         },\n+        returnToDraft: async () => {\n+            if (!values.currentProjectId || !values.broadcastId) {\n+                actions.returnToDraftFinished()\n+                return\n+            }\n+            try {\n+                const draft = await hogFlowsPartialUpdate(String(values.currentProjectId), values.broadcastId, {\n+                    status: 'draft',\n+                })\n+                actions.saveBroadcastFinished(draft)\n+                actions.setStep(values.firstInvalidStep ?? 'review')\n+                lemonToast.success('Broadcast is back to draft. Launch it again to send it.')\n+            } catch (error: any) {\n+                lemonToast.error(\n+                    `Couldn't move the broadcast back to draft: ${error?.detail || error?.message || 'unknown error'}`\n+                )\n+            }\n+            actions.returnToDraftFinished()\n+        },\n         loadBroadcastSuccess: ({ broadcast }) => {\n             if (!broadcast || values.hasHydrated) {\n                 return\n",
+    "distill": null
+  },
+  {
+    "id": "PR106672-prompt-0",
+    "task": "PR106672",
+    "area": "experiments",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "5a676fb7-7edd-4c89-8112-8508f3f02465",
+    "turns": 17,
+    "wall_ms": 47231,
+    "api_ms": 45448,
+    "cost": 0.4069402,
+    "in_tokens": 780545,
+    "out_tokens": 4989,
+    "tools": {
+      "calls": 16,
+      "byTool": {
+        "Bash": 11,
+        "bash": 1,
+        "Edit": 4
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 11,
+      "injected": []
+    },
+    "grade": {
+      "score": 0.5,
+      "samples": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "reasons": [
+        "The promotion fix is functionally equivalent: create_saved_metric always overwrites the uuid with a fresh one. The agent also found the PATCH-only saved_metrics_ids gap and re-dedups the stored inline metrics against the attached uuids. But it did not fix the ordering sync. When the inline copy gets a new uuid, the shared metric's old uuid looks removed and can be dropped from the ordering arrays, which the merged patch prevents. The agent's claim that the existing ordering sync handles this is doubtful. It is also unclear whether its block runs before the ordering sync. I am scoring it partial.",
+        "The agent found both collision paths and its changes point the right way. The promotion fix works if `create_saved_metric` is the only path, and the PATCH-only path regenerates colliding stored inline uuids. It misses the ordering fix that upstream needed, so the shared metric's uuid can be removed from the ordering after a collision. The summary's claim that ordering is handled by existing code looks wrong. The result is incomplete, not equivalent.",
+        "Both fixes are aimed at the right places. Saved metric creation now always assigns a fresh uuid, and update_experiment re-checks the stored inline metrics when only saved_metrics_ids is sent. The agent did not touch _sync_ordering_with_metric_changes, which upstream changed. Once the inline copy is renumbered, the shared metric's uuid is likely dropped from the ordering arrays. The uuid reset also sits in create_saved_metric rather than normalize_query_for_write, so it covers fewer callers. The change is in the right direction but incomplete."
+      ],
+      "reason": "The promotion fix is functionally equivalent: create_saved_metric always overwrites the uuid with a fresh one. The agent also found the PATCH-only saved_metrics_ids gap and re-dedups the stored inline metrics against the attached uuids. But it did not fix the ordering sync. When the inline copy gets a new uuid, the shared metric's old uuid looks removed and can be dropped from the ordering arrays, which the merged patch prevents. The agent's claim that the existing ordering sync handles this is doubtful. It is also unclear whether its block runs before the ordering sync. I am scoring it partial.",
+      "mustHit": 3,
+      "mustTotal": 3,
+      "touched": [
+        "products/experiments/backend/experiment_saved_metric_service.py",
+        "products/experiments/backend/experiment_service.py",
+        "products/experiments/backend/test/test_experiment_saved_metric_service.py",
+        "products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2"
+      ]
+    },
+    "result": "Both collision paths are closed, but I haven't run any tests or the linters.\n\n- **Promoting an inline metric:** `create_saved_metric` in `backend/experiment_saved_metric_service.py` now always gives the new saved metric a fresh uuid and drops any uuid in the incoming query. Updates still keep the existing uuid and reject changes to it.\n- **PATCH with only `saved_metrics_ids`:** `update_experiment` in `backend/experiment_service.py` now handles this case. It collects the uuids of the saved metrics being attached and re-checks the stored `metrics` and `metrics_secondary`, if the request didn't send them. If a stored inline metric collides, it gets a new uuid, and the existing ordering sync applies that change.\n- **Skill doc:** `metric-configuration.md.j2` now says the saved metric gets a new uuid, and that you should remove the inline copy in the same update if you don't want the metric twice.\n- **Test:** I added `test_create_saved_metric_replaces_incoming_uuid` to `test_experiment_saved_metric_service.py`. I did not add a test for the PATCH path.\n\n**Ordering after a collision:** when a stored inline metric is renumbered, the old uuid stays in the ordering as the saved metric's entry. The renumbered inline metric is appended at the end, so it can move position.",
+    "is_error": false,
+    "diff": "diff --git a/products/experiments/backend/experiment_saved_metric_service.py b/products/experiments/backend/experiment_saved_metric_service.py\nindex 7b03bf6b166..6e12bc5fe64 100644\n--- a/products/experiments/backend/experiment_saved_metric_service.py\n+++ b/products/experiments/backend/experiment_saved_metric_service.py\n@@ -88,6 +88,9 @@ class ExperimentSavedMetricService:\n     ) -> ExperimentSavedMetric:\n         \"\"\"Create a saved metric with full business-logic validation.\"\"\"\n         normalized_query = self.normalize_query_for_write(query)\n+        # A promoted inline metric arrives with its old uuid; reusing it would collide with the\n+        # inline copy once the saved metric is attached.\n+        normalized_query[\"uuid\"] = str(uuid4())\n         enforce_warehouse_metric_access([normalized_query], team=self.team, user=self.user)\n \n         return ExperimentSavedMetric.objects.create(\ndiff --git a/products/experiments/backend/experiment_service.py b/products/experiments/backend/experiment_service.py\nindex 7c33bc325ee..99ef1adfba5 100644\n--- a/products/experiments/backend/experiment_service.py\n+++ b/products/experiments/backend/experiment_service.py\n@@ -3700,6 +3700,18 @@ class ExperimentService:\n             user=self.user,\n         )\n \n+        # A PATCH that only changes saved_metrics_ids never sends the inline arrays, so the\n+        # stored inline metrics still need the collision check against the newly attached uuids.\n+        if \"saved_metrics_ids\" in update_data:\n+            attached_uuids = self._collect_saved_metric_uuids(update_data[\"saved_metrics_ids\"])\n+            for field in (\"metrics\", \"metrics_secondary\"):\n+                stored_metrics = getattr(experiment, field, None)\n+                if field in update_data or not stored_metrics:\n+                    continue\n+                deduped = self._assign_uuids_to_metrics(stored_metrics, seen=set(attached_uuids))\n+                if deduped != stored_metrics:\n+                    update_data[field] = deduped\n+\n         context = serializer_context or self._build_serializer_context()\n         feature_flag = experiment.feature_flag\n \ndiff --git a/products/experiments/backend/test/test_experiment_saved_metric_service.py b/products/experiments/backend/test/test_experiment_saved_metric_service.py\nindex b7de86c9019..ce8582b9882 100644\n--- a/products/experiments/backend/test/test_experiment_saved_metric_service.py\n+++ b/products/experiments/backend/test/test_experiment_saved_metric_service.py\n@@ -37,6 +37,14 @@ class TestExperimentSavedMetricService(APIBaseTest):\n         assert saved_metric.query[\"uuid\"]\n         assert {key: value for key, value in saved_metric.query.items() if key != \"uuid\"} == original_query\n \n+    def test_create_saved_metric_replaces_incoming_uuid(self) -> None:\n+        saved_metric = self._service().create_saved_metric(\n+            name=\"Promoted metric\",\n+            query={**self._valid_experiment_metric(), \"uuid\": \"inline-metric-uuid\"},\n+        )\n+\n+        assert saved_metric.query[\"uuid\"] != \"inline-metric-uuid\"\n+\n     @parameterized.expand(\n         [\n             (\"missing_query\", None, \"Query is required to create a saved metric\"),\ndiff --git a/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2 b/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2\nindex 3e912ad5850..de2271adfb8 100644\n--- a/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2\n+++ b/products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2\n@@ -299,6 +299,8 @@ all shared metrics.\n To promote a one-off inline metric into a reusable shared metric, call\n `experiment-saved-metrics-create` with the same `query` (the `ExperimentMetric`\n object), then attach it via `saved_metrics_ids` as above.\n+The saved metric gets a new uuid, so the inline copy keeps its own.\n+To avoid showing the metric twice, remove the inline copy from `metrics` or `metrics_secondary` in the same update.\n \n ## Property filters\n \n",
+    "distill": null
+  },
+  {
+    "id": "PR106564-prompt-0",
+    "task": "PR106564",
+    "area": "common",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "3e58bcf2-6f31-40bd-93ee-804c7e011256",
+    "turns": 7,
+    "wall_ms": 21501,
+    "api_ms": 15274,
+    "cost": 0.2505182,
+    "in_tokens": 341863,
+    "out_tokens": 1451,
+    "tools": {
+      "calls": 6,
+      "byTool": {
+        "Bash": 6
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 6,
+      "injected": []
+    },
+    "grade": {
+      "score": 0,
+      "samples": [
+        0,
+        0,
+        0
+      ],
+      "reasons": [
+        "The agent's patch is empty and makes no functional change, so it does not implement the feature-flag rollout of the stable chunk build.",
+        "The agent's patch is empty, so it made no functional change and does not meet the request. It said the stable chunk code was missing from its checkout, but the merged patch modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs, and none of those changes were made.",
+        "The agent's patch is empty. It concluded the stable chunks code was missing from the checkout and asked for clarification instead of implementing the change. The merged patch changes posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs, and the agent made no functional change to any of them."
+      ],
+      "reason": "The agent's patch is empty and makes no functional change, so it does not implement the feature-flag rollout of the stable chunk build.",
+      "mustHit": 0,
+      "mustTotal": 3,
+      "touched": []
+    },
+    "result": "I made no changes, because the code this change builds on isn't in this checkout.\n\n- `stable_chunks` and any \"stable chunk\" build appear nowhere in the frontend, `common/esbuilder`, `posthog/utils.py` or the templates. My grep matched only unrelated files (`cli/` sourcemaps, review_hog docs, a HogQL test).\n- No commit on this branch mentions it either, and the checkout is at `a3b3c3685bc`.\n- The existing chunk machinery is `common/esbuilder/chunkLoader.mjs`, `common/esbuilder/utils.mjs` and `frontend/build.mjs`. It has no stable variant and no `?stable_chunks=1` opt-in, so the feature-flag rollout has nothing to attach to yet.\n\nIf I wrote this now, I'd have to invent the stable build, how it's served, and the opt-in switch. Those are the parts the ticket treats as already done, so I'd likely conflict with the real PR ([ref]).\n\nCan you point me at one of these?\n- The branch or PR for the stable chunk build, so I can rebase onto it.\n- A description of how that build is emitted and selected. I'd then add the flag check next to the `?stable_chunks=1` handling.\n\nOnce I have that, the plan is small:\n- Evaluate a feature flag for logged-in users and treat a true result like `?stable_chunks=1`.\n- Keep the query param as a manual override.\n- Send the assigned variant to PostHog so LCP can be compared across the 50% split.\n- Add a small test for the flag-versus-param precedence.",
+    "is_error": false,
+    "diff": "",
+    "distill": null
+  },
+  {
+    "id": "PR106613-prompt-0",
+    "task": "PR106613",
+    "area": "frontend",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "8aabbd1e-5e67-47e3-93e2-6bb05c8afc02",
+    "turns": 4,
+    "wall_ms": 15859,
+    "api_ms": 7294,
+    "cost": 0.18219980000000002,
+    "in_tokens": 186944,
+    "out_tokens": 759,
+    "tools": {
+      "calls": 3,
+      "byTool": {
+        "Bash": 3
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 3,
+      "injected": []
+    },
+    "grade": {
+      "score": 1,
+      "samples": [
+        1,
+        1,
+        1
+      ],
+      "reasons": [
+        "The agent changed the route key and the decisionPlayground URL helper to /ml-inference/playground in frontend/src/products.tsx, matching upstream. It also updated products/ml_inference/manifest.tsx, the source that products.tsx is generated from, which is correct. The new URL is served as requested. The only difference is the missing backward-compat redirect from the old URL, which is a secondary nicety and not the core request, so the change is functionally equivalent for the requested behavior.",
+        "The agent changed the route key and the decisionPlayground URL helper in frontend/src/products.tsx exactly as upstream did. It also updated products/ml_inference/manifest.tsx, the source file that products.tsx is generated from, which is consistent with upstream. The page now serves at /ml-inference/playground. The only gap is the missing redirect for the old URL. The agent flagged that omission in its summary. The core change is functionally equivalent, and the marketing_analytics snapshot changes in the upstream diff are unrelated.",
+        "The agent changed the route key and the `decisionPlayground` URL helper to `/ml-inference/playground` in `frontend/src/products.tsx`. This matches the upstream patch. It also updated the source `products/ml_inference/manifest.tsx`, which is where `products.tsx` is generated from, so the two stay consistent. The upstream patch also adds a redirect from the old URL. The agent skipped it and said so in its summary. The request only asks that the page be served at the new URL, so the redirect is a backward-compatibility extra and does not affect whether the change works. The marketing_analytics snapshot changes in the upstream diff are unrelated."
+      ],
+      "reason": "The agent changed the route key and the decisionPlayground URL helper to /ml-inference/playground in frontend/src/products.tsx, matching upstream. It also updated products/ml_inference/manifest.tsx, the source that products.tsx is generated from, which is correct. The new URL is served as requested. The only difference is the missing backward-compat redirect from the old URL, which is a secondary nicety and not the core request, so the change is functionally equivalent for the requested behavior.",
+      "mustHit": 2,
+      "mustTotal": 2,
+      "touched": [
+        "frontend/src/products.tsx",
+        "products/ml_inference/manifest.tsx"
+      ]
+    },
+    "result": "The decisions playground is now served at `/ml-inference/playground` instead of `/ml-inference/decisions`. I didn't run any tests or the type checker.\n\nI changed the scene route and the `decisionPlayground` URL helper in two files:\n- `products/ml_inference/manifest.tsx`\n- `frontend/src/products.tsx`, which mirrors the manifest. I edited it by hand rather than regenerating it, so you may want to regenerate to confirm the two stay in sync.\n\nI left the backend API path (`ml_inference/decisions/decide`) and the `ml-inference-decisions` feature flag alone. Those are API and flag names, not the page URL. Nothing else in the repo referenced the old page URL, so no test or story needed changing.\n\nI did not add a redirect from the old URL, so any bookmark to `/ml-inference/decisions` will no longer resolve.",
+    "is_error": false,
+    "diff": "diff --git a/frontend/src/products.tsx b/frontend/src/products.tsx\nindex 63441ff6199..fb80102fcda 100644\n--- a/frontend/src/products.tsx\n+++ b/frontend/src/products.tsx\n@@ -218,7 +218,7 @@ export const productRoutes: Record<string, [string, string]> = {\n     '/mcp-servers': ['McpGateway', 'mcpGateway'],\n     '/mcp-servers/:tab': ['McpGateway', 'mcpGatewayTab'],\n     '/metrics': ['Metrics', 'metrics'],\n-    '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+    '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n     '/notebooks/widgets/:widgetId': ['ReusableWidget', 'reusableWidget'],\n     '/person/*': ['Person', 'personByDistinctId'],\n     '/persons/*': ['Person', 'personByUUID'],\n@@ -1495,7 +1495,7 @@ export const productUrls = {\n     mcpGatewayAgent: (id: string): string => `/mcp-servers/agent/${id}`,\n     mcpGatewayMember: (id: string | number): string => `/mcp-servers/member/${id}`,\n     metrics: (): string => '/metrics',\n-    decisionPlayground: (): string => '/ml-inference/decisions',\n+    decisionPlayground: (): string => '/ml-inference/playground',\n     notebooks: (): string => '/notebooks',\n     notebook: (shortId: string): string => `/notebooks/${shortId}`,\n     canvas: (): string => `/canvas`,\ndiff --git a/products/ml_inference/manifest.tsx b/products/ml_inference/manifest.tsx\nindex 1c710326070..d29ab99a05b 100644\n--- a/products/ml_inference/manifest.tsx\n+++ b/products/ml_inference/manifest.tsx\n@@ -12,11 +12,11 @@ export const manifest: ProductManifest = {\n         },\n     },\n     routes: {\n-        '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+        '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n     },\n     redirects: {},\n     urls: {\n-        decisionPlayground: (): string => '/ml-inference/decisions',\n+        decisionPlayground: (): string => '/ml-inference/playground',\n     },\n     fileSystemTypes: {},\n     treeItemsNew: [],\n",
+    "distill": null
+  },
+  {
+    "id": "PR106522-prompt-0",
+    "task": "PR106522",
+    "area": "tasks",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "30ef279e-82e4-44d0-9a5d-6e419b0d00ec",
+    "turns": 19,
+    "wall_ms": 53708,
+    "api_ms": 51789,
+    "cost": 0.5265992,
+    "in_tokens": 1106861,
+    "out_tokens": 6170,
+    "tools": {
+      "calls": 18,
+      "byTool": {
+        "Bash": 17,
+        "Edit": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 16,
+      "injected": []
+    },
+    "grade": {
+      "score": 0.5,
+      "samples": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "reasons": [
+        "The agent found the right area and does add sandbox_backend to failure events, mostly by reading run state. It misses the core continued-run fix: resumed state and the status activity input carrying the backend. Its version also mislabels runs that have no sandbox as modal and adds unrelated metric label changes. The direction is right but the change is incomplete and partly off-target.",
+        "The agent's models.py change adds sandbox_backend to analytics_properties, which covers mark_failed and the facade agent-reported path, though it defaults to modal without checking for a sandbox. The workflow failure events also gain the property. It misses the main flow the upstream patch fixes: the update_task_run_status terminal analytics and the continued-run backend propagation through the resumed state and processing context. It also adds Prometheus label changes that upstream did not make. The direction is right but the change is incomplete and partly off.",
+        "The agent tags failure events with the backend from run state. That probably covers mark_failed and the facade agent-reported failure, because they build their properties from analytics_properties(). It does not fix the continued-run case named in the problem. Upstream carries the backend through the resume state and the status activity, and it re-resolves the context using the attached sandbox's backend. The agent's default of 'modal' can be wrong for continued hogland runs, and it also labels runs that never had a sandbox. The direction is right but the change is incomplete and partly wrong."
+      ],
+      "reason": "The agent found the right area and does add sandbox_backend to failure events, mostly by reading run state. It misses the core continued-run fix: resumed state and the status activity input carrying the backend. Its version also mislabels runs that have no sandbox as modal and adds unrelated metric label changes. The direction is right but the change is incomplete and partly off-target.",
+      "mustHit": 3,
+      "mustTotal": 6,
+      "touched": [
+        "products/tasks/backend/metrics.py",
+        "products/tasks/backend/models.py",
+        "products/tasks/backend/temporal/execute_sandbox/workflow.py",
+        "products/tasks/backend/temporal/process_task/workflow.py",
+        "products/tasks/backend/tests/test_task_run_metrics.py"
+      ]
+    },
+    "result": "`task_run_failed` events and the failure counters now carry the sandbox backend (`modal` or `hogland`), so operators can filter failure alerts by it. I haven't run any tests, per your instructions.\n\n**Cause.** The `task_run_failed` capture in `mark_failed`, the facade PATCH and the workflow-start failure all built their properties from `TaskRun.analytics_properties()`, which had no backend. The `task_run_failed` workflow events also lacked it. The agent-reported failure path (`observe_agent_turn_failed`) and `posthog_tasks_task_run_failed_total` had no backend label either.\n\n**Changes** (all under `products/tasks/backend/`):\n- `models.py`: `TaskRun.analytics_properties()` now includes `sandbox_backend`, read from `state[\"sandbox_backend\"]` and defaulting to `\"modal\"` when unset. Every event built from it gets the property, including `task_run_failed`.\n- `temporal/process_task/workflow.py` and `temporal/execute_sandbox/workflow.py`: the `task_run_failed` workflow event now includes `self.context.sandbox_backend`.\n- `metrics.py`: `posthog_tasks_task_run_failed_total` and `posthog_tasks_agent_turn_failed_total` gain a `sandbox_backend` label. Values are bounded to `modal`, `hogland`, `unknown` or `other`. `observe_agent_turn_failed` reads the backend from run state the same way as the analytics property.\n- `tests/test_task_run_metrics.py`: the agent-turn-failure tests now expect the new label. One case uses a `hogland` run and the other defaults to `modal`.\n\nAdding a label to an existing Prometheus counter creates new series. Any dashboard or alert that matches these two counters with exact label sets will need the new label, or an aggregation over it.",
+    "is_error": false,
+    "diff": "diff --git a/products/tasks/backend/metrics.py b/products/tasks/backend/metrics.py\nindex 8edec4994ec..46c10a36a6a 100644\n--- a/products/tasks/backend/metrics.py\n+++ b/products/tasks/backend/metrics.py\n@@ -41,6 +41,7 @@ _ALLOWED_MODES = {\"background\", \"interactive\"}\n _ALLOWED_RUN_SOURCES = {\"manual\", \"signal_report\", \"agent\"}\n _ALLOWED_RUNTIME_ADAPTERS = {\"claude\", \"codex\"}\n _ALLOWED_TASK_RUNTIMES = {\"acp\", \"pi\"}\n+_ALLOWED_SANDBOX_BACKENDS = {\"modal\", \"hogland\"}\n \n \n TASK_RUN_CREATED_TOTAL = Counter(\n@@ -183,6 +184,7 @@ TASK_RUN_FAILED_TOTAL = Counter(\n         \"mode\",\n         \"run_source\",\n         \"runtime_adapter\",\n+        \"sandbox_backend\",\n         \"error_type\",\n         \"temporal_activity_type\",\n         \"temporal_activity_retry_state\",\n@@ -330,7 +332,7 @@ TASK_RUN_STREAM_WRITE_SKIPPED_TOTAL = Counter(\n TASK_RUN_AGENT_FAILURE_TOTAL = Counter(\n     \"posthog_tasks_agent_turn_failed_total\",\n     \"TaskRun transitions to FAILED via the API facade (agent-server turn failures)\",\n-    labelnames=[\"origin_product\", \"mode\", \"run_source\", \"task_runtime\", \"runtime_adapter\"],\n+    labelnames=[\"origin_product\", \"mode\", \"run_source\", \"task_runtime\", \"runtime_adapter\", \"sandbox_backend\"],\n )\n \n TASK_RUN_FOLLOWUP_DELIVERY_FAILED_TOTAL = Counter(\n@@ -681,6 +683,7 @@ def observe_task_run_failed(properties: dict[str, object]) -> None:\n         mode=_bounded_metric_label(properties.get(\"mode\"), _ALLOWED_MODES),\n         run_source=_bounded_metric_label(properties.get(\"run_source\"), _ALLOWED_RUN_SOURCES),\n         runtime_adapter=_bounded_metric_label(properties.get(\"runtime_adapter\"), _ALLOWED_RUNTIME_ADAPTERS),\n+        sandbox_backend=_bounded_metric_label(properties.get(\"sandbox_backend\"), _ALLOWED_SANDBOX_BACKENDS),\n         error_type=_failure_metric_label(properties.get(\"error_type\")),\n         temporal_activity_type=_failure_metric_label(properties.get(\"temporal_activity_type\")),\n         temporal_activity_retry_state=_failure_metric_label(properties.get(\"temporal_activity_retry_state\")),\n@@ -696,6 +699,10 @@ def observe_agent_turn_failed(task_run: \"TaskRun\") -> None:\n         run_source=labels[\"run_source\"],\n         task_runtime=labels[\"task_runtime\"],\n         runtime_adapter=labels[\"runtime_adapter\"],\n+        sandbox_backend=_bounded_metric_label(\n+            (task_run.state if isinstance(task_run.state, dict) else {}).get(\"sandbox_backend\") or \"modal\",\n+            _ALLOWED_SANDBOX_BACKENDS,\n+        ),\n     ).inc()\n \n \ndiff --git a/products/tasks/backend/models.py b/products/tasks/backend/models.py\nindex e93030ce893..f30d71c8621 100644\n--- a/products/tasks/backend/models.py\n+++ b/products/tasks/backend/models.py\n@@ -3018,6 +3018,7 @@ class TaskRun(models.Model):\n             # local/cloud value under an unclobbered name too.\n             \"run_environment\": self.environment,\n             \"mode\": self.mode,\n+            \"sandbox_backend\": (self.state or {}).get(\"sandbox_backend\") or \"modal\",\n             **self._analytics_usage_properties(),\n         }\n \ndiff --git a/products/tasks/backend/temporal/execute_sandbox/workflow.py b/products/tasks/backend/temporal/execute_sandbox/workflow.py\nindex 72cf65d8166..35362871c57 100644\n--- a/products/tasks/backend/temporal/execute_sandbox/workflow.py\n+++ b/products/tasks/backend/temporal/execute_sandbox/workflow.py\n@@ -630,6 +630,7 @@ class ExecuteSandboxWorkflow(PostHogWorkflow):\n                         \"run_source\": self.context.run_source,\n                         \"runtime_adapter\": self.context.runtime_adapter,\n                         \"provider\": self.context.provider,\n+                        \"sandbox_backend\": self.context.sandbox_backend,\n                         \"model\": self.context.model,\n                         \"reasoning_effort\": self.context.reasoning_effort,\n                         \"error_type\": error_type,\ndiff --git a/products/tasks/backend/temporal/process_task/workflow.py b/products/tasks/backend/temporal/process_task/workflow.py\nindex ff5860a13a4..87e1f090ff3 100644\n--- a/products/tasks/backend/temporal/process_task/workflow.py\n+++ b/products/tasks/backend/temporal/process_task/workflow.py\n@@ -1676,6 +1676,7 @@ class ProcessTaskWorkflow(PostHogWorkflow):\n                         \"run_source\": self.context.run_source,\n                         \"runtime_adapter\": self.context.runtime_adapter,\n                         \"provider\": self.context.provider,\n+                        \"sandbox_backend\": self.context.sandbox_backend,\n                         \"model\": self.context.model,\n                         \"reasoning_effort\": self.context.reasoning_effort,\n                         \"error_type\": type(e).__name__,\ndiff --git a/products/tasks/backend/tests/test_task_run_metrics.py b/products/tasks/backend/tests/test_task_run_metrics.py\nindex 303772ca57d..7c17b8b4334 100644\n--- a/products/tasks/backend/tests/test_task_run_metrics.py\n+++ b/products/tasks/backend/tests/test_task_run_metrics.py\n@@ -380,7 +380,7 @@ class TestTaskRunMetrics(TestCase):\n         run = self.task.create_run(\n             environment=TaskRun.Environment.CLOUD,\n             mode=\"interactive\",\n-            extra_state={\"run_source\": \"manual\", \"runtime_adapter\": \"codex\"},\n+            extra_state={\"run_source\": \"manual\", \"runtime_adapter\": \"codex\", \"sandbox_backend\": \"hogland\"},\n         )\n         labels = {\n             \"origin_product\": \"user_created\",\n@@ -388,6 +388,7 @@ class TestTaskRunMetrics(TestCase):\n             \"run_source\": \"manual\",\n             \"task_runtime\": \"acp\",\n             \"runtime_adapter\": \"codex\",\n+            \"sandbox_backend\": \"hogland\",\n         }\n         before = _sample_value(\"posthog_tasks_agent_turn_failed_total\", labels)\n \n@@ -426,6 +427,7 @@ class TestTaskRunMetrics(TestCase):\n             \"run_source\": \"unknown\",\n             \"task_runtime\": expected_task_runtime,\n             \"runtime_adapter\": expected_runtime_adapter,\n+            \"sandbox_backend\": \"modal\",\n         }\n         before = _sample_value(\"posthog_tasks_agent_turn_failed_total\", labels)\n \n",
+    "distill": null
+  },
+  {
+    "id": "PR107042-prompt-0",
+    "task": "PR107042",
+    "area": "frontend",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "84a11db5-cdc3-496d-b164-445c19ef644a",
+    "turns": 22,
+    "wall_ms": 77481,
+    "api_ms": 71501,
+    "cost": 0.5605129999999999,
+    "in_tokens": 1295501,
+    "out_tokens": 8370,
+    "tools": {
+      "calls": 21,
+      "byTool": {
+        "Bash": 21
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 21,
+      "injected": []
+    },
+    "grade": {
+      "score": 1,
+      "samples": [
+        1,
+        1,
+        1
+      ],
+      "reasons": [
+        "The agent fixed all three problems in the same places as the upstream patch. On narrow screens, Duplicate now closes the scene panel and the side panel. The transfer URL carries the insight short ID, and Back uses it, falling back to a list page when it is missing. The empty subscription card stacks vertically when narrow, using a container query. The behavior is equivalent to upstream. I did not check that `mobileLayout` exists in `navigationLogic`.",
+        "All three fixes hit the right places and behave the same as the merged patch. Duplicating on a narrow screen closes the actions panel and side panel. The transfer URL now carries the insight short ID as a query param, and both insight entry points pass it. The Back link uses it and falls back to the insights list when it is missing. The empty subscription card stacks vertically when narrow, using a container query at a slightly different breakpoint and container than upstream. The differences are implementation details.",
+        "The agent fixed all three problems in the same places as the merged patch, with equivalent behavior. Its approach differs in small ways, and I did not run it.\n\n- **Duplicate on narrow screens:** the agent closes the scene panel and the side panel in the Duplicate click handler when `mobileLayout` is true. The merged patch closes the side panel in `insightLogic` after duplication, only in modal mode. The agent's version closes the panels before the copy finishes, but the result is the same.\n- **Transfer Back link:** the agent passes `insight.short_id` from both entry points as a `source_short_id` query param. Back goes to the insight when it is present and to the saved insights list when it is missing. The merged patch does the same with `insight_short_id` and `/insights`.\n- **Empty subscription card:** the agent wraps the card content in its own container query and stacks the illustration below `@md`. The merged patch keys off the named modal container at 30rem. The card sits inside the modal, so the two behave about the same."
+      ],
+      "reason": "The agent fixed all three problems in the same places as the upstream patch. On narrow screens, Duplicate now closes the scene panel and the side panel. The transfer URL carries the insight short ID, and Back uses it, falling back to a list page when it is missing. The empty subscription card stacks vertically when narrow, using a container query. The behavior is equivalent to upstream. I did not check that `mobileLayout` exists in `navigationLogic`.",
+      "mustHit": 5,
+      "mustTotal": 6,
+      "touched": [
+        "frontend/src/scenes/insights/SidePanel/InsightPanelActions.tsx",
+        "frontend/src/scenes/insights/SidePanel/InsightSceneMenuBar.tsx",
+        "frontend/src/scenes/resource-transfer/ResourceTransfer.tsx",
+        "frontend/src/scenes/resource-transfer/resourceTransferLogic.ts",
+        "frontend/src/scenes/urls.ts",
+        "products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx"
+      ]
+    },
+    "result": "I made all three fixes, but I haven't run the type check, tests or app, so none of it is verified.\n\n- **Duplicate on narrow screens:** in `InsightPanelActions.tsx`, the Duplicate button now also closes the scene panel and the side panel when `mobileLayout` is true (window narrower than 992px). The duplicated insight is no longer covered by the actions sidebar. Wide screens behave as before. I did not change the Duplicate item in `InsightSceneMenuBar.tsx`, since that menu doesn't open the sidebar.\n- **Transfer Back link:** the transfer page only received the numeric insight ID, so its Back link built an insight URL from it.\n  - `urls.resourceTransfer` now takes an optional short ID and adds it as `?source_short_id=`.\n  - Both insight entry points (`InsightPanelActions.tsx` and `InsightSceneMenuBar.tsx`) pass `insight.short_id`.\n  - `ResourceTransfer.tsx` reads it through a new optional `sourceShortId` prop and links back to the insight with it. If it's missing, for example from an old bookmarked URL, Back goes to the saved insights list instead of a broken insight.\n- **Empty subscription card:** in `SubscriptionOverviewComponents.tsx`, the featured empty state is now wrapped in a container query. The illustration stacks above the text when the modal is narrow (under the `@md` breakpoint) and sits beside it otherwise.\n\nI didn't add or change any tests.",
+    "is_error": false,
+    "diff": "diff --git a/frontend/src/scenes/insights/SidePanel/InsightPanelActions.tsx b/frontend/src/scenes/insights/SidePanel/InsightPanelActions.tsx\nindex 1b1f46ed811..5cc268a5f2a 100644\n--- a/frontend/src/scenes/insights/SidePanel/InsightPanelActions.tsx\n+++ b/frontend/src/scenes/insights/SidePanel/InsightPanelActions.tsx\n@@ -25,6 +25,8 @@ import { interProjectCopyLogic } from 'scenes/resource-transfer/interProjectCopy\n import { urls } from 'scenes/urls'\n \n import { ScenePanelActionsSection } from '~/layout/scenes/SceneLayout'\n+import { navigationLogic } from '~/layout/navigation/navigationLogic'\n+import { sidePanelStateLogic } from '~/layout/navigation-3000/sidepanel/sidePanelStateLogic'\n import { sceneLayoutLogic } from '~/layout/scenes/sceneLayoutLogic'\n import {\n     isDataTableNode,\n@@ -52,6 +54,9 @@ const RESOURCE_TYPE = 'insight'\n \n export function InsightPanelActions({ insightLogicProps }: { insightLogicProps: InsightLogicProps }): JSX.Element {\n     const { scenePanelOpen } = useValues(sceneLayoutLogic)\n+    const { setScenePanelOpen } = useActions(sceneLayoutLogic)\n+    const { mobileLayout } = useValues(navigationLogic)\n+    const { closeSidePanel } = useActions(sidePanelStateLogic)\n     const theInsightLogic = insightLogic(insightLogicProps)\n     const { insightProps, insight, hasDashboardItemId, insightDuplicating } = useValues(theInsightLogic)\n     const { duplicateInsight, setInsightMetadata } = useActions(theInsightLogic)\n@@ -103,12 +108,18 @@ export function InsightPanelActions({ insightLogicProps }: { insightLogicProps:\n             <SceneDuplicate\n                 dataAttrKey={RESOURCE_TYPE}\n                 loading={insightDuplicating}\n-                onClick={() => duplicateInsight(insight as InsightModel, true)}\n+                onClick={() => {\n+                    duplicateInsight(insight as InsightModel, true)\n+                    if (mobileLayout) {\n+                        setScenePanelOpen(false)\n+                        closeSidePanel()\n+                    }\n+                }}\n             />\n             {isSavedInsight && canCopyToProject && (\n                 <ButtonPrimitive\n                     menuItem\n-                    onClick={() => push(urls.resourceTransfer('Insight', insight.id!))}\n+                    onClick={() => push(urls.resourceTransfer('Insight', insight.id!, insight.short_id))}\n                     data-attr=\"insight-copy-to-project\"\n                     tooltip=\"Copy this insight to another project\"\n                 >\ndiff --git a/frontend/src/scenes/insights/SidePanel/InsightSceneMenuBar.tsx b/frontend/src/scenes/insights/SidePanel/InsightSceneMenuBar.tsx\nindex 8d8160b9ef5..415fdfab6e4 100644\n--- a/frontend/src/scenes/insights/SidePanel/InsightSceneMenuBar.tsx\n+++ b/frontend/src/scenes/insights/SidePanel/InsightSceneMenuBar.tsx\n@@ -288,7 +288,7 @@ function InsightSceneMenuBarInner({ insightLogicProps }: { insightLogicProps: In\n                     <SceneMenuBarFileItems dataAttrKey={RESOURCE_TYPE} />\n                     {showCopyToProject && (\n                         <SceneMenuBarItem\n-                            onClick={() => push(urls.resourceTransfer('Insight', insight.id!))}\n+                            onClick={() => push(urls.resourceTransfer('Insight', insight.id!, insight.short_id))}\n                             data-attr={`${RESOURCE_TYPE}-menubar-copy-to-project`}\n                         >\n                             <IconCopy />\ndiff --git a/frontend/src/scenes/resource-transfer/ResourceTransfer.tsx b/frontend/src/scenes/resource-transfer/ResourceTransfer.tsx\nindex 34c720e1757..142b7d62626 100644\n--- a/frontend/src/scenes/resource-transfer/ResourceTransfer.tsx\n+++ b/frontend/src/scenes/resource-transfer/ResourceTransfer.tsx\n@@ -21,7 +21,11 @@ import { resourceTransferRowLogic } from './resourceTransferRowLogic'\n export const scene: SceneExport<ResourceTransferLogicProps> = {\n     component: ResourceTransfer,\n     logic: resourceTransferLogic,\n-    paramsToProps: ({ params: { resourceKind, resourceId } }) => ({ resourceKind, resourceId }),\n+    paramsToProps: ({ params: { resourceKind, resourceId }, searchParams }) => ({\n+        resourceKind,\n+        resourceId,\n+        sourceShortId: searchParams.source_short_id,\n+    }),\n }\n \n export function ResourceTransfer(props: ResourceTransferLogicProps): JSX.Element {\n@@ -49,7 +53,7 @@ export function ResourceTransfer(props: ResourceTransferLogicProps): JSX.Element\n                 resourceType={{ type: 'Resource Transfer' }}\n                 forceBackTo={{\n                     name: rootResourceName ?? props.resourceKind,\n-                    path: sourceResourceUrl(props.resourceKind, props.resourceId),\n+                    path: sourceResourceUrl(props.resourceKind, props.resourceId, props.sourceShortId),\n                     key: 'resource-transfer-back',\n                 }}\n             />\n@@ -127,12 +131,12 @@ export function ResourceTransfer(props: ResourceTransferLogicProps): JSX.Element\n     )\n }\n \n-function sourceResourceUrl(resourceKind: string, resourceId: string): string {\n+function sourceResourceUrl(resourceKind: string, resourceId: string, sourceShortId?: string): string {\n     switch (resourceKind) {\n         case 'Dashboard':\n             return urls.dashboard(resourceId)\n         case 'Insight':\n-            return urls.insightView(resourceId as InsightShortId)\n+            return sourceShortId ? urls.insightView(sourceShortId as InsightShortId) : urls.savedInsights()\n         case 'Survey':\n             return urls.survey(resourceId)\n         default:\ndiff --git a/frontend/src/scenes/resource-transfer/resourceTransferLogic.ts b/frontend/src/scenes/resource-transfer/resourceTransferLogic.ts\nindex 9da28ff53ac..382e5cdfd0f 100644\n--- a/frontend/src/scenes/resource-transfer/resourceTransferLogic.ts\n+++ b/frontend/src/scenes/resource-transfer/resourceTransferLogic.ts\n@@ -13,6 +13,7 @@ import type { OrganizationType } from '../../types'\n export interface ResourceTransferLogicProps {\n     resourceKind: string\n     resourceId: string\n+    sourceShortId?: string\n }\n \n export interface PreviewResource {\ndiff --git a/frontend/src/scenes/urls.ts b/frontend/src/scenes/urls.ts\nindex 5383c155b5b..29107a23bf1 100644\n--- a/frontend/src/scenes/urls.ts\n+++ b/frontend/src/scenes/urls.ts\n@@ -153,8 +153,8 @@ export const urls = {\n     variables: (): string => '/data-management/variables',\n     variable: (id: string | ':id'): string => `/data-management/variables/${id}`,\n     variableEdit: (id: string | ':id'): string => `/data-management/variables/${id}/edit`,\n-    resourceTransfer: (resourceKind: string, resourceId: string | number): string =>\n-        `/resource-transfer/${resourceKind}/${resourceId}`,\n+    resourceTransfer: (resourceKind: string, resourceId: string | number, sourceShortId?: string): string =>\n+        `/resource-transfer/${resourceKind}/${resourceId}${sourceShortId ? `?source_short_id=${encodeURIComponent(sourceShortId)}` : ''}`,\n     dashboardTemplateCopyToProject: (templateId: string | ':sourceTemplateId', sourceTeamId?: number): string => {\n         const path = `/dashboard/templates/${templateId}/copy-to-project`\n         return sourceTeamId === undefined\ndiff --git a/products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx b/products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx\nindex 2654435d884..5037934d74f 100644\n--- a/products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx\n+++ b/products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx\n@@ -84,22 +84,24 @@ export function SubscriptionEmptyState({\n \n     return (\n         <LemonCard hoverEffect={false} className=\"p-6\">\n-            <div className=\"flex gap-3 items-start\">\n-                {illustration ? (\n-                    illustration\n-                ) : (\n-                    <div className=\"flex items-center justify-center rounded bg-surface-primary shrink-0 size-12 text-2xl\">\n-                        {icon}\n-                    </div>\n-                )}\n-                <div className=\"flex flex-col gap-2 min-w-0\">\n-                    <div>\n-                        <div className=\"font-semibold text-lg\">{title}</div>\n-                        <div className=\"text-sm text-secondary\">{description}</div>\n+            <div className=\"@container\">\n+                <div className=\"flex flex-col @md:flex-row gap-3 items-start\">\n+                    {illustration ? (\n+                        illustration\n+                    ) : (\n+                        <div className=\"flex items-center justify-center rounded bg-surface-primary shrink-0 size-12 text-2xl\">\n+                            {icon}\n+                        </div>\n+                    )}\n+                    <div className=\"flex flex-col gap-2 min-w-0\">\n+                        <div>\n+                            <div className=\"font-semibold text-lg\">{title}</div>\n+                            <div className=\"text-sm text-secondary\">{description}</div>\n+                        </div>\n+                        <LemonButton type={actionType} size=\"small\" onClick={onAction} className=\"self-start\">\n+                            {actionLabel}\n+                        </LemonButton>\n                     </div>\n-                    <LemonButton type={actionType} size=\"small\" onClick={onAction} className=\"self-start\">\n-                        {actionLabel}\n-                    </LemonButton>\n                 </div>\n             </div>\n         </LemonCard>\n",
+    "distill": null
+  },
+  {
+    "id": "PR105887-prompt-0",
+    "task": "PR105887",
+    "area": "posthog",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "9c819a7f-ed2a-4cc6-afe5-5aa08adfe408",
+    "turns": 9,
+    "wall_ms": 19088,
+    "api_ms": 16800,
+    "cost": 0.2821726,
+    "in_tokens": 464098,
+    "out_tokens": 1799,
+    "tools": {
+      "calls": 8,
+      "byTool": {
+        "Bash": 8
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 7,
+      "injected": []
+    },
+    "grade": {
+      "score": 0.5,
+      "samples": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "reasons": [
+        "The agent fixed the daily discovery in activities.py, which is the core writer-side fix and matches upstream. The upstream patch also fixed the serializer stamp so the chart read uses the merged fingerprint. The agent left that unchanged. The serializer previously matched the raw-query writer, so after the agent's change the chart read no longer finds the daily rows for saved metrics with real breakdowns. The timeseries sync and cold-start paths are fixed. The fix is in the right direction but incomplete.",
+        "The agent correctly fixed the daily discovery to fingerprint the merged config, which matches the core upstream change in activities.py and fixes the timeseries sync and cold-start readers. However, upstream also fixed the serializer stamp, which the agent left hashing the raw saved query. The chart read would therefore look up a hash different from what the daily job now writes for breakdown-configured saved metrics. The fix is in the right direction but incomplete.",
+        "The agent fixed the daily discovery, which is the main writer-side bug. Discovery now hashes the merged config, so it matches the timeseries sync and cold-start readers. The merged patch also fixes the serializer stamp, which hashed the raw saved query. The frontend chart read uses that stamp. With only the discovery change, the stamped fingerprint still differs from the one the daily job writes under, so the chart read misses the rows for breakdown-configured saved metrics. The fix is in the right direction but incomplete."
+      ],
+      "reason": "The agent fixed the daily discovery in activities.py, which is the core writer-side fix and matches upstream. The upstream patch also fixed the serializer stamp so the chart read uses the merged fingerprint. The agent left that unchanged. The serializer previously matched the raw-query writer, so after the agent's change the chart read no longer finds the daily rows for saved metrics with real breakdowns. The timeseries sync and cold-start paths are fixed. The fix is in the right direction but incomplete.",
+      "mustHit": 1,
+      "mustTotal": 5,
+      "touched": [
+        "posthog/temporal/experiments/activities.py"
+      ]
+    },
+    "result": "I changed the saved-metric discovery in `posthog/temporal/experiments/activities.py` so the daily job fingerprints the same config the readers do. I did not run any tests and did not add one.\n\n**What changed:** the daily discovery used to hash `saved_metric.query` as stored, without the per-experiment breakdowns. It now hashes `_merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata)`. That helper is in `products/experiments/backend/temporal/metric_resolution.py` and is the same merge the timeseries sync, the cold-start fallback and the metric-execution activity use. I added an import of it to `activities.py`.\n\n**Why this fixes it:** the writer and the readers now hash the same config, so results filed for a saved metric with breakdowns are found under the hash the readers look up. The empty-breakdowns case from the earlier fix still hashes the same way.\n\nI made no test changes, so this fix has no regression test yet. A natural one would build an experiment with a saved-metric link that has real breakdowns. It would check that the fingerprint from discovery equals the one `timeseries_sync` computes.",
+    "is_error": false,
+    "diff": "diff --git a/posthog/temporal/experiments/activities.py b/posthog/temporal/experiments/activities.py\nindex fdd32e7e7a6..409c6901916 100644\n--- a/posthog/temporal/experiments/activities.py\n+++ b/posthog/temporal/experiments/activities.py\n@@ -39,6 +39,7 @@ from products.experiments.backend.models.experiment import (\n     Experiment,\n     ExperimentMetricResult as ExperimentMetricResultModel,\n )\n+from products.experiments.backend.temporal.metric_resolution import _merge_saved_metric_breakdowns\n from products.experiments.stats.shared.statistics import StatisticError\n \n logger = structlog.get_logger(__name__)\n@@ -373,7 +374,7 @@ def _get_experiment_saved_metrics_for_hour_sync(hour: int) -> list[ExperimentSav\n                 continue\n \n             fingerprint = compute_metric_fingerprint(\n-                saved_metric.query,\n+                _merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata),\n                 experiment.start_date,\n                 get_experiment_stats_method(experiment),\n                 experiment.exposure_criteria,\n",
+    "distill": null
+  },
+  {
+    "id": "PR105793-prompt-0",
+    "task": "PR105793",
+    "area": "posthog",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "e77693ce-4afe-49a8-95c3-d0c95b1d8821",
+    "turns": 11,
+    "wall_ms": 30695,
+    "api_ms": 29134,
+    "cost": 0.32701800000000003,
+    "in_tokens": 521606,
+    "out_tokens": 3488,
+    "tools": {
+      "calls": 10,
+      "byTool": {
+        "Bash": 10
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 10,
+      "injected": []
+    },
+    "grade": {
+      "score": 0.5,
+      "samples": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "reasons": [
+        "The agent found the core location, resolve_untagged_followup_mode, and made unset rows resolve to ASK. That is the main behavior change. It also over-broadened the change: unknown stored values and an empty user id now resolve to ASK, where upstream keeps NEVER for both. Upstream also stops the over-quota denial message from being posted under unconfirmed untagged replies, since ASK would otherwise cause it to spam threads. The agent missed this. It also skipped the prompt text change and the Home-tab context hint. The change is in the right direction but partly wrong and incomplete.",
+        "The agent made the central change, defaulting an unset mode to ASK in resolve_untagged_followup_mode. It also updated the tests and comments to match. It omits the billing quota denial suppression, which stops over-quota teams from being spammed once unset users reach the ASK path. It also widens ASK to unknown values and empty creator IDs, which upstream leaves as NEVER. The direction is right, but the change is incomplete and partly different.",
+        "The agent found the right resolver, and making an unset row resolve to ASK is the core of the fix. But it also changed the unknown-value and no-user-id fallbacks to ASK, where upstream keeps NEVER. It also left out the quota-denial suppression that upstream added for unrequested follow-ups, and the prompt's Home tab hint. The direction is right but the patch is incomplete and partly wrong."
+      ],
+      "reason": "The agent found the core location, resolve_untagged_followup_mode, and made unset rows resolve to ASK. That is the main behavior change. It also over-broadened the change: unknown stored values and an empty user id now resolve to ASK, where upstream keeps NEVER for both. Upstream also stops the over-quota denial message from being posted under unconfirmed untagged replies, since ASK would otherwise cause it to spam threads. The agent missed this. It also skipped the prompt text change and the Home-tab context hint. The change is in the right direction but partly wrong and incomplete.",
+      "mustHit": 3,
+      "mustTotal": 6,
+      "touched": [
+        "products/slack_app/backend/models.py",
+        "products/slack_app/backend/services/slack_app_home.py",
+        "products/slack_app/backend/services/slack_settings.py",
+        "products/slack_app/backend/tests/services/test_slack_settings.py",
+        "products/slack_app/backend/tests/test_thread_message_routing.py"
+      ]
+    },
+    "result": "Users who never chose a thread follow-up setting now get asked before an untagged reply goes to the agent, instead of having it silently ignored. I haven't run any tests.\n\n- **Default:** `resolve_untagged_followup_mode` in `services/slack_settings.py` now returns `ASK` for a missing row, a NULL column, an unrecognised stored value, or a thread with no creator ID. Only an explicit `NEVER` turns the prompt off. `AUTO` and explicit `ASK` behave as before.\n- **Flow:** I didn't change the webhook path. `_untagged_followups_switched_off` in `api.py` only drops `NEVER`, so unset threads now reach the workflow. The classifier still judges the reply first, then the existing prompt is posted with the run/dismiss buttons.\n- **Home tab:** the picker takes its initial option from the resolver, so unset users now see \"Ask them first\" preselected. I didn't change any picker code.\n- **Docs and comments:** I updated the `UntaggedFollowupMode` docstring, the `untagged_followup_mode` field comment in `models.py`, and the docstring on `_untagged_followups_section_blocks` in `slack_app_home.py`. They no longer describe the feature as opt-in.\n- **Tests:** `test_slack_settings.py` now expects `ASK` for NULL, unrecognised, and no-row cases, and for another user's choice not leaking. In `test_thread_message_routing.py` the \"unset\" case now expects the workflow to be dispatched.\n\nNo migration is needed, since the column stays nullable and the default is applied at read time. Existing users with no row will start seeing prompts, which is the requested behavior.",
+    "is_error": false,
+    "diff": "diff --git a/products/slack_app/backend/models.py b/products/slack_app/backend/models.py\nindex 66ee1651713..96cd614f971 100644\n--- a/products/slack_app/backend/models.py\n+++ b/products/slack_app/backend/models.py\n@@ -116,8 +116,8 @@ class UntaggedFollowupMode(models.TextChoices):\n     \"\"\"What PostHog does with an untagged reply in a thread it already owns.\n \n     Read from the thread creator's settings row, so it governs everyone\n-    replying in a thread that user started. ``NEVER`` is what an unset row\n-    resolves to, making untagged follow-ups opt-in per person.\n+    replying in a thread that user started. ``ASK`` is what an unset row\n+    resolves to, so nobody's reply is sent to the agent without a confirmation.\n     \"\"\"\n \n     AUTO = \"auto\", \"Always pick it up\"\n@@ -162,8 +162,8 @@ class SlackSettings(UUIDModel):\n         null=True,\n         help_text=\"Per-integration permission mode for Slack-started agent runs, keyed by integration id.\",\n     )\n-    # NULL means the user has never picked, which resolves to ``NEVER``: nothing\n-    # is picked up in their threads until they turn it on from the Home tab.\n+    # NULL means the user has never picked, which resolves to ``ASK``: replies in\n+    # their threads wait for a confirmation until they choose from the Home tab.\n     untagged_followup_mode = models.CharField(\n         max_length=16,\n         null=True,\ndiff --git a/products/slack_app/backend/services/slack_app_home.py b/products/slack_app/backend/services/slack_app_home.py\nindex 71f47166cc1..c597bc6d12a 100644\n--- a/products/slack_app/backend/services/slack_app_home.py\n+++ b/products/slack_app/backend/services/slack_app_home.py\n@@ -894,8 +894,8 @@ UNTAGGED_FOLLOWUP_MODE_LABELS: dict[str, str] = {\n def _untagged_followups_section_blocks(mode: UntaggedFollowupMode) -> list[dict]:\n     \"\"\"Picker for how untagged replies land in the threads you started.\n \n-    Off until picked, so the card doubles as the only way to turn the behaviour\n-    on for your own threads. The choice covers every reply in those threads,\n+    Asks first until picked, so the card is where you switch to automatic pickup\n+    or turn the behaviour off for your own threads. The choice covers every reply in those threads,\n     including the ones you write yourself.\n     \"\"\"\n     options = [\ndiff --git a/products/slack_app/backend/services/slack_settings.py b/products/slack_app/backend/services/slack_settings.py\nindex 7f780ce8828..8cf17dd12ed 100644\n--- a/products/slack_app/backend/services/slack_settings.py\n+++ b/products/slack_app/backend/services/slack_settings.py\n@@ -37,12 +37,13 @@ def resolve_untagged_followup_mode(integration: Integration, slack_user_id: str\n \n     Read from the thread creator's row, so one person's choice governs every\n     reply in the threads they started. An absent row, an empty column, or a\n-    value we no longer recognise all resolve to `NEVER`: the feature is opt-in,\n-    so nothing is picked up until someone asks for it.\n+    value we no longer recognise all resolve to `ASK`: until someone chooses,\n+    they are asked before a reply is sent to the agent. Only an explicit\n+    `NEVER` switches the prompt off.\n     \"\"\"\n \n     if not slack_user_id:\n-        return UntaggedFollowupMode.NEVER\n+        return UntaggedFollowupMode.ASK\n \n     from products.slack_app.backend.models import SlackSettings\n \n@@ -57,7 +58,7 @@ def resolve_untagged_followup_mode(integration: Integration, slack_user_id: str\n     stored = row[\"untagged_followup_mode\"] if row else None\n     if stored in UntaggedFollowupMode.values:\n         return UntaggedFollowupMode(stored)\n-    return UntaggedFollowupMode.NEVER\n+    return UntaggedFollowupMode.ASK\n \n \n __all__ = [\ndiff --git a/products/slack_app/backend/tests/services/test_slack_settings.py b/products/slack_app/backend/tests/services/test_slack_settings.py\nindex 5a9e8a4c124..74aa7812d24 100644\n--- a/products/slack_app/backend/tests/services/test_slack_settings.py\n+++ b/products/slack_app/backend/tests/services/test_slack_settings.py\n@@ -29,12 +29,12 @@ class TestResolveUntaggedFollowupMode:\n             (UntaggedFollowupMode.NEVER, UntaggedFollowupMode.NEVER),\n             (UntaggedFollowupMode.AUTO, UntaggedFollowupMode.AUTO),\n             # A row that predates the column, and a value retired since it was written,\n-            # both leave the feature off rather than opting someone in by accident.\n-            (None, UntaggedFollowupMode.NEVER),\n-            (\"retired-value\", UntaggedFollowupMode.NEVER),\n+            # both fall back to asking rather than picking replies up silently.\n+            (None, UntaggedFollowupMode.ASK),\n+            (\"retired-value\", UntaggedFollowupMode.ASK),\n         ],\n     )\n-    def test_stored_value_governs_with_never_as_the_floor(self, slack_setup, stored, expected):\n+    def test_stored_value_governs_with_ask_as_the_floor(self, slack_setup, stored, expected):\n         integration = slack_setup\n         SlackSettings.objects.create(\n             slack_workspace_id=\"T_WS\",\n@@ -43,8 +43,8 @@ class TestResolveUntaggedFollowupMode:\n         )\n         assert resolve_untagged_followup_mode(integration, \"U001\") == expected\n \n-    def test_no_row_at_all_resolves_never(self, slack_setup):\n-        assert resolve_untagged_followup_mode(slack_setup, \"U001\") == UntaggedFollowupMode.NEVER\n+    def test_no_row_at_all_resolves_ask(self, slack_setup):\n+        assert resolve_untagged_followup_mode(slack_setup, \"U001\") == UntaggedFollowupMode.ASK\n \n     def test_another_users_choice_does_not_leak(self, slack_setup):\n         # The mode is read per thread creator, so one person opting in must not\n@@ -55,4 +55,4 @@ class TestResolveUntaggedFollowupMode:\n             slack_user_id=\"U002\",\n             untagged_followup_mode=UntaggedFollowupMode.AUTO,\n         )\n-        assert resolve_untagged_followup_mode(integration, \"U001\") == UntaggedFollowupMode.NEVER\n+        assert resolve_untagged_followup_mode(integration, \"U001\") == UntaggedFollowupMode.ASK\ndiff --git a/products/slack_app/backend/tests/test_thread_message_routing.py b/products/slack_app/backend/tests/test_thread_message_routing.py\nindex 88eaa259449..3a98da0a5b3 100644\n--- a/products/slack_app/backend/tests/test_thread_message_routing.py\n+++ b/products/slack_app/backend/tests/test_thread_message_routing.py\n@@ -456,8 +456,8 @@ class TestRouteThreadMessage(TestCase):\n             (\"never_other_person\", UntaggedFollowupMode.NEVER, \"U_BOB\", False),\n             # `never` means nobody, the creator included.\n             (\"never_creator\", UntaggedFollowupMode.NEVER, \"U_ALICE\", False),\n-            # Never picked: the feature is opt-in, so an untouched row behaves as `never`.\n-            (\"unset\", None, \"U_BOB\", False),\n+            # Never picked: an untouched row behaves as `ask`.\n+            (\"unset\", None, \"U_BOB\", True),\n         ]\n     )\n     @override_settings(DEBUG=False, CLOUD_DEPLOYMENT=\"US\")\n",
+    "distill": null
+  },
+  {
+    "id": "PR106917-prompt-0",
+    "task": "PR106917",
+    "area": "data_warehouse",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "fe637c06-e2ab-46f2-ac2c-25c8bd23b09e",
+    "turns": 12,
+    "wall_ms": 34743,
+    "api_ms": 32191,
+    "cost": 0.3543125999999999,
+    "in_tokens": 651260,
+    "out_tokens": 3545,
+    "tools": {
+      "calls": 11,
+      "byTool": {
+        "Bash": 11
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 10,
+      "injected": []
+    },
+    "grade": {
+      "score": 0.5,
+      "samples": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "reasons": [
+        "The mark_cdc_broken change is functionally equivalent to upstream: it pauses table schedules best-effort when pause=True. The disable_cdc change targets the right place, but it pauses after the DB commit and ignores failures. If a pause fails, the bug persists: the tables keep syncing and billing, and a retry can't recover because CDC already reads as disabled. Upstream deliberately pauses first, rolls back on failure, and returns 503. The agent's version is only a partial fix for the disable case.",
+        "The mark_cdc_broken change is functionally equivalent to upstream: it pauses each CDC schema's schedule when pause=True on a best-effort basis. The disable_cdc change looks in the right place and calls pause_external_data_schedule per table. But it runs after the DB update and swallows errors. If a pause fails, the response is still a success and CDC is already disabled, so the table keeps syncing and billing. A retry returns already_disabled and cannot fix it. Upstream deliberately pauses first, returns 503 on failure and rolls back. That failure handling is a core part of the fix, so the disable_cdc part is incomplete and only partly correct.",
+        "The mark_cdc_broken change matches upstream: it pauses each CDC table's schedule best-effort when pause=True. The disable_cdc change targets the right place and does pause the schedules in the normal case. It differs from upstream on failure handling. Upstream pauses first, returns 503 on failure, and rolls back its own pauses. The agent pauses last and swallows errors, so a Temporal outage leaves the billing bug in place with no way to retry. The main behaviour is covered, but the robustness the merged patch added is missing, so the score is 0.5."
+      ],
+      "reason": "The mark_cdc_broken change is functionally equivalent to upstream: it pauses table schedules best-effort when pause=True. The disable_cdc change targets the right place, but it pauses after the DB commit and ignores failures. If a pause fails, the bug persists: the tables keep syncing and billing, and a retry can't recover because CDC already reads as disabled. Upstream deliberately pauses first, rolls back on failure, and returns 503. The agent's version is only a partial fix for the disable case.",
+      "mustHit": 2,
+      "mustTotal": 4,
+      "touched": [
+        "products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py",
+        "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py"
+      ]
+    },
+    "result": "I made both changes, but I haven't run any tests or checked that the edits import cleanly, and I didn't add a test.\n\n- **`disable_cdc`:** After the transaction that clears `sync_type` and `should_sync`, it now calls `pause_external_data_schedule` for each former CDC table. The bulk `update()` skips `update_should_sync`, so nothing paused those schedules before. A failed pause is logged and captured but doesn't fail the disable. The change is in `presentation/views/external_data_source/change_data_capture.py`.\n- **`mark_cdc_broken`:** When `pause=True`, it now pauses each CDC table's schedule as well as the capture schedule. This is a new helper, `_pause_table_schedules`, in `temporal/data_imports/cdc/broken.py`, and it is best-effort like the existing capture-schedule pause. The `pause=False` case (self-managed critical lag) is unchanged and still pauses nothing.\n\n`repair_cdc` already unpauses each table's schedule in `_resume_schedules`, so recovering a broken source needed no change.\n\n`_pause_table_schedules` wraps its deferred import of `pause_external_data_schedule` in a `try/except`. That is defensive and could be a plain import, like the one in `_pause_schedule`.",
+    "is_error": false,
+    "diff": "diff --git a/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py b/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py\nindex a4a8b293086..9181bce3625 100644\n--- a/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py\n+++ b/products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py\n@@ -13,7 +13,10 @@ from rest_framework.response import Response\n \n from posthog.api.utils import action\n \n-from products.data_warehouse.backend.facade.api import delete_cdc_extraction_schedule\n+from products.data_warehouse.backend.facade.api import (\n+    delete_cdc_extraction_schedule,\n+    pause_external_data_schedule,\n+)\n from products.warehouse_sources.backend.facade.models import (\n     DataWarehouseTable,\n     ExternalDataJob,\n@@ -530,6 +533,15 @@ class ExternalDataSourceCDCMixin(base.ExternalDataSourceViewSetBase):\n             instance.job_inputs = job_inputs\n             instance.save(update_fields=[\"job_inputs\", \"updated_at\"])\n \n+        # The bulk update above skips update_should_sync, so pause each table's schedule here;\n+        # otherwise the schedule keeps starting billable runs for a table that is off.\n+        for schema_id in cdc_schema_ids:\n+            try:\n+                pause_external_data_schedule(str(schema_id))\n+            except Exception as e:\n+                base.logger.exception(\"Failed to pause table schedule during disable_cdc\", exc_info=e)\n+                base.capture_exception(e, {\"source_id\": str(instance.id), \"schema_id\": str(schema_id)})\n+\n         return Response(status=status.HTTP_200_OK, data={\"success\": True})\n \n     @extend_schema(\ndiff --git a/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py b/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py\nindex 19dee2f0ecf..06d52270eb0 100644\n--- a/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py\n+++ b/products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py\n@@ -8,7 +8,7 @@ This persists the broken state across three surfaces that the UI and health chec\n \n - ``source.status = ERROR`` — the source-level \"something is wrong\" signal.\n - per-CDC-schema ``sync_type_config[\"cdc_broken\"]`` plus ``status=FAILED`` / friendly ``latest_error``.\n-- the Temporal extraction schedule is paused so it stops firing against a resource that is gone.\n+- the Temporal extraction schedule and each CDC table's schedule are paused so they stop firing against a resource that is gone.\n \n Clearing ``cdc_broken`` and unpausing the schedule (done by ``repair_cdc`` / ``disable_cdc``)\n restores operation — see the recovery contract in those API actions.\n@@ -100,6 +100,7 @@ def mark_cdc_broken(\n \n     if pause:\n         _pause_schedule(source, log)\n+        _pause_table_schedules(cdc_schemas, log)\n \n     # Breakage often originates outside a run (the lag sweeper), so no FAILED job row exists.\n     # The failure digest email needs one: its schema query requires a failed job newer than the\n@@ -197,6 +198,23 @@ def _pause_schedule(source: ExternalDataSource, log: typing.Any) -> None:\n         log.warning(\"cdc_broken_pause_schedule_failed\", exc_info=True)\n \n \n+def _pause_table_schedules(cdc_schemas: list[ExternalDataSchema], log: typing.Any) -> None:\n+    # Each table has its own schedule that keeps firing (and recording failed or billed runs)\n+    # while the source is broken. repair_cdc unpauses them.\n+    try:\n+        from products.data_warehouse.backend.facade.api import pause_external_data_schedule\n+    except Exception:\n+        log.warning(\"cdc_broken_pause_table_schedules_failed\", exc_info=True)\n+        return\n+\n+    for schema in cdc_schemas:\n+        try:\n+            pause_external_data_schedule(str(schema.id))\n+        except Exception:\n+            # Best-effort: a failed pause must not block persisting the broken state.\n+            log.warning(\"cdc_broken_pause_table_schedule_failed\", schema_id=str(schema.id), exc_info=True)\n+\n+\n def _notify(source: ExternalDataSource, message: str, log: typing.Any) -> None:\n     try:\n         from products.notifications.backend.facade.api import (\n",
+    "distill": null
+  },
+  {
+    "id": "PR105871-prompt-0",
+    "task": "PR105871",
+    "area": "posthog",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "67dfd356-a8e1-4640-b170-795869f4e95a",
+    "turns": 13,
+    "wall_ms": 56463,
+    "api_ms": 45662,
+    "cost": 0.34861459999999994,
+    "in_tokens": 805100,
+    "out_tokens": 5481,
+    "tools": {
+      "calls": 12,
+      "byTool": {
+        "Bash": 12
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 11,
+      "injected": []
+    },
+    "grade": {
+      "score": 0.5,
+      "samples": [
+        0.5,
+        0.5,
+        0.5
+      ],
+      "reasons": [
+        "The agent found all the right files. It deleted the repair command and its baseline and allowlist entries, added v1 checks to reencrypt, the audit, and the stale-flags health check, and added a reencrypt test. The audit and reencrypt changes are broadly equivalent to the merged patch. The stale-flags filter is applied late, after the classifiers have already read the rows. Non-dict `filters` in the stale-flags check and in reencrypt's `_is_v1` is passed straight to `detect_config_format` and may raise. Aborting the run on such a row is one of the failure modes the request names. These gaps leave the fix incomplete.",
+        "The agent changed the right places: reencrypt, audit, stale flags, and the deleted repair command with its baseline entries. The reencrypt and audit skips are broadly equivalent to upstream. The stale-flags filter is applied too late, after the classifiers have already read non-v1 rows. Non-dict `filters` handling is also not guarded the way upstream does it. So the change is in the right direction but partly incomplete and possibly still able to abort the run.",
+        "The agent found all the right places and deleted the repair command as upstream did. The re-encrypt and audit changes are mostly equivalent. The stale-flags change is weaker: it filters after the checker and matcher have already read non-v1 rows, and it has no guard for None or non-dict filters. That leaves the \"abort the whole run\" risk partly unaddressed, so the change is partly right but incomplete."
+      ],
+      "reason": "The agent found all the right files. It deleted the repair command and its baseline and allowlist entries, added v1 checks to reencrypt, the audit, and the stale-flags health check, and added a reencrypt test. The audit and reencrypt changes are broadly equivalent to the merged patch. The stale-flags filter is applied late, after the classifiers have already read the rows. Non-dict `filters` in the stale-flags check and in reencrypt's `_is_v1` is passed straight to `detect_config_format` and may raise. Aborting the run on such a row is one of the failure modes the request names. These gaps leave the fix incomplete.",
+      "mustHit": 4,
+      "mustTotal": 5,
+      "touched": [
+        "posthog/management/commands/fix_invalid_flag_property_types.py",
+        "posthog/management/commands/reencrypt_flag_payloads.py",
+        "posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt",
+        "posthog/test/repo_invariants/test_feature_flag_gated_writes.py",
+        "products/feature_flags/backend/management/commands/audit_flag_filters.py",
+        "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
+        "products/feature_flags/backend/test/test_reencrypt_flag_payloads.py"
+      ]
+    },
+    "result": "The three cross-team flag jobs now skip any flag whose config isn't v1, and the property-type repair command is deleted. I didn't run tests or lint, as instructed. I added one regression test but haven't run it.\n\n- **Re-encryption command:** `reencrypt_flag_payloads.py` checks the format with `detect_config_format`, the check the cache builders and the legacy-definitions producer already use. A non-v1 flag is counted as skipped and logged, and never rewritten. The live path re-checks the format after taking the row lock, so a flag that changes between the scan and the write is still left alone.\n- **Filters audit:** `audit_flag_filters.py` now skips non-v1 flags, and any `filters` value that isn't a dict, instead of running v1 rules and round-trip checks on them. It reports a `skipped_non_v1` count in both the JSON and console output. The \"clean\" figure excludes those flags.\n- **Stale-flags health check:** `stale_flags.py` drops non-v1 flags from the candidate list before the exclusion lookups and result building.\n- **Repair command:** I deleted `fix_invalid_flag_property_types.py` and its entries in the gated-writes baseline and allowlist.\n- **Test:** `test_reencrypt_flag_payloads.py` gets a case with `filters.version == 2` that checks the payload stays untouched on a live run. I didn't add tests for the audit and health check.\n\nThe stale-flags check still runs its SQL candidate queries and the `_serves_more_than_one_result` check on non-v1 rows before dropping them. Both only call `.get` on the dict, so they don't crash. Filtering earlier would need a SQL-side format check, which I left out.",
+    "is_error": false,
+    "diff": "diff --git a/posthog/management/commands/fix_invalid_flag_property_types.py b/posthog/management/commands/fix_invalid_flag_property_types.py\ndeleted file mode 100644\nindex 7df0ce243a4..00000000000\n--- a/posthog/management/commands/fix_invalid_flag_property_types.py\n+++ /dev/null\n@@ -1,87 +0,0 @@\n-from django.core.management.base import BaseCommand\n-\n-from products.feature_flags.backend.models.feature_flag import FeatureFlag\n-\n-# Valid property types for feature flags (from validate_filters in api/feature_flag.py)\n-VALID_PROPERTY_TYPES = {\"person\", \"cohort\", \"group\", \"flag\"}\n-\n-# Map of invalid types to their correct replacement\n-TYPE_FIXES = {\n-    \"event\": \"person\",  # Django treats \"event\" the same as \"person\" for backwards compatibility\n-}\n-\n-# Raw SQL to find flags with invalid property types (used as a subquery filter)\n-INVALID_FLAGS_SQL = \"\"\"\n-    SELECT 1 FROM jsonb_array_elements(posthog_featureflag.filters::jsonb->'groups') as grp,\n-                  jsonb_array_elements(grp->'properties') as prop\n-    WHERE prop->>'type' NOT IN ('person', 'cohort', 'group', 'flag')\n-      AND prop->>'type' IS NOT NULL\n-\"\"\"\n-\n-\n-class Command(BaseCommand):\n-    help = \"Fix feature flags with invalid property types (e.g., 'event' -> 'person')\"\n-\n-    def add_arguments(self, parser):\n-        parser.add_argument(\"--team-id\", default=None, type=int, help=\"Limit to a specific team ID\")\n-        parser.add_argument(\"--live-run\", action=\"store_true\", help=\"Apply changes (default is dry-run)\")\n-\n-    def handle(self, *args, **options):\n-        live_run = options.get(\"live_run\", False)\n-        team_id = options.get(\"team_id\")\n-\n-        mode = \"LIVE RUN\" if live_run else \"DRY RUN\"\n-        self.stdout.write(f\"Starting fix_invalid_flag_property_types ({mode})\")\n-\n-        # Only fetch flags that have invalid property types (efficient DB-level filter)\n-        # nosemgrep: python.django.security.audit.query-set-extra.avoid-query-set-extra (INVALID_FLAGS_SQL is a static constant, admin-only command)\n-        flags = FeatureFlag.objects.filter(active=True).extra(where=[f\"EXISTS ({INVALID_FLAGS_SQL})\"])\n-        if team_id:\n-            flags = flags.filter(team_id=team_id)\n-            self.stdout.write(f\"Filtering to team_id={team_id}\")\n-\n-        fixed_count = 0\n-        unfixable_count = 0\n-        flags_to_update = []\n-\n-        for flag in flags.iterator():\n-            filters = flag.filters or {}\n-            groups = filters.get(\"groups\", [])\n-            modified = False\n-\n-            for group_idx, group in enumerate(groups):\n-                properties = group.get(\"properties\", [])\n-                for prop_idx, prop in enumerate(properties):\n-                    prop_type = prop.get(\"type\")\n-\n-                    if prop_type and prop_type not in VALID_PROPERTY_TYPES:\n-                        if prop_type in TYPE_FIXES:\n-                            new_type = TYPE_FIXES[prop_type]\n-                            self.stdout.write(\n-                                f\"  Flag id={flag.id} team_id={flag.team_id} key='{flag.key}': \"\n-                                f\"group[{group_idx}].properties[{prop_idx}].type '{prop_type}' -> '{new_type}'\"\n-                            )\n-                            prop[\"type\"] = new_type\n-                            modified = True\n-                            fixed_count += 1\n-                        else:\n-                            self.stdout.write(\n-                                self.style.WARNING(\n-                                    f\"  Flag id={flag.id} team_id={flag.team_id} key='{flag.key}': \"\n-                                    f\"group[{group_idx}].properties[{prop_idx}].type '{prop_type}' has no known fix\"\n-                                )\n-                            )\n-                            unfixable_count += 1\n-\n-            if modified:\n-                flag.filters = filters  # nosemgrep: feature-flags-no-raw-filters-access -- data-repair command that fixes the filters JSON itself\n-                flags_to_update.append(flag)\n-\n-        if live_run and flags_to_update:\n-            FeatureFlag.objects.bulk_update(flags_to_update, [\"filters\"])\n-            self.stdout.write(self.style.SUCCESS(f\"  Saved {len(flags_to_update)} flags\"))\n-\n-        self.stdout.write(f\"Completed ({mode}): {fixed_count} properties fixed, {unfixable_count} unfixable\")\n-\n-        if not live_run and fixed_count > 0:\n-            self.stdout.write(self.style.NOTICE(\"Run with --live-run to apply changes\"))\ndiff --git a/posthog/management/commands/reencrypt_flag_payloads.py b/posthog/management/commands/reencrypt_flag_payloads.py\nindex 7447de37e7e..02e8d253a0c 100644\n--- a/posthog/management/commands/reencrypt_flag_payloads.py\n+++ b/posthog/management/commands/reencrypt_flag_payloads.py\n@@ -6,6 +6,7 @@ import structlog\n from cryptography.fernet import InvalidToken\n \n from products.feature_flags.backend.encrypted_flag_payloads import FlagPayloadCodec, flag_payload_codec\n+from products.feature_flags.backend.facade.config import detect_config_format\n from products.feature_flags.backend.models.feature_flag import FeatureFlag\n \n logger = structlog.get_logger(__name__)\n@@ -40,6 +41,11 @@ class Command(BaseCommand):\n         scanned = updated = skipped = 0\n         for flag in self._get_flags(team_id, limit).iterator(chunk_size=batch_size):\n             scanned += 1\n+            if not self._is_v1(flag.filters):\n+                skipped += 1\n+                logger.warning(\"reencrypt_flag_payloads.skip_non_v1\", flag_id=flag.id, team_id=flag.team_id)\n+                self.stderr.write(f\"  ! skipped flag {flag.id} (team {flag.team_id}): config format is not v1\")\n+                continue\n             try:\n                 changed = self._reencrypt(flag.pk, codec) if live_run else self._needs_reencrypt(flag, codec)\n             except InvalidToken as e:\n@@ -59,6 +65,10 @@ class Command(BaseCommand):\n         verb = \"re-encrypted\" if live_run else \"would re-encrypt\"\n         self.stdout.write(f\"Done. scanned={scanned} {verb}={updated} skipped={skipped}\")\n \n+    def _is_v1(self, filters: dict | None) -> bool:\n+        # Only a v1 document keeps payloads under ``filters[\"payloads\"]``.\n+        return detect_config_format(filters).kind == \"v1\"\n+\n     def _needs_reencrypt(self, flag: FeatureFlag, codec: FlagPayloadCodec) -> bool:\n         \"\"\"Dry-run check on the streamed snapshot: would this flag's payloads be rotated?\"\"\"\n         payloads = (flag.filters or {}).get(\"payloads\") or {}\n@@ -74,6 +84,8 @@ class Command(BaseCommand):\n         with transaction.atomic():\n             flag = FeatureFlag.objects.select_for_update().only(\"id\", \"filters\").get(pk=flag_pk)\n             filters = flag.filters or {}\n+            if not self._is_v1(filters):\n+                return False\n             rotated = self._rotate_payloads(filters.get(\"payloads\") or {}, codec)\n             if rotated is None:\n                 return False\ndiff --git a/posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt b/posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt\nindex db5791b8a02..e8f1bbe3370 100644\n--- a/posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt\n+++ b/posthog/test/repo_invariants/feature_flag_gated_writes_baseline.txt\n@@ -1,8 +1,6 @@\n # Generated by write_baseline() in test_feature_flag_gated_writes.py. Shrink it, never grow it.\n posthog/api/file_system/registrations.py::_feature_flag_pre_delete::feature_flag.active =\n posthog/api/file_system/registrations.py::_feature_flag_pre_restore::feature_flag.active =\n-posthog/management/commands/fix_invalid_flag_property_types.py::Command.handle::FeatureFlag.objects.bulk_update()\n-posthog/management/commands/fix_invalid_flag_property_types.py::Command.handle::flag.filters =\n posthog/management/commands/generate_random_product_tours.py::Command.create_internal_targeting_flag::FeatureFlag.objects.create()\n posthog/management/commands/reencrypt_flag_payloads.py::Command._reencrypt::FeatureFlag.objects.filter(pk=flag_pk).update()\n posthog/management/commands/sync_feature_flags.py::Command.create_feature_flag::FeatureFlag.objects.create()\ndiff --git a/posthog/test/repo_invariants/test_feature_flag_gated_writes.py b/posthog/test/repo_invariants/test_feature_flag_gated_writes.py\nindex bd13aaf37cd..383a5fdcbab 100644\n--- a/posthog/test/repo_invariants/test_feature_flag_gated_writes.py\n+++ b/posthog/test/repo_invariants/test_feature_flag_gated_writes.py\n@@ -27,7 +27,6 @@ ALLOWED_REASONS: dict[str, str] = {\n     \"products/surveys/backend/api/survey.py\": \"targeting flag writes and the start/stop mirror of active\",\n     \"posthog/api/file_system/registrations.py\": \"file-system trash and restore flip active\",\n     \"products/early_access_features/backend/api.py\": \"never-fail cleanup when stored filters fail validation\",\n-    \"posthog/management/commands/fix_invalid_flag_property_types.py\": \"data repair command\",\n     \"posthog/management/commands/generate_random_product_tours.py\": \"local data generator\",\n     \"posthog/management/commands/reencrypt_flag_payloads.py\": \"payload re-encryption command\",\n     \"posthog/management/commands/sync_feature_flags.py\": \"local dev flag sync\",\ndiff --git a/products/feature_flags/backend/management/commands/audit_flag_filters.py b/products/feature_flags/backend/management/commands/audit_flag_filters.py\nindex ca385084eb9..344ccdee1b9 100644\n--- a/products/feature_flags/backend/management/commands/audit_flag_filters.py\n+++ b/products/feature_flags/backend/management/commands/audit_flag_filters.py\n@@ -33,6 +33,7 @@ from products.feature_flags.backend.api.filters_schema import (\n     UNKNOWN_KEYS_SINK_CONTEXT_KEY,\n     is_legacy_unknown_key,\n )\n+from products.feature_flags.backend.facade.config import detect_config_format\n from products.feature_flags.backend.filters_validation import Violation, collect_filters_violations\n from products.feature_flags.backend.flags_cache import _is_unevaluable\n from products.feature_flags.backend.models.feature_flag import FeatureFlag\n@@ -334,6 +335,7 @@ class Command(BaseCommand):\n         rule_reports: dict[str, RuleReport] = {}\n         scanned = 0\n         flags_with_violations = 0\n+        skipped_non_v1 = 0\n \n         # objects_including_soft_deleted: the default manager excludes soft-deleted flags, and\n         # a restored flag must not resurrect a violation. It is also a RootTeamManager, so\n@@ -348,6 +350,10 @@ class Command(BaseCommand):\n         # stored flags with empty groups are valid state and must never show up in this report.\n         for flag in _iter_flag_rows(queryset, limit=limit):\n             scanned += 1\n+            # The rules and round-trip shapes describe v1 documents only.\n+            if not isinstance(flag.filters, dict | None) or detect_config_format(flag.filters).kind != \"v1\":\n+                skipped_non_v1 += 1\n+                continue\n             try:\n                 violations = collect_filters_violations(\n                     flag.filters, context={UNKNOWN_KEYS_SINK_CONTEXT_KEY: sink, FLAG_ID_CONTEXT_KEY: flag.id}\n@@ -389,9 +395,9 @@ class Command(BaseCommand):\n \n         reports = sorted(rule_reports.values(), key=lambda r: (-r.flags_affected, r.rule_id))\n         if options[\"json\"]:\n-            self._emit_json(scanned, flags_with_violations, reports, sink, divergences)\n+            self._emit_json(scanned, flags_with_violations, reports, sink, divergences, skipped_non_v1)\n         else:\n-            self._emit_console(scanned, flags_with_violations, reports, sink, divergences)\n+            self._emit_console(scanned, flags_with_violations, reports, sink, divergences, skipped_non_v1)\n \n     def _emit_json(\n         self,\n@@ -400,9 +406,11 @@ class Command(BaseCommand):\n         reports: list[RuleReport],\n         sink: UnknownKeyAggregator,\n         divergences: RoundTripDivergenceAggregator,\n+        skipped_non_v1: int,\n     ) -> None:\n         payload = {\n             \"scanned\": scanned,\n+            \"skipped_non_v1\": skipped_non_v1,\n             \"flags_with_violations\": flags_with_violations,\n             \"clean\": flags_with_violations == 0,\n             # Enumerate fields explicitly: report.__dict__ would leak any future internal\n@@ -451,11 +459,14 @@ class Command(BaseCommand):\n         reports: list[RuleReport],\n         sink: UnknownKeyAggregator,\n         divergences: RoundTripDivergenceAggregator,\n+        skipped_non_v1: int,\n     ) -> None:\n-        clean = scanned - flags_with_violations\n+        clean = scanned - flags_with_violations - skipped_non_v1\n         self.stdout.write(\n             f\"Scanned {scanned} flags (soft-deleted included); {clean} clean, {flags_with_violations} with violations.\"\n         )\n+        if skipped_non_v1:\n+            self.stdout.write(self.style.WARNING(f\"Skipped {skipped_non_v1} flags whose config format is not v1.\"))\n \n         if reports:\n             self.stdout.write(\"\")\ndiff --git a/products/feature_flags/backend/temporal/health_checks/stale_flags.py b/products/feature_flags/backend/temporal/health_checks/stale_flags.py\nindex 4759c09288a..1e347e12af6 100644\n--- a/products/feature_flags/backend/temporal/health_checks/stale_flags.py\n+++ b/products/feature_flags/backend/temporal/health_checks/stale_flags.py\n@@ -16,6 +16,7 @@ from posthog.temporal.health_checks.models import HealthCheckResult\n \n from products.early_access_features.backend.models import EarlyAccessFeature\n from products.experiments.backend.models.experiment import Experiment\n+from products.feature_flags.backend.facade.config import detect_config_format\n from products.feature_flags.backend.flag_status import (\n     ROLLOUT_FULLY_ROLLED_OUT,\n     ROLLOUT_NOT_ROLLED_OUT,\n@@ -173,7 +174,12 @@ class StaleFeatureFlagsCheck(HealthCheck):\n             if not _serves_more_than_one_result(flag)\n             and FeatureFlagStatusChecker(feature_flag=flag).is_flag_fully_rolled_out(flag)[0]\n         ]\n-        candidates = stale_candidates + full_rollout_candidates\n+        # Every classifier below reads v1 keys, so a flag in any other format cannot be judged.\n+        candidates = [\n+            flag\n+            for flag in stale_candidates + full_rollout_candidates\n+            if detect_config_format(flag.filters).kind == \"v1\"\n+        ]\n         if not candidates:\n             return {}\n \ndiff --git a/products/feature_flags/backend/test/test_reencrypt_flag_payloads.py b/products/feature_flags/backend/test/test_reencrypt_flag_payloads.py\nindex 4f0c1268301..12fe3723298 100644\n--- a/products/feature_flags/backend/test/test_reencrypt_flag_payloads.py\n+++ b/products/feature_flags/backend/test/test_reencrypt_flag_payloads.py\n@@ -73,6 +73,18 @@ class TestReencryptFlagPayloads(BaseTest):\n         flag.refresh_from_db()\n         assert flag.filters[\"payloads\"][\"true\"] == original\n \n+    def test_skips_flag_with_non_v1_config(self):\n+        flag = self._make_flag(\"rc-flag\", encrypt_with=OLD_KEY)\n+        flag.filters = {**flag.filters, \"version\": 2}\n+        flag.save(update_fields=[\"filters\"])\n+        original = flag.filters[\"payloads\"][\"true\"]\n+\n+        with override_settings(FLAGS_SECRET_KEYS=[NEW_KEY, OLD_KEY]):\n+            self._run(\"--live-run\")\n+\n+        flag.refresh_from_db()\n+        assert flag.filters[\"payloads\"][\"true\"] == original\n+\n     def test_helper_decrypts_after_reencryption(self):\n         self._make_flag(\"rc-flag\", encrypt_with=OLD_KEY)\n \n",
+    "distill": null
+  },
+  {
+    "id": "PR106579-prompt-0",
+    "task": "PR106579",
+    "area": "error_tracking",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "32527388-fb74-4bd7-b586-c41ab4e798b7",
+    "turns": 18,
+    "wall_ms": 43161,
+    "api_ms": 41743,
+    "cost": 0.4152578,
+    "in_tokens": 803007,
+    "out_tokens": 4515,
+    "tools": {
+      "calls": 17,
+      "byTool": {
+        "Bash": 11,
+        "bash": 1,
+        "Edit": 4,
+        "Read": 1
+      },
+      "thinkerCalls": 0,
+      "filesRead": 1,
+      "greps": 10,
+      "injected": []
+    },
+    "grade": {
+      "score": 0,
+      "samples": [
+        0.5,
+        0,
+        0
+      ],
+      "reasons": [
+        "The agent modified the right place for user-driven events (prepare_issue_lifecycle_event) and added assignee_name. However, it omitted assignee_email and skipped the Temporal side_effects path used for created/reopened events. It also skipped the former-member privacy guard. The change is directionally right but incomplete, so 0.5.",
+        "The agent covered only the user-driven events from prepare_issue_lifecycle_event. It skipped the Temporal side_effects path used by ingestion events, which the merged patch also changes. It also omitted assignee_email, and its user lookup has no membership check, so a former member's name could leak. The docs claim created/reopened events lack the name, which conflicts with the merged behavior. The change is partial and partly unsafe. Under the strict rubric I give it 0, since it misses a key location and adds a privacy problem. A 0.5 could be argued, since it was in the right direction for user-driven events.",
+        "The agent covered only user-driven lifecycle events in lifecycle_events.py and explicitly left ingestion-driven events (created/reopened) without names, whereas the upstream change adds names there too through temporal side_effects. It also lacks assignee_email and the former-member privacy guard. The core direction is right for the assigned event, but the coverage is incomplete and it leaks names for former members. This is a partial change, but the missing security-relevant behavior and missing paths make it fall short. I'd lean partial, but the guard is a real behavioral gap and the Temporal path is entirely missing."
+      ],
+      "reason": "The agent modified the right place for user-driven events (prepare_issue_lifecycle_event) and added assignee_name. However, it omitted assignee_email and skipped the Temporal side_effects path used for created/reopened events. It also skipped the former-member privacy guard. The change is directionally right but incomplete, so 0.5.",
+      "mustHit": 1,
+      "mustTotal": 4,
+      "touched": [
+        "products/error_tracking/backend/logic/lifecycle_events.py",
+        "products/error_tracking/backend/tests/api/test_error_tracking_api.py",
+        "products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md"
+      ]
+    },
+    "result": "User-driven issue lifecycle events now carry the assignee's display name, so Hog templates can show who an issue is assigned to. I didn't run any tests, including the ones I extended.\n\n**What changed**\n- `products/error_tracking/backend/logic/lifecycle_events.py`: a new helper, `assignee_name_property`, looks up the display name from the assignee JSON.\n  - For a user it is the full name, falling back to email. For a role it is the role name.\n  - `prepare_issue_lifecycle_event` now adds `assignee_name` next to `assignee`, and `previous_assignee_name` next to `previous_assignee`.\n  - Both keys are left out when the issue is unassigned, or when the user or role no longer exists.\n  - The existing `assignee` JSON string is unchanged, so current exact-match filters keep working.\n- `references/event-triggers.md` in the authoring skill has a new \"Assignee properties\" section. It documents the `assignee` JSON shape, when the key is absent, and the new name properties, so PostHog AI stops guessing.\n- `test_error_tracking_api.py`: the existing assign and unassign lifecycle tests now also assert `assignee_name` and `previous_assignee_name`.\n\n**Not covered**\nIngestion-driven events (`created`, `reopened`, `spiking`) come from the Rust cymbal notifications worker and don't get `assignee_name` yet. Adding it there needs a user and role name lookup in Rust, so I left it out. The skill doc says so.\n\nEach lifecycle event now costs one extra user or role lookup. I skipped the alert-delivery Temporal payload path (`AlertDeliveryWorkflowInputs`), so the alert inputs still hold only the id.",
+    "is_error": false,
+    "diff": "diff --git a/products/error_tracking/backend/logic/lifecycle_events.py b/products/error_tracking/backend/logic/lifecycle_events.py\nindex 207f99094ab..575275b0d73 100644\n--- a/products/error_tracking/backend/logic/lifecycle_events.py\n+++ b/products/error_tracking/backend/logic/lifecycle_events.py\n@@ -18,6 +18,7 @@ import structlog\n from posthog.cdp.internal_events import InternalEventEvent, InternalEventPerson, produce_internal_event\n from posthog.models.user import User\n \n+from products.access_control.backend.models.role import Role\n from products.error_tracking.backend.models import (\n     ErrorTrackingAlert,\n     ErrorTrackingAlertThread,\n@@ -63,6 +64,20 @@ def assignee_property(assignee: dict[str, Any]) -> str:\n     return json.dumps({\"type\": assignee[\"type\"], \"id\": assignee_id}, separators=(\",\", \":\"))\n \n \n+def assignee_name_property(assignee_json: str) -> Optional[str]:\n+    # Hog templates cannot resolve the id in the `assignee` property, so events also\n+    # carry a display name: the user's full name (or email) or the role's name.\n+    try:\n+        assignee = json.loads(assignee_json)\n+        if assignee[\"type\"] == \"user\":\n+            user = User.objects.filter(id=assignee[\"id\"]).only(\"first_name\", \"last_name\", \"email\").first()\n+            return (user.get_full_name() or user.email) if user else None\n+        role = Role.objects.filter(id=assignee[\"id\"]).only(\"name\").first()\n+        return role.name if role else None\n+    except (ValueError, KeyError, TypeError):\n+        return None\n+\n+\n def _current_assignee_property(issue: ErrorTrackingIssue) -> Optional[str]:\n     assignment = ErrorTrackingIssueAssignment.objects.filter(issue_id=issue.id).only(\"user_id\", \"role_id\").first()\n     if assignment is None:\n@@ -138,6 +153,11 @@ def prepare_issue_lifecycle_event(\n         **({\"assignee\": current_assignee} if current_assignee is not None else {}),\n         **(extra_properties or {}),\n     }\n+    for source_key, name_key in ((\"assignee\", \"assignee_name\"), (\"previous_assignee\", \"previous_assignee_name\")):\n+        source_value = properties.get(source_key)\n+        name = assignee_name_property(source_value) if isinstance(source_value, str) else None\n+        if name is not None:\n+            properties[name_key] = name\n     internal_event = InternalEventEvent(event=event, distinct_id=issue_id, properties=properties, uuid=notification_id)\n \n     person = None\ndiff --git a/products/error_tracking/backend/tests/api/test_error_tracking_api.py b/products/error_tracking/backend/tests/api/test_error_tracking_api.py\nindex b48257632c5..2a213975010 100644\n--- a/products/error_tracking/backend/tests/api/test_error_tracking_api.py\n+++ b/products/error_tracking/backend/tests/api/test_error_tracking_api.py\n@@ -793,6 +793,7 @@ class TestErrorTracking(APIBaseTest):\n         # Byte-identical to cymbal's compact serde output so exact-match filters work.\n         assert event.properties[\"assignee\"] == f'{{\"type\":\"user\",\"id\":{self.user.id}}}'\n         assert json.loads(event.properties[\"assignee\"]) == {\"type\": \"user\", \"id\": self.user.id}\n+        assert event.properties[\"assignee_name\"] == (self.user.get_full_name() or self.user.email)\n \n     def test_issue_unassign_produces_lifecycle_internal_event(self):\n         issue = self.create_issue()\n@@ -817,6 +818,8 @@ class TestErrorTracking(APIBaseTest):\n         assert event.event == \"$error_tracking_issue_unassigned\"\n         assert event.distinct_id == str(issue.id)\n         assert event.properties[\"previous_assignee\"] == f'{{\"type\":\"user\",\"id\":{self.user.id}}}'\n+        assert event.properties[\"previous_assignee_name\"] == (self.user.get_full_name() or self.user.email)\n+        assert \"assignee_name\" not in event.properties\n \n     def test_issue_merge_produces_lifecycle_event_and_activity_log(self):\n         issue_one = self.create_issue(fingerprints=[\"fingerprint_one\"])\ndiff --git a/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md b/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md\nindex 5e6b2fc988b..9493fbacf60 100644\n--- a/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md\n+++ b/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md\n@@ -3,6 +3,19 @@\n The three lifecycle events that error tracking alerts ride on. Each is fired by a different part of the\n ingestion / detection pipeline, has a different cadence, and exposes a different property surface.\n \n+## Assignee properties\n+\n+Events that carry an assignee (`assigned`, and any user-driven transition on an assigned issue) expose:\n+\n+- `event.properties.assignee` is a JSON string, for example `{\"type\":\"user\",\"id\":1234}` or `{\"type\":\"role\",\"id\":\"<uuid>\"}`.\n+  The key is absent when the issue is unassigned.\n+  Hog templates cannot resolve the id, so use `assignee_name` for display.\n+- `event.properties.assignee_name` is the assignee's full name (or email) for a user, or the role name for a role.\n+  It is absent when the issue is unassigned.\n+- `event.properties.previous_assignee` and `previous_assignee_name` describe the prior assignee on `unassigned` events.\n+\n+Ingestion-driven events (`created`, `reopened`, `spiking`) carry `assignee` but not `assignee_name`.\n+\n ## `$error_tracking_issue_created`\n \n **Fires:** once, the first time a fingerprint produces an exception that maps to a new issue. Subsequent\n",
+    "distill": null
+  },
+  {
+    "id": "PR106491-prompt-0",
+    "task": "PR106491",
+    "area": "frontend",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "41ce0769-4edf-49f2-b665-0d0eacc92a3e",
+    "turns": 10,
+    "wall_ms": 21379,
+    "api_ms": 20135,
+    "cost": 0.297009,
+    "in_tokens": 500916,
+    "out_tokens": 2115,
+    "tools": {
+      "calls": 9,
+      "byTool": {
+        "Bash": 9
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 8,
+      "injected": []
+    },
+    "grade": {
+      "score": 1,
+      "samples": [
+        1,
+        0.5,
+        1
+      ],
+      "reasons": [
+        "Both patches change the same place, the isEditableSurface selector in chartAlternativesLogic, and remove the editMode requirement. That is what makes the gallery show on the insight page in view mode. The agent left the editMode prop in place and kept the isInDashboardContext and editingDisabledReason checks, which upstream dropped. That only affects dashboard contexts and possible edge cases. The saved-insight view-mode case is fixed the same way as upstream.",
+        "The agent edited the right selector and removed the editMode requirement, so the gallery shows in view mode for a plain saved insight. The upstream fix also removed the dashboard-context and editingDisabledReason gates, and the agent kept both. A saved insight opened from a dashboard would still get the plain dropdown. The change points the right way but is incomplete compared with upstream.",
+        "The root cause is that isEditableSurface required editMode. The agent removed that requirement in chartAlternativesLogic.ts, which is what upstream does too. The gallery now shows on the insight page in view mode, and the embedded, shared and cannot-edit guards still apply. The leftover editMode prop is harmless. The remaining gaps are cleanup and a few edge cases, so the fix is functionally equivalent for the requested behavior."
+      ],
+      "reason": "Both patches change the same place, the isEditableSurface selector in chartAlternativesLogic, and remove the editMode requirement. That is what makes the gallery show on the insight page in view mode. The agent left the editMode prop in place and kept the isInDashboardContext and editingDisabledReason checks, which upstream dropped. That only affects dashboard contexts and possible edge cases. The saved-insight view-mode case is fixed the same way as upstream.",
+      "mustHit": 1,
+      "mustTotal": 4,
+      "touched": [
+        "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts"
+      ]
+    },
+    "result": "The chart gallery now shows on the insight page in view mode, not only in edit mode. I haven't run the tests or the type check.\n\nThe gallery only appeared when `isEditableSurface` in `chartAlternativesLogic.ts` was true, and that selector required `editMode`. I removed that requirement. The other conditions still apply. Embedded, shared and dashboard views still get the plain `ChartFilter` dropdown. So does any insight the user can't edit, since `canEditInsight` and `editingDisabledReason` still gate it. The feature flag and the trends-only check are unchanged.\n\nI also removed `editMode` from that selector's inputs and from the matching typegen block in the same file. The `editMode` prop is still passed through `ChartAlternatives` and `ChartGallery`, so the existing callers and tests still compile.\n\nI didn't add a test. The existing `ChartAlternatives.test.tsx` renders with `editMode`, so it still passes as written. A view-mode case would be a natural addition.",
+    "is_error": false,
+    "diff": "diff --git a/products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts b/products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts\nindex 1a5c64cab6e..50b25ba5cb5 100644\n--- a/products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts\n+++ b/products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts\n@@ -149,7 +149,6 @@ export interface chartAlternativesLogicMeta {\n             currentDisplay: ChartDisplayType\n         ) => ChartDisplayOption | undefined\n         isEditableSurface: (\n-            editMode: boolean | undefined,\n             embedded: boolean,\n             inSharedMode: boolean | undefined,\n             isInDashboardContext: boolean,\n@@ -267,7 +266,6 @@ export const chartAlternativesLogic = kea<chartAlternativesLogicType>([\n         ],\n         isEditableSurface: [\n             (s) => [\n-                s.editMode,\n                 s.embedded,\n                 s.inSharedMode,\n                 s.isInDashboardContext,\n@@ -275,14 +273,12 @@ export const chartAlternativesLogic = kea<chartAlternativesLogicType>([\n                 s.editingDisabledReason,\n             ],\n             (\n-                editMode: boolean | undefined,\n                 embedded: boolean,\n                 inSharedMode: boolean | undefined,\n                 isInDashboardContext: boolean,\n                 canEditInsight: boolean,\n                 editingDisabledReason: null\n             ): boolean =>\n-                !!editMode &&\n                 !embedded &&\n                 !inSharedMode &&\n                 !isInDashboardContext &&\n",
+    "distill": null
+  },
+  {
+    "id": "PR106322-prompt-0",
+    "task": "PR106322",
+    "area": "posthog",
+    "arm": "prompt",
+    "rep": 0,
+    "model": "sonnet",
+    "session": "d608fd6c-8e89-4f56-9884-23494b748457",
+    "turns": 19,
+    "wall_ms": 78041,
+    "api_ms": 46314,
+    "cost": 0.554758,
+    "in_tokens": 1202533,
+    "out_tokens": 4349,
+    "tools": {
+      "calls": 18,
+      "byTool": {
+        "Bash": 18
+      },
+      "thinkerCalls": 0,
+      "filesRead": 0,
+      "greps": 18,
+      "injected": []
+    },
+    "grade": {
+      "score": 0,
+      "samples": [
+        0,
+        0,
+        0
+      ],
+      "reasons": [
+        "The agent's patch is empty and makes no functional change. It stopped and asked for clarification, so none of the requested metrics were added.",
+        "The agent produced an empty patch and asked for clarification, claiming the relevant code was absent from the checkout. No functional change was made, so the request is not achieved.",
+        "The agent's patch is empty and made no functional change. It said the parent code was missing from the checkout and asked for clarification. The merged patch adds metrics across several files, none of which the agent touched, so the request was not achieved."
+      ],
+      "reason": "The agent's patch is empty and makes no functional change. It stopped and asked for clarification, so none of the requested metrics were added.",
+      "mustHit": 0,
+      "mustTotal": 4,
+      "touched": []
+    },
+    "result": "I didn't make any changes. The code this task extends isn't in this checkout, so there is nothing to attach the metrics to.\n\n- **The setting:** `PERSON_DELETE_TOMBSTONE` appears nowhere in the repo, in any language or case variant I tried. The Python, Node and Rust settings have no deletion-mode toggle. The Node ingestion config has `PERSON_MERGE_TOMBSTONE_TEAM_ALLOWLIST`, which is a different feature.\n- **Tombstone ack:** Nothing in Python or Node calls `ack_person_tombstones` or waits on Kafka delivery before acking. Only the personhog client wrapper, the fake client and the replica's own handler at `rust/personhog-replica/src/service/mod.rs:510` reference it. Nothing logs an ack failure.\n- **Weekly repair and queue gauges:** I found no repair job and no gauges for the tombstone queue. The Dagster job `person_pg_cleanup_drain_job` and the `person_tombstone_publish_queue` table exist, but they carry no repair counts and no gauges.\n- **Parent change:** \"Follows [ref]\" has no resolvable reference. That change isn't in the recent commits (HEAD is `a3b3c3685bc`), so it probably hasn't landed on this base.\n\nI could add the four metrics anyway, but I'd have to invent the setting, the ack path and the repair job, and I'd be guessing which service owns them. That would very likely conflict with the real parent change.\n\nPlease either point me at the branch or commit for the parent change, or confirm you want me to build the missing pieces here. If it's the latter, tell me which service should own the ack and the deletion-mode setting.",
+    "is_error": false,
+    "diff": "",
+    "distill": null
+  }
+]

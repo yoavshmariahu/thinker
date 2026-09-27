@@ -1,0 +1,42 @@
+{
+  "id": "email-suspension-banner-must-render-on-every-messaging-scene",
+  "title": "Email suspension banner must render on every messaging scene",
+  "kind": "invariant",
+  "answers": [
+    "Where is the email sending suspended banner?",
+    "Suspended project doesn't see banner on broadcasts page",
+    "Adding a new sending surface: what banners are required?"
+  ],
+  "body": "The suspended-email banner is the shared component products/workflows/frontend/EmailSuspensionBanner.tsx (reads `workflowsEmailSuspensionLogic`, keeps data-attr `workflows-email-suspended-banner`). Any scene that sends email (WorkflowsScene, BroadcastsScene) must render `<EmailSuspensionBanner />` under the title section, otherwise suspended projects get no warning there. Do not inline a copy of the banner; copy names both workflow and broadcast emails.",
+  "applies": "scenes in products/workflows that send email",
+  "tags": [
+    "workflows",
+    "email",
+    "banner"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/frontend/EmailSuspensionBanner.tsx",
+      "symbol": "EmailSuspensionBanner",
+      "hash": "sha256:3ee35451aa78808e67d92967",
+      "line": 7,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Broadcasts/BroadcastsScene.tsx",
+      "hash": "sha256:89a02dad6fdb861ecc6fdad3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105601"
+  },
+  "created": "2026-09-27T00:01:32.649Z",
+  "verified": "2026-09-27T00:01:32.649Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

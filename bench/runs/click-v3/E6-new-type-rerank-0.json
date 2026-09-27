@@ -1,0 +1,55 @@
+{
+  "id": "E6-new-type-rerank-0",
+  "task": "E6-new-type",
+  "area": "types",
+  "arm": "rerank",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "0785ce8b-8f65-447e-b4d3-981789af436f",
+  "turns": 4,
+  "wall_ms": 35541,
+  "api_ms": 20263,
+  "cost": 0.095187,
+  "in_tokens": 95340,
+  "out_tokens": 1961,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "injected": [
+      "implementing-a-custom-paramtype-required-members-failure-and",
+      "type-to-paramtype-resolution-and-value-conversion-callpath"
+    ]
+  },
+  "grade": {
+    "score": 0.6,
+    "missing": [
+      "Branch must be inserted before `if is_guessed: return STRING` (line 1322); the agent only implies placement, not the ordering constraint",
+      "The failure mode of type=timedelta: FuncParamType calls timedelta(\"1h30m\") raising TypeError not caught (ValueError only), so a traceback instead of usage error",
+      "Call sites that consume convert_type (Parameter.__init__, Option.__init__, Tuple, Choice.get_metavar, prompt)",
+      "Test import allow-list: datetime and re already in ALLOWED_IMPORTS in tests/test_imports.py, no change needed",
+      "Optional DurationInfoDict(ParamTypeInfoDict) for configurable types and __init__/to_info_dict pattern",
+      "Optional tests/typing/typing_options.py and strict mypy/pyright annotation requirement",
+      "Explicit list of files needing no change (core.py, termui.py, shell_completion.py, etc.)",
+      "Precise __init__ import ordering (between DateTime and File at line 58/59) due to ruff isort settings",
+      "Note that name becomes uppercased metavar via make_metavar; bare-string acceptance from env vars",
+      "convert base impl just casts so must override; ParamType has no abstract methods"
+    ],
+    "wrong": [
+      "test_info_dict entry given as {\"param_type\": \"DURATION\", ...}; correct is \"Duration\" since to_info_dict strips the \"ParamType\" suffix from class name",
+      "__init__ placement said next to UUID re-export at L69 — reference says insert between DateTime (58) and File (59) for sort order; the location is off",
+      "Claims get_metavar/get_missing_message/shell_complete/split_envvar_value are optional overrides — acceptable but the reference notes get_metavar only for configurable types; minor",
+      "Claims the test_info_dict location near L156 differs from reference (~95–180 range) — roughly compatible"
+    ],
+    "reason": "The agent gets the main structure right: types.py changes, the convert_type shorthand branch, the name and convert requirements, __repr__, docs and tests. It has one concrete error: the info-dict param_type should be \"Duration\", not \"DURATION\". It also misplaces the __init__ import and omits several specifics from the reference, including the insert-before-is_guessed ordering constraint, the TypeError failure mode, and the list of files that need no change.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "Every path below is relative to the repo root. I read `types.py` and grepped for how `UUID` is wired up, then modelled the plan on it, since it is the closest existing analogue.\n\n## Files and symbols to change\n\n**`src/click/types.py`** (the main change)\n- Add `from datetime import timedelta` (line 11 currently imports only `datetime`), plus `import re` if you parse with a regex.\n- Add a new class, e.g. `DurationParamType(ParamType[timedelta])`, placed next to `UUIDParameterType` (~L830) with `name = \"duration\"`.\n- Add the singleton after `UUID` (~L1368): `DURATION: t.Final[DurationParamType] = DurationParamType()`, with a `#:` doc comment like the neighbouring ones.\n- **The `type=` shorthand** lives in `convert_type` (~L1294–1335), in the chain of `if guessed is int: return INT` / `float` / `bool` checks. Add `if guessed is timedelta: return DURATION` there.\n  - This shorthand works on `datetime.timedelta`, not a new Python type. `click.UUID` has no shorthand today; its docs say it is \"not automatically guessed\".\n  - `_guess_type` (~L1249) needs no change. It already returns `type(default)`, so `default=timedelta(hours=1)` with no `type=` would also resolve to `DURATION` once the `convert_type` branch exists.\n  - This is a behaviour change. Today a `timedelta` default falls through to `is_guessed → STRING`, and an explicit `type=timedelta` falls through to `FuncParamType(timedelta)`.\n\n**`src/click/__init__.py`**\n- Add `from .types import DURATION as DURATION` next to the `UUID` re-export at L69.\n\n**Docs and changelog**\n- `docs/parameter-types.md`: add a bullet near L123 for `click.DURATION`, and mention the `timedelta` shorthand if you add it.\n- `docs/api.md`: add `.. autodata:: DURATION` near L227.\n- `CHANGES.md`: add an entry with `versionadded`.\n\n**Tests**\n- `tests/test_basic.py`: an option test modelled on `test_uuid_option` (~L165).\n- `tests/test_info_dict.py`: a `pytest.param(click.DURATION, {\"param_type\": \"DURATION\", \"name\": \"duration\"}, ...)` case near L156.\n- `tests/test_types.py`: unit tests for parsing, and for `convert_type(timedelta)`.\n\n## What the new class must implement\n\n- **Required:**\n  - Class attribute `name = \"duration\"`.\n  - `convert(self, value, param, ctx) -> timedelta`.\n- **Rules for `convert`:**\n  - Return `value` unchanged if it is already a `timedelta`, because `convert` must accept already-converted values.\n  - Do not assume `param` or `ctx` is set, since prompts call it with `None` for both.\n  - Strip and parse strings like `1h30m`.\n  - On bad input, call `self.fail(_(\"{value!r} is not a valid duration.\").format(value=value), param, ctx)`. `fail` raises `BadParameter`.\n- **Recommended:**\n  - `__repr__` returning `\"DURATION\"`, as `UUID` does.\n- **Optional overrides, all inherited from `ParamType`:**\n  - `get_metavar(param, ctx)`, e.g. returning `\"DURATION\"` or a format hint.\n  - `get_missing_message`, `shell_complete`, `split_envvar_value`.\n  - `to_info_dict`: the base implementation reports `param_type` and `name`. Override it only if you add configurable attributes.\n\nThe class is not composite, so leave `is_composite` and `arity` alone.",
+  "is_error": false,
+  "diff": null
+}

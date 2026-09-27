@@ -1,0 +1,97 @@
+{
+  "id": "PR106564-hard-irrelevant-0",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "irrelevant",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "7330163c-baf0-468a-8454-ec04273290c3",
+  "turns": 21,
+  "wall_ms": 107832,
+  "api_ms": 44135,
+  "cost": 0.508307,
+  "in_tokens": 1217774,
+  "out_tokens": 3874,
+  "tools": {
+    "calls": 20,
+    "byTool": {
+      "Bash": 20
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 20,
+    "injected": [
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "web-frontend-tests-web-npm",
+      "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten"
+    ]
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty and made no functional change. The upstream patch modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs to gate the stable build on a feature flag for logged-in users. The agent did not find or edit any of these.",
+      "The agent's patch is empty and made no functional change. It did not locate posthog/stable_chunks.py or the existing opt-in mechanism, so the requested feature flag rollout was not implemented.",
+      "The agent produced an empty patch and made no functional change. The merged patch modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs to add flag-based selection for logged-in users."
+    ],
+    "reason": "The agent's patch is empty and made no functional change. The upstream patch modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs to gate the stable build on a feature flag for logged-in users. The agent did not find or edit any of these.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no feature flag decides the build for logged-in users."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag-based enrolment logic exists, so this behaviour is not implemented."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag handling was added. Author says only a single build exists, so no fallback logic was implemented."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; the author reports no query parameter handling exists in the checkout."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no remembered choice (cookie or otherwise) with a ~30 day lifetime was added."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; nothing passes a build-deciding flag value to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no runtime-failure reload handling was added."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; nothing strips the query parameter from the address."
+        }
+      ]
+    }
+  },
+  "result": "The \"stable chunk build\" isn't in this checkout, so I can't wire a feature flag to it, and I haven't changed anything.\n\nI searched for it under several names: `stable`, `stableChunk`, `stable-chunks`, `stable_build`, and a query parameter that selects a build. I looked in `frontend/build.mjs`, `common/esbuilder/`, `frontend/src/index.html`, `posthog/utils.py` and the settings and templates. I also searched git history.\n\nWhat exists is a single esbuild build with hashed chunk names. `common/esbuilder/utils.mjs:copyIndexHtml` writes one entry filename into `index.html`, and `posthog/utils.py:_resolve_entry_assets` reads one `preload-manifest.json`. No code reads a query parameter to choose between builds, and no second set of build artifacts exists.\n\nAny implementation I wrote would be invented, and I'd be guessing at three things:\n\n- **How the stable build is produced:** whether it is a separate esbuild output, different chunk naming or another `dist` subdirectory.\n- **How the opt-in parameter is named and handled:** which query parameter it is, and whether the server or the client reads it.\n- **Where the flag decision should go:** likely server-side in the index-template context in `posthog/utils.py`, because the entry and preload URLs are chosen there.\n\nCould you check whether the stable-build change is on another branch or in an unmerged PR? This worktree is on detached HEAD at `a3b3c3685bc`, and the only remote ref is `master`. If you point me at it, or tell me how the build and the query parameter work, I'll add the flag. The plan is to evaluate the flag only for authenticated users and keep the query parameter as a manual override. Anonymous users would never be enrolled.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

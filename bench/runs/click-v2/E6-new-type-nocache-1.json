@@ -1,0 +1,49 @@
+{
+  "id": "E6-new-type-nocache-1",
+  "task": "E6-new-type",
+  "area": "types",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "facfc5d8-c8fc-4907-a9d2-0e3ffef21a76",
+  "turns": 3,
+  "wall_ms": 18549,
+  "api_ms": 18254,
+  "cost": 0.0503918,
+  "in_tokens": 66692,
+  "out_tokens": 1851,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.5,
+    "missing": [
+      "Why the convert_type branch must precede `if is_guessed: return STRING` (default=timedelta would silently become STRING)",
+      "Without the branch, type=timedelta falls to FuncParamType(timedelta) and raises TypeError (not caught as ValueError), causing a traceback",
+      "Other convert_type consumers (Parameter.__init__, Option flag-value guessing, Tuple, Choice.get_metavar, click.prompt)",
+      "Correct __init__.py placement between DateTime and File (case-insensitive isort, force-single-line)",
+      "Optional DurationInfoDict/to_info_dict details for configurable types; ruff/mypy strict/pyright typing requirements (tests/typing)",
+      "tests/test_imports.py needs no change since datetime and re are already allowed",
+      "No changes needed in core.py, termui.py, shell_completion.py, decorators.py",
+      "Docs are built with -W so broken references fail CI"
+    ],
+    "wrong": [
+      "Says the changelog file is `CHANGES.rst`; the repo uses `CHANGES.md` (under Version 8.5.0 Unreleased)",
+      "Says to add the __init__ import next to line 69 (UUID); it should be between DateTime (line 58) and File (line 59) per sorted ordering",
+      "Suggests testing `convert=None` for ctx/param, a confused phrasing (should be param=None, ctx=None)",
+      "Claims the class name must end in `ParamType` as a requirement and that to_info_dict 'falls back to the class name' for name, which is muddled"
+    ],
+    "reason": "The agent identifies the core points: the convert_type branch for timedelta, the DURATION singleton, the required name and convert, optional __repr__, get_metavar and to_info_dict, and the docs and tests. It has two concrete errors: it names CHANGES.rst instead of CHANGES.md, and it places the __init__ import next to UUID instead of between DateTime and File. It also omits several specifics from the reference: the TypeError failure mode of the FuncParamType fallback, the other convert_type call sites, and the list of files that need no change.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "# Adding a built-in `DURATION` ParamType\n\n## Files and symbols\n\n**`src/click/types.py`**\n- **Add `DurationParamType(ParamType[timedelta])`** next to `UUIDParameterType` (~line 830). The class name should end in `ParamType`, because `to_info_dict` derives `\"param_type\"` by stripping that suffix. `UUIDParameterType` works the same way through the `\"ParameterType\"` split.\n- **Add the `DURATION` singleton** after `UUID` (~line 1368):\n  `DURATION: t.Final[DurationParamType] = DurationParamType()`, with a `#:` doc comment and `.. versionadded::`.\n- **Update `convert_type()`** (~line 1291). This is where the shorthand is mapped. It has a chain of `if guessed is int: return INT`, then `float`, `bool` and `str`. Add `if guessed is timedelta: return DURATION` before the `is_guessed` and `FuncParamType` fallbacks. This gives `type=timedelta` the shorthand, which is the natural analogue of `type=int`.\n- **`_guess_type()`** (~line 1255) needs no change. It returns `type(default)`, so `default=timedelta(...)` will infer `DURATION` once `convert_type` handles `timedelta`.\n- **Import `timedelta`** at the top of the file. It already imports `datetime` for `DateTime`.\n\n**`src/click/__init__.py`**\n- Add `from .types import DURATION as DURATION` next to line 69 (`UUID`). Keep the existing ordering.\n\n**Docs and changelog**\n- `docs/api.md` (~line 227): add `.. autodata:: DURATION` beside `UUID`.\n- `docs/parameter-types.md` (~line 123): add a `{data}`click.DURATION`` bullet. Say whether it is guessed from `timedelta`, and document the accepted format.\n- `CHANGES.rst`: add an entry.\n\n**Tests**\n- `tests/test_info_dict.py` (~line 156): add a `pytest.param(click.DURATION, {\"param_type\": \"Duration\", \"name\": \"duration\"}, id=\"DURATION ParamType\")` case.\n- `tests/test_basic.py` (~line 165): add parse and failure cases in the style of the UUID test. Cover `1h30m`, an invalid string, passing an already-converted `timedelta`, and `convert=None` for `ctx` and `param`.\n- `tests/test_types.py`: add a `convert_type(timedelta) is DURATION` test.\n\n## Methods the class must implement\n\nOnly the following is strictly required, because `ParamType` is an ABC with a default `convert` that returns the value as-is:\n\n- **`name`** (class attribute, e.g. `\"duration\"`). This is required. `to_info_dict` falls back to the class name if it is missing.\n- **`convert(self, value, param, ctx) -> timedelta`**:\n  - Return `value` unchanged if it is already a `timedelta`.\n  - Otherwise strip the string and parse it, for example with a regex like `(\\d+)([dhms])` groups.\n  - On failure, call `self.fail(_(\"{value!r} is not a valid duration.\").format(value=value), param, ctx)`.\n  - It must work when `param` and `ctx` are `None`, which happens with prompt input.\n  - It must not be called with `None`, since `__call__` already handles that.\n\nRecommended but optional:\n- **`__repr__`** returning `\"DURATION\"`, matching `UUID`, `BOOL` and the other singletons.\n- **`get_metavar`**, which could return something like `[1h30m]`. The signature is `(self, param, ctx)`.\n- **`to_info_dict`**, only if you want to expose extra fields such as the accepted units. That would need a `DurationInfoDict(ParamTypeInfoDict)`, as `DateTime` does.\n\nNo changes are needed for `shell_complete`, `split_envvar_value` or `get_missing_message`. The defaults cover them.\n\nI haven't changed anything yet. I can implement it if you like.",
+  "is_error": false
+}

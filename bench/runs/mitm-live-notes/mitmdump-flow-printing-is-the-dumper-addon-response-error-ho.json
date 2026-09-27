@@ -1,0 +1,71 @@
+{
+  "id": "mitmdump-flow-printing-is-the-dumper-addon-response-error-ho",
+  "title": "mitmdump flow printing is the Dumper addon (response/error hooks, echo_flow)",
+  "kind": "location",
+  "answers": [
+    "How does mitmdump decide what to print for a flow?",
+    "How are errored flows printed in mitmdump?",
+    "Where is flow_detail gating handled?"
+  ],
+  "body": "mitmdump has no direct printing; addons/dumper.py:Dumper is an ordinary addon.\n- Hooks: response, error, websocket_message/end, tcp_message/error, udp_message/error, dns_response/error. No `request` hook, so an HTTP flow prints once on completion (response, or error if it failed first).\n- Gate: Dumper.match -> False if flow_detail==0; else True if no filter or flowfilter.match(self.filter, f).\n- Dumper.response and Dumper.error both call echo_flow: prints _echo_request_line if f.request (headers at flow_detail>=2, body via _echo_message at >=3, trailers >=2); _echo_response_line if f.response (2xx green, 3xx magenta, 4xx-5xx red, reason+size or '(content missing)'); if f.error prints ' << msg' bold red via strutils.escape_control_characters.\n- So an errored flow prints request line, response line only if a response arrived, then the error. Response-then-error prints all three.\n- tcp_error/udp_error use _proto_error: 'Error in TCP/UDP connection to <addr>: <error>' in red, subject to match. dns_error has its own handler (~line 418, not read).",
+  "tags": [
+    "mitmdump",
+    "dumper",
+    "errors",
+    "output"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/dumper.py",
+      "symbol": "Dumper",
+      "hash": "sha256:ff49a3b40e01448cb564d01f",
+      "line": 48,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/dumper.py",
+      "symbol": "Dumper.match",
+      "hash": "sha256:9165ee54ac9d1ae5ea292b97",
+      "line": 280,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/dumper.py",
+      "symbol": "Dumper.response",
+      "hash": "sha256:8de180d63e6db192b1dfda5f",
+      "line": 289,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/dumper.py",
+      "symbol": "Dumper.error",
+      "hash": "sha256:9e7ba40cce4bccbb94df92c6",
+      "line": 293,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e72d6ada-3e88-482c-a1ee-ec01ef294fd7"
+  },
+  "created": "2026-09-26T09:23:03.451Z",
+  "verified": "2026-09-26T19:48:58.348Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.9500000000000001,
+  "status": "fresh",
+  "uses": 10,
+  "lastUsed": "2026-09-26T19:48:29.855Z",
+  "related": [
+    "failed-connect-requests-are-printed-via-dumper-http-connect-",
+    "adding-addon-output-for-a-proxy-hook-httpconnecterrorhook-is"
+  ],
+  "servedIn": [
+    "44062425-7c23-496f-aadf-fccff1fc0147",
+    "223aef18-c941-47e5-b99b-2654d8518d30"
+  ],
+  "attest": {
+    "confirmed": 2,
+    "contradicted": 0,
+    "unused": 0
+  }
+}

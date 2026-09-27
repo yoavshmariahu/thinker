@@ -3,8 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { Store, findRepoRoot } from './store.js';
-import { orient, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection } from './ops.js';
+import { Store, findRepoRoot, gitHead } from './store.js';
+import { orient, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
+import { listMergedPrs, distillPr } from './prs.js';
+import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
 import { hashDep } from './deps.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
@@ -36,7 +38,11 @@ function mergeJson(file, patch) {
 
 const HELP = `thinker — cache of understanding for coding agents
 
-  init [--hooks] [--git-hook]   create .thinker/ and register the MCP server in .mcp.json
+  init [--hooks | --serve-only] [--late] [--local] [--git-hook] [--no-mcp]
+                                 set up .thinker/, Claude Code hooks and the MCP server for this repo
+  uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
+  export [file.tgz]              pack this repo's cache for delivery
+  import <file.tgz|url>          unpack a delivered cache and check it against this checkout
   serve                          run the MCP server (stdio)
   orient "<task>" [--file f] [--budget n]
   lookup "<query>"
@@ -52,37 +58,82 @@ const HELP = `thinker — cache of understanding for coding agents
   hook <prompt|stop>             Claude Code hook entrypoints (read JSON on stdin)
   seed [--areas n] [--prompts f.json] [--dry]   bootstrap coverage: one exploration session per source area
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
+  mine-prs <owner/repo> --before <iso> [--after <iso>] [--limit n]   distill merged PRs into fix / invariant / convention notes
+  hook <prompt|tool|stop [--nudge]>             prompt = early injection, tool = late file-keyed injection, stop = nudge + distill
   stats
 `;
 
 async function main() {
   switch (cmd) {
     case 'init': {
+      // flags: --hooks (serve + learn), --serve-only (no learning at session end), --late (file-keyed notes),
+      //        --local (write .claude/settings.local.json, not shared), --git-hook, --no-mcp
       store.init();
       if (!flags['no-mcp']) { mergeJson(path.join(repo, '.mcp.json'), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), ...mcpConfig() } })); out(`initialized ${store.dir} and registered MCP server in .mcp.json`); }
       else out(`initialized ${store.dir}`);
-      if (flags.hooks) {
+      if (flags.hooks || flags['serve-only']) {
         const cli = path.join(HERE, 'cli.js');
-        mergeJson(path.join(repo, '.claude', 'settings.json'), c => {
+        const target = path.join(repo, '.claude', flags.local ? 'settings.local.json' : 'settings.json');
+        mergeJson(target, c => {
           const hooks = { ...(c.hooks || {}) };
-          const add = (ev, command, extra = {}) => {
-            hooks[ev] = (hooks[ev] || []).filter(h => !JSON.stringify(h).includes('thinker'));
-            hooks[ev].push({ matcher: '', hooks: [{ type: 'command', command, ...extra }] });
-          };
-          add('UserPromptSubmit', `node ${cli} hook prompt`, { timeout: 15 });
-          add('Stop', `node ${cli} hook stop`, { timeout: 10 });
+          const strip = ev => { hooks[ev] = (hooks[ev] || []).filter(h => !JSON.stringify(h).includes('thinker')); if (!hooks[ev].length) delete hooks[ev]; };
+          const add = (ev, command, extra = {}, matcher = '') => { (hooks[ev] ||= []).push({ matcher, hooks: [{ type: 'command', command, ...extra }] }); };
+          for (const ev of ['UserPromptSubmit', 'Stop', 'PostToolUse']) strip(ev);
+          add('UserPromptSubmit', `node "${cli}" hook prompt`, { timeout: 15 });
+          if (flags.late) add('PostToolUse', `node "${cli}" hook tool`, { timeout: 10 }, 'Read|Bash|Grep');
+          if (!flags['serve-only']) add('Stop', `node "${cli}" hook stop`, { timeout: 10 });
           return { ...c, hooks };
         });
-        out('installed Claude Code hooks (UserPromptSubmit → orient, Stop → distill) in .claude/settings.json');
+        out(`installed Claude Code hooks in ${path.relative(repo, target)}: notes injected on each prompt${flags.late ? ', file-keyed notes while working' : ''}${flags['serve-only'] ? '' : ', sessions distilled into new notes when they end'}`);
       }
       if (flags['git-hook']) {
         const hook = path.join(repo, '.git', 'hooks', 'post-commit');
-        fs.writeFileSync(hook, `#!/bin/sh\n# thinker: re-hash note dependencies and re-verify stale notes in the background\nnohup node ${path.join(HERE, 'cli.js')} check --quiet --verify --repo "${repo}" >/dev/null 2>&1 &\n`, { mode: 0o755 });
-        out('installed git post-commit hook');
+        if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) out(`skipped git hook: ${hook} already exists and is not ours`);
+        else { fs.writeFileSync(hook, `#!/bin/sh\n# thinker: re-hash note dependencies${flags['serve-only'] ? '' : ' and re-verify stale notes'} in the background\nnohup node "${path.join(HERE, 'cli.js')}" check --quiet${flags['serve-only'] ? '' : ' --verify'} --repo "${repo}" >/dev/null 2>&1 &\n`, { mode: 0o755 }); out('installed git post-commit hook'); }
       }
-      try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {}
+      if (!fs.existsSync(path.join(store.dir, 'cochange.json'))) { try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {} }
       const gi = path.join(repo, '.thinker', '.gitignore');
       if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'log.jsonl\nstate/\n');
+      break;
+    }
+    case 'uninstall': {
+      // remove hooks and MCP registration; notes stay unless --purge
+      for (const f of ['settings.json', 'settings.local.json']) {
+        const file = path.join(repo, '.claude', f); if (!fs.existsSync(file)) continue;
+        mergeJson(file, c => { const hooks = { ...(c.hooks || {}) }; for (const ev of Object.keys(hooks)) { hooks[ev] = hooks[ev].filter(h => !JSON.stringify(h).includes('thinker')); if (!hooks[ev].length) delete hooks[ev]; } const n = { ...c, hooks }; if (!Object.keys(hooks).length) delete n.hooks; return n; });
+      }
+      const mcp = path.join(repo, '.mcp.json');
+      if (fs.existsSync(mcp)) mergeJson(mcp, c => { const m = { ...(c.mcpServers || {}) }; delete m.thinker; return { ...c, mcpServers: m }; });
+      const gh = path.join(repo, '.git', 'hooks', 'post-commit');
+      if (fs.existsSync(gh) && fs.readFileSync(gh, 'utf8').includes('thinker')) fs.unlinkSync(gh);
+      if (flags.purge) fs.rmSync(store.dir, { recursive: true, force: true });
+      out(`removed thinker hooks and MCP registration from ${repo}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
+      break;
+    }
+    case 'export': {
+      // pack this repo's cache (notes, co-change index, config) for delivery
+      const file = path.resolve(pos[0] || `thinker-cache-${path.basename(repo)}.tgz`);
+      const items = ['notes', 'cochange.json', 'config.json'].filter(x => fs.existsSync(path.join(store.dir, x)));
+      const head = gitHead(repo);
+      fs.writeFileSync(path.join(store.dir, 'cache-manifest.json'), JSON.stringify({ repo: path.basename(repo), commit: head, notes: store.list().length, exportedAt: new Date().toISOString() }, null, 2));
+      execFileSync('tar', ['-czf', file, '-C', store.dir, ...items, 'cache-manifest.json']);
+      out(`exported ${store.list().length} notes at ${String(head).slice(0, 10)} → ${file}`);
+      break;
+    }
+    case 'import': {
+      // unpack a delivered cache into .thinker/ and check it against this checkout
+      const src = pos[0]; if (!src) { out('usage: thinker import <file.tgz | https://…>'); process.exit(1); }
+      fs.mkdirSync(store.dir, { recursive: true });
+      let file = src;
+      if (/^https?:\/\//.test(src)) { file = path.join(store.dir, 'cache-download.tgz'); execFileSync('curl', ['-fsSL', '-o', file, src]); }
+      const names = execFileSync('tar', ['-tzf', file]).toString().split('\n').filter(Boolean);
+      if (names.some(n => n.startsWith('/') || n.split('/').includes('..'))) { out('refusing to unpack: archive contains unsafe paths'); process.exit(1); }
+      execFileSync('tar', ['-xzf', file, '-C', store.dir]);
+      if (file.endsWith('cache-download.tgz')) fs.unlinkSync(file);
+      const notes = refresh(store, store.list());
+      const stale = notes.filter(n => n.status === 'stale').length;
+      let man = {}; try { man = JSON.parse(fs.readFileSync(path.join(store.dir, 'cache-manifest.json'), 'utf8')); } catch {}
+      out(`imported ${notes.length} notes${man.commit ? ` built at ${String(man.commit).slice(0, 10)}` : ''}; ${stale} are stale against this checkout (they are served with a warning and re-verified in the background)`);
       break;
     }
     case 'serve': {
@@ -164,15 +215,53 @@ async function main() {
         if (!store.exists() || !store.list().length) break;
         // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
         if (ev.session_id && looksLikeCorrection(ev.prompt)) outcome(store, { session: ev.session_id, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
-        const r = await orient(store, { task: ev.prompt || '', session: ev.session_id, budget: Number(flags.budget) || 1000 });
-        if (r.included.length) out(`<thinker-cache>\nCached understanding of this repo relevant to the request, distilled from previous sessions. Use the file:symbol pointers to skip orientation. These notes are partial: they say where things live and how they connect, not everything this task needs, so still search for the specific identifiers, options and paths the request mentions, and verify any path or command you cite. Notes marked STALE must be confirmed against the code.\n\n${r.text}\n</thinker-cache>`);
+        const r = await orient(store, { task: ev.prompt || '', session: ev.session_id, budget: Number(flags.budget) || 600 });
+        if (r.included.length) out(`<thinker-cache>\nNotes about this repo from earlier sessions. Their code dependencies were re-hashed just now and match the current code${r.included.some(n => n.status === 'stale') ? ', except notes marked STALE' : ''}, so the facts below are current: rely on them and do not re-read files only to confirm them. They cover where things are and how they connect, not the design of this change.\n\n${r.text}\n</thinker-cache>`);
+      } else if (pos[0] === 'tool') {
+        // PostToolUse: the agent opened files; serve notes anchored to them, once each.
+        if (!store.exists()) break;
+        const ti = ev.tool_input || {};
+        const files = [];
+        if (ti.file_path) files.push(ti.file_path);
+        if (ti.path && /\.\w+$/.test(ti.path)) files.push(ti.path);
+        if (typeof ti.command === 'string') for (const m of ti.command.matchAll(/(?:^|[\s'"=])((?:[\w.@-]+\/)+[\w.@-]+\.\w{1,5})(?=$|[\s'":|;)])/g)) { const f = m[1]; if (fs.existsSync(path.join(repo, f))) files.push(f); }
+        const r = lateNotes(store, { session: ev.session_id || 'unknown', files });
+        if (r.text) out(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: r.text } }));
       } else if (pos[0] === 'stop') {
+        if (!store.exists()) break;
+        // completeness nudge (once per session, never when already continuing from a stop hook)
+        if (flags.nudge && !ev.stop_hook_active) {
+          let changed = [];
+          try { changed = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: repo }).toString().split('\n').map(l => l.slice(3).trim()).filter(f => f && !f.startsWith('.thinker') && !f.startsWith('.mcp.json') && !f.startsWith('.claude/')); } catch {}
+          const n = completenessNudge(store, { session: ev.session_id || 'unknown', changed, cochange: loadCochange(repo) });
+          if (n.text) { out(JSON.stringify({ decision: 'block', reason: n.text })); break; }
+        }
         // Distill in the background so the hook returns immediately.
-        if (!ev.transcript_path || !store.exists()) break;
+        if (!ev.transcript_path || flags['no-distill']) break;
         const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', ev.transcript_path, '--incremental', '--quiet', '--repo', repo],
           { detached: true, stdio: 'ignore', env: process.env });
         child.unref();
       }
+      break;
+    }
+    case 'mine-prs': {
+      // thinker mine-prs <owner/repo> --before <iso> [--after <iso>] [--limit n] [--dry]
+      const slug = pos[0];
+      const prs = listMergedPrs(slug, { before: flags.before, after: flags.after, limit: Number(flags.limit) || 60 })
+        .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) && (p.body || '').length > 120 && p.additions <= 600 && p.additions >= 5);
+      out(`${prs.length} PRs to mine`);
+      let cost = 0, saved = 0;
+      for (const pr of prs) {
+        try {
+          const r = await distillPr(slug, pr, { model: flags.model || store.config().distillModel || 'sonnet' });
+          cost += r.cost || 0;
+          if (flags.dry) { out(`#${pr.number} ${pr.title.slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || '-'}`); continue; }
+          const s2 = saveNotes(store, r.notes, { source: { type: 'pr', ref: `${slug}#${pr.number}` } });
+          saved += s2.saved.length + s2.merged.length;
+          out(`#${pr.number} ${pr.title.slice(0, 60)} → ${[...s2.saved, ...s2.merged].map(n => `[${n.kind}] ${n.id}`).join(', ') || '-'}${s2.skipped.length ? ` (skipped ${s2.skipped.length})` : ''}`);
+        } catch (e) { out(`#${pr.number} error ${String(e.message).slice(0, 120)}`); }
+      }
+      out(`mined ${prs.length} PRs → ${saved} notes, cost $${cost.toFixed(2)}`);
       break;
     }
     case 'outcome': {

@@ -1,0 +1,50 @@
+{
+  "id": "PR8397-hook-1",
+  "task": "PR8397",
+  "area": "encoding",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "609f82ba-470d-425d-aff0-b5a1647e54dd",
+  "turns": 8,
+  "wall_ms": 20339,
+  "api_ms": 19724,
+  "cost": 0.11176159999999999,
+  "in_tokens": 174730,
+  "out_tokens": 1957,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 5,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 5,
+    "injected": [
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 0.95,
+    "missing": [
+      "uv.lock not regenerated (lockfile changes are not functional)",
+      "CHANGELOG entry"
+    ],
+    "wrong": [
+      "Version bounds for backports.zstd (>=1.0.0,<=1.3.0) differ from upstream's 1.7.0 pin; the agent flagged them as a guess, so this is a minor pinning difference"
+    ],
+    "reason": "The agent's encoding.py change matches the merged patch: the same conditional import of compression.zstd on 3.14+ and backports.zstd otherwise, and the same zstd.decompress and zstd.compress(level=1) calls. In pyproject.toml it removes zstandard and adds the conditional backports.zstd dependency. The only differences are the version pin, the lockfile and the changelog, none of which change behavior.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/net/encoding.py",
+      "pyproject.toml"
+    ]
+  },
+  "result": "I switched zstd handling from `zstandard` to the standard-library `compression.zstd` on Python 3.14+, with the `backports.zstd` package on older versions. I haven't run the tests, installed anything, or updated `uv.lock`.\n\n- **`pyproject.toml`**: I replaced `zstandard>=0.25,<=0.25.0` with `backports.zstd>=1.0.0,<=1.3.0; python_version < '3.14'`. The version bounds are my guess, so check them against what's on PyPI. `uv.lock` is now out of date and needs regenerating with `uv lock`.\n- **`mitmproxy/net/encoding.py`**:\n  - **Import:** the module now does `from compression import zstd` on 3.14+ and `from backports import zstd` otherwise.\n  - **`decode_zstd`:** it now calls `zstd.decompress(content)`. That function decodes multiple concatenated frames, which is what `read_across_frames=True` did before, so the existing multi-frame test should still hold.\n  - **`encode_zstd`:** it now calls `zstd.compress(content, level=1)`, keeping the same fast compression level.\n  - **`BytesIO`:** I kept this import because gzip handling still uses it.\n\nI didn't touch `test/mitmproxy/net/test_encoding.py`. It calls `encode_zstd` and `decode_zstd` and should work unchanged.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/net/encoding.py b/mitmproxy/net/encoding.py\nindex 7be30d3d5..bcba77a7a 100644\n--- a/mitmproxy/net/encoding.py\n+++ b/mitmproxy/net/encoding.py\n@@ -5,12 +5,17 @@ Utility functions for decoding response bodies.\n import codecs\n import collections\n import gzip\n+import sys\n import zlib\n from io import BytesIO\n from typing import overload\n \n import brotli\n-import zstandard as zstd\n+\n+if sys.version_info >= (3, 14):\n+    from compression import zstd\n+else:\n+    from backports import zstd\n \n # We have a shared single-element cache for encoding and decoding.\n # This is quite useful in practice, e.g.\n@@ -182,14 +187,12 @@ def encode_brotli(content: bytes) -> bytes:\n def decode_zstd(content: bytes) -> bytes:\n     if not content:\n         return b\"\"\n-    zstd_ctx = zstd.ZstdDecompressor()\n-    return zstd_ctx.stream_reader(BytesIO(content), read_across_frames=True).read()\n+    return zstd.decompress(content)\n \n \n def encode_zstd(content: bytes) -> bytes:\n     # Use level=1 for fastest compression speed.\n-    zstd_ctx = zstd.ZstdCompressor(level=1)\n-    return zstd_ctx.compress(content)\n+    return zstd.compress(content, level=1)\n \n \n def decode_deflate(content: bytes) -> bytes:\ndiff --git a/pyproject.toml b/pyproject.toml\nindex 7ddc3b834..590b38f8e 100644\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -57,7 +57,7 @@ dependencies = [\n     \"urwid>=2.6.14,<=3.0.5\",\n     \"wsproto>=1.0,<=1.3.2\",\n     \"publicsuffix2>=2.20190812,<=2.20191221\",\n-    \"zstandard>=0.25,<=0.25.0\",\n+    \"backports.zstd>=1.0.0,<=1.3.0; python_version < '3.14'\",\n ]\n \n [dependency-groups]\n"
+}

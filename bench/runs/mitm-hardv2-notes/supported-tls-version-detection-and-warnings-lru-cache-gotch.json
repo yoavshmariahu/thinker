@@ -1,0 +1,59 @@
+{
+  "id": "supported-tls-version-detection-and-warnings-lru-cache-gotch",
+  "title": "Supported TLS version detection and warnings; lru_cache gotcha",
+  "kind": "gotcha",
+  "answers": [
+    "How are supported TLS versions determined?",
+    "Why must args to create_proxy_server_context be hashable?",
+    "Where are unsupported/insecure TLS version warnings emitted?"
+  ],
+  "body": "- net/tls.py:is_supported_version (@cache) builds a throwaway client SSL.Context with ciphers '@SECLEVEL=0:ALL', sets min=max=version, makes a Connection and recv(): WantReadError -> True, other SSL.Error -> False.\n- addons/tlsconfig.py:TlsConfig._warn_unsupported_version iterates Version members using it; warns if the option isn't supported, info if UNBOUNDED and warn_unbound.\n- TlsConfig.configure calls it when tls_version_* options change, and _warn_seclevel_missing when min version/ciphers change (warns if min in INSECURE_TLS_MIN_VERSIONS and ciphers lack @SECLEVEL=0).\n- Gotcha: create_proxy_server_context and create_client_proxy_context are @lru_cache(256), so all args must be hashable (cipher_list and extra_chain_certs are tuples). Results are cached per arg set.",
+  "tags": [
+    "tls",
+    "cache",
+    "warnings"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/net/tls.py",
+      "symbol": "is_supported_version",
+      "hash": "sha256:c96e7781ba99d85f59f39608",
+      "line": 74,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "TlsConfig._warn_unsupported_version",
+      "hash": "sha256:dbf72d14a6a3277b78a7dc33",
+      "line": 541,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/tlsconfig.py",
+      "symbol": "TlsConfig.configure",
+      "hash": "sha256:77524bdd2e40339034439a4c",
+      "line": 471,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "171b5826-1134-4602-985b-3fdb8f96b3b3"
+  },
+  "created": "2026-09-26T09:25:02.160Z",
+  "verified": "2026-09-26T09:25:02.160Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 12,
+  "lastUsed": "2026-09-26T19:44:55.147Z",
+  "related": [
+    "tls-context-construction-proxy-layer-hook-tlsconfig-addon-ne",
+    "ca-cert-store-location-creation-and-loading",
+    "tls-leaf-cert-generation-callpath-tlsconfig-certstore-dummy-"
+  ],
+  "servedIn": [
+    "a9d729ef-e67c-4e29-990f-76a18f3b52b9",
+    "558a6683-30fa-43b4-ba2c-1698c26652b9"
+  ]
+}

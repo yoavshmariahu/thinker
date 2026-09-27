@@ -1,0 +1,76 @@
+{
+  "id": "PR8295-hard-irrelevant-1",
+  "task": "PR8295-hard",
+  "area": "next-layer",
+  "arm": "irrelevant",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "fe26fece-633b-41c2-a932-a2165b1e1fc5",
+  "turns": 8,
+  "wall_ms": 30475,
+  "api_ms": 29949,
+  "cost": 0.1401484,
+  "in_tokens": 209588,
+  "out_tokens": 2623,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 7
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "injected": []
+  },
+  "grade": {
+    "score": 0,
+    "missing": [
+      "Gate QUIC parsing on _starts_like_quic(data_client, context.server.address)",
+      "Gate DTLS parsing on starts_like_dtls_record",
+      "Handling of invalid or non-QUIC UDP datagrams so they aren't stalled"
+    ],
+    "wrong": [
+      "Raises NeedsMoreData whenever the QUIC parser returns None, which can stall more flows rather than fewer",
+      "Diagnosed the problem as multi-datagram ClientHellos, which is not the actual cause",
+      "No change to how non-QUIC UDP is detected"
+    ],
+    "reason": "The agent edited the right function but made a different change. Upstream avoids stalling by only parsing QUIC and DTLS when the data looks like QUIC or DTLS. The agent instead raises NeedsMoreData when the QUIC parser returns None. That leaves non-QUIC data and http3 flows unfixed and likely adds new stalls, so it does not achieve the request.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py"
+    ],
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The upstream fix guards QUIC parsing with _starts_like_quic and DTLS parsing with starts_like_dtls_record, so non-QUIC or misclassified UDP data is handled correctly when ignoring is active. The agent only made the QUIC parser's None result raise NeedsMoreData, which is a different mechanism. It does not add the QUIC/DTLS start checks, and it could make stalls worse for UDP data that isn't QUIC. The agent's own summary says the fix was inferred, not reproduced.",
+      "The agent edited the right function, but the change is different from the upstream fix. Upstream gates QUIC and DTLS parsing behind `_starts_like_quic` and `starts_like_dtls_record` checks, so invalid or non-QUIC UDP data is not mistaken for a client hello. The agent instead raises NeedsMoreData when the QUIC parser returns None. That adds more waiting and could worsen the stall. It doesn't fix the reported behavior, and the agent said it was unsure of the diagnosis.",
+      "The upstream fix guards the QUIC and DTLS parsing with cheap \"starts like QUIC/DTLS\" checks. Non-QUIC or invalid UDP data then falls through to return None, and it is not treated as needing more data. The agent's patch goes the other way. It raises NeedsMoreData whenever the QUIC parser returns None. That is a different mechanism, and it can make the stall worse. Datagrams that don't parse as a QUIC ClientHello, or invalid QUIC like the upstream test's \"invalid quic\" case, could now be deferred instead of passed through. The agent's own summary says it was unsure and did not reproduce the problem. This does not achieve the requested fix."
+    ]
+  },
+  "result": "I made a change in `mitmproxy/addons/next_layer.py`, but I'm not certain it fixes the stall you're seeing. I didn't run or test anything.\n\n**What I changed:** in `NextLayer._get_client_hello`, the UDP/QUIC branch previously did `return quic_parse_client_hello_from_datagrams([data_client])`. That parser returns `None` when the ClientHello is incomplete, for example when it is split across several Initial datagrams. That `None` was treated as \"no ClientHello\". The SNI was then never checked against `ignore_hosts` or `allow_hosts`, and the flow was intercepted instead of passed through. It now raises `NeedsMoreData` on `None`, like the TCP and DTLS branches. The addon then waits for more datagrams before deciding whether to ignore the flow.\n\n**Why I'm unsure:** I inferred this from reading the code, not from reproducing your stall. The ignored-flow path itself looks fine: `UDPLayer(ignore=True)` opens the server connection and relays data. The fix only addresses incomplete-ClientHello handling.\n\n**Risks:**\n- A truncated QUIC Initial that never completes now stays deferred instead of falling through.\n- `_get_client_hello` passes all buffered datagrams to the parser as one concatenated blob, which I didn't verify handles several datagrams correctly.\n\nI didn't add a test. If you have a repro, or can tell me whether the stalled flows are multi-datagram Initials, I can look further.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..baf0ff5c2 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -321,9 +321,13 @@ class NextLayer:\n                 return None\n             case \"udp\":\n                 try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n+                    ch = quic_parse_client_hello_from_datagrams([data_client])\n                 except ValueError:\n                     pass\n+                else:\n+                    if ch is None:\n+                        raise NeedsMoreData\n+                    return ch\n \n                 try:\n                     ch = dtls_parse_client_hello(data_client)\n",
+  "grade0": {
+    "score": 0,
+    "missing": [
+      "Gate QUIC parsing on _starts_like_quic(data_client, context.server.address)",
+      "Gate DTLS parsing on starts_like_dtls_record",
+      "Handling of invalid or non-QUIC UDP datagrams so they aren't stalled"
+    ],
+    "wrong": [
+      "Raises NeedsMoreData whenever the QUIC parser returns None, which can stall more flows rather than fewer",
+      "Diagnosed the problem as multi-datagram ClientHellos, which is not the actual cause",
+      "No change to how non-QUIC UDP is detected"
+    ],
+    "reason": "The agent edited the right function but made a different change. Upstream avoids stalling by only parsing QUIC and DTLS when the data looks like QUIC or DTLS. The agent instead raises NeedsMoreData when the QUIC parser returns None. That leaves non-QUIC data and http3 flows unfixed and likely adds new stalls, so it does not achieve the request.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py"
+    ]
+  }
+}

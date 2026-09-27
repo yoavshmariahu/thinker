@@ -1,0 +1,37 @@
+{
+  "id": "E8-usageerror-abort-adv-nocache-1",
+  "task": "E8-usageerror-abort-adv",
+  "area": "exceptions",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "e09adaa7-4261-418d-ab1c-8bc9f5e8def9",
+  "turns": 5,
+  "wall_ms": 15068,
+  "api_ms": 14728,
+  "cost": 0.043592000000000006,
+  "in_tokens": 86890,
+  "out_tokens": 1502,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 2,
+      "Read": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 2,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The answer matches the reference on all key points and follows the correction for this code version. UsageError is caught at core.py:1518, prints usage, hint and Error to stderr, and exits 2. Abort is caught at core.py:1543, prints \"Interrupted!\", and exits 130. KeyboardInterrupt is caught at core.py:1515, echoes a newline, is re-raised as Abort, and ends at 1543 with \"Interrupted!\" and exit 130. It also covers EOFError and non-standalone behavior. Minor omissions, such as the augment_usage_errors detail, are not key facts.",
+    "mustHit": 0,
+    "mustTotal": 0
+  },
+  "result": "All three are handled in `Command.main` (`src/click/core.py`), in the `try` block starting at line 1501. Behavior below is for standalone mode.\n\n**`click.UsageError`**\n- It is a `ClickException`, so it is caught by `except ClickException` at `core.py:1518` (`Command.main`).\n- It calls `e.show()` (`exceptions.py:UsageError.show`, line 87), then `sys.exit(e.exit_code)` at `core.py:1522`.\n- `show()` writes to stderr, in this order:\n  1. The usage line: `ctx.get_usage()`.\n  2. `Try '<command_path> --help' for help.` This appears only if the command has a help option. It uses the longest help option name.\n  3. `Error: <message>`.\n- The exit code is **2**, from `UsageError.exit_code` (`exceptions.py:77`). A plain `ClickException` uses 1 (`exceptions.py:39`).\n- If `standalone_mode=False`, it is re-raised instead (`core.py:1519-1520`).\n\n**`click.Abort`**\n- It is caught by the outer `except Abort` at `core.py:1543`. `Abort` is a plain `RuntimeError` subclass (`exceptions.py:362`), not a `ClickException`, so the inner handlers skip it.\n- It echoes `Interrupted!` to stderr (`core.py:1546`), then calls `sys.exit(130)`.\n- In non-standalone mode it is re-raised (`core.py:1544-1545`).\n\n**Plain `KeyboardInterrupt`**\n- The inner `except (EOFError, KeyboardInterrupt)` at `core.py:1515` catches it. It first echoes a bare newline to stderr (`core.py:1516`), then does `raise Abort() from e` (`core.py:1517`).\n- The new `Abort` is raised inside the inner `try`, so it goes to the outer `except Abort` at `core.py:1543`. From there it follows the same path as above.\n- Stderr gets a blank line, then `Interrupted!`. The exit code is **130**.\n- `EOFError` takes the same path, for example from `input()` hitting EOF.\n\n**Summary**\n\n| Raised | Caught at | Output (stderr) | Exit code |\n|---|---|---|---|\n| `UsageError` | `core.py:1518` | usage, hint, `Error: msg` | 2 |\n| `Abort` | `core.py:1543` | `Interrupted!` | 130 |\n| `KeyboardInterrupt` | `core.py:1515`, then re-raised as `Abort` and caught at `core.py:1543` | blank line, then `Interrupted!` | 130 |\n\nBecause the outer `try` wraps the inner one, an `Abort` raised by the `KeyboardInterrupt` handler is not caught by the sibling inner `except` clauses. It only reaches the outer `except Abort`.",
+  "is_error": false,
+  "diff": null
+}

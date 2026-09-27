@@ -1,0 +1,55 @@
+{
+  "id": "building-sending-the-upstream-connect-and-forming-the-author",
+  "title": "Building/sending the upstream CONNECT and forming the authority",
+  "kind": "callpath",
+  "answers": [
+    "How is the CONNECT request to the upstream proxy built?",
+    "How is the CONNECT authority formed?",
+    "How to add Proxy-Authorization to upstream CONNECT?",
+    "How is the upstream CONNECT response handled?"
+  ],
+  "body": "`layers/http/_upstream_proxy.py:HttpUpstreamProxy` subclasses `tunnel.TunnelLayer` (conn=ctx.server target, tunnel_connection=proxy Server created in `HttpUpstreamProxy.make` from `ctx.server.via`; for https proxy first pushes `tls.ServerTLSLayer` with alpn `HTTP1_ALPNS`, sni=proxy host).\n- `start_handshake`: if not send_connect -> `TunnelLayer.start_handshake` (no CONNECT). Else builds `http.HTTPFlow(client, tunnel_connection)` with `http.Request` method CONNECT, scheme/path empty, HTTP/1.1, host/port from conn.address; optional `Host` header first if option `http_connect_send_host_header`; yields `HttpConnectUpstreamHook(flow)` (addon hook to edit, e.g. Proxy-Authorization); serialises with `http1.assemble_request` and `commands.SendData(tunnel_connection, raw)`.\n- Authority: `self.conn.address[0].encode(\"idna\") + f\":{port}\".encode()` — IDNA host, port always appended, no IPv6 brackets.\n- `receive_handshake_data`: buffers in h11 ReceiveBuffer until head complete, `http1.read_response_head`; 2xx -> (True, None) and leftover bytes re-fed; non-2xx/parse error -> (False, \"Upstream proxy ... refused HTTP CONNECT request\"); incomplete -> (False, None).",
+  "tags": [
+    "upstream",
+    "connect",
+    "tunnel"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/proxy/layers/http/_upstream_proxy.py",
+      "symbol": "HttpUpstreamProxy",
+      "hash": "sha256:c666c6eb28ec75068afce7d2",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/proxy/layers/http/_upstream_proxy.py",
+      "symbol": "HttpUpstreamProxy.make",
+      "hash": "sha256:18d31bd381306fc15576ab87",
+      "line": 31,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "89ec3b61-14d7-4711-ae58-8c36a5f8cd64"
+  },
+  "created": "2026-09-26T09:25:57.402Z",
+  "verified": "2026-09-26T09:25:57.402Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 18,
+  "lastUsed": "2026-09-26T19:45:56.524Z",
+  "related": [
+    "upstream-proxy-mode-layer-composition-and-mode-selection"
+  ],
+  "servedIn": [
+    "613e8f82-86fe-4bbb-b540-25570a14941e",
+    "8b9614ce-b69a-4c57-9d73-ff2a5fbf53f8",
+    "a2c2c164-ea9d-461e-a7da-5998ee3271fe",
+    "f2e9c472-d166-40d0-b68a-f4c14972df6e",
+    "97ac8027-8b9f-448b-85b6-6a5a94f6c660",
+    "953a4b4b-4b44-4d0e-a558-0103596ef18e"
+  ]
+}

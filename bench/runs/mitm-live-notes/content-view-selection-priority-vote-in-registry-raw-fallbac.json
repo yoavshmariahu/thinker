@@ -1,0 +1,114 @@
+{
+  "id": "content-view-selection-priority-vote-in-registry-raw-fallbac",
+  "title": "Content view selection: priority vote in registry, raw fallback",
+  "kind": "callpath",
+  "answers": [
+    "How do content views pick a renderer?",
+    "Where is render_priority used?",
+    "What happens when a contentview fails to prettify?",
+    "How is content_type metadata built for views?"
+  ],
+  "body": "1. Input prep: `mitmproxy/contentviews/_utils.py:get_data` → (content, enc), falls back to raw_content if decode fails; `_utils.py:make_metadata` builds `Metadata` with normalised `content_type` (type/subtype via `http.parse_content_type`).\n2. Selection: `mitmproxy/contentviews/_registry.py:ContentviewRegistry.get_view` — named view wins (unknown name → warning, auto); auto calls `render_priority(data, metadata)` on every registered view, picks highest; views that raise are logged and skipped.\n3. Protocol: `_api.py:Contentview.render_priority` returns float, <0 = can't handle, default 0.\n4. Render: `contentviews/__init__.py:prettify_message` calls `view.prettify`; in auto mode on exception falls back to `_view_raw.py` raw view with `[failed to parse as X]`; explicit view shows the error. Output passes through `strutils.escape_control_characters`.\nExamples: `_view_json.py:JSONContentview.render_priority` 1 for json types (0 on empty); `_view_image/view.py:ImageContentview` 1 for image/* except +xml; `_view_xml_html.py:XmlHtmlContentview` 1 for known types, 0.4 if `strutils.is_xml(data)`; `_view_raw.py:RawContentview` always 0.1 (wins only if all others <=0).",
+  "tags": [
+    "contentviews",
+    "render_priority"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/contentviews/_registry.py",
+      "symbol": "ContentviewRegistry.get_view",
+      "hash": "sha256:567f8d8e3c85fa755c15f4a3",
+      "line": 34,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_utils.py",
+      "symbol": "make_metadata",
+      "hash": "sha256:c56d62a0a376b19379fccb06",
+      "line": 24,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_api.py",
+      "symbol": "Contentview.render_priority",
+      "hash": "sha256:1e9ea70052a4ce5f32b4a52b",
+      "line": 53,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/__init__.py",
+      "symbol": "prettify_message",
+      "hash": "sha256:b47938e2c938a312ab2629e1",
+      "line": 62,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_view_raw.py",
+      "hash": "sha256:f265bed6f04984a7fb7e6d90",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_view_xml_html.py",
+      "hash": "sha256:6baab5adba2cba9e7a3bf4dc",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_view_json.py",
+      "hash": "sha256:fa05505f4c006a19f2d15bee",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_utils.py",
+      "symbol": "get_data",
+      "hash": "sha256:4a6b9d7441edaf9b8e0b079f",
+      "line": 55,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_view_json.py",
+      "symbol": "JSONContentview.render_priority",
+      "hash": "sha256:a717538ab2f83148aef549f0",
+      "line": 14,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_view_image/view.py",
+      "symbol": "ImageContentview",
+      "hash": "sha256:0af502b4c1303e7b9775acb5",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_view_xml_html.py",
+      "symbol": "XmlHtmlContentview",
+      "hash": "sha256:a0135fbec070bd343d3766d4",
+      "line": 247,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_view_raw.py",
+      "symbol": "RawContentview",
+      "hash": "sha256:8c53889ccd03eb8e8a75c629",
+      "line": 5,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/contentviews/_view_image/view.py",
+      "symbol": "prettify",
+      "hash": "sha256:f2c4b39a38267281ee0be2bc",
+      "line": 21,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "fc0a7474-b2ad-434d-9680-c28107554390"
+  },
+  "created": "2026-09-26T09:23:39.941Z",
+  "verified": "2026-09-26T09:23:39.941Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

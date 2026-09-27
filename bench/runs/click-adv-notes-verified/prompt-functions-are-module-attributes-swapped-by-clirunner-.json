@@ -1,0 +1,49 @@
+{
+  "id": "prompt-functions-are-module-attributes-swapped-by-clirunner-",
+  "title": "Prompt functions are module attributes swapped by CliRunner for tests",
+  "kind": "gotcha",
+  "answers": [
+    "How do tests feed input to prompts?",
+    "Where are visible_prompt_func/hidden_prompt_func overridden?"
+  ],
+  "body": "`termui.visible_prompt_func` (=input) and `termui.hidden_prompt_func` (getpass) are module-level so they can be replaced. `testing.py` `CliRunner.isolation` saves and replaces both with `visible_input`/`hidden_input` reading simulated stdin, then restores them. `prompt()` must look them up at call time (`f = hidden_prompt_func if hide_input else visible_prompt_func`) — don't bind them earlier or import by name, or the test override breaks.",
+  "tags": [
+    "testing",
+    "prompt",
+    "monkeypatch"
+  ],
+  "deps": [
+    {
+      "path": "src/click/testing.py",
+      "symbol": "CliRunner.isolation",
+      "hash": "sha256:dd5b23293c121635a048398b",
+      "line": 398,
+      "missing": false
+    },
+    {
+      "path": "src/click/termui.py",
+      "symbol": "hidden_prompt_func",
+      "hash": "sha256:745e027f36d38d4088c3abce",
+      "line": 78,
+      "missing": false
+    },
+    {
+      "path": "src/click/termui.py",
+      "symbol": "prompt",
+      "hash": "sha256:9cba4c94b098d8119d5ba79b",
+      "line": 115,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "cbabd2be-20b2-4193-9810-fc5a6e86f21f"
+  },
+  "created": "2026-09-26T09:14:35.427Z",
+  "verified": "2026-09-26T09:14:35.427Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 9,
+  "lastUsed": "2026-09-26T09:36:11.655Z"
+}

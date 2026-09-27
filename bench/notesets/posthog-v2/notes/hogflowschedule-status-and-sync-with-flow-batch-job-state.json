@@ -1,0 +1,116 @@
+{
+  "id": "hogflowschedule-status-and-sync-with-flow-batch-job-state",
+  "title": "HogFlowSchedule status and sync with flow/batch job state",
+  "kind": "invariant",
+  "answers": [
+    "What schedule state must stay in sync with flow status?",
+    "How do schedule statuses change?",
+    "What happens when a schedule RRULE is edited?",
+    "What are batch job states?"
+  ],
+  "body": "- `HogFlowSchedule.Status` = active|paused|completed (backend/models/hog_flow_schedule/hog_flow_schedule.py); SCHEDULED_TRIGGER_TYPES=(\"batch\",\"schedule\").\n- `completed` is set only by the scheduler when RRULE is exhausted (`internal_process_due_schedules.advance_next_run`); scheduler also applies the active-flow gate.\n- `paused` set by `_pause_schedules_on_audience_change` in hog_flow.py.\n- `HogFlowScheduleSerializer.update` resets next_run_at=None when rrule/starts_at/timezone change and reactivates unless paused (so completed→active on edited RRULE). `validate` requires valid RRULE, future occurrences, at most hourly.\n- Schedule create for agent sources on batch trigger requires active flow + confirm token (`schedules` POST).\n- Batch job `HogFlowBatchJob.State` = waiting|queued|active|completed|cancelled|failed; new jobs start queued; workers advance; Django only sets cancelled.\n- Frontend: `workflowLogic` reloads schedules and `setSchedules` on save success; `pendingSchedule` written in saveWorkflowSuccess.",
+  "applies": "internal_process_due_schedules was cited from the agent's summary, not read directly.",
+  "tags": [
+    "workflows",
+    "schedule",
+    "rrule"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/backend/models/hog_flow_schedule/hog_flow_schedule.py",
+      "symbol": "HogFlowSchedule",
+      "hash": "sha256:4b43635add952d116550e05f",
+      "line": 9,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowScheduleSerializer",
+      "hash": "sha256:7d37ad5f606e41eb042acb1e",
+      "line": 2133,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow_batch_job/hog_flow_batch_job.py",
+      "symbol": "HogFlowBatchJob",
+      "hash": "sha256:ae4dceccd27a2f2def589e5a",
+      "line": 15,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Workflows/workflowLogic.ts",
+      "hash": "sha256:c8375b9c7f2a897d82290323",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow_schedule/hog_flow_schedule.py",
+      "symbol": "HogFlowSchedule.Status",
+      "hash": "sha256:a637f51fcf4415aedfe8484a",
+      "line": 16,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowScheduleSerializer.update",
+      "hash": "sha256:895e86f6cb54d4f87800e7ab",
+      "line": 2194,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow_batch_job/hog_flow_batch_job.py",
+      "symbol": "HogFlowBatchJob.State",
+      "hash": "sha256:9aea79a22cf3f306bbaab2a0",
+      "line": 25,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "6b23f6f0-67e5-41f7-83d1-f40cd68c9123"
+  },
+  "created": "2026-09-27T00:14:11.632Z",
+  "verified": "2026-09-27T00:14:11.632Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 35,
+  "related": [
+    "broadcast-status-is-derived-in-frontend-from-hogflow-status-",
+    "action-eligibility-backend-gates-vs-frontend-mirrors-launch-",
+    "hogflow-status-has-no-backend-transition-matrix-rules-live-i",
+    "adding-a-hogflow-status-transition-what-changes-together"
+  ],
+  "lastUsed": "2026-09-27T06:09:48.980Z",
+  "servedIn": [
+    "2396f9df-b35b-4b03-ba90-9b58edf1b680",
+    "a40aa07f-444e-46fd-91f6-b65ae2998d2c",
+    "e6153a94-a50b-4af9-9dcf-0445847168df",
+    "c61d0c13-a6d7-449e-bc3a-a7897b57065b",
+    "92974db0-9ca8-489c-b1de-de3706c9d7fc",
+    "9c285907-1126-40fb-b4ec-69fb25ad2395",
+    "3cc45930-6a8b-4f81-9855-ffc26824ae3b",
+    "37e46c18-b94e-4381-81f1-fd3d134fd4c5",
+    "916cfc8a-223e-44ea-83d2-f41dcb33c086",
+    "d3d2c11a-53a1-4b32-b00a-6ef434df14fb",
+    "099da8bb-1ac0-4973-b0df-84cfd644e975",
+    "bd7402ee-bab8-4ced-95a6-1204edb1a14f",
+    "4b97a942-be58-43aa-9fdc-26ef425b2839",
+    "e721b1cb-1a78-4b9d-98d2-71f814de2fc5",
+    "aaed172d-7012-4fdb-b335-178bb0fdc2b6",
+    "c8ddfd8a-15ae-44ca-ba1b-4df6e7b9a68b",
+    "02fcb5bd-4c34-4afa-85c1-dfabf115467e",
+    "f43ad378-3084-4f0d-a9d1-7d6d059cec0d",
+    "3e4e3374-05bc-400d-a4de-f10663eea4ed",
+    "deb29eef-0bf5-4863-b729-12b5a7f4fb6c",
+    "d95ed6fa-4dc7-4922-a299-7bc9f1fa4cb9",
+    "fe286b3b-dec9-4caa-a380-4343e1a520bf",
+    "ce381eeb-2b35-4c34-afea-4f6e02930bc4",
+    "bcbd72c4-7b1f-4204-a5e2-148bdeb63f06",
+    "adf9f900-03cd-4691-bc09-61c2523a53e1",
+    "d8d4f03e-b1ce-4e51-8e93-df1826c1bb8c",
+    "d4b56a2d-8302-41f9-8f52-0691f010c8a4",
+    "0a314f90-3d79-4a53-9587-48b57cfd06b7",
+    "1657d73f-5055-4e1f-8ea5-48975afc6c39",
+    "b27032a4-7830-409f-bb6c-47a9f09681c6"
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "id": "response-has-no-msg-attribute-setattr-silently-succeeds",
+  "title": "Response has no `msg` attribute: setattr silently succeeds",
+  "kind": "gotcha",
+  "answers": [
+    "Why did the reason phrase edit have no effect?",
+    "Is Response.msg a real field?"
+  ],
+  "body": "`mitmproxy/http.py` Response exposes `reason` (property/setter), not `msg`. A `setattr(response, \"msg\", v)` in `app.py` just creates a stray attribute, so tests asserting `f.response.msg` pass without proving anything. When adding update keys in the web app handler, assert on the real property (e.g. `reason`).",
+  "applies": "Web API flow update handler for response fields; setattr-based branches on Python objects without __slots__.",
+  "tags": [
+    "web",
+    "gotcha"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/http.py",
+      "symbol": "Response.reason",
+      "hash": "sha256:f07c85ee6efdd456ad9a2471",
+      "line": 1035,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "hash": "sha256:114102e05ef9e3e923af4401",
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/tools/web/test_app.py",
+      "hash": "sha256:614835b6854af80e487d50c6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "d165ec15-0e2c-4d80-aea5-8efd861df2d2"
+  },
+  "created": "2026-09-26T19:47:34.835Z",
+  "verified": "2026-09-26T19:47:34.835Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "stale",
+  "uses": 0,
+  "related": [
+    "mitmweb-flow-update-path-http-put-view-update-websocket-broa",
+    "content-encoding-codecs-and-message-decode-encode-callpath",
+    "flow-arrival-and-filter-evaluation-websocket-to-view-update",
+    "web-ui-response-edit-key-was-msg-not-reason-setattr-silently"
+  ],
+  "stale": {
+    "since": "2026-09-26T19:47:38.393Z",
+    "changed": [
+      {
+        "path": "mitmproxy/tools/web/app.py",
+        "reason": "file changed"
+      },
+      {
+        "path": "test/mitmproxy/tools/web/test_app.py",
+        "reason": "file changed"
+      }
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "id": "evaluate-alert-must-skip-when-detector-type-differs-from-the",
+  "title": "evaluate_alert must skip when detector type differs from the type prepare routed on",
+  "kind": "invariant",
+  "answers": [
+    "AI detector check ran on a worker without model credentials",
+    "What happens if the detector type is edited between prepare and evaluate?",
+    "How does CheckAlertWorkflow route to the LLM evaluate task queue?"
+  ],
+  "body": "`CheckAlertWorkflow` picks the evaluate task queue in prepare from the detector type it read (`inputs.uses_llm_detector`); only the AI worker holds model credentials. `evaluate_alert` reloads the alert, so an edit in between can mismatch.\n- Guard in `posthog/temporal/alerts/activities.py:evaluate_alert`: compares `is_llm_detector_config(alert.detector_config)` with `inputs.uses_llm_detector`; on mismatch logs `alerts.skip_detector_type_changed` and returns `EvaluateAlertResult(alert_check_id=None, should_notify=False, ...)` without touching `next_check_at`, so the next scheduler tick re-prepares and re-routes.\n- Same skip style as the existing fingerprint guard.\n- Tests must pass `uses_llm_detector` matching the alert's actual detector type (the executor-selection test was fixed to stop passing `not uses_llm_detector`).",
+  "applies": "Alert evaluation Temporal workflow routing (LLM vs shared evaluate executor/queue)",
+  "tags": [
+    "alerts",
+    "temporal",
+    "llm-detector",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "evaluate_alert",
+      "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+      "line": 340,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/tests/test_alerts_activities.py",
+      "hash": "sha256:d6e00140d2854e9a19bb519e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-09-27T00:03:14.497Z",
+  "verified": "2026-09-27T00:03:14.497Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-detector-unavailable-counter-is-incremented-only-on-the-r",
+    "unavailable-detector-copy-must-name-the-outcome-not-a-cause-",
+    "workflow-and-activity-declaration-conventions-posthog-tempor"
+  ]
+}

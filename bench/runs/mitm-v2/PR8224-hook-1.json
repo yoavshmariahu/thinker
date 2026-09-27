@@ -1,0 +1,46 @@
+{
+  "id": "PR8224-hook-1",
+  "task": "PR8224",
+  "area": "web-app",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "e06acfe6-fabf-4e1f-8fe0-c4493160ede2",
+  "turns": 8,
+  "wall_ms": 16180,
+  "api_ms": 15635,
+  "cost": 0.0987998,
+  "in_tokens": 148055,
+  "out_tokens": 1466,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 3,
+      "Edit": 3,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 3,
+    "injected": [
+      "mitmweb-xsrf-auth-and-header-protections",
+      "mitmweb-flow-update-path-http-put-view-update-websocket-broa"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's code changes match the merged patch. It set xsrf_cookie_name=\"_mitmproxy_xsrf\" in app.py and changed the frontend getCookie lookup to \"_mitmproxy_xsrf\" in utils.ts. The only difference is an added changelog entry and a missing explanatory comment, and neither affects behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/tools/web/app.py",
+      "web/src/js/utils.ts"
+    ]
+  },
+  "result": "mitmweb now uses a `_mitmproxy_xsrf` cookie for XSRF instead of `_xsrf`, so a stale HttpOnly `_xsrf` cookie no longer breaks option updates. I didn't run any tests or the frontend build, as you asked.\n\n- **Backend:** `mitmproxy/tools/web/app.py` now passes `xsrf_cookie_name=\"_mitmproxy_xsrf\"` in the `Application` settings, next to `xsrf_cookies=True`. The existing `samesite=\"Strict\"` setting is unchanged.\n- **Frontend:** `web/src/js/utils.ts` now reads `_mitmproxy_xsrf` before sending `X-XSRFToken`.\n- **Changelog:** I added an entry to `CHANGELOG.md`, which you didn't ask for.\n\nI made no test changes, in line with the review follow-up you described.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..7a9f81a85 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,8 @@\n \n ## Unreleased: mitmproxy next\n \n+- mitmweb: Rename the XSRF cookie to `_mitmproxy_xsrf` to recover sessions\n+  broken by a stale `_xsrf` cookie (notably in Firefox).\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..b18662dfd 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -925,6 +925,7 @@ class Application(tornado.web.Application):\n             template_path=os.path.join(os.path.dirname(__file__), \"templates\"),\n             static_path=os.path.join(os.path.dirname(__file__), \"static\"),\n             xsrf_cookies=True,\n+            xsrf_cookie_name=\"_mitmproxy_xsrf\",\n             xsrf_cookie_kwargs=dict(samesite=\"Strict\"),\n             cookie_secret=secrets.token_bytes(32),\n             debug=debug,\ndiff --git a/web/src/js/utils.ts b/web/src/js/utils.ts\nindex 7e76df609..89969f55c 100644\n--- a/web/src/js/utils.ts\n+++ b/web/src/js/utils.ts\n@@ -78,7 +78,7 @@ function getCookie(name) {\n }\n \n let xsrf = () => {\n-    const cached = getCookie(\"_xsrf\");\n+    const cached = getCookie(\"_mitmproxy_xsrf\");\n     xsrf = () => cached;\n     return xsrf();\n };\n"
+}

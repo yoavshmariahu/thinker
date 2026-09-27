@@ -1,0 +1,73 @@
+{
+  "id": "PR8196-hard-hook-1",
+  "task": "PR8196-hard",
+  "area": "utils",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "8563e8f1-b869-45b2-b19f-b190c93b7bcf",
+  "turns": 5,
+  "wall_ms": 12873,
+  "api_ms": 12427,
+  "cost": 0.08659980000000002,
+  "in_tokens": 98864,
+  "out_tokens": 1275,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Read": 1,
+      "Edit": 2,
+      "Bash": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [
+      "For 101-103 byte inputs whose bytes at the cutoff are all continuation bytes, the agent keeps the whole input, while the merged patch exits the loop and takes the fallback path. This is a negligible difference on pathological inputs."
+    ],
+    "reason": "The agent fixed the right line in is_mostly_bin. Its bounds check (cut < len(s)) stops the IndexError, much as the merged min(104, len(s)) bound does. Normal inputs give the same result. The only difference is how the end of the data is handled inside the lookahead, and that affects only rare inputs. The agent's added test is reasonable.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the same line in is_mostly_bin. Its check `cut < len(s) and ...` treats running off the end as \"not a continuation byte\". The loop then cuts at s[:cut] where cut == len(s), which keeps the whole input. The upstream fix shortens the range to min(104, len(s)). The loop then never cuts and falls through with s unchanged, so the result is the same. Results for normal inputs are unchanged, and the agent's added test is reasonable.",
+      "The agent changed the same line in is_mostly_bin. Its bounds check `cut < len(s) and ...` treats the end of the data as a character boundary and slices at len(s), which leaves the input unchanged. Upstream's `range(100, min(104, len(s)))` also leaves the input unchanged for those lengths. Behavior for other inputs is identical, and the added test covers the fix.",
+      "The agent changed the same line in `is_mostly_bin` and fixed the same out-of-range index. Inputs of 101–103 bytes no longer raise `IndexError`, and inputs of 100 bytes or fewer, or 104 bytes or more, behave as before. One case differs from upstream. When every byte from index 100 to the end is a continuation byte, upstream probably falls back to a cut at 100 (I did not see the code after the loop), while the agent keeps the whole input. The 1–3 extra bytes could only change the binary ratio in extreme cases. The fix is functionally equivalent for practical purposes."
+    ]
+  },
+  "result": "I fixed the `IndexError` in `is_mostly_bin` (`mitmproxy/utils/strutils.py`) and added a test. I haven't run the tests.\n\n**Cause:** for inputs longer than 100 bytes, the function checks bytes 100–103 to avoid cutting a UTF-8 character in half. With 101–103 bytes of data, `s[cut]` ran past the end of the input.\n\n**Fix:** the continuation-byte check is now `cut < len(s) and (s[cut] >> 6) == 0b10`. When `cut` reaches the end of the data, nothing can be split, so it counts as a boundary and the whole input is kept. Inputs of 100 bytes or fewer, and inputs of 104 bytes or more, take exactly the same path as before, so their results don't change.\n\n**Test:** in `test_is_mostly_bin` (`test/mitmproxy/utils/test_strutils.py`), I added a loop over lengths 101–104. It asserts that `n * b\"a\"` is not binary and `n * b\"\\x00\"` is binary.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..3526961dc 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -133,7 +133,8 @@ def is_mostly_bin(s: bytes) -> bool:\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n         for cut in range(100, 104):\n-            is_continuation_byte = (s[cut] >> 6) == 0b10\n+            # For inputs of 101-103 bytes, we may reach the end of the data.\n+            is_continuation_byte = cut < len(s) and (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\n                 s = s[:cut]\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..7cd6d3cb3 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,10 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # inputs just over the 100 byte cutoff must not index past the end\n+    for n in (101, 102, 103, 104):\n+        assert not strutils.is_mostly_bin(n * b\"a\")\n+        assert strutils.is_mostly_bin(n * b\"\\x00\")\n \n \n def test_is_xml():\n",
+  "distill": null,
+  "grade0": {
+    "score": 0.95,
+    "missing": [],
+    "wrong": [
+      "For 101-103 byte inputs whose bytes at the cutoff are all continuation bytes, the agent keeps the whole input, while the merged patch exits the loop and takes the fallback path. This is a negligible difference on pathological inputs."
+    ],
+    "reason": "The agent fixed the right line in is_mostly_bin. Its bounds check (cut < len(s)) stops the IndexError, much as the merged min(104, len(s)) bound does. Normal inputs give the same result. The only difference is how the end of the data is handled inside the lookahead, and that affects only rare inputs. The agent's added test is reasonable.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ]
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "id": "exception-hierarchy-and-exit-codes-in-exceptions-py",
+  "title": "Exception hierarchy and exit codes in exceptions.py",
+  "kind": "overview",
+  "answers": [
+    "What is click's exception hierarchy?",
+    "Which exceptions have exit code 2 vs 1?",
+    "How does UsageError.show print?"
+  ],
+  "body": "exceptions.py:\n- ClickException(Exception): class attr exit_code=1; __init__ caches show_color via resolve_color_default() (ctx gone by print time); format_message() returns message; show() prints 'Error: msg' to stderr.\n- UsageError(ClickException): exit_code=2, holds ctx; show() prints usage from ctx.get_usage(), 'Try ... --help' hint if help option exists, then Error line; uses ctx.color. Subclasses: BadParameter (→MissingParameter), NoSuchOption, NoSuchCommand, BadOptionUsage, BadArgumentUsage, NoArgsIsHelpError (show prints help text via echo).\n- FileError(ClickException): stays exit_code 1.\n- Abort and Exit subclass RuntimeError, NOT ClickException; Exit has __slots__ exit_code (default 0).\n- core.py Context.fail→raise UsageError(msg, self); Context.abort→Abort; Context.exit(code) calls self.close() then raises Exit.",
+  "tags": [
+    "exceptions",
+    "hierarchy"
+  ],
+  "deps": [
+    {
+      "path": "src/click/exceptions.py",
+      "symbol": "ClickException",
+      "hash": "sha256:66ad138fe124fadb67eebf14",
+      "line": 35,
+      "missing": false
+    },
+    {
+      "path": "src/click/exceptions.py",
+      "symbol": "UsageError",
+      "hash": "sha256:128b625cc5d99ded731b8539",
+      "line": 68,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.exit",
+      "hash": "sha256:a8b5f05c8c87b3716cfe6c32",
+      "line": 815,
+      "missing": false
+    },
+    {
+      "path": "src/click/exceptions.py",
+      "symbol": "format_message",
+      "hash": "sha256:ab8ce9cfecaf4e7d974d605f",
+      "line": 51,
+      "missing": false
+    },
+    {
+      "path": "src/click/exceptions.py",
+      "symbol": "show",
+      "hash": "sha256:2a9284a1f1cf7b673433e9b1",
+      "line": 57,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.fail",
+      "hash": "sha256:7cb5ce0d8b9a438fd4474e65",
+      "line": 803,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.abort",
+      "hash": "sha256:57899e748a4eed136ed11972",
+      "line": 811,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "15a441b0-429a-4e64-9a20-777f0e12b8c3"
+  },
+  "created": "2026-09-26T09:14:01.617Z",
+  "verified": "2026-09-26T09:14:01.617Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 19,
+  "lastUsed": "2026-09-26T09:36:19.549Z"
+}

@@ -1,0 +1,104 @@
+{
+  "id": "PR106579-hard-all-1",
+  "task": "PR106579-hard",
+  "area": "error_tracking",
+  "arm": "all",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "043b894d-7483-463a-981a-37bca4b0739d",
+  "turns": 11,
+  "wall_ms": 53413,
+  "api_ms": 37593,
+  "cost": 0.37674779999999997,
+  "in_tokens": 597259,
+  "out_tokens": 4028,
+  "tools": {
+    "calls": 9,
+    "byTool": {
+      "Read": 1,
+      "Bash": 8
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 8,
+    "injected": [
+      "lifecycle-event-payload-fields-consumers-depend-on",
+      "issue-assignment-validation-notifications-auto-assign",
+      "error-tracking-issue-writes-which-mutations-emit-lifecycle-e",
+      "lifecycle-events-emission-flow-and-temporal-alert-delivery",
+      "writes-that-bypass-django-mutations-no-events-activity-log",
+      "issue-mutation-call-path-view-facade-logic-model",
+      "team-organization-user-project-model-relationships"
+    ],
+    "lateEvents": 9,
+    "nudged": true
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent patch contains no diff, only a git error, and the summary shows no implementation of assignee name/email in events or docs. No functional change is evidenced.",
+      "The agent's patch is a diff error with no content, and its summary describes no functional change. Nothing implements assignee name/email in the events or the docs, so the request is not achieved.",
+      "The agent patch is a diff error (\"unable to write new index file\") with no visible code changes. The summary only discusses formatting and codegen checks and gives no evidence that assignee names were added to the events or that the docs were updated. There is nothing to credit as functionally equivalent to the merged patch."
+    ],
+    "reason": "The agent patch contains no diff, only a git error, and the summary shows no implementation of assignee name/email in events or docs. No functional change is evidenced.",
+    "mustHit": 0,
+    "mustTotal": 4,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "unclear",
+          "evidence": "The patch is a diff error (git add failed); no code is shown, so no evidence of a name property being emitted."
+        },
+        {
+          "id": "c2",
+          "verdict": "unclear",
+          "evidence": "No code shown."
+        },
+        {
+          "id": "c3",
+          "verdict": "unclear",
+          "evidence": "No code shown."
+        },
+        {
+          "id": "c4",
+          "verdict": "unclear",
+          "evidence": "No code shown."
+        },
+        {
+          "id": "c5",
+          "verdict": "unclear",
+          "evidence": "No code shown."
+        },
+        {
+          "id": "c6",
+          "verdict": "unclear",
+          "evidence": "No code shown."
+        },
+        {
+          "id": "c7",
+          "verdict": "unclear",
+          "evidence": "No code shown."
+        },
+        {
+          "id": "c8",
+          "verdict": "unclear",
+          "evidence": "No code shown; the author summary only mentions editing a Python and a markdown file, which is a claim without evidence."
+        }
+      ]
+    }
+  },
+  "result": "Checked each item against my change:\n\n- **Python and markdown formatting:** these run automatically at commit through lint-staged (`hogli lint:python:fix`, `hogli format:python`, `hogli format:markdown`). I didn't run them, so nothing is applied yet, and the first commit will format both files.\n- **`manifest.tsx` and `pnpm build:products`:** not needed, because I edited no `manifest.tsx`.\n- **`frontend/src/lib/constants.tsx` trigger:** not needed, because I didn't touch that file.\n- **Other codegen (`hogli build:openapi`):** not needed. No serializer or viewset changed, only an internal event property.\n\nI made no further edits.",
+  "is_error": false,
+  "diff": "DIFF ERROR Command failed: git add -A -- . :!.thinker\nfatal: unable to write new index file\n",
+  "distill": null
+}

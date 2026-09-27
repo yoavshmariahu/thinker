@@ -1,0 +1,59 @@
+{
+  "id": "backend-asset-serving-js-url-static-dirs-templates-from-dist",
+  "title": "Backend asset serving: JS_URL, static dirs, templates from dist",
+  "kind": "location",
+  "answers": [
+    "How does Django decide which built assets to serve?",
+    "Where is JS_URL set?",
+    "Where is frontend/dist wired into Django settings?"
+  ],
+  "body": "- Backend never picks hashed JS filenames; esbuild bakes them into dist/index.html. Django supplies `js_url` (context[\"js_url\"] = `get_js_url(request)` in posthog/utils.py) and preload hints.\n- `get_js_url`: returns settings.JS_URL; under DEBUG with localhost host on non-secure request, rewrites hostname to request origin. JS_URL defaults to http://localhost:8234 in DEBUG else \"\" (posthog/settings/__init__.py); prod can be a CDN.\n- posthog/settings/web.py: `STATIC_URL=\"/static/\"`, `STATICFILES_DIRS=[frontend/dist]`; DEBUG adds an extra dir for /static/services/*; TEMPLATES DIRS include frontend/dist so index.html/layout.html/exporter.html/render_query.html resolve there first (per agent's summary).\n- In DEBUG (non-test), template context gets `vite_dev_scripts` with source_path src/index.tsx / src/exporter/index.tsx / src/render-query/index.tsx (Vite dev path).\n- head.html sets window.JS_URL.",
+  "tags": [
+    "django",
+    "static",
+    "js_url"
+  ],
+  "deps": [
+    {
+      "path": "posthog/utils.py",
+      "symbol": "get_js_url",
+      "hash": "sha256:77fe6690ba25e2e159771387",
+      "line": 408,
+      "missing": false
+    },
+    {
+      "path": "posthog/settings/web.py",
+      "hash": "sha256:835a4671df261600589924bb",
+      "missing": false
+    },
+    {
+      "path": "posthog/settings/__init__.py",
+      "hash": "sha256:4a36389b0b7f93180a90677b",
+      "missing": false
+    },
+    {
+      "path": "posthog/templates/head.html",
+      "hash": "sha256:1675a81afb50b9317c313511",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e50c32b1-74f3-41fc-b8cb-66aec7f3c784"
+  },
+  "created": "2026-09-26T20:35:13.282Z",
+  "verified": "2026-09-26T20:35:13.282Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "how-django-picks-which-frontend-build-assets-to-serve-debug-"
+  ],
+  "servedIn": [
+    "4d1906e5-79ec-4b4b-a088-06d0c30914e3",
+    "28603e98-37bf-447a-8663-6a7c6b802c85",
+    "01de268d-b79f-4536-878a-05cd626d33e6",
+    "14bdd8ea-719f-4bca-937b-f2b36407619a"
+  ]
+}

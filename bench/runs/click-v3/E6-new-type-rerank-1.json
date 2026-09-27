@@ -1,0 +1,53 @@
+{
+  "id": "E6-new-type-rerank-1",
+  "task": "E6-new-type",
+  "area": "types",
+  "arm": "rerank",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "95354576-b35b-4d29-a6d6-32c700cb0e2c",
+  "turns": 3,
+  "wall_ms": 29891,
+  "api_ms": 17070,
+  "cost": 0.043197000000000006,
+  "in_tokens": 69524,
+  "out_tokens": 1787,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2,
+    "injected": [
+      "implementing-a-custom-paramtype-required-members-failure-and",
+      "type-to-paramtype-resolution-and-value-conversion-callpath"
+    ]
+  },
+  "grade": {
+    "score": 0.5,
+    "missing": [
+      "Branch must be inserted before `if is_guessed: return STRING` (L1322), otherwise default=timedelta(...) silently becomes STRING; agent said only 'before the final FuncParamType fallback', which would be wrong placement",
+      "Actual failure mode of type=timedelta without the branch: FuncParamType calls timedelta('1h30m') raising TypeError, not caught (only ValueError), so traceback instead of usage error; agent said only 'fails'",
+      "tests/test_info_dict.py parametrize entry (param_type 'Duration', name 'duration') missing",
+      "tests/test_basic.py end-to-end option test (modeled on test_uuid_option) missing",
+      "Optional DurationInfoDict(ParamTypeInfoDict) for configurable type and the __init__/to_info_dict/get_metavar pattern for a configurable type",
+      "Import placement details: tests/test_imports.py ALLOWED_IMPORTS needs no change; import re",
+      "Other convert_type call sites (Option flag-value guessing, Tuple, Choice.get_metavar, termui.prompt)",
+      "Note that no changes are needed in core.py, termui.py, etc.; optional tests/typing",
+      "Exact __init__.py insertion location between DateTime and File (isort ordering); agent said next to UUID"
+    ],
+    "wrong": [
+      "Placement advice for the timedelta branch: 'before the final FuncParamType fallback' is insufficient/misleading, since the is_guessed→STRING branch precedes it and would swallow default=timedelta(...)",
+      "Claims the shorthand is 'optional' and that the bad-input case only 'fails' without noting the TypeError crash",
+      "Says to add __init__ export 'next to UUID (L69)' whereas reference says isort order puts it between DateTime and File (minor)"
+    ],
+    "reason": "The agent gets the core of the change surface right: types.py class and singleton, the __init__ export, docs, CHANGES, convert_type as the shorthand hook, and the name and convert requirements with __repr__. It misses several files (test_info_dict, test_basic) and the important insertion-ordering constraint before the is_guessed fallback. It also mischaracterizes the failure mode without the branch, and its suggested placement would cause default=timedelta to resolve to STRING.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "**Files and symbols to change or add**\n\n1. **`src/click/types.py`**\n   - Add a class, e.g. `DurationParamType(ParamType[timedelta])`, modeled on `UUIDParameterType` (L830). Add `from datetime import timedelta` next to the existing `datetime` import.\n   - Add the singleton after `UUID` (L1368): `DURATION: t.Final[DurationParamType] = DurationParamType()`, with a `#:` doc comment like the neighbouring ones.\n   - Optional shorthand: add a branch to `convert_type` (L1291–1340). See the shorthand section below.\n2. **`src/click/__init__.py`**: add `from .types import DURATION as DURATION` next to `UUID` (L69). This is the only public re-export, so without it `click.DURATION` doesn't exist.\n3. **Docs**\n   - `docs/api.md`: add `.. autodata:: DURATION` beside `UUID` (L227).\n   - `docs/parameter-types.md`: add a bullet beside the UUID one (L123). If you add a shorthand, say so there. UUID's bullet notes it is \"not automatically guessed\".\n   - `CHANGES.md`: add an entry with `versionadded`.\n4. **Tests**\n   - `tests/test_types.py`: cover valid and invalid strings, already-converted `timedelta` input, and `param=None, ctx=None`.\n   - Also cover `to_info_dict` and `repr`.\n\n**Where the `type=int` shorthand is mapped**\n\nThe mapping is `types.py:convert_type` (L1291).\n\n- `Parameter.__init__` in `core.py` (L2251) calls `types.convert_type(type, default)`.\n- `convert_type` first calls `_guess_type` (L1249), which infers from `default` when `type` is None.\n- It then maps Python types with a chain of checks: `str`/`None` → `STRING`, `int` → `INT` (L1314), `float` → `FLOAT`, `bool` → `BOOL`.\n- Anything else is wrapped in `FuncParamType(guessed)`.\n\nTo make `type=timedelta` give `DURATION`, add `if guessed is timedelta: return DURATION` before the final `FuncParamType` fallback. Because `_guess_type` returns `type(default)`, this would also mean `default=timedelta(...)` infers `DURATION`.\n\nWithout that branch, `type=timedelta` would call `timedelta(value)` through `FuncParamType`. That fails on strings like `'1h30m'`. So the shorthand is worth adding, but it is optional. UUID has none.\n\n**Methods the class must implement or set**\n\n- **Required:**\n  - Class attribute `name = \"duration\"`.\n  - `convert(self, value, param, ctx) -> timedelta`.\n- **`convert` requirements:**\n  - Return a `timedelta` input unchanged.\n  - Strip the string, then parse `'1h30m'`, e.g. with a regex over `d/h/m/s` units.\n  - Work when `param` and `ctx` are None.\n  - On bad input, call `self.fail(_(\"{value!r} is not a valid duration.\").format(value=value), param, ctx)`, which raises `BadParameter`.\n- **Recommended:** `__repr__` returning `\"DURATION\"`, matching `UUID` and `INT`.\n- **Optional overrides:**\n  - `get_metavar(param, ctx)`: the default metavar is the upper-cased `name`, so `DURATION` needs no override.\n  - `get_missing_message`, `shell_complete` and `split_envvar_value`: none are needed here.\n  - `to_info_dict`: only override it if you add extra fields. The base class already emits `param_type` and `name`.\n- **Subclassing:** subclass `ParamType`, not `CompositeParamType`, because a duration is a single value.\n\nI checked the `convert_type` chain, the UUID class and the `__init__.py` re-export in the code. The docs line numbers (`docs/api.md` L227, `docs/parameter-types.md` L123) come from grep output and I haven't opened those files.",
+  "is_error": false,
+  "diff": null
+}

@@ -1,0 +1,68 @@
+{
+  "id": "PR8333-hard-irrelevant-1",
+  "task": "PR8333-hard",
+  "area": "web-app",
+  "arm": "irrelevant",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "646c4caa-d739-4b34-a40a-d45056d3b61b",
+  "turns": 8,
+  "wall_ms": 20282,
+  "api_ms": 19647,
+  "cost": 0.0679342,
+  "in_tokens": 187331,
+  "out_tokens": 1663,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 7
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [
+      "Upstream split reason and http_version into explicit assignments and added an http_version-only test; this is a typing/style refinement, not a behavior difference."
+    ],
+    "wrong": [],
+    "reason": "The agent changed the same two places as upstream. The backend now accepts \"reason\" instead of \"msg\", so setattr sets response.reason. The frontend editor now sends { response: { reason } }. Behavior matches the merged patch. The test was updated the same way. The only differences are upstream's explicit per-field assignments and the extra http_version test, which don't change behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "mitmproxy/tools/web/app.py",
+      "test/mitmproxy/tools/web/test_app.py",
+      "web/src/js/components/FlowView/HttpMessages.tsx"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent's patch is functionally equivalent to the merged one. It changes the handler in app.py from msg to reason (setattr on response.reason) and makes the same frontend change in HttpMessages.tsx to send reason. The only difference is that upstream also added an http_version-only test, which doesn't change behavior.",
+      "The agent changed the same places as the upstream patch. In app.py the handler now accepts \"reason\" instead of \"msg\", so response.reason is set via setattr. In HttpMessages.tsx the editor now sends { response: { reason } }. The upstream version only splits the branch into explicit assignments, which behaves the same. The agent also updated the existing test to use \"reason\". It did not add the upstream http_version-only test, which doesn't affect behavior.",
+      "The agent changed the same backend handler and frontend editor as the merged patch. Its shared setattr branch sets response.reason and response.http_version exactly as the merged split branches do, so behaviour is equivalent. It skipped the extra http_version-only test, which doesn't affect behaviour."
+    ]
+  },
+  "result": "Editing a response's reason phrase in the web UI now updates the flow's actual reason phrase, so the edited value is what gets sent. I haven't run the Python tests or the frontend build.\n\n**Cause:** the UI sent the edit as `response: { msg }`, and the PUT handler in `mitmproxy/tools/web/app.py` did `setattr(response, \"msg\", ...)`. `Response` has no `msg` field, so this only attached a stray attribute. The real `reason` property was never touched, and the reason phrase on the wire never changed.\n\n**Changes:**\n- `mitmproxy/tools/web/app.py`: the response update handler now accepts `reason` in place of `msg`, so it sets `response.reason`.\n- `web/src/js/components/FlowView/HttpMessages.tsx`: the reason-phrase editor now sends `{ response: { reason } }`.\n- `test/mitmproxy/tools/web/test_app.py`: the update test now sends `\"reason\"` and asserts `f.response.reason`, so it checks the real property instead of the stray attribute.\n\nThe handler no longer accepts `msg` for responses; a client still sending it would now get a 400. Nothing else in the repo sends it.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..120cfca56 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -608,7 +608,7 @@ class FlowHandler(RequestHandler):\n                 elif a == \"response\" and hasattr(flow, \"response\"):\n                     response: mitmproxy.http.Response = flow.response\n                     for k, v in b.items():\n-                        if k in [\"msg\", \"http_version\"]:\n+                        if k in [\"reason\", \"http_version\"]:\n                             setattr(response, k, str(v))\n                         elif k == \"code\":\n                             response.status_code = int(v)\ndiff --git a/test/mitmproxy/tools/web/test_app.py b/test/mitmproxy/tools/web/test_app.py\nindex 7922484ef..ae1becbe2 100644\n--- a/test/mitmproxy/tools/web/test_app.py\n+++ b/test/mitmproxy/tools/web/test_app.py\n@@ -207,7 +207,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n                 \"content\": \"req\",\n             },\n             \"response\": {\n-                \"msg\": \"Non-Authorisé\",\n+                \"reason\": \"Non-Authorisé\",\n                 \"code\": 404,\n                 \"headers\": [(\"bar\", \"baz\")],\n                 \"trailers\": [(\"foo\", \"bar\")],\n@@ -221,7 +221,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n         assert f.request.port == 123\n         assert f.request.headers[\"foo\"] == \"bar\"\n         assert f.request.text == \"req\"\n-        assert f.response.msg == \"Non-Authorisé\"\n+        assert f.response.reason == \"Non-Authorisé\"\n         assert f.response.status_code == 404\n         assert f.response.headers[\"bar\"] == \"baz\"\n         assert f.response.text == \"resp\"\ndiff --git a/web/src/js/components/FlowView/HttpMessages.tsx b/web/src/js/components/FlowView/HttpMessages.tsx\nindex 9f1dcb20e..6c612e997 100644\n--- a/web/src/js/components/FlowView/HttpMessages.tsx\n+++ b/web/src/js/components/FlowView/HttpMessages.tsx\n@@ -104,9 +104,11 @@ function ResponseLine({ flow }: ResponseLineProps) {\n                     &nbsp;\n                     <ValueEditor\n                         content={flow.response.reason}\n-                        onEditDone={(msg) =>\n+                        onEditDone={(reason) =>\n                             dispatch(\n-                                flowActions.update(flow, { response: { msg } }),\n+                                flowActions.update(flow, {\n+                                    response: { reason },\n+                                }),\n                             )\n                         }\n                         selectAllOnClick={true}\n",
+  "grade0": {
+    "score": 0.97,
+    "missing": [
+      "Upstream split reason and http_version into explicit assignments and added an http_version-only test; this is a typing/style refinement, not a behavior difference."
+    ],
+    "wrong": [],
+    "reason": "The agent changed the same two places as upstream. The backend now accepts \"reason\" instead of \"msg\", so setattr sets response.reason. The frontend editor now sends { response: { reason } }. Behavior matches the merged patch. The test was updated the same way. The only differences are upstream's explicit per-field assignments and the extra http_version test, which don't change behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "mitmproxy/tools/web/app.py",
+      "test/mitmproxy/tools/web/test_app.py",
+      "web/src/js/components/FlowView/HttpMessages.tsx"
+    ]
+  }
+}

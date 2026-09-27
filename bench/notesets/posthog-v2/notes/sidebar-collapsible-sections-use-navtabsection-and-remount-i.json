@@ -1,0 +1,62 @@
+{
+  "id": "sidebar-collapsible-sections-use-navtabsection-and-remount-i",
+  "title": "Sidebar collapsible sections: use NavTabSection and remount it on search start/stop",
+  "kind": "convention",
+  "answers": [
+    "How do I add a collapsible section to the Apps/Files sidebar?",
+    "Why does starting a search reopen collapsed sidebar sections?",
+    "How to hide Starred section when search has no matches"
+  ],
+  "body": "Sidebar sections in Apps and Files use `NavTabSection` (frontend/src/layout/panel-layout/navbar/tabs/NavTabSection.tsx): props `label`, optional `collapsedLabel` (Project shows 'All apps' when collapsed), and `dataAttr` (e.g. `nav-apps-starred-toggle`). It uses local useState(true) and `Collapsible.Panel keepMounted`.\nSearch-opens-sections behavior is done by giving each section `key={`name-${!!search.trim()}`}` so it remounts open when search starts or stops; keep that pattern in NavTabApps.tsx and NavTabFiles.tsx.\nStarred is hidden only when searching, data has loaded and there are zero starred matches: `(!search.trim() || !shortcutDataHasLoaded || starred.length > 0)`.\nTo wrap the ProjectTree body in a section, use the new `renderTree` prop on ProjectTree (ProjectTree.tsx); it also disables the tree's own scroll like `beforeTree`.",
+  "applies": "Simple sidebar Apps and Files tabs; new collapsible sections there",
+  "tags": [
+    "sidebar",
+    "collapsible",
+    "projecttree",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/layout/panel-layout/navbar/tabs/NavTabSection.tsx",
+      "symbol": "NavTabSection",
+      "hash": "sha256:08388b9e855d09685acadd41",
+      "line": 5,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/layout/panel-layout/navbar/tabs/NavTabApps.tsx",
+      "symbol": "NavTabApps",
+      "hash": "sha256:eb2fd5a9b32d716592857dce",
+      "line": 14,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/layout/panel-layout/navbar/tabs/NavTabFiles.tsx",
+      "symbol": "NavTabFiles",
+      "hash": "sha256:7e3efa02dedf8bf55c49f13f",
+      "line": 16,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/layout/panel-layout/ProjectTree/ProjectTree.tsx",
+      "symbol": "ProjectTree",
+      "hash": "sha256:3e65a0d129c52c4fa0f611a9",
+      "line": 124,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105376"
+  },
+  "created": "2026-09-27T00:05:28.585Z",
+  "verified": "2026-09-27T00:05:28.585Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "files-sidebar-starred-tree-search-must-be-mirrored-from-the-",
+    "sidebar-filter-inputs-share-lemoninput-style-chat-uses-input"
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "id": "experiment-metric-identity-uuid-vs-config-fingerprint",
+  "title": "Experiment metric identity: uuid vs config fingerprint",
+  "kind": "invariant",
+  "answers": [
+    "How are experiment metrics identified?",
+    "What goes into the metric fingerprint?",
+    "What triggers metric recomputation in experiments?",
+    "What is the recalc fingerprint?"
+  ],
+  "body": "- uuid = stable identity (merge, ordering, result lookup). Inline: assigned in `experiment_service.py:ExperimentService._assign_uuids_to_metrics`; saved: `ExperimentSavedMetric.query[\"uuid\"]`.\n- fingerprint = SHA256 of config: `hogql_queries/experiment_metric_fingerprint.py:compute_metric_fingerprint` over metric (minus `METRIC_FIELDS_TO_IGNORE`: uuid,name,kind,fingerprint,only_count_matured_users), start_date (UTC), stats_method (default bayesian), exposure_criteria, only_count_matured_users, sorted/deduped excluded_variants. `_strip_empty_breakdowns` treats empty breakdowns as none.\n- Recalc fp = sha256(config_fp+\"recalculation\") in `temporal/recalc_fingerprint.py:compute_recalc_fingerprint`; deterministic per config, differs from timeseries workflow's bare fp.\n- Recompute triggers: any fingerprint input changing (rename/kind change does not). Then `already_computed` check in `temporal/recalculation_logic.py` misses. `_REUSE_WINDOW_TRIGGERS` = only METRIC_CONFIG_CHANGE (keeps query_to, only changed metrics recompute); other triggers advance window (`_resolve_query_to`).\n- `request_timeseries_recalculation` deletes rows for (metric_uuid, fingerprint) before creating request.",
+  "applies": "Backend experiment metrics (kind ExperimentMetric); legacy trends/funnels metrics are not scheduled.",
+  "tags": [
+    "experiments",
+    "fingerprint",
+    "metrics"
+  ],
+  "deps": [
+    {
+      "path": "products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py",
+      "symbol": "compute_metric_fingerprint",
+      "hash": "sha256:37b2876983d1e4beee52c326",
+      "line": 47,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/temporal/recalc_fingerprint.py",
+      "symbol": "compute_recalc_fingerprint",
+      "hash": "sha256:f47b1cef94f67b42ab71c23f",
+      "line": 8,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/experiment_service.py",
+      "symbol": "request_timeseries_recalculation",
+      "hash": "sha256:6e0c506be0d42923a92e9a4e",
+      "line": 4821,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/temporal/recalculation_logic.py",
+      "hash": "sha256:7178bcedb588bf639fd69d0f",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/experiment_service.py",
+      "symbol": "ExperimentService._assign_uuids_to_metrics",
+      "hash": "sha256:739d466045dd953de7bdc4db",
+      "line": 1712,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "19a1b465-2ae5-4aac-be03-62deb6217e7f"
+  },
+  "created": "2026-09-27T00:17:33.887Z",
+  "verified": "2026-09-27T00:17:33.887Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 6,
+  "related": [
+    "experiment-metric-uuid-assignment-and-resolution",
+    "map-an-experimentholdout-onto-flag-filters-via-apply-holdout",
+    "places-that-must-compute-the-same-metric-fingerprint-saved-v",
+    "uniqueness-constraints-for-experiment-metrics-and-results"
+  ],
+  "servedIn": [
+    "ffd5d7a2-4585-4abf-82a8-6ebeb4e1eab6",
+    "dc57c855-9d09-4ae7-80f5-246632cf3126",
+    "7509243b-8859-4cf6-a36d-f2a353754833",
+    "d6de17d5-8e0d-4f82-a244-1b3ad814b8b9",
+    "36249c18-3dd5-4db5-aceb-ad444635e403",
+    "9d7cb4d1-d895-491e-920b-ba43d2189f27"
+  ]
+}

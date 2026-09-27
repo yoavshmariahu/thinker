@@ -1,0 +1,59 @@
+{
+  "id": "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn",
+  "title": "NextLayer._next_layer decision order (TLS/HTTP/QUIC/TCP/UDP/DNS)",
+  "kind": "callpath",
+  "answers": [
+    "How does next_layer choose a protocol layer?",
+    "Where is the decision between TCPLayer, HttpLayer, TLS, QUIC made?",
+    "Why can --tcp-hosts match by SNI?",
+    "What order are rules evaluated in next_layer?"
+  ],
+  "body": "All in `mitmproxy/addons/next_layer.py`. Hook `NextLayer.next_layer` skips if `nextlayer.layer` already set, else calls `_next_layer(ctx, data_client, data_server)`. `NeedsMoreData` from helpers defers the decision; hook refires with more bytes.\nFirst match wins in `_next_layer`:\n1. `_ignore_connection` true -> `TCPLayer(ignore=not show_ignored_hosts)` / `UDPLayer(...)`.\n2. Fixed-mode: `_setup_reverse_proxy` (scheme -> LayerStack of Server/ClientTLS, Quic, HttpLayer, DNS...), `_setup_explicit_http_proxy` (HttpProxy/HttpUpstreamProxy; ClientQuic for UDP, ClientTLS if TLS-like, then HttpLayer regular/upstream).\n3. `starts_like_tls_record` / `starts_like_dtls_record` -> ServerTLSLayer + ClientTLSLayer; UDP `_starts_like_quic` -> ServerQuicLayer + ClientQuicLayer.\n4. `--tcp-hosts`/`--udp-hosts` via `_is_destination_in_hosts` (server.address[0] and client.sni). Runs after step 3, so SNI matches only on the second pass after TLS is set up.\n5. ALPN in `HTTP_ALPNS` -> HttpLayer(transparent); other ALPN with QUICv1 -> `RawQuicLayer(force_raw=True)`; port 53/5353 -> DNSLayer; other UDP -> UDPLayer; TCP: rawtcp && `probably_no_http` -> TCPLayer else HttpLayer(transparent).\n`NextLayer.configure` compiles tcp_hosts/udp_hosts/ignore_hosts/allow_hosts to case-insensitive regexes.",
+  "tags": [
+    "next_layer",
+    "proxy",
+    "layers"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer._next_layer",
+      "hash": "sha256:09b17a22cdb539a0e6caadb0",
+      "line": 115,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer.next_layer",
+      "hash": "sha256:e433b770aa1f89a348245c9f",
+      "line": 101,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer.configure",
+      "hash": "sha256:5d213cdcc4fc3bfbc2aa4e66",
+      "line": 84,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "212aa119-3de6-48cd-ab96-a1d2c87158c9"
+  },
+  "created": "2026-09-26T09:32:07.170Z",
+  "verified": "2026-09-26T09:32:07.170Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 11,
+  "lastUsed": "2026-09-26T19:45:09.213Z",
+  "related": [
+    "bytes-heuristics-next-layer-inspects-quic-host-header-raw-tc",
+    "upstream-proxy-mode-layer-composition-and-mode-selection"
+  ],
+  "servedIn": [
+    "7f033eb6-a554-4996-aeb0-5d407bb18fce",
+    "aebbddc1-1441-4026-950b-12f76eaaac79"
+  ]
+}

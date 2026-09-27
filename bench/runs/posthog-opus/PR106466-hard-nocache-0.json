@@ -1,0 +1,89 @@
+{
+  "id": "PR106466-hard-nocache-0",
+  "task": "PR106466-hard",
+  "area": "workflows",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "opus",
+  "session": "f58d4bef-efcb-4085-bb4a-52151161aded",
+  "turns": 57,
+  "wall_ms": 537310,
+  "api_ms": 529411,
+  "cost": 4.438557499999999,
+  "in_tokens": 5258814,
+  "out_tokens": 22511,
+  "tools": {
+    "calls": 52,
+    "byTool": {
+      "Bash": 16,
+      "Read": 19,
+      "Skill": 4,
+      "Edit": 13
+    },
+    "thinkerCalls": 0,
+    "filesRead": 13,
+    "greps": 16,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "error": "judge failed: ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"bc90c35e-7c9e-4564-b079-80508419550d\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"aa8decf7-c4e3-4d57-ab7f-86385363595b\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"127f37e6-5e21-4707-9ce0-b5ee460a6a37\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"",
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "The patch adds a `moveToDraft` action and `movingToDraft` reducer, but no listener implements `moveToDraft` (none shown), and no UI is added. Nothing calls the API to set status to draft, so the broadcast never leaves read-only."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "`canMoveToDraft` selector exists (`getBroadcastStatus(...) === 'scheduled'`), but it is not consumed by any UI in the patch. It also doesn't check that a schedule exists, so an active broadcast with no schedule would qualify. No control is offered."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Stale schedules are deleted from `saved.schedules` in launch, and a new one is created for later/recurring. But `saved` comes from the partialUpdate response, which pauses the schedules. In 'now' mode the old schedules are also deleted, so that part works. The deletion happens before the fresh create and the stale list is only taken from the save response, which may not include schedules. The fresh-row creation is otherwise in place, but the destroy happens before the status update and there is no atomicity. This is likely mostly working, but it is not demonstrably complete, so the criterion is not verifiably met."
+        },
+        {
+          "id": "c4",
+          "verdict": "unclear",
+          "evidence": "Stale schedules are destroyed before `hogFlowsPartialUpdate(... {status:'active'})`, but the new schedule is created after activation (`hogFlowsSchedulesCreate` follows). An interruption between activation and create leaves a live broadcast with no schedule; the catch block reverts to draft only on thrown errors, not on interruption. So it is not met."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "`canMoveToDraft` requires `hasLoadedBatchJobs` and status 'scheduled' (excludes waiting/queued/active runs). It does not check for more than one schedule or workflow shape, and no control uses it."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "No confirmation dialog is added anywhere in the patch."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "No `moveToDraft` listener, no batch job cancellation, and no success/warning messaging are added."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "The patch touches only the frontend files; nothing changes the scheduler to re-verify status before creating a run."
+        },
+        {
+          "id": "c9",
+          "verdict": "not_met",
+          "evidence": "The new schedule is built only from rrule, starts_at and timezone; the stale schedule's variables are not carried over."
+        }
+      ]
+    }
+  },
+  "result": "You've hit your session limit · resets 8:40pm (America/Los_Angeles)",
+  "is_error": true,
+  "diff": "diff --git a/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts b/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts\nindex 491dd77752f..51a2173c334 100644\n--- a/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts\n+++ b/products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts\n@@ -21,6 +21,7 @@ import {\n     hogFlowsPartialUpdate,\n     hogFlowsRetrieve,\n     hogFlowsSchedulesCreate,\n+    hogFlowsSchedulesDestroy,\n     hogFlowsUserBlastRadiusCreate,\n } from 'products/workflows/frontend/generated/api'\n import type {\n@@ -41,6 +42,7 @@ import {\n     parseRRuleToState,\n     stateToRRule,\n } from '../Workflows/hogflows/steps/components/rrule-helpers'\n+import { getBroadcastStatus } from './broadcastsLogic'\n \n export type BroadcastWizardStep = 'recipients' | 'goal' | 'content' | 'schedule' | 'review'\n \n@@ -109,6 +111,7 @@ export interface broadcastWizardLogicValues {\n     broadcast: HogFlowApi | null\n     broadcastId: string | null\n     broadcastLoading: boolean\n+    canMoveToDraft: boolean\n     conversion: HogFlowConversionApi\n     currentStep: BroadcastWizardStep\n     currentStepHasErrors: boolean\n@@ -118,8 +121,10 @@ export interface broadcastWizardLogicValues {\n     firstInvalidStep: BroadcastWizardStep | null\n     goalEnabled: boolean\n     hasHydrated: boolean\n+    hasLoadedBatchJobs: boolean\n     isReadOnly: boolean\n     launching: boolean\n+    movingToDraft: boolean\n     name: string\n     rateLimitedSendDuration: string\n     recurringRepeating: boolean\n@@ -192,6 +197,12 @@ export interface broadcastWizardLogicActions {\n         broadcast: HogFlowApi | null\n         payload?: any\n     }\n+    moveToDraft: () => {\n+        value: true\n+    }\n+    moveToDraftFinished: () => {\n+        value: true\n+    }\n     nextStep: () => {\n         value: true\n     }\n@@ -262,6 +273,11 @@ export interface broadcastWizardLogicMeta {\n     __keaTypeGenInternalSelectorTypes: {\n         broadcastId: (broadcast: HogFlowApi | null, id: string) => string | null\n         isReadOnly: (broadcast: HogFlowApi | null) => boolean\n+        canMoveToDraft: (\n+            broadcast: HogFlowApi | null,\n+            batchJobs: HogFlowBatchJobApi[],\n+            hasLoadedBatchJobs: boolean\n+        ) => boolean\n         effectiveTimezone: (scheduleTimezone: string | null, currentTeam: TeamPublicType | TeamType | null) => string\n         stepValidationErrors: (\n             goalEnabled: boolean,\n@@ -334,6 +350,8 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n         saveBroadcastFinished: (broadcast: HogFlowApi | null) => ({ broadcast }),\n         launchBroadcast: true,\n         launchBroadcastFinished: true,\n+        moveToDraft: true,\n+        moveToDraftFinished: true,\n     }),\n \n     loaders(({ props, values }) => ({\n@@ -520,6 +538,21 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                 launchBroadcastFinished: () => false,\n             },\n         ],\n+        movingToDraft: [\n+            false,\n+            {\n+                moveToDraft: () => true,\n+                moveToDraftFinished: () => false,\n+            },\n+        ],\n+        // Whether the runs of a launched broadcast have answered yet, so an empty list reads as\n+        // \"no send has started\" rather than \"not asked yet\".\n+        hasLoadedBatchJobs: [\n+            false,\n+            {\n+                loadBatchJobsSuccess: () => true,\n+            },\n+        ],\n         // Set once the initial load of an existing draft has hydrated the reducers, so the wizard can\n         // resume at the first incomplete step exactly once.\n         hasHydrated: [\n@@ -539,6 +572,19 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n             (s) => [s.broadcast],\n             (broadcast: HogFlowApi | null): boolean => !!broadcast && broadcast.status !== 'draft',\n         ],\n+        // A broadcast that is live but has not started a send yet can go back to draft. Once a run\n+        // exists the emails are on their way, and a draft could no longer describe what went out.\n+        canMoveToDraft: [\n+            (s) => [s.broadcast, s.batchJobs, s.hasLoadedBatchJobs],\n+            (\n+                broadcast: HogFlowApi | null,\n+                batchJobs: HogFlowBatchJobApi[],\n+                hasLoadedBatchJobs: boolean\n+            ): boolean =>\n+                !!broadcast &&\n+                hasLoadedBatchJobs &&\n+                getBroadcastStatus(broadcast, { latestBatchJob: batchJobs[0] ?? null, totals: {} }) === 'scheduled',\n+        ],\n         effectiveTimezone: [\n             (s) => [s.scheduleTimezone, s.currentTeam],\n             (scheduleTimezone: string | null, currentTeam: TeamPublicType | TeamType | null): string =>\n@@ -757,6 +803,7 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n             let activated: HogFlowApi | null = null\n             try {\n                 // Save the latest edits (creating the draft if the user skipped ahead).\n+                let staleSchedules: readonly HogFlowScheduleApi[] = []\n                 if (!broadcastId) {\n                     const created = await hogFlowsCreate(projectId, buildBroadcastPayload(values) as any)\n                     broadcastId = created.id\n@@ -767,6 +814,7 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                         broadcastId,\n                         buildBroadcastPayload(values) as any\n                     )\n+                    staleSchedules = saved.schedules ?? []\n                     actions.saveBroadcastFinished(saved)\n                 }\n \n@@ -790,6 +838,14 @@ export const broadcastWizardLogic = kea<broadcastWizardLogicType>([\n                     return\n                 }\n \n+                // Launching replaces the schedule rather than reusing the one a previous launch left\n+                // behind: editing a draft's audience pauses its schedules, and the API has no way to\n+                // resume one, so a kept schedule would leave a live broadcast that never sends. The\n+                // fresh row created below starts active.\n+                for (const stale of staleSchedules) {\n+                    await hogFlowsSchedulesDestroy(projectId, broadcastId, stale.id)\n+                }\n+\n                 activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })\n \n                 if (values.scheduleMode === 'now') {\ndiff --git a/products/workflows/frontend/Broadcasts/broadcastsLogic.ts b/products/workflows/frontend/Broadcasts/broadcastsLogic.ts\nindex 7ab8d7625a6..3ad2c06facb 100644\n--- a/products/workflows/frontend/Broadcasts/broadcastsLogic.ts\n+++ b/products/workflows/frontend/Broadcasts/broadcastsLogic.ts\n@@ -14,6 +14,7 @@ import { hogFlowsBatchJobsList, hogFlowsList } from 'products/workflows/frontend\n import type {\n     HogFlowBatchJobApi,\n     HogFlowMinimalApi,\n+    HogFlowStateEnumApi,\n     PaginatedHogFlowMinimalListApi,\n } from 'products/workflows/frontend/generated/api.schemas'\n \n@@ -24,8 +25,10 @@ export interface BroadcastRowDetails {\n     totals: Record<string, number>\n }\n \n+// Takes the status alone so the broadcast scene can read the same chip off a full HogFlow, whose\n+// generated type declares status optional.\n export function getBroadcastStatus(\n-    broadcast: HogFlowMinimalApi,\n+    broadcast: { status?: HogFlowStateEnumApi },\n     details: BroadcastRowDetails | undefined\n ): BroadcastStatus {\n     if (broadcast.status === 'draft') {\n",
+  "distill": null
+}

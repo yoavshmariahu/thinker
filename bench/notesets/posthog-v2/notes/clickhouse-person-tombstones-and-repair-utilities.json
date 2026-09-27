@@ -1,0 +1,51 @@
+{
+  "id": "clickhouse-person-tombstones-and-repair-utilities",
+  "title": "ClickHouse person tombstones and repair utilities",
+  "kind": "gotcha",
+  "answers": [
+    "How are person tombstones written?",
+    "Why version + 100 for deleted persons?",
+    "How to undo or repair tombstoned distinct ids?",
+    "What does delete_persons_from_postgres do?"
+  ],
+  "body": "- posthog/models/person/util.py:`delete_person` → `_delete_person` → `create_person(..., is_deleted=True, version=version+100)` and `_delete_ch_distinct_id` per distinct id (`create_person_distinct_id(is_deleted=True)`).\n- The +100 makes the tombstone win ReplacingMergeTree merges; a code comment says it must stay in sync with plugin-server `generateKafkaPersonUpdateMessage`, and `split_person` uses +101.\n- `_get_distinct_ids_with_version` fallback (when not prefetched) is racy (issue 11590).\n- `delete_persons_from_postgres` is separate: personhog `delete_persons` RPC, batches of 1000.\n- posthog/models/person/deletion.py: `reset_all_deleted_person_distinct_ids`/`reset_deleted_person_distinct_ids` un-tombstone via higher version (2500); `find_orphaned_ch_persons`/`tombstone_orphaned_ch_persons` fix PG-missing-but-CH-live drift (`OrphanRepairResult`; reverse drift reported, not repaired).",
+  "applies": "Tombstone version bump applies to ClickHouse person/person_distinct_id2 rows only; Postgres rows are hard-deleted.",
+  "tags": [
+    "tombstone",
+    "clickhouse",
+    "versioning"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/person/util.py",
+      "symbol": "_delete_person",
+      "hash": "sha256:ff37e4c0266eb0ca97fe2288",
+      "line": 697,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/person/deletion.py",
+      "symbol": "tombstone_orphaned_ch_persons",
+      "hash": "sha256:dbf8c09496bc4853c6af5531",
+      "line": 264,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "7cf2f0b3-71d7-4042-9ecf-dfa8df682419"
+  },
+  "created": "2026-09-26T20:34:12.299Z",
+  "verified": "2026-09-26T20:34:12.299Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "person-tombstones-in-clickhouse-and-the-ordered-sweep"
+  ],
+  "servedIn": [
+    "231a9dd0-7188-4586-8849-6e6b866d19a4",
+    "5c8e7539-6b19-4050-88bd-69c110e19dd7"
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "id": "desktop-bootstrap-launch-is-best-effort-detached-and-must-no",
+  "title": "Desktop bootstrap launch is best-effort, detached, and must not fail the run",
+  "kind": "invariant",
+  "answers": [
+    "Why doesn't a desktop bootstrap failure fail the cloud task run?",
+    "Why is the desktop bootstrap launched with setsid?",
+    "Desktop bootstrap retry relaunch behavior"
+  ],
+  "body": "`_prepare_posthog_desktop_cloud_task` (products/tasks/backend/temporal/process_task/activities/provision_sandbox.py) must return quickly and never raise.\n- Launch failures (exception or non-zero exit) are logged with `logger.warning(\"desktop_bootstrap_launch_failed\")`, not raised; the agent can run the bootstrap itself.\n- Exit 3 from the launch script means the branch lacks the wait script; the build is skipped so an unrebased branch never runs an install the agent cannot wait on.\n- The build uses `setsid` because the sandbox runtime reaps exec children on return.\n- The build's deadline is `timeout -k 30` inside the script, not an activity timeout.\n- A relaunch (retried clone/checkout activity) kills the running launcher and build process group (`timeout` leads its own group, so a second kill on `-build.pid` is needed) before `rm -rf` of the state dir, since the retry recloned the tree.\n- Clone/checkout activities in both process_task/workflow.py and execute_sandbox/workflow.py now use a plain 5-minute `start_to_close_timeout`; the former 20-minute desktop budget was removed, so don't reintroduce blocking bootstrap work there.",
+  "applies": "Sandbox provisioning activities in tasks temporal workflows",
+  "tags": [
+    "tasks",
+    "temporal",
+    "sandbox",
+    "desktop"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/provision_sandbox.py",
+      "symbol": "_prepare_posthog_desktop_cloud_task",
+      "hash": "sha256:fdd6a7f6172aba44792c8fd6",
+      "line": 193,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "ProcessTaskWorkflow._get_sandbox_for_repository",
+      "hash": "sha256:44ad13a9f33d63080328641f",
+      "line": 2005,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/execute_sandbox/workflow.py",
+      "hash": "sha256:5c0f2053eb7fbe2805ada2b7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105298"
+  },
+  "created": "2026-09-27T00:07:27.767Z",
+  "verified": "2026-09-27T00:07:27.767Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+    "follow-up-loop-must-skip-ticks-while-a-push-would-eject-the-",
+    "how-task-run-failures-are-recorded",
+    "sandbox-backend-resolution-and-propagation-in-process-task"
+  ],
+  "servedIn": [
+    "4ceaeafb-354c-413e-8554-2eeb1b99987f",
+    "afad1150-74a1-4e9a-9a6e-93d48551d352",
+    "2e552557-6ce0-4e96-8d4c-138f629e75bd",
+    "0fbe9612-b859-4114-81f9-f77383771643"
+  ]
+}

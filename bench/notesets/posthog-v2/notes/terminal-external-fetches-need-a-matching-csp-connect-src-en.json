@@ -1,0 +1,40 @@
+{
+  "id": "terminal-external-fetches-need-a-matching-csp-connect-src-en",
+  "title": "Terminal external fetches need a matching CSP connect-src entry",
+  "kind": "cochange",
+  "answers": [
+    "Terminal download blocked by Content Security Policy",
+    "Why does the terminal fetch fail with CSP connect-src error?",
+    "Add a new external host the frontend can fetch from"
+  ],
+  "body": "The browser fetches terminal archives from raw.githubusercontent.com, which only works because `posthog/middleware.py` CSP `connect-src` lists `https://raw.githubusercontent.com/PostHog/terminal-assets/`. The entry is path-scoped so other repos stay unreachable to injected script (same pattern as the api.github.com/repos/PostHog/posthog/ entry).\nIf `baseUrl` in `frontend/src/scenes/terminal/terminal-packages.json` moves to another repo or host, update the CSP in `posthog/middleware.py` in the same change.",
+  "applies": "terminal package baseUrl and CSP in posthog/middleware.py",
+  "tags": [
+    "csp",
+    "terminal",
+    "middleware"
+  ],
+  "deps": [
+    {
+      "path": "posthog/middleware.py",
+      "hash": "sha256:c1bc5f886dae93d4a664d9ce",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/terminal-packages.json",
+      "hash": "sha256:abc2624f9835636b6c04eb5a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105235"
+  },
+  "created": "2026-09-27T00:10:41.134Z",
+  "verified": "2026-09-27T00:10:41.134Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

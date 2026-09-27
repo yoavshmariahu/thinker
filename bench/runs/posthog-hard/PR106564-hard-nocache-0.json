@@ -1,0 +1,93 @@
+{
+  "id": "PR106564-hard-nocache-0",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "f1cc03c9-b8ea-4062-aa9f-2871dcd6dd69",
+  "turns": 18,
+  "wall_ms": 71093,
+  "api_ms": 43009,
+  "cost": 0.45380339999999997,
+  "in_tokens": 983725,
+  "out_tokens": 3955,
+  "tools": {
+    "calls": 17,
+    "byTool": {
+      "Bash": 17
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 17,
+    "injected": []
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent made no changes, so the requested flag-based rollout of the stable chunk build was not implemented.",
+      "The agent's patch is empty and made no functional change, so it does not implement the flag-based rollout of the stable chunk build.",
+      "The agent's patch is empty and made no functional change, so it does not implement the flag-based rollout that the merged patch adds."
+    ],
+    "reason": "The agent made no changes, so the requested flag-based rollout of the stable chunk build was not implemented.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag-based build selection exists."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag gating for logged-in users was added."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag handling added (the stable build doesn't exist at all per the author)."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; author states no query-parameter opt-in exists in the checkout."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no remembered choice (cookie ~30 days) is implemented."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag value is passed to the analytics client for this purpose."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no runtime-failure reload handling for a stable build exists."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no query-parameter stripping was added."
+        }
+      ]
+    }
+  },
+  "result": "I couldn't implement this, because the stable chunk build and its query-parameter opt-in don't exist in this checkout. I haven't changed any files.\n\nHere is what I searched:\n- **Server side:** `posthog/utils.py`, `posthog/views.py`, `posthog/templates/`, and the settings. The only `request.GET` reads there are unrelated (`no-preloaded-app-context`, `data`, `ver`, `compression`). Nothing reads a \"stable\" flag.\n- **Build side:** `frontend/build.mjs`, `common/esbuilder/utils.mjs` and `chunkLoader.mjs`, and `frontend/vite.config.mts`. There is one chunking mode. Chunks are named `[name]-[hash]`, and the chunk map is a content-hashed file. Nothing produces a second, stable-named variant.\n- **Loader and frontend entry files:** `frontend/src/index.html`, `layout.html`, and `index.tsx`. None of them reads `location.search` or picks between two builds.\n- **Git history and repo-wide grep:** no commit or code mentions a stable chunk build or a matching query parameter. The only \"stable chunk\" hits are unrelated (`stable_chunk_id` in the sourcemaps CLI, and notes in review_hog).\n\nWithout that mechanism, I would have to invent both the build variant and the opt-in. Then a feature-flag gate would sit on top of something I made up. The design would depend on guesses, such as how the stable build is emitted and served.\n\nIf the work is on another branch or in a PR that isn't merged here, tell me which one, or check out the right base, and I'll continue from there.\n\nIf you want me to build the whole thing, the design would be:\n1. Build a second chunk set with stable, unhashed chunk names, plus its own chunk map.\n2. Add the loader switch, with the query parameter still forcing it on.\n3. Add server-side flag evaluation in `_build_template_context`. It would run only for authenticated users, so logged-out visitors are never enrolled. The result would go into the template context so the page picks the build.\n4. Add a test.\n\nThe main open question is how the stable build would be served, and I'd want you to confirm that first.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

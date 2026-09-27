@@ -1,0 +1,102 @@
+{
+  "id": "option-prompting-call-path-option-consume-value-prompt-for-v",
+  "title": "Option prompting call path: Option.consume_value → prompt_for_value → termui.prompt → getpass/input",
+  "kind": "callpath",
+  "answers": [
+    "How does prompt=True on an Option trigger a prompt?",
+    "Where does hide_input reach getpass?",
+    "Which functions in termui.py implement prompting?",
+    "How does confirmation_prompt work?"
+  ],
+  "body": "NOTE (kind=callpath) \"Option prompting call path: Option.consume_value → ask_for_value → termui.prompt → getpass/input\"\n- `core.py:Option.__init__`: prompt=True -> `name.replace('_',' ').capitalize()`; stores prompt/confirmation_prompt/prompt_required/hide_input; `_flag_needs_value = prompt is not None and not prompt_required`.\n- `core.py:Option.consume_value` calls `Parameter.consume_value`, then prompts (source=`ParameterSource.PROMPT`) when (a) value is `FLAG_NEEDS_VALUE` sentinel (bare `--opt`), or (b) value UNSET/source DEFAULT_MAP-or-lower, and `(required or prompt_required)`; both skipped if `ctx.resilient_parsing`.\n- `core.py:Option.ask_for_value`: computes `get_default` first; bool flag -> `termui.confirm`; else `termui.prompt(default, type=self.type, hide_input, show_choices, confirmation_prompt, value_proc=lambda x: self.process_value(ctx, x))`. So validation errors (UsageError) re-loop inside prompt.\n- `termui.py:prompt`: builds text with `_build_prompt`; inner `prompt_func` picks `hidden_prompt_func if hide_input else visible_prompt_func`; handles confirmation (\"Repeat for confirmation\", mismatch -> retry), masks value in errors via `_mask_hidden_input`, KeyboardInterrupt/EOFError -> `Abort`.\n- `termui.py:hidden_prompt_func` lazily imports getpass -> `getpass.getpass`; `visible_prompt_func = input`. `_readline_prompt` wraps the call (strips ANSI, err redirect); `confirm` also uses it.",
+  "tags": [
+    "prompt",
+    "hide_input",
+    "option",
+    "termui"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Option.prompt_for_value",
+      "hash": "sha256:6eade0e7a2ff938f1d0a156e",
+      "line": 3349,
+      "missing": false,
+      "symbolMissing": true
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Option.consume_value",
+      "hash": "sha256:9df2a83ead9e77a9a5a18526",
+      "line": 3465,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Option.__init__",
+      "hash": "sha256:187d2dad267bf7499245dd2a",
+      "line": 2897,
+      "missing": false
+    },
+    {
+      "path": "src/click/termui.py",
+      "symbol": "prompt",
+      "hash": "sha256:9cba4c94b098d8119d5ba79b",
+      "line": 115,
+      "missing": false
+    },
+    {
+      "path": "src/click/termui.py",
+      "symbol": "hidden_prompt_func",
+      "hash": "sha256:745e027f36d38d4088c3abce",
+      "line": 78,
+      "missing": false
+    },
+    {
+      "path": "src/click/termui.py",
+      "symbol": "_readline_prompt",
+      "hash": "sha256:c74946dfaaaac0468e3f3a43",
+      "line": 84,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.consume_value",
+      "hash": "sha256:b7fee2645ccfa1eaeadc1ddf",
+      "line": 2428,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "ParameterSource.PROMPT",
+      "hash": "sha256:47354ed55ba84b8d3df1f784",
+      "line": 192,
+      "missing": false
+    },
+    {
+      "path": "src/click/termui.py",
+      "symbol": "confirm",
+      "hash": "sha256:469c25c5bd72d6d2dbfe9c0a",
+      "line": 245,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "cbabd2be-20b2-4193-9810-fc5a6e86f21f"
+  },
+  "created": "2026-09-26T09:14:35.415Z",
+  "verified": "2026-09-26T09:35:22.586Z",
+  "verifiedCommit": "33a9ddb796d2c662a6c2f45eb9ef53fad85f33e6",
+  "confidence": 0.99,
+  "status": "fresh",
+  "uses": 16,
+  "lastUsed": "2026-09-26T09:36:11.654Z",
+  "history": [
+    {
+      "at": "2026-09-26T09:35:22.586Z",
+      "reason": "Method `Option.prompt_for_value` was renamed to `Option.ask_for_value` in the diff (line 3349). All calls updated at lines 3484 and 3522. The call path and remaining details are still accurate.",
+      "prevBody": "- `core.py:Option.__init__`: prompt=True -> `name.replace('_',' ').capitalize()`; stores prompt/confirmation_prompt/prompt_required/hide_input; `_flag_needs_value = prompt is not None and not prompt_required`.\n- `core.py:Option.consume_value` calls `Parameter.consume_value`, then prompts (source=`ParameterSource.PROMPT`) when (a) value is `FLAG_NEEDS_VALUE` sentinel (bare `--opt`), or (b) value UNSET/source DEFAULT_MAP-or-lower, and `(required or prompt_required)`; both skipped if `ctx.resilient_parsing`.\n- `core.py:Option.prompt_for_value`: computes `get_default` first; bool flag -> `termui.confirm`; else `termui.prompt(default, type=self.type, hide_input, show_choices, confirmation_prompt, value_proc=lambda x: self.process_value(ctx, x))`. So validation errors (UsageError) re-loop inside prompt.\n- `termui.py:prompt`: builds text with `_build_prompt`; inner `prompt_func` picks `hidden_prompt_func if hide_input else visible_prompt_func`; handles confirmation (\"Repeat for confirmation\", mismatch -> retry), masks value in errors via `_mask_hidden_input`, KeyboardInterrupt/EOFError -> `Abort`.\n- `termui.py:hidden_prompt_func` lazily imports getpass -> `getpass.getpass`; `visible_prompt_func = input`. `_readline_prompt` wraps the call (strips ANSI, err redirect); `confirm` also uses it."
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "row-presence-avatar-is-suppressed-for-the-current-user-feed-",
+  "title": "Row presence avatar is suppressed for the current user; feed rows are separate",
+  "kind": "invariant",
+  "answers": [
+    "Why doesn't my own avatar show on task or canvas rows in Spaces?",
+    "Where is presence avatar hidden for the current user?",
+    "Own face shown with 'You are working on this' on a channel row"
+  ],
+  "body": "Presence on task/canvas rows means \"who else is here\", so the current user's own avatar must never render.\n- Enforced in products/desktop/packages/ui/src/features/canvas/components/ChannelItemPresence.tsx:RowPresence, which returns null when `currentUserUuid && author.user.uuid === currentUserUuid`, before the idle-tier check.\n- ActiveRowPresence only builds labels for others: \"<label> is working on this\" (live) and \"<label> was here recently\". No \"You ...\" labels exist any more.\n- Do not reintroduce own-user labels or avatars in ChannelItemRow.\n- Feed rows in ChannelFeedView show the author avatar even when idle and are intentionally a separate path, not covered by this rule.",
+  "applies": "Spaces ChannelItemRow presence (task and canvas rows) in products/desktop/packages/ui",
+  "tags": [
+    "spaces",
+    "presence",
+    "desktop",
+    "canvas"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/ChannelItemPresence.tsx",
+      "symbol": "RowPresence",
+      "hash": "sha256:e4923c19330d21262753293a",
+      "line": 45,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/ChannelItemRow.test.tsx",
+      "hash": "sha256:3831b7e0b304d8b9a59000de",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105240"
+  },
+  "created": "2026-09-27T00:10:02.851Z",
+  "verified": "2026-09-27T00:10:02.851Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

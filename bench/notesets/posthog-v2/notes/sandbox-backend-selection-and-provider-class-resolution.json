@@ -1,0 +1,90 @@
+{
+  "id": "sandbox-backend-selection-and-provider-class-resolution",
+  "title": "Sandbox backend selection and provider class resolution",
+  "kind": "location",
+  "answers": [
+    "How is the sandbox backend (modal vs hogland) chosen?",
+    "Where is SANDBOX_PROVIDER read?",
+    "How does cleanup pick the sandbox class?"
+  ],
+  "body": "- Per-run backend: `temporal/process_task/activities/get_task_processing_context.py:_resolve_sandbox_backend` returns \"modal\" or \"hogland\"; fails closed to modal. `state[\"sandbox_backend\"]==\"modal\"` override always wins; hogland requires HOGLAND_API_URL+token, non-EU, no custom image, no Pi runtime, default template; a hogland override pins, else `tasks-hogland-sandbox` flag decides. Stored in `TaskProcessingContext.sandbox_backend`.\n- Class: `logic/services/sandbox.py:get_sandbox_class_for_run_backend` diverts only for hogland, else `get_sandbox_class()` reads settings `SANDBOX_PROVIDER` (docker, MODAL_DOCKER, MODAL_EVALS, hogland only in DEBUG/TEST, default Modal).\n- `get_sandbox_class_for_sandbox_id`: id prefix `box-` → hogland, else default; used by cleanup and reaper.\n- Impls: `logic/services/{modal,docker,hogland}_sandbox.py`.\n- Reporting: `provision_sandbox.py` calls `sandbox_class.create`; `temporal/metrics.py:modal_sandbox_backend_label` gives v1/v2 (MODAL_SANDBOX_V2); `models.py:SandboxSession.sandbox_backend` is NULL for Modal.",
+  "tags": [
+    "sandbox",
+    "hogland",
+    "modal"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py",
+      "symbol": "_resolve_sandbox_backend",
+      "hash": "sha256:0cb555bfc2e9ff4f3df2e4a1",
+      "line": 958,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/sandbox.py",
+      "symbol": "get_sandbox_class",
+      "hash": "sha256:47688c00d5f78f13fc53257a",
+      "line": 969,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/metrics.py",
+      "symbol": "modal_sandbox_backend_label",
+      "hash": "sha256:de147526648ecdc4b86c04f2",
+      "line": 157,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/models.py",
+      "symbol": "SandboxSession",
+      "hash": "sha256:223fc0bf81f147f82baf9bf4",
+      "line": 3550,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/sandbox.py",
+      "symbol": "get_sandbox_class_for_run_backend",
+      "hash": "sha256:ca62d8a532b046510e234a99",
+      "line": 1013,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/provision_sandbox.py",
+      "hash": "sha256:eb550d2e0a9db99f5af1e7e7",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/models.py",
+      "symbol": "SandboxSession.sandbox_backend",
+      "hash": "sha256:8cb235582be1c2c7e213da6a",
+      "line": 3593,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "70385c83-3d41-4ac9-9824-8895a4a999bb"
+  },
+  "created": "2026-09-26T20:27:10.835Z",
+  "verified": "2026-09-26T20:27:10.835Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 6,
+  "related": [
+    "sandbox-backend-resolution-and-propagation-in-process-task",
+    "hogland-hotplug-golden-flag-must-be-threaded-through-context",
+    "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+    "how-task-run-failures-are-recorded"
+  ],
+  "lastUsed": "2026-09-26T23:32:09.008Z",
+  "servedIn": [
+    "cd76606d-c96b-430c-ad43-581d2fce050c",
+    "60f35ce4-fb66-4a14-b930-15bdc40742fc",
+    "352b3da7-2bd9-4504-820e-883bf29bb3d3",
+    "3e0cf021-68ff-4925-8a2a-8f6fa0cdde6f",
+    "a7d5d4fb-c990-4968-a691-0e057ce2e931",
+    "4ceaeafb-354c-413e-8554-2eeb1b99987f"
+  ]
+}

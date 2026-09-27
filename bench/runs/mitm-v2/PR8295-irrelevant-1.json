@@ -1,0 +1,39 @@
+{
+  "id": "PR8295-irrelevant-1",
+  "task": "PR8295",
+  "area": "next-layer",
+  "arm": "irrelevant",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "8d5613a1-b3b3-4eb0-822b-8a67a7ebb11e",
+  "turns": 5,
+  "wall_ms": 14750,
+  "api_ms": 14277,
+  "cost": 0.09008700000000001,
+  "in_tokens": 120981,
+  "out_tokens": 1170,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 4
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to the UDP branch of `_get_client_hello` in `mitmproxy/addons/next_layer.py` is identical to the merged upstream code change. It gates QUIC parsing on `_starts_like_quic` and DTLS parsing on `starts_like_dtls_record`. The upstream changelog and test edits are not needed for functional equivalence.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py"
+    ]
+  },
+  "result": "I changed `_get_client_hello` in `mitmproxy/addons/next_layer.py` so QUIC flows no longer stall when `allow_hosts` or `ignore_hosts` is set. I haven't run any tests, and I didn't add one.\n\nFor UDP, the function now only tries to parse a QUIC ClientHello if `_starts_like_quic(...)` says the data plausibly is QUIC. It only tries the DTLS parse if `starts_like_dtls_record(...)` says so. This matches what the TCP branch already does with `starts_like_tls_record`.\n\nPreviously, the empty `b\"\"` data seen right after the QUIC TLS handshake failed both parsers with `ValueError`. That got turned into `NeedsMoreData`, so `_next_layer` bailed out every time. Now that data fails the heuristics, `_get_client_hello` returns `None`. The host check then falls back to `context.client.sni`, and the flow gets its layer.\n\nI didn't add a test. A natural one would call `_get_client_hello` with a UDP context and `b\"\"` and expect `None` instead of `NeedsMoreData`.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..614957808 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,19 +320,21 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n-\n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                if _starts_like_quic(data_client, context.server.address):\n+                    try:\n+                        return quic_parse_client_hello_from_datagrams([data_client])\n+                    except ValueError:\n+                        pass\n+\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\n"
+}

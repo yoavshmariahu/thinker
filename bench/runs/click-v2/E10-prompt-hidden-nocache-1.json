@@ -1,0 +1,45 @@
+{
+  "id": "E10-prompt-hidden-nocache-1",
+  "task": "E10-prompt-hidden",
+  "area": "prompts",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "6abf9b6f-7747-40af-abe4-50c0e682c72b",
+  "turns": 7,
+  "wall_ms": 22863,
+  "api_ms": 22519,
+  "cost": 0.0781224,
+  "in_tokens": 98499,
+  "out_tokens": 2482,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Bash": 2,
+      "Read": 4
+    },
+    "thinkerCalls": 0,
+    "filesRead": 2,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.9,
+    "missing": [
+      "Specifics of getpass internals (/dev/tty, termios ECHO off, fallback warning, Windows msvcrt) not described",
+      "CliRunner monkeypatching of hidden_prompt_func/visible_prompt_func in testing.py not mentioned",
+      "ParameterSource ordering explanation (default/default_map still prompt, envvar/commandline suppress) only partially given",
+      "Abort caught in Command.main printing 'Aborted!' not mentioned",
+      "Callback also runs twice, not just type conversion (minor)"
+    ],
+    "wrong": [
+      "Example prompt text 'Password: ' is illustrative rather than derived from prompt=True (would be e.g. 'Pw: '); minor",
+      "Setup line numbers are approximate (hide_input at 2944 not 2942)"
+    ],
+    "reason": "The answer correctly traces detection in Option.consume_value's final elif, prompt_for_value, termui.prompt, prompt_func choosing hidden_prompt_func, and getpass.getpass. It also covers masking, the confirmation prompt, Abort handling and the double process_value call. It omits the low-level getpass/termios details and the testing hooks, and a few line numbers are slightly off.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "When the option is absent from the command line, the flow goes from `handle_parse_result` through `Option.consume_value` and `Option.prompt_for_value` to `termui.prompt`, which reads the input with `getpass`.\n\n**1. Setup: `core.py:Option.__init__` (~2929–2941)**\n- `prompt=True` becomes `self.prompt = self.name.replace(\"_\", \" \").capitalize()`. A string `prompt` is used as given.\n- `self.hide_input` is stored (line 2942).\n- `prompt_required` defaults to `True`.\n\n**2. Entry point: `core.py:Parameter.handle_parse_result` (2677)**\n- It calls `self.consume_value(ctx, opts)` (line 2700) inside `augment_usage_errors`.\n- The result then goes through `process_value` (line 2725).\n\n**3. Detection of the missing value**\n- `core.py:Parameter.consume_value` (2428) reads `opts.get(self.name, UNSET)`, so an absent option gives `UNSET` with source `DEFAULT`.\n- It then falls back to the env var, then the default map, then `get_default`.\n- `core.py:Option.consume_value` (3465) calls that base method first (line 3477).\n- The missing value is detected in the final `elif` (3516–3523). The condition is:\n  - `value is UNSET` or the source is `DEFAULT_MAP` or later;\n  - `self.prompt is not None`;\n  - `self.required or self.prompt_required`;\n  - `not ctx.resilient_parsing`.\n- When it holds, it sets `value = self.prompt_for_value(ctx)` and `source = ParameterSource.PROMPT`.\n- The other prompt path is the `FLAG_NEEDS_VALUE` branch (3481–3485). That is for `prompt_required=False`, where the option was given on the command line without a value.\n\n**4. Building the prompt call: `core.py:Option.prompt_for_value` (3349)**\n- It calls `self.get_default(ctx)` first to lock in the default.\n- If the option is a bool flag, it calls `confirm(...)` instead. `Option.__init__` (line 3050) already rejects a boolean flag combined with `hide_input`.\n- Otherwise it calls `termui.prompt(...)` (3386) with these arguments:\n  - `hide_input=self.hide_input`\n  - `type=self.type`\n  - `confirmation_prompt=self.confirmation_prompt`\n  - `default=None` if the default is `UNSET`\n  - `value_proc=lambda x: self.process_value(ctx, x)`\n\n**5. The prompt loop: `termui.py:prompt` (132)**\n- Its inner `prompt_func` (194) picks `f = hidden_prompt_func if hide_input else visible_prompt_func`.\n- `_build_prompt` (107) builds the text, e.g. `\"Password: \"`. It appends the suffix `\": \"`, plus the choices and default if they are shown.\n- The `while True` loop (219–242) works like this:\n  - It calls `prompt_func(prompt)` and re-asks if the input is empty and there is no default.\n  - It runs `value_proc(value)`. On a `UsageError` it echoes the error, with the typed value masked by `_mask_hidden_input` (line 230) when `hide_input` is set, and loops again.\n  - If `confirmation_prompt` is set, it prompts a second time with `prompt_func(confirmation_prompt)` and repeats until the two entries match.\n\n**6. Reading hidden input from the terminal**\n- `termui.py:_readline_prompt` (84) strips ANSI codes from the prompt text if the stream doesn't support them. It calls `func(text)`, wrapped in `redirect_stdout(sys.stderr)` when `err=True`.\n- `termui.py:hidden_prompt_func` (78) does `import getpass; return getpass.getpass(prompt)`. This is what disables echo while the user types. The visible counterpart is `visible_prompt_func = input` (line 33).\n- On `KeyboardInterrupt` or `EOFError`, `prompt_func` (198–204) prints a newline itself when `hide_input` is set. `getpass` doesn't print one. It then raises `Abort`.\n\n**7. Return path**\n- The value returns to `Option.consume_value` with source `PROMPT`.\n- `handle_parse_result` then runs `process_value` on it again (2725). The prompt loop already did that conversion via `value_proc`, so the value goes through type conversion twice.",
+  "is_error": false
+}

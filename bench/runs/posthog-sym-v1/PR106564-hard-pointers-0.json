@@ -1,0 +1,98 @@
+{
+  "id": "PR106564-hard-pointers-0",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "pointers",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "39ed6fea-eb0e-48c7-bcf4-eac04e26577a",
+  "turns": 12,
+  "wall_ms": 40913,
+  "api_ms": 28351,
+  "cost": 0.34919380000000005,
+  "in_tokens": 642807,
+  "out_tokens": 2571,
+  "tools": {
+    "calls": 11,
+    "byTool": {
+      "Bash": 11
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 11,
+    "injected": [
+      "invite-validation-errors-reach-ui-only-as-a-global-toast",
+      "feature-flags-backend-lives-in-products-feature-flags-backen"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty, so no functional change was made. The upstream patch modified posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs, and the agent did not find or change any of them.",
+      "The agent's patch is empty and made no functional change. It wrongly claimed the stable chunks feature did not exist, when the upstream patch modifies the existing posthog/stable_chunks.py and posthog/utils.py to add the flag-based choice.",
+      "The agent's patch is empty and it made no functional change. It concluded the feature didn't exist and asked for clarification, but the upstream patch modifies existing stable_chunks code, so the agent failed to find it."
+    ],
+    "reason": "The agent's patch is empty, so no functional change was made. The upstream patch modified posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs, and the agent did not find or change any of them.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag evaluation selects the stable build. The author states no stable build exists in this checkout."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no logic gates the stable build on authentication and no stable build exists."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-based fallback behaviour exists. Only the current build is rendered, and no code handles the missing-flag case."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch; the author says the only query parameter the page reads is `no-preloaded-app-context`, which is unrelated. No stable-build parameter exists."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no cookie or stored choice for the build is added, and no 30-day persistence exists."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag value that decides the build is passed to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch; there is no stable-build runtime failure reload handling."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no code strips a build override parameter from the visible URL."
+        }
+      ]
+    }
+  },
+  "result": "I haven't made any changes, because the stable chunk build and its query-parameter opt-in don't exist in this checkout.\n\nI searched for stable-chunk, stable-build and stable-hash naming, and for any query-parameter handling in the page-serving path. I looked at `posthog/utils.py`, `posthog/frontend_views.py`, `frontend/src/index.html`, `frontend/build.mjs` and `common/esbuilder/`. I also searched the recent git history.\n\n- **Page serving:** the only query parameter the shell page reads is `no-preloaded-app-context`, which is unrelated.\n- **Chunk naming:** `common/esbuilder/utils.mjs` builds one set of chunks named `[name]-[hash]`, and the chunk-map loader in `chunkLoader.mjs` has no stable variant.\n- **Client-side switch:** `frontend/src/index.html` and the `copyIndexHtml` loader contain no client-side switch.\n\nThe changes needed to serve stable-named chunks per user don't exist yet either. That is a second build output (or stable filenames), a loader that can point at either, and a server-side choice of which to serve. Adding all of that would mean inventing the build and the opt-in myself, not wiring up the existing one. The flag itself would be a small addition once those pieces exist.\n\nI need one of these from you:\n\n1. **Where the feature lives:** if it's on another branch or an unmerged PR, point me at it or rebase this worktree onto it.\n2. **Build it from scratch:** if you want that, say so. I'd add:\n   - a stable-name esbuild output;\n   - a `?stable-chunks` query parameter (name it however you like);\n   - a flag check in `get_context_for_template` (`posthog/utils.py`) for authenticated users only, with the flag key you choose.\n\n   That is a bigger change than the one you described.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

@@ -1,0 +1,53 @@
+{
+  "id": "PR106579-prompt-0",
+  "task": "PR106579",
+  "area": "error_tracking",
+  "arm": "prompt",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "32527388-fb74-4bd7-b586-c41ab4e798b7",
+  "turns": 18,
+  "wall_ms": 43161,
+  "api_ms": 41743,
+  "cost": 0.4152578,
+  "in_tokens": 803007,
+  "out_tokens": 4515,
+  "tools": {
+    "calls": 17,
+    "byTool": {
+      "Bash": 11,
+      "bash": 1,
+      "Edit": 4,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 10,
+    "injected": []
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0.5,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent modified the right place for user-driven events (prepare_issue_lifecycle_event) and added assignee_name. However, it omitted assignee_email and skipped the Temporal side_effects path used for created/reopened events. It also skipped the former-member privacy guard. The change is directionally right but incomplete, so 0.5.",
+      "The agent covered only the user-driven events from prepare_issue_lifecycle_event. It skipped the Temporal side_effects path used by ingestion events, which the merged patch also changes. It also omitted assignee_email, and its user lookup has no membership check, so a former member's name could leak. The docs claim created/reopened events lack the name, which conflicts with the merged behavior. The change is partial and partly unsafe. Under the strict rubric I give it 0, since it misses a key location and adds a privacy problem. A 0.5 could be argued, since it was in the right direction for user-driven events.",
+      "The agent covered only user-driven lifecycle events in lifecycle_events.py and explicitly left ingestion-driven events (created/reopened) without names, whereas the upstream change adds names there too through temporal side_effects. It also lacks assignee_email and the former-member privacy guard. The core direction is right for the assigned event, but the coverage is incomplete and it leaks names for former members. This is a partial change, but the missing security-relevant behavior and missing paths make it fall short. I'd lean partial, but the guard is a real behavioral gap and the Temporal path is entirely missing."
+    ],
+    "reason": "The agent modified the right place for user-driven events (prepare_issue_lifecycle_event) and added assignee_name. However, it omitted assignee_email and skipped the Temporal side_effects path used for created/reopened events. It also skipped the former-member privacy guard. The change is directionally right but incomplete, so 0.5.",
+    "mustHit": 1,
+    "mustTotal": 4,
+    "touched": [
+      "products/error_tracking/backend/logic/lifecycle_events.py",
+      "products/error_tracking/backend/tests/api/test_error_tracking_api.py",
+      "products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md"
+    ]
+  },
+  "result": "User-driven issue lifecycle events now carry the assignee's display name, so Hog templates can show who an issue is assigned to. I didn't run any tests, including the ones I extended.\n\n**What changed**\n- `products/error_tracking/backend/logic/lifecycle_events.py`: a new helper, `assignee_name_property`, looks up the display name from the assignee JSON.\n  - For a user it is the full name, falling back to email. For a role it is the role name.\n  - `prepare_issue_lifecycle_event` now adds `assignee_name` next to `assignee`, and `previous_assignee_name` next to `previous_assignee`.\n  - Both keys are left out when the issue is unassigned, or when the user or role no longer exists.\n  - The existing `assignee` JSON string is unchanged, so current exact-match filters keep working.\n- `references/event-triggers.md` in the authoring skill has a new \"Assignee properties\" section. It documents the `assignee` JSON shape, when the key is absent, and the new name properties, so PostHog AI stops guessing.\n- `test_error_tracking_api.py`: the existing assign and unassign lifecycle tests now also assert `assignee_name` and `previous_assignee_name`.\n\n**Not covered**\nIngestion-driven events (`created`, `reopened`, `spiking`) come from the Rust cymbal notifications worker and don't get `assignee_name` yet. Adding it there needs a user and role name lookup in Rust, so I left it out. The skill doc says so.\n\nEach lifecycle event now costs one extra user or role lookup. I skipped the alert-delivery Temporal payload path (`AlertDeliveryWorkflowInputs`), so the alert inputs still hold only the id.",
+  "is_error": false,
+  "diff": "diff --git a/products/error_tracking/backend/logic/lifecycle_events.py b/products/error_tracking/backend/logic/lifecycle_events.py\nindex 207f99094ab..575275b0d73 100644\n--- a/products/error_tracking/backend/logic/lifecycle_events.py\n+++ b/products/error_tracking/backend/logic/lifecycle_events.py\n@@ -18,6 +18,7 @@ import structlog\n from posthog.cdp.internal_events import InternalEventEvent, InternalEventPerson, produce_internal_event\n from posthog.models.user import User\n \n+from products.access_control.backend.models.role import Role\n from products.error_tracking.backend.models import (\n     ErrorTrackingAlert,\n     ErrorTrackingAlertThread,\n@@ -63,6 +64,20 @@ def assignee_property(assignee: dict[str, Any]) -> str:\n     return json.dumps({\"type\": assignee[\"type\"], \"id\": assignee_id}, separators=(\",\", \":\"))\n \n \n+def assignee_name_property(assignee_json: str) -> Optional[str]:\n+    # Hog templates cannot resolve the id in the `assignee` property, so events also\n+    # carry a display name: the user's full name (or email) or the role's name.\n+    try:\n+        assignee = json.loads(assignee_json)\n+        if assignee[\"type\"] == \"user\":\n+            user = User.objects.filter(id=assignee[\"id\"]).only(\"first_name\", \"last_name\", \"email\").first()\n+            return (user.get_full_name() or user.email) if user else None\n+        role = Role.objects.filter(id=assignee[\"id\"]).only(\"name\").first()\n+        return role.name if role else None\n+    except (ValueError, KeyError, TypeError):\n+        return None\n+\n+\n def _current_assignee_property(issue: ErrorTrackingIssue) -> Optional[str]:\n     assignment = ErrorTrackingIssueAssignment.objects.filter(issue_id=issue.id).only(\"user_id\", \"role_id\").first()\n     if assignment is None:\n@@ -138,6 +153,11 @@ def prepare_issue_lifecycle_event(\n         **({\"assignee\": current_assignee} if current_assignee is not None else {}),\n         **(extra_properties or {}),\n     }\n+    for source_key, name_key in ((\"assignee\", \"assignee_name\"), (\"previous_assignee\", \"previous_assignee_name\")):\n+        source_value = properties.get(source_key)\n+        name = assignee_name_property(source_value) if isinstance(source_value, str) else None\n+        if name is not None:\n+            properties[name_key] = name\n     internal_event = InternalEventEvent(event=event, distinct_id=issue_id, properties=properties, uuid=notification_id)\n \n     person = None\ndiff --git a/products/error_tracking/backend/tests/api/test_error_tracking_api.py b/products/error_tracking/backend/tests/api/test_error_tracking_api.py\nindex b48257632c5..2a213975010 100644\n--- a/products/error_tracking/backend/tests/api/test_error_tracking_api.py\n+++ b/products/error_tracking/backend/tests/api/test_error_tracking_api.py\n@@ -793,6 +793,7 @@ class TestErrorTracking(APIBaseTest):\n         # Byte-identical to cymbal's compact serde output so exact-match filters work.\n         assert event.properties[\"assignee\"] == f'{{\"type\":\"user\",\"id\":{self.user.id}}}'\n         assert json.loads(event.properties[\"assignee\"]) == {\"type\": \"user\", \"id\": self.user.id}\n+        assert event.properties[\"assignee_name\"] == (self.user.get_full_name() or self.user.email)\n \n     def test_issue_unassign_produces_lifecycle_internal_event(self):\n         issue = self.create_issue()\n@@ -817,6 +818,8 @@ class TestErrorTracking(APIBaseTest):\n         assert event.event == \"$error_tracking_issue_unassigned\"\n         assert event.distinct_id == str(issue.id)\n         assert event.properties[\"previous_assignee\"] == f'{{\"type\":\"user\",\"id\":{self.user.id}}}'\n+        assert event.properties[\"previous_assignee_name\"] == (self.user.get_full_name() or self.user.email)\n+        assert \"assignee_name\" not in event.properties\n \n     def test_issue_merge_produces_lifecycle_event_and_activity_log(self):\n         issue_one = self.create_issue(fingerprints=[\"fingerprint_one\"])\ndiff --git a/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md b/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md\nindex 5e6b2fc988b..9493fbacf60 100644\n--- a/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md\n+++ b/products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md\n@@ -3,6 +3,19 @@\n The three lifecycle events that error tracking alerts ride on. Each is fired by a different part of the\n ingestion / detection pipeline, has a different cadence, and exposes a different property surface.\n \n+## Assignee properties\n+\n+Events that carry an assignee (`assigned`, and any user-driven transition on an assigned issue) expose:\n+\n+- `event.properties.assignee` is a JSON string, for example `{\"type\":\"user\",\"id\":1234}` or `{\"type\":\"role\",\"id\":\"<uuid>\"}`.\n+  The key is absent when the issue is unassigned.\n+  Hog templates cannot resolve the id, so use `assignee_name` for display.\n+- `event.properties.assignee_name` is the assignee's full name (or email) for a user, or the role name for a role.\n+  It is absent when the issue is unassigned.\n+- `event.properties.previous_assignee` and `previous_assignee_name` describe the prior assignee on `unassigned` events.\n+\n+Ingestion-driven events (`created`, `reopened`, `spiking`) carry `assignee` but not `assignee_name`.\n+\n ## `$error_tracking_issue_created`\n \n **Fires:** once, the first time a fingerprint produces an exception that maps to a new issue. Subsequent\n",
+  "distill": null
+}

@@ -1,0 +1,41 @@
+{
+  "id": "PR8333-nocache-1",
+  "task": "PR8333",
+  "area": "web-app",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "46412f60-78ce-47db-a15f-6b0569b9cae0",
+  "turns": 7,
+  "wall_ms": 18917,
+  "api_ms": 18436,
+  "cost": 0.0612466,
+  "in_tokens": 164660,
+  "out_tokens": 1399,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Bash": 6
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same places as the upstream patch. The frontend now dispatches `{ response: { reason } }`, and the backend handler accepts `reason` instead of `msg`. Its `setattr(response, \"reason\", str(v))` behaves the same as upstream's explicit `response.reason = str(v)`. `http_version` is handled as before. The agent's test changes match the upstream test edits. It did not add the extra http_version-only test, which doesn't affect behavior.",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "mitmproxy/tools/web/app.py",
+      "test/mitmproxy/tools/web/test_app.py",
+      "web/src/js/components/FlowView/HttpMessages.tsx"
+    ]
+  },
+  "result": "Editing the response reason phrase in the web UI now sends the new phrase to the server. I haven't run any tests, per your instructions.\n\nThe frontend was sending `{ response: { msg } }`, but the server-side `Response` object only has `reason`. The `msg` key was also what the backend's update handler accepted, so a UI edit set a stray `msg` attribute and the phrase itself never changed.\n\n- **Frontend** (`web/src/js/components/FlowView/HttpMessages.tsx`): the reason-phrase editor now dispatches `{ response: { reason } }`.\n- **Backend** (`mitmproxy/tools/web/app.py`): the response update handler now accepts `reason` instead of `msg`. `http_version` is handled as before.\n- **Test** (`test/mitmproxy/tools/web/test_app.py`): the flow-update test now sends `\"reason\"` and asserts `f.response.reason`. It previously asserted `f.response.msg`, which passed only because the stray attribute was being set.\n\nAny API client that was sending `response.msg` will now get a 400 \"Unknown update response.msg\" error and must send `reason`.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/tools/web/app.py b/mitmproxy/tools/web/app.py\nindex c207701ed..120cfca56 100644\n--- a/mitmproxy/tools/web/app.py\n+++ b/mitmproxy/tools/web/app.py\n@@ -608,7 +608,7 @@ class FlowHandler(RequestHandler):\n                 elif a == \"response\" and hasattr(flow, \"response\"):\n                     response: mitmproxy.http.Response = flow.response\n                     for k, v in b.items():\n-                        if k in [\"msg\", \"http_version\"]:\n+                        if k in [\"reason\", \"http_version\"]:\n                             setattr(response, k, str(v))\n                         elif k == \"code\":\n                             response.status_code = int(v)\ndiff --git a/test/mitmproxy/tools/web/test_app.py b/test/mitmproxy/tools/web/test_app.py\nindex 7922484ef..ae1becbe2 100644\n--- a/test/mitmproxy/tools/web/test_app.py\n+++ b/test/mitmproxy/tools/web/test_app.py\n@@ -207,7 +207,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n                 \"content\": \"req\",\n             },\n             \"response\": {\n-                \"msg\": \"Non-Authorisé\",\n+                \"reason\": \"Non-Authorisé\",\n                 \"code\": 404,\n                 \"headers\": [(\"bar\", \"baz\")],\n                 \"trailers\": [(\"foo\", \"bar\")],\n@@ -221,7 +221,7 @@ class TestApp(tornado.testing.AsyncHTTPTestCase):\n         assert f.request.port == 123\n         assert f.request.headers[\"foo\"] == \"bar\"\n         assert f.request.text == \"req\"\n-        assert f.response.msg == \"Non-Authorisé\"\n+        assert f.response.reason == \"Non-Authorisé\"\n         assert f.response.status_code == 404\n         assert f.response.headers[\"bar\"] == \"baz\"\n         assert f.response.text == \"resp\"\ndiff --git a/web/src/js/components/FlowView/HttpMessages.tsx b/web/src/js/components/FlowView/HttpMessages.tsx\nindex 9f1dcb20e..6c612e997 100644\n--- a/web/src/js/components/FlowView/HttpMessages.tsx\n+++ b/web/src/js/components/FlowView/HttpMessages.tsx\n@@ -104,9 +104,11 @@ function ResponseLine({ flow }: ResponseLineProps) {\n                     &nbsp;\n                     <ValueEditor\n                         content={flow.response.reason}\n-                        onEditDone={(msg) =>\n+                        onEditDone={(reason) =>\n                             dispatch(\n-                                flowActions.update(flow, { response: { msg } }),\n+                                flowActions.update(flow, {\n+                                    response: { reason },\n+                                }),\n                             )\n                         }\n                         selectAllOnClick={true}\n"
+}

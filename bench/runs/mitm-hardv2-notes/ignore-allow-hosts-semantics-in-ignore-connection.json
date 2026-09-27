@@ -1,0 +1,43 @@
+{
+  "id": "ignore-allow-hosts-semantics-in-ignore-connection",
+  "title": "Ignore/allow hosts semantics in _ignore_connection",
+  "kind": "location",
+  "answers": [
+    "How do ignore_hosts and allow_hosts work?",
+    "What data does _ignore_connection match against?",
+    "Why are Host header/SNI only checked when server.address is known?"
+  ],
+  "body": "`mitmproxy/addons/next_layer.py:NextLayer._ignore_connection` reads `ctx.options` (ignore_hosts/allow_hosts) directly, not the compiled lists from `configure`.\n- Returns False early if neither option set, and for the WireGuard DNS special case 10.0.0.53:53.\n- Candidates `host:port`: `server.peername`, `server.address`; only if `server.address` is known also HTTP Host header (`_get_host_header`, appends port), SNI from ClientHello (`_get_client_hello`), and `client.sni`. Deliberate: without a destination address an ignored connection couldn't be forwarded upstream.\n- Order: allow_hosts set and no candidate matches -> ignored; then any ignore_hosts match -> ignored; else not ignored.\n- Evaluated first in `_next_layer`, so it overrides reverse/explicit proxy modes.",
+  "tags": [
+    "ignore_hosts",
+    "allow_hosts"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "NextLayer._ignore_connection",
+      "hash": "sha256:88ea2c961603b06b05cbfa7e",
+      "line": 198,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "212aa119-3de6-48cd-ab96-a1d2c87158c9"
+  },
+  "created": "2026-09-26T09:32:07.258Z",
+  "verified": "2026-09-26T09:32:07.258Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 11,
+  "lastUsed": "2026-09-26T19:45:09.212Z",
+  "related": [
+    "bytes-heuristics-next-layer-inspects-quic-host-header-raw-tc",
+    "nextlayer-next-layer-decision-order-tls-http-quic-tcp-udp-dn"
+  ],
+  "servedIn": [
+    "7f033eb6-a554-4996-aeb0-5d407bb18fce",
+    "aebbddc1-1441-4026-950b-12f76eaaac79"
+  ]
+}

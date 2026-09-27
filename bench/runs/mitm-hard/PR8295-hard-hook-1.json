@@ -1,0 +1,71 @@
+{
+  "id": "PR8295-hard-hook-1",
+  "task": "PR8295-hard",
+  "area": "next-layer",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "58943f9f-f683-42ae-97c5-bc0e54436f63",
+  "turns": 15,
+  "wall_ms": 52829,
+  "api_ms": 52072,
+  "cost": 0.1968712,
+  "in_tokens": 506801,
+  "out_tokens": 4562,
+  "tools": {
+    "calls": 14,
+    "byTool": {
+      "Bash": 12,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 12,
+    "injected": [
+      "ignore-allow-hosts-semantics-in-ignore-connection",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [
+      "No `_starts_like_quic(data_client, context.server.address)` guard around the QUIC ClientHello parse. The upstream patch adds it."
+    ],
+    "wrong": [],
+    "reason": "The agent edited the right function, the UDP branch of `_get_client_hello`. It gated the DTLS parse behind `starts_like_dtls_record`, which is the same gate upstream adds. This removes the stall: DTLS parsing of non-DTLS QUIC datagrams returned None, and that turned into `NeedsMoreData`, so the layer decision deferred forever. The agent did not add the upstream `_starts_like_quic` guard on the QUIC parse. That guard looks like a safety and precision measure, and I judge it not essential to the stall fix, so the behavior is largely equivalent. The agent's test uses a truncated real ClientHello rather than the upstream invalid-QUIC bytes, but it covers the same path.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py",
+      "test/mitmproxy/addons/test_next_layer.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent changed the right place: the UDP branch of `_get_client_hello` in next_layer.py. Non-full-QUIC-ClientHello datagrams fell through to the DTLS parser, which returned None and became NeedsMoreData, stalling the flow. The agent gates the DTLS parse and NeedsMoreData behind `starts_like_dtls_record`, the same gate upstream added. QUIC long-header packets start with 0x80 or higher, never DTLS's 0x16, so they now return None and are decided by address. Upstream also gates the QUIC parse behind `_starts_like_quic`, but that is not needed for the stall, since invalid QUIC already raises ValueError and is caught. The behavior for the stall is equivalent. This was judged from reading the diffs only; nothing was run.",
+      "The agent changed the right place, `_get_client_hello` in `next_layer.py`. The DTLS parse and its `NeedsMoreData` now run only when `starts_like_dtls_record(data_client)` is true, which is the stall fix in the upstream patch. QUIC packets never start with 0x16 (long headers have the high bit set, short headers have the fixed bit 0x40 set), so they now return None instead of deferring. The agent did not add the upstream `_starts_like_quic` gate on the QUIC parse. That gate is an extra guard and is not needed to stop the stall.",
+      "The agent changed the right function, `_get_client_hello` in `next_layer.py`. Like the upstream patch, it now runs the DTLS parse (and its `NeedsMoreData`) only when `starts_like_dtls_record(data_client)` is true. Non-DTLS UDP data such as an invalid or partial QUIC packet therefore returns `None` instead of stalling, which is the stall the upstream test \"invalid quic\" covers. The upstream patch also gates the QUIC parse behind `_starts_like_quic`. That extra check looks like an optimisation, since `quic_parse_client_hello_from_datagrams` raises `ValueError` on bad input and the code already falls through. I judge the behaviour equivalent for the reported bug."
+    ]
+  },
+  "result": "I changed `_get_client_hello` in `mitmproxy/addons/next_layer.py` so QUIC connections are no longer left waiting when host ignoring is on. I haven't run the tests, and I haven't confirmed the stall on a live QUIC connection.\n\n**Cause:** `_ignore_connection` calls `_get_client_hello` for every connection when `ignore_hosts` or `allow_hosts` is set. For UDP, that function tries to parse a QUIC ClientHello first. If the datagram wasn't a complete QUIC ClientHello, it fell through to the DTLS parser. That parser returns `None` when it finds no complete record, and the code turned that into `NeedsMoreData`. QUIC packets that aren't a full ClientHello, such as a hello split across datagrams or a later short-header packet, would therefore make the layer decision defer indefinitely.\n\n**Fix:** The DTLS parse, and its `NeedsMoreData`, now runs only if `starts_like_dtls_record(data_client)` is true. Other UDP data returns `None` from `_get_client_hello`. `_next_layer` then decides normally: the connection is either ignored by address or passed to the QUIC or UDP layers.\n\n**Test:** I added a case to `test_ignore_connection` in `test/mitmproxy/addons/test_next_layer.py`. It feeds a truncated QUIC ClientHello (`quic_client_hello[:-100]`) and expects `False` rather than `NeedsMoreData`.\n\nIf a QUIC ClientHello is split across several datagrams, the host is not matched against SNI. The flow is decided from the address alone instead of waiting for the rest of the hello.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..94defd163 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -325,14 +325,18 @@ class NextLayer:\n                 except ValueError:\n                     pass\n \n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                # Only wait for more data if this actually looks like DTLS.\n+                # Otherwise (e.g. QUIC packets that are not a full ClientHello)\n+                # we would defer the layer decision forever and stall the flow.\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\ndiff --git a/test/mitmproxy/addons/test_next_layer.py b/test/mitmproxy/addons/test_next_layer.py\nindex 4694e3529..a42b2be5b 100644\n--- a/test/mitmproxy/addons/test_next_layer.py\n+++ b/test/mitmproxy/addons/test_next_layer.py\n@@ -278,6 +278,15 @@ class TestNextLayer:\n                 True,\n                 id=\"quic sni\",\n             ),\n+            pytest.param(\n+                [\"example.com\"],\n+                [],\n+                \"udp\",\n+                \"192.0.2.1\",\n+                quic_client_hello[:-100],\n+                False,\n+                id=\"incomplete quic client hello does not stall\",\n+            ),\n             # allow\n             pytest.param(\n                 [],\n",
+  "grade0": {
+    "score": 0.85,
+    "missing": [
+      "No `_starts_like_quic(data_client, context.server.address)` guard around the QUIC ClientHello parse. The upstream patch adds it."
+    ],
+    "wrong": [],
+    "reason": "The agent edited the right function, the UDP branch of `_get_client_hello`. It gated the DTLS parse behind `starts_like_dtls_record`, which is the same gate upstream adds. This removes the stall: DTLS parsing of non-DTLS QUIC datagrams returned None, and that turned into `NeedsMoreData`, so the layer decision deferred forever. The agent did not add the upstream `_starts_like_quic` guard on the QUIC parse. That guard looks like a safety and precision measure, and I judge it not essential to the stall fix, so the behavior is largely equivalent. The agent's test uses a truncated real ClientHello rather than the upstream invalid-QUIC bytes, but it covers the same path.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py",
+      "test/mitmproxy/addons/test_next_layer.py"
+    ]
+  }
+}

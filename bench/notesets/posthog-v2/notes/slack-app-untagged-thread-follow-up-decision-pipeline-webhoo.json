@@ -1,0 +1,84 @@
+{
+  "id": "slack-app-untagged-thread-follow-up-decision-pipeline-webhoo",
+  "title": "Slack app untagged thread follow-up decision pipeline (webhook gates then workflow)",
+  "kind": "callpath",
+  "answers": [
+    "When does the Slack app respond to an untagged thread reply?",
+    "Where is untagged_followup_mode evaluated?",
+    "What order do gates run for Slack thread follow-ups?",
+    "What happens for ask vs auto vs never follow-up mode?"
+  ],
+  "body": "Webhook (products/slack_app/backend/api.py, event routing ~L2200+): DMs (channel_type==im) -> `_route_assistant_event`; `app_mention` always starts a run; channel `message` events are untagged follow-ups.\nDrops: `_app_mention_ignore_reason` (edit, bot/app authored via `_app_authorship_ignore_reason`, `_every_mention_is_a_path_segment`); `_thread_message_ignore_reason` (no user/text, edits, subtypes except file_share); `_is_top_level_channel_post`.\nFollow-up gate order: region gate `resolve_region_or_terminal_route` -> `discussion_replies.try_ingest_discussion_reply` -> `_resolve_untagged_followup_mapping` (needs SlackThreadTaskMapping) -> `_message_tags_bot` (app_mention copy owns tagged replies) -> `resolve_user_for_workspace` (services/integration_resolver.py) -> mapping integration must be in resolution.candidates (`no_access_to_thread_team`) -> `slack.missing_scopes(REQUIRED_SLACK_SCOPES)` -> `_channel_is_approved` (ext-shared only) -> `_untagged_followups_switched_off` -> `_start_mention_workflow(untagged_followup=True)`.\nMissing scopes/unapproved channel/unresolved user notify for mentions but are silent for follow-ups.\nWorkflow (posthog/temporal/ai/slack_app/posthog_code_slack_mention.py `PostHogCodeSlackMentionWorkflow.run`): billing quota -> `classify_untagged_followup_activity` (find_addressed_bot_user_id drops replies to other apps; `classify_message_is_agent_directed`, default deny, skipped when confirmed or file-only) -> `request_untagged_followup_confirmation_activity` (ask: ephemeral Run/Dismiss via `_post_untagged_followup_prompt`; auto: returns False) -> `forward_posthog_code_followup_activity`.\nRun button: `_handle_untagged_followup_run` sets untagged_followup_confirmed=True (skips classifier+prompt) and re-checks `_is_org_member`/`_can_access_team`.",
+  "tags": [
+    "slack",
+    "temporal",
+    "threads"
+  ],
+  "deps": [
+    {
+      "path": "products/slack_app/backend/api.py",
+      "symbol": "_thread_message_ignore_reason",
+      "hash": "sha256:931601656c361ce2d4ab7340",
+      "line": 1365,
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/api.py",
+      "symbol": "_untagged_followups_switched_off",
+      "hash": "sha256:435784d585eacff72efa576d",
+      "line": 1450,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/posthog_code_slack_mention.py",
+      "symbol": "PostHogCodeSlackMentionWorkflow",
+      "hash": "sha256:1c6e42c5d7ac2034a5fe48ac",
+      "line": 49,
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/discussion_replies.py",
+      "symbol": "try_ingest_discussion_reply",
+      "hash": "sha256:ea43243c17dd88a103a535ce",
+      "line": 23,
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/services/integration_resolver.py",
+      "symbol": "resolve_user_for_workspace",
+      "hash": "sha256:318d8278526f2cac7c1a3ced",
+      "line": 354,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/posthog_code_slack_mention.py",
+      "symbol": "PostHogCodeSlackMentionWorkflow.run",
+      "hash": "sha256:647f5511ddbbe9a7fccca2b0",
+      "line": 72,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "42d88004-4889-4694-be0c-0150e5f2e201"
+  },
+  "created": "2026-09-27T00:25:05.327Z",
+  "verified": "2026-09-27T00:25:05.327Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 6,
+  "related": [
+    "slack-app-billing-quota-gate-lives-only-in-the-temporal-work",
+    "slack-app-temporal-workflows-and-activities"
+  ],
+  "lastUsed": "2026-09-27T06:18:16.582Z",
+  "servedIn": [
+    "8d634aa7-5c3e-4d13-99a2-aefd91be94b4",
+    "dae3994c-821b-4590-b55d-a12fda3d03e4",
+    "5cdc0858-6dfe-42a3-8ce3-fc855a9e02e0",
+    "935dec57-ba8d-4e31-9b6a-25dacfbe2e3d",
+    "9c933025-37f3-48d5-a938-05d64dd2de3d",
+    "d5fcbf38-6672-44fc-a69b-25b97b85127d"
+  ]
+}

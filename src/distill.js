@@ -134,6 +134,8 @@ Write a note ONLY for understanding that (a) took the agent real effort to estab
 - gotcha: a trap the agent fell into or discovered (e.g. two similarly named functions, an order dependency, a cache that must be cleared).
 - rationale: WHY something is the way it is: rejected approaches, incident-driven constraints, deliberate limitations. Only if the transcript contains evidence for it.
 - overview: a compact map of the module structure relevant to a whole area, only when the agent had to assemble it from many files.
+- invariant: a condition any change in this area must respect: permission or ownership checks, status/eligibility guards, feature-flag gating, fields or stores that must stay in sync, ordering requirements. State the rule, where it is enforced (file:symbol), and what breaks if it is skipped. These are the most valuable notes for an agent that has already found the code and is deciding what the change must include.
+- fix: a record of a bug that was fixed, in four parts: Symptom (as a user would report it), Root cause (file:symbol), Fix pattern (what kind of change resolved it), Constraints (when the pattern applies and when it does not).
 
 Rules:
 - Do NOT write "this file contains ..." summaries. Do NOT restate the task or what the agent changed in this session unless that reveals a reusable rule.

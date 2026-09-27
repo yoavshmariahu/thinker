@@ -1,0 +1,73 @@
+{
+  "id": "PR8196-hard-live-1",
+  "task": "PR8196-hard",
+  "area": "utils",
+  "arm": "live",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "d405231e-a052-4bc3-af52-8682579ca4ba",
+  "turns": 5,
+  "wall_ms": 14507,
+  "api_ms": 13996,
+  "cost": 0.08791680000000002,
+  "in_tokens": 98814,
+  "out_tokens": 1402,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Read": 1,
+      "Edit": 2,
+      "Bash": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": [
+      "is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via",
+      "web-frontend-tests-web-npm"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [
+      "Cut point for short inputs whose bytes at 100..len-1 are all continuation bytes may differ slightly (agent cuts at len(s), upstream falls through the loop without a break), but the effect on the final result is negligible."
+    ],
+    "reason": "The agent changed the right line in is_mostly_bin and stopped s[cut] from indexing past the end for inputs of 101-103 bytes. That removes the IndexError, and results for normal inputs are unchanged. It treats an out-of-range cut as a character boundary, whereas upstream shortens the loop range. The two approaches differ only in a rare edge case, and the effect on the final result is negligible.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent guards the same lookahead loop in is_mostly_bin against reading past the end of the input, so the IndexError is gone. Results for inputs over 103 bytes are unchanged. For 101–103 byte inputs the agent keeps the whole input where the merged patch likely cuts to 100 bytes, which changes at most 3 trailing continuation bytes and is practically equivalent.",
+      "The agent changed the same line in `is_mostly_bin` and stopped the out-of-range `s[cut]` read, which fixes the IndexError. Results for normal inputs are unchanged. There is one small difference from upstream, which I inferred without seeing the code after the loop. For 101–103 byte inputs where every byte from index 100 onward is a continuation byte, the agent keeps the whole input. Upstream cuts to 100 bytes. That could only change the result in rare threshold cases, so I count the two as functionally equivalent.",
+      "The agent fixed the same loop in is_mostly_bin with a bounds guard (cut < len(s)), which removes the IndexError. Results for normal inputs are unchanged. For 101–103 byte inputs it may cut slightly differently from upstream, but the binary/text classification should be effectively the same."
+    ]
+  },
+  "result": "I fixed the `IndexError` in `is_mostly_bin` in `mitmproxy/utils/strutils.py`. I didn't run the tests, as you asked.\n\n**Cause:** for inputs of 101–103 bytes, the loop that looks for a safe UTF-8 cut point read `s[cut]` for `cut` in 100–103. That index is past the end of the data, so it raised.\n\n**Fix:** a cut at or beyond `len(s)` now counts as a character boundary, so there is nothing to split. The check is now `cut < len(s) and (s[cut] >> 6) == 0b10`. Inputs of 101–103 bytes are simply kept whole. Inputs of 100 bytes or fewer skip the block, and longer inputs cut at the same point as before, so results for normal inputs don't change.\n\n**Test:** in `test/mitmproxy/utils/test_strutils.py::test_is_mostly_bin`, I added checks for lengths 101–104. `n * b\"a\"` should come back as not binary, and `n * b\"\\x80\"` should come back as binary.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..ae6c52bb6 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -133,7 +133,8 @@ def is_mostly_bin(s: bytes) -> bool:\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n         for cut in range(100, 104):\n-            is_continuation_byte = (s[cut] >> 6) == 0b10\n+            # If the data ends at the cut, there is nothing to split.\n+            is_continuation_byte = cut < len(s) and (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\n                 s = s[:cut]\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..8fbfa1711 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,10 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # inputs just over the 100 byte limit must not index past the end\n+    for n in (101, 102, 103, 104):\n+        assert not strutils.is_mostly_bin(n * b\"a\")\n+        assert strutils.is_mostly_bin(n * b\"\\x80\")\n \n \n def test_is_xml():\n",
+  "distill": "attest  confirmed    is-mostly-bin-is-the-binary-heuristic-but-not-used-by-conten → c=98%\nattest  unused       python-test-lint-typecheck-commands-tox-in-pyproject-run-via → c=62%\nattest  unused       web-frontend-tests-web-npm → c=67%\ndistilled 6 events (2 exploration calls) → 0 new, 0 merged; cost $0.034\n",
+  "grade0": {
+    "score": 0.93,
+    "missing": [],
+    "wrong": [
+      "Cut point for short inputs whose bytes at 100..len-1 are all continuation bytes may differ slightly (agent cuts at len(s), upstream falls through the loop without a break), but the effect on the final result is negligible."
+    ],
+    "reason": "The agent changed the right line in is_mostly_bin and stopped s[cut] from indexing past the end for inputs of 101-103 bytes. That removes the IndexError, and results for normal inputs are unchanged. It treats an out-of-range cut as a character boundary, whereas upstream shortens the loop range. The two approaches differ only in a rare edge case, and the effect on the final result is negligible.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ]
+  }
+}

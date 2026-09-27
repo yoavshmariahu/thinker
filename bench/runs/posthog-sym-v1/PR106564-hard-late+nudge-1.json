@@ -1,0 +1,101 @@
+{
+  "id": "PR106564-hard-late+nudge-1",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "late+nudge",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "869e19b0-ed18-4916-9e8a-70a5f32470cf",
+  "turns": 11,
+  "wall_ms": 51459,
+  "api_ms": 25886,
+  "cost": 0.19943860000000002,
+  "in_tokens": 584418,
+  "out_tokens": 2330,
+  "tools": {
+    "calls": 10,
+    "byTool": {
+      "Bash": 10
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 10,
+    "injected": [
+      "chunk-map-file-and-preload-manifest",
+      "slack-app-http-entry-points-and-api-map",
+      "invite-validation-errors-reach-ui-only-as-a-global-toast",
+      "backend-asset-serving-js-url-static-dirs-templates-from-dist",
+      "frontend-build-esbuild-config-chunk-naming-index-html-genera"
+    ],
+    "lateEvents": 9,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty and it made no functional change. It said it could not find the stable chunk code, but posthog/stable_chunks.py exists upstream and contains the opt-in logic. The request was not implemented.",
+      "The agent's patch is empty, so it made no functional change. It said it could not find the stable chunk code, but the merged patch modifies posthog/stable_chunks.py, posthog/utils.py and common/esbuilder/utils.mjs, and the request is not achieved.",
+      "The agent patch is empty and made no functional change. It did not locate posthog/stable_chunks.py, which already holds the opt-in logic that needed the feature flag gating."
+    ],
+    "reason": "The agent's patch is empty and it made no functional change. It said it could not find the stable chunk code, but posthog/stable_chunks.py exists upstream and contains the opt-in logic. The request was not implemented.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag evaluation selects the stable build. Author states no feature flag exists."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no logic gates enrolment on login status."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag-based handling exists, so the criterion's behaviour is not implemented."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; the author says no query-parameter opt-in exists in the checkout."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no remembered choice (cookie, ~30 days) is implemented."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no flag value is passed to the analytics client."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; no runtime-failure reload handling for the stable build exists."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Patch is empty; nothing removes a query parameter from the address."
+        }
+      ]
+    }
+  },
+  "result": "I can't find the change to make. Nothing in this checkout matches a \"stable chunk build\", and nothing reads a query parameter to opt into one. I made no changes.\n\nI searched for the obvious terms: `stable` near `chunk`, `build` or `bundle`, `location.search` and `URLSearchParams` in the esbuilder, and `request.GET` in `posthog/utils.py` and `posthog/views.py`. I also searched the recent git log for chunk-related commits. The only hits were unrelated.\n\nWhat the build does today:\n- **Entry files:** `frontend/build.mjs` and `common/esbuilder/utils.mjs` build hashed entry and chunk files (`chunkNames: '[name]-[hash]'`).\n- **Chunk map:** `copyIndexHtml` writes a content-hashed chunk-map file, and `chunkLoader.mjs` loads it.\n- **Preload hints:** `_resolve_entry_assets` in `posthog/utils.py` adds preload links to the index page.\n- **Flag or opt-in:** none of these has a feature flag or a manual opt-in.\n\nIf I guessed at what \"stable\" means, I'd probably build the wrong thing. The variant could mean non-hashed chunk names, a different chunk-splitting setup, or something on a branch or PR I don't have.\n\nI need one of these to continue:\n- The branch or PR that adds the stable build and its opt-in parameter.\n- The name of the query parameter and the files that read it.\n- A definition of what \"stable\" should mean here, so I can build both the variant and the gating.\n\nOnce I know what the opt-in does, the gating is small. Django would check the feature flag in `posthog/utils.py` when it renders the index page, for authenticated users only, so anonymous users are never enrolled. It would also honor the existing query parameter as an override. Django would then pass the choice into the template context so the page serves the matching build.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

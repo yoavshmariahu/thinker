@@ -1,0 +1,76 @@
+{
+  "id": "web-ui-reverse-order-view-order-reversed-option-is-unused-re",
+  "title": "Web UI reverse order: view_order_reversed option is unused; reversal is the desc sort",
+  "kind": "gotcha",
+  "answers": [
+    "where is view_order_reversed used in the web frontend",
+    "why do live flows appear at wrong end in reversed view",
+    "how does the flow view sort in mitmweb"
+  ],
+  "body": "- `view_order_reversed` appears only in `web/src/js/ducks/_options_gen.ts` (type + default false); no component/reducer reads it.\n- Reversal in the web UI = sort state `{column, desc}` in `ducks/flows/index.ts` (`setSort`, `makeSort`), toggled from `components/FlowTable/FlowTableHead.tsx`.\n- `makeSort` returns a comparator using `sortFunctions[column]` from `flow/utils.ts`; with no column it returns `()=>0`.\n- **BUG:** `sortFunctions.index` still returns `()=>0` (web/src/js/flow/utils.ts), so under desc every live flow ties and `findInsertPos` (`ducks/flows/_utils.ts`) appends at the end.\n- **Proposed fix:** change `sortFunctions.index` to return `flow.timestamp_created` (not yet applied).\n- Other columns with ties under desc also append at the end.",
+  "applies": "mitmweb frontend at this commit; if the option gets wired into the reducer, this changes.",
+  "tags": [
+    "web",
+    "sort",
+    "flows"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/flow/utils.ts",
+      "symbol": "sortFunctions",
+      "hash": "sha256:4a99533a48c6e3d4e8f7c7a2",
+      "line": 285,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/flows/index.ts",
+      "symbol": "makeSort",
+      "hash": "sha256:0b9de4ddc08d8f8623971dfe",
+      "line": 126,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/flows/_utils.ts",
+      "symbol": "findInsertPos",
+      "hash": "sha256:851aac461b4ace6974a1d965",
+      "line": 97,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/_options_gen.ts",
+      "hash": "sha256:faa25e0ffb943bbceca70250",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "bc30eb19-c9ec-4988-bd70-b1e4d31d87f9"
+  },
+  "created": "2026-09-26T19:45:51.063Z",
+  "verified": "2026-09-26T19:51:07.462Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 1,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "flow-arrival-and-filter-evaluation-websocket-to-view-update",
+    "flows-duck-state-shape-and-reducer-actions"
+  ],
+  "lastUsed": "2026-09-26T19:50:49.389Z",
+  "servedIn": [
+    "d165ec15-0e2c-4d80-aea5-8efd861df2d2",
+    "a3f6ee4a-cc09-4011-9888-519597e64d14"
+  ],
+  "history": [
+    {
+      "at": "2026-09-26T19:47:25.777Z",
+      "reason": "The analysis of the bug is correct: `sortFunctions.index` still returns `() => 0` (confirmed in web/src/js/flow/utils.ts:3), causing ties under desc order. However, the note claims \"Fix used: return `flow.timestamp_created`\" but this fix has NOT been applied—the code still shows the broken `() => 0` with a comment acknowledging it's broken. The proposed solution is valid but hasn't been implemented yet.",
+      "prevBody": "- `view_order_reversed` appears only in `web/src/js/ducks/_options_gen.ts` (type + default false); no component/reducer reads it.\n- Reversal in the web UI = sort state `{column, desc}` in `ducks/flows/index.ts` (`setSort`, `makeSort`), toggled from `components/FlowTable/FlowTableHead.tsx`.\n- `makeSort` returns a comparator using `sortFunctions[column]` from `flow/utils.ts`; with no column it returns `()=>0`.\n- `sortFunctions.index` was constant `()=>0`, so under desc every live flow tied and `findInsertPos` (`ducks/flows/_utils.ts`) appended at the end. Fix used: return `flow.timestamp_created`.\n- Other columns with ties under desc still append at the end.\n- Wiring the server option itself into the reducer was not done."
+    }
+  ],
+  "attest": {
+    "confirmed": 1,
+    "contradicted": 0,
+    "unused": 1
+  }
+}

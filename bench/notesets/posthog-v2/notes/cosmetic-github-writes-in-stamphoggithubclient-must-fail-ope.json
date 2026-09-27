@@ -1,0 +1,54 @@
+{
+  "id": "cosmetic-github-writes-in-stamphoggithubclient-must-fail-ope",
+  "title": "Cosmetic GitHub writes in StamphogGitHubClient must fail open and run at BATCH priority",
+  "kind": "invariant",
+  "answers": [
+    "Why does hiding a dismissed stamphog review never raise or retry?",
+    "How do I add a best-effort cosmetic GitHub call to the stamphog client?",
+    "Stamphog dismissed approval hide as outdated failure handling"
+  ],
+  "body": "Cosmetic writes on the client (the 👀 reaction, `_minimize_as_outdated`) must not fail or retry the caller. The approval is already retracted, so a failed hide must never retry the dismissal.\n- `github_client.py:_minimize_as_outdated` catches request exceptions, non-200, non-JSON and GraphQL `errors`, each with its own `stamphog_github_minimize_dismissed_review_*` warning. Logs carry status or error types only, never bodies.\n- It calls `_request(..., priority=Priority.BATCH)` so the egress limiter sheds it before dismissals. `_request` defaults to `Priority.CRITICAL`; keep that default for real writes.\n- `dismiss_pr_review` still returns early on 422 (already inactive) and skips the hide. Extracting `node_id` from the dismissal response is also guarded, so a non-JSON 200 cannot raise.\n- Tests: `test_logic.py:CosmeticWriteFailOpenTests` must assert the hide was attempted for each failure mode.",
+  "applies": "products/stamphog/backend/logic/github_client.py cosmetic/best-effort GitHub calls",
+  "tags": [
+    "stamphog",
+    "github",
+    "fail-open",
+    "egress"
+  ],
+  "deps": [
+    {
+      "path": "products/stamphog/backend/logic/github_client.py",
+      "symbol": "_minimize_as_outdated",
+      "hash": "sha256:918cdfe108094bce3149953b",
+      "line": 1322,
+      "missing": false
+    },
+    {
+      "path": "products/stamphog/backend/logic/github_client.py",
+      "symbol": "_request",
+      "hash": "sha256:ae39190674fb304364146750",
+      "line": 452,
+      "missing": false
+    },
+    {
+      "path": "products/stamphog/backend/tests/test_logic.py",
+      "symbol": "CosmeticWriteFailOpenTests",
+      "hash": "sha256:29e398fe99fee9cf05919de8",
+      "line": 675,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105644"
+  },
+  "created": "2026-09-27T00:00:53.836Z",
+  "verified": "2026-09-27T00:00:53.836Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "stamphog-fake-github-must-return-node-id-on-dismissal-and-re"
+  ]
+}

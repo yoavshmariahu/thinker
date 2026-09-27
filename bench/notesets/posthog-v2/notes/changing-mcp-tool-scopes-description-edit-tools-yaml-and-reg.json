@@ -1,0 +1,53 @@
+{
+  "id": "changing-mcp-tool-scopes-description-edit-tools-yaml-and-reg",
+  "title": "Changing MCP tool scopes/description: edit tools.yaml and regenerate both schema JSONs",
+  "kind": "cochange",
+  "answers": [
+    "how to change required scopes of an MCP tool",
+    "generated-tool-definitions.json out of date",
+    "tool-definitions-all.json update"
+  ],
+  "body": "Edit the source of truth in products/alerts/mcp/tools.yaml (scopes, description), then regenerate (PR used `hogli build:openapi`) so these change together:\n- services/mcp/schema/generated-tool-definitions.json (`required_scopes`, `description`)\n- services/mcp/schema/tool-definitions-all.json (same entries)\nDo not hand-edit the JSONs. Scopes are not part of tool-schema snapshots, so no snapshot updates are needed. Regeneration may rewrite unrelated generated files; revert those.\nAdd a unit test in services/mcp/tests/unit using `getToolDefinition(name).required_scopes` with `hasScopes` to pin visibility for a given token scope set (including that mutation tools stay hidden from read-only tokens).",
+  "applies": "MCP tool definitions generated from product tools.yaml files",
+  "tags": [
+    "mcp",
+    "codegen",
+    "tools.yaml"
+  ],
+  "deps": [
+    {
+      "path": "products/alerts/mcp/tools.yaml",
+      "hash": "sha256:a08ace0e339fc138d7b8de65",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/schema/generated-tool-definitions.json",
+      "hash": "sha256:8756f46b844697d7d39dfbb5",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/schema/tool-definitions-all.json",
+      "hash": "sha256:9e4f457a85533d4390c3ecaa",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/tests/unit/alert-simulate-scopes.test.ts",
+      "hash": "sha256:ecaab4f6abbb283e2be8f571",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105231"
+  },
+  "created": "2026-09-27T00:10:52.796Z",
+  "verified": "2026-09-27T00:10:52.796Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mcp-tool-descriptions-live-in-tools-yaml-regenerate-two-sche",
+    "mcp-tool-scopes-must-not-exceed-what-the-backend-endpoint-en"
+  ]
+}

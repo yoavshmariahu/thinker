@@ -1,0 +1,99 @@
+{
+  "id": "data-warehouse-split-models-temporal-in-warehouse-sources-sc",
+  "title": "Data warehouse split: models/temporal in warehouse_sources, schedules/facade in data_warehouse",
+  "kind": "overview",
+  "answers": [
+    "Where are ExternalDataSource/Schema models defined?",
+    "Where is the Temporal data_imports code?",
+    "Which product owns schedules vs workflows for external data?"
+  ],
+  "body": "- Models, Temporal workflows, CDC live in `products/warehouse_sources/backend/` (`models/external_data_source.py`, `models/external_data_schema.py`, `models/external_data_job.py`, `temporal/data_imports/`). There is NO `posthog/temporal/data_imports`.\n- Schedules live in `products/data_warehouse/backend/logic/data_load/service.py` (owns Temporal schedules, not workflow bodies).\n- Status enums: `warehouse_sources/backend/facade/types.py:ExternalDataSourceStatus` (Running/Paused/Error/Completed/Cancelled), `ExternalDataSchemaStatus` (Running/Paused/Failed/Completed/BillingLimitReached/BillingLimitTooLow), `ExternalDataSchemaSyncType` (full_refresh, incremental, append, webhook, cdc, xmin).\n- Schema is the schedulable/pausable unit; source `status` is deprecated in favour of schema status.\n- Facades: `data_warehouse/backend/facade/api.py` is a lazy PEP 562 re-export table (`_LAZY` + `__getattr__`) to avoid import cycle with warehouse_sources and keep temporalio off django.setup; `warehouse_sources/backend/facade/pipelines.py` does the same for Temporal internals (e.g. CDCExtractionInput).\n- `ExternalDataSchemaQuerySet.update` is the chokepoint for bulk disables/deletes and dispatches teardown.",
+  "tags": [
+    "data-warehouse",
+    "temporal",
+    "facade"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchemaQuerySet",
+      "hash": "sha256:b6fe1762754345a9f1053f05",
+      "line": 178,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/facade/types.py",
+      "symbol": "ExternalDataSchemaStatus",
+      "hash": "sha256:e473dc449dcb43ebf421bcc5",
+      "line": 1517,
+      "missing": false
+    },
+    {
+      "path": "products/data_warehouse/backend/facade/api.py",
+      "hash": "sha256:4717754b23fd1b8b83e029e2",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/facade/pipelines.py",
+      "hash": "sha256:19c0fcdc1a4fbf5dbfcecd77",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_source.py",
+      "symbol": "ExternalDataSource",
+      "hash": "sha256:97b3c5340afab1151ede18c2",
+      "line": 39,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_job.py",
+      "hash": "sha256:f0128feb7f6192e25e3af969",
+      "missing": false
+    },
+    {
+      "path": "products/data_warehouse/backend/logic/data_load/service.py",
+      "hash": "sha256:2f4a01478aba6214f1c76b9d",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/facade/types.py",
+      "symbol": "ExternalDataSourceStatus",
+      "hash": "sha256:161d239ff9f3e97f3117eb85",
+      "line": 1509,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/facade/api.py",
+      "hash": "sha256:9f2eaf1695b03f0304c6cb9c",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/models/external_data_schema.py",
+      "symbol": "ExternalDataSchemaQuerySet.update",
+      "hash": "sha256:192f10051f4b1e98dd033773",
+      "line": 179,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "28c9b241-3689-4e9e-a9ce-5bcb73623a52"
+  },
+  "created": "2026-09-26T20:29:19.021Z",
+  "verified": "2026-09-26T20:29:19.021Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "schema-disable-delete-schedule-handling-coupled-flags-and-in",
+    "temporal-schedules-in-data-load-service-per-schema-sync-and-"
+  ],
+  "lastUsed": "2026-09-26T22:46:33.463Z",
+  "servedIn": [
+    "cf1c9e08-5e6f-4805-a931-6ede3643a6d6",
+    "5a709b0a-89d1-4c20-9e1b-c154e331cdd0",
+    "b232bfe1-c89d-47ac-b37c-cfb38332354d",
+    "db96b0a1-ba11-48a9-b06f-274055191171"
+  ]
+}

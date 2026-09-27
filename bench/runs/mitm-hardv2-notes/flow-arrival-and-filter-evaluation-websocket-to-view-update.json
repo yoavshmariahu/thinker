@@ -1,0 +1,74 @@
+{
+  "id": "flow-arrival-and-filter-evaluation-websocket-to-view-update",
+  "title": "Flow arrival and filter evaluation: websocket to view update",
+  "kind": "callpath",
+  "answers": [
+    "What happens when a new flow arrives in mitmweb?",
+    "Where are search/highlight filters evaluated?",
+    "How is the flow list view order updated?"
+  ],
+  "body": "Filters are evaluated by the BACKEND, not the frontend.\n- `ducks/ui/filter.ts` (setFilter/setHighlight) only stores strings. `backends/websocket.tsx:WebSocketBackend.onStoreUpdate` sends `flows/updateFilter {name, expr}` on change.\n- `mitmproxy/tools/web/app.py:ClientConnection.update_filter` stores parsed filter in `self.filters[name]`, replies `flows/filterUpdate` with `matching_flow_ids` (null if cleared). `_broadcast_flow` evaluates all filters per flow and sends `matching_filters`.\n- `WebSocketBackend.onMessage` maps flows/add|update|filterUpdate|remove to actions via `queueOrDispatch` (buffers in `activeFetches` during initial `fetchData` GET; `receive` dispatches FLOWS_RECEIVE then replays), so reducer tolerates duplicate add/unknown ids.\n- FLOWS_ADD: append to list/_listIndex/byId; if `matching_filters[Search]` is true/undefined -> `insertViewItem` with `makeSort(sort)` (findInsertPos: append fast path else binary search, rewrites _viewIndex after pos); Highlight true -> add to highlightedIds.\n- FLOWS_UPDATE: compare old (`_viewIndex.get`) vs new membership -> insertViewItem / removeViewItemAt / updateViewItem (bubbles to sorted position).\n- FLOWS_FILTER_UPDATE Search rebuilds view (toSorted+buildIndex); `setSort` re-sorts view.",
+  "tags": [
+    "websocket",
+    "filters",
+    "redux"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/ducks/flows/index.ts",
+      "symbol": "flowsReducer",
+      "hash": "sha256:17f737533fffb681f0d4b1f4",
+      "line": 68,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/backends/websocket.tsx",
+      "hash": "sha256:586ff893fe9c2965d92e7b0a",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "ClientConnection",
+      "hash": "sha256:8b763c24e11c68580d6c03cc",
+      "line": 424,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/flows/_utils.ts",
+      "hash": "sha256:c5b0bc07cd70cad07c649651",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/ui/filter.ts",
+      "hash": "sha256:2a8ce4bb01079c424dff1bd6",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "ClientConnection.update_filter",
+      "hash": "sha256:c52c39147dadd46af52e8d44",
+      "line": 467,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "4495999f-49ff-4782-bc86-73c614660f9d"
+  },
+  "created": "2026-09-26T09:25:17.670Z",
+  "verified": "2026-09-26T09:25:17.670Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 9,
+  "lastUsed": "2026-09-26T19:44:46.879Z",
+  "related": [
+    "mitmweb-flow-update-path-http-put-view-update-websocket-broa",
+    "mitmweb-xsrf-auth-and-header-protections",
+    "flows-duck-state-shape-and-reducer-actions"
+  ],
+  "servedIn": [
+    "58fe93f5-08d9-4742-a702-82d91c541a86",
+    "c207f4ce-6e37-434f-a665-78d8350a9385"
+  ]
+}

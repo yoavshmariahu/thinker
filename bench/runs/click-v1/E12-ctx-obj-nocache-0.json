@@ -1,0 +1,40 @@
+{
+  "id": "E12-ctx-obj-nocache-0",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "b60b37f9-97d7-4b88-950e-300f31546c7e",
+  "turns": 3,
+  "wall_ms": 12735,
+  "api_ms": 12416,
+  "cost": 0.0677638,
+  "in_tokens": 64552,
+  "out_tokens": 1142,
+  "tools": {
+    "calls": 2,
+    "byTool": {
+      "Bash": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 2
+  },
+  "grade": {
+    "score": 0.9,
+    "missing": [
+      "Command.make_context context_settings merging and Command.main as path for root obj (cli(obj=...))",
+      "Context._make_sub_context (used by ctx.invoke and Group.to_info_dict) as another inheritance site",
+      "shell_completion._resolve_context site",
+      "ensure_object clobbering: it overwrites an existing unrelated obj on the current context; requires zero-arg constructor",
+      "In chain mode all sub-contexts are built before any is invoked, so chained siblings don't see each other's obj"
+    ],
+    "wrong": [],
+    "reason": "The agent correctly identifies the main propagation site (Context.__init__ at core.py:374-378), the Group.invoke call sites (1982, 2005), make_context, the timing after the group callback, reference-sharing semantics, and the find_object/ensure_object difference, including that ensure_object sets the innermost context's obj. It omits secondary sites and subtler details such as clobbering, the zero-arg constructor requirement, and chain-mode sibling isolation. The main point is right and nothing it says is wrong.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "## Propagation\n\n`ctx.obj` is copied down from parent to child in one place, `Context.__init__`, in `src/click/core.py:374-378`:\n\n```python\nif obj is None and parent is not None:\n    obj = parent.obj\nself.obj = obj\n```\n\nTwo things follow from this code:\n\n- **What triggers it:** `Group.invoke` (`core.py:1950`) creates each subcommand's context with `cmd.make_context(cmd_name, args, parent=ctx)`. That call is at line 1982 for the normal path, and `parent=ctx` also appears at line 2005 for the chain-mode path. `make_context` (`core.py:1280`) passes `parent` through to `Context(...)`, which runs the code above.\n- **When it happens:** The copy happens when the child context is constructed, and that is after the group's callback has run. So if the group callback sets `ctx.obj = ...`, the subcommand sees it. If the child is given an explicit `obj=` (or `parent` is `None`), no inheritance happens.\n\nBecause it is a plain reference copy, the parent and child share the same object. Mutating it is visible on both sides. Rebinding `ctx.obj = other` in a child does not affect the parent.\n\n## `find_object` vs `ensure_object`\n\nBoth are in `core.py`.\n\n- **`Context.find_object(object_type)`** (`core.py:736`) walks up from `self` through `.parent`. It returns the first `node.obj` that is an `isinstance` of `object_type`, or `None` if none matches. It never modifies anything.\n- **`Context.ensure_object(object_type)`** (`core.py:748`) calls `find_object`. If that returns `None`, it sets `self.obj = object_type()` and returns the new instance. It only creates the object on the current context, the innermost one, not on the root. Sibling and parent contexts will not see it.\n\nThe isinstance walk is what makes `find_object` different from reading `ctx.obj`. `ctx.obj` is just whatever was copied in at construction, and it may be a different type or `None`. `find_object` will look past a non-matching `obj` to an ancestor that holds the type you want.\n\n`click.pass_obj` reads `ctx.obj` directly. `click.make_pass_decorator(T)` uses `find_object`, or `ensure_object` when `ensure=True`.",
+  "is_error": false
+}

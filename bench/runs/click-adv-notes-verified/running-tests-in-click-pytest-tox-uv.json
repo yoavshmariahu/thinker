@@ -1,0 +1,51 @@
+{
+  "id": "running-tests-in-click-pytest-tox-uv",
+  "title": "Running tests in click (pytest/tox/uv)",
+  "kind": "howto",
+  "answers": [
+    "How do I run tests in click?",
+    "How to run a single test file?",
+    "What pytest config does click use?",
+    "How do I run stress or random-order tests?"
+  ],
+  "body": "- Project uses uv + `uv.lock`; `[tool.uv] default-groups = [dev, pre-commit, tests, typing]` in pyproject.toml, so plain `uv sync` installs all.\n- pytest config in `pyproject.toml` `[tool.pytest.ini_options]`: `testpaths=[\"tests\"]`, `filterwarnings=[\"error\"]` (any warning fails a test), `addopts=\"-m 'not stress'\"` (stress tests skipped by default).\n- Run: `uv run pytest`, `uv run pytest tests/test_options.py`, `uv run pytest tests/test_options.py::test_name -v`.\n- tox (tox-uv) envs under `[tool.tox]` in pyproject.toml: `tox run -e py3.13 -- tests/test_options.py` (extra args after `--`); `tox r -e random` (pytest-randomly + xdist, `tests-random` group); `tox r -e stress` (overrides addopts, uses `-x`).\n- CI: `.github/workflows/tests.yaml` runs `uv run --locked --no-default-groups --group dev tox run` over a Python matrix incl. PyPy 3.11.\n- Note: derived from reading configs only; commands were not executed.",
+  "tags": [
+    "testing",
+    "pytest",
+    "tox",
+    "uv"
+  ],
+  "deps": [
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:87bf078e2c9357d812139144",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/tests.yaml",
+      "hash": "sha256:3edc6420fb4ae1a6d49f6a29",
+      "missing": false
+    },
+    {
+      "path": "docs/contributing.md",
+      "hash": "sha256:b490393be72a728fe3482a7f",
+      "missing": false
+    },
+    {
+      "path": "tests/test_options.py",
+      "hash": "sha256:fec9c25f75326de219461ebc",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "710097d6-e275-452b-a353-bd5052007d1e"
+  },
+  "created": "2026-09-26T09:14:12.313Z",
+  "verified": "2026-09-26T09:14:12.313Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 11,
+  "lastUsed": "2026-09-26T09:36:37.673Z"
+}

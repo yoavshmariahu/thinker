@@ -1,0 +1,96 @@
+{
+  "id": "PR106564-hard-hook-1",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "hook",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "27e9d6cb-3cfa-4d7e-96e9-ebf19a6ff757",
+  "turns": 20,
+  "wall_ms": 111877,
+  "api_ms": 57150,
+  "cost": 0.5605666000000001,
+  "in_tokens": 1248690,
+  "out_tokens": 4815,
+  "tools": {
+    "calls": 19,
+    "byTool": {
+      "Bash": 19
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 19,
+    "injected": [
+      "invite-validation-errors-reach-ui-only-as-a-global-toast",
+      "feature-flags-backend-lives-in-products-feature-flags-backen"
+    ]
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent's patch is empty and made no functional change. It did not locate posthog/stable_chunks.py or implement the feature-flag-driven selection, so the request is not achieved.",
+      "The agent's patch is empty and made no functional change. The stable chunk feature already exists in posthog/stable_chunks.py, and the upstream fix adds flag-based selection there and in posthog/utils.py. The agent didn't find it, so the request isn't achieved.",
+      "The agent made no code change and stopped, saying it couldn't find the stable chunks code. The merged patch changes posthog/stable_chunks.py, posthog/utils.py and the esbuilder. The request is not achieved."
+    ],
+    "reason": "The agent's patch is empty and made no functional change. It did not locate posthog/stable_chunks.py or implement the feature-flag-driven selection, so the request is not achieved.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no feature flag evaluation selects the stable build for logged-in users."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag-based enrolment logic exists, so there is no anonymous-user guard."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag handling was added, so nothing shows the missing-flag fallback behaviour."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "Empty patch; the author says no query-parameter opt-in exists in the checkout, so precedence over the flag is not implemented."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "Empty patch; nothing persists an explicit choice for about 30 days."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no flag value is passed to the analytics client for this purpose."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "Empty patch; no runtime-failure reload handling was added."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "Empty patch; nothing removes the query parameter from the address."
+        }
+      ]
+    }
+  },
+  "result": "I haven't made any changes, because I couldn't find the stable chunk build or its query-parameter opt-in anywhere in this checkout.\n\n**What I searched (by name and by behavior):**\n- **By name:** `stable chunk`, `stable_chunks`, `use_stable` and `stableChunk`. I also looked for `stable` in the build (`frontend/build.mjs`, `common/esbuilder/*`) and the serving path (`posthog/utils.py`, `posthog/frontend_views.py`, `posthog/views.py`, `posthog/middleware.py`, `posthog/templates`, `frontend/src/index.html`, `layout.html`). Every hit was unrelated.\n- **By behavior:** any `request.GET` or `location.search` check that switches the chunk build. The only query parameter read while rendering the app shell is `no-preloaded-app-context`, in `posthog/utils.py:582`.\n- **What the build does today:** `copyIndexHtml` in `common/esbuilder/utils.mjs` always emits one chunk-loading setup, with a content-hashed chunk map, hashed entry and chunk filenames, and a hashless fallback. There is no second build variant to switch to.\n\n**Why I stopped:** I could add a flag check in `_build_template_context`, but there's no existing stable build to point it at. Building a second bundle and loader from scratch is a much bigger change than the one you described, and I'd be guessing at its design. The feature may live on a branch or PR that isn't in this checkout, or under a name I didn't try.\n\n**Two things I need from you:**\n1. Where does the opt-in live: branch, PR, file, or parameter name? If it isn't merged, I need to know whether you want me to build the stable variant too.\n2. What should the flag be called? I'd also like a confirmation of the design below.\n\n**Planned design once I have the opt-in:**\n- **Where the decision happens:** `_build_template_context` in `posthog/utils.py`, only for `index.html`, and only when `request.user.is_authenticated`. Anonymous users never get evaluated, so they're never enrolled.\n- **How it's decided:** the query parameter forces the stable build on. Otherwise the flag decides, using `posthoganalytics.feature_flag_enabled` (or the `get_all_flags` call already made there) with the user's distinct ID and local evaluation only.\n- **Experiment setup:** a 50% rollout on the flag, or a two-variant experiment with LCP as the metric.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

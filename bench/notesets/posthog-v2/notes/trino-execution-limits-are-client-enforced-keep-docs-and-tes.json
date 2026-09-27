@@ -1,0 +1,45 @@
+{
+  "id": "trino-execution-limits-are-client-enforced-keep-docs-and-tes",
+  "title": "Trino execution limits are client-enforced; keep docs and tests in sync",
+  "kind": "cochange",
+  "answers": [
+    "Where are Trino build deadlines enforced",
+    "How does Trino model build cancellation work",
+    "Updating Trino execution limits documentation"
+  ],
+  "body": "Trino build deadlines (15 min for builds, 5 min for alias passes) are enforced by the client, which cancels the active Trino cursor on expiry or activity cancellation; no server session property is used.\nWhen changing statement sequence in trino_materialization.py or trino_model_aliases.py, also update:\n- products/managed_warehouse/backend/tests/test_trino_materialization.py (execute.call_args_list indexes, fetchall.side_effect lists)\n- products/managed_warehouse/backend/tests/test_trino_model_aliases.py (fetchall.side_effect; there is an assertion that cursor.execute is not called on the happy path)\n- docs/internal/hogql-trino-compiler.md (execution-limit section)",
+  "applies": "products/managed_warehouse Trino materialization and alias code",
+  "tags": [
+    "trino",
+    "docs",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "docs/internal/hogql-trino-compiler.md",
+      "hash": "sha256:9e78b5dbd1db6fcdbc4345f8",
+      "missing": false
+    },
+    {
+      "path": "products/managed_warehouse/backend/tests/test_trino_materialization.py",
+      "hash": "sha256:d2c8ffba7db8a0ee6a45acfd",
+      "missing": false
+    },
+    {
+      "path": "products/managed_warehouse/backend/tests/test_trino_model_aliases.py",
+      "hash": "sha256:c5e776bfb4f426cfeb3682cc",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105511"
+  },
+  "created": "2026-09-27T00:02:22.745Z",
+  "verified": "2026-09-27T00:02:22.745Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

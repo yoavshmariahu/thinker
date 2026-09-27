@@ -1,0 +1,54 @@
+{
+  "id": "clay-flatten-record-column-fields-must-never-overwrite-a-rea",
+  "title": "Clay flatten_record: <column>_fields must never overwrite a real column",
+  "kind": "invariant",
+  "answers": [
+    "Why is my Clay enrichment data missing in the warehouse table?",
+    "What does the _fields column in Clay synced tables mean?",
+    "Clay column name collides with _fields column"
+  ],
+  "body": "clay/clay.py:flatten_record maps each Clay cell to a value: only `success` cells keep a value; error/pending/empty become None. Enrichment `fields` go to sibling `<column>_fields`.\nInvariant: if the record already has a real column named `<column>_fields`, the real column wins and the enrichment metadata is dropped (guard `fields_column not in record`). Order-independent, so tests put `X_fields` first.\nAlso: clay has no primary key (primary_keys=None) and uses full replace; get_schemas sets supports_incremental=False and supports_append=False. Table IDs come from pasted text via parse_table_ids (regex `t_...`), since Clay has no list-tables endpoint.",
+  "applies": "Clay source row flattening and schema config",
+  "tags": [
+    "clay",
+    "warehouse-sources",
+    "data-mapping"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clay/clay.py",
+      "symbol": "flatten_record",
+      "hash": "sha256:a3a50986e08351d0cfc23545",
+      "line": 34,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clay/clay.py",
+      "symbol": "parse_table_ids",
+      "hash": "sha256:15d7b658a260fd3b7b61ae59",
+      "line": 29,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clay/source.py",
+      "symbol": "ClaySource.get_schemas",
+      "hash": "sha256:2ceba443ad0620bf69304109",
+      "line": 51,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105270"
+  },
+  "created": "2026-09-27T00:08:19.079Z",
+  "verified": "2026-09-27T00:08:19.079Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "resumable-rest-warehouse-source-post-body-cursor-with-resume",
+    "adding-a-source-config-field-source-py-fields-generated-conf"
+  ]
+}

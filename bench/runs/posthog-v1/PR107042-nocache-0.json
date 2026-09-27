@@ -1,0 +1,32 @@
+{
+  "id": "PR107042-nocache-0",
+  "task": "PR107042",
+  "area": "frontend",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "7610eb32-53f7-4031-903e-80ac0deeed49",
+  "turns": 8,
+  "wall_ms": 20943,
+  "api_ms": 16235,
+  "cost": 0.2352628,
+  "in_tokens": 333285,
+  "out_tokens": 1815,
+  "tools": {
+    "calls": 7,
+    "byTool": {
+      "Bash": 7
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 7,
+    "injected": []
+  },
+  "grade": {
+    "error": "judge failed: ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"5e885601-ac8a-4ef7-be37-c1e161fbb1db\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"771cff4e-9206-4be1-9bd8-a30da207ce42\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"320e4794-8463-4e5d-9884-5e28d9043202\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\""
+  },
+  "result": "You've hit your session limit · resets 3:40pm (America/Los_Angeles)",
+  "is_error": true,
+  "diff": "",
+  "distill": null
+}

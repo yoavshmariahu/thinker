@@ -1,0 +1,176 @@
+{
+  "id": "option-value-pipeline-argv-string-typed-callback-kwarg",
+  "title": "Option value pipeline: argv string -> typed callback kwarg",
+  "kind": "callpath",
+  "answers": [
+    "How does --count 3 become an int in the callback?",
+    "Where do type conversion, defaults and envvar lookup happen in click?",
+    "What is the call order from Command.main to the callback?"
+  ],
+  "body": "Flow (src/click):\n- core.py:Command.main -> Command.make_context -> Command.parse_args (drives parsing + per-param processing).\n- core.py:Command.make_parser -> Option.add_to_parser registers each param with parser.py's option parser; parser.py:parse_args / _process_args_for_options / _process_opts / _match_long_opt / _match_short_opt / _get_value_from_state pull raw strings; parser.py:_Option.process stores raw value in state.opts[dest] (actions store/append/count; count just increments an int).\n- Back in parse_args, params are handled in order from core.py:iter_params_for_processing; each calls Parameter.handle_parse_result -> consume_value (source order: command line, then envvar via resolve_envvar_value, then default_map/Context.lookup_default, then get_default) -> process_value -> type_cast_value.\n- Type conversion: types.py:ParamType.__call__ (skips None) -> ParamType.convert; for int: types.py:_NumberParamTypeBase.convert calls _number_class(value), fail() on ValueError.\n- Envvar: core.py:Parameter.resolve_envvar_value; Option.resolve_envvar_value (~l.3399) adds fallback to auto_envvar_prefix + '_' + NAME.\n- Defaults: core.py:Parameter.get_default / Option.get_default; no type cast at get_default time (8.0.2), cast happens later in process_value.\n- Callback: Command.invoke -> Context.invoke(callback, **ctx.params).",
+  "tags": [
+    "parsing",
+    "options",
+    "type-conversion",
+    "envvar",
+    "defaults"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.parse_args",
+      "hash": "sha256:b8e852a8b4f0fcf19be30071",
+      "line": 1317,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Option.resolve_envvar_value",
+      "hash": "sha256:d33462fdcbaebc9b98aee146",
+      "line": 3399,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.get_default",
+      "hash": "sha256:5cf7ddadfd556f1618a7a865",
+      "line": 2392,
+      "missing": false
+    },
+    {
+      "path": "src/click/parser.py",
+      "symbol": "_Option.process",
+      "hash": "sha256:0d03b9419e441d95372ab1c5",
+      "line": 169,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "_NumberParamTypeBase",
+      "hash": "sha256:ec6500f10644fa97ef5eeb78",
+      "line": 535,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType",
+      "hash": "sha256:2e1d898f04bead3771818d73",
+      "line": 42,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.main",
+      "hash": "sha256:1be7083a9c79955a9edc633b",
+      "line": 1436,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.make_parser",
+      "hash": "sha256:45aced68e00d94d08cc4a573",
+      "line": 1178,
+      "missing": false
+    },
+    {
+      "path": "src/click/parser.py",
+      "symbol": "parse_args",
+      "hash": "sha256:956065c6cea355ecd4dc5c95",
+      "line": 298,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "iter_params_for_processing",
+      "hash": "sha256:39c7f59b1e5e679e777b4b2c",
+      "line": 138,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.__call__",
+      "hash": "sha256:9931ff2763678785b1f2deff",
+      "line": 101,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "hash": "sha256:d47837f5fe6839d052752441",
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.resolve_envvar_value",
+      "hash": "sha256:f925869fccde64b7fb8a96d3",
+      "line": 2616,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.make_context",
+      "hash": "sha256:839d3845e58a887e2d50f774",
+      "line": 1280,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Option.add_to_parser",
+      "hash": "sha256:4649e014a9080dc7091a71c4",
+      "line": 3181,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.handle_parse_result",
+      "hash": "sha256:3e8dfe3b68df93d477a3721c",
+      "line": 2677,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.convert",
+      "hash": "sha256:741f254870921b6bb5839c86",
+      "line": 121,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "fail",
+      "hash": "sha256:bdfc17750415b76ed0e469ca",
+      "line": 803,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Option.get_default",
+      "hash": "sha256:08c7d788db07c8d0ee2aa751",
+      "line": 3081,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.invoke",
+      "hash": "sha256:051c6c08127343d6fd6bc349",
+      "line": 1353,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.invoke",
+      "hash": "sha256:9f15352ee7a81488d14abf27",
+      "line": 853,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "642c5c7d-890b-4f66-9759-2a74e61906ca"
+  },
+  "created": "2026-09-26T09:12:19.146Z",
+  "verified": "2026-09-26T09:12:19.146Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 18,
+  "lastUsed": "2026-09-26T09:33:51.710Z"
+}

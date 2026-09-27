@@ -1,0 +1,43 @@
+{
+  "id": "E12-ctx-obj-irrelevant-1",
+  "task": "E12-ctx-obj",
+  "area": "groups",
+  "arm": "irrelevant",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "6a296518-b1d4-4140-9806-7aecb63470d7",
+  "turns": 4,
+  "wall_ms": 11498,
+  "api_ms": 11069,
+  "cost": 0.0259082,
+  "in_tokens": 62655,
+  "out_tokens": 965,
+  "tools": {
+    "calls": 3,
+    "byTool": {
+      "Bash": 1,
+      "Read": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 1,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.8,
+    "missing": [
+      "Doesn't name the sites that supply parent=: Group.invoke (core.py ~1982 and chain branch ~2002-2008), Command.make_context (~1311), Context._make_sub_context (~837-843), Command.main",
+      "Doesn't explain that Group.invoke calls the group callback before cmd.make_context, only states it generally",
+      "Chained-command caveat missing: sub-contexts are built up front so ensure_object in one chained command isn't seen by siblings",
+      "No mention of make_pass_decorator / pass_obj consumers or the docs idiom ensure_object(dict)",
+      "Doesn't mention that the check is 'obj is None' rather than falsiness"
+    ],
+    "wrong": [],
+    "reason": "The answer correctly identifies Context.__init__ (core.py:374-378) as the propagation point, and accurately describes the reference-copy semantics, snapshot-at-construction, and the find_object/ensure_object differences (innermost write, overwrite, zero-arg construction). It omits the secondary sites (Group.invoke, make_context, _make_sub_context) that supply parent=, and the chained-command and decorator details. Nothing stated is wrong, but the file:symbol coverage is thinner than the reference.",
+    "mustHit": 3,
+    "mustTotal": 3
+  },
+  "result": "**Propagation:** `src/click/core.py:Context.__init__` (lines 374–378):\n\n```python\nif obj is None and parent is not None:\n    obj = parent.obj\nself.obj = obj\n```\n\nWhen a subcommand's context is created, it's given `parent=<group ctx>`. If no explicit `obj=` was passed, it copies the parent's `obj`. This is a reference copy, not a deep copy. The child and parent share the same object, so mutating it is visible to both.\n\nAssigning `ctx.obj = ...` in a group callback happens before the subcommand context is created, so the subcommand inherits it. Reassigning `ctx.obj` in a child does not affect the parent. It just rebinds the child's attribute. Because the copy happens only at construction time, changes the parent makes to `ctx.obj` after the child context exists don't reach the child.\n\n**find_object vs ensure_object** (`core.py:Context.find_object`, line 736, and `Context.ensure_object`, line 748):\n\n- **`find_object(T)`** is read-only. It walks from `self` up through `.parent`, and returns the first `node.obj` that is an `isinstance` of `T`. It returns `None` if there is no match. Because it checks `isinstance` at every level, it can find an object of that type even when the nearest `ctx.obj` is something else.\n- **`ensure_object(T)`** calls `find_object(T)`. If that returns `None`, it creates `T()` and assigns it to `self.obj`, which is the innermost context only, not the root or the parent. It then returns the object. This means it overwrites whatever non-`T` value `self.obj` held, and it needs `T` to be constructible with no arguments.\n\nSince the new object is set only on the current context, sibling and parent contexts don't see it. Descendants created afterwards do inherit it through `__init__`.",
+  "is_error": false,
+  "diff": null
+}

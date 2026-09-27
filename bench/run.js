@@ -62,7 +62,7 @@ function toolStats(file) {
 }
 
 const CLI = path.join(HERE, '..', 'src', 'cli.js');
-const HOOK_PROMPT = `Context injected as <thinker-cache> comes from a verified cache of understanding of this repository built by previous sessions. Follow its file:symbol pointers instead of re-deriving them, but treat the notes as partial: still search for the specific identifiers the request mentions and verify paths/commands before citing them. Treat notes marked STALE as unverified.`;
+const HOOK_PROMPT = `Context injected as <thinker-cache> comes from a cache of notes about this repository whose code dependencies are verified against the current code when served. Use it to skip re-deriving what it states.`;
 
 // arms: nocache | cache (MCP tools) | hook (UserPromptSubmit injection, no tool call)
 //       | irrelevant (hook injection of unrelated notes, forced) | naive (hook, invalidation disabled)
@@ -81,16 +81,32 @@ function runClaude(prompt, { arm, allowEdit, cwd }) {
   const notesDir = path.resolve(flags['notes-dir'] || path.join(repo, '.thinker', 'notes'));
   if (arm === 'cache') { a.push('--mcp-config', JSON.stringify({ mcpServers: { thinker: { command: 'node', args: [path.join(HERE, '..', 'src', 'mcp.js')], env: { THINKER_REPO: cwd, THINKER_NOTES_DIR: notesDir } } } }), '--append-system-prompt', CACHE_PROMPT); }
   else a.push('--mcp-config', '{"mcpServers":{}}');
-  // prompt: same system prompt + hook, but an empty notes dir (prompt-only control)
-  if (arm === 'hook' || arm === 'irrelevant' || arm === 'naive' || arm === 'rerank' || arm === 'live' || arm === 'prompt') {
-    let hookEnv = arm === 'rerank' ? 'THINKER_RERANK=haiku ' : '';
-    if (arm === 'irrelevant') hookEnv = `THINKER_FORCE=1 THINKER_NAIVE=1 THINKER_NO_COCHANGE=1 THINKER_NO_GUARD=1 THINKER_NOTES_DIR=${flags['irrelevant-notes'] || path.join(HERE, 'irrelevant-notes')} `;
-    if (arm === 'prompt') { const empty = path.join(HERE, 'runs', 'empty-notes'); fs.mkdirSync(empty, { recursive: true }); hookEnv = `THINKER_NOTES_DIR=${empty} `; }
-    if (arm === 'naive') hookEnv = 'THINKER_NAIVE=1 ';
-    if (arm !== 'irrelevant' && arm !== 'prompt') hookEnv += `THINKER_NOTES_DIR=${notesDir} `;
+  // Hook-based arms. early: what the UserPromptSubmit hook injects; late: PostToolUse
+  // file-keyed notes; nudge: Stop-hook completeness check.
+  const ARMS = {
+    hook:       { early: 'full' },
+    rerank:     { early: 'full', env: 'THINKER_RERANK=haiku ' },
+    naive:      { early: 'full', env: 'THINKER_NAIVE=1 ' },
+    live:       { early: 'full' },
+    irrelevant: { early: 'full', env: `THINKER_FORCE=1 THINKER_NAIVE=1 THINKER_NO_COCHANGE=1 THINKER_NO_GUARD=1 `, notes: flags['irrelevant-notes'] || path.join(HERE, 'irrelevant-notes') },
+    prompt:     { early: 'full', notes: (() => { const e = path.join(HERE, 'runs', 'empty-notes'); fs.mkdirSync(e, { recursive: true }); return e; })() },
+    pointers:   { early: 'pointers' },
+    late:       { early: 'none', late: true },
+    'pointers+late': { early: 'pointers', late: true },
+    'late+nudge':    { early: 'none', late: true, nudge: true },
+    all:        { early: 'auto', late: true, nudge: true },
+    router:     { early: 'router' },
+    'router+late': { early: 'router', late: true, nudge: true },
+  };
+  const cfg = ARMS[arm];
+  if (cfg) {
+    const nd = cfg.notes || notesDir;
+    const hookEnv = `${cfg.env || ''}THINKER_NOTES_DIR=${nd} THINKER_EARLY=${cfg.early} THINKER_NO_BG_VERIFY=1 `;
     const budget = flags.budget ? ` --budget ${Number(flags.budget)}` : '';
-    const settings = { hooks: { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook prompt --repo ${cwd}${budget}`, timeout: 30 }] }] } };
-    a.push('--settings', JSON.stringify(settings), '--append-system-prompt', HOOK_PROMPT);
+    const hooks = { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook prompt --repo ${cwd}${budget}`, timeout: 60 }] }] };
+    if (cfg.late) hooks.PostToolUse = [{ matcher: 'Read|Bash|Grep', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook tool --repo ${cwd}`, timeout: 15 }] }];
+    if (cfg.nudge) hooks.Stop = [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook stop --nudge --no-distill --repo ${cwd}`, timeout: 20 }] }];
+    a.push('--settings', JSON.stringify({ hooks }), '--append-system-prompt', HOOK_PROMPT);
   }
   const t0 = Date.now();
   return new Promise((resolve, reject) => {
@@ -174,6 +190,7 @@ async function main() {
       }
       const tools = toolStats(transcriptPath(r.session_id, cwd));
       tools.injected = injectedIds(transcriptPath(r.session_id, cwd));
+      try { const tx = fs.readFileSync(transcriptPath(r.session_id, cwd), 'utf8'); tools.lateEvents = (tx.match(/Cached notes about /g) || []).length; tools.nudged = /Before finishing, check completeness/.test(tx); } catch {}
       let grade = null, diff = null;
       if (task.type === 'change') {
         try { execFileSync('git', ['add', '-A', '--', '.', ':!.thinker'], { cwd }); diff = execFileSync('git', ['diff', '--cached', '--no-color'], { cwd, maxBuffer: 16 * 1024 * 1024 }).toString(); execFileSync('git', ['reset', '-q'], { cwd }); } catch (e) { diff = 'DIFF ERROR ' + e.message; }
@@ -192,7 +209,7 @@ async function main() {
       };
       fs.writeFileSync(file, JSON.stringify(rec, null, 2));
       summary.push(rec);
-      console.log(`${id}: turns=${rec.turns} tools=${tools.calls} (thinker ${tools.thinkerCalls}, injected ${tools.injected.length}) ${(rec.wall_ms / 1000).toFixed(0)}s $${(rec.cost || 0).toFixed(2)} score=${grade?.score ?? '-'} must=${grade ? grade.mustHit + '/' + grade.mustTotal : '-'}${grade?.tests ? ' tests=' + grade.tests : ''}`);
+      console.log(`${id}: turns=${rec.turns} tools=${tools.calls} (injected ${tools.injected.length}, late ${tools.lateEvents || 0}${tools.nudged ? ', nudged' : ''}) ${(rec.wall_ms / 1000).toFixed(0)}s $${(rec.cost || 0).toFixed(2)} score=${grade?.score ?? '-'} must=${grade ? grade.mustHit + '/' + grade.mustTotal : '-'}${grade?.tests ? ' tests=' + grade.tests : ''}`);
       resetWorktree(cwd);
     }
   }

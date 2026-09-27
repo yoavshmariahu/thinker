@@ -1,0 +1,43 @@
+{
+  "id": "command-main-exception-handling-and-exit-code-flow",
+  "title": "Command.main exception handling and exit code flow",
+  "kind": "callpath",
+  "answers": [
+    "Where are click exceptions caught and turned into exit codes?",
+    "How does standalone_mode affect Command.main?",
+    "What happens on Abort, Exit, KeyboardInterrupt in main?"
+  ],
+  "body": "core.py:Command.main wraps `with self.make_context(...) as ctx` (make_context→parse_args) and `self.invoke(ctx)` in try; outer handlers Exit/Abort catch what inner handlers raise.\n- EOFError/KeyboardInterrupt: echo blank line to stderr, raise Abort (caught by outer except Abort).\n- ClickException: standalone → `e.show()` then `sys.exit(e.exit_code)`; standalone_mode=False → re-raised.\n- OSError EPIPE: wraps stdout/stderr in PacifyFlushWrapper, sys.exit(1) regardless of standalone_mode; other OSError re-raised.\n- Exit: standalone → sys.exit(e.exit_code); non-standalone → returns e.exit_code (ambiguous with a callback's int return).\n- Abort: standalone → prints 'Aborted!' to stderr, sys.exit(1); non-standalone → re-raised.\n- Success standalone: ctx.exit() → Exit(0), invoke return value ignored; non-standalone returns invoke's rv.\n- Non-click exceptions (bugs) are not caught: normal traceback.",
+  "tags": [
+    "errors",
+    "exit-code",
+    "standalone_mode"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.main",
+      "hash": "sha256:1be7083a9c79955a9edc633b",
+      "line": 1436,
+      "missing": false
+    },
+    {
+      "path": "src/click/exceptions.py",
+      "symbol": "Exit",
+      "hash": "sha256:0bc070e8f9fc53ebf206385b",
+      "line": 366,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "15a441b0-429a-4e64-9a20-777f0e12b8c3"
+  },
+  "created": "2026-09-26T09:14:01.593Z",
+  "verified": "2026-09-26T09:14:01.593Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 12,
+  "lastUsed": "2026-09-26T09:33:33.690Z"
+}

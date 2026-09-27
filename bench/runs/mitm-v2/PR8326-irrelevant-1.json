@@ -1,0 +1,41 @@
+{
+  "id": "PR8326-irrelevant-1",
+  "task": "PR8326",
+  "area": "proxy-http",
+  "arm": "irrelevant",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "353128dc-accb-4a84-a636-1adbdd7e395f",
+  "turns": 5,
+  "wall_ms": 16151,
+  "api_ms": 15661,
+  "cost": 0.0417066,
+  "in_tokens": 96187,
+  "out_tokens": 1810,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Bash": 3,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": []
+  },
+  "grade": {
+    "score": 0.97,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent changed the same place as the merged patch, `start_handshake` in `_upstream_proxy.py`. It brackets IPv6 literals in the authority, which feeds both the CONNECT target and the Host header. Hostnames are still IDNA-encoded and IPv4 is unchanged. The agent uses `\":\" in host` where upstream uses `ipaddress.ip_address`. A hostname cannot contain a colon, so this gives the same result for any real address. The one difference is a scoped literal like `fe80::1%eth0`. Neither version handles that in a meaningfully different way, since upstream would also fall back to IDNA encoding after a ValueError. The agent's test matches the upstream regression test.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/proxy/layers/http/_upstream_proxy.py",
+      "test/mitmproxy/proxy/layers/http/test_http.py"
+    ]
+  },
+  "result": "In `--mode upstream`, an IPv6 target now gets a bracketed authority, so the upstream proxy sees `CONNECT [2001:db8::1]:443` and `Host: [2001:db8::1]:443`. I haven't run the tests, as instructed, so the new test is unverified.\n\n**The fix** is in `HttpUpstreamProxy.start_handshake` in `mitmproxy/proxy/layers/http/_upstream_proxy.py`. If the host contains `:`, the authority is built as `[host]:port`. Otherwise it is built as before: hostnames are still IDNA-encoded and IPv4 is unchanged. The same `authority` value feeds the request target and the `Host` header, so one change fixes both.\n\n**The test**, `test_upstream_proxy_ipv6` in `test/mitmproxy/proxy/layers/http/test_http.py`, is modelled on the HTTPS branch of `test_upstream_proxy`. It drives `HTTPMode.upstream` with an IPv6 target and checks that the outgoing `CONNECT` and `Host` are bracketed. I didn't touch `test_upstream_proxy`.\n\nThe IPv6 check is just `\":\" in host` rather than a parse with `ipaddress`. A hostname can't contain a colon, so the two agree for anything that reaches this code.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/proxy/layers/http/_upstream_proxy.py b/mitmproxy/proxy/layers/http/_upstream_proxy.py\nindex f40b26ce6..119f810ba 100644\n--- a/mitmproxy/proxy/layers/http/_upstream_proxy.py\n+++ b/mitmproxy/proxy/layers/http/_upstream_proxy.py\n@@ -50,9 +50,12 @@ class HttpUpstreamProxy(tunnel.TunnelLayer):\n             return (yield from super().start_handshake())\n         assert self.conn.address\n         flow = http.HTTPFlow(self.context.client, self.tunnel_connection)\n-        authority = (\n-            self.conn.address[0].encode(\"idna\") + f\":{self.conn.address[1]}\".encode()\n-        )\n+        host, port = self.conn.address\n+        if \":\" in host:\n+            # IPv6 literals must be bracketed in an authority (RFC 3986 3.2.2).\n+            authority = f\"[{host}]:{port}\".encode()\n+        else:\n+            authority = host.encode(\"idna\") + f\":{port}\".encode()\n         headers = http.Headers()\n         if self.context.options.http_connect_send_host_header:\n             headers.insert(0, b\"Host\", authority)\ndiff --git a/test/mitmproxy/proxy/layers/http/test_http.py b/test/mitmproxy/proxy/layers/http/test_http.py\nindex 91085e79c..4f9a7a2ce 100644\n--- a/test/mitmproxy/proxy/layers/http/test_http.py\n+++ b/test/mitmproxy/proxy/layers/http/test_http.py\n@@ -808,6 +808,30 @@ def test_server_aborts(tctx, data):\n     assert not flow().live\n \n \n+def test_upstream_proxy_ipv6(tctx):\n+    \"\"\"IPv6 literals must be bracketed in the upstream CONNECT authority.\"\"\"\n+    server = Placeholder(Server)\n+    tctx.client.proxy_mode = ProxyMode.parse(\"upstream:http://proxy:8080\")\n+    playbook = Playbook(http.HttpLayer(tctx, HTTPMode.upstream), hooks=False)\n+    assert (\n+        playbook\n+        >> DataReceived(\n+            tctx.client,\n+            b\"CONNECT [2001:db8::1]:443 HTTP/1.1\\r\\nHost: [2001:db8::1]:443\\r\\n\\r\\n\",\n+        )\n+        << SendData(tctx.client, b\"HTTP/1.1 200 Connection established\\r\\n\\r\\n\")\n+        >> DataReceived(tctx.client, b\"GET / HTTP/1.1\\r\\nHost: [2001:db8::1]\\r\\n\\r\\n\")\n+        << layer.NextLayerHook(Placeholder())\n+        >> reply_next_layer(lambda ctx: http.HttpLayer(ctx, HTTPMode.transparent))\n+        << OpenConnection(server)\n+        >> reply(None)\n+        << SendData(\n+            server,\n+            b\"CONNECT [2001:db8::1]:443 HTTP/1.1\\r\\nHost: [2001:db8::1]:443\\r\\n\\r\\n\",\n+        )\n+    )\n+\n+\n @pytest.mark.parametrize(\"redirect\", [\"\", \"change-destination\", \"change-proxy\"])\n @pytest.mark.parametrize(\"domain\", [b\"example.com\", b\"xn--eckwd4c7c.xn--zckzah\"])\n @pytest.mark.parametrize(\"scheme\", [\"http\", \"https\"])\n"
+}

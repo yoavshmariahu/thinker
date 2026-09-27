@@ -1,0 +1,63 @@
+{
+  "id": "PR8196-hard-irrelevant-1",
+  "task": "PR8196-hard",
+  "area": "utils",
+  "arm": "irrelevant",
+  "rep": 1,
+  "model": "sonnet",
+  "session": "9b814e07-a78b-483f-8d44-b4ceed9b600d",
+  "turns": 6,
+  "wall_ms": 13947,
+  "api_ms": 13537,
+  "cost": 0.082045,
+  "in_tokens": 114214,
+  "out_tokens": 1203,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Bash": 3,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 3,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to strutils.py is identical to the merged patch: range(100, min(104, len(s))). This fixes the IndexError for inputs of 101-103 bytes and leaves results unchanged for normal inputs. The added tests are reasonable and differ only in form from the upstream test.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent's change to strutils.py is identical to the merged patch (range(100, min(104, len(s)))), so it fixes the IndexError and leaves results for normal inputs unchanged. The added tests are valid extras.",
+      "The agent's change to strutils.py is identical to the merged patch: range(100, min(104, len(s))). It fixes the IndexError for inputs of 101-103 bytes and leaves results for normal inputs unchanged. The added tests are reasonable and don't affect the score.",
+      "The agent's change to strutils.py is identical to the merged patch: range(100, min(104, len(s))). This fixes the IndexError for inputs of 101-103 bytes and leaves results unchanged for normal inputs. The added tests are a reasonable variation."
+    ]
+  },
+  "result": "I fixed the `IndexError` in `is_mostly_bin` (`mitmproxy/utils/strutils.py`). I haven't run the tests, as instructed.\n\n**Cause:** For inputs longer than 100 bytes, the function checks bytes at positions 100–103 to avoid cutting a UTF-8 character in half. The loop was `range(100, 104)`, so an input of 101, 102 or 103 bytes read past the end of the data and raised `IndexError`.\n\n**Fix:** The loop is now `range(100, min(104, len(s)))`, so it never reads beyond the data. If no character boundary is found in that range, the existing `else` branch truncates to `s[:100]`. Inputs of 104 bytes or more behave exactly as before.\n\n**Tests:** I added three cases to `test_is_mostly_bin` in `test/mitmproxy/utils/test_strutils.py`: 101 and 102 continuation bytes (both should be binary), and 101 ASCII bytes (should not be).",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..9c5cb7273 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -132,7 +132,7 @@ def is_mostly_bin(s: bytes) -> bool:\n     # Cut off at ~100 chars, but do it smartly so that if the input is UTF-8, we don't\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n-        for cut in range(100, 104):\n+        for cut in range(100, min(104, len(s))):\n             is_continuation_byte = (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..68bf0c509 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,10 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    # inputs just over the cutoff must not index past the end\n+    assert strutils.is_mostly_bin(101 * b\"\\x80\")\n+    assert strutils.is_mostly_bin(102 * b\"\\x80\")\n+    assert not strutils.is_mostly_bin(101 * b\"a\")\n \n \n def test_is_xml():\n",
+  "grade0": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to strutils.py is identical to the merged patch: range(100, min(104, len(s))). This fixes the IndexError for inputs of 101-103 bytes and leaves results unchanged for normal inputs. The added tests are reasonable and differ only in form from the upstream test.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/utils/strutils.py",
+      "test/mitmproxy/utils/test_strutils.py"
+    ]
+  }
+}

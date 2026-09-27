@@ -1,0 +1,39 @@
+{
+  "id": "PR8295-irrelevant-0",
+  "task": "PR8295",
+  "area": "next-layer",
+  "arm": "irrelevant",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "605f35c9-0a6d-4968-83a9-4cd4ae69e6da",
+  "turns": 6,
+  "wall_ms": 15673,
+  "api_ms": 15258,
+  "cost": 0.09283419999999999,
+  "in_tokens": 120415,
+  "out_tokens": 1453,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Bash": 5
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 4,
+    "injected": []
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent's change to the UDP branch of _get_client_hello in next_layer.py is identical to the merged upstream patch. It gates QUIC parsing on _starts_like_quic and DTLS parsing on starts_like_dtls_record. The agent added no tests or changelog entry, which doesn't affect the score.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "mitmproxy/addons/next_layer.py"
+    ]
+  },
+  "result": "I changed the UDP branch of `_get_client_hello` in `mitmproxy/addons/next_layer.py`. It should stop QUIC flows stalling when `allow_hosts` or `ignore_hosts` is set. I haven't run the tests, and I didn't add one.\n\n**Cause:** after the QUIC handshake, the next-layer hook gets `data_client = b''`. The old code tried to parse that as QUIC, which raised a `ValueError` that was swallowed. It then tried DTLS, where an empty buffer means \"incomplete\", so `NeedsMoreData` was raised. That aborted `_next_layer` on every call, so the flow never got an `HttpLayer`.\n\n**Fix:** the UDP branch now matches the TCP one, which only parses when the data looks like TLS. It parses as QUIC only if `_starts_like_quic(data_client, context.server.address)` is true. It parses as DTLS only if `starts_like_dtls_record(data_client)` is true. Otherwise it returns `None`, so the ignore check carries on with the other hostname sources, such as `context.client.sni`.\n\nA natural regression test would call `_get_client_hello` (or `_ignore_connection`) with a UDP context and empty data. It should return `None` and not raise `NeedsMoreData`.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..614957808 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,19 +320,21 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n-\n-                try:\n-                    ch = dtls_parse_client_hello(data_client)\n-                except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n+                if _starts_like_quic(data_client, context.server.address):\n+                    try:\n+                        return quic_parse_client_hello_from_datagrams([data_client])\n+                    except ValueError:\n+                        pass\n+\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n                 return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\n"
+}

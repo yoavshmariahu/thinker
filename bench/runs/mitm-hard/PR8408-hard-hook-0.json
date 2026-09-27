@@ -1,0 +1,70 @@
+{
+  "id": "PR8408-hard-hook-0",
+  "task": "PR8408-hard",
+  "area": "addons-browser",
+  "arm": "hook",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "e7208496-31a1-4f93-b505-4c0ef8fb40e4",
+  "turns": 7,
+  "wall_ms": 17566,
+  "api_ms": 17044,
+  "cost": 0.1046618,
+  "in_tokens": 104558,
+  "out_tokens": 2183,
+  "tools": {
+    "calls": 6,
+    "byTool": {
+      "Read": 1,
+      "Bash": 2,
+      "Edit": 3
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 2,
+    "injected": [
+      "browser-addon-executable-lookup-and-launch-flags",
+      "browser-start-command-registration-and-dispatch",
+      "python-test-lint-typecheck-commands-tox-in-pyproject-run-via"
+    ]
+  },
+  "grade": {
+    "score": 1,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added `launch_edge` in `mitmproxy/addons/browser.py` and dispatched `edge` to it in `start`. It searches the same executable paths as the upstream patch: the macOS app bundle, both Windows `msedge.exe` paths, the Linux `microsoft-edge*` binaries, and the `com.microsoft.Edge` flatpak. It also adds an extra `msedge` binary name and an `msedge` alias for the browser name, which are harmless. Instead of duplicating the Chrome launch block, it moved that block into a shared `_launch_chromium_based(cmd)`. The unchanged tail of the original `launch_chrome` body now lives in that helper. That body should carry the same flags upstream's Edge launch uses, so behavior matches. Chrome behavior is preserved. The added tests mirror upstream's, and the changelog entry is present.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/browser.py",
+      "test/mitmproxy/addons/test_browser.py"
+    ],
+    "samples": [
+      1,
+      1,
+      1
+    ],
+    "reasons": [
+      "The agent added `launch_edge` in the same file with the same executable lookups: the macOS app bundle, both Windows paths, the Linux binary names and the `com.microsoft.Edge` flatpak. It wired `edge` into `start()`, which also accepts `msedge`. It reused Chrome's launch body through a shared helper, `_launch_chromium_based`. That body includes the not-found message and the temporary profile directory. It also sets the proxy flag and the same flags the upstream Edge launcher passes, as far as the diff shows. Chrome's behaviour is unchanged. Edge behaves as in the upstream patch, and the tests match it.",
+      "The agent added an `edge` branch and `launch_edge` in browser.py. It searches the same Edge executables and flatpak as the merged patch, and reuses Chrome's launch logic through a shared helper. This gives the same proxy and profile behavior as upstream, plus an extra `msedge` alias and matching tests.",
+      "The agent added `launch_edge` in the same file, and `start` now dispatches \"edge\" to it. It uses the same executable and flatpak lookups as the merged patch, plus an extra `msedge` name. Edge reuses the Chrome launch body through a shared helper. That body holds the not-found message, the temp profile directory, the proxy flag and the same flags the upstream Edge launcher passes. Chrome behaviour is unchanged. The only differences are the extra `msedge` alias and the refactor, which do not change behaviour."
+    ]
+  },
+  "result": "`browser.start` now accepts `edge` (or `msedge`) and launches an isolated Microsoft Edge pointed at the proxy. I didn't run the tests, as instructed.\n\n- **Edge launcher:** `launch_edge` in `mitmproxy/addons/browser.py` looks for Edge in the standard places:\n  - the macOS app bundle;\n  - the Windows `msedge.exe` paths under Program Files and Program Files (x86);\n  - the Linux binaries `microsoft-edge`, `-stable`, `-beta`, `-dev` and `msedge`;\n  - the `com.microsoft.Edge` flatpak.\n- **Shared Chromium code:** Edge is Chromium-based and takes the same flags as Chrome. I moved the launch logic out of `launch_chrome` into a private `_launch_chromium_based(cmd)`. It handles the \"platform not supported\" message, the temporary profile directory, the proxy flag and the other Chrome flags. Chrome behaves as before.\n- **Tests:** I added two tests to `test/mitmproxy/addons/test_browser.py`. One covers Edge launching successfully and the other covers Edge not being found.\n- **Changelog:** I added an entry to `CHANGELOG.md`.\n\nI did not touch the console keybinding: `B` still calls `browser.start` with the default `chrome`.",
+  "is_error": false,
+  "diff": "diff --git a/CHANGELOG.md b/CHANGELOG.md\nindex 250d4bdea..e6d3b4d18 100644\n--- a/CHANGELOG.md\n+++ b/CHANGELOG.md\n@@ -7,6 +7,7 @@\n \n ## Unreleased: mitmproxy next\n \n+- Add Microsoft Edge support to the `browser.start` command (`edge` / `msedge`).\n - mitmweb: Reduce FlowTable Redux subscriptions from O(rows) to O(1).\n   ([#8104](https://github.com/mitmproxy/mitmproxy/pull/8104), @ariel42)\n - mitmweb: Fix editors not allowing content to be cleared to an empty string\ndiff --git a/mitmproxy/addons/browser.py b/mitmproxy/addons/browser.py\nindex ccc920953..bb08bce57 100644\n--- a/mitmproxy/addons/browser.py\n+++ b/mitmproxy/addons/browser.py\n@@ -43,6 +43,8 @@ class Browser:\n \n         if browser in (\"chrome\", \"chromium\"):\n             self.launch_chrome()\n+        elif browser in (\"edge\", \"msedge\"):\n+            self.launch_edge()\n         elif browser == \"firefox\":\n             self.launch_firefox()\n         else:\n@@ -72,6 +74,27 @@ class Browser:\n             \"com.google.ChromeDev\",\n         )\n \n+        self._launch_chromium_based(cmd)\n+\n+    def launch_edge(self) -> None:\n+        \"\"\"\n+        Start an isolated instance of Microsoft Edge that points to the currently\n+        running proxy.\n+        \"\"\"\n+        cmd = find_executable_cmd(\n+            \"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge\",\n+            r\"C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            r\"C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe\",\n+            # Linux binary names\n+            \"microsoft-edge\",\n+            \"microsoft-edge-stable\",\n+            \"microsoft-edge-beta\",\n+            \"microsoft-edge-dev\",\n+            \"msedge\",\n+        ) or find_flatpak_cmd(\"com.microsoft.Edge\")\n+        self._launch_chromium_based(cmd)\n+\n+    def _launch_chromium_based(self, cmd: list[str] | None) -> None:\n         if not cmd:\n             logging.log(\n                 ALERT, \"Your platform is not supported yet - please submit a patch.\"\ndiff --git a/test/mitmproxy/addons/test_browser.py b/test/mitmproxy/addons/test_browser.py\nindex d5bd38c5c..1c4fa8422 100644\n--- a/test/mitmproxy/addons/test_browser.py\n+++ b/test/mitmproxy/addons/test_browser.py\n@@ -95,3 +95,22 @@ async def test_browser_start_firefox_not_found(caplog):\n         which.return_value = False\n         browser.Browser().start(\"firefox\")\n         assert \"platform is not supported\" in caplog.text\n+\n+\n+async def test_browser_start_edge():\n+    with (\n+        mock.patch(\"shutil.which\") as which,\n+        mock.patch(\"subprocess.Popen\") as po,\n+        taddons.context(),\n+    ):\n+        which.return_value = \"microsoft-edge\"\n+        browser.Browser().start(\"edge\")\n+        assert po.called\n+\n+\n+async def test_browser_start_edge_not_found(caplog):\n+    caplog.set_level(\"INFO\")\n+    with mock.patch(\"shutil.which\") as which:\n+        which.return_value = False\n+        browser.Browser().start(\"edge\")\n+        assert \"platform is not supported\" in caplog.text\n",
+  "grade0": {
+    "score": 0.96,
+    "missing": [],
+    "wrong": [],
+    "reason": "The agent added `launch_edge` in `mitmproxy/addons/browser.py` and dispatched `edge` to it in `start`. It searches the same executable paths as the upstream patch: the macOS app bundle, both Windows `msedge.exe` paths, the Linux `microsoft-edge*` binaries, and the `com.microsoft.Edge` flatpak. It also adds an extra `msedge` binary name and an `msedge` alias for the browser name, which are harmless. Instead of duplicating the Chrome launch block, it moved that block into a shared `_launch_chromium_based(cmd)`. The unchanged tail of the original `launch_chrome` body now lives in that helper. That body should carry the same flags upstream's Edge launch uses, so behavior matches. Chrome behavior is preserved. The added tests mirror upstream's, and the changelog entry is present.",
+    "mustHit": 1,
+    "mustTotal": 1,
+    "touched": [
+      "CHANGELOG.md",
+      "mitmproxy/addons/browser.py",
+      "test/mitmproxy/addons/test_browser.py"
+    ]
+  }
+}

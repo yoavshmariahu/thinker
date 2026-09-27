@@ -1,0 +1,64 @@
+{
+  "id": "implementing-a-custom-paramtype-required-members-failure-and",
+  "title": "Implementing a custom ParamType: required members, failure and completion hooks",
+  "kind": "howto",
+  "answers": [
+    "What must a custom ParamType implement?",
+    "How do ParamType failures get reported?",
+    "How do metavar and shell completion work for a ParamType?"
+  ],
+  "body": "- `types.py:ParamType` is a generic ABC (`ParamType[T]`, 8.4.0). Subclass must set class attr `name` and implement `convert(value, param, ctx)`.\n- `convert` must accept already-converted values and must work when `param` and `ctx` are None (prompt input).\n- Failure: call `self.fail(message, param, ctx)` in `types.py:ParamType.fail`, which raises `BadParameter`.\n- Optional overrides: `get_metavar(param, ctx)` (returns str|None), `get_missing_message(param, ctx)` (used by `exceptions.py` when a required value is missing, at ~line 201 via `self.param.type.get_missing_message`; Choice overrides it), `shell_complete(ctx, param, incomplete)`, `split_envvar_value`, `to_info_dict`.\n- Composite types: subclass `CompositeParamType` (`is_composite=True`, `arity` property) so `type_cast_value` passes the whole value.\n- Parameter-level completion: `core.py:Parameter.shell_complete` calls the custom `shell_complete` callback if given, else `self.type.shell_complete(ctx, self, incomplete)`.",
+  "tags": [
+    "paramtype",
+    "custom-type",
+    "completion"
+  ],
+  "deps": [
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType",
+      "hash": "sha256:febe780b5e16e608e37af329",
+      "line": 42,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "CompositeParamType",
+      "hash": "sha256:841b517322a382ee4e26e9ed",
+      "line": 184,
+      "missing": false
+    },
+    {
+      "path": "src/click/exceptions.py",
+      "symbol": "BadParameter",
+      "hash": "sha256:3c982c6f5d022e75656c6e9e",
+      "line": 114,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.shell_complete",
+      "hash": "sha256:09c7f1b5085922a634e44bac",
+      "line": 2781,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.fail",
+      "hash": "sha256:22f8ce81cd2c5d0a0399c926",
+      "line": 157,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "ccef2877-697b-4b51-8c7f-a0bfe3da19a1"
+  },
+  "created": "2026-09-26T09:13:34.365Z",
+  "verified": "2026-09-26T09:13:34.365Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 19,
+  "lastUsed": "2026-09-26T09:28:22.756Z"
+}

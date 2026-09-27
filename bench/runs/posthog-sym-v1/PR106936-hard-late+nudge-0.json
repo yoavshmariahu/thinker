@@ -1,0 +1,111 @@
+{
+  "id": "PR106936-hard-late+nudge-0",
+  "task": "PR106936-hard",
+  "area": "frontend",
+  "arm": "late+nudge",
+  "rep": 0,
+  "model": "sonnet",
+  "session": "5aec7454-7b00-469b-8ed7-2db53df85935",
+  "turns": 23,
+  "wall_ms": 85673,
+  "api_ms": 69953,
+  "cost": 0.6071036,
+  "in_tokens": 1408739,
+  "out_tokens": 8148,
+  "tools": {
+    "calls": 22,
+    "byTool": {
+      "Bash": 17,
+      "bash_placeholder": 1,
+      "Edit": 4
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 17,
+    "injected": [
+      "org-invite-flow-modal-invitelogic-bulk-api",
+      "invite-validation-errors-reach-ui-only-as-a-global-toast"
+    ],
+    "lateEvents": 3,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0.5,
+    "samples": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "reasons": [
+      "The agent got the backend validation move (batch rejected up front) and the frontend inline row flagging, canSubmit gating and member loading right. It missed the third requirement: the rejection must not be logged as an application error. The merged patch adds an `existing_member` code and skips captureException in initKea.ts for that case. The agent did neither and wrongly assumed the error tracking was unrelated. One of the three requirements is therefore unmet, so the patch is partly correct.",
+      "The agent correctly moved the existing-member check into validate_target_email, so a bulk batch is rejected up front. It also added client-side row flagging via members and the current user, using a case-insensitive check, and it gated canSubmit and the per-row button. It missed the requirement that the rejection not be logged as an application error. Upstream tags the error with code 'existing_member' and skips posthog.captureException in initKea for inviteTeamMembers, and the agent did neither. The agent's summary admits it found no capture on this path and guessed. That leaves one of the three explicit requirements unmet, so the patch is only partly complete.",
+      "The agent matched two of the three requirements. The backend check now runs in validate_target_email, so a batch with an existing member is rejected before any invite is created or emailed. The row-level UI flag, the disabled submit and the members loading on mount all match upstream in behavior. The third requirement, that the rejection not be logged as an application error, is not met. Without the initKea.ts suppression and the `existing_member` code, these rejections are still reported to error tracking."
+    ],
+    "reason": "The agent got the backend validation move (batch rejected up front) and the frontend inline row flagging, canSubmit gating and member loading right. It missed the third requirement: the rejection must not be logged as an application error. The merged patch adds an `existing_member` code and skips captureException in initKea.ts for that case. The agent did neither and wrongly assumed the error tracking was unrelated. One of the three requirements is therefore unmet, so the patch is partly correct.",
+    "mustHit": 4,
+    "mustTotal": 5,
+    "touched": [
+      "frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx",
+      "frontend/src/scenes/settings/organization/InviteModal.tsx",
+      "frontend/src/scenes/settings/organization/inviteLogic.ts",
+      "posthog/api/organization_invite.py",
+      "posthog/api/test/test_organization_invites.py"
+    ],
+    "criteria": {
+      "essential": 0.5,
+      "all": 0.5555555555555556,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "InviteRow computes `isExistingMember = existingMemberEmails.has(...)`, adds ' errored' to the input class and renders \"This email already belongs to a member of your organization.\"; members are loaded via ensureAllMembersLoaded."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "existingMemberEmails selector includes `user?.email` alongside members' emails, so own email is flagged the same way."
+        },
+        {
+          "id": "c3",
+          "verdict": "unclear",
+          "evidence": "Onboarding Continue gets reason 'Fix emails that are invalid or already belong to your organization' and the per-row Submit is `disabled={... || isExistingMember}`. But the settings dialog's batch submit button is not shown; canSubmit is false, but no reason text is visible for it. The onboarding wording is also a mixed message rather than clearly 'remove existing members'."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "Client: `target_email.trim().toLowerCase()` against lowercased set; server: EmailNormalizer.normalize and `user__email__iexact`."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "InviteTeamMatesComponent calls `ensureAllMembersLoaded()` in useEffect on mount; selector uses `(members ?? [])` and `user?.email`, so own-email check works before members load."
+        },
+        {
+          "id": "c6",
+          "verdict": "met",
+          "evidence": "The membership check moved into `validate_target_email`, which runs during serializer validation before any create(); the removed check in create() was the source of partial creation."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\")` has no code argument (unlike the verified_domain_required case), so it gets the generic 'invalid' code, not a distinguishable existing-member code."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "No change suppresses error-tracking capture for this rejection; the frontend loader/failure path is untouched, and the author admits they found no capture and only assumed a cause."
+        },
+        {
+          "id": "c9",
+          "verdict": "not_met",
+          "evidence": "No listener on inviteTeamMembersFailure or any refresh of members after a server rejection was added in inviteLogic listeners."
+        }
+      ]
+    }
+  },
+  "result": "Invite rows now flag an existing member (or your own email) as you type, and the server rejects the whole batch up front. I haven't run anything, per your instructions, so none of this is tested or type-checked.\n\n**Backend** (`posthog/api/organization_invite.py`)\n- The \"already belongs to the organization\" check moved from `create()` into `validate_target_email`. It runs during `is_valid()`, before any invite is saved or emailed, so a bad email in row three no longer leaves rows one and two created and emailed.\n- The rejection is a plain DRF validation error, not an unexpected exception. I didn't find any error-tracking capture on this path, so I assumed the error tracking noise came from the mid-batch failure. That is unconfirmed.\n- I removed the old check from `create()`. A member added in the gap between validation and save would slip through, but that window is small and the old check didn't close it either.\n\n**Frontend**\n- `inviteLogic.ts` now reads the org members and the current user. A new `existingMemberEmails` selector holds their lowercased emails, and `canSubmit` is false while any row matches.\n- `InviteModal.tsx` shows the row with the error styling and the message \"This email already belongs to a member of your organization.\" The per-row Submit button is disabled in that case. The component loads the member list when it mounts, so the onboarding step and the settings dialog both get it.\n- `OnboardingInviteTeammates.tsx` counts these emails as invalid for the Continue button. Its disabled reason now reads \"Fix emails that are invalid or already belong to your organization\", because the old wording only covered malformed emails.\n- I hand-edited the type interface in `inviteLogic.ts` to match the logic changes, since I couldn't run kea-typegen.\n\n**Test:** `test_bulk_invite_with_existing_member_creates_no_invites` in `posthog/api/test/test_organization_invites.py`. It posts a batch whose last row is your own email in uppercase and expects a 400 on `target_email`, no invites created and no mail sent.\n\nI didn't touch the user-facing copy skill or the generated OpenAPI types, since no schema changed.",
+  "is_error": false,
+  "diff": "diff --git a/frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx b/frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx\nindex d42942f31d1..8235a054ed6 100644\n--- a/frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx\n+++ b/frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx\n@@ -17,10 +17,12 @@ export const OnboardingInviteTeammates: OnboardingStepComponentType = () => {\n     const { preflight } = useValues(preflightLogic)\n     const { productKey } = useValues(onboardingLogic)\n     const { inviteTeamMembers } = useActions(inviteLogic)\n-    const { invitesToSend, canSubmit: canSubmitInvites, inviteContainsOwnerLevel, invites } = useValues(inviteLogic)\n+    const { invitesToSend, canSubmit: canSubmitInvites, inviteContainsOwnerLevel, invites, existingMemberEmails } = useValues(inviteLogic)\n \n     const hasFilledEmail = invitesToSend.some(({ target_email }) => !!target_email)\n-    const hasInvalidEmail = invitesToSend.some(({ isValid }) => !isValid)\n+    const hasInvalidEmail = invitesToSend.some(\n+        ({ isValid, target_email }) => !isValid || existingMemberEmails.has(target_email.trim().toLowerCase())\n+    )\n     const emailServiceAvailable = !!preflight?.email_service_available\n \n     // The continue button is the gate that sends pending invites when email service is available.\n@@ -30,7 +32,7 @@ export const OnboardingInviteTeammates: OnboardingStepComponentType = () => {\n     const continueDisabledReason: string | undefined =\n         emailServiceAvailable && hasFilledEmail\n             ? hasInvalidEmail\n-                ? 'Please enter a valid email address'\n+                ? 'Fix emails that are invalid or already belong to your organization'\n                 : inviteContainsOwnerLevel && !canSubmitInvites\n                   ? 'Type \"send invites\" to confirm owner-level invites'\n                   : !canSubmitInvites\ndiff --git a/frontend/src/scenes/settings/organization/InviteModal.tsx b/frontend/src/scenes/settings/organization/InviteModal.tsx\nindex 03ec70289ca..802bb9e4064 100644\n--- a/frontend/src/scenes/settings/organization/InviteModal.tsx\n+++ b/frontend/src/scenes/settings/organization/InviteModal.tsx\n@@ -1,6 +1,7 @@\n import './InviteModal.scss'\n \n import { useActions, useValues } from 'kea'\n+import { useEffect } from 'react'\n \n import { IconInfo, IconPlus, IconTrash } from '@posthog/icons'\n import { LemonInput, LemonSelect, LemonTextArea, Link, Tooltip } from '@posthog/lemon-ui'\n@@ -196,7 +197,7 @@ export function InviteRow({\n     const { hasAvailableFeature } = useValues(userLogic)\n     const hasAccessControl = hasAvailableFeature(AvailableFeature.ACCESS_CONTROL)\n \n-    const { invitesToSend } = useValues(inviteLogic)\n+    const { invitesToSend, existingMemberEmails } = useValues(inviteLogic)\n     const { updateInviteAtIndex, inviteTeamMembers, deleteInviteAtIndex } = useActions(inviteLogic)\n     const { preflight } = useValues(preflightLogic)\n     const { currentOrganization } = useValues(organizationLogic)\n@@ -212,6 +213,8 @@ export function InviteRow({\n         label: OrganizationMembershipLevel[level],\n     }))\n \n+    const isExistingMember = existingMemberEmails.has((invitesToSend[index]?.target_email ?? '').trim().toLowerCase())\n+\n     return (\n         <div className=\"space-y-4 bg-surface-secondary py-4 px-4 rounded-md\">\n             <div className=\"flex gap-2\">\n@@ -219,7 +222,7 @@ export function InviteRow({\n                     <LemonInput\n                         placeholder={`${name.toLowerCase()}@posthog.com`}\n                         type=\"email\"\n-                        className={`error-on-blur${!invitesToSend[index]?.isValid ? ' errored' : ''}`}\n+                        className={`error-on-blur${!invitesToSend[index]?.isValid || isExistingMember ? ' errored' : ''}`}\n                         onChange={(v) => {\n                             let isValid = true\n                             if (v && !isEmail(v)) {\n@@ -236,6 +239,11 @@ export function InviteRow({\n                         autoFocus={index === 0}\n                         data-attr=\"invite-email-input\"\n                     />\n+                    {isExistingMember && (\n+                        <div className=\"text-danger text-xs mt-1\">\n+                            This email already belongs to a member of your organization.\n+                        </div>\n+                    )}\n                 </div>\n                 {preflight?.email_service_available && (\n                     <div className=\"flex-1 flex gap-1 items-center justify-between\">\n@@ -273,7 +281,7 @@ export function InviteRow({\n                         <LemonButton\n                             type=\"primary\"\n                             className=\"flex-1\"\n-                            disabled={!isEmail(invitesToSend[index].target_email)}\n+                            disabled={!isEmail(invitesToSend[index].target_email) || isExistingMember}\n                             onClick={() => {\n                                 inviteTeamMembers()\n                             }}\n@@ -303,7 +311,11 @@ export function InviteTeamMatesComponent({\n }): JSX.Element {\n     const { preflight } = useValues(preflightLogic)\n     const { invitesToSend, inviteContainsOwnerLevel } = useValues(inviteLogic)\n-    const { appendInviteRow, updateMessage, setIsInviteConfirmed } = useActions(inviteLogic)\n+    const { appendInviteRow, updateMessage, setIsInviteConfirmed, ensureAllMembersLoaded } = useActions(inviteLogic)\n+\n+    useEffect(() => {\n+        ensureAllMembersLoaded()\n+    }, [ensureAllMembersLoaded])\n \n     const areInvitesCreatable = invitesToSend.length + 1 < MAX_INVITES_AT_ONCE\n     const areInvitesDeletable = invitesToSend.length > 1\ndiff --git a/frontend/src/scenes/settings/organization/inviteLogic.ts b/frontend/src/scenes/settings/organization/inviteLogic.ts\nindex 28a5d345cc2..01a466dff7f 100644\n--- a/frontend/src/scenes/settings/organization/inviteLogic.ts\n+++ b/frontend/src/scenes/settings/organization/inviteLogic.ts\n@@ -8,9 +8,11 @@ import { lemonToast } from 'lib/lemon-ui/LemonToast/LemonToast'\n import { bindModalToUrl } from 'lib/logic/bindModalToUrl'\n import { pluralize } from 'lib/utils/strings'\n import { organizationLogic } from 'scenes/organizationLogic'\n+import { membersLogic } from 'scenes/organization/membersLogic'\n import { preflightLogic } from 'scenes/PreflightCheck/preflightLogic'\n+import { userLogic } from 'scenes/userLogic'\n \n-import { AccessControlLevel, OrganizationInviteType } from '~/types'\n+import { AccessControlLevel, OrganizationInviteType, OrganizationMemberType, UserType } from '~/types'\n \n import type { PreflightStatus } from '../../../types'\n \n@@ -35,8 +37,11 @@ const EMPTY_INVITE: InviteRowState = {\n // Generated by kea-typegen. Update if you're an agent, ignore if you're human.\n export interface inviteLogicValues {\n     preflight: PreflightStatus | null // preflightLogic\n+    members: OrganizationMemberType[] | null // membersLogic\n+    user: UserType | null // userLogic\n     availableProjects: any[]\n     canSubmit: boolean\n+    existingMemberEmails: Set<string>\n     inviteContainsOwnerLevel: boolean\n     invitedTeamMembersInternal: OrganizationInviteType[]\n     invitedTeamMembersInternalLoading: boolean\n@@ -58,6 +63,9 @@ export interface inviteLogicValues {\n \n // Generated by kea-typegen. Update if you're an agent, ignore if you're human.\n export interface inviteLogicActions {\n+    ensureAllMembersLoaded: () => {\n+        value: true\n+    }\n     addProjectAccess: (\n         inviteIndex: number,\n         projectId: number,\n@@ -187,7 +195,8 @@ export type inviteLogicType = MakeLogicType<inviteLogicValues, inviteLogicAction\n export const inviteLogic = kea<inviteLogicType>([\n     path(['scenes', 'organization', 'Settings', 'inviteLogic']),\n     connect(() => ({\n-        values: [preflightLogic, ['preflight']],\n+        values: [preflightLogic, ['preflight'], membersLogic, ['members'], userLogic, ['user']],\n+        actions: [membersLogic, ['ensureAllMembersLoaded']],\n     })),\n     actions({\n         showInviteModal: true,\n@@ -351,13 +360,33 @@ export const inviteLogic = kea<inviteLogicType>([\n                 return invites.filter(({ level }) => level === OrganizationMembershipLevel.Owner).length > 0\n             },\n         ],\n+        existingMemberEmails: [\n+            (selectors) => [selectors.members, selectors.user],\n+            (members, user): Set<string> =>\n+                new Set(\n+                    [...(members ?? []).map((member) => member.user.email), user?.email]\n+                        .filter((email): email is string => !!email)\n+                        .map((email) => email.toLowerCase())\n+                ),\n+        ],\n         canSubmit: [\n-            (selectors) => [selectors.invitesToSend, selectors.inviteContainsOwnerLevel, selectors.isInviteConfirmed],\n-            (invites: InviteRowState[], inviteContainsOwnerLevel: boolean, isInviteConfirmed: boolean) => {\n+            (selectors) => [\n+                selectors.invitesToSend,\n+                selectors.inviteContainsOwnerLevel,\n+                selectors.isInviteConfirmed,\n+                selectors.existingMemberEmails,\n+            ],\n+            (\n+                invites: InviteRowState[],\n+                inviteContainsOwnerLevel: boolean,\n+                isInviteConfirmed: boolean,\n+                existingMemberEmails: Set<string>\n+            ) => {\n                 const ownerLevelConfirmed = inviteContainsOwnerLevel ? isInviteConfirmed : true\n                 return (\n                     invites.filter(({ target_email }) => !!target_email).length > 0 &&\n                     invites.filter(({ isValid }) => !isValid).length == 0 &&\n+                    !invites.some(({ target_email }) => existingMemberEmails.has(target_email.trim().toLowerCase())) &&\n                     ownerLevelConfirmed\n                 )\n             },\ndiff --git a/posthog/api/organization_invite.py b/posthog/api/organization_invite.py\nindex 58f971e0d95..d667a26ad0d 100644\n--- a/posthog/api/organization_invite.py\n+++ b/posthog/api/organization_invite.py\n@@ -197,6 +197,12 @@ class OrganizationInviteSerializer(serializers.ModelSerializer):\n         email = EmailNormalizer.normalize(email)\n         reject_plus_addressed_email(email)\n         validate_invite_target_email_domain(self.context[\"get_organization\"](), email)\n+        # Checked here rather than in `create` so a bulk request is rejected before any invite is created or emailed.\n+        if OrganizationMembership.objects.filter(\n+            organization_id=self.context[\"organization_id\"],\n+            user__email__iexact=email,\n+        ).exists():\n+            raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\")\n         return email\n \n     def validate_first_name(self, value: str) -> str:\n@@ -307,12 +313,6 @@ class OrganizationInviteSerializer(serializers.ModelSerializer):\n         return private_project_access\n \n     def create(self, validated_data: dict[str, Any], *args: Any, **kwargs: Any) -> OrganizationInvite:\n-        if OrganizationMembership.objects.filter(\n-            organization_id=self.context[\"organization_id\"],\n-            user__email__iexact=validated_data[\"target_email\"],\n-        ).exists():\n-            raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\")\n-\n         combine_pending_invites = validated_data.pop(\"combine_pending_invites\", False)\n         send_email = validated_data.pop(\"send_email\", True)\n \ndiff --git a/posthog/api/test/test_organization_invites.py b/posthog/api/test/test_organization_invites.py\nindex 8e8d77f2481..ee3ff4a9bf9 100644\n--- a/posthog/api/test/test_organization_invites.py\n+++ b/posthog/api/test/test_organization_invites.py\n@@ -688,6 +688,23 @@ class TestOrganizationInvitesAPI(APIBaseTest):\n         # No emails should be sent\n         self.assertEqual(len(mail.outbox), 0)\n \n+    def test_bulk_invite_with_existing_member_creates_no_invites(self):\n+        count = OrganizationInvite.objects.count()\n+        payload = self.helper_generate_bulk_invite_payload(2)\n+        payload.append({\"target_email\": self.user.email.upper(), \"level\": 1})\n+\n+        with self.settings(\n+            EMAIL_ENABLED=True,\n+            EMAIL_HOST=\"localhost\",\n+            SITE_URL=\"http://test.posthog.com\",\n+        ):\n+            response = self.client.post(f\"/api/organizations/{self.organization.id}/invites/bulk/\", payload, format=\"json\")\n+\n+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)\n+        self.assertEqual(response.json()[\"attr\"], \"target_email\")\n+        self.assertEqual(OrganizationInvite.objects.count(), count)\n+        self.assertEqual(len(mail.outbox), 0)\n+\n     def test_cannot_bulk_create_invites_for_another_organization(self):\n         another_org = Organization.objects.create()\n \n",
+  "distill": null
+}

@@ -1,0 +1,122 @@
+{
+  "id": "feature-flag-filters-v1-v2-config-format-detection-and-handl",
+  "title": "Feature flag filters: v1/v2 config format detection and handling of non-v1 documents",
+  "kind": "invariant",
+  "answers": [
+    "How do flag jobs handle v2 or unsupported filters?",
+    "What does filters.version mean vs FeatureFlag.version?",
+    "Which flag readers are v1-only?",
+    "Where is config format detected?"
+  ],
+  "body": "- `filters.version` selects config format; `FeatureFlag.version` is an unrelated concurrency/SDK-invalidation counter (`flag_version_sync.py`).\n- `facade/config.py:detect_config_format` returns kind `v1|v2|unsupported`. Absent version or number ==1 -> v1; ==2 -> v2; strings/bools/other numbers -> unsupported. None/{} -> v1. Unsupported is never read as v1.\n- Check format BEFORE reading any v1 key (`groups`, `multivariate`, `payloads`). v1-only readers: `facade/references.py:flag_dependency_properties`, `facade/rules.py`, `legacy_definitions.py:validate_legacy_filters`, `dependency_formats.py:require_v1_config`, `flags_cache.py:_stored_dependency_ids`.\n- Readers raise `ConfigFormatError`; cache builders omit the row instead: `flags_cache.py:_omit_unsupported_flags` drops the row and transitively its dependents; `local_evaluation.py` skips them; `legacy_definitions.py:drop_legacy_dependents`.\n- `_stored_dependency_ids` rejects non-v1 rows regardless of active/deleted, so an inactive v2 row is never blanked into a v1 entry.\n- Malformed v1 differs: ConfigFormatError = skip quietly; TypeError/ValueError in `legacy_definitions.py:_is_supported_legacy_flag` = warn, bump FLAG_PROCESSING_ERROR_COUNTER, omit row without failing the team.\n- `dependency_formats.py:_dependency_ids` deliberately skips malformed groups; don't merge validation policies.",
+  "applies": "Code reading flag.filters; new readers must guard with detect_config_format.",
+  "tags": [
+    "feature-flags",
+    "config-format",
+    "v2"
+  ],
+  "deps": [
+    {
+      "path": "products/feature_flags/backend/facade/config.py",
+      "symbol": "detect_config_format",
+      "hash": "sha256:ecbf1d2d1bb5e5cd1a559c7a",
+      "line": 48,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flags_cache.py",
+      "symbol": "_omit_unsupported_flags",
+      "hash": "sha256:1ff6d0463175ab85b93b3d6d",
+      "line": 148,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flags_cache.py",
+      "symbol": "_stored_dependency_ids",
+      "hash": "sha256:53c80f2fd069ed34ca734cfe",
+      "line": 126,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/legacy_definitions.py",
+      "hash": "sha256:0cc341822ff52fd145649ce9",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/dependency_formats.py",
+      "hash": "sha256:ffa63a7717a59420e69ce8fe",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/local_evaluation.py",
+      "hash": "sha256:c1d2981b2b697fbd2c93a037",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/flag_version_sync.py",
+      "hash": "sha256:89ee38873f68a691cb4bab91",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/facade/references.py",
+      "symbol": "flag_dependency_properties",
+      "hash": "sha256:3d752505a84b776b8b63b1b2",
+      "line": 47,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/facade/rules.py",
+      "hash": "sha256:caa30eb36e8694fb45bd0025",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/legacy_definitions.py",
+      "symbol": "validate_legacy_filters",
+      "hash": "sha256:4bde1f6870ee4ba48d040bbe",
+      "line": 19,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/dependency_formats.py",
+      "symbol": "require_v1_config",
+      "hash": "sha256:9d2e4ac1a1f6ca8a5a3c076d",
+      "line": 20,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/legacy_definitions.py",
+      "symbol": "drop_legacy_dependents",
+      "hash": "sha256:b36b4a158e0c982e66767242",
+      "line": 59,
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/dependency_formats.py",
+      "symbol": "_dependency_ids",
+      "hash": "sha256:3ca890df535f48b4e64b9e0d",
+      "line": 26,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "6c653026-d833-43e7-aa3f-28783ae11ea2"
+  },
+  "created": "2026-09-27T00:18:40.023Z",
+  "verified": "2026-09-27T00:18:40.023Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "feature-flags-backend-lives-in-products-feature-flags-backen",
+    "flag-and-team-level-version-representations",
+    "how-cross-team-flag-jobs-iterate-commands-and-temporal-healt"
+  ],
+  "servedIn": [
+    "7963fd21-bd15-4e41-8e3c-274cd2823351",
+    "f46d4b5d-42ec-4d38-853a-4179418ca6d6",
+    "38882f6a-dc45-46d6-ace3-4d87917567d7"
+  ],
+  "lastUsed": "2026-09-27T00:58:45.860Z"
+}
