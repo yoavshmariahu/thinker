@@ -1,17 +1,114 @@
-// LLM backend. Uses the Anthropic SDK when ANTHROPIC_API_KEY is set, else
-// shells out to `claude -p` (Claude Code's headless mode, which uses the
-// user's existing login). Both return a parsed JSON object when a schema is
-// given.
+// LLM backend for distilling, verifying and mining. Providers:
+//   anthropic  Anthropic SDK (ANTHROPIC_API_KEY)
+//   claude     `claude -p`, Claude Code's headless mode
+//   codex      `codex exec`
+//   cursor     `agent -p` (Cursor's CLI)
+//   gemini     `gemini -p`
+//   command    THINKER_LLM_CMD: any shell command that reads the prompt on
+//              stdin and prints the answer
+// Each uses the login that agent already has. THINKER_LLM picks one; otherwise
+// the first that is available, preferring THINKER_LLM_PREFER (set by the hooks
+// to the agent that is running). All return a parsed JSON object when a
+// schema is given.
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ALIASES = { haiku: 'claude-haiku-4-5', sonnet: 'claude-sonnet-5', opus: 'claude-opus-5', fable: 'claude-fable-5-1' };
+const BINS = { claude: ['claude'], codex: ['codex'], cursor: ['agent', 'cursor-agent'], gemini: ['gemini'] };
 
-export async function complete({ system, prompt, model = 'sonnet', schema, maxTokens = 8000, timeoutMs = 300_000 }) {
-  if (process.env.ANTHROPIC_API_KEY && process.env.THINKER_BACKEND !== 'cli') return viaSdk({ system, prompt, model, schema, maxTokens, timeoutMs });
-  return viaCli({ system, prompt, model, schema, timeoutMs });
+// Hooks run with a short PATH; also look where these tools install themselves.
+export function findBin(names) {
+  const dirs = [...(process.env.PATH || '').split(path.delimiter), path.join(os.homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin'].filter(Boolean);
+  for (const n of names) for (const d of dirs) { const f = path.join(d, n); try { fs.accessSync(f, fs.constants.X_OK); return f; } catch {} }
+  return null;
+}
+export function available() {
+  const out = [];
+  if (process.env.THINKER_LLM_CMD) out.push('command');
+  if (process.env.ANTHROPIC_API_KEY && process.env.THINKER_BACKEND !== 'cli') out.push('anthropic');
+  for (const p of ['claude', 'codex', 'gemini', 'cursor']) if (findBin(BINS[p])) out.push(p);
+  return out;
+}
+export function provider() {
+  const want = process.env.THINKER_LLM;
+  const have = available();
+  if (want) { if (want === 'anthropic' || want === 'command' || BINS[want]) return want; throw new Error(`unknown THINKER_LLM: ${want}`); }
+  const prefer = process.env.THINKER_LLM_PREFER;
+  if (prefer && have.includes(prefer) && !have.includes('command') && !have.includes('anthropic')) return prefer;
+  return have[0] || null;
+}
+
+export async function complete(opts) {
+  const p = provider();
+  if (!p) throw new Error('no model available: install one of the claude, codex, gemini or cursor (agent) CLIs, or set ANTHROPIC_API_KEY or THINKER_LLM_CMD');
+  const o = { model: 'sonnet', maxTokens: 8000, timeoutMs: 300_000, ...opts };
+  if (p === 'anthropic') return viaSdk(o);
+  if (p === 'claude') return viaCli(o);
+  return viaOther(p, o);
+}
+
+// Find the JSON object in a model's reply (it may be fenced or have text around it).
+export function extractJson(text) {
+  const t = String(text || '').trim();
+  const tries = [t, (t.match(/```(?:json)?\s*([\s\S]*?)```/) || [])[1]];
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a >= 0 && b > a) tries.push(t.slice(a, b + 1));
+  for (const c of tries) { if (!c) continue; try { const j = JSON.parse(c); if (j && typeof j === 'object') return j; } catch {} }
+  throw new Error('no JSON in the reply: ' + t.slice(0, 300));
+}
+
+function run(bin, args, { input, cwd, timeoutMs, shell = false }) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(bin, args, { cwd, shell, env: { ...process.env, THINKER_IN_LLM: '1' } });
+    let o = '', e = '';
+    const timer = setTimeout(() => { p.kill('SIGKILL'); reject(new Error(`${path.basename(bin)} timed out`)); }, timeoutMs);
+    p.stdout.on('data', d => o += d); p.stderr.on('data', d => e += d);
+    p.on('error', err => { clearTimeout(timer); reject(err); });
+    p.on('close', code => { clearTimeout(timer); code === 0 ? resolve(o) : reject(new Error(`${path.basename(bin)} exited ${code}: ${e.slice(0, 500)} ${o.slice(0, 500)}`)); });
+    p.stdin.on('error', () => {});
+    p.stdin.end(input ?? '');
+  });
+}
+
+// Agents other than Claude Code: one prompt in, the final message out. The
+// model is the agent's own default unless THINKER_LLM_MODEL names one
+// (Claude aliases such as "haiku" mean nothing to them).
+async function viaOther(p, { system, prompt, schema, timeoutMs }) {
+  const model = process.env.THINKER_LLM_MODEL;
+  let full = (system ? system + '\n\n' : '') + prompt;
+  if (schema) full += `\n\nReply with one JSON object and nothing else: no prose, no code fence. It must match this JSON Schema:\n${JSON.stringify(schema)}`;
+  full += '\n\nEverything you need is in this message. Do not run tools or read files.';
+  if (BINS[p] && !findBin(BINS[p])) throw new Error(`the ${BINS[p][0]} CLI was not found (THINKER_LLM=${p})`);
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-llm-'));
+  try {
+    let text, usage = null;
+    if (p === 'command') text = await run(process.env.THINKER_LLM_CMD, [], { input: full, cwd, timeoutMs, shell: true });
+    else if (p === 'codex') {
+      const args = ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only'];
+      if (model) args.push('--model', model);
+      const out = await run(findBin(BINS.codex), [...args, '-'], { input: full, cwd, timeoutMs });
+      const evs = out.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      const fail = evs.find(e => e.type === 'turn.failed' || e.type === 'error');
+      if (fail) throw new Error('codex: ' + JSON.stringify(fail).slice(0, 400));
+      text = evs.filter(e => e.type === 'item.completed' && e.item?.type === 'agent_message').map(e => e.item.text || '').pop() || '';
+      usage = evs.filter(e => e.type === 'turn.completed').map(e => e.usage).pop() || null;
+    } else if (p === 'cursor') {
+      const args = ['-p', '--output-format', 'json', '--mode', 'ask', '--trust'];
+      if (model) args.push('--model', model);
+      const j = JSON.parse(await run(findBin(BINS.cursor), [...args, full], { cwd, timeoutMs }));
+      if (j.is_error) throw new Error('cursor: ' + String(j.result).slice(0, 400));
+      text = j.result || ''; usage = j.usage || null;
+    } else if (p === 'gemini') {
+      const args = ['--output-format', 'json'];
+      if (model) args.push('-m', model);
+      const j = JSON.parse(await run(findBin(BINS.gemini), args, { input: full, cwd, timeoutMs }));
+      if (j.error) throw new Error('gemini: ' + JSON.stringify(j.error).slice(0, 400));
+      text = j.response || ''; usage = j.stats || null;
+    }
+    return { text, json: schema ? extractJson(text) : null, usage, cost: null, provider: p };
+  } finally { try { fs.rmSync(cwd, { recursive: true, force: true }); } catch {} }
 }
 
 async function viaSdk({ system, prompt, model, schema, maxTokens, timeoutMs }) {
@@ -47,7 +144,7 @@ async function viaCliOnce({ system, prompt, model, schema, timeoutMs }) {
   if (schema) args.push('--json-schema', JSON.stringify(schema));
   try {
     const stdout = await new Promise((resolve, reject) => {
-      const p = spawn('claude', args, { cwd, env: { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } });
+      const p = spawn(findBin(BINS.claude) || 'claude', args, { cwd, env: { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } });
       let o = '', e = '';
       const timer = setTimeout(() => { p.kill('SIGKILL'); reject(new Error('claude -p timed out')); }, timeoutMs);
       p.stdout.on('data', d => o += d); p.stderr.on('data', d => e += d);

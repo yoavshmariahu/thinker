@@ -56,13 +56,13 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.75,
   "status": "fresh",
-  "uses": 10,
+  "uses": 11,
   "related": [
     "cdc-differs-from-regular-sync-per-source-schedule-halt-marke",
     "schema-disable-delete-schedule-handling-coupled-flags-and-in",
     "temporal-schedules-in-data-load-service-per-schema-sync-and-"
   ],
-  "lastUsed": "2026-09-27T07:04:43.514Z",
+  "lastUsed": "2026-09-27T07:20:53.355Z",
   "servedIn": [
     "075bc015-05d2-43cd-863b-d22c9a868902",
     "dc4ec292-78d0-494e-aad1-52c00865e3f7",
@@ -72,6 +72,7 @@
     "b232bfe1-c89d-47ac-b37c-cfb38332354d",
     "db96b0a1-ba11-48a9-b06f-274055191171",
     "a471e51c-4c4d-47b8-9bb8-9ec2a4d9953b",
-    "codex-posthog-codex-gpt56-PR106917-hard-0"
+    "codex-posthog-codex-gpt56-PR106917-hard-0",
+    "codex-posthog-codex-gpt56-PR106917-hard-1"
   ]
 }

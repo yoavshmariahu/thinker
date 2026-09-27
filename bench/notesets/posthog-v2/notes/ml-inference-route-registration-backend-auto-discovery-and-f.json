@@ -56,12 +56,12 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.85,
   "status": "fresh",
-  "uses": 19,
+  "uses": 20,
   "related": [
     "backend-product-route-auto-discovery",
     "router-registration-core-vs-product-routes"
   ],
-  "lastUsed": "2026-09-27T07:04:08.793Z",
+  "lastUsed": "2026-09-27T07:18:02.494Z",
   "servedIn": [
     "2b19a50b-56fd-4370-9d5a-970da64f9822",
     "39034c00-ed72-48f7-af96-e0ae7a43f8f4",
@@ -80,6 +80,7 @@
     "52afbba3-57c2-4abe-bb4f-9643753cd104",
     "7fa3b504-7c7a-466a-9c1d-cd62ee9e2eba",
     "a92f12fd-3d2a-4f08-88aa-c152b9bdb890",
-    "codex-posthog-codex-gpt56-PR106613-hard-0"
+    "codex-posthog-codex-gpt56-PR106613-hard-0",
+    "codex-posthog-codex-gpt56-PR106613-hard-1"
   ]
 }

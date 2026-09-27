@@ -10,8 +10,10 @@
 //            always-applied rule points the agent at the MCP tools
 //                                             postToolUse               .cursor/mcp.json
 //
-// Learning from sessions (Stop hook + distill) reads Claude Code transcripts
-// and is only installed for claude.
+// Learning from sessions: Claude Code's transcript is distilled at Stop. For
+// the others the hooks record the session themselves (prompt, every tool call
+// with its result, the closing message) and that trace is distilled, so
+// learning does not depend on the agent's transcript format.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -144,6 +146,8 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
   const done = [];
   const cmd = (what, extra = '') => `node "${cli}" hook ${what} --client ${client} --repo "${repo}"${extra}`;
   const rel = f => path.relative(repo, f);
+  const rec = learn ? ' --record' : '';
+  const learned = learn ? ', sessions distilled into new notes when they end' : '';
 
   if (client === 'claude') {
     if (mcp) { mergeJson(path.join(repo, '.mcp.json'), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpEntry } })); done.push('Claude Code: registered MCP server in .mcp.json'); }
@@ -174,9 +178,11 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
     if (hooks) {
       const file = path.join(repo, '.codex', 'hooks.json');
       const entries = [['UserPromptSubmit', { hooks: [{ type: 'command', command: cmd('prompt'), timeout: 15 }] }]];
-      if (late) entries.push(['PostToolUse', { matcher: 'Bash', hooks: [{ type: 'command', command: cmd('tool'), timeout: 10 }] }]);
+      entries[0][1].hooks[0].command = cmd('prompt', rec);
+      if (late || learn) entries.push(['PostToolUse', { hooks: [{ type: 'command', command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10 }] }]);
+      if (learn) entries.push(['Stop', { hooks: [{ type: 'command', command: cmd('stop', rec), timeout: 10 }] }]);
       mergeJson(file, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'PostToolUse', 'Stop'], entries) }));
-      done.push(`Codex: hooks in .codex/hooks.json: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}. Codex asks you to trust the project and review new hooks before they run`);
+      done.push(`Codex: hooks in .codex/hooks.json: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}. Codex asks you to trust the project and review new hooks before they run`);
       generated.push('.codex/hooks.json');
     }
     if (!shared && generated.length) excludeLocally(repo, generated);
@@ -190,13 +196,15 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
       if (hooks) {
         // Gemini CLI timeouts are in milliseconds
         const entries = [['BeforeAgent', { hooks: [{ name: 'thinker-prompt', type: 'command', command: cmd('prompt'), timeout: 15000 }] }]];
-        if (late) entries.push(['AfterTool', { matcher: 'read_file|run_shell_command|search_file_content', hooks: [{ name: 'thinker-tool', type: 'command', command: cmd('tool'), timeout: 10000 }] }]);
+        entries[0][1].hooks[0].command = cmd('prompt', rec);
+        if (late || learn) entries.push(['AfterTool', { hooks: [{ name: 'thinker-tool', type: 'command', command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10000 }] }]);
+        if (learn) entries.push(['AfterAgent', { hooks: [{ name: 'thinker-learn', type: 'command', command: cmd('stop', rec), timeout: 10000 }] }]);
         n.hooks = setHooks(c.hooks, ['BeforeAgent', 'AfterTool', 'AfterAgent'], entries);
       }
       return n;
     });
     if (mcp) done.push('Gemini CLI: registered MCP server in .gemini/settings.json');
-    if (hooks) done.push(`Gemini CLI: hooks in .gemini/settings.json: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}`);
+    if (hooks) done.push(`Gemini CLI: hooks in .gemini/settings.json: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
     if (!shared && (mcp || hooks)) excludeLocally(repo, ['.gemini/settings.json']);
   }
 
@@ -212,11 +220,12 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
     if (hooks) {
       const file = path.join(repo, '.cursor', 'hooks.json');
       const entries = [
-        ['beforeSubmitPrompt', { command: cmd('prompt'), timeout: 15 }],
-        ['postToolUse', { command: cmd('tool', late ? ' --late' : ''), timeout: 10 }],
+        ['beforeSubmitPrompt', { command: cmd('prompt', rec), timeout: 15 }],
+        ['postToolUse', { command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10 }],
       ];
+      if (learn) entries.push(['stop', { command: cmd('stop', rec), timeout: 10 }]);
       mergeJson(file, c => ({ version: 1, ...c, hooks: setHooks(c.hooks, ['beforeSubmitPrompt', 'postToolUse', 'stop'], entries) }));
-      done.push(`Cursor: hooks in .cursor/hooks.json: notes for the request are delivered after the agent's first tool call${late ? ', then file-keyed notes while working' : ''}`);
+      done.push(`Cursor: hooks in .cursor/hooks.json: notes for the request are delivered after the agent's first tool call${late ? ', then file-keyed notes while working' : ''}${learned}`);
       generated.push('.cursor/hooks.json');
     }
     if (!shared) excludeLocally(repo, generated);

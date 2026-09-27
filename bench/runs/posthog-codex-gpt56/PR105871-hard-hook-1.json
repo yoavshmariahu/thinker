@@ -1,0 +1,9 @@
+{
+  "id": "PR105871-hard-hook-1",
+  "task": "PR105871-hard",
+  "arm": "hook",
+  "rep": 1,
+  "model": "gpt-5.6-terra",
+  "turns": 0,
+  "error": "Codex exited 1: {\"type\":\"error\",\"message\":\"You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at 5:05 AM.\"}"
+}

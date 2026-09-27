@@ -1,4 +1,4 @@
-// Distill an agent session transcript (Claude Code JSONL) into notes.
+// Distill an agent session (any transcript format transcripts.js reads) into notes.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -8,32 +8,7 @@ import { tokenize } from './rank.js';
 
 const EXPLORE_TOOLS = new Set(['Grep', 'Glob', 'Read', 'Bash', 'Agent', 'Task', 'LS', 'WebFetch']);
 
-export function parseTranscript(file, { fromLine = 0 } = {}) {
-  const lines = fs.readFileSync(file, 'utf8').split('\n');
-  const events = [];
-  const results = new Map();
-  let cwd = null;
-  for (let i = fromLine; i < lines.length; i++) {
-    const l = lines[i]; if (!l.trim()) continue;
-    let j; try { j = JSON.parse(l); } catch { continue; }
-    if (j.cwd && !cwd) cwd = j.cwd;
-    if (j.type !== 'user' && j.type !== 'assistant') continue;
-    const c = j.message?.content;
-    if (typeof c === 'string') { if (j.type === 'user' && !j.isMeta) events.push({ t: 'prompt', text: c }); continue; }
-    if (!Array.isArray(c)) continue;
-    for (const b of c) {
-      if (b.type === 'text' && j.type === 'user' && !j.isMeta) events.push({ t: 'prompt', text: b.text });
-      else if (b.type === 'text' && j.type === 'assistant') events.push({ t: 'say', text: b.text });
-      else if (b.type === 'tool_use') events.push({ t: 'tool', id: b.id, name: b.name, input: b.input });
-      else if (b.type === 'tool_result') {
-        const txt = typeof b.content === 'string' ? b.content : (b.content || []).map(x => x.text || '').join('\n');
-        results.set(b.tool_use_id, txt);
-      }
-    }
-  }
-  for (const e of events) if (e.t === 'tool') e.result = results.get(e.id) || '';
-  return { events, lineCount: lines.length, cwd };
-}
+export { parseTranscript } from './transcripts.js';
 
 // Note ids that were injected into this transcript (hook or MCP orient output).
 export function injectedIds(file, { fromLine = 0 } = {}) {

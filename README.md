@@ -61,7 +61,7 @@ Fable, 40 of 40 runs graded, 20 complete pairs: 14 tasks at seed 0 and 6 of them
 
 With the cache, Fable used 17% fewer calls, 18% fewer input tokens, 10% less cost ($0.28 ±0.12 per run, cheaper in 15 of 20 pairs) and 14% less time. Essential met moved +0.10 ±0.08 (better on 8 pairs, unchanged on 9, worse on 3), which is within noise at this sample size. This run had no prompt-only control, so the saving is not separated into instruction and content effects.
 
-Cursor Auto has five finished pairs, all seed 0 (`bench/runs/posthog-auto`). Each cell is calls, essential met, and whether every essential criterion passed. Nine tasks are still incomplete. The stable-chunk cache arm (PR106564) has finished at 287 calls with essential met 0.00; its no-cache arm is not in yet. Fable on that task went from 0.80 to 1.00 with the cache.
+Cursor Auto has six finished pairs, all seed 0 (`bench/runs/posthog-auto`). Each cell is calls, essential met, and whether every essential criterion passed. Eight tasks are still incomplete.
 
 | task | Fable, no cache | Fable, cache | Auto, no cache | Auto, cache |
 |---|---|---|---|---|
@@ -70,8 +70,15 @@ Cursor Auto has five finished pairs, all seed 0 (`bench/runs/posthog-auto`). Eac
 | stop a broadcast (PR106466) | 21 calls, 1.00, pass | 13 calls, 1.00, pass | 112 calls, 1.00, pass | 98 calls, 0.67, fail |
 | invite existing member (PR106936) | 23 calls, 0.67, fail | 20 calls, 1.00, pass | 196 calls, 1.00, pass | 169 calls, 1.00, pass |
 | insight layout (PR107042) | 17 calls, 1.00, pass | 20 calls, 0.80, fail | 178 calls, 0.60, fail | 179 calls, 0.80, fail |
+| stable chunks (PR106564) | 13 calls, 0.80, fail | 9 calls, 1.00, pass | 353 calls, 0.60, fail | 287 calls, 0.00, fail |
 
-Across these five, Fable went from 18.6 to 14.0 calls and from 3/5 to 4/5 strict passes with the cache. Auto went from 136 to 120 calls and stayed at 3/5 strict passes. The cache helped Auto on the playground rename and raised the insight-layout score from 0.60 to 0.80, still short of a strict pass. It did not change the shared-metric or invite outcome, both of which already passed. On the broadcast task it lowered essential met from 1.00 to 0.67.
+Across these six, Fable went from 17.7 to 13.2 calls and from 3/6 to 5/6 strict passes with the cache. Auto went from 172 to 148 calls and stayed at 3/6 strict passes. The cache helped Auto on the playground rename and raised the insight-layout score from 0.60 to 0.80, still short of a strict pass. It did not change the shared-metric or invite outcome, both of which already passed. It lowered the broadcast score from 1.00 to 0.67 and the stable-chunk score from 0.60 to 0.00.
+
+Grok 4.7 is the same setup, recorded in `bench/runs/posthog-grok`. One pair is graded so far, saved-metric breakdowns (PR105887). Both arms passed. The cache did not change the score or the call count.
+
+| task | Fable, no cache | Fable, cache | Grok 4.7, no cache | Grok 4.7, cache |
+|---|---|---|---|---|
+| saved-metric breakdowns (PR105887) | 23 calls, 1.00, pass | 16 calls, 1.00, pass | 131 calls, 1.00, pass | 132 calls, 1.00, pass |
 
 ### Across models, same PostHog symptom tasks
 
