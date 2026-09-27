@@ -52,7 +52,7 @@ Real tasks taken from merged pull requests, run with and without the cache, grad
 
 Same 14 tasks, same notes (`bench/notesets/posthog-v2`), same arms (`nocache`, `hook`), graded by Sonnet on the calibrated criteria in `bench/tasks/posthog-hard.json`. Fable is `claude -p --model fable` (`bench/runs/posthog-fable`). Cursor Auto ran in isolated checkouts; the cached arm received the same `orient` bundle the hook injects, pasted at the start of the session. Auto has no token or dollar accounting. Its wall clock starts from a minute-resolution timestamp.
 
-Fable, 20 complete pairs, all graded: 14 tasks at seed 0 and 6 of them again at seed 1 (the run was stopped at 40 of 56 planned runs).
+Fable, 40 of 40 runs graded, 20 complete pairs: 14 tasks at seed 0 and 6 of them again at seed 1.
 
 | arm | calls | input | cost | time | essential met | strict pass |
 |---|---|---|---|---|---|---|
