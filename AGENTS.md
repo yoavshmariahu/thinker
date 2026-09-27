@@ -33,6 +33,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/cochange.js` | co-change mining from git history |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
+| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
@@ -61,6 +62,25 @@ cost. The estimate is printed before anything runs; in a terminal `setup`
 asks before spending (`--yes` skips the question). Hook and MCP files are
 written for this checkout only and kept out of commits through
 `.git/info/exclude`; pass `--shared` to write committable files instead.
+
+To mine more pull requests later, run `thinker mine-prs` (or `thinker learn
+--prs`, which distills new sessions first). With no arguments it takes the
+GitHub `origin`, mines what was merged since the last run and then goes
+further back in history, 20 at a time (`--limit n`). Every pull request it
+has looked at is recorded in `.thinker/prs.json`, which is committed with the
+notes, so none is distilled twice, by you or by a teammate. Nothing runs this
+automatically.
+
+## Usage history
+
+Every serving, assessment, distillation, verification and mining run is
+appended to `.thinker/log.jsonl` (per checkout, not committed). `thinker
+usage [--days n] [--json]` summarizes it: notes served and how, what the
+sessions did with them, what was learned and what it cost, and an estimate of
+the tool calls and tokens saved. The estimate counts only servings a session
+was seen to act on (`confirmed`), as one read per file the note rests on (at
+most 5) at the file's size (at most 6,000 tokens). It is not a measurement;
+measured effects are in `bench/RESULTS.md`.
 
 ## What a note is
 
@@ -109,7 +129,7 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 1. **Automatic**: `thinker distill <transcript.jsonl>` condenses a session
    (prompts, tool calls with truncated results, the agent's final answer)
    and asks a model for 0–4 notes with deps. The end-of-turn hook runs this
-   incrementally in the background (`thinker init --hooks`). Near-duplicate
+   incrementally in the background (on by default; see below). Near-duplicate
    notes (same kind, ≥0.5 Jaccard on title+answers) are merged, keeping
    history.
 2. **Agent-authored**: the `remember` MCP tool, for agents that finish
@@ -137,6 +157,10 @@ Each session both consumes and improves the cache:
    `orient` appends "X usually changes with Y (80%, n=12)" lines for the
    files the served notes point at, so co-change rules do not depend on an
    agent having traced them.
+
+Learning is on by default in `setup`, `init` and the installer. Evals keep
+the cache fixed with `--no-learn` at install time, or `THINKER_NO_LEARN=1` in
+the environment, which also silences hooks that are already installed.
 
 Controls for experiments: `THINKER_NO_LINKS=1`, `THINKER_NO_COCHANGE=1`,
 `THINKER_NAIVE=1` (no invalidation), `THINKER_FORCE=1` (inject regardless
@@ -178,7 +202,7 @@ of relevance), `THINKER_RERANK=haiku`.
 
 ### Learning from any agent
 
-`--learn` works with all four agents, and with others through the generic
+Learning works with all four agents, and with others through the generic
 path below. Nothing in it is tied to one vendor:
 
 - **Sessions.** `thinker distill` reads Claude Code, Codex, Cursor and Gemini

@@ -5,6 +5,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
 import { hashDep, checkNote, symbolText } from './deps.js';
 import { rank, pack, renderNote, renderPointers, estTokens } from './rank.js';
+import { servedFields } from './usage.js';
 import { complete } from './llm.js';
 import { loadCochange, renderCochange } from './cochange.js';
 import { anchoringGuard, explicitIdents, existsInRepo } from './guard.js';
@@ -231,7 +232,7 @@ export async function orient(store, { task, file, session, budget = 600, maxNote
   if (packed.included.length && process.env.THINKER_NO_GUARD !== '1') {
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: process.env.THINKER_GUARD_PHRASES !== '1', max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
-  store.log({ op: 'orient', session, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id) });
+  store.log({ op: 'orient', session, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
@@ -286,8 +287,9 @@ export function lateNotes(store, { session, files, perEvent = 2, perSession = 5 
   if (!pick.length) return { text: '', included: [] };
   for (const n of pick) { st.late.push(n.id); n.uses = (n.uses || 0) + 1; n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   save();
-  store.log({ op: 'late', session, files: rel, served: pick.map(n => n.id) });
-  return { included: pick, text: `<thinker-cache>\nCached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>` };
+  const text = `<thinker-cache>\nCached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>`;
+  store.log({ op: 'late', session, files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
+  return { included: pick, text };
 }
 
 // --- completeness nudge -------------------------------------------------------
@@ -372,7 +374,7 @@ export function lookup(store, { query, budget = 2500 }) {
   const notes = NAIVE ? store.list().map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; }) : refresh(store, store.list());
   const ranked = rank(notes, { query, mode: 'lookup' });
   const packed = pack(ranked, budget, { minRel: 0.15 });
-  store.log({ op: 'lookup', query: String(query).slice(0, 200), served: packed.included.map(n => n.id) });
+  store.log({ op: 'lookup', query: String(query).slice(0, 200), served: packed.included.map(n => n.id), ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 

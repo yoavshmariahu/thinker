@@ -5,13 +5,14 @@ import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
 import { orient, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
-import { listMergedPrs, distillPr } from './prs.js';
+import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs } from './prs.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
 import { hashDep } from './deps.js';
 import { CLIENTS, parseClients, installClient, uninstallClients, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, parkPending, takePending } from './clients.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from './transcripts.js';
 import { available, provider, findBin } from './llm.js';
+import { summarize, renderUsage } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -27,14 +28,19 @@ const store = new Store(repo);
 const out = s => process.stdout.write(s + '\n');
 const readStdin = () => fs.readFileSync(0, 'utf8');
 
+// Learning from sessions is on unless switched off, which evals do to keep the cache fixed.
+const NO_LEARN = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
+const learnOn = () => !NO_LEARN && !flags['no-learn'] && !flags['serve-only'];
+
 const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: repo } });
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--clients list|all|auto] [--areas n] [--prs n] [--no-seed] [--no-prs] [--learn] [--late] [--shared] [--git-hook] [--export f.tgz] [--yes]
+  setup [--clients list|all|auto] [--areas n] [--prs n] [--no-seed] [--no-prs] [--no-learn] [--late] [--shared] [--git-hook] [--export f.tgz] [--yes]
                                  everything for a new repo in one step: build the cache (co-change, merged PRs,
-                                 one exploration session per source area) and wire it into the coding agents found
-  init [--hooks | --serve-only] [--late] [--local] [--git-hook] [--no-mcp] [--clients list|all|auto]
+                                 one exploration session per source area) and wire it into the coding agents found;
+                                 sessions are distilled into new notes as they end (--no-learn or THINKER_NO_LEARN=1 turns that off, for evals)
+  init [--no-learn] [--no-hooks] [--late] [--local] [--git-hook] [--no-mcp] [--clients list|all|auto]
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
   export [file.tgz]              pack this repo's cache for delivery
@@ -52,22 +58,29 @@ const HELP = `thinker — knowledge cache for coding agents
   verify [ids...] [--model m]    re-verify stale notes with a small model
   distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--dry] [--model m]
                                  turn a session into notes; reads any of these agents' transcripts, or a plain event trace
-  learn [--days n] [--max n] [--idle-min n] [--dry]
-                                 distill every session any supported agent ran in this repo that has not been distilled yet
+  learn [--days n] [--max n] [--idle-min n] [--prs [n]] [--dry]
+                                 distill every session any supported agent ran in this repo that has not been distilled yet;
+                                 --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   seed [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: one exploration session per source area
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
-  mine-prs <owner/repo> --before <iso> [--after <iso>] [--limit n]   distill merged PRs into fix / invariant / convention notes
+  mine-prs [owner/repo] [--limit n] [--dry]
+                                 distill merged PRs into fix / invariant / convention notes: those merged since the last run,
+                                 then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice
+                                 (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = early injection, tool = late file-keyed injection, stop = nudge + distill
+  usage [--days n] [--json]      how the cache has been used here: notes served, what sessions did with them, what was learned,
+                                 and an estimate of the tool calls and tokens saved (history is kept in .thinker/log.jsonl)
   stats
 `;
 
 async function main() {
   switch (cmd) {
     case 'init': {
-      // flags: --hooks (serve + learn), --serve-only (no learning at session end), --late (file-keyed notes),
+      // hooks serve notes and learn from sessions by default. flags: --no-learn (serve only, for evals; --serve-only is
+      //        the older name), --no-hooks (MCP server only), --late (file-keyed notes),
       //        --local (write .claude/settings.local.json, not shared), --git-hook, --no-mcp, --clients
-      init({ clients: parseClients(flags.clients), hooks: !!(flags.hooks || flags['serve-only']), learn: !!flags.hooks && !flags['serve-only'], late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !!flags['git-hook'] });
+      init({ clients: parseClients(flags.clients), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !!flags['git-hook'] });
       break;
     }
     case 'setup': {
@@ -84,9 +97,9 @@ async function main() {
       break;
     }
     case 'export': {
-      // pack this repo's cache (notes, co-change index, config) for delivery
+      // pack this repo's cache (notes, co-change index, record of mined PRs, config) for delivery
       const file = path.resolve(pos[0] || `thinker-cache-${path.basename(repo)}.tgz`);
-      const items = ['notes', 'cochange.json', 'config.json'].filter(x => fs.existsSync(path.join(store.dir, x)));
+      const items = ['notes', 'cochange.json', 'prs.json', 'config.json'].filter(x => fs.existsSync(path.join(store.dir, x)));
       const head = gitHead(repo);
       fs.writeFileSync(path.join(store.dir, 'cache-manifest.json'), JSON.stringify({ repo: path.basename(repo), commit: head, notes: store.list().length, exportedAt: new Date().toISOString() }, null, 2));
       execFileSync('tar', ['-czf', file, '-C', store.dir, ...items, 'cache-manifest.json']);
@@ -191,6 +204,8 @@ async function main() {
       // Cursor also runs the Claude Code hooks it imports; its own hooks do the work
       if (client === 'cursor-import') break;
       const session = sessionOf(ev);
+      // installed hooks carry --record; THINKER_NO_LEARN=1 switches learning off without reinstalling them
+      if (NO_LEARN) flags.record = false;
       if (pos[0] === 'prompt') {
         if (client === 'cursor') out(JSON.stringify({ continue: true })); // cannot add context here; see clients.js
         if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(client); }
@@ -238,7 +253,7 @@ async function main() {
         }
         // Distill in the background so the hook returns immediately.
         if (client === 'cursor') out('{}');
-        if (flags['no-distill']) break;
+        if (flags['no-distill'] || NO_LEARN) break;
         // Claude Code: its transcript. Other agents: the trace the hooks recorded,
         // plus the agent's closing message from the hook input or its transcript.
         let source = ev.transcript_path;
@@ -258,6 +273,7 @@ async function main() {
     }
     case 'learn': {
       await learn({ days: Number(flags.days) || 14, idleMin: flags['idle-min'] === undefined ? 2 : Number(flags['idle-min']), max: Number(flags.max) || 50, dry: !!flags.dry, quiet: !!flags.quiet });
+      if (flags.prs) await mineMore({ limit: flags.prs === true ? 20 : Number(flags.prs) || 20, model: flags.model, dry: !!flags.dry });
       break;
     }
     case 'record': {
@@ -268,8 +284,8 @@ async function main() {
       break;
     }
     case 'mine-prs': {
-      // thinker mine-prs <owner/repo> --before <iso> [--after <iso>] [--limit n] [--dry]
-      await minePrs(pos[0], { before: flags.before, after: flags.after, limit: Number(flags.limit) || 60, model: flags.model, dry: !!flags.dry });
+      // thinker mine-prs [owner/repo] [--limit n] [--dry]; a window by hand: --before <iso> [--after <iso>] [--again]
+      await mineMore({ slug: pos[0], before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry });
       break;
     }
     case 'outcome': {
@@ -281,6 +297,12 @@ async function main() {
     case 'seed': {
       // Bootstrap coverage: one exploration session per source area, distilled.
       await seed({ areas: Number(flags.areas) || 12, model: flags.model, dry: !!flags.dry, prompts: flags.prompts, agent: typeof flags.agent === 'string' ? flags.agent : undefined });
+      break;
+    }
+    case 'usage': {
+      const days = Number(flags.days) || undefined;
+      const u = summarize(store, { days });
+      out(flags.json ? JSON.stringify(u, null, 2) : renderUsage(u, { repo: path.basename(repo), notes: store.list().length, days }));
       break;
     }
     case 'stats': {
@@ -342,24 +364,42 @@ async function setup() {
   out(`  merged PRs:   ${canMine && canBuild ? `up to ${prs} from ${slug}` : flags['no-prs'] || (slug && !prs) ? 'skipped' : !slug ? 'skipped (origin is not a GitHub repository)' : 'skipped (needs the gh CLI and an agent CLI)'}`);
   // measured on PostHog: ~$0.45 per exploration session incl. distillation, ~$0.06 per mined PR
   const est = (areas && canSeed ? areas * 0.45 : 0) + (canMine && canBuild ? prs * 0.06 : 0);
+  out(`  learning:     ${learnOn() ? 'on: each session is distilled into notes when it ends, through the login of the agent that ran it (about $0.05 a session with Claude Sonnet; --no-learn turns it off)' : 'off'}`);
   if (est) out(`  model usage:  through your ${agent || provider()} login; roughly $${est.toFixed(0)} when measured with Claude Sonnet (varies with repo size and model)`);
   if (est && !flags.yes && process.stdin.isTTY) {
     const rl = (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout });
     const a = await rl.question('Continue? [Y/n] '); rl.close();
     if (/^n/i.test(a.trim())) { out('stopped before building; nothing was changed'); return; }
   }
-  init({ clients, hooks: true, learn: !!flags.learn, late: !!flags.late, shared: !!flags.shared, mcp: true, gitHook: !!flags['git-hook'] });
-  if (canMine && canBuild) await minePrs(slug, { before: new Date().toISOString(), limit: prs, model: flags.model });
+  init({ clients, hooks: true, learn: learnOn(), late: !!flags.late, shared: !!flags.shared, mcp: true, gitHook: !!flags['git-hook'] });
+  if (canMine && canBuild) await minePrs(slug, { limit: prs, model: flags.model });
   if (areas && canSeed) await seed({ areas, model: flags.model, agent });
   const notes = store.list();
   for (const n of notes) linkNotes(store, n, notes);
   if (typeof flags.export === 'string') { execFileSync('node', [path.join(HERE, 'cli.js'), 'export', flags.export, '--repo', repo], { stdio: 'inherit' }); }
   out(`\nthinker is set up for ${path.basename(repo)}: ${notes.length} notes, served to ${clients.join(', ')}.`);
-  if (!notes.length) out('The cache is empty. With --learn it fills from your own sessions; or re-run setup where an agent CLI is available.');
+  if (!notes.length) out(learnOn() ? 'The cache is empty. It fills from your own sessions as you work.' : 'The cache is empty and learning is off. Re-run setup without --no-learn, or where an agent CLI is available.');
 }
 
-async function minePrs(slug, { before, after, limit, model, dry }) {
-  const prs = listMergedPrs(slug, { before, after, limit })
+// mine-prs and learn --prs: the repo defaults to the GitHub origin, and what is needed is checked first
+async function mineMore({ slug, ...opts }) {
+  slug = slug || githubSlug();
+  if (!slug) { out('merged PRs: origin is not a GitHub repository; name one: thinker mine-prs <owner/repo>'); return; }
+  if (!hasBin('gh')) { out('merged PRs: needs the GitHub CLI (gh), logged in'); return; }
+  if (!provider()) { out('merged PRs: needs an agent CLI (claude, codex, agent or gemini) or ANTHROPIC_API_KEY'); return; }
+  store.init();
+  return minePrs(slug, opts);
+}
+
+async function minePrs(slug, { before, after, again, limit, model, dry }) {
+  const rec = minedPrs(store, slug);
+  // without a window: what was merged since the last run, then further back; never a PR mined before
+  const listed = before || after
+    ? listMergedPrs(slug, { before: before || new Date().toISOString(), after, limit }).filter(p => again || !rec.mined.has(p.number))
+    : nextPrs(slug, rec, { limit });
+  if (!listed.length) { out(`no merged PRs of ${slug} left to mine (${rec.mined.size} mined so far)`); return { cost: 0, saved: 0 }; }
+  const failed = new Set();
+  const prs = listed
     .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) && (p.body || '').length > 120 && p.additions <= 600 && p.additions >= 5);
   out(`${prs.length} PRs to mine`);
   let cost = 0, saved = 0;
@@ -371,9 +411,11 @@ async function minePrs(slug, { before, after, limit, model, dry }) {
       const s2 = saveNotes(store, r.notes, { source: { type: 'pr', ref: `${slug}#${pr.number}` } });
       saved += s2.saved.length + s2.merged.length;
       out(`#${pr.number} ${pr.title.slice(0, 60)} → ${[...s2.saved, ...s2.merged].map(n => `[${n.kind}] ${n.id}`).join(', ') || '-'}${s2.skipped.length ? ` (skipped ${s2.skipped.length})` : ''}`);
-    } catch (e) { out(`#${pr.number} error ${String(e.message).slice(0, 120)}`); }
+    } catch (e) { failed.add(pr.number); out(`#${pr.number} error ${String(e.message).slice(0, 120)}`); }
   }
-  out(`mined ${prs.length} PRs → ${saved} notes, cost $${cost.toFixed(2)}`);
+  // PRs passed over by the filter are recorded too; failed ones are not, so the next run takes them again
+  if (!dry) { recordMinedPrs(store, slug, listed.filter(p => !failed.has(p.number))); store.log({ op: 'mine-prs', slug, prs: prs.length - failed.size, passed: listed.length - prs.length, saved, cost }); }
+  out(`mined ${prs.length - failed.size} PRs → ${saved} notes, cost $${cost.toFixed(2)}${rec.mined.size ? ` (${rec.mined.size} mined earlier were skipped)` : ''}`);
   return { cost, saved };
 }
 
@@ -453,6 +495,7 @@ async function verifyAll(notes) {
 // Catch-up learning: works without any end-of-session hook, so it covers
 // agents and modes that do not fire one (Cursor's headless mode, for one).
 async function learn({ days, idleMin, max, dry, quiet }) {
+  if (NO_LEARN) { if (!quiet) out('learning is switched off (THINKER_NO_LEARN)'); return; }
   const lock = path.join(store.init().dir, 'state', 'learn.lock');
   fs.mkdirSync(path.dirname(lock), { recursive: true });
   try { if (Date.now() - fs.statSync(lock).mtimeMs < 15 * 60_000) { if (!quiet) out('another learn run is in progress'); return; } } catch {}
@@ -475,6 +518,7 @@ async function learn({ days, idleMin, max, dry, quiet }) {
 }
 // From a hook: start catch-up in the background, at most every ten minutes.
 function learnInBackground(client) {
+  if (NO_LEARN) return;
   const mark = path.join(store.dir, 'state', 'learn.last');
   try { if (Date.now() - fs.statSync(mark).mtimeMs < 10 * 60_000) return; } catch {}
   fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, '');
