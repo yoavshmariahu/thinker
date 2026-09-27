@@ -1,5 +1,118 @@
 # Benchmark results
 
+## Headline results and how to read them
+
+The numbers shown in the README, with their explanation. PostHog,
+symptom-only tasks; the sections below hold the full tables.
+
+### Fable with thinker: higher correctness score, fewer tokens spent
+
+| | without thinker | with thinker | change |
+|---|---|---|---|
+| **Correctness score** (share of essential criteria met) | 0.80 | **0.89** | **+0.08** (0.804 to 0.888; shown as +10% in the README) |
+| **Thoroughness** (share of the further criteria met) | 0.28 | 0.34 | +0.06 |
+| **Input tokens per task** | 1.25M | **1.02M** | **-18%** |
+| **Cost per task** | $2.72 | **$2.45** | **-10%** |
+| **Tool calls per task** | 18.1 | **14.9** | **-17%** |
+| **Time per task** | 2.7 min | **2.3 min** | **-14%** |
+
+- **Cheaper in 15 of 20 paired runs.** The same task and seed cost less with
+  the cache three times out of four.
+- **Correctness rose in 6 of 20 pairs** and fell in 2; 12 scored the same.
+  Every essential criterion was met in 12 of 20 runs with the cache and 9
+  of 20 without.
+- **Thoroughness is low with or without the cache.** The patches fix what
+  was asked and handle about a third of the further edge cases the merged
+  patch covered. The cache does not change that measurably.
+- **Both directions at once.** The agent spends less time finding the code
+  and gets more of the fix right.
+- **As correct as Opus at about half the price.** On the seven tasks run
+  on both, Fable with the cache scored 0.83 at $2.37 per task. Opus without
+  it scored 0.83 at $4.54, and was more thorough: 0.43 against 0.33.
+
+### What was measured
+
+Real tasks taken from merged pull requests in a large open-source
+repository, written as vague, symptom-only requests, the way a bug report
+arrives. Each task was run with
+and without the cache as a pair, same task and seed, and graded on
+behavioural criteria calibrated against the merged patch. 20 pairs, all
+graded.
+
+Claude Fable is the judge. It reads each patch with the code around it and
+decides, criterion by criterion, whether the behaviour is there.
+**Correctness**, the key metric, is the share of the essential criteria a
+patch meets: the ones without which the request is not fulfilled.
+**Thoroughness** is the share of the remaining criteria: edge cases and
+hardening the merged patch also handled.
+
+This is transfer, not recall: notes come from other sessions and pull
+requests, never from the task being evaluated.
+
+How sure the numbers are: the cost saving is $0.28 ±0.12 per run, a little
+over two standard errors. The gain in correctness is +0.08 ±0.06, a little
+over one standard error, so with 20 pairs it is a consistent direction
+rather than a settled effect size. The change in thoroughness, +0.06 ±0.06,
+is within one standard error. No prompt-only control was run on Fable.
+
+### Other models, same tasks
+
+| model | cost per task, no cache | effect of the cache |
+|---|---|---|
+| **Fable** | $2.72 | **18% fewer input tokens, 10% lower cost, correctness 0.89 instead of 0.80** |
+| **Gemini 3.8 Flash** | not measured | **10% fewer input tokens, 8% fewer tool calls, 8% less time; correctness unchanged** |
+| Opus | $4.54 | no change in cost or correctness |
+| Sonnet | $0.41 | 2 to 9% fewer input tokens, correctness unchanged (graded by Sonnet; not yet regraded by Fable) |
+
+On requests that name the code involved, Sonnet used 27% fewer turns and 32%
+fewer input tokens with the cache at equal success.
+
+### Gemini 3.8 Flash with thinker: less work for the same result
+
+The same 14 tasks, run through a different vendor's model and agent
+(Antigravity CLI), one pair per task, graded by Fable on the same criteria.
+
+| per task | without thinker | with thinker | change |
+|---|---|---|---|
+| **Input tokens** | 0.86M | **0.77M** | **-10%** |
+| **Cached context re-read** | 16.6M | **14.8M** | **-11%** |
+| **Output tokens** | 99k | **92k** | **-7%** |
+| **Tool calls** | 145.8 | **134.3** | **-8%** |
+| **File edits** | 13.1 | **11.5** | **-13%** |
+| **Time** | 14.9 min | **13.7 min** | **-8%** |
+| Correctness score | 0.82 | 0.79 | -0.02 |
+| Every essential criterion met | 6 of 14 | 7 of 14 | +1 |
+
+- **Less work in 10 of 14 pairs.** Input tokens, tool calls and time each
+  went down in 10 of the 14 pairs, and all three went down together in 9.
+- **The typical task used 22% fewer input tokens.** The median fell from
+  0.90M to 0.70M. The mean saving is smaller because two tasks used far
+  more with the cache.
+- **The largest savings were a third to a half of the run.**
+
+  | task | input tokens | tool calls | time |
+  |---|---|---|---|
+  | retention filter | -50% | 131 to 85 | 6.0 min faster |
+  | survey filter | -38% | 221 to 155 | 8.2 min faster |
+  | invite existing member | -37% | 199 to 140 | 6.5 min faster |
+
+- **Two failing tasks became passing ones, and one went the other way.**
+  Stopping a broadcast and saved-metric breakdowns met every essential
+  criterion only with the cache. Saved insights query state did so only
+  without it.
+- **Correctness did not improve on this model.** The score is 0.02 lower
+  with the cache, well within its standard error of 0.05. Thoroughness is
+  0.38 without and 0.31 with, -0.07 ±0.09. The gain here is in effort, not in quality.
+
+How sure the numbers are: one seed and 14 pairs, so each mean saving is
+about one standard error: input tokens -0.09M ±0.08M, tool calls -11.5
+±9.4, time -1.2 ±1.1 min. The steadiest effects are cached context re-read,
+-1.75M ±0.91M, and file edits, -1.6 ±0.8. Read them as a consistent
+direction, matching the Fable result, rather than a settled effect size.
+Cost in dollars was not measured for this model.
+
+## Setup
+
 All runs: `claude -p`, model `claude-sonnet-5` unless a section names another model (Opus and Fable on PostHog), `bypassPermissions`, max 60 turns, same task text and tools in every arm; judge = Sonnet against an Opus-written reference (question tasks) or against the merged upstream PR diff (change tasks). Wall-clock includes hook/tool latency. `in_tokens` = input + cache-creation + cache-read tokens summed over turns.
 
 Arms:
@@ -259,7 +372,7 @@ All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3
 | cache | 14 | 0.79 ±0.06 | 0.31 ±0.10 | **50.0% (7/14)** | **134.3 ±13.9** | **68.1 ±9.9** | **0.77 ±0.08** | **13.7 ±1.4** |
 
 **Paired effect of the cache**:
-- **Efficiency win rate**: In **71% of pairs (10 of 14)**, the cached arm used fewer tool calls, was faster, and consumed fewer input tokens.
+- **Efficiency win rate**: Tool calls, time and input tokens each went down in **10 of 14 pairs**; all three went down together in 9.
 - **Aggregates**: Tool calls -7.9% (-11.5 ±9.7 calls per task), file reads -6.1% (-4.4 reads), wall time -8.3% (-1.23 min saved per task), input tokens -10.3% (-0.09 Mtok per task).
 - **Correctness & strict passes**: Strict pass rate improved from 42.9% (6/14) to 50.0% (7/14). The cache converted failures into passes on critical architectural tasks like `PR106466` (Stop a broadcast, 67% fail → 100% pass) and `PR105887` (Saved-metric breakdowns, 80% fail → 100% pass).
 - **Engineering thoroughness**: Gemini 3.8 Flash authored regression tests in both arms (averaging 82 test lines added in cache vs 87 in nocache; 1,146 vs 1,216 test lines total). On tasks like `PR106613` (Decisions playground URL), the cache informed the model of the product manifest build pipeline, prompting it to run `node frontend/build-products.mjs` to keep the code generator in sync and author a dedicated test suite.
