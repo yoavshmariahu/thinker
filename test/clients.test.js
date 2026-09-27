@@ -121,3 +121,21 @@ test('cursor: the bundle waits past MCP calls and is dropped when the agent aske
   assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c6', tool_name: 'MCP:orient', tool_input: { task: PROMPT } }), '');
   assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c6', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
 });
+
+test('init learns from sessions by default; --no-learn and THINKER_NO_LEARN switch it off', () => {
+  const run = (args, env = {}) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-learn-'));
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('node', [CLI, 'init', '--local', '--no-mcp', '--clients', 'claude', '--repo', dir, ...args], { env: { ...process.env, THINKER_NO_LEARN: '', ...env }, stdio: 'pipe' });
+    const f = path.join(dir, '.claude', 'settings.local.json');
+    return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')).hooks || {} : null;
+  };
+  const on = run([]);
+  assert.ok(on.UserPromptSubmit, 'notes are served');
+  assert.ok(on.Stop, 'sessions are distilled when they end');
+  for (const off of [run(['--no-learn']), run(['--serve-only']), run([], { THINKER_NO_LEARN: '1' })]) {
+    assert.ok(off.UserPromptSubmit, 'notes are still served');
+    assert.equal(off.Stop, undefined);
+  }
+  assert.ok(!run(['--no-hooks'])?.UserPromptSubmit, 'no hooks at all');
+});

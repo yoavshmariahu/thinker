@@ -21,7 +21,8 @@
 #                       (default: auto with --build, otherwise claude)
 #   --cache <source>    cache built for this repo. One of: gh:<path in the thinker repo>, an https URL, a local file.
 #                       Omit if .thinker/notes is already in the repo.
-#   --learn             also distill your own sessions into new notes (any of the agents; uses that agent's login)
+#   --no-learn          do not distill your own sessions into new notes (learning is on by default, for any of the
+#                       agents, and uses that agent's login; switch it off for evals)
 #   --late              also serve notes about files as the agent opens them
 #   --shared            write hooks to .claude/settings.json (committed) instead of settings.local.json
 #   --mcp               register the MCP server in .mcp.json (Cursor, Codex, other MCP clients)
@@ -40,7 +41,7 @@
 set -euo pipefail
 
 main() {
-  local cache="" build=0 areas="" prs="" clients="" learn=0 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0
+  local cache="" build=0 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; shift 2 ;;
@@ -49,6 +50,7 @@ main() {
       --prs) prs="${2:-}"; shift 2 ;;
       --clients) clients="${2:-}"; shift 2 ;;
       --learn) learn=1; shift ;;
+      --no-learn) learn=0; shift ;;
       --late) late=1; shift ;;
       --shared) shared=1; shift ;;
       --mcp) mcp=1; shift ;;
@@ -151,7 +153,7 @@ SHIM
     say "Using the cache already in this repository (.thinker/notes)"
   else
     say "No cache found for this repository. Re-run with --build to build one here,"
-    say "with --cache <url> if one was built for you, or with --learn to grow one from your own sessions."
+    say "or with --cache <url> if one was built for you. Without either, the cache grows from your own sessions."
   fi
 
   # --- wire it into this repository -------------------------------------------
@@ -160,14 +162,14 @@ SHIM
     args="--yes --clients $clients"
     [ -n "$areas" ] && args="$args --areas $areas"
     [ -n "$prs" ] && args="$args --prs $prs"
-    [ "$learn" = 1 ] && args="$args --learn"
+    [ "$learn" = 1 ] || args="$args --no-learn"
     [ "$late" = 1 ] && args="$args --late"
     [ "$shared" = 1 ] && args="$args --shared"
     [ "$githook" = 1 ] && args="$args --git-hook"
     # shellcheck disable=SC2086
     "$thinker" setup $args --repo "$repo"
   else
-  if [ "$learn" = 1 ]; then args="--hooks"; else args="--serve-only"; fi
+  if [ "$learn" = 1 ]; then args=""; else args="--no-learn"; fi
   [ "$late" = 1 ] && args="$args --late"
   [ "$shared" = 1 ] || args="$args --local"
   [ "$mcp" = 1 ] || args="$args --no-mcp"
