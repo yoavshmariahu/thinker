@@ -128,6 +128,45 @@
   "verified": "2026-09-26T09:33:10.424Z",
   "verifiedCommit": null,
   "confidence": 0.85,
-  "status": "fresh",
-  "uses": 0
+  "status": "stale",
+  "uses": 0,
+  "stale": {
+    "since": "2026-09-27T10:33:53.463Z",
+    "changed": [
+      {
+        "path": "src/ops.js",
+        "symbol": "createNote",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "src/rank.js",
+        "symbol": "rank",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "src/cli.js",
+        "reason": "file changed"
+      },
+      {
+        "path": "src/store.js",
+        "symbol": "Store",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "src/llm.js",
+        "symbol": "complete",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "src/ops.js",
+        "symbol": "orient",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "src/ops.js",
+        "symbol": "lookup",
+        "reason": "symbol body changed"
+      }
+    ]
+  }
 }
