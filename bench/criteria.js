@@ -107,7 +107,8 @@ if (cmd === 'build') {
       await pool(files, 4, async f => {
         const rec = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
         const old = rec.grade?.criteria;
-        if (rec.turns <= 1 || (old && (old.judge || 'sonnet') === JUDGE) || !byId[rec.task]) return;
+        // an empty run: one turn and no tool calls (Codex reports a whole session as one turn)
+        if (rec.error || (rec.turns <= 1 && !rec.tools?.calls) || (old && (old.judge || 'sonnet') === JUDGE) || !byId[rec.task]) return;
         const wt = free.pop();
         try { const ctx = agentContext(wt, rec.diff || ''); free.push(wt); const criteria = await gradePatch(byId[rec.task], rec.diff || '', rec.result, ctx); rec.grade = { ...(rec.grade || {}), criteria, ...(old ? { criteriaBy: { ...(rec.grade.criteriaBy || {}), [old.judge || 'sonnet']: old } } : {}) }; fs.writeFileSync(path.join(dir, f), JSON.stringify(rec, null, 2)); n++; } catch (e) { if (!free.includes(wt)) free.push(wt); console.log(`${f}: ${e.message.slice(0, 100)}`); }
       });

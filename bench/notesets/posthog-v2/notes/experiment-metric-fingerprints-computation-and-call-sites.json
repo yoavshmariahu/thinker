@@ -69,13 +69,13 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 17,
+  "uses": 19,
   "related": [
     "places-that-must-compute-the-same-metric-fingerprint-saved-v",
     "experiment-metric-identity-uuid-vs-config-fingerprint",
     "uniqueness-constraints-for-experiment-metrics-and-results"
   ],
-  "lastUsed": "2026-09-27T00:55:36.852Z",
+  "lastUsed": "2026-09-27T15:17:39.024Z",
   "servedIn": [
     "ed508f88-1237-460a-9105-5c6cb1fbd83a",
     "5236f0e8-dfa7-4876-91bb-cce8adfe04ac",

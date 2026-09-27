@@ -22,11 +22,11 @@ server.registerTool('orient', {
   title: 'Orient in this repo',
   description: 'Call this first when starting a task in this repository. Returns cached, verified notes relevant to the task (locations, call paths, co-change rules, build/test recipes, conventions, gotchas) with file:symbol pointers, packed into a token budget. Prefer following these pointers over grepping from scratch. Notes marked STALE need confirmation against the current code.',
   inputSchema: {
-    task: z.string().describe('What you are about to do, in one or two sentences (the user request is fine).'),
+    task: z.string().optional().default('').describe('What you are about to do, in one or two sentences (the user request is fine).'),
     file: z.string().optional().describe('Path of the file you are currently in or about to edit, if known.'),
     budget: z.number().int().min(200).max(8000).optional().describe('Max tokens of notes to return (default 1000).'),
   },
-}, async ({ task, file, budget }) => {
+}, async ({ task = '', file, budget }) => {
   // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
   const r = await orient(store, { task, file, budget: budget || 1000, ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
   if (!r.included.length) return text(`No cached notes match this task yet (${store.list().length} notes in cache). Explore normally, then call remember with what you learn.`);

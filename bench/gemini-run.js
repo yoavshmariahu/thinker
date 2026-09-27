@@ -39,13 +39,26 @@ function makeWorktree(i) {
     catch { fs.rmSync(wt, { recursive: true, force: true }); }
   }
   execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, 'HEAD'], { cwd: repo });
+
+  // Ensure .thinker/notes is available in the worktree for the MCP server
+  const dotThinker = path.join(wt, '.thinker');
+  const targetNotes = path.join(dotThinker, 'notes');
+  fs.mkdirSync(dotThinker, { recursive: true });
+  try {
+    fs.symlinkSync(notesDir, targetNotes, 'dir');
+  } catch {
+    fs.cpSync(notesDir, targetNotes, { recursive: true });
+  }
+  const cfg = path.join(dotThinker, 'config.json');
+  if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1 }, null, 2) + '\n');
+
   return wt;
 }
 
 function resetWorktree(wt) {
   try {
     execFileSync('git', ['checkout', '-q', '--', '.'], { cwd: wt });
-    execFileSync('git', ['clean', '-qfd'], { cwd: wt });
+    execFileSync('git', ['clean', '-qfd', '-e', '.thinker'], { cwd: wt });
   } catch {}
 }
 
@@ -59,7 +72,8 @@ function toolStats(transcriptFile) {
         for (const tc of l.tool_calls) {
           stats.calls++;
           stats.byTool[tc.name] = (stats.byTool[tc.name] || 0) + 1;
-          if (tc.name.startsWith('mcp__thinker') || tc.name === 'orient' || tc.name === 'lookup') stats.thinkerCalls++;
+          const isThinkerMcp = tc.name === 'call_mcp_tool' && (tc.args?.ServerName === 'thinker' || tc.args?.ServerName === '"thinker"');
+          if (tc.name.startsWith('mcp__thinker') || tc.name === 'orient' || tc.name === 'lookup' || isThinkerMcp) stats.thinkerCalls++;
           if (tc.name === 'view_file' || tc.name === 'read_file') stats.filesRead++;
           if (tc.name === 'replace_file_content' || tc.name === 'write_to_file') stats.edits++;
         }
@@ -131,7 +145,11 @@ async function runAgy(prompt, { arm, cwd }) {
       console.error('hook prompt error:', e.message);
     }
 
-    const guidance = 'This repository has a "thinker" knowledge cache from previous sessions, exposed as MCP tools (orient, lookup). Use mcp__thinker__lookup for specific questions mid-task. Rely on the cached pointers below and do not re-explore files merely to confirm them:';
+    const guidance = `This repository has a "thinker" knowledge cache from previous sessions, exposed via MCP tools in Antigravity (call_mcp_tool with ServerName="thinker"):
+- Use ToolName="lookup" with Arguments={"query": "<keyword or concept>"} for specific questions mid-task.
+- Use ToolName="orient" with Arguments={"task": "<task description>"} if you need an architectural overview.
+- Use ToolName="remember" to record non-obvious architecture, invariants or rules you discover.
+Rely directly on the verified file:symbol pointers below and do not re-explore files merely to confirm them:`;
     fullPrompt = `${hookBundle ? hookBundle + '\n\n' : ''}${guidance}\n\nTASK:\n${prompt}`;
   }
 

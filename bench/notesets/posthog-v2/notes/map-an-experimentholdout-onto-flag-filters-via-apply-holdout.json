@@ -47,7 +47,7 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 17,
+  "uses": 20,
   "related": [
     "experiment-metric-identity-uuid-vs-config-fingerprint",
     "uniqueness-constraints-for-experiment-metrics-and-results"
@@ -68,7 +68,9 @@
     "fc3a9395-dcb1-4e72-a2d8-3d746ed996b1",
     "4cc0efc6-1ac7-4c5b-b3d9-95b87f0388fc",
     "codex-posthog-codex-gpt56-PR106564-hard-0",
-    "codex-posthog-codex-gpt56-PR106564-hard-1"
+    "codex-posthog-codex-gpt56-PR106564-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR106564-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR106564-hard-1"
   ],
-  "lastUsed": "2026-09-27T07:16:58.651Z"
+  "lastUsed": "2026-09-27T15:54:12.245Z"
 }

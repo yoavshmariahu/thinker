@@ -44,14 +44,14 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 14,
+  "uses": 17,
   "related": [
     "org-invite-flow-modal-invitelogic-bulk-api",
     "onboarding-and-settings-invite-flows-share-invitelogic",
     "org-invite-validation-server-vs-client-enforcement-map",
     "invite-validation-errors-reach-ui-only-as-a-global-toast"
   ],
-  "lastUsed": "2026-09-27T07:08:39.010Z",
+  "lastUsed": "2026-09-27T15:46:21.677Z",
   "servedIn": [
     "08c19801-a7d7-4020-a810-5039faf472a6",
     "eefc43a9-7ed5-4dad-924b-8c97b4d79809",
@@ -65,6 +65,8 @@
     "efd15676-bacc-435a-8ff1-7dde89514f28",
     "5dbddea4-740b-4408-881f-f5526bbf6d8a",
     "codex-posthog-codex-gpt56-PR106936-hard-0",
-    "codex-posthog-codex-gpt56-PR106936-hard-1"
+    "codex-posthog-codex-gpt56-PR106936-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR106936-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR106936-hard-1"
   ]
 }

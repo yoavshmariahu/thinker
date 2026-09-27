@@ -52,12 +52,12 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.75,
   "status": "fresh",
-  "uses": 10,
+  "uses": 14,
   "related": [
     "how-cross-team-flag-jobs-iterate-commands-and-temporal-healt",
     "gotcha-stale-flags-health-check-and-featureflagstatuschecker"
   ],
-  "lastUsed": "2026-09-27T07:20:50.848Z",
+  "lastUsed": "2026-09-27T16:07:42.040Z",
   "servedIn": [
     "08696bb9-9b76-4e26-aeda-ffbfe1cdf640",
     "7963fd21-bd15-4e41-8e3c-274cd2823351",
@@ -67,6 +67,8 @@
     "38882f6a-dc45-46d6-ace3-4d87917567d7",
     "4259021d-5a77-4460-819c-452f8c9c3172",
     "codex-posthog-codex-gpt56-PR105871-hard-0",
-    "codex-posthog-codex-gpt56-PR105871-hard-1"
+    "codex-posthog-codex-gpt56-PR105871-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR105871-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR105871-hard-1"
   ]
 }
