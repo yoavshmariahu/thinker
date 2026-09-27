@@ -15,6 +15,14 @@ Arms:
 
 (numbers filled in below)
 
+Running it: clone the target repo into `bench/repos/<name>`, then
+
+```bash
+node bench/warmup.js click 2 sonnet          # learning tasks → notes
+node bench/gold.js click opus                # reference answers
+node bench/run.js --repo click --arm nocache,cache --conc 3 --tag v1
+```
+
 ## click (27k LOC, 12 question tasks, 16 notes from 10 warm-up sessions)
 
 Warm-up cost: ~$1.5 of agent time + $0.45 of distillation. Reference answers: Opus, ~$0.85/task.
@@ -201,6 +209,30 @@ Reading:
 - This is transfer, not recall: the notes come from seed sessions and mined PRs, and no evaluation PR was mined.
 - Limits: no prompt-only or irrelevant-notes control was run on Fable, so the saving is not split into instruction and content effects; the six seed-1 tasks are the ones the run reached before it was stopped, not a chosen subset.
 - Fable costs $2.72 per task without notes, against $0.41 for Sonnet and $4.54 for Opus on the same tasks.
+- On the three tasks run on all three models, Fable with the cache met every essential criterion at $2.27 per task; Opus without it met 0.95 at $4.26, and Sonnet with it 0.75 at $0.36.
+
+### Symptom-only tasks on Cursor Auto and Grok 4.7 (`posthog-auto`, `posthog-grok`)
+
+Same 14 tasks, same notes (`bench/notesets/posthog-v2`), same arms (`nocache`, `hook`), graded by Sonnet on the calibrated criteria in `bench/tasks/posthog-hard.json`. Cursor Auto ran in isolated checkouts; the cached arm received the same `orient` bundle the hook injects, pasted at the start of the session. Auto has no token or dollar accounting. Its wall clock starts from a minute-resolution timestamp.
+
+Cursor Auto has six finished pairs, all seed 0. Each cell is calls, essential met, and whether every essential criterion passed. Eight tasks are still incomplete. Fable's seed-0 runs are shown beside them.
+
+| task | Fable, no cache | Fable, cache | Auto, no cache | Auto, cache |
+|---|---|---|---|---|
+| playground URL (PR106613) | 4 calls, 1.00, pass | 3 calls, 1.00, pass | 87 calls, 0.67, fail | 48 calls, 1.00, pass |
+| shared-metric ids (PR106672) | 28 calls, 0.86, fail | 14 calls, 1.00, pass | 107 calls, 1.00, pass | 106 calls, 1.00, pass |
+| stop a broadcast (PR106466) | 21 calls, 1.00, pass | 13 calls, 1.00, pass | 112 calls, 1.00, pass | 98 calls, 0.67, fail |
+| invite existing member (PR106936) | 23 calls, 0.67, fail | 20 calls, 1.00, pass | 196 calls, 1.00, pass | 169 calls, 1.00, pass |
+| insight layout (PR107042) | 17 calls, 1.00, pass | 20 calls, 0.80, fail | 178 calls, 0.60, fail | 179 calls, 0.80, fail |
+| stable chunks (PR106564) | 13 calls, 0.80, fail | 9 calls, 1.00, pass | 353 calls, 0.60, fail | 287 calls, 0.00, fail |
+
+Across these six, Fable went from 17.7 to 13.2 calls and from 3/6 to 5/6 strict passes with the cache. Auto went from 172 to 148 calls and stayed at 3/6 strict passes. The cache helped Auto on the playground rename and raised the insight-layout score from 0.60 to 0.80, still short of a strict pass. It did not change the shared-metric or invite outcome, both of which already passed. It lowered the broadcast score from 1.00 to 0.67 and the stable-chunk score from 0.60 to 0.00.
+
+Grok 4.7 is the same setup. One pair is graded so far, saved-metric breakdowns (PR105887). Both arms passed. The cache did not change the score or the call count.
+
+| task | Fable, no cache | Fable, cache | Grok 4.7, no cache | Grok 4.7, cache |
+|---|---|---|---|---|
+| saved-metric breakdowns (PR105887) | 23 calls, 1.00, pass | 16 calls, 1.00, pass | 131 calls, 1.00, pass | 132 calls, 1.00, pass |
 
 ### Harness incidents
 
