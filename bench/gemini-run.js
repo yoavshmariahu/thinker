@@ -131,11 +131,12 @@ async function gradePatch(task, patch, summary = '') {
 async function runAgy(prompt, { arm, cwd }) {
   let fullPrompt = prompt;
   if (arm === 'cache') {
-    // Generate orientation bundle from thinker
+    // Generate orientation bundle from thinker (reduced budget for surgical precision)
+    const budget = flags.budget || '500';
     let hookBundle = '';
     try {
       const input = JSON.stringify({ prompt });
-      hookBundle = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', cwd, '--budget', '1000'], {
+      hookBundle = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', cwd, '--budget', budget], {
         encoding: 'utf8',
         input,
         env: { ...process.env, THINKER_NOTES_DIR: notesDir, THINKER_EARLY: 'full' }
@@ -145,10 +146,14 @@ async function runAgy(prompt, { arm, cwd }) {
     }
 
     const guidance = `This repository has a "thinker" knowledge cache from previous sessions, exposed via MCP tools in Antigravity (call_mcp_tool with ServerName="thinker"):
-- Use ToolName="lookup" with Arguments={"query": "<keyword or concept>"} for specific questions mid-task.
-- Use ToolName="orient" with Arguments={"task": "<task description>"} if you need an architectural overview.
+- Use ToolName="lookup" with Arguments={"query": "<keyword or concept>"} for targeted architecture lookups.
+- Use ToolName="orient" with Arguments={"task": "<task description>"} for high-level module overviews.
 - Use ToolName="remember" to record non-obvious architecture, invariants or rules you discover.
-Rely directly on the verified file:symbol pointers below and do not re-explore files merely to confirm them:`;
+
+GUIDANCE:
+1. Rely directly on verified file:symbol pointers below; do NOT re-explore files merely to confirm them.
+2. Focus strictly on the minimal code change that satisfies the user prompt. Do NOT refactor or modify peripheral layers (e.g. global error toasts, unrelated views, or distant modules) unless explicitly requested.
+3. Keep edits surgical and verify directly with focused checks.`;
     fullPrompt = `${hookBundle ? hookBundle + '\n\n' : ''}${guidance}\n\nTASK:\n${prompt}`;
   }
 

@@ -73,14 +73,14 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.65,
   "status": "fresh",
-  "uses": 48,
+  "uses": 49,
   "related": [
     "broadcast-status-is-derived-in-frontend-from-hogflow-status-",
     "action-eligibility-backend-gates-vs-frontend-mirrors-launch-",
     "hogflow-status-has-no-backend-transition-matrix-rules-live-i",
     "adding-a-hogflow-status-transition-what-changes-together"
   ],
-  "lastUsed": "2026-09-27T19:30:32.060Z",
+  "lastUsed": "2026-09-27T19:57:13.929Z",
   "servedIn": [
     "099da8bb-1ac0-4973-b0df-84cfd644e975",
     "bd7402ee-bab8-4ced-95a6-1204edb1a14f",
