@@ -106,6 +106,7 @@ This repository has a cache of verified notes from earlier sessions, served by t
 
 - At the start of a task, call the \`orient\` tool with the request before searching or reading files.
 - Follow the file:symbol pointers it returns instead of re-deriving them; search only to fill gaps.
+- \`orient\` takes a \`budget\` and lists the relevant notes it did not show. Before searching for something one of those titles covers, call \`lookup\` with its id.
 - Use \`lookup\` for a specific question mid-task. Treat notes marked STALE as unverified.
 - Context wrapped in \`<thinker-cache>\` comes from the same cache.
 `;
