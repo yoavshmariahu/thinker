@@ -215,7 +215,7 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
     const rule = path.join(repo, '.cursor', 'rules', 'thinker.mdc');
     fs.mkdirSync(path.dirname(rule), { recursive: true });
     fs.writeFileSync(rule, CURSOR_RULE);
-    done.push('Cursor: registered MCP server in .cursor/mcp.json and added the rule .cursor/rules/thinker.mdc (approve the server in Cursor when asked)');
+    done.push('Cursor: registered MCP server in .cursor/mcp.json and added the rule .cursor/rules/thinker.mdc');
     generated.push('.cursor/mcp.json', '.cursor/rules/thinker.mdc');
     if (hooks) {
       const file = path.join(repo, '.cursor', 'hooks.json');
@@ -223,8 +223,10 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
         ['beforeSubmitPrompt', { command: cmd('prompt', rec), timeout: 15 }],
         ['postToolUse', { command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10 }],
       ];
-      if (learn) entries.push(['stop', { command: cmd('stop', rec), timeout: 10 }]);
-      mergeJson(file, c => ({ version: 1, ...c, hooks: setHooks(c.hooks, ['beforeSubmitPrompt', 'postToolUse', 'stop'], entries) }));
+      // the editor ends a turn with `stop`; the CLI (agent -p) fires only sessionEnd,
+      // and reports shell output in afterShellExecution
+      if (learn) entries.push(['afterShellExecution', { command: cmd('tool', rec), timeout: 10 }], ['stop', { command: cmd('stop', rec), timeout: 10 }], ['sessionEnd', { command: cmd('stop', rec), timeout: 10 }]);
+      mergeJson(file, c => ({ version: 1, ...c, hooks: setHooks(c.hooks, ['beforeSubmitPrompt', 'postToolUse', 'afterShellExecution', 'stop', 'sessionEnd'], entries) }));
       done.push(`Cursor: hooks in .cursor/hooks.json: notes for the request are delivered after the agent's first tool call${late ? ', then file-keyed notes while working' : ''}${learned}`);
       generated.push('.cursor/hooks.json');
     }

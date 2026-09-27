@@ -111,3 +111,13 @@ test('toolFiles reads the different tool input shapes', () => {
   assert.deepEqual(toolFiles({ tool_input: { command: 'sed -n 1,20p src/upload.py' } }, dir), ['src/upload.py']);
   assert.deepEqual(toolFiles({ tool_input: { file_path: '/etc/passwd' } }, dir), []);
 });
+
+test('cursor: the bundle waits past MCP calls and is dropped when the agent asked the cache itself', () => {
+  const dir = repo();
+  hook(dir, 'prompt', 'cursor', { conversation_id: 'c5', prompt: PROMPT });
+  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c5', tool_name: 'MCP:get_issue', tool_input: {} }), '');
+  assert.ok(JSON.parse(hook(dir, 'tool', 'cursor', { conversation_id: 'c5', tool_name: 'Grep', tool_input: { pattern: 'x' } })).additional_context.includes('RateLimiter.allow'));
+  hook(dir, 'prompt', 'cursor', { conversation_id: 'c6', prompt: PROMPT });
+  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c6', tool_name: 'MCP:orient', tool_input: { task: PROMPT } }), '');
+  assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c6', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
+});

@@ -2,10 +2,11 @@
 # thinker onboarding: sets up this repository to use a cache of understanding
 # with Claude Code. Run it from inside the repository.
 #
-# The thinker repository is private, so you need access to it and either the
-# GitHub CLI (gh auth login) or a token in GITHUB_TOKEN:
+# The thinker repository is private, so you need access to it and a GitHub
+# token with read access, exported as GITHUB_TOKEN:
 #
-#   gh api repos/yoavshmariahu/thinker/contents/install.sh -H "Accept: application/vnd.github.raw" | bash -s -- --build
+#   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
+#     https://api.github.com/repos/yoavshmariahu/thinker/contents/install.sh | bash -s -- --build
 #
 # --build does everything for a repository that has no cache yet: installs the
 # tool, builds the cache from the code and merged pull requests, and wires it
@@ -13,14 +14,14 @@
 # for the repository, pass --cache instead and nothing has to be built.
 #
 # Options
-#   --build             build the cache here (uses your Claude usage; the estimate is printed first)
+#   --build             build the cache here (runs through an installed agent and its login; the estimate is printed first)
 #   --areas <n>         with --build: source areas to explore, one agent session each (default 12)
-#   --prs <n>           with --build: merged pull requests to mine (default 60; needs the gh CLI)
+#   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
 #   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, all or auto
 #                       (default: auto with --build, otherwise claude)
 #   --cache <source>    cache built for this repo. One of: gh:<path in the thinker repo>, an https URL, a local file.
 #                       Omit if .thinker/notes is already in the repo.
-#   --learn             also distill your own sessions into new notes when they end (uses your Claude usage)
+#   --learn             also distill your own sessions into new notes (any of the agents; uses that agent's login)
 #   --late              also serve notes about files as the agent opens them
 #   --shared            write hooks to .claude/settings.json (committed) instead of settings.local.json
 #   --mcp               register the MCP server in .mcp.json (Cursor, Codex, other MCP clients)
@@ -32,7 +33,8 @@
 #   THINKER_GH_REPO     GitHub repository to install from (default yoavshmariahu/thinker)
 #   THINKER_REF         branch or tag (default main)
 #   THINKER_DIST_URL    install from this tarball URL instead of GitHub
-#   GITHUB_TOKEN        used when the GitHub CLI is not available
+#   GITHUB_TOKEN        token with read access to the thinker repository (GH_TOKEN works too;
+#                       if neither is set and the GitHub CLI is logged in, its token is used)
 #
 # The script writes only to THINKER_HOME and to .thinker/ and .claude/ in this repository. No sudo.
 set -euo pipefail
@@ -65,12 +67,17 @@ main() {
   local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
   say() { printf '%s\n' "$*"; }
   die() { printf 'thinker: %s\n' "$*" >&2; exit 1; }
-  have_gh() { command -v gh >/dev/null && gh auth status >/dev/null 2>&1; }
-  # fetch <path or api endpoint in the thinker repo> <output file>
+  # the GitHub CLI is optional: it is only asked for a token when none is set
+  if [ -z "$token" ] && command -v gh >/dev/null; then token="$(gh auth token 2>/dev/null || true)"; fi
+  # gh_fetch <api endpoint in the thinker repo> <output file>
   gh_fetch() {
-    if have_gh; then gh api "$1" -H "Accept: application/vnd.github.raw" > "$2"
-    elif [ -n "$token" ]; then curl -fsSL -H "Authorization: Bearer $token" -H "Accept: application/vnd.github.raw" -o "$2" "https://api.github.com/$1"
-    else die "the thinker repository is private: run 'gh auth login' or set GITHUB_TOKEN, then retry"; fi
+    local url="https://api.github.com/$1" out="$2"
+    if [ -n "$token" ]; then
+      curl -fsSL -H "Authorization: Bearer $token" -H "Accept: application/vnd.github.raw" -o "$out" "$url" && return 0
+      die "could not download $url with the token provided (does it have read access to $ghrepo?)"
+    fi
+    curl -fsSL -H "Accept: application/vnd.github.raw" -o "$out" "$url" 2>/dev/null && return 0
+    die "could not download $url: the thinker repository is private, so export GITHUB_TOKEN (a token with read access) and retry"
   }
 
   # --- prerequisites -----------------------------------------------------
@@ -102,9 +109,7 @@ main() {
     curl -fsSL -o "$tmp/thinker.tgz" "$dist" || die "could not download $dist"
   else
     [ -n "$ghrepo" ] || die "no source configured: set THINKER_GH_REPO (owner/name) or THINKER_DIST_URL"
-    if have_gh; then gh api "repos/$ghrepo/tarball/$ref" > "$tmp/thinker.tgz" || die "could not download $ghrepo@$ref (do you have access?)"
-    elif [ -n "$token" ]; then curl -fsSL -H "Authorization: Bearer $token" -o "$tmp/thinker.tgz" "https://api.github.com/repos/$ghrepo/tarball/$ref" || die "could not download $ghrepo@$ref with the token provided"
-    else die "the thinker repository is private: run 'gh auth login' or set GITHUB_TOKEN, then retry"; fi
+    gh_fetch "repos/$ghrepo/tarball/$ref" "$tmp/thinker.tgz"
   fi
   mkdir -p "$tmp/app" && tar -xzf "$tmp/thinker.tgz" -C "$tmp/app"
   # GitHub archives wrap everything in one top-level directory
@@ -172,8 +177,8 @@ SHIM
   "$thinker" init $args --repo "$repo"
   fi
 
-  if ! command -v claude >/dev/null; then
-    say "Note: the claude CLI was not found. Notes will still be served; learning and re-verification need it."
+  if ! command -v claude >/dev/null && ! command -v codex >/dev/null && ! command -v agent >/dev/null && ! command -v gemini >/dev/null; then
+    say "Note: no agent CLI (claude, codex, agent, gemini) was found. Notes will still be served; learning and re-verification need one."
   fi
 
   # --- confirm -----------------------------------------------------------------

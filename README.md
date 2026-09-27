@@ -16,10 +16,11 @@ agent session ──► distill ──► .thinker/notes/*.json ──► orient
 ## Set up a repository in one line
 
 From inside the repository (the thinker repository is private, so this needs
-`gh auth login` with access to it):
+a GitHub token with read access, exported as `GITHUB_TOKEN`):
 
 ```bash
-gh api repos/yoavshmariahu/thinker/contents/install.sh -H "Accept: application/vnd.github.raw" | bash -s -- --build
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
+  https://api.github.com/repos/yoavshmariahu/thinker/contents/install.sh | bash -s -- --build
 ```
 
 This installs the tool under `~/.thinker`, builds the cache and wires it into
@@ -33,9 +34,10 @@ the coding agents found on the machine:
 4. links the notes and installs hooks and the MCP server for each agent
    (`--clients claude,codex,cursor,gemini`, `all`, or `auto`, the default).
 
-Steps 2 and 3 use your Claude login through the `claude` CLI: about $0.45 per
-area and $0.06 per pull request in earlier builds, so roughly $9 with the
-defaults. The estimate is printed before anything runs. Hook and MCP files
+Steps 2 and 3 run through an installed agent with its own login (`--agent`
+picks one). Measured with Claude Sonnet: about $0.45 per area and $0.06 per
+pull request, so roughly $9 with the defaults; other agents do not report
+cost. The estimate is printed before anything runs. Hook and MCP files
 are written for this checkout only and kept out of commits through
 `.git/info/exclude`; pass `--shared` to write committable files instead.
 
@@ -124,22 +126,72 @@ Lessons: inject via hook, not tool call; gate on relevance; keep a prompt-only c
 | Claude Code | added to each prompt | yes | yes | `.claude/settings.local.json`, `.mcp.json` |
 | Codex CLI | added to each prompt | yes | yes | `.codex/hooks.json`, `.codex/config.toml` |
 | Gemini CLI | added to each prompt | yes | yes | `.gemini/settings.json` |
-| Cursor | after the agent's first tool call | yes | yes | `.cursor/hooks.json`, `.cursor/mcp.json`, `.cursor/rules/thinker.mdc` |
+| Cursor | through the `orient` tool, and with the first tool result | yes | yes (approved by setup) | `.cursor/hooks.json`, `.cursor/mcp.json`, `.cursor/rules/thinker.mdc` |
 
 - Cursor's prompt hook can allow or block a prompt but cannot add context, so
   thinker computes the notes at prompt time and hands them over with the first
   tool result. An always-applied rule also tells the agent to call `orient`.
 - Codex runs project hooks only after you trust the project and review the
-  hook; Cursor asks you to approve the MCP server.
+  hook. Cursor loads an MCP server only once it is approved; `setup` and
+  `init` do that through Cursor's CLI when it is installed.
 - Gemini CLI also drives agent mode in Gemini Code Assist, which reads the
   same MCP configuration. Google AI Studio is a web app and cannot run local
   hooks or MCP servers, so it is not supported.
-- Learning from sessions (`--learn`) and the usage-based feedback loop read
-  Claude Code transcripts and work with Claude Code only. The other agents
-  are served from the cache and can add notes through the `remember` tool.
-- Tested: generated configuration, hook input and output for each agent, and
-  the MCP server, by unit tests and a scratch-repo install. Not yet tested:
-  live sessions in Codex, Gemini CLI and Cursor.
+
+### Learning from any agent
+
+`--learn` works with all four agents, and with others through the generic
+path below. Nothing in it is tied to one vendor:
+
+- **Sessions.** `thinker distill` reads Claude Code, Codex, Cursor and Gemini
+  CLI transcripts (and the streamed output of their headless modes) and maps
+  them to one event form: prompt, tool call with result, agent message. Tool
+  names are mapped to one vocabulary, so `read_file`, `Read` and a shell `cat`
+  are all seen as reading.
+- **When.** At the end of a turn (`Stop`, `AfterAgent`, `stop`), and by
+  catch-up: `thinker learn` finds every session any of these agents ran in
+  the repository and distills what is new. Hooks start it in the background
+  at most every ten minutes, so modes that fire no end-of-session hook are
+  covered too.
+- **What the agent's record leaves out.** Where an agent gives no transcript,
+  the hooks record the session themselves (`.thinker/state/trace-*.jsonl`).
+  Cursor records tool calls without their output; reads and searches are
+  repeated against the working tree when distilling.
+- **Model.** Distilling, verifying, PR mining and the exploration sessions of
+  `setup` run through whichever agent is installed, with the login it already
+  has: `claude -p`, `codex exec`, `agent -p` (Cursor) or `gemini -p`. A
+  session is distilled by the agent that ran it when possible. `THINKER_LLM`
+  picks one (`claude`, `codex`, `cursor`, `gemini`, `anthropic`);
+  `THINKER_LLM_MODEL` names a model for the non-Claude ones;
+  `THINKER_LLM_CMD` is any command that reads a prompt on stdin and prints
+  the answer.
+- **Any other agent.** Pipe events to `thinker record <session>` as JSON lines
+  (`{"t":"prompt","text":…}`, `{"t":"tool","name":…,"input":…,"result":…}`,
+  `{"t":"say","text":…}`), then run `thinker learn`. Agents that speak MCP can
+  also save notes with the `remember` tool.
+
+What was run live, on 2026-09-27:
+
+| | Claude Code | Codex CLI 0.157 | Cursor agent CLI | Gemini CLI |
+|---|---|---|---|---|
+| notes served in a session | yes | yes | yes | not installed here |
+| session turned into notes | yes | yes (hooks, trace and distilling through Codex ran; the short test session produced no notes) | yes (4 notes from 2 sessions, distilled through Cursor) | not installed here |
+| exploration for `setup` | yes | stopped by the account's usage limit | yes (4 notes from one area) | not installed here |
+
+Gemini support follows its documentation and is covered by unit tests on
+constructed input only. Seen in the live runs:
+
+- Codex did not run hooks from a project's `.codex/hooks.json` in
+  `codex exec`, even with the project marked trusted, but ran the same hooks
+  from the user-level `hooks.json`.
+- Cursor's CLI (`agent -p`) fires `sessionStart`, `postToolUse`,
+  `afterShellExecution` and `sessionEnd`, but not `beforeSubmitPrompt` or
+  `stop`, and `postToolUse` carries a summary of the tool's output, not the
+  output. So thinker installs both the editor's and the CLI's events, takes
+  shell output from `afterShellExecution`, re-reads files when distilling,
+  and `setup` approves the MCP server (`agent mcp enable thinker`) so the
+  agent can call `orient` at the start and `remember` at the end. In the
+  test session it did both unprompted.
 
 ## What a note is
 
@@ -260,6 +312,7 @@ npm test
 | `src/cli.js` | `thinker` command: `setup`, `init`, `distill`, `orient`, `lookup`, `check`, `verify`, `cochange`, `serve`, ... |
 | `src/mcp.js` | MCP server exposing `orient`, `lookup`, `remember`, `feedback` |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI and Cursor: config files and hook formats |
+| `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
 | `src/prs.js` | mining merged pull requests into notes |
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
@@ -267,7 +320,7 @@ npm test
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/cochange.js` | co-change mining from git history |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
-| `src/store.js`, `src/llm.js` | note storage, model access |
+| `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
 | `.thinker/` | thinker's own notes about this repo |
@@ -287,6 +340,6 @@ node /path/to/thinker/src/cli.js orient "add rate limiting to the upload endpoin
 node /path/to/thinker/src/cli.js check && node /path/to/thinker/src/cli.js verify
 ```
 
-LLM calls go through the Anthropic SDK when `ANTHROPIC_API_KEY` is set,
-otherwise through `claude -p` (headless Claude Code), so no extra credentials
-are needed.
+Model calls go through the Anthropic SDK when `ANTHROPIC_API_KEY` is set,
+otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
+`agent`), so no extra credentials are needed.

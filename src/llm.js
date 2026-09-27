@@ -81,7 +81,9 @@ async function viaOther(p, { system, prompt, schema, timeoutMs }) {
   if (schema) full += `\n\nReply with one JSON object and nothing else: no prose, no code fence. It must match this JSON Schema:\n${JSON.stringify(schema)}`;
   full += '\n\nEverything you need is in this message. Do not run tools or read files.';
   if (BINS[p] && !findBin(BINS[p])) throw new Error(`the ${BINS[p][0]} CLI was not found (THINKER_LLM=${p})`);
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-llm-'));
+  // Cursor keeps a project folder per working directory: use one fixed directory for it
+  const cwd = p === 'cursor' ? path.join(os.tmpdir(), 'thinker-llm') : fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-llm-'));
+  fs.mkdirSync(cwd, { recursive: true });
   try {
     let text, usage = null;
     if (p === 'command') text = await run(process.env.THINKER_LLM_CMD, [], { input: full, cwd, timeoutMs, shell: true });
@@ -108,7 +110,7 @@ async function viaOther(p, { system, prompt, schema, timeoutMs }) {
       text = j.response || ''; usage = j.stats || null;
     }
     return { text, json: schema ? extractJson(text) : null, usage, cost: null, provider: p };
-  } finally { try { fs.rmSync(cwd, { recursive: true, force: true }); } catch {} }
+  } finally { if (p !== 'cursor') try { fs.rmSync(cwd, { recursive: true, force: true }); } catch {} }
 }
 
 async function viaSdk({ system, prompt, model, schema, maxTokens, timeoutMs }) {

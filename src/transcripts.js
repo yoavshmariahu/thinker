@@ -218,12 +218,17 @@ export function recordEvent(storeDir, session, ev) {
 // Cursor records tool calls without their output. Reads and searches can be
 // repeated against the working tree, so the distiller still sees what the
 // agent saw (as of now; a file edited since then shows its current text).
-export function hydrate(events, repo) {
+export function hydrate(events, repo, { trace } = {}) {
+  // shell output the hooks recorded for this session, by command
+  const shell = new Map();
+  if (trace && fs.existsSync(trace)) for (const j of jsonLines(fs.readFileSync(trace, 'utf8'))) if (j?.t === 'tool' && j.name === 'Bash' && j.input?.command && j.result) shell.set(j.input.command, j.result);
   const inRepo = f => { const abs = path.resolve(repo, f); return abs.startsWith(path.resolve(repo) + path.sep) ? abs : null; };
   for (const e of events) {
-    if (e.t !== 'tool' || (e.result && e.result.length > 200 && !/^\{".*"(content_length|success)"/.test(e.result))) continue;
+    // only where the record has no output, or a summary of it in place of the output
+    if (e.t !== 'tool' || (e.result && !/^\{".*"(content_length|success)":/.test(e.result))) continue;
     try {
-      if (e.name === 'Read' && e.input.file_path) {
+      if (e.name === 'Bash' && shell.has(e.input.command)) { e.result = shell.get(e.input.command); e.hydrated = true; }
+      else if (e.name === 'Read' && e.input.file_path) {
         const abs = inRepo(e.input.file_path); if (!abs || !fs.statSync(abs).isFile()) continue;
         const lines = fs.readFileSync(abs, 'utf8').split('\n');
         const from = Math.max(0, Number(e.input.offset ?? e.input.start_line ?? 1) - 1);
@@ -250,10 +255,18 @@ export function findSessions(repo, { sinceMs = 14 * 86400_000, storeDir } = {}) 
   for (const r of new Set([repo, real])) {
     const claude = path.join(home, '.claude', 'projects', r.replace(/[\/.]/g, '-'));
     for (const f of ls(claude)) if (f.endsWith('.jsonl')) add('claude', path.join(claude, f), f.slice(0, -6));
-    const cursor = path.join(home, '.cursor', 'projects', r.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, ''), 'agent-transcripts');
-    for (const id of ls(cursor)) add('cursor', path.join(cursor, id, id + '.jsonl'), id);
     const gemini = path.join(home, '.gemini', 'tmp', crypto.createHash('sha256').update(r).digest('hex'), 'chats');
     for (const f of ls(gemini)) if (f.endsWith('.json')) add('gemini', path.join(gemini, f), f.slice(0, -5));
+  }
+  // Cursor names project folders after the path (shortened with a hash when long);
+  // the folder records the workspace it belongs to
+  const roots = new Set([repo, real]);
+  const slug = r => r.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const cursorRoot = path.join(home, '.cursor', 'projects');
+  for (const d of ls(cursorRoot)) {
+    let ws = null; try { ws = JSON.parse(fs.readFileSync(path.join(cursorRoot, d, '.workspace-trusted'), 'utf8')).workspacePath; } catch {}
+    if (!(ws ? roots.has(ws) : [...roots].some(r => slug(r) === d))) continue;
+    for (const id of ls(path.join(cursorRoot, d, 'agent-transcripts'))) add('cursor', path.join(cursorRoot, d, 'agent-transcripts', id, id + '.jsonl'), id);
   }
   // Codex files are by date, not by project: read the first line for the cwd
   const codexRoot = path.join(process.env.CODEX_HOME || path.join(home, '.codex'), 'sessions');

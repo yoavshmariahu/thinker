@@ -52,7 +52,7 @@ const HELP = `thinker — cache of understanding for coding agents
   verify [ids...] [--model m]    re-verify stale notes with a small model
   distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--dry] [--model m]
                                  turn a session into notes; reads any of these agents' transcripts, or a plain event trace
-  learn [--days n] [--idle-min n] [--dry]
+  learn [--days n] [--max n] [--idle-min n] [--dry]
                                  distill every session any supported agent ran in this repo that has not been distilled yet
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   seed [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: one exploration session per source area
@@ -205,18 +205,25 @@ async function main() {
       } else if (pos[0] === 'tool') {
         // After a tool call: the agent opened files; serve notes anchored to them, once each.
         if (!store.exists()) break;
-        if (flags.record) { const name = toolName(ev.tool_name); recordEvent(store.dir, session, { t: 'tool', name, input: toolInput(name, ev.tool_input), result: ev.tool_response ?? ev.tool_output ?? ev.output }); }
+        // Cursor reports a shell command's output in afterShellExecution, not in postToolUse
+        if (ev.hook_event_name === 'afterShellExecution') { if (flags.record) recordEvent(store.dir, session, { t: 'tool', name: 'Bash', input: { command: ev.command }, result: ev.output }); out('{}'); break; }
+        if (flags.record && !(client === 'cursor' && toolName(ev.tool_name) === 'Bash')) { const name = toolName(ev.tool_name); recordEvent(store.dir, session, { t: 'tool', name, input: toolInput(name, ev.tool_input), result: ev.tool_response ?? ev.tool_output ?? ev.output }); }
         const parts = [];
         if (flags.record) learnInBackground(client);
-        if (client === 'cursor') {
+        // Cursor drops context added to an MCP call's result: wait for the next tool call,
+        // unless the agent asked the cache itself, in which case it has the notes already
+        const mcpCall = /^MCP:/i.test(ev.tool_name || '');
+        if (client === 'cursor' && mcpCall && !/orient|lookup/i.test(ev.tool_name)) { /* keep the bundle for the next call */ }
+        else if (client === 'cursor') {
           let p = takePending(store.dir, session);
           // the prompt hook does not run in every Cursor mode: orient from the transcript's request instead
-          if (!p && !fs.existsSync(path.join(store.dir, 'state', `oriented-${session}`)) && ev.transcript_path && fs.existsSync(ev.transcript_path) && store.list().length) {
+          const turn = path.join(store.dir, 'state', `oriented-${String(ev.generation_id || session).replace(/[^\w.-]/g, '_')}`);
+          if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && store.list().length) {
             const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
             if (task) { const r = await orient(store, { task, session, budget: Number(flags.budget) || 600 }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
           }
-          fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true }); fs.writeFileSync(path.join(store.dir, 'state', `oriented-${session}`), '');
-          if (p) parts.push(p);
+          fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '');
+          if (p && !mcpCall) parts.push(p);
         }
         if (client === 'claude' || flags.late) { const r = lateNotes(store, { session, files: toolFiles(ev, repo) }); if (r.text) parts.push(r.text); }
         if (parts.length) out(toolOutput(client, parts.join('\n\n')));
@@ -250,7 +257,7 @@ async function main() {
       break;
     }
     case 'learn': {
-      await learn({ days: Number(flags.days) || 14, idleMin: flags['idle-min'] === undefined ? 2 : Number(flags['idle-min']), dry: !!flags.dry, quiet: !!flags.quiet });
+      await learn({ days: Number(flags.days) || 14, idleMin: flags['idle-min'] === undefined ? 2 : Number(flags['idle-min']), max: Number(flags.max) || 50, dry: !!flags.dry, quiet: !!flags.quiet });
       break;
     }
     case 'record': {
@@ -291,6 +298,13 @@ function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
   store.init();
   out(`initialized ${store.dir}`);
   for (const c of clients) for (const line of installClient(c, { repo, cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), hooks, learn, late, shared, mcp })) out(line);
+  if (clients.includes('cursor')) {
+    // Cursor loads an MCP server only once it is approved for the workspace
+    const agentBin = findBin(['agent', 'cursor-agent']);
+    const r = agentBin ? spawnSync(agentBin, ['mcp', 'enable', 'thinker'], { cwd: repo, encoding: 'utf8', timeout: 60_000 }) : null;
+    if (r && r.status === 0) out('Cursor: approved the thinker MCP server for this workspace');
+    else out('Cursor: approve the thinker MCP server when Cursor asks (Settings → MCP), or run: agent mcp enable thinker');
+  }
   if (gitHook) {
     const hook = path.join(repo, '.git', 'hooks', 'post-commit');
     if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) out(`skipped git hook: ${hook} already exists and is not ours`);
@@ -391,6 +405,11 @@ function explore(agent, prompt, model) {
   else if (agent === 'cursor') r = spawnSync(bin, ['-p', '--output-format', 'stream-json', '--mode', 'ask', '--trust', ...(m ? ['--model', m] : []), '--workspace', repo, prompt], opts);
   else r = spawnSync(bin, ['--output-format', 'stream-json', ...(m ? ['-m', m] : [])], { ...opts, input: prompt });
   if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || '').slice(0, 200) };
+  // failures these CLIs report inside their output (usage limits, auth)
+  for (const l of String(r.stdout).split('\n')) {
+    let j; try { j = JSON.parse(l); } catch { continue; }
+    if (j.type === 'turn.failed' || (j.type === 'result' && j.is_error)) return { error: String(j.error?.message || j.result || j.message || 'failed').slice(0, 200) };
+  }
   fs.writeFileSync(stream, r.stdout);
   return { transcript: stream, temp: true };
 }
@@ -400,18 +419,18 @@ async function seed({ areas, model, dry, prompts, agent }) {
   if (dry) { for (const a of list) out(`${(a.dir || '-').padEnd(40)} ${a.n || ''}`); return; }
   agent = agent || exploreAgent();
   if (!agent) { out('no agent CLI found to explore with (claude, codex, agent or gemini)'); return; }
-  let cost = 0;
+  let cost = 0, ok = 0;
   for (const a of list) {
     const t0 = Date.now();
     const label = (a.dir || a.prompt.slice(0, 40)).padEnd(40);
     const r = explore(agent, a.prompt, model);
     if (r.error) { out(`${label} ${agent} failed: ${r.error}`); continue; }
-    cost += r.cost || 0;
+    cost += r.cost || 0; ok++;
     out(`${label} ${agent}${r.turns ? ` ${r.turns} turns` : ''}${r.cost ? ` $${r.cost.toFixed(2)}` : ''} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
     try { await distillFile(r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: false, incremental: false }); } catch (e) { out(`${label} distill failed: ${String(e.message).slice(0, 160)}`); }
     if (r.temp) fs.rmSync(r.transcript, { force: true });
   }
-  out(`seeded ${list.length} areas with ${agent}${cost ? `, agent cost $${cost.toFixed(2)}` : ''}`);
+  out(`explored ${ok} of ${list.length} areas with ${agent}${cost ? `, agent cost $${cost.toFixed(2)}` : ''}`);
 }
 // the agent that explores: THINKER_LLM if it names one, else the first installed
 function exploreAgent() {
@@ -433,7 +452,7 @@ async function verifyAll(notes) {
 
 // Catch-up learning: works without any end-of-session hook, so it covers
 // agents and modes that do not fire one (Cursor's headless mode, for one).
-async function learn({ days, idleMin, dry, quiet }) {
+async function learn({ days, idleMin, max, dry, quiet }) {
   const lock = path.join(store.init().dir, 'state', 'learn.lock');
   fs.mkdirSync(path.dirname(lock), { recursive: true });
   try { if (Date.now() - fs.statSync(lock).mtimeMs < 15 * 60_000) { if (!quiet) out('another learn run is in progress'); return; } } catch {}
@@ -445,6 +464,7 @@ async function learn({ days, idleMin, dry, quiet }) {
       let state = {}; try { state = JSON.parse(fs.readFileSync(path.join(store.dir, 'state', path.basename(s.file).replace(/\.jsonl?$/, '') + '.json'), 'utf8')); } catch {}
       let total = 0; try { total = parseTranscript(s.file).lineCount; } catch { continue; }
       if ((state.line || 0) >= total) continue;
+      if (done >= max) break;
       if (dry) { out(`${s.client.padEnd(7)} ${s.session}  ${total - (state.line || 0)} new lines`); continue; }
       if (!quiet) out(`${s.client} ${s.session}`);
       process.env.THINKER_LLM_PREFER = s.client;
@@ -458,7 +478,7 @@ function learnInBackground(client) {
   const mark = path.join(store.dir, 'state', 'learn.last');
   try { if (Date.now() - fs.statSync(mark).mtimeMs < 10 * 60_000) return; } catch {}
   fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, '');
-  spawn('node', [path.join(HERE, 'cli.js'), 'learn', '--quiet', '--repo', repo], { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } }).unref();
+  spawn('node', [path.join(HERE, 'cli.js'), 'learn', '--quiet', '--days', '2', '--max', '5', '--repo', repo], { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } }).unref();
 }
 
 async function distillFile(file, { minExplore, dry, model, quiet, incremental, format, session }) {
@@ -467,7 +487,15 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   let state = {}; try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch {}
   const fromLine = incremental ? (state.line || 0) : 0;
   const { events, lineCount } = parseTranscript(file, { fromLine, format });
-  hydrate(events, repo);
+  hydrate(events, repo, { trace: session ? traceFile(store.dir, session) : null });
+  // a turn-end hook and a session-end hook can both ask for the same session
+  const lock = stateFile + '.lock';
+  if (incremental && !dry) {
+    try { if (Date.now() - fs.statSync(lock).mtimeMs < 10 * 60_000) return; } catch {}
+    fs.mkdirSync(stateDir, { recursive: true }); fs.writeFileSync(lock, String(process.pid));
+  }
+  try { return await distillEventsToNotes(); } finally { if (incremental && !dry) fs.rmSync(lock, { force: true }); }
+  async function distillEventsToNotes() {
   const n = exploreCount(events);
   if (n < minExplore) { if (!quiet) out(`only ${n} exploration calls since last distill (<${minExplore}); nothing to distill`); return; }
   if (!events.some(e => e.t === 'say')) { if (!quiet) out('the session has no answer from the agent yet; nothing to distill'); return; }
@@ -487,7 +515,8 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
     for (const x of s.saved) out(`saved   ${x.id}  [${x.kind}] ${x.title}`);
     for (const x of s.merged) out(`merged  ${x.id}  [${x.kind}] ${x.title}`);
     for (const x of s.skipped) out(`skipped ${x.title}: ${x.reason}`);
-    out(`distilled ${events.length} events (${n} exploration calls) → ${s.saved.length} new, ${s.merged.length} merged; cost $${(r.cost || 0).toFixed(3)}`);
+    out(`distilled ${events.length} events (${n} exploration calls) → ${s.saved.length} new, ${s.merged.length} merged${r.cost ? `; cost $${r.cost.toFixed(3)}` : ""}`);
+  }
   }
 }
 
