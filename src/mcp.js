@@ -16,6 +16,8 @@ const server = new McpServer({ name: 'thinker', version: '0.1.0' }, {
 
 const text = s => ({ content: [{ type: 'text', text: s }] });
 // THINKER_ORIENT_GUIDE: a file with instructions on how to use the notes, put above them (per-model guidance).
+// An empty cache is said outright, with its location: "nothing matches" reads as a miss and hides a server pointed at the wrong place.
+const emptyCache = () => store.list().length ? '' : `The cache is empty: no notes in ${store.notesDir}. `;
 const guide = (() => { try { return process.env.THINKER_ORIENT_GUIDE ? fs.readFileSync(process.env.THINKER_ORIENT_GUIDE, 'utf8').trim() : ''; } catch { return ''; } })();
 
 server.registerTool('orient', {
@@ -27,9 +29,10 @@ server.registerTool('orient', {
     budget: z.number().int().min(200).max(8000).optional().describe('Max tokens of notes to return (default 1000).'),
   },
 }, async ({ task = '', file, budget }) => {
+  if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
   // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
   const r = await orient(store, { task, file, budget: budget || 1000, ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
-  if (!r.included.length) return text(`No cached notes match this task yet (${store.list().length} notes in cache). Explore normally, then call remember with what you learn.`);
+  if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Explore normally, then call remember with what you learn.`);
   const more = r.more?.length ? `\n\nAlso in the cache, not shown. Call lookup with the id before searching for what the title covers:\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
   const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
   return text(guide ? `${guide}\n\n<thinker-cache>\n${notes}\n</thinker-cache>` : notes);
@@ -44,7 +47,7 @@ server.registerTool('lookup', {
   },
 }, async ({ query, budget }) => {
   const r = lookup(store, { query, budget: budget || 2500 });
-  if (!r.included.length) return text('Nothing cached about that.');
+  if (!r.included.length) return text(emptyCache() || 'Nothing cached about that. Try fewer or different words, or an identifier from the code.');
   return text(r.text);
 });
 

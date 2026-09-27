@@ -88,7 +88,9 @@ function runCodex(prompt, cwd) {
       return resolve({
         session_id: events.find(e => e.type === 'thread.started')?.thread_id,
         turns: usage.length,
-        in_tokens: usage.reduce((s, u) => s + (u.input_tokens || 0) + (u.cached_input_tokens || 0) + (u.cache_write_input_tokens || 0), 0),
+        // Codex counts cached tokens inside input_tokens
+        in_tokens: usage.reduce((s, u) => s + (u.input_tokens || 0), 0),
+        cached_tokens: usage.reduce((s, u) => s + (u.cached_input_tokens || 0), 0),
         out_tokens: usage.reduce((s, u) => s + (u.output_tokens || 0), 0),
         wall_ms: Date.now() - started,
         result: msg,

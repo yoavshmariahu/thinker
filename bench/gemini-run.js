@@ -40,19 +40,18 @@ function makeWorktree(i) {
   }
   execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, 'HEAD'], { cwd: repo });
 
-  // Ensure .thinker/notes is available in the worktree for the MCP server
-  const dotThinker = path.join(wt, '.thinker');
-  const targetNotes = path.join(dotThinker, 'notes');
-  fs.mkdirSync(dotThinker, { recursive: true });
-  try {
-    fs.symlinkSync(notesDir, targetNotes, 'dir');
-  } catch {
-    fs.cpSync(notesDir, targetNotes, { recursive: true });
-  }
-  const cfg = path.join(dotThinker, 'config.json');
-  if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1 }, null, 2) + '\n');
-
   return wt;
+}
+
+// The MCP server agy starts reads <worktree>/.thinker/notes. The cache arm gets a copy of the noteset
+// (a copy: the agent calls remember, which must not write into the shared noteset); the nocache arm gets none.
+function setNotes(wt, arm) {
+  const dotThinker = path.join(wt, '.thinker');
+  fs.rmSync(dotThinker, { recursive: true, force: true });
+  if (arm !== 'cache') return;
+  fs.mkdirSync(dotThinker, { recursive: true });
+  fs.cpSync(notesDir, path.join(dotThinker, 'notes'), { recursive: true });
+  fs.writeFileSync(path.join(dotThinker, 'config.json'), JSON.stringify({ version: 1 }, null, 2) + '\n');
 }
 
 function resetWorktree(wt) {
@@ -161,7 +160,7 @@ Rely directly on the verified file:symbol pointers below and do not re-explore f
       '--output-format', 'json',
       '--dangerously-skip-permissions'
     ];
-    const p = spawn('agy', args, { cwd });
+    const p = spawn('agy', args, { cwd, env: { ...process.env, THINKER_LOG: 'local', THINKER_NO_LEARN: '1' } });
     let o = '', e = '';
     p.stdout.on('data', d => o += d);
     p.stderr.on('data', d => e += d);
@@ -220,6 +219,7 @@ async function main() {
       console.log(`[start] ${id} (worker ${wi})`);
       let r = null;
       try {
+        setNotes(cwd, arm);
         r = await runAgy(task.prompt, { arm, cwd });
       } catch (e) {
         console.log(`[error] ${id}: ${e.message}`);
@@ -259,6 +259,7 @@ async function main() {
         wall_ms: r.wall_ms,
         wall_sec: (r.wall_ms / 1000).toFixed(1),
         usage: r.usage,
+        cost: estimateCost(r.usage),
         tools,
         grade,
         diff,
@@ -270,7 +271,7 @@ async function main() {
 
       const passStr = grade?.pass ? 'PASS' : 'FAIL';
       const essStr = grade?.essential !== undefined ? (grade.essential * 100).toFixed(0) + '%' : '-';
-      console.log(`[done]  ${id}: ${rec.wall_sec}s | tools=${tools.calls} (reads=${tools.filesRead}) | ess=${essStr} [${passStr}]`);
+      console.log(`[done]  ${id}: ${rec.wall_sec}s | tools=${tools.calls} (reads=${tools.filesRead}) | cost=$${rec.cost.toFixed(3)} | ess=${essStr} [${passStr}]`);
       resetWorktree(cwd);
     }
   }
@@ -279,10 +280,19 @@ async function main() {
   report(summary);
 }
 
+function estimateCost(usage) {
+  if (!usage) return 0;
+  const inTokens = usage.input_tokens || 0;
+  const cacheTokens = usage.cache_read_tokens || 0;
+  const outTokens = usage.output_tokens || 0;
+  // Gemini Flash pricing: $0.075 / 1M uncached input, $0.01875 / 1M cached input, $0.30 / 1M output
+  return (inTokens * 0.075 + cacheTokens * 0.01875 + outTokens * 0.30) / 1e6;
+}
+
 function report(rows) {
   const byArm = {};
   for (const r of rows) {
-    const a = byArm[r.arm] ||= { n: 0, turns: 0, tools: 0, reads: 0, wall: 0, in_tok: 0, out_tok: 0, ess: 0, pass: 0 };
+    const a = byArm[r.arm] ||= { n: 0, turns: 0, tools: 0, reads: 0, wall: 0, in_tok: 0, out_tok: 0, cost: 0, ess: 0, pass: 0 };
     a.n++;
     a.turns += r.turns || 0;
     a.tools += r.tools?.calls || 0;
@@ -290,6 +300,7 @@ function report(rows) {
     a.wall += r.wall_ms || 0;
     a.in_tok += (r.usage?.input_tokens || 0) + (r.usage?.cache_read_tokens || 0);
     a.out_tok += r.usage?.output_tokens || 0;
+    a.cost += r.cost || estimateCost(r.usage);
     if (r.grade) {
       a.ess += r.grade.essential || 0;
       if (r.grade.pass) a.pass++;
@@ -297,8 +308,8 @@ function report(rows) {
   }
 
   console.log('\n================================ BENCHMARK SUMMARY ================================');
-  console.log('arm       n   turns   tools   reads   wall_s    in_tok   out_tok   essential   strict_pass');
-  console.log('-----------------------------------------------------------------------------------');
+  console.log('arm       n   turns   tools   reads   wall_s    in_tok   out_tok    $/run   essential   strict_pass');
+  console.log('-----------------------------------------------------------------------------------------------');
   for (const [arm, a] of Object.entries(byArm)) {
     const n = a.n || 1;
     console.log(
@@ -310,11 +321,12 @@ function report(rows) {
       `${(a.wall / n / 1000).toFixed(1).padStart(6)}   ` +
       `${Math.round(a.in_tok / n).toString().padStart(7)}   ` +
       `${Math.round(a.out_tok / n).toString().padStart(7)}   ` +
+      `$${(a.cost / n).toFixed(3).padStart(5)}   ` +
       `${((a.ess / n) * 100).toFixed(1).padStart(7)}%   ` +
       `${String(a.pass).padStart(2)}/${n} (${Math.round((a.pass / n) * 100)}%)`
     );
   }
-  console.log('===================================================================================\n');
+  console.log('===============================================================================================\n');
   fs.writeFileSync(path.join(outDir, 'summary.json'), JSON.stringify(rows, null, 2));
 }
 
