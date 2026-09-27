@@ -14,9 +14,8 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
-
 const ALIASES = { haiku: 'claude-haiku-4-5', sonnet: 'claude-sonnet-5', opus: 'claude-opus-5', fable: 'claude-fable-5-1' };
-const BINS = { claude: ['claude'], codex: ['codex'], cursor: ['agent', 'cursor-agent'], gemini: ['gemini'] };
+const BINS = { claude: ['claude'], codex: ['codex'], cursor: ['agent', 'cursor-agent'], gemini: ['agy', 'gemini'] };
 
 // Hooks run with a short PATH; also look where these tools install themselves.
 export function findBin(names) {
@@ -103,11 +102,19 @@ async function viaOther(p, { system, prompt, schema, timeoutMs }) {
       if (j.is_error) throw new Error('cursor: ' + String(j.result).slice(0, 400));
       text = j.result || ''; usage = j.usage || null;
     } else if (p === 'gemini') {
-      const args = ['--output-format', 'json'];
-      if (model) args.push('-m', model);
-      const j = JSON.parse(await run(findBin(BINS.gemini), args, { input: full, cwd, timeoutMs }));
-      if (j.error) throw new Error('gemini: ' + JSON.stringify(j.error).slice(0, 400));
-      text = j.response || ''; usage = j.stats || null;
+      const bin = findBin(BINS.gemini);
+      const isAgy = path.basename(bin) === 'agy';
+      if (isAgy) {
+        const args = ['--output-format', 'json', '--model', model || 'gemini-3.8-flash-high', '--dangerously-skip-permissions', '-p', full];
+        const j = JSON.parse(await run(bin, args, { cwd, timeoutMs }));
+        text = j.response || ''; usage = j.usage || null;
+      } else {
+        const args = ['--output-format', 'json'];
+        if (model) args.push('-m', model);
+        const j = JSON.parse(await run(bin, args, { input: full, cwd, timeoutMs }));
+        if (j.error) throw new Error('gemini: ' + JSON.stringify(j.error).slice(0, 400));
+        text = j.response || ''; usage = j.stats || null;
+      }
     }
     return { text, json: schema ? extractJson(text) : null, usage, cost: null, provider: p };
   } finally { if (p !== 'cursor') try { fs.rmSync(cwd, { recursive: true, force: true }); } catch {} }
