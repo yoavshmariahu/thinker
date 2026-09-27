@@ -74,8 +74,18 @@ automatically.
 ## Usage history
 
 Every serving, assessment, distillation, verification and mining run is
-appended to `.thinker/log.jsonl` (per checkout, not committed). `thinker
-usage [--days n] [--json]` summarizes it: notes served and how, what the
+appended to one file for the machine, `~/.thinker/log.jsonl` (under
+`THINKER_HOME`), each line naming its repository. `THINKER_LOG` changes
+that: a path, `local` (the repository's own `.thinker/log.jsonl`) or `off`.
+Runs with `THINKER_NOTES_DIR` set, which is how benchmark arms serve a
+noteset, log locally by default, so experiments stay out of the machine's
+history; a harness that installs real hooks should set `THINKER_LOG=local`.
+The log holds the first 200 characters of each request.
+
+`thinker usage [--here] [--days n] [--json]` summarizes it for every
+repository on the machine, with a line per repository (`--here`: this
+repository only). A repository's older local log is moved into the machine's
+log the first time thinker runs there, and kept as `log.jsonl.moved`. The summary covers notes served and how, what the
 sessions did with them, what was learned and what it cost, and an estimate of
 the tool calls and tokens saved. The estimate counts only servings a session
 was seen to act on (`confirmed`), as one read per file the note rests on (at

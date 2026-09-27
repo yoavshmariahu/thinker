@@ -2,6 +2,7 @@
 // Notes are plain files so a team can commit them and share via git.
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 
 export const KINDS = ['location', 'callpath', 'cochange', 'howto', 'convention', 'rationale', 'gotcha', 'overview', 'invariant', 'fix'];
@@ -19,6 +20,34 @@ export function findRepoRoot(start = process.cwd()) {
 export function gitHead(repo) {
   try { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); }
   catch { return null; }
+}
+
+// Usage history is kept in one file for the machine, THINKER_HOME/log.jsonl (default
+// ~/.thinker), each line naming the repository it is about. THINKER_LOG changes that:
+// a path, `local` (the repository's own .thinker/log.jsonl) or `off`. Runs that serve
+// notes from elsewhere (THINKER_NOTES_DIR: benchmark arms) log locally unless told
+// otherwise, so experiments stay out of the machine's history.
+export function logFile(store) {
+  const v = process.env.THINKER_LOG;
+  if (v === 'off') return null;
+  if (v === 'local' || (!v && process.env.THINKER_NOTES_DIR)) return path.join(store.dir, 'log.jsonl');
+  if (v) return path.resolve(v);
+  return path.join(process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), 'log.jsonl');
+}
+
+// What a repository logged locally before the log was shared is moved into the machine's
+// log, once: the local file is renamed first, so two processes cannot both move it.
+export function adoptLocalLog(store) {
+  const main = logFile(store), local = path.join(store.dir, 'log.jsonl');
+  // only into the machine's own log, not one that THINKER_LOG names
+  if (process.env.THINKER_LOG || !main || main === local || !fs.existsSync(local)) return;
+  const moved = local + '.moved';
+  try { fs.renameSync(local, moved); } catch { return; }
+  try {
+    const lines = fs.readFileSync(moved, 'utf8').split('\n').filter(Boolean).map(l => { try { const e = JSON.parse(l); return JSON.stringify(e.repo ? e : { t: e.t, repo: store.repo, ...e }); } catch { return null; } }).filter(Boolean);
+    fs.mkdirSync(path.dirname(main), { recursive: true });
+    if (lines.length) fs.appendFileSync(main, lines.join('\n') + '\n');
+  } catch { try { fs.renameSync(moved, local); } catch {} }
 }
 
 export class Store {
@@ -53,11 +82,14 @@ export class Store {
   remove(id) {
     try { fs.unlinkSync(path.join(this.notesDir, id + '.json')); return true; } catch { return false; }
   }
-  // Append-only usage/feedback log (not committed; useful for pruning and eval).
+  // Append-only usage/feedback log for the machine (see logFile); one line per event, so
+  // sessions in different repositories can append at the same time.
   log(event) {
     try {
-      fs.mkdirSync(this.dir, { recursive: true });
-      fs.appendFileSync(path.join(this.dir, 'log.jsonl'), JSON.stringify({ t: new Date().toISOString(), ...event }) + '\n');
+      const f = logFile(this); if (!f) return;
+      adoptLocalLog(this);
+      fs.mkdirSync(path.dirname(f), { recursive: true });
+      fs.appendFileSync(f, JSON.stringify({ t: new Date().toISOString(), repo: this.repo, ...event }) + '\n');
     } catch { /* ignore */ }
   }
 }

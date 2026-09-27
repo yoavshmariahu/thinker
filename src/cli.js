@@ -69,8 +69,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice
                                  (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = early injection, tool = late file-keyed injection, stop = nudge + distill
-  usage [--days n] [--json]      how the cache has been used here: notes served, what sessions did with them, what was learned,
-                                 and an estimate of the tool calls and tokens saved (history is kept in .thinker/log.jsonl)
+  usage [--here] [--days n] [--json]
+                                 how the cache has been used on this machine, in every repository: notes served, what sessions
+                                 did with them, what was learned, and an estimate of the tool calls and tokens saved
+                                 (--here: this repository only; history is kept in ~/.thinker/log.jsonl)
   stats
 `;
 
@@ -301,8 +303,8 @@ async function main() {
     }
     case 'usage': {
       const days = Number(flags.days) || undefined;
-      const u = summarize(store, { days });
-      out(flags.json ? JSON.stringify(u, null, 2) : renderUsage(u, { repo: path.basename(repo), notes: store.list().length, days }));
+      const u = summarize(store, { days, all: !flags.here });
+      out(flags.json ? JSON.stringify(u, null, 2) : renderUsage(u, { days }));
       break;
     }
     case 'stats': {
@@ -334,7 +336,7 @@ function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
   }
   if (!fs.existsSync(path.join(store.dir, 'cochange.json'))) { try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {} }
   const gi = path.join(repo, '.thinker', '.gitignore');
-  if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'log.jsonl\nstate/\n');
+  if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'log.jsonl\nlog.jsonl.moved\nstate/\n');
 }
 
 // owner/name of the GitHub repository behind `origin`, or null
