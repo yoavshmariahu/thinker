@@ -171,6 +171,11 @@ of relevance), `THINKER_RERANK=haiku`.
 - MCP server (`thinker serve`, registered in `.mcp.json` by `thinker init`)
   with tools `orient(task, file?, budget?)`, `lookup(query)`, `remember(...)`,
   `feedback(id, useful, correction?)`.
+- The prompt hooks serve two notes. When an agent calls `orient` with its own
+  `budget`, up to five are served (past the second, a note must reach 0.7 of
+  the best hit's relevance), a linked note is added instead of replacing a
+  hit, and relevant notes that were not served are listed by title and id;
+  `lookup` takes such an id.
 - Prompt-time hook: injects the orientation bundle into every prompt
   automatically (no tool call needed). See [Supported agents](#supported-agents).
 - Ranking: BM25 over title/answers/tags/deps/body with identifier splitting,

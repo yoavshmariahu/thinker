@@ -24,17 +24,19 @@ server.registerTool('orient', {
     budget: z.number().int().min(200).max(8000).optional().describe('Max tokens of notes to return (default 1000).'),
   },
 }, async ({ task, file, budget }) => {
-  const r = await orient(store, { task, file, budget: budget || 1000 });
+  // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
+  const r = await orient(store, { task, file, budget: budget || 1000, ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
   if (!r.included.length) return text(`No cached notes match this task yet (${store.list().length} notes in cache). Explore normally, then call remember with what you learn.`);
-  const more = r.omitted.length ? `\n\n(${r.omitted.length} lower-ranked notes omitted; use lookup for a specific question.)` : '';
-  return text(`Cached understanding for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`);
+  const more = r.more?.length ? `\n\nAlso in the cache, not shown. Call lookup with the id before searching for what the title covers:\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
+  const notes = `Cached understanding for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
+  return text(notes);
 });
 
 server.registerTool('lookup', {
   title: 'Look up cached knowledge',
   description: 'Ask the cache a specific question mid-task, e.g. "what do we know about the session middleware" or "how are migrations run". Returns matching notes with pointers. Cheaper than grepping when the answer has been learned before.',
   inputSchema: {
-    query: z.string().describe('The question or topic.'),
+    query: z.string().describe('The question or topic, or a note id listed by orient.'),
     budget: z.number().int().min(200).max(8000).optional(),
   },
 }, async ({ query, budget }) => {

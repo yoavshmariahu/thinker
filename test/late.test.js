@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store } from '../src/store.js';
-import { createNote, lateNotes, completenessNudge, orient } from '../src/ops.js';
+import { createNote, lateNotes, completenessNudge, orient, lookup } from '../src/ops.js';
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-late-'));
@@ -44,4 +44,28 @@ test('early modes: pointers omit prose, none injects nothing', async () => {
   assert.ok(p.text.includes('src/a.py:launch') && !p.text.includes('must call'));
   const n = await orient(store, { task: 'launch eligibility check', early: 'none' });
   assert.equal(n.included.length, 0);
+});
+
+test('orient with a caller budget: more notes, links add, the rest is listed; lookup takes an id', async () => {
+  const { dir, store } = setup();
+  fs.writeFileSync(path.join(dir, 'src/c.py'), 'def invite():\n    pass\n\ndef bulk():\n    pass\n\ndef toast():\n    pass\n\ndef modal():\n    pass\n');
+  const mk = (title, kind, answers, symbol) => createNote(store, { title, kind, answers, body: `src/c.py:${symbol} handles it`, deps: [{ path: 'src/c.py', symbol }] }).note;
+  mk('Existing member check on invite', 'invariant', ['where are invites to an existing member rejected'], 'invite');
+  mk('Bulk invite is not atomic', 'gotcha', ['why does a bulk invite leave earlier rows saved'], 'bulk');
+  mk('Invite errors surface as a toast', 'callpath', ['how does an invite error reach the toast'], 'toast');
+  mk('Invite modal rows', 'location', ['where is the invite modal row rendered'], 'modal');
+  const task = 'bulk invite with an existing member leaves earlier rows saved and shows an error toast in the invite modal';
+  const two = await orient(store, { task, budget: 3000 });
+  const many = await orient(store, { task, budget: 3000, maxNotes: 5 });
+  assert.equal(two.included.length, 2);
+  assert.ok(many.included.length > 2);
+  // a linked note is added after the ranked hits; it does not take the place of one
+  const ranked = (await orient(store, { task, budget: 3000, maxNotes: 5 })).included.map(n => n.id);
+  process.env.THINKER_NO_LINKS = '1';
+  const plain = (await orient(store, { task, budget: 3000, maxNotes: 5 })).included.map(n => n.id);
+  delete process.env.THINKER_NO_LINKS;
+  assert.deepEqual(ranked.slice(0, plain.length), plain);
+  // what was not served is listed, and lookup returns a listed note by id
+  assert.ok(two.more.length >= 1 && two.more.every(n => !two.included.some(i => i.id === n.id)));
+  assert.deepEqual(lookup(store, { query: two.more[0].id }).included.map(n => n.id), [two.more[0].id]);
 });

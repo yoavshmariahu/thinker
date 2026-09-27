@@ -188,7 +188,9 @@ export function specificity(repo, task) {
 
 // early: 'full' (notes with prose), 'pointers' (titles + anchors only),
 // 'auto' (full when the request names code that exists, else pointers), 'none'.
-export async function orient(store, { task, file, session, budget = 600, maxNotes = 2, refreshFirst = !NAIVE, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
+// maxNotes/relFloor: the prompt hooks serve two notes; a caller that names its own budget (the MCP
+// tool) passes a higher maxNotes, and notes past the second must then reach relFloor of the best hit.
+export async function orient(store, { task, file, session, budget = 600, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
   if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
   const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
   if (early === 'auto' || early === 'router') early = specificity(store.repo, task) >= 1 ? 'full' : 'pointers'; // heuristic, also the router's fallback
@@ -207,16 +209,19 @@ export async function orient(store, { task, file, session, budget = 600, maxNote
       ranked = routed.picked.map(r => ({ ...r, rel: Math.max(r.rel, 0.5) })); early = routed.mode;
     } catch (e) { store.log({ op: 'route-error', error: String(e.message).slice(0, 200) }); }
   }
-  let top = ranked.slice(0, maxNotes);
+  let top = ranked.slice(0, maxNotes).filter((r, i) => i < 2 || r.rel >= relFloor * ranked[0].rel);
   if (routed) process.env.THINKER_NO_LINKS = '1'; // the router's selection is final
   // cross-note links: pull in one note linked from the best hit when it has
   // at least some lexical relevance of its own and is not already selected
   if (top.length && process.env.THINKER_NO_LINKS !== '1') {
     const rel = ranked.filter(r => (top[0].note.related || []).includes(r.note.id) && !top.includes(r) && r.rel >= 0.15)[0];
-    if (rel) top = [...top.slice(0, maxNotes - 1), rel];
+    // with two slots the linked note takes the second; with more it is added, so it never evicts a better hit
+    if (rel) top = maxNotes > 2 ? [...top, rel] : [...top.slice(0, maxNotes - 1), rel];
   }
   const packed = pack(top, budget, { minRel: 0.35, pointers: early === 'pointers' });
   packed.mode = early;
+  // relevant notes that were not served, so the caller can name them and the agent can ask for one
+  packed.more = ranked.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, 6).map(r => r.note);
   for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (!NAIVE) scheduleVerify(store, packed.included.filter(n => n.status === 'stale'));
   // co-change edges for the files the served notes (and the current file) point at
@@ -372,7 +377,9 @@ export function scheduleVerify(store, notes) {
 
 export function lookup(store, { query, budget = 2500 }) {
   const notes = NAIVE ? store.list().map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; }) : refresh(store, store.list());
-  const ranked = rank(notes, { query, mode: 'lookup' });
+  // a note id (as listed by orient) returns that note
+  const byId = notes.find(n => n.id === String(query).trim());
+  const ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : rank(notes, { query, mode: 'lookup' });
   const packed = pack(ranked, budget, { minRel: 0.15 });
   store.log({ op: 'lookup', query: String(query).slice(0, 200), served: packed.included.map(n => n.id), ...servedFields(store, packed.included, packed.text) });
   return packed;
