@@ -50,51 +50,101 @@
       "products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2"
     ],
     "criteria": {
-      "essential": 1,
-      "all": 1,
-      "pass": true,
+      "judge": "fable",
+      "essential": 0.8571428571428571,
+      "all": 0.875,
+      "pass": false,
       "results": [
         {
           "id": "c1",
-          "verdict": "met",
-          "evidence": "create_saved_metric: `fresh_query = {key: value for key, value in query.items() if key != \"uuid\"}` before `normalize_query_for_write(fresh_query)`. The supplied uuid is dropped and the rest of the query is kept. normalize_query_for_write's tail is cut off in the excerpt, but the `existing_uuid`/`incoming_uuid` handling implies it generates a uuid when none is present."
+          "verdict": "unclear",
+          "evidence": "The supplied uuid is definitely discarded and the rest of the query is kept: `fresh_query = {key: value for key, value in query.items() if key != \"uuid\"} if query else query`, then `normalized_query = self.normalize_query_for_write(fresh_query)` is stored via `query=normalized_query`. Whether a new uuid is then generated depends on the body of `normalize_query_for_write`, which is cut off in the shown code after `if existing_uuid and incoming_uuid and incoming_uuid != existing_uuid: raise ValidationError(\"Saved metric UUID cannot be changed\")`. The line that assigns a uuid when none is present is not visible, so I cannot confirm a generated identifier is always stored."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "update_saved_metric still passes `existing_uuid=saved_metric.query.get(\"uuid\")` to normalize_query_for_write, and that method rejects a differing incoming uuid. It is unchanged by the patch."
+          "evidence": "`update_saved_metric` is unchanged by the patch and still passes the stored uuid: `existing_uuid = saved_metric.query.get(\"uuid\") if saved_metric.query else None; update_data[\"query\"] = self.normalize_query_for_write(update_data[\"query\"], existing_uuid=existing_uuid)`. `normalize_query_for_write` rejects a differing uuid with `raise ValidationError(\"Saved metric UUID cannot be changed\")`. The uuid stripping was added only in `create_saved_metric`."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "When `\"saved_metrics_ids\" in update_data`, for each of `(\"metrics\", \"metrics_secondary\")` not in the payload it calls `_regenerate_uuids_in(getattr(experiment, metric_field), saved_metric_uuids)`. That helper assigns `str(uuid4())` to entries whose uuid is reserved. `saved_metric_uuids` comes from the payload's linked saved metrics (`_saved_metric_uuids_after_update`)."
+          "evidence": "In `update_experiment`: `if \"saved_metrics_ids\" in update_data: for metric_field in (\"metrics\", \"metrics_secondary\"): if metric_field in update_data: continue; rewritten = self._regenerate_uuids_in(getattr(experiment, metric_field), saved_metric_uuids); if rewritten is not None: update_data[metric_field] = rewritten`. `saved_metric_uuids` is the union of primary and secondary uuids of the saved metrics in the payload, from `_saved_metric_uuids_after_update`. `_regenerate_uuids_in` sets `metric[\"uuid\"] = str(uuid4())` for each entry where `metric.get(\"uuid\") in reserved`. Both inline collections are covered by the loop."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "`_regenerate_uuids_in` returns None when `not any(metric.get(\"uuid\") in reserved ...)`. update_data is then not touched for that field, so the stored metrics and ordering stay as they were."
+          "evidence": "`_regenerate_uuids_in` returns early with no change when nothing collides: `if not metrics or not any(metric.get(\"uuid\") in reserved for metric in metrics): return None`, and the caller only writes `update_data[metric_field]` when `rewritten is not None`. The later fingerprint recompute does put the stored list into `update_data`, but uuids are unchanged, so in `_sync_ordering_with_metric_changes` both `added` and `removed` are empty and `if added or removed:` does not touch the ordering."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "The rewritten list is put into update_data, so `_sync_ordering_with_metric_changes` sees the new uuid as added. It computes `removed = old_uuids - new_uuids - kept[\"primary\"]` (and the secondary equivalent), so the original uuid stays in the ordering when it belongs to an attached saved metric of that type. The new uuid is appended. This holds when the shared metric is of the same type as the inline one."
+          "evidence": "`_sync_ordering_with_metric_changes` now receives `saved_metric_uuids_by_type` and computes `removed = old_uuids - new_uuids - kept[\"primary\"]` (and `- kept[\"secondary\"]` for secondary). The original uuid, now belonging to the attached saved metric of that type, is excluded from `removed`, so `current_ordering = [u for u in current_ordering if u not in removed]` keeps it. The regenerated uuid is in `added` and is appended: `for uuid in added: if uuid not in current_ordering: current_ordering.append(uuid)`."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "Only the inline `metrics` and `metrics_secondary` lists are rewritten. The saved metric row is never modified, and `saved_metrics_ids` is still processed as requested through the existing link sync."
+          "evidence": "The clash resolution only writes to the inline lists: `update_data[metric_field] = rewritten` for `metrics` / `metrics_secondary`. `_saved_metric_uuids_after_update` only reads saved metrics (`ExperimentSavedMetric.objects.filter(...).only(\"query\")`). The link payload is untouched: `saved_metrics_data: list[dict] = update_data.pop(\"saved_metrics_ids\", []) or []` feeds the existing link sync unchanged."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "The guidance now says to call `experiment-saved-metrics-create` with the metric's `query` and \"leave out its `uuid`\". It also says to attach the shared metric and \"remove the inline metric from `metrics` / `metrics_secondary` in the same update\", and \"Do not keep both\"."
+          "evidence": "The guidance now reads: \"call `experiment-saved-metrics-create` with the metric's `query` (the `ExperimentMetric` object) and leave out its `uuid`. The shared metric gets its own `uuid`. To use it on the same experiment, attach it via `saved_metrics_ids` and remove the inline metric from `metrics` / `metrics_secondary` in the same update. Do not keep both\". The old text (\"with the same `query` ... then attach it via `saved_metrics_ids` as above\") is removed."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "`seen_metric_uuids |= saved_metric_uuids` is seeded from the post-update saved-metric uuids, using the current links when the payload has no `saved_metrics_ids`. `_assign_uuids_to_metrics` therefore regenerates a clashing resent inline metric. `kept[...]` stops the original uuid from being removed from the ordering."
+          "evidence": "With no `saved_metrics_ids` in the payload, `_saved_metric_uuids_after_update` reads the current links (`experiment.experimenttosavedmetric_set.select_related(\"saved_metric\").all()`), and `seen_metric_uuids |= saved_metric_uuids`. The resent list goes through `self._assign_uuids_to_metrics(update_data[\"metrics\"], seen=seen_metric_uuids)`, which regenerates when `original in seen`. The ordering then keeps the clashing uuid because `removed = old_uuids - new_uuids - kept[\"primary\"]`, while the new inline uuid is appended via `added`."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 1,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "create_saved_metric: `fresh_query = {key: value for key, value in query.items() if key != \"uuid\"}` before `normalize_query_for_write(fresh_query)`. The supplied uuid is dropped and the rest of the query is kept. normalize_query_for_write's tail is cut off in the excerpt, but the `existing_uuid`/`incoming_uuid` handling implies it generates a uuid when none is present."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "update_saved_metric still passes `existing_uuid=saved_metric.query.get(\"uuid\")` to normalize_query_for_write, and that method rejects a differing incoming uuid. It is unchanged by the patch."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "When `\"saved_metrics_ids\" in update_data`, for each of `(\"metrics\", \"metrics_secondary\")` not in the payload it calls `_regenerate_uuids_in(getattr(experiment, metric_field), saved_metric_uuids)`. That helper assigns `str(uuid4())` to entries whose uuid is reserved. `saved_metric_uuids` comes from the payload's linked saved metrics (`_saved_metric_uuids_after_update`)."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "`_regenerate_uuids_in` returns None when `not any(metric.get(\"uuid\") in reserved ...)`. update_data is then not touched for that field, so the stored metrics and ordering stay as they were."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "The rewritten list is put into update_data, so `_sync_ordering_with_metric_changes` sees the new uuid as added. It computes `removed = old_uuids - new_uuids - kept[\"primary\"]` (and the secondary equivalent), so the original uuid stays in the ordering when it belongs to an attached saved metric of that type. The new uuid is appended. This holds when the shared metric is of the same type as the inline one."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "Only the inline `metrics` and `metrics_secondary` lists are rewritten. The saved metric row is never modified, and `saved_metrics_ids` is still processed as requested through the existing link sync."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "The guidance now says to call `experiment-saved-metrics-create` with the metric's `query` and \"leave out its `uuid`\". It also says to attach the shared metric and \"remove the inline metric from `metrics` / `metrics_secondary` in the same update\", and \"Do not keep both\"."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "`seen_metric_uuids |= saved_metric_uuids` is seeded from the post-update saved-metric uuids, using the current links when the payload has no `saved_metrics_ids`. `_assign_uuids_to_metrics` therefore regenerates a clashing resent inline metric. `kept[...]` stops the original uuid from being removed from the ordering."
+          }
+        ]
+      }
     }
   },
   "result": "Inline and shared metrics on an experiment now always end up with distinct identifiers in both scenarios. Nothing was run: per your instructions I did not run the tests, and `ruff` isn't installed here, so the code is unlinted and unformatted.\n\n## What changed\n\n**Promotion** (`products/experiments/backend/experiment_saved_metric_service.py`)\n- `create_saved_metric` now drops any incoming `uuid` and always mints a fresh one, so a shared metric created from an inline metric's query can't inherit its identifier.\n- Updating a shared metric still preserves its existing `uuid`, and the legacy migration path is untouched.\n\n**Update with only attached shared metrics** (`products/experiments/backend/experiment_service.py`)\n- When the payload has `saved_metrics_ids` but omits `metrics` and/or `metrics_secondary`, the stored inline lists are now checked against the attached shared metrics. Any inline metric that collides gets a new `uuid`; the rest are left alone.\n- The ordering arrays keep the shared metric's `uuid` entry and append the regenerated inline `uuid`, rather than dropping the entry along with the inline metric's old identifier.\n- The rewritten stored lists skip payload validation and the duplicate-uuid check, so an old stored metric can't block the update.\n\n**Agent guidance** (`metric-configuration.md.j2` in the `configuring-experiment-analytics` skill)\n- It now says to create the shared metric without the `uuid`, and to remove the inline copy in the same update that attaches the shared one, instead of keeping both.\n\n## Tests added\n- `test_create_saved_metric_ignores_incoming_uuid` in `test_experiment_saved_metric_service.py`.\n- `test_saved_metrics_only_update_regenerates_colliding_stored_inline_uuid` in `test_experiment_service.py`, parameterized over a newly attached shared metric and one that was already attached with a clash.\n\n## Things to know\n- **Results after a clash is repaired:** the inline metric that gets a new `uuid` loses its link to previously stored results until they are recalculated. The shared metric keeps the original identifier.\n- **API behavior change:** a `uuid` sent when creating a shared metric is now silently ignored. The existing frontend \"duplicate shared metric\" flow that generates its own `uuid` still works; the server just replaces it.\n- **Existing clashes:** experiments that already have a clash are only repaired the next time someone updates their attached shared metrics. I did not add a backfill.",

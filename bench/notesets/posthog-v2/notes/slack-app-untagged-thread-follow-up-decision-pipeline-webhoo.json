@@ -67,12 +67,12 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 9,
+  "uses": 14,
   "related": [
     "slack-app-billing-quota-gate-lives-only-in-the-temporal-work",
     "slack-app-temporal-workflows-and-activities"
   ],
-  "lastUsed": "2026-09-27T07:20:45.607Z",
+  "lastUsed": "2026-09-27T17:38:14.686Z",
   "servedIn": [
     "8d634aa7-5c3e-4d13-99a2-aefd91be94b4",
     "dae3994c-821b-4590-b55d-a12fda3d03e4",
@@ -81,6 +81,9 @@
     "9c933025-37f3-48d5-a938-05d64dd2de3d",
     "d5fcbf38-6672-44fc-a69b-25b97b85127d",
     "codex-posthog-codex-gpt56-PR105793-hard-0",
-    "codex-posthog-codex-gpt56-PR105793-hard-1"
+    "codex-posthog-codex-gpt56-PR105793-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR105793-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR105793-hard-1",
+    "codex-posthog-codex-gpt6-sol-trace-PR105793-hard-0"
   ]
 }

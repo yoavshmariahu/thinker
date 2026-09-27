@@ -30,56 +30,112 @@
   "grade": {
     "error": "judge failed: ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"bc90c35e-7c9e-4564-b079-80508419550d\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"aa8decf7-c4e3-4d57-ab7f-86385363595b\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"127f37e6-5e21-4707-9ce0-b5ee460a6a37\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"",
     "criteria": {
-      "essential": 0,
-      "all": 0,
+      "judge": "fable",
+      "essential": 0.3333333333333333,
+      "all": 0.1111111111111111,
+      "extra": 0,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "not_met",
-          "evidence": "The patch adds a `moveToDraft` action and `movingToDraft` reducer, but no listener implements `moveToDraft` (none shown), and no UI is added. Nothing calls the API to set status to draft, so the broadcast never leaves read-only."
+          "evidence": "The patch only declares `moveToDraft: true, moveToDraftFinished: true` and a reducer `movingToDraft: { moveToDraft: () => true, moveToDraftFinished: () => false }`. No listener for `moveToDraft` is added (the listeners shown contain only `continueStep`, `launchBroadcast`, `loadBroadcastSuccess`), so nothing PATCHes the status to draft or stops the schedule. No UI file is changed to offer the action in the summary view."
         },
         {
           "id": "c2",
           "verdict": "not_met",
-          "evidence": "`canMoveToDraft` selector exists (`getBroadcastStatus(...) === 'scheduled'`), but it is not consumed by any UI in the patch. It also doesn't check that a schedule exists, so an active broadcast with no schedule would qualify. No control is offered."
+          "evidence": "A gating selector exists: `canMoveToDraft: !!broadcast && hasLoadedBatchJobs && getBroadcastStatus(broadcast, { latestBatchJob: batchJobs[0] ?? null, totals: {} }) === 'scheduled'`, which would exclude drafts and broadcasts with any run. However, the patch touches no component, so nothing consumes `canMoveToDraft` and no control is offered for a live broadcast with a pending send either. The behaviour of offering the control in the right case is absent."
         },
         {
           "id": "c3",
-          "verdict": "not_met",
-          "evidence": "Stale schedules are deleted from `saved.schedules` in launch, and a new one is created for later/recurring. But `saved` comes from the partialUpdate response, which pauses the schedules. In 'now' mode the old schedules are also deleted, so that part works. The deletion happens before the fresh create and the stale list is only taken from the save response, which may not include schedules. The fresh-row creation is otherwise in place, but the destroy happens before the status update and there is no atomicity. This is likely mostly working, but it is not demonstrably complete, so the criterion is not verifiably met."
+          "verdict": "met",
+          "evidence": "In `launchBroadcast`, existing schedules are captured from the save response, `staleSchedules = saved.schedules ?? []`, then all are deleted before either send mode branches: `for (const stale of staleSchedules) { await hogFlowsSchedulesDestroy(projectId, broadcastId, stale.id) }`. The 'now' branch then creates only a batch job, leaving no schedule. The later/recurring branch creates exactly one new one via `hogFlowsSchedulesCreate(projectId, broadcastId, schedule as any)`. That the new row starts active relies on the backend default, which is not shown, but it is created after the audience-editing save and never paused by the frontend."
         },
         {
           "id": "c4",
-          "verdict": "unclear",
-          "evidence": "Stale schedules are destroyed before `hogFlowsPartialUpdate(... {status:'active'})`, but the new schedule is created after activation (`hogFlowsSchedulesCreate` follows). An interruption between activation and create leaves a live broadcast with no schedule; the catch block reverts to draft only on thrown errors, not on interruption. So it is not met."
+          "verdict": "not_met",
+          "evidence": "Order is destroy stale schedules, then `activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })`, and only afterwards `await hogFlowsSchedulesCreate(...)`. The broadcast is marked live before the replacement schedule exists, so an interruption between the two calls leaves it live with no schedule. The catch block's revert to draft only covers thrown errors, not an interrupted session."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "`canMoveToDraft` requires `hasLoadedBatchJobs` and status 'scheduled' (excludes waiting/queued/active runs). It does not check for more than one schedule or workflow shape, and no control uses it."
+          "evidence": "`canMoveToDraft` covers in-progress runs (`getBroadcastStatus` returns 'sending' for `['waiting', 'queued', 'active']`) and unknown run history (`hasLoadedBatchJobs`). It has no check on the number of schedules (`broadcast.schedules.length`) and no check on the workflow's action shape. No control exists in the UI either."
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "No confirmation dialog is added anywhere in the patch."
+          "evidence": "No confirmation dialog is added anywhere in the patch. There is no `LemonDialog` or similar, and no listener for `moveToDraft`. Only the action declaration and the `movingToDraft` reducer exist."
         },
         {
           "id": "c7",
           "verdict": "not_met",
-          "evidence": "No `moveToDraft` listener, no batch job cancellation, and no success/warning messaging are added."
+          "evidence": "There is no `moveToDraft` listener, so no batch job cancellation call and no success, warning or failure toasts for returning to draft. The only toasts in the file belong to the save and launch flows."
         },
         {
           "id": "c8",
           "verdict": "not_met",
-          "evidence": "The patch touches only the frontend files; nothing changes the scheduler to re-verify status before creating a run."
+          "evidence": "The patch changes only two frontend files, `broadcastWizardLogic.ts` and `broadcastsLogic.ts`. No scheduler or backend code is modified to re-verify the status before creating a run."
         },
         {
           "id": "c9",
           "verdict": "not_met",
-          "evidence": "The new schedule is built only from rrule, starts_at and timezone; the stale schedule's variables are not carried over."
+          "evidence": "The new schedule payload is built only from wizard values: `const schedule: Partial<HogFlowScheduleApi> = { rrule: ..., starts_at: ..., timezone: values.effectiveTimezone }`. Nothing is copied from `staleSchedules` (such as `variables`) before they are destroyed, so previous variable overrides are dropped."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0,
+        "all": 0,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "not_met",
+            "evidence": "The patch adds a `moveToDraft` action and `movingToDraft` reducer, but no listener implements `moveToDraft` (none shown), and no UI is added. Nothing calls the API to set status to draft, so the broadcast never leaves read-only."
+          },
+          {
+            "id": "c2",
+            "verdict": "not_met",
+            "evidence": "`canMoveToDraft` selector exists (`getBroadcastStatus(...) === 'scheduled'`), but it is not consumed by any UI in the patch. It also doesn't check that a schedule exists, so an active broadcast with no schedule would qualify. No control is offered."
+          },
+          {
+            "id": "c3",
+            "verdict": "not_met",
+            "evidence": "Stale schedules are deleted from `saved.schedules` in launch, and a new one is created for later/recurring. But `saved` comes from the partialUpdate response, which pauses the schedules. In 'now' mode the old schedules are also deleted, so that part works. The deletion happens before the fresh create and the stale list is only taken from the save response, which may not include schedules. The fresh-row creation is otherwise in place, but the destroy happens before the status update and there is no atomicity. This is likely mostly working, but it is not demonstrably complete, so the criterion is not verifiably met."
+          },
+          {
+            "id": "c4",
+            "verdict": "unclear",
+            "evidence": "Stale schedules are destroyed before `hogFlowsPartialUpdate(... {status:'active'})`, but the new schedule is created after activation (`hogFlowsSchedulesCreate` follows). An interruption between activation and create leaves a live broadcast with no schedule; the catch block reverts to draft only on thrown errors, not on interruption. So it is not met."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "`canMoveToDraft` requires `hasLoadedBatchJobs` and status 'scheduled' (excludes waiting/queued/active runs). It does not check for more than one schedule or workflow shape, and no control uses it."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "No confirmation dialog is added anywhere in the patch."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "No `moveToDraft` listener, no batch job cancellation, and no success/warning messaging are added."
+          },
+          {
+            "id": "c8",
+            "verdict": "not_met",
+            "evidence": "The patch touches only the frontend files; nothing changes the scheduler to re-verify status before creating a run."
+          },
+          {
+            "id": "c9",
+            "verdict": "not_met",
+            "evidence": "The new schedule is built only from rrule, starts_at and timezone; the stale schedule's variables are not carried over."
+          }
+        ]
+      }
     }
   },
   "result": "You've hit your session limit · resets 8:40pm (America/Los_Angeles)",

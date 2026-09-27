@@ -168,52 +168,65 @@ Opus works very differently from Sonnet on the same tasks: about 56 tool calls, 
 
 Reading: cost is the same in every arm. Notes cut Opus's pre-edit exploration by roughly a quarter, and Opus spends the saving on more editing and tests, so total calls and tokens do not drop. Halving the injected bundle and replacing the "notes are partial, verify" preamble with a statement that dependencies were re-hashed and match did not change that. Success differences are within single-run noise (one task moved 0.80 → 0.00 and another 0.00 → 0.33 between arms). On vague requests Opus's cost is set by how thoroughly it works, not by how long it takes to find the code.
 
-### Symptom-only tasks on Fable (`claude -p --model fable`, calibrated criteria; `posthog-fable`)
+The table above is graded by Sonnet. Regraded by Fable (`--judge fable`; Sonnet grades kept under `grade.criteriaBy.sonnet`), correctness is 0.83 for nocache (7 runs), 0.81 for early full (5) and 0.88 for pointers only (4), and thoroughness 0.43, 0.23 and 0.46. The reading does not change: the arms are within single-run noise of each other. `posthog-opus-slim` was not regraded.
+
+### Symptom-only tasks on Fable (`claude -p --model fable`, calibrated criteria, Fable as judge; `posthog-fable`)
 
 Arms `nocache` and `hook` with the v2 notes, run as pairs (same task and seed). 20 complete pairs, all graded: 14 tasks at seed 0 and 6 of them again at seed 1. Two seeds were planned (56 runs); the run was stopped at 40. Reproduce the table with `node bench/fable-report.js`.
 
-| arm | n | calls | in Mtok | $/run | min | essential met | strict pass |
+Two measures of the patch, both from the calibrated criteria:
+
+- **Correctness** is the score: the share of the essential criteria the patch meets, the ones without which the request is not fulfilled. It is the key metric.
+- **Thoroughness** is the share of the remaining criteria the patch meets: the edge cases and hardening the merged patch also handled. Tasks have 1 to 6 of these.
+
+Fable judges correctness and thoroughness. Graded with `node bench/criteria.js grade bench/tasks/posthog-hard.json posthog-fable --judge fable`, on the same criteria, prompt and post-patch code as the Sonnet grading. The criteria were calibrated with Sonnet as judge and were not recalibrated. The earlier Sonnet grades are kept in each run file under `grade.criteriaBy.sonnet`.
+
+| arm | n | correctness | thoroughness | calls | in Mtok | $/run | min |
 |---|---|---|---|---|---|---|---|
-| nocache | 20 | 18.1 | 1.25 | 2.72 | 2.7 | 0.79 ±0.07 | 9/20 |
-| hook | 20 | 14.9 | 1.02 | 2.45 | 2.3 | 0.89 ±0.05 | 14/20 |
+| nocache | 20 | 0.80 ±0.06 | 0.28 ±0.08 | 18.1 | 1.25 | 2.72 | 2.7 |
+| hook | 20 | 0.89 ±0.03 | 0.34 ±0.08 | 14.9 | 1.02 | 2.45 | 2.3 |
 
-Paired change with the cache: calls -17%, input tokens -18%, cost -10% (-$0.28 ±0.12 per run, cheaper in 15 of 20 pairs), time -14%. Essential met +0.10 ±0.08: better in 8 pairs, same in 9, worse in 3.
+Paired change with the cache: calls -17%, input tokens -18%, cost -10% (-$0.28 ±0.12 per run, cheaper in 15 of 20 pairs), time -14%. Correctness +0.08 ±0.06: better in 6 pairs, same in 12, worse in 2. Thoroughness +0.06 ±0.06: better in 3 pairs, same in 15, worse in 2. Runs that met every essential criterion: 9 of 20 without the cache, 12 of 20 with it.
 
-| task | seed | nocache: calls | $ | essential | hook: calls | $ | essential | notes served |
-|---|---|---|---|---|---|---|---|---|
-| PR105793 | 0 | 16 | 3.43 | 1.00 | 22 | 3.97 | 1.00 | 1 |
-| PR105871 | 0 | 17 | 2.90 | 1.00 | 18 | 2.67 | 1.00 | 1 |
-| PR105887 | 0 | 23 | 2.56 | 1.00 | 16 | 2.23 | 1.00 | 1 |
-| PR106322 | 0 | 22 | 2.69 | 0.75 | 22 | 2.84 | 0.75 | 2 |
-| PR106466 | 0 | 21 | 3.01 | 1.00 | 13 | 2.55 | 1.00 | 2 |
-| PR106466 | 1 | 17 | 3.07 | 1.00 | 7 | 2.14 | 0.67 | 2 |
-| PR106491 | 0 | 9 | 1.80 | 0.00 | 19 | 2.25 | 1.00 | 2 |
-| PR106522 | 0 | 20 | 3.05 | 0.80 | 16 | 2.67 | 1.00 | 2 |
-| PR106564 | 0 | 13 | 1.94 | 0.80 | 9 | 1.76 | 1.00 | 2 |
-| PR106564 | 1 | 18 | 1.91 | 0.00 | 7 | 1.65 | 0.80 | 2 |
-| PR106579 | 0 | 20 | 3.15 | 1.00 | 14 | 2.15 | 1.00 | 1 |
-| PR106613 | 0 | 4 | 0.86 | 1.00 | 3 | 0.82 | 1.00 | 1 |
-| PR106613 | 1 | 10 | 1.18 | 0.67 | 2 | 0.83 | 1.00 | 1 |
-| PR106672 | 0 | 28 | 3.71 | 0.86 | 14 | 2.51 | 1.00 | 2 |
-| PR106672 | 1 | 21 | 3.06 | 1.00 | 23 | 3.43 | 1.00 | 2 |
-| PR106917 | 0 | 18 | 3.01 | 0.75 | 17 | 2.13 | 0.75 | 2 |
-| PR106936 | 0 | 23 | 3.82 | 0.67 | 20 | 3.48 | 1.00 | 2 |
-| PR106936 | 1 | 20 | 2.86 | 0.83 | 21 | 3.47 | 0.00 | 2 |
-| PR107042 | 0 | 17 | 2.86 | 1.00 | 20 | 2.81 | 0.80 | 2 |
-| PR107042 | 1 | 25 | 3.63 | 0.60 | 16 | 2.54 | 1.00 | 2 |
+Judge agreement: Fable and Sonnet gave the same correctness score on 26 of the 40 runs. Of the 14 that differ, Fable scored 6 higher and 8 lower, and whether every essential criterion was met changed on 10 (4 to yes, 6 to no). With Sonnet as judge correctness was 0.79 ±0.07 and 0.89 ±0.05.
+
+| task | seed | nocache: calls | $ | correctness | thoroughness | hook: calls | $ | correctness | thoroughness | notes served |
+|---|---|---|---|---|---|---|---|---|---|---|
+| PR105793 | 0 | 16 | 3.43 | 1.00 | 0.00 | 22 | 3.97 | 1.00 | 0.00 | 1 |
+| PR105871 | 0 | 17 | 2.90 | 1.00 | 0.00 | 18 | 2.67 | 1.00 | 0.00 | 1 |
+| PR105887 | 0 | 23 | 2.56 | 1.00 | 1.00 | 16 | 2.23 | 1.00 | 1.00 | 1 |
+| PR106322 | 0 | 22 | 2.69 | 0.75 | 0.40 | 22 | 2.84 | 0.75 | 0.40 | 2 |
+| PR106466 | 0 | 21 | 3.01 | 1.00 | 0.00 | 13 | 2.55 | 0.67 | 0.00 | 2 |
+| PR106466 | 1 | 17 | 3.07 | 1.00 | 0.00 | 7 | 2.14 | 1.00 | 0.00 | 2 |
+| PR106491 | 0 | 9 | 1.80 | 0.00 | 0.50 | 19 | 2.25 | 1.00 | 1.00 | 2 |
+| PR106522 | 0 | 20 | 3.05 | 0.60 | 0.00 | 16 | 2.67 | 1.00 | 0.00 | 2 |
+| PR106564 | 0 | 13 | 1.94 | 0.80 | 0.00 | 9 | 1.76 | 1.00 | 0.33 | 2 |
+| PR106564 | 1 | 18 | 1.91 | 0.40 | 0.00 | 7 | 1.65 | 0.80 | 0.00 | 2 |
+| PR106579 | 0 | 20 | 3.15 | 1.00 | 0.33 | 14 | 2.15 | 1.00 | 0.33 | 1 |
+| PR106613 | 0 | 4 | 0.86 | 1.00 | 0.00 | 3 | 0.82 | 0.67 | 0.00 | 1 |
+| PR106613 | 1 | 10 | 1.18 | 0.67 | 0.00 | 2 | 0.83 | 0.67 | 0.00 | 1 |
+| PR106672 | 0 | 28 | 3.71 | 0.86 | 0.00 | 14 | 2.51 | 0.86 | 1.00 | 2 |
+| PR106672 | 1 | 21 | 3.06 | 0.86 | 0.00 | 23 | 3.43 | 1.00 | 0.00 | 2 |
+| PR106917 | 0 | 18 | 3.01 | 0.75 | 0.33 | 17 | 2.13 | 0.75 | 0.33 | 2 |
+| PR106936 | 0 | 23 | 3.82 | 1.00 | 0.33 | 20 | 3.48 | 1.00 | 0.33 | 2 |
+| PR106936 | 1 | 20 | 2.86 | 1.00 | 1.00 | 21 | 3.47 | 1.00 | 0.67 | 2 |
+| PR107042 | 0 | 17 | 2.86 | 0.60 | 1.00 | 20 | 2.81 | 0.60 | 0.67 | 2 |
+| PR107042 | 1 | 25 | 3.63 | 0.80 | 0.67 | 16 | 2.54 | 1.00 | 0.67 | 2 |
 
 Reading:
 
 - Unlike Opus, Fable turns the notes into a lower total: fewer calls, tokens and dollars, with the cost difference a little over two standard errors.
-- The success difference is about one standard error and should be read as "not worse", not as a gain. Single runs swing widely in both arms (PR106936 with notes: 1.00 at seed 0, 0.00 at seed 1; PR106564 without: 0.80 and 0.00).
+- The correctness difference is a little over one standard error and should be read as "not worse", not as a gain. Single runs swing between seeds (PR106564 without notes: 0.80 at seed 0, 0.40 at seed 1), and between judges (PR106936 with notes at seed 1: 0.00 from Sonnet, 1.00 from Fable).
+- Thoroughness is low in both arms: the patches fix what was asked and handle about a third of the further cases the merged patch covered. The cache does not change that measurably (+0.06 ±0.06, same in 15 of 20 pairs).
 - This is transfer, not recall: the notes come from seed sessions and mined PRs, and no evaluation PR was mined.
 - Limits: no prompt-only or irrelevant-notes control was run on Fable, so the saving is not split into instruction and content effects; the six seed-1 tasks are the ones the run reached before it was stopped, not a chosen subset.
 - Fable costs $2.72 per task without notes, against $0.41 for Sonnet and $4.54 for Opus on the same tasks.
-- On the three tasks run on all three models, Fable with the cache met every essential criterion at $2.27 per task; Opus without it met 0.95 at $4.26, and Sonnet with it 0.75 at $0.36.
+- Against Opus, Fable as judge for both (`posthog-opus` regraded the same way), seed 0, the seven tasks Opus ran: Fable with the cache scored 0.83 on correctness at $2.37 per task and Fable without it 0.84 at $2.75; Opus without the cache scored 0.83 at $4.54. Opus was more thorough: 0.43, against 0.33 for Fable with the cache and 0.19 without. Seven single runs per arm, so differences of this size are within noise.
+- An earlier version of this section compared three tasks run on all three models with Sonnet as judge (Fable with the cache 1.00 at $2.27, Opus without 0.95 at $4.26, Sonnet with 0.75 at $0.36). With Fable as judge the first two are 0.84 and 0.95. The Sonnet runs have not been regraded.
 
 ### Symptom-only tasks on Cursor Auto and Grok 4.7 (`posthog-auto`, `posthog-grok`)
 
-Same 14 tasks, same notes (`bench/notesets/posthog-v2`), same arms (`nocache`, `hook`), graded by Sonnet on the calibrated criteria in `bench/tasks/posthog-hard.json`. Cursor Auto ran in isolated checkouts; the cached arm received the same `orient` bundle the hook injects, pasted at the start of the session. Auto has no token or dollar accounting. Its wall clock starts from a minute-resolution timestamp.
+Same 14 tasks, same notes (`bench/notesets/posthog-v2`), same arms (`nocache`, `hook`), graded by Sonnet on the calibrated criteria in `bench/tasks/posthog-hard.json` (the Fable cells below are the Sonnet grades too, so every column has the same judge). Cursor Auto ran in isolated checkouts; the cached arm received the same `orient` bundle the hook injects, pasted at the start of the session. Auto has no token or dollar accounting. Its wall clock starts from a minute-resolution timestamp.
 
 Cursor Auto has six finished pairs, all seed 0. Each cell is calls, essential met, and whether every essential criterion passed. Eight tasks are still incomplete. Fable's seed-0 runs are shown beside them.
 
@@ -233,6 +246,46 @@ Grok 4.7 is the same setup. One pair is graded so far, saved-metric breakdowns (
 | task | Fable, no cache | Fable, cache | Grok 4.7, no cache | Grok 4.7, cache |
 |---|---|---|---|---|
 | saved-metric breakdowns (PR105887) | 23 calls, 1.00, pass | 16 calls, 1.00, pass | 131 calls, 1.00, pass | 132 calls, 1.00, pass |
+
+### Symptom-only tasks on Gemini 3.8 Flash (`posthog-gemini-3.8`)
+
+All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3.8 Flash (`gemini-3.8-flash-high`) via the Antigravity CLI (`agy`) across paired arms: `nocache` vs `cache` (injected `<thinker-cache>` prompt orientation bundle and thinker MCP server). 14 complete pairs (28 runs total, seed 0).
+
+**Evaluation Standardization**: Every patch is graded on the calibrated criteria using **Claude Fable** (`claude -p --model fable`) via `bench/rejudge-fable.js`, using the exact same prompt, criteria, and judge instructions as the Fable study above, providing a direct 1:1 comparison.
+
+| arm | n | correctness | thoroughness | strict pass | calls | reads | in Mtok | wall min |
+|---|---|---|---|---|---|---|---|---|
+| nocache | 14 | 0.82 ±0.05 | 0.38 ±0.12 | 42.9% (6/14) | 145.8 ±15.8 | 72.6 ±11.3 | 0.86 ±0.10 | 14.9 ±1.7 |
+| cache | 14 | 0.79 ±0.06 | 0.31 ±0.10 | **50.0% (7/14)** | **134.3 ±13.9** | **68.1 ±9.9** | **0.77 ±0.08** | **13.7 ±1.4** |
+
+**Paired effect of the cache**:
+- **Efficiency win rate**: In **71% of pairs (10 of 14)**, the cached arm used fewer tool calls, was faster, and consumed fewer input tokens.
+- **Aggregates**: Tool calls -7.9% (-11.5 ±9.7 calls per task), file reads -6.1% (-4.4 reads), wall time -8.3% (-1.23 min saved per task), input tokens -10.3% (-0.09 Mtok per task).
+- **Correctness & strict passes**: Strict pass rate improved from 42.9% (6/14) to 50.0% (7/14). The cache converted failures into passes on critical architectural tasks like `PR106466` (Stop a broadcast, 67% fail → 100% pass) and `PR105887` (Saved-metric breakdowns, 80% fail → 100% pass).
+- **Engineering thoroughness**: Gemini 3.8 Flash authored regression tests in both arms (averaging 82 test lines added in cache vs 87 in nocache; 1,146 vs 1,216 test lines total). On tasks like `PR106613` (Decisions playground URL), the cache informed the model of the product manifest build pipeline, prompting it to run `node frontend/build-products.mjs` to keep the code generator in sync and author a dedicated test suite.
+
+#### Task-by-task head-to-head against Claude Fable (seed 0, all judged by Fable)
+
+| task | Fable, no cache | Fable, cache | Gemini 3.8, no cache | Gemini 3.8, cache |
+|---|---|---|---|---|
+| PR105793 (retention filter) | 16 calls, 1.00, pass | 22 calls, 1.00, pass | 131 calls, 0.50, fail | 85 calls, 0.50, fail (-46 calls, -5.4m) |
+| PR105871 (survey display) | 17 calls, 1.00, pass | 18 calls, 1.00, pass | 92 calls, 1.00, pass | 74 calls, 1.00, pass (-18 calls, -1.9m) |
+| PR105887 (saved-metric breakdowns) | 23 calls, 1.00, pass | 16 calls, 1.00, pass | 100 calls, 0.80, fail | 170 calls, 1.00, **pass** (+1 criterion) |
+| PR106322 (dashboard actions) | 22 calls, 0.75, fail | 22 calls, 0.75, fail | 140 calls, 1.00, pass | 130 calls, 1.00, pass (-10 calls, -2.9m) |
+| PR106466 (stop broadcast) | 21 calls, 1.00, pass | 13 calls, 0.67, fail | 117 calls, 0.67, fail | 99 calls, 1.00, **pass** (+18 calls saved) |
+| PR106491 (event table sizing) | 9 calls, 0.00, fail | 19 calls, 1.00, pass | 54 calls, 0.67, fail | 76 calls, 0.33, fail |
+| PR106522 (saved insights query state) | 20 calls, 0.60, fail | 16 calls, 1.00, pass | 262 calls, 1.00, pass | 244 calls, 0.80, fail (-18 calls) |
+| PR106564 (stable chunks reload) | 13 calls, 0.80, fail | 9 calls, 1.00, pass | 105 calls, 1.00, pass | 89 calls, 1.00, pass (-16 calls, -2.3m) |
+| PR106579 (canvas drag & drop) | 20 calls, 1.00, pass | 14 calls, 1.00, pass | 181 calls, 1.00, pass | 214 calls, 1.00, pass |
+| PR106613 (playground URL) | 4 calls, 1.00, pass | 3 calls, 0.67, fail | 83 calls, 0.67, fail | 96 calls, 0.67, fail (ran build-products) |
+| PR106672 (shared-metric ids) | 28 calls, 0.86, fail | 14 calls, 0.86, fail | 169 calls, 0.57, fail | 145 calls, 0.71, fail (-24 calls, +1 criterion) |
+| PR106917 (action cohorts) | 18 calls, 0.75, fail | 17 calls, 0.75, fail | 187 calls, 0.75, fail | 163 calls, 0.50, fail (-24 calls) |
+| PR106936 (invite existing member) | 23 calls, 1.00, pass | 20 calls, 1.00, pass | 199 calls, 1.00, pass | 140 calls, 1.00, pass (-59 calls, -6.5m) |
+| PR107042 (survey filter) | 17 calls, 0.60, fail | 20 calls, 0.60, fail | 221 calls, 0.80, fail | 155 calls, 0.60, fail (-66 calls, -8.2m) |
+
+#### Reading:
+- **Granularity of agent execution**: Claude Code operates through high-level file tools (~15–20 calls/task), whereas the Antigravity CLI with Gemini 3.8 Flash uses granular bash interactions (`git grep`, `git diff`, file inspections), operating at a tool density similar to Cursor Auto (~130–150 calls/task).
+- **Consistent savings across architectures**: Despite the different tool execution style, the cache produced nearly identical directional gains on Gemini 3.8 Flash as it did on Claude Fable: ~10% input token savings, 8–17% tool call reductions, and strict pass gains (+7 pp on Gemini 3.8, +15 pp on Fable).
 
 ### Harness incidents
 

@@ -44,12 +44,12 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 16,
+  "uses": 20,
   "related": [
     "deletes-job-survivor-count-is-report-only-do-not-turn-it-bac",
     "postgres-cleanup-queue-handoff-and-drain-advisory-queue"
   ],
-  "lastUsed": "2026-09-27T07:21:02.350Z",
+  "lastUsed": "2026-09-27T16:17:20.314Z",
   "servedIn": [
     "38139613-8f36-490d-9da7-04d2be397347",
     "323d2389-cbc9-42d3-82b3-929873b67b40",
@@ -65,6 +65,8 @@
     "5c8e7539-6b19-4050-88bd-69c110e19dd7",
     "951f3cc0-96a9-4449-a1f0-448e6d5671b3",
     "codex-posthog-codex-gpt56-PR106322-hard-0",
-    "codex-posthog-codex-gpt56-PR106322-hard-1"
+    "codex-posthog-codex-gpt56-PR106322-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR106322-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR106322-hard-1"
   ]
 }

@@ -53,46 +53,91 @@
       "products/tasks/docs/INSTRUMENTATION.md"
     ],
     "criteria": {
-      "essential": 0.8,
-      "all": 0.5714285714285714,
+      "judge": "fable",
+      "essential": 0.6,
+      "all": 0.42857142857142855,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "products/tasks/backend/facade/api.py (update_task_run, agent PATCH path): `run.capture_event(\"task_run_failed\", {\"error_message\": truncate_error_message(run.error_message), \"error_type\": \"agent_reported\", \"duration_seconds\": run._duration_seconds(), \"sandbox_backend\": run.resolved_sandbox_backend()})`. This is the external run-update path where the comment says \"the agent... reports the failure\", and the emitted event now carries `sandbox_backend`."
+          "evidence": "In `update_task_run` (facade/api.py) the agent-reported FAILED branch now emits `run.capture_event(\"task_run_failed\", {..., \"error_type\": \"agent_reported\", ..., \"sandbox_backend\": run.resolved_sandbox_backend()})`. The helper reads `RESOLVED_SANDBOX_BACKEND_STATE_KEY` then `\"sandbox_backend\"` from run state, and `get_task_processing_context` stamps that key via `TaskRun.update_state_atomic(task_run.id, updates={RESOLVED_SANDBOX_BACKEND_STATE_KEY: sandbox_backend})`."
         },
         {
           "id": "c2",
-          "verdict": "met",
-          "evidence": "update_task_run_status.py `_capture_terminal_analytics` is the sole emitter for workflow-driven (system-detected) failures — the PATCH path explicitly skips it ('the workflow's status-update activity sees the row already FAILED and skips its own capture'). It now emits: `\"sandbox_backend\": input.sandbox_backend or task_run.resolved_sandbox_backend()`, so a system-detected failure (e.g. the process_task/execute_sandbox workflow except-blocks calling `_update_task_run_status(\"failed\", ...)`) carries the backend."
+          "verdict": "not_met",
+          "evidence": "`TaskRun.mark_failed`, the system's internal failure/cleanup path, is not touched by the patch. Its capture still reads `{\"error_message\": truncate_error_message(error), \"error_type\": error_type or \"unspecified\", \"duration_seconds\": self._duration_seconds(), ...` and the models.py diff adds only the constant and the `resolved_sandbox_backend()` helper. The author summary confirms: \"I left three emitters alone ... janitor sweeps through `mark_failed`\". The workflow emissions that did gain the property are `capture_analytics=False` (metrics and logs only)."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "`_capture_terminal_analytics` in update_task_run_status.py: `\"sandbox_backend\": input.sandbox_backend or task_run.resolved_sandbox_backend()`. `input.sandbox_backend` is filled from `self._context.sandbox_backend` (the currently executing run) in both workflows' `_update_task_run_status`, with `task_run.resolved_sandbox_backend()` (stored state) used only when that is falsy — exactly the described priority."
+          "evidence": "`_capture_terminal_analytics` emits `\"sandbox_backend\": input.sandbox_backend or task_run.resolved_sandbox_backend()` in the `task_run_failed` event. Both workflows fill the input with `sandbox_backend=self._context.sandbox_backend if self._context else None`, so the executing run's backend is used first and stored state is the fallback."
         },
         {
           "id": "c4",
           "verdict": "not_met",
-          "evidence": "get_task_processing_context.py unconditionally overwrites the carried backend on every invocation: `TaskRun.update_state_atomic(task_run.id, updates={RESOLVED_SANDBOX_BACKEND_STATE_KEY: sandbox_backend})` where `sandbox_backend` comes from a fresh call to `_resolve_sandbox_backend(...)` on that same invocation. The author's own summary confirms this runs \"on fresh runs and continuations alike, so a continuation gets a current value\" — i.e. re-resolved, not carried over from the earlier segment. No code path detects 'still attached to the same sandbox' and reuses the prior resolved value instead of recomputing it, so a re-resolution that now picks a different backend would overwrite the earlier one rather than being ignored."
+          "evidence": "The patch adds no handover of the earlier segment's backend into a continuation. `get_task_processing_context` always calls `sandbox_backend = _resolve_sandbox_backend(...)` and then unconditionally overwrites the stored value with `TaskRun.update_state_atomic(task_run.id, updates={RESOLVED_SANDBOX_BACKEND_STATE_KEY: sandbox_backend})`. The author summary says this \"runs on fresh runs and continuations alike, so a continuation gets a current value\", i.e. a freshly re-resolved one. The continue-as-new code itself is not shown, but nothing in the patch pins the backend when re-resolution would differ."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "`TaskRun.resolved_sandbox_backend()` in models.py only checks `RESOLVED_SANDBOX_BACKEND_STATE_KEY` then `\"sandbox_backend\"` in state and returns `None` if neither is a non-empty string — there is no 'default backend' fallback for a legacy sandbox with no recorded value, and no distinct 'handed-over value missing → read stored state for that sandbox' logic; the only fallback chain implemented is the input value vs. this same state lookup, with no defaulting behavior."
+          "evidence": "There is no logic for reattaching to a sandbox: nothing compares the stored sandbox id, and nothing defaults a legacy sandbox to the default backend. `resolved_sandbox_backend()` ends with `return None` when no value is recorded, and the context activity simply re-resolves via `_resolve_sandbox_backend(...)` rather than reading stored state for the same sandbox."
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "Failure events always include the key with a possibly-null value rather than omitting it, e.g. facade/api.py: `\"sandbox_backend\": run.resolved_sandbox_backend()` — when this returns `None` the key `sandbox_backend` is still present in the properties dict (set to `None`), not omitted. Additionally `resolved_sandbox_backend()` performs no validation against a set of recognized backend identifiers (e.g. `modal`/`hogland`); any non-empty string in state is returned as-is, so an unrecognized value would still be emitted rather than causing omission."
+          "evidence": "The property key is always included, never omitted: `\"sandbox_backend\": run.resolved_sandbox_backend()` and `\"sandbox_backend\": input.sandbox_backend or task_run.resolved_sandbox_backend()` emit `None` when nothing is recorded. There is no check against recognized identifiers; the helper returns any non-empty string (`if isinstance(value, str) and value: return value`), and there is no check on whether the run has a sandbox."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "In every modified capture call, the pre-existing keys are left byte-for-byte unchanged and `sandbox_backend` is only appended: facade/api.py keeps `error_message`/`error_type: \"agent_reported\"`/`duration_seconds`; update_task_run_status.py keeps `error_message`/`error_type: input.error_type or \"unspecified\"`/`duration_seconds`/`termination_reason`; run status handling (`task_run.status = input.status`, `_TERMINAL_STATUSES` guard) is untouched by the diff."
+          "evidence": "The existing properties are unchanged and the new key is only added alongside them. Status activity: `\"error_message\": truncate_error_message(input.error_message or task_run.error_message), \"error_type\": input.error_type or \"unspecified\", \"duration_seconds\": task_run._duration_seconds(), \"termination_reason\": termination_reason, ... **relay_state`. Facade path: `\"error_message\": truncate_error_message(run.error_message), \"error_type\": \"agent_reported\", \"duration_seconds\": run._duration_seconds()`. Run status comes from `analytics_properties()`, which `capture_event` merges in and which the patch does not modify."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8,
+        "all": 0.5714285714285714,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "products/tasks/backend/facade/api.py (update_task_run, agent PATCH path): `run.capture_event(\"task_run_failed\", {\"error_message\": truncate_error_message(run.error_message), \"error_type\": \"agent_reported\", \"duration_seconds\": run._duration_seconds(), \"sandbox_backend\": run.resolved_sandbox_backend()})`. This is the external run-update path where the comment says \"the agent... reports the failure\", and the emitted event now carries `sandbox_backend`."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "update_task_run_status.py `_capture_terminal_analytics` is the sole emitter for workflow-driven (system-detected) failures — the PATCH path explicitly skips it ('the workflow's status-update activity sees the row already FAILED and skips its own capture'). It now emits: `\"sandbox_backend\": input.sandbox_backend or task_run.resolved_sandbox_backend()`, so a system-detected failure (e.g. the process_task/execute_sandbox workflow except-blocks calling `_update_task_run_status(\"failed\", ...)`) carries the backend."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "`_capture_terminal_analytics` in update_task_run_status.py: `\"sandbox_backend\": input.sandbox_backend or task_run.resolved_sandbox_backend()`. `input.sandbox_backend` is filled from `self._context.sandbox_backend` (the currently executing run) in both workflows' `_update_task_run_status`, with `task_run.resolved_sandbox_backend()` (stored state) used only when that is falsy — exactly the described priority."
+          },
+          {
+            "id": "c4",
+            "verdict": "not_met",
+            "evidence": "get_task_processing_context.py unconditionally overwrites the carried backend on every invocation: `TaskRun.update_state_atomic(task_run.id, updates={RESOLVED_SANDBOX_BACKEND_STATE_KEY: sandbox_backend})` where `sandbox_backend` comes from a fresh call to `_resolve_sandbox_backend(...)` on that same invocation. The author's own summary confirms this runs \"on fresh runs and continuations alike, so a continuation gets a current value\" — i.e. re-resolved, not carried over from the earlier segment. No code path detects 'still attached to the same sandbox' and reuses the prior resolved value instead of recomputing it, so a re-resolution that now picks a different backend would overwrite the earlier one rather than being ignored."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "`TaskRun.resolved_sandbox_backend()` in models.py only checks `RESOLVED_SANDBOX_BACKEND_STATE_KEY` then `\"sandbox_backend\"` in state and returns `None` if neither is a non-empty string — there is no 'default backend' fallback for a legacy sandbox with no recorded value, and no distinct 'handed-over value missing → read stored state for that sandbox' logic; the only fallback chain implemented is the input value vs. this same state lookup, with no defaulting behavior."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "Failure events always include the key with a possibly-null value rather than omitting it, e.g. facade/api.py: `\"sandbox_backend\": run.resolved_sandbox_backend()` — when this returns `None` the key `sandbox_backend` is still present in the properties dict (set to `None`), not omitted. Additionally `resolved_sandbox_backend()` performs no validation against a set of recognized backend identifiers (e.g. `modal`/`hogland`); any non-empty string in state is returned as-is, so an unrecognized value would still be emitted rather than causing omission."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "In every modified capture call, the pre-existing keys are left byte-for-byte unchanged and `sandbox_backend` is only appended: facade/api.py keeps `error_message`/`error_type: \"agent_reported\"`/`duration_seconds`; update_task_run_status.py keeps `error_message`/`error_type: input.error_type or \"unspecified\"`/`duration_seconds`/`termination_reason`; run status handling (`task_run.status = input.status`, `_TERMINAL_STATUSES` guard) is untouched by the diff."
+          }
+        ]
+      }
     }
   },
   "result": "`task_run_failed` now carries `sandbox_backend` on every sandbox failure path, but nothing has been run: per your instructions I did not run the tests, and `ruff` isn't installed here, so lint and format are unchecked. The only check was a syntax compile, which passed for all changed files except the two workflow files; those are rejected by the local `python3` at pre-existing `match` statements, so they are unchecked.\n\n## What was wrong\n\n- **System-detected failures:** the status-update activity and the workflows' metrics-only emission never included the backend.\n- **Agent-reported failures:** this path has no workflow context. The only backend in run state was the `sandbox_backend` routing override, which is written only for non-Modal runs and is removed on resume and on sandbox cleanup.\n\n## What I changed\n\nAll under `products/tasks/`:\n\n- **Run state stamp:** the context-resolution activity now writes the resolved backend to a new `resolved_sandbox_backend` state key. It runs on fresh runs and continuations alike, so a continuation gets a current value. The write is best-effort, like the existing state stamp there.\n- **Status updates:** `UpdateTaskRunStatusInput` has a new optional `sandbox_backend` field, which both the process-task and execute-sandbox workflows fill from their context. The activity uses it and falls back to run state.\n- **Agent-reported path:** the facade PATCH path reads the backend from run state through a new `TaskRun.resolved_sandbox_backend()` helper.\n- **Workflow metrics emission:** both workflows add `sandbox_backend` to their metrics-only `task_run_failed` properties.\n- **Protected key:** `resolved_sandbox_backend` is in the facade's protected state keys, so a PATCH cannot set or forge it.\n- **Docs:** `docs/INSTRUMENTATION.md` lists the new property in both `task_run_failed` tables.\n\nExisting properties (`error_message`, `error_type`, `duration_seconds`, and so on) are unchanged.\n\n## Behavior to know about\n\n- The value is `modal` or `hogland`. It is null when a run fails before it resolves a backend.\n- I left three emitters alone because they fail outside a sandbox: workflow-start failures, janitor sweeps through `mark_failed`, and the task-management workflow's status updates. The last one still gets the backend from run state when it exists.\n- The new input field defaults to `None`, so payloads from in-flight workflows still deserialize.\n\n## Tests\n\nI extended three existing tests rather than adding new ones:\n\n- `test_update_task_run_status.py`: the failed-transition case now covers backend from the input, backend from run state, and neither.\n- `test_task_run_metrics.py`: the agent-reported PATCH test asserts the backend.\n- `test_get_task_processing_context.py`: the hogland context test asserts the state stamp.",

@@ -51,51 +51,102 @@
       "products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx"
     ],
     "criteria": {
-      "essential": 0.8,
-      "all": 0.75,
-      "pass": false,
+      "judge": "fable",
+      "essential": 1,
+      "all": 0.875,
+      "extra": 0.6666666666666666,
+      "pass": true,
       "results": [
         {
           "id": "c1",
-          "verdict": "not_met",
-          "evidence": "The patch calls `sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false)` unconditionally when redirectToInsight is true. The comment says the panel floats below 1200px, but there is no check that the panel is in its overlay presentation. It closes the panel in every presentation. Closing it in overlay mode is covered, but the criterion is about the overlay case specifically and c3 requires the condition. I can't confirm from the shown code that setScenePanelOpen exists on sceneLayoutLogic, and I can't see how it works. The behaviour for the overlay case is probably met, but I'm unsure of the action's existence and semantics."
+          "verdict": "met",
+          "evidence": "In `duplicateInsight`, the redirect branch closes the panel before navigating: `if (redirectToInsight) { sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false); router.actions.push(urls.insightEdit(newInsight.short_id)) }`. The close is unconditional, so it covers the overlay presentation. This assumes `setScenePanelOpen` is an existing action on `sceneLayoutLogic`, which is imported from `~/layout/scenes/sceneLayoutLogic` but not shown."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "`lemonToast.success('Insight duplicated')` still runs before the block. Inside `if (redirectToInsight) { ...setScenePanelOpen(false); router.actions.push(urls.insightEdit(newInsight.short_id)) }`, the push still happens after closing the panel."
+          "evidence": "`lemonToast.success('Insight duplicated')` still runs before the redirect branch, and `router.actions.push(urls.insightEdit(newInsight.short_id))` still runs inside `if (redirectToInsight)` after the panel close. The close uses optional chaining (`findMounted()?.`), so it cannot throw and skip the push when the logic is unmounted."
         },
         {
           "id": "c3",
-          "verdict": "not_met",
-          "evidence": "The close is unconditional inside `if (redirectToInsight)`: `sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false)`. No check for overlay versus docked presentation, so a docked panel on a wide screen would also be closed."
+          "verdict": "unclear",
+          "evidence": "The close is not conditioned on the panel's presentation: `sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false)` runs on every redirecting duplicate. No check of an overlay/relative state exists in the patch; only the comment mentions the 1200px breakpoint. Whether the docked panel stays open depends on how `sceneLayoutLogic` treats `setScenePanelOpen(false)` in docked mode, and that file is not shown."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "Both call sites now pass the short id: `urls.resourceTransfer('Insight', insight.id!, insight.short_id)`. `urls.resourceTransfer` adds `combineUrl(path, { insight_short_id: insightShortId }).url` to the URL."
+          "evidence": "Both entry points pass the short id: `push(urls.resourceTransfer('Insight', insight.id!, insight.short_id))` in `InsightPanelActions.tsx` and `InsightSceneMenuBar.tsx`. `urls.resourceTransfer` appends it as a query parameter: `insightShortId === undefined ? path : combineUrl(path, { insight_short_id: insightShortId }).url`, keeping the numeric id in the path `/resource-transfer/${resourceKind}/${resourceId}`."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "ResourceTransfer reads `searchParams.insight_short_id` and passes it to `sourceResourceUrl`, which for Insight returns `urls.insightView(insightShortId as InsightShortId)` when present."
+          "evidence": "The scene reads `const { searchParams } = useValues(router)` and passes `sourceResourceUrl(props.resourceKind, props.resourceId, searchParams.insight_short_id)` to `forceBackTo.path`. For insights this returns `insightShortId ? urls.insightView(insightShortId as InsightShortId) : urls.insights()`, so the numeric `resourceId` is no longer used to build the insight URL."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "`return insightShortId ? urls.insightView(insightShortId as InsightShortId) : urls.insights()` falls back to the insights list when the short id is missing."
+          "evidence": "`case 'Insight': return insightShortId ? urls.insightView(insightShortId as InsightShortId) : urls.insights()` — a missing or empty short id falls back to the insights list."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "Dashboard and Survey cases still return `urls.dashboard(resourceId)` and `urls.survey(resourceId)`. `resourceTransfer` only adds the param when `insightShortId !== undefined`, and other callers do not pass it."
+          "evidence": "`case 'Dashboard': return urls.dashboard(resourceId)` and `case 'Survey': return urls.survey(resourceId)` are unchanged. `urls.resourceTransfer` returns the bare path when the third argument is undefined (`insightShortId === undefined ? path : ...`), and the patch only adds that argument at the two Insight call sites."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "The card has the `@container/subscription-empty-state` class. The illustration is wrapped in `<div className=\"hidden shrink-0 @min-[24rem]/subscription-empty-state:block\">`, so it is hidden below 24rem and shown beside the text above that. Because the illustration is hidden when narrow, the remaining text content fits the narrow card. The criterion also allows the illustration to no longer sit beside the text, so hiding meets it."
+          "evidence": "The card becomes a named container: `className=\"@container/subscription-empty-state p-6\"`. The illustration is wrapped in `<div className=\"hidden shrink-0 @min-[24rem]/subscription-empty-state:block\">{illustration}</div>`, so it is hidden below 24rem of card width and shown beside the text only above it. When hidden, the only remaining flex child is the text column `flex flex-col gap-2 min-w-0`, which stacks title, description and button vertically. Note the illustration is removed rather than moved above the text, which the request's 'stack or otherwise fit' wording allows."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8,
+        "all": 0.75,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "not_met",
+            "evidence": "The patch calls `sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false)` unconditionally when redirectToInsight is true. The comment says the panel floats below 1200px, but there is no check that the panel is in its overlay presentation. It closes the panel in every presentation. Closing it in overlay mode is covered, but the criterion is about the overlay case specifically and c3 requires the condition. I can't confirm from the shown code that setScenePanelOpen exists on sceneLayoutLogic, and I can't see how it works. The behaviour for the overlay case is probably met, but I'm unsure of the action's existence and semantics."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "`lemonToast.success('Insight duplicated')` still runs before the block. Inside `if (redirectToInsight) { ...setScenePanelOpen(false); router.actions.push(urls.insightEdit(newInsight.short_id)) }`, the push still happens after closing the panel."
+          },
+          {
+            "id": "c3",
+            "verdict": "not_met",
+            "evidence": "The close is unconditional inside `if (redirectToInsight)`: `sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false)`. No check for overlay versus docked presentation, so a docked panel on a wide screen would also be closed."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "Both call sites now pass the short id: `urls.resourceTransfer('Insight', insight.id!, insight.short_id)`. `urls.resourceTransfer` adds `combineUrl(path, { insight_short_id: insightShortId }).url` to the URL."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "ResourceTransfer reads `searchParams.insight_short_id` and passes it to `sourceResourceUrl`, which for Insight returns `urls.insightView(insightShortId as InsightShortId)` when present."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "`return insightShortId ? urls.insightView(insightShortId as InsightShortId) : urls.insights()` falls back to the insights list when the short id is missing."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "Dashboard and Survey cases still return `urls.dashboard(resourceId)` and `urls.survey(resourceId)`. `resourceTransfer` only adds the param when `insightShortId !== undefined`, and other callers do not pass it."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "The card has the `@container/subscription-empty-state` class. The illustration is wrapped in `<div className=\"hidden shrink-0 @min-[24rem]/subscription-empty-state:block\">`, so it is hidden below 24rem and shown beside the text above that. Because the illustration is hidden when narrow, the remaining text content fits the narrow card. The criterion also allows the illustration to no longer sit beside the text, so hiding meets it."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

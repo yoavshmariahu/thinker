@@ -55,56 +55,111 @@
       "posthog/api/test/test_organization_invites.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 1,
-      "all": 0.8888888888888888,
+      "all": 0.7777777777777778,
       "pass": true,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "inviteRowErrors selector flags member emails; InviteRow uses `className={...${!invitesToSend[index]?.isValid || rowError ? ' errored' : ''}}` and renders `{rowError && <div ... data-attr=\"invite-row-error\">`."
+          "evidence": "`InviteRow` reads `const rowError = inviteRowErrors[index]`, applies error styling with `className={`error-on-blur${!invitesToSend[index]?.isValid || rowError ? ' errored' : ''}`}` and renders `{rowError && (<div className=\"text-danger text-sm\" data-attr=\"invite-row-error\">{rowError}</div>)}`. The `inviteRowErrors` selector returns 'This person is already a member of this organization.' when `memberEmails.has(email)`. This is computed from form state, before any submit. `InviteModal` renders `<InviteTeamMatesComponent />`, which renders these rows."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "`const ownEmail = user?.email?.trim().toLowerCase()` ... `if (email === ownEmail) return 'This is your own email address...'`"
+          "evidence": "In the `inviteRowErrors` selector: `const ownEmail = user?.email?.trim().toLowerCase()` and `if (email === ownEmail) { return 'This is your own email address. You are already a member of this organization.' }`. The result feeds the same `rowError` rendering and `errored` class as the existing-member case."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "InviteModal disabledReason: `hasExistingMemberEmail ? 'Change or remove the emails of existing members'`; onboarding continueDisabledReason has the same branch; per-row Submit `disabled={!isEmail(...) || !!rowError}`; canSubmit also requires `inviteRowErrors.every((error) => !error)`."
+          "evidence": "Settings dialog: `disabledReason={ userCannotInvite ? ... : hasExistingMemberEmail ? 'Change or remove the emails of existing members' : !canSubmit ? ...}`. Onboarding: `continueDisabledReason` includes `: hasExistingMemberEmail ? 'Change or remove the emails of existing members'`. Both use `hasExistingMemberEmail = inviteRowErrors.some((error) => !!error)`. Per-row button: `disabled={!isEmail(invitesToSend[index].target_email) || !!rowError}`. `canSubmit` also requires `inviteRowErrors.every((error) => !error)`, so `inviteTeamMembers` returns `[]` without calling the API."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "Both sides are normalized: `member.user.email.trim().toLowerCase()` and `target_email.trim().toLowerCase()`."
+          "evidence": "Both sides are normalised: `new Set((members ?? []).map((member) => member.user.email.trim().toLowerCase()))` and `const email = target_email.trim().toLowerCase()`, then `memberEmails.has(email)`. ' Rose.Dawson@PostHog.com' becomes 'rose.dawson@posthog.com' and matches."
         },
         {
           "id": "c5",
-          "verdict": "met",
-          "evidence": "`updateInviteAtIndex` listener calls `actions.ensureAllMembersLoaded()` when an email is typed and `!values.members`. This is on first typing rather than on open, but it needs no prior visit to the members list. The own-email check uses `user` only, so it works before members load."
+          "verdict": "not_met",
+          "evidence": "The member list is not fetched when the form opens. The only trigger is the `updateInviteAtIndex` listener: `if (payload.target_email && !values.members) { actions.ensureAllMembersLoaded() }`, with the comment 'Loading on mount would fetch the member list on scenes that never show the invite form.' Opening the dialog (`showInviteModal`) or mounting the onboarding step fetches nothing; the load starts only on the first email keystroke. The second half of the criterion does hold: `(members ?? [])` with the `email === ownEmail` check flags the user's own email while `members` is still null."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "The check moved from create() into `validate_target_email`, which runs during serializer validation of the whole list before any save. The bulk view is not shown, so this assumes it validates the entire list before creating."
+          "evidence": "The membership check moved from `create()` into `validate_target_email()`: `if OrganizationMembership.objects.filter(organization_id=self.context[\"organization_id\"], user__email__iexact=email).exists(): raise exceptions.ValidationError(..., code=\"already_member\")`, and the old check in `create()` was removed. A DRF `ValidationError` yields a 400. The bulk view itself is not shown; this verdict assumes it validates the whole list before saving (the usual `many=True` + `is_valid(raise_exception=True)` then `save()`), which is consistent with the partial-batch behaviour described in the request, where the failure came from `create()`."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"already_member\")` in the field validator for target_email."
+          "evidence": "The error is raised inside the field validator `validate_target_email`, so DRF attributes it to `target_email`, and it carries an explicit code: `raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"already_member\")`. Previously it was raised from `create()` with no code and no field attribution."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "shouldReportApiFailure: `if (status === 400 && failure.code != null && HANDLED_VALIDATION_CODES.has(failure.code)) return false`, with the set containing 'already_member'. Other failures still fall through to `return !isApprovalRequiredError(failure)`."
+          "evidence": "`HANDLED_VALIDATION_CODES: ReadonlySet<string> = new Set(['already_member'])` and, in `shouldReportApiFailure`: `if (status === 400 && failure.code != null && HANDLED_VALIDATION_CODES.has(failure.code)) { return false }`. `ApiError` sets `this.code = data?.code || null`. Other 400s and 500s fall through to `return !isApprovalRequiredError(failure)` and are still reported. The call site that routes loader failures through `shouldReportApiFailure` is not shown; the verdict relies on the function's documented role as the reporting gate."
         },
         {
           "id": "c9",
           "verdict": "not_met",
-          "evidence": "No listener on inviteTeamMembersFailure or any other refresh of members after a server rejection. The only member load is the first-typing `ensureAllMembersLoaded` guarded by `!values.members`, which does nothing once members are loaded."
+          "evidence": "No handler exists for a failed submission. The `listeners` block contains only `inviteTeamMembersSuccess`, `updateInviteAtIndex` and `addProjectAccess`; there is no `inviteTeamMembersFailure` listener. The only member-loading call is `if (payload.target_email && !values.members) { actions.ensureAllMembersLoaded() }`, which is skipped once `members` is loaded. After a server `already_member` rejection the stale member list is not refreshed, so the offending row stays unflagged."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 0.8888888888888888,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "inviteRowErrors selector flags member emails; InviteRow uses `className={...${!invitesToSend[index]?.isValid || rowError ? ' errored' : ''}}` and renders `{rowError && <div ... data-attr=\"invite-row-error\">`."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "`const ownEmail = user?.email?.trim().toLowerCase()` ... `if (email === ownEmail) return 'This is your own email address...'`"
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "InviteModal disabledReason: `hasExistingMemberEmail ? 'Change or remove the emails of existing members'`; onboarding continueDisabledReason has the same branch; per-row Submit `disabled={!isEmail(...) || !!rowError}`; canSubmit also requires `inviteRowErrors.every((error) => !error)`."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "Both sides are normalized: `member.user.email.trim().toLowerCase()` and `target_email.trim().toLowerCase()`."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "`updateInviteAtIndex` listener calls `actions.ensureAllMembersLoaded()` when an email is typed and `!values.members`. This is on first typing rather than on open, but it needs no prior visit to the members list. The own-email check uses `user` only, so it works before members load."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "The check moved from create() into `validate_target_email`, which runs during serializer validation of the whole list before any save. The bulk view is not shown, so this assumes it validates the entire list before creating."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"already_member\")` in the field validator for target_email."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "shouldReportApiFailure: `if (status === 400 && failure.code != null && HANDLED_VALIDATION_CODES.has(failure.code)) return false`, with the set containing 'already_member'. Other failures still fall through to `return !isApprovalRequiredError(failure)`."
+          },
+          {
+            "id": "c9",
+            "verdict": "not_met",
+            "evidence": "No listener on inviteTeamMembersFailure or any other refresh of members after a server rejection. The only member load is the first-typing `ensureAllMembersLoaded` guarded by `!values.members`, which does nothing once members are loaded."
+          }
+        ]
+      }
     }
   },
   "result": "The invite row now flags an existing member's email (or your own) as you type, and a bulk request containing one is rejected before any invite is created or emailed. Nothing was run, per your instructions: no tests, typecheck, or formatter.\n\n## What changed\n\n**Backend** (`posthog/api/organization_invite.py`)\n- The \"already belongs to the organization\" check moved from `create()` into `validate_target_email()`. Because bulk validation runs on the whole list before any save, a member in row three now fails the request before rows one and two are created or emailed.\n- The error now carries a code, `already_member`, and `attr` is `target_email` instead of `null`. The message text is unchanged.\n\n**Frontend**\n- `inviteLogic.ts`: a new `inviteRowErrors` selector compares each row against your own email and the organization's member list, case-insensitively. `canSubmit` is false while any row has an error.\n- `InviteModal.tsx`: the row shows the message under the email input and marks the input as errored. This covers both the settings dialog and the onboarding step, since they share `InviteRow`.\n- The submit button in the dialog and the Continue button in onboarding show \"Change or remove the emails of existing members\" as the disabled reason.\n- The member list loads the first time you type an email, not on mount, so scenes that mount the logic without inviting don't fetch it.\n\n**Error tracking** (`frontend/src/lib/api-error.ts`)\n- The error reports came from the frontend's global loader failure handler, which reports every 400. `shouldReportApiFailure` now skips a 400 with code `already_member`. The error toast still shows if the server rejects an email.\n\n## Tests\n- `test_bulk_invite_with_existing_member_creates_no_invites` in `posthog/api/test/test_organization_invites.py`: a member in the third row, in different case, returns 400 with the new code, creates no invites and sends no mail.\n- One new row in the `shouldReportApiFailure` table in `api-error.test.ts`.\n\n## Things to know\n- **API change:** any client that reads `attr` on this error will see `target_email` where it used to see `null`. This applies to the single-invite endpoint too.\n- **Generated types:** I hand-edited the inline kea type block in `inviteLogic.ts`. Run `pnpm --filter=@posthog/frontend typegen:file frontend/src/scenes/settings/organization/inviteLogic.ts` and the TypeScript check to confirm it.\n- **Not wrapped in a transaction:** the bulk save still creates rows one at a time. A failure during creation other than this check (for example, a database error mid-batch) could still leave a partial batch.\n- **Copy:** the two row messages and the disabled reason are new user-facing strings and worth a quick read.",

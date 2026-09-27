@@ -56,51 +56,102 @@
       "posthog/test/test_stable_chunks.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 1,
       "all": 0.75,
+      "extra": 0.3333333333333333,
       "pass": true,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "stable_chunks_for_request: `forced if forced is not None else stable_chunks_flag_enabled(request)`; the flag helper returns `posthoganalytics.feature_enabled(STABLE_CHUNKS_FLAG, distinct_id, ...) is True` for authenticated users, so flag on serves the stable build and off serves the default."
+          "evidence": "With no param and no cookie, `stable_chunks_forced` returns None (`return cookie == \"1\" if cookie in (\"0\", \"1\") else None`), so `serve_stable = forced if forced is not None else stable_chunks_flag_enabled(request)`. That function evaluates `posthoganalytics.feature_enabled(STABLE_CHUNKS_FLAG, distinct_id, ...) is True` for the logged-in user's distinct_id; on ⇒ `return stable_chunks`, off ⇒ `None` (current build). It is the only automatic enrolment path."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "`distinct_id = ... if user is not None and user.is_authenticated else None; if not distinct_id: return False`. Anonymous users never reach the flag check, so they get the default build."
+          "evidence": "`distinct_id = getattr(user, \"distinct_id\", None) if user is not None and user.is_authenticated else None` followed by `if not distinct_id: return False`. An anonymous request never reaches flag evaluation, so without a param or cookie the current build is rendered."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "The flag check returns `... is True`, so a None result is False. It is wrapped in `except Exception: ... return False`. A missing flag or a failed evaluation renders the default build."
+          "evidence": "The flag result is compared with `is True`, so None or a missing flag gives False. Exceptions are caught: `except Exception: logger.warning(\"stable_chunks_flag_check_failed\", exc_info=True); return False`. `stable_chunks_for_request` then returns None, which renders the current build."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "stable_chunks_forced reads the query param first (`return param == \"1\"`), then the cookie. The flag is consulted only when forced is None. So ?stable_chunks=1 forces stable and =0 forces default, whatever the flag or cookie says."
+          "evidence": "`stable_chunks_forced` checks the param first: `param = request.GET.get(STABLE_CHUNKS_PARAM); if param is not None: return param == \"1\"`, before the cookie. In `stable_chunks_for_request`, `serve_stable = forced if forced is not None else stable_chunks_flag_enabled(request)`, so the flag is only consulted when nothing is forced."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "persist_stable_chunks_choice sets the cookie to `param` for both \"0\" and \"1\" with `max_age=_COOKIE_MAX_AGE_SECONDS` (30 days). stable_chunks_forced reads that cookie (\"0\" or \"1\") before the flag, so the stored choice outranks the flag in both directions."
+          "evidence": "`persist_stable_chunks_choice` now stores both values: `if param not in (\"0\", \"1\"): return` then `response.set_cookie(STABLE_CHUNKS_COOKIE, param, max_age=_COOKIE_MAX_AGE_SECONDS, ...)` with `_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30`. On later requests `stable_chunks_forced` returns `cookie == \"1\"` for a cookie of \"0\" or \"1\", which outranks the flag."
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "The server evaluates the flag on its own (`only_evaluate_locally=True, send_feature_flag_events=False`). Nothing passes that value to the in-page analytics client. The patch comment says instead \"the browser evaluates the same flag\", meaning the client evaluates it independently."
+          "evidence": "The server-side value is not passed to the page. The patch evaluates locally with `only_evaluate_locally=True, send_feature_flag_events=False` and relies on a separate evaluation: \"the browser evaluates the same flag and tags the web vitals it reports with the variant\". Nothing bootstraps or injects the deciding value into the in-page client, and the author summary states `posthog/utils.py` was not edited. The browser's value can differ from the one that chose the build, for example when local evaluation fails server-side or returns None."
         },
         {
           "id": "c7",
           "verdict": "not_met",
-          "evidence": "The fallback reloads with ?stable_chunks=0. persist_stable_chunks_choice then stores a persistent opt-out: `response.set_cookie(STABLE_CHUNKS_COOKIE, param, max_age=30 days)`. The comment says the flag \"cannot put the browser back on the stable build\". A later navigation therefore cannot be served the stable build by the flag, which contradicts the criterion. The reload itself gets the default build and does not loop."
+          "evidence": "The fallback reload uses `?stable_chunks=0`, and the patch deliberately persists that as an opt-out: \"`?stable_chunks=0` stores the opt-out rather than clearing the cookie, so the flag cannot put the browser back on the stable build\", via `response.set_cookie(STABLE_CHUNKS_COOKIE, param, max_age=_COOKIE_MAX_AGE_SECONDS ...)`. The reload itself gets the current build and cannot loop, but a 30-day opt-out is recorded, so later navigations cannot be re-enrolled by the flag."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "The scriptCode in copyIndexHtml checks `if (window.location.search.indexOf('stable_chunks=') !== -1) { var cleanUrl = new URL(window.location.href) ...`. It strips the parameter from the address bar after the server has applied it."
+          "evidence": "The inline script in `common/esbuilder/utils.mjs` is kept, with only its comment changed: \"so drop it from the address bar. A bookmarked or shared URL must not keep forcing a build.\" followed by `if (window.location.search.indexOf('stable_chunks=') !== -1) { var cleanUrl = new URL(window.location.href)`. The rest of the block is not shown in the diff, so this rests on the visible start of the block and its comment."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 0.75,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "stable_chunks_for_request: `forced if forced is not None else stable_chunks_flag_enabled(request)`; the flag helper returns `posthoganalytics.feature_enabled(STABLE_CHUNKS_FLAG, distinct_id, ...) is True` for authenticated users, so flag on serves the stable build and off serves the default."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "`distinct_id = ... if user is not None and user.is_authenticated else None; if not distinct_id: return False`. Anonymous users never reach the flag check, so they get the default build."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "The flag check returns `... is True`, so a None result is False. It is wrapped in `except Exception: ... return False`. A missing flag or a failed evaluation renders the default build."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "stable_chunks_forced reads the query param first (`return param == \"1\"`), then the cookie. The flag is consulted only when forced is None. So ?stable_chunks=1 forces stable and =0 forces default, whatever the flag or cookie says."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "persist_stable_chunks_choice sets the cookie to `param` for both \"0\" and \"1\" with `max_age=_COOKIE_MAX_AGE_SECONDS` (30 days). stable_chunks_forced reads that cookie (\"0\" or \"1\") before the flag, so the stored choice outranks the flag in both directions."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "The server evaluates the flag on its own (`only_evaluate_locally=True, send_feature_flag_events=False`). Nothing passes that value to the in-page analytics client. The patch comment says instead \"the browser evaluates the same flag\", meaning the client evaluates it independently."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "The fallback reloads with ?stable_chunks=0. persist_stable_chunks_choice then stores a persistent opt-out: `response.set_cookie(STABLE_CHUNKS_COOKIE, param, max_age=30 days)`. The comment says the flag \"cannot put the browser back on the stable build\". A later navigation therefore cannot be served the stable build by the flag, which contradicts the criterion. The reload itself gets the default build and does not loop."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "The scriptCode in copyIndexHtml checks `if (window.location.search.indexOf('stable_chunks=') !== -1) { var cleanUrl = new URL(window.location.href) ...`. It strips the parameter from the address bar after the server has applied it."
+          }
+        ]
+      }
     }
   },
   "result": "`posthog/utils.py` needs no edit: both functions it calls kept their signatures and semantics (`stable_chunks_for_request` still returns the manifest or `None`, `persist_stable_chunks_choice` still takes request/response), and it carries no wording about the opt-in that the flag layer makes stale — the whole decision stays inside `posthog/stable_chunks.py`.",

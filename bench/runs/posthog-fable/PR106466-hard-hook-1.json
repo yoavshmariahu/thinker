@@ -50,56 +50,111 @@
       "products/workflows/frontend/Broadcasts/broadcastsLogic.ts"
     ],
     "criteria": {
-      "essential": 0.6666666666666666,
-      "all": 0.2222222222222222,
-      "pass": false,
+      "judge": "fable",
+      "essential": 1,
+      "all": 0.3333333333333333,
+      "pass": true,
       "results": [
         {
           "id": "c1",
-          "verdict": "unclear",
-          "evidence": "The frontend pieces are present: `onClick={returnToDraft}` sets the broadcast to draft via `hogFlowsPartialUpdate(projectId, values.broadcastId, { status: 'draft' })`, and `isReadOnly` is `broadcast.status !== 'draft'`, so the wizard becomes editable again once `saveBroadcastFinished(draft)` fires. However, `returnToDraft` never touches the broadcast's schedule (no delete/cancel/pause call), and no scheduler code is included in this patch, so whether 'the scheduled send no longer goes out while it is a draft' actually holds depends entirely on unseen backend enforcement that isn't shown here."
+          "verdict": "met",
+          "evidence": "The summary renders `{canReturnToDraft && (<LemonButton ... onClick={returnToDraft} ...>Back to draft</LemonButton>)}`. The listener does `const draft = await hogFlowsPartialUpdate(projectId, values.broadcastId, { status: 'draft' })`, then `actions.saveBroadcastFinished(draft)` and `actions.setStep(values.firstInvalidStep ?? 'review')`. `isReadOnly` is `!!broadcast && broadcast.status !== 'draft'`, so it becomes false and the wizard is editable again. Caveat: the schedule is neither deleted nor paused on return to draft, so the send not going out relies on the scheduler skipping non-live flows. That backend code is not shown; this verdict assumes it does."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "`canReturnToDraft: (s) => [s.broadcast, s.batchJobs, s.batchJobsLoading], (broadcast, batchJobs, batchJobsLoading) => !!broadcast && !batchJobsLoading && getBroadcastStatus(broadcast, { latestBatchJob: batchJobs[0] ?? null, totals: {} }) === 'scheduled'`. `getBroadcastStatus` returns `'draft'` for draft broadcasts (hiding the control), and returns `'sending'`/`'sent'`/`'failed'` once any batch job exists (immediate sends or a completed one-time schedule), also hiding the control; only the no-job, active case yields `'scheduled'` and shows it."
+          "evidence": "`canReturnToDraft` is `!!broadcast && !batchJobsLoading && getBroadcastStatus(broadcast, { latestBatchJob: batchJobs[0] ?? null, totals: {} }) === 'scheduled'`. `getBroadcastStatus` returns 'draft' when `broadcast.status === 'draft'`, and returns 'sending'/'sent'/'failed' whenever a latest batch job exists. So the button is withheld for drafts and for any broadcast with a run (immediate send, or a completed one-time schedule). After launch, `actions.loadBatchJobs()` sets the loading flag, which also hides the button until runs are known."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "In `launchBroadcast`, before activation: `const staleSchedules = await hogFlowsSchedulesList(projectId, broadcastId); for (const staleSchedule of staleSchedules) { await hogFlowsSchedulesDestroy(projectId, broadcastId, staleSchedule.id) }`. This deletion runs unconditionally, before the `if (values.scheduleMode === 'now') {...} else { ... await hogFlowsSchedulesCreate(...) }` branch, so both immediate sends and future/recurring schedules always start from zero schedules, and the later/recurring path creates exactly one new schedule afterward."
+          "evidence": "Before activation and for every schedule mode, launch runs `const staleSchedules = await hogFlowsSchedulesList(projectId, broadcastId); for (const staleSchedule of staleSchedules) { await hogFlowsSchedulesDestroy(projectId, broadcastId, staleSchedule.id) }`. For later/recurring it then creates one new schedule with `await hogFlowsSchedulesCreate(projectId, broadcastId, schedule as any)`. The 'now' branch only creates a batch job, so no schedule is left behind. Existing schedules, including paused ones, are destroyed rather than reused."
         },
         {
           "id": "c4",
           "verdict": "not_met",
-          "evidence": "The order in `launchBroadcast` is: delete stale schedules, then `activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })`, and only afterward `await hogFlowsSchedulesCreate(projectId, broadcastId, schedule as any)`. The broadcast is marked live BEFORE the replacement schedule is created, not after. The catch block reverts to draft only if an exception is thrown (`if (activated && broadcastId) { try { await hogFlowsPartialUpdate(..., { status: 'draft' }) } catch {...} }`), which doesn't cover a true interruption (e.g. navigation/tab close) between activation and schedule creation, in which case the broadcast would remain live with no schedule at all rather than being left as a draft."
+          "evidence": "The broadcast is marked live before the new schedule exists: `activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })` runs first, and `await hogFlowsSchedulesCreate(...)` runs afterwards. An interruption between the two (tab closed, network lost) leaves the broadcast live with no schedule. The catch-block rollback to draft only runs on a thrown error and can itself fail ('The broadcast is still active but has nothing scheduled')."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "`canReturnToDraft` only checks `broadcast`, `batchJobsLoading`, and `getBroadcastStatus(...) === 'scheduled'` (which itself only inspects `latestBatchJob.status` for waiting/queued/active/completed). There is no check on the number of schedules (`broadcast.schedules.length`) nor any check of whether the underlying workflow's action shape is one the wizard can safely edit, so the control is not withheld for multi-schedule broadcasts or broadcasts whose workflow shape has been altered."
+          "evidence": "`canReturnToDraft` only depends on `[s.broadcast, s.batchJobs, s.batchJobsLoading]`. It withholds the button while a run exists and while `batchJobsLoading` is true. There is no check on the number of schedules and no check on the workflow's shape or actions. If the runs load fails, `batchJobs` stays `[]` with loading false, so the button is offered with run history unknown."
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "The button in `BroadcastSummary.tsx` is wired as `<LemonButton ... loading={returningToDraft} onClick={returnToDraft} tooltip=\"Stops the scheduled send so you can edit the broadcast. Launch it again when it's ready.\" .../>` — it calls `returnToDraft` directly on click with no confirmation modal/dialog and no cancel option; a tooltip is not a confirmation step."
+          "evidence": "The button is wired directly with `onClick={returnToDraft}`, and the listener goes straight to `hogFlowsBatchJobsList` and then `hogFlowsPartialUpdate(... { status: 'draft' })`. There is no confirmation dialog and no cancel option; only a tooltip describes the effect."
         },
         {
           "id": "c7",
           "verdict": "not_met",
-          "evidence": "In `returnToDraft`: `if (runs.length > 0) { actions.loadBatchJobsSuccess(runs); lemonToast.error(\"This broadcast has already started sending, so it can't be edited.\"); return }`. Instead of cancelling the started run and still moving the broadcast to draft with a warning, the code aborts entirely and leaves the broadcast live, contradicting the requirement to cancel the run and proceed to draft with appropriate messaging."
+          "evidence": "When a run already exists the listener refuses instead of cancelling it: `if (runs.length > 0) { actions.loadBatchJobsSuccess(runs); lemonToast.error(\"This broadcast has already started sending, so it can't be edited.\"); return }`. No run cancellation call exists, and there is no warning toast or cancellation-failure message; the only success message is 'Broadcast moved back to draft...'."
         },
         {
           "id": "c8",
           "verdict": "not_met",
-          "evidence": "The entire patch touches only frontend files (`BroadcastSummary.tsx`, `broadcastWizardLogic.ts`, `broadcastsLogic.ts`); no scheduler/run-creation backend code is modified anywhere in the diff, so there is nothing here that re-verifies broadcast status immediately before a scheduled run is created."
+          "evidence": "The patch touches only three frontend files: BroadcastSummary.tsx, broadcastWizardLogic.ts and broadcastsLogic.ts. No scheduler or backend code is changed, so no status re-verification before run creation was added. The author summary also states the change is 'frontend only'."
         },
         {
           "id": "c9",
           "verdict": "not_met",
-          "evidence": "The replacement schedule built in `launchBroadcast` is `const schedule: Partial<HogFlowScheduleApi> = { rrule: ..., starts_at: ..., timezone: values.effectiveTimezone }` — it carries no `variables` field, and the previously fetched `staleSchedules` (which may hold variable overrides) are discarded after deletion (`await hogFlowsSchedulesDestroy(...)`), so any override the old schedule carried is not passed to the newly created one."
+          "evidence": "Stale schedules are destroyed without reading their variables, and the new schedule is built with only `rrule`, `starts_at` and `timezone: values.effectiveTimezone` before `hogFlowsSchedulesCreate(projectId, broadcastId, schedule as any)`. Any variable overrides on the previous schedule are dropped."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.6666666666666666,
+        "all": 0.2222222222222222,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "unclear",
+            "evidence": "The frontend pieces are present: `onClick={returnToDraft}` sets the broadcast to draft via `hogFlowsPartialUpdate(projectId, values.broadcastId, { status: 'draft' })`, and `isReadOnly` is `broadcast.status !== 'draft'`, so the wizard becomes editable again once `saveBroadcastFinished(draft)` fires. However, `returnToDraft` never touches the broadcast's schedule (no delete/cancel/pause call), and no scheduler code is included in this patch, so whether 'the scheduled send no longer goes out while it is a draft' actually holds depends entirely on unseen backend enforcement that isn't shown here."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "`canReturnToDraft: (s) => [s.broadcast, s.batchJobs, s.batchJobsLoading], (broadcast, batchJobs, batchJobsLoading) => !!broadcast && !batchJobsLoading && getBroadcastStatus(broadcast, { latestBatchJob: batchJobs[0] ?? null, totals: {} }) === 'scheduled'`. `getBroadcastStatus` returns `'draft'` for draft broadcasts (hiding the control), and returns `'sending'`/`'sent'`/`'failed'` once any batch job exists (immediate sends or a completed one-time schedule), also hiding the control; only the no-job, active case yields `'scheduled'` and shows it."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "In `launchBroadcast`, before activation: `const staleSchedules = await hogFlowsSchedulesList(projectId, broadcastId); for (const staleSchedule of staleSchedules) { await hogFlowsSchedulesDestroy(projectId, broadcastId, staleSchedule.id) }`. This deletion runs unconditionally, before the `if (values.scheduleMode === 'now') {...} else { ... await hogFlowsSchedulesCreate(...) }` branch, so both immediate sends and future/recurring schedules always start from zero schedules, and the later/recurring path creates exactly one new schedule afterward."
+          },
+          {
+            "id": "c4",
+            "verdict": "not_met",
+            "evidence": "The order in `launchBroadcast` is: delete stale schedules, then `activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })`, and only afterward `await hogFlowsSchedulesCreate(projectId, broadcastId, schedule as any)`. The broadcast is marked live BEFORE the replacement schedule is created, not after. The catch block reverts to draft only if an exception is thrown (`if (activated && broadcastId) { try { await hogFlowsPartialUpdate(..., { status: 'draft' }) } catch {...} }`), which doesn't cover a true interruption (e.g. navigation/tab close) between activation and schedule creation, in which case the broadcast would remain live with no schedule at all rather than being left as a draft."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "`canReturnToDraft` only checks `broadcast`, `batchJobsLoading`, and `getBroadcastStatus(...) === 'scheduled'` (which itself only inspects `latestBatchJob.status` for waiting/queued/active/completed). There is no check on the number of schedules (`broadcast.schedules.length`) nor any check of whether the underlying workflow's action shape is one the wizard can safely edit, so the control is not withheld for multi-schedule broadcasts or broadcasts whose workflow shape has been altered."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "The button in `BroadcastSummary.tsx` is wired as `<LemonButton ... loading={returningToDraft} onClick={returnToDraft} tooltip=\"Stops the scheduled send so you can edit the broadcast. Launch it again when it's ready.\" .../>` — it calls `returnToDraft` directly on click with no confirmation modal/dialog and no cancel option; a tooltip is not a confirmation step."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "In `returnToDraft`: `if (runs.length > 0) { actions.loadBatchJobsSuccess(runs); lemonToast.error(\"This broadcast has already started sending, so it can't be edited.\"); return }`. Instead of cancelling the started run and still moving the broadcast to draft with a warning, the code aborts entirely and leaves the broadcast live, contradicting the requirement to cancel the run and proceed to draft with appropriate messaging."
+          },
+          {
+            "id": "c8",
+            "verdict": "not_met",
+            "evidence": "The entire patch touches only frontend files (`BroadcastSummary.tsx`, `broadcastWizardLogic.ts`, `broadcastsLogic.ts`); no scheduler/run-creation backend code is modified anywhere in the diff, so there is nothing here that re-verifies broadcast status immediately before a scheduled run is created."
+          },
+          {
+            "id": "c9",
+            "verdict": "not_met",
+            "evidence": "The replacement schedule built in `launchBroadcast` is `const schedule: Partial<HogFlowScheduleApi> = { rrule: ..., starts_at: ..., timezone: values.effectiveTimezone }` — it carries no `variables` field, and the previously fetched `staleSchedules` (which may hold variable overrides) are discarded after deletion (`await hogFlowsSchedulesDestroy(...)`), so any override the old schedule carried is not passed to the newly created one."
+          }
+        ]
+      }
     }
   },
   "result": "Both changes are in, frontend only; nothing was run (no tests, typecheck or lint, as requested), and I did not add a test.\n\n## What changed\n\n**Back to draft** (`BroadcastSummary.tsx`, `broadcastWizardLogic.ts`)\n- The read-only summary now shows a \"Back to draft\" button when the broadcast is live and has no runs yet.\n- Clicking it re-checks for runs first, because the schedule could have fired since the page loaded. If a run exists, it refuses with a toast and refreshes the runs table.\n- Otherwise it sets the broadcast to draft and reopens the wizard at the first step with errors, or at review. A send time that has already passed lands on the schedule step.\n- The button shows a loading state while the request is in flight.\n\n**Relaunch always sends** (`broadcastWizardLogic.ts`)\n- Launching now deletes every existing schedule on the broadcast before activating it, then creates the new one. A paused schedule from an audience edit can no longer leave the broadcast looking live with nothing to fire.\n- The deletion happens while the broadcast is still a draft, so an old schedule can't fire in the gap.\n- This also applies to \"Send now\": a schedule left over from an earlier launch is removed rather than firing later.\n\n**Small supporting change** (`broadcastsLogic.ts`)\n- `getBroadcastStatus` now accepts any object with a `status`, so the wizard reuses the list's definition of \"scheduled\" instead of duplicating it.\n\n## Things to know\n\n- **Recurring broadcasts that have already sent once can't go back to draft.** I limited the button to broadcasts with no runs. Say so if you want stopping a recurring broadcast mid-series to be allowed too.\n- **The guard is frontend only.** The API already accepts a status change to draft from any caller, and I left that as is.\n- **The schedule status is still read-only in the API.** Replacing the schedule on launch makes resuming a paused one unnecessary for broadcasts, so I did not touch the serializer.\n- **Why no test:** the button's eligibility rule is already covered by `broadcastStatus.test.ts`. The launch ordering and the back-to-draft listener are not covered.",

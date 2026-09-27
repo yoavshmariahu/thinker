@@ -2,13 +2,17 @@
 // Acceptance-criteria grading.
 //   node bench/criteria.js build <tasksFile>          → adds task.criteria (behavioural checklist from the merged PR)
 //   node bench/criteria.js grade <tasksFile> <tag...> → grades stored patches per criterion; writes grade.criteria
+//     --judge <model> (default sonnet) regrades runs another judge graded; earlier grades are kept in grade.criteriaBy
 //   node bench/criteria.js calibrate <tasksFile>      → grades the merged patch and an empty patch
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { complete } from '../src/llm.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const [,, cmd, tasksFile, ...tags] = process.argv;
+const argv = process.argv.slice(2);
+const ji = argv.indexOf('--judge');
+const JUDGE = ji < 0 ? 'sonnet' : argv.splice(ji, 2)[1];
+const [cmd, tasksFile, ...tags] = argv;
 const spec = JSON.parse(fs.readFileSync(tasksFile, 'utf8'));
 const srcOnly = d => d.split(/^(?=diff --git )/m).filter(c => !/^diff --git a\/\S*(test_|\.test\.|\/tests?\/|__tests__|__snapshots__|\.ambr|\.snap)/.test(c)).join('');
 
@@ -72,14 +76,14 @@ if (cmd === 'build') {
   });
 } else {
   const gradePatch = async (t, patch, summary, context = '') => {
-    const r = await complete({ model: 'sonnet', schema: GRADE_SCHEMA,
+    const r = await complete({ model: JUDGE, schema: GRADE_SCHEMA,
       system: 'You check a patch against acceptance criteria. For each criterion decide whether the code after the patch would exhibit that behaviour: met, not_met, or unclear when what you are shown is not enough to tell. You get the patch and the surrounding code as it is after the patch; behaviour that the unchanged surrounding code already provides counts as met when the criterion asks that something keeps working. Any design that produces the behaviour counts; do not require a particular file, layer or approach. The author\'s summary is a claim, not evidence. Quote the code that decides each verdict.',
       prompt: `REQUEST:\n${t.prompt}\n\nCRITERIA:\n${t.criteria.map(c => `${c.id}${c.essential ? ' (essential)' : ''}: ${c.behavior}`).join('\n')}\n\nPATCH:\n${(srcOnly(patch) || '(empty patch)').slice(0, 40000)}\n\nCODE AFTER PATCH (around each change):\n${context || '(not available)'}\n\nAUTHOR SUMMARY:\n${(summary || '').slice(0, 3000)}` });
     const res = r.json.results; const by = Object.fromEntries(res.map(x => [x.id, x.verdict]));
     const usable = t.criteria.filter(c => c.calibrated !== false);
     const ess = usable.filter(c => c.essential), all = usable;
     const frac = cs => cs.length ? cs.filter(c => by[c.id] === 'met').length / cs.length : 1;
-    return { essential: frac(ess), all: frac(all), pass: ess.every(c => by[c.id] === 'met'), results: res };
+    return { judge: JUDGE, essential: frac(ess), all: frac(all), extra: usable.some(c => !c.essential) ? frac(usable.filter(c => !c.essential)) : null, pass: ess.every(c => by[c.id] === 'met'), results: res };
   };
   const byId = Object.fromEntries(spec.tasks.map(t => [t.id, t]));
   if (cmd === 'calibrate') {
@@ -102,9 +106,11 @@ if (cmd === 'build') {
       const free = [0, 1, 2, 3].map(worktree);
       await pool(files, 4, async f => {
         const rec = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-        if (rec.turns <= 1 || rec.grade?.criteria || !byId[rec.task]) return;
+        const old = rec.grade?.criteria;
+        // an empty run: one turn and no tool calls (Codex reports a whole session as one turn)
+        if (rec.error || (rec.turns <= 1 && !rec.tools?.calls) || (old && (old.judge || 'sonnet') === JUDGE) || !byId[rec.task]) return;
         const wt = free.pop();
-        try { const ctx = agentContext(wt, rec.diff || ''); free.push(wt); rec.grade = { ...(rec.grade || {}), criteria: await gradePatch(byId[rec.task], rec.diff || '', rec.result, ctx) }; fs.writeFileSync(path.join(dir, f), JSON.stringify(rec, null, 2)); n++; } catch (e) { if (!free.includes(wt)) free.push(wt); console.log(`${f}: ${e.message.slice(0, 100)}`); }
+        try { const ctx = agentContext(wt, rec.diff || ''); free.push(wt); const criteria = await gradePatch(byId[rec.task], rec.diff || '', rec.result, ctx); rec.grade = { ...(rec.grade || {}), criteria, ...(old ? { criteriaBy: { ...(rec.grade.criteriaBy || {}), [old.judge || 'sonnet']: old } } : {}) }; fs.writeFileSync(path.join(dir, f), JSON.stringify(rec, null, 2)); n++; } catch (e) { if (!free.includes(wt)) free.push(wt); console.log(`${f}: ${e.message.slice(0, 100)}`); }
       });
       console.log(`${tag}: graded ${n}`);
     }

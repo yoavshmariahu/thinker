@@ -49,51 +49,102 @@
       "products/experiments/backend/test/test_experiment_service.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 0.8571428571428571,
       "all": 0.875,
+      "extra": 1,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "normalize_query_for_write: `normalized_query = dict(query)` then `normalized_query[\"uuid\"] = existing_uuid or str(uuid4())`. On create there is no existing_uuid, so the supplied uuid is discarded and a fresh one is stored. The rest of the query is copied unchanged."
+          "evidence": "`normalize_query_for_write` now does `normalized_query[\"uuid\"] = existing_uuid or str(uuid4())`. With no `existing_uuid` (the create path), any incoming uuid is overwritten by a fresh one. The rest is copied via `normalized_query = dict(query)` and stored with `query=normalized_query`. The create call site itself is not fully shown, but the removed `elif not incoming_uuid` branch implies create calls this without `existing_uuid`."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "update_saved_metric passes `existing_uuid=existing_uuid` from the stored query, and normalize_query_for_write assigns `existing_uuid or str(uuid4())`, so the stored uuid is kept. A different incoming uuid still raises."
+          "evidence": "`update_saved_metric` passes `existing_uuid = saved_metric.query.get(\"uuid\")` into `normalize_query_for_write(update_data[\"query\"], existing_uuid=existing_uuid)`, which sets `normalized_query[\"uuid\"] = existing_uuid or str(uuid4())`. A mismatching incoming uuid still raises `\"Saved metric UUID cannot be changed\"`."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "For each of ('metrics','metrics_secondary') not in update_data, `_dedupe_stored_metric_uuids(getattr(experiment, metrics_field), seen=seen_metric_uuids)` runs. `seen_metric_uuids` is seeded from `saved_metric_uuids`, and any colliding stored metric gets `str(uuid4())`. The result is merged via `update_data.update(rewritten_stored_metrics)`."
+          "evidence": "`saved_metric_uuids = self._collect_saved_metric_uuids(update_data[\"saved_metrics_ids\"])` seeds `seen_metric_uuids`. Then `for metrics_field in (\"metrics\", \"metrics_secondary\"): if metrics_field in update_data: continue; if rewritten := self._dedupe_stored_metric_uuids(getattr(experiment, metrics_field), seen=seen_metric_uuids)` covers both collections. The helper does `if uuid and uuid in seen: ... uuid = str(uuid4()); rewritten[index][\"uuid\"] = uuid`, and the result is persisted through `update_data.update(rewritten_stored_metrics)`."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "With no collision `_dedupe_stored_metric_uuids` returns None, so nothing is added to rewritten_stored_metrics or update_data. Metrics stay unchanged, and `_sync_ordering_with_metric_changes` only touches ordering when 'metrics' or 'metrics_secondary' is in update_data."
+          "evidence": "`_dedupe_stored_metric_uuids` returns `None` when nothing collides (`rewritten` stays `None`), so nothing is added to `rewritten_stored_metrics`. The pre-existing fingerprint step may still put the stored list into `update_data`, but uuids are unchanged, so in `_sync_ordering_with_metric_changes` both `added` and `removed` are empty and `if added or removed:` leaves the ordering untouched."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "The rewritten list enters update_data, so `_sync_ordering_with_metric_changes` sees `added` = new uuid. It computes `removed = old_uuids - new_uuids - saved_metric_uuids`, and the original uuid is in saved_metric_uuids, so it stays in the ordering. The new uuid is appended, so both are present."
+          "evidence": "In `_sync_ordering_with_metric_changes`, `removed = old_uuids - new_uuids - saved_metric_uuids` excludes the original uuid because the saved metric holds it, and `added = new_uuids - old_uuids` contains the fresh inline uuid, which is appended: `for uuid in added: if uuid not in current_ordering: current_ordering.append(uuid)`. The body of `_sync_ordering_for_saved_metrics_on_update`, which runs afterwards, is not fully shown."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "Only the stored inline lists are rewritten. saved_metrics_ids and the saved metric's query are untouched, and the link sync uses the requested `saved_metrics_data` as before."
+          "evidence": "The patch only rewrites inline metric dicts (`rewritten[index][\"uuid\"] = uuid` on a deepcopy of the experiment's list). Saved metric uuids are only read, via `_collect_saved_metric_uuids`. Links still come from `saved_metrics_data = update_data.pop(\"saved_metrics_ids\", [])`, unchanged by the patch."
         },
         {
           "id": "c7",
           "verdict": "not_met",
-          "evidence": "The patch changes only experiment_saved_metric_service.py and experiment_service.py. No agent guidance, skill or doc file is modified, so the promote-then-attach recommendation is unchanged."
+          "evidence": "The patch touches only `experiment_saved_metric_service.py` and `experiment_service.py`. No agent-facing guidance, skill or prompt file is changed, so the promotion guidance still recommends the old flow."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "When the payload resends `metrics`, `_assign_uuids_to_metrics(..., seen=seen_metric_uuids)` regenerates any uuid in `seen`, which includes the saved-metric uuids. `removed` excludes `saved_metric_uuids`, so the clashing uuid stays in the ordering for the shared metric."
+          "evidence": "When `saved_metrics_ids` is absent, `saved_metric_uuids` is built from `experiment.experimenttosavedmetric_set` and seeds `seen_metric_uuids`. The resent list goes through `self._assign_uuids_to_metrics(update_data[\"metrics\"], seen=seen_metric_uuids)`, which regenerates on `original in seen`. The ordering keeps the clashing uuid through `removed = old_uuids - new_uuids - saved_metric_uuids`, and the new uuid is appended as `added`."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8571428571428571,
+        "all": 0.875,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "normalize_query_for_write: `normalized_query = dict(query)` then `normalized_query[\"uuid\"] = existing_uuid or str(uuid4())`. On create there is no existing_uuid, so the supplied uuid is discarded and a fresh one is stored. The rest of the query is copied unchanged."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "update_saved_metric passes `existing_uuid=existing_uuid` from the stored query, and normalize_query_for_write assigns `existing_uuid or str(uuid4())`, so the stored uuid is kept. A different incoming uuid still raises."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "For each of ('metrics','metrics_secondary') not in update_data, `_dedupe_stored_metric_uuids(getattr(experiment, metrics_field), seen=seen_metric_uuids)` runs. `seen_metric_uuids` is seeded from `saved_metric_uuids`, and any colliding stored metric gets `str(uuid4())`. The result is merged via `update_data.update(rewritten_stored_metrics)`."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "With no collision `_dedupe_stored_metric_uuids` returns None, so nothing is added to rewritten_stored_metrics or update_data. Metrics stay unchanged, and `_sync_ordering_with_metric_changes` only touches ordering when 'metrics' or 'metrics_secondary' is in update_data."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "The rewritten list enters update_data, so `_sync_ordering_with_metric_changes` sees `added` = new uuid. It computes `removed = old_uuids - new_uuids - saved_metric_uuids`, and the original uuid is in saved_metric_uuids, so it stays in the ordering. The new uuid is appended, so both are present."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "Only the stored inline lists are rewritten. saved_metrics_ids and the saved metric's query are untouched, and the link sync uses the requested `saved_metrics_data` as before."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "The patch changes only experiment_saved_metric_service.py and experiment_service.py. No agent guidance, skill or doc file is modified, so the promote-then-attach recommendation is unchanged."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "When the payload resends `metrics`, `_assign_uuids_to_metrics(..., seen=seen_metric_uuids)` regenerates any uuid in `seen`, which includes the saved-metric uuids. `removed` excludes `saved_metric_uuids`, so the clashing uuid stays in the ordering for the shared metric."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

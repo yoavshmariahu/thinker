@@ -73,19 +73,15 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.65,
   "status": "fresh",
-  "uses": 39,
+  "uses": 44,
   "related": [
     "broadcast-status-is-derived-in-frontend-from-hogflow-status-",
     "action-eligibility-backend-gates-vs-frontend-mirrors-launch-",
     "hogflow-status-has-no-backend-transition-matrix-rules-live-i",
     "adding-a-hogflow-status-transition-what-changes-together"
   ],
-  "lastUsed": "2026-09-27T07:10:35.221Z",
+  "lastUsed": "2026-09-27T17:31:46.904Z",
   "servedIn": [
-    "c61d0c13-a6d7-449e-bc3a-a7897b57065b",
-    "92974db0-9ca8-489c-b1de-de3706c9d7fc",
-    "9c285907-1126-40fb-b4ec-69fb25ad2395",
-    "3cc45930-6a8b-4f81-9855-ffc26824ae3b",
     "37e46c18-b94e-4381-81f1-fd3d134fd4c5",
     "916cfc8a-223e-44ea-83d2-f41dcb33c086",
     "d3d2c11a-53a1-4b32-b00a-6ef434df14fb",
@@ -111,6 +107,10 @@
     "b27032a4-7830-409f-bb6c-47a9f09681c6",
     "8cf1fc35-a554-457e-8a5e-ee999a578775",
     "codex-posthog-codex-gpt56-PR106466-hard-0",
-    "codex-posthog-codex-gpt56-PR106466-hard-1"
+    "codex-posthog-codex-gpt56-PR106466-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR106466-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR106466-hard-1",
+    "probe-x",
+    "codex-posthog-codex-gpt6-sol-trace-PR106466-hard-0"
   ]
 }

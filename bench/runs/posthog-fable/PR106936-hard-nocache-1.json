@@ -51,56 +51,111 @@
       "posthog/api/test/test_organization_invites.py"
     ],
     "criteria": {
-      "essential": 0.8333333333333334,
-      "all": 0.7777777777777778,
-      "pass": false,
+      "judge": "fable",
+      "essential": 1,
+      "all": 1,
+      "pass": true,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "In InviteRow (InviteModal.tsx): `const rowError = inviteRowErrors[index]` is used to set `status={rowError ? 'danger' : undefined}` on the email `LemonInput`, and to render `{rowError && (<div data-attr=\"invite-row-error\"><LemonField.Error error={rowError} /></div>)}`. `inviteRowErrors` in inviteLogic.ts is a selector over `invitesToSend`, `members`, `user` that recomputes as the user types (via `updateInviteAtIndex`), so the row is flagged live, before submission, in the settings invite dialog."
+          "evidence": "InviteRow (used by the settings dialog via InviteTeamMatesComponent) reads `const rowError = inviteRowErrors[index]`, passes `status={rowError ? 'danger' : undefined}` to the email LemonInput and renders `{rowError && (<div data-attr=\"invite-row-error\"><LemonField.Error error={rowError} /></div>)}`. `inviteRowErrors` is a selector over `invitesToSend`, `members`, `user` returning 'This person is already a member of your organization...' when `memberEmails.has(email)`, so it updates while typing, before submission. Caveat: the definitions of `LemonField.Error` and LemonInput's `status` prop are not shown; I assumed they exist."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "`inviteRowErrors` selector: `const ownEmail = user?.email?.toLowerCase(); ... if (email === ownEmail) { return \"This is your own email address. Enter a teammate's email or remove this row.\" }` — the own-email case returns the same non-null row error as the existing-member case, flagging the row identically."
+          "evidence": "In the `inviteRowErrors` selector: `const ownEmail = user?.email?.toLowerCase()` and `if (email === ownEmail) { return \"This is your own email address. Enter a teammate's email or remove this row.\" }`. This produces a row error through the same path as the member case, so it gets the same inline error, danger styling and submit blocking."
         },
         {
           "id": "c3",
-          "verdict": "not_met",
-          "evidence": "In both InviteModal.tsx and OnboardingInviteTeammates.tsx, when `hasRowError` is true the disabledReason is only `'Fix or remove the emails that are flagged'` — this does not itself indicate that the reason is 'people who are already members must be removed'; it's a generic reference to 'flagged' emails, so the required specific reason on the submit control isn't communicated by that string alone (though the row-level message does say 'already a member', the submit-control's disabledReason text does not). Per-row send control disabling is met (`disabled={!isEmail(invitesToSend[index].target_email) || !!rowError}`), but the reason-wording part of the criterion is not satisfied."
+          "verdict": "met",
+          "evidence": "Settings dialog: `disabledReason={ userCannotInvite ? ... : hasRowError ? 'Fix or remove the emails that are flagged' : !canSubmit ? ...}`. Onboarding: `continueDisabledReason` includes `: hasRowError ? 'Fix or remove the emails that are flagged'`. `canSubmit` also requires `inviteRowErrors.every((error) => !error)`. Per-row send button: `disabled={!isEmail(invitesToSend[index].target_email) || !!rowError}`. Caveat: the reason text is generic. It tells the user to fix or remove flagged emails and does not itself say 'already members'; that explanation appears only in the row's inline message. Since row errors arise only from member/own emails, I judged this as communicating the required reason, but a strict reading of the wording could disagree."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "`const email = target_email.trim().toLowerCase()` compared against `memberEmails` built via `new Set((members ?? []).map((member) => member.user.email.toLowerCase()))` — whitespace is trimmed and case is normalized on the input side before comparison, matching a member email such as rose.dawson@posthog.com against ' Rose.Dawson@PostHog.com'."
+          "evidence": "`const memberEmails = new Set((members ?? []).map((member) => member.user.email.toLowerCase()))` and, per row, `const email = target_email.trim().toLowerCase()` followed by `memberEmails.has(email)`. ' Rose.Dawson@PostHog.com' becomes 'rose.dawson@posthog.com' and matches."
         },
         {
           "id": "c5",
-          "verdict": "not_met",
-          "evidence": "The only trigger to fetch members is `updateInviteAtIndex: ({ payload }): void => { if (payload.target_email && !values.members && !values.membersLoading) { actions.loadAllMembers() } }`, which fires when the user edits an email field, not when the invite form/modal is opened (there is no listener on `showInviteModal` or component mount calling `loadAllMembers`). The own-email check does work before this data loads (`ownEmail` comes from `userLogic`'s `user`, independent of `members`), but the member list itself is fetched on first edit rather than 'when the invite form is opened'."
+          "verdict": "met",
+          "evidence": "inviteLogic connects `membersLogic, ['members', 'membersLoading']` and `actions: [membersLogic, ['loadAllMembers']]`, and the listener `updateInviteAtIndex: ({ payload }) => { if (payload.target_email && !values.members && !values.membersLoading) { actions.loadAllMembers() } }` fetches members without the user visiting the members list. The fetch fires on the first typed email rather than literally on open, which still serves the stated purpose. The own-email check works before members load: `(members ?? [])` tolerates null and `email === ownEmail` depends only on `user`."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "The already-member check moved into `validate_target_email`, a per-field validator invoked during DRF's `is_valid()` for every row of the bulk (many=True) serializer before `.save()`/`.create()` is ever called on any row: `if OrganizationMembership.objects.filter(... user__email__iexact=email).exists(): raise exceptions.ValidationError(..., code=\"already_member\")`. Since the whole list must pass validation before any `create()` runs, an existing-member email in any row rejects the entire batch pre-creation, including earlier rows."
+          "evidence": "The membership check moved from `create()` into `validate_target_email()`: `if OrganizationMembership.objects.filter(organization_id=self.context[\"organization_id\"], user__email__iexact=email).exists(): raise exceptions.ValidationError(..., code=\"already_member\")`, and it was deleted from `create()`. Invite creation and `send_invite` happen only in `create()`, which runs after validation. A DRF ValidationError yields a 400. Caveat: the bulk view is not shown; this assumes it validates the whole list (many=True, `is_valid`) before saving, which is consistent with the `bulk_create` context key and the partial-creation behaviour described in the request."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"already_member\")` is raised from `validate_target_email`, which DRF attributes to the `target_email` field, carrying the stable code `already_member`."
+          "evidence": "The error is raised inside the field validator `validate_target_email`, so DRF attributes it to the `target_email` field, and it carries a dedicated code: `raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"already_member\")`. Previously it was raised in `create()` with no code."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "`const EXPECTED_VALIDATION_CODES: Record<string, string[]> = { inviteTeamMembers: ['already_member'] }` and `const isExpectedValidationError = error?.status === 400 && !!EXPECTED_VALIDATION_CODES[String(actionKey)]?.includes(String(error?.code)); if (shouldReportApiFailure(error) && !isSelfHandledNotFound && !isExpectedValidationError) { posthog.captureException(error) }` — this suppresses reporting only for the `already_member` 400 on `inviteTeamMembers`; any other error code/status on the same action still passes through to `captureException`."
+          "evidence": "initKea.ts adds `const EXPECTED_VALIDATION_CODES = { inviteTeamMembers: ['already_member'] }` and `const isExpectedValidationError = error?.status === 400 && !!EXPECTED_VALIDATION_CODES[String(actionKey)]?.includes(String(error?.code))`, then `if (shouldReportApiFailure(error) && !isSelfHandledNotFound && !isExpectedValidationError) { posthog.captureException(error) }`. Only a 400 with code `already_member` on `inviteTeamMembers` is skipped; any other status or code on that action still reaches `captureException`."
         },
         {
           "id": "c9",
           "verdict": "met",
-          "evidence": "`inviteTeamMembersFailure: ({ errorObject }): void => { if (errorObject?.code === ALREADY_MEMBER_ERROR_CODE) { actions.loadAllMembers() } }` reloads the member list on a server-side already_member rejection, which will feed into `inviteRowErrors` and flag the offending row afterward."
+          "evidence": "inviteLogic listener: `inviteTeamMembersFailure: ({ errorObject }) => { if (errorObject?.code === ALREADY_MEMBER_ERROR_CODE) { actions.loadAllMembers() } }`. Because `inviteRowErrors` selects on `selectors.members`, the reloaded list flags the offending row afterwards."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8333333333333334,
+        "all": 0.7777777777777778,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "In InviteRow (InviteModal.tsx): `const rowError = inviteRowErrors[index]` is used to set `status={rowError ? 'danger' : undefined}` on the email `LemonInput`, and to render `{rowError && (<div data-attr=\"invite-row-error\"><LemonField.Error error={rowError} /></div>)}`. `inviteRowErrors` in inviteLogic.ts is a selector over `invitesToSend`, `members`, `user` that recomputes as the user types (via `updateInviteAtIndex`), so the row is flagged live, before submission, in the settings invite dialog."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "`inviteRowErrors` selector: `const ownEmail = user?.email?.toLowerCase(); ... if (email === ownEmail) { return \"This is your own email address. Enter a teammate's email or remove this row.\" }` — the own-email case returns the same non-null row error as the existing-member case, flagging the row identically."
+          },
+          {
+            "id": "c3",
+            "verdict": "not_met",
+            "evidence": "In both InviteModal.tsx and OnboardingInviteTeammates.tsx, when `hasRowError` is true the disabledReason is only `'Fix or remove the emails that are flagged'` — this does not itself indicate that the reason is 'people who are already members must be removed'; it's a generic reference to 'flagged' emails, so the required specific reason on the submit control isn't communicated by that string alone (though the row-level message does say 'already a member', the submit-control's disabledReason text does not). Per-row send control disabling is met (`disabled={!isEmail(invitesToSend[index].target_email) || !!rowError}`), but the reason-wording part of the criterion is not satisfied."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "`const email = target_email.trim().toLowerCase()` compared against `memberEmails` built via `new Set((members ?? []).map((member) => member.user.email.toLowerCase()))` — whitespace is trimmed and case is normalized on the input side before comparison, matching a member email such as rose.dawson@posthog.com against ' Rose.Dawson@PostHog.com'."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "The only trigger to fetch members is `updateInviteAtIndex: ({ payload }): void => { if (payload.target_email && !values.members && !values.membersLoading) { actions.loadAllMembers() } }`, which fires when the user edits an email field, not when the invite form/modal is opened (there is no listener on `showInviteModal` or component mount calling `loadAllMembers`). The own-email check does work before this data loads (`ownEmail` comes from `userLogic`'s `user`, independent of `members`), but the member list itself is fetched on first edit rather than 'when the invite form is opened'."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "The already-member check moved into `validate_target_email`, a per-field validator invoked during DRF's `is_valid()` for every row of the bulk (many=True) serializer before `.save()`/`.create()` is ever called on any row: `if OrganizationMembership.objects.filter(... user__email__iexact=email).exists(): raise exceptions.ValidationError(..., code=\"already_member\")`. Since the whole list must pass validation before any `create()` runs, an existing-member email in any row rejects the entire batch pre-creation, including earlier rows."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"already_member\")` is raised from `validate_target_email`, which DRF attributes to the `target_email` field, carrying the stable code `already_member`."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "`const EXPECTED_VALIDATION_CODES: Record<string, string[]> = { inviteTeamMembers: ['already_member'] }` and `const isExpectedValidationError = error?.status === 400 && !!EXPECTED_VALIDATION_CODES[String(actionKey)]?.includes(String(error?.code)); if (shouldReportApiFailure(error) && !isSelfHandledNotFound && !isExpectedValidationError) { posthog.captureException(error) }` — this suppresses reporting only for the `already_member` 400 on `inviteTeamMembers`; any other error code/status on the same action still passes through to `captureException`."
+          },
+          {
+            "id": "c9",
+            "verdict": "met",
+            "evidence": "`inviteTeamMembersFailure: ({ errorObject }): void => { if (errorObject?.code === ALREADY_MEMBER_ERROR_CODE) { actions.loadAllMembers() } }` reloads the member list on a server-side already_member rejection, which will feed into `inviteRowErrors` and flag the offending row afterward."
+          }
+        ]
+      }
     }
   },
   "result": "The change is in place across backend and frontend. Nothing was run (no tests, typecheck, lint or formatter), per your instructions, so treat it as unverified.\n\n## What changed\n\n**Backend: reject the whole batch up front** (`posthog/api/organization_invite.py`)\n- The \"already belongs to the organization\" check moved from the serializer's `create()` into `validate_target_email()`.\n- The bulk endpoint validates every row before saving any, so an existing member in row three now fails the request before any invite is created or emailed.\n- The error now carries the code `already_member` on the `target_email` field. The message is unchanged.\n- Your own email is covered by the same check, since you are a member.\n\n**Frontend: flag the row before submit** (`inviteLogic.ts`, `InviteModal.tsx`, `OnboardingInviteTeammates.tsx`)\n- A row whose email is your own or an existing member's (case-insensitive) shows an inline error under the email input, which turns red.\n- Submit is blocked while any row is flagged, in both the settings dialog and the onboarding step, with the reason \"Fix or remove the emails that are flagged\".\n- The member list loads the first time you type an email if it isn't loaded yet, which covers onboarding.\n- If the server still rejects with `already_member` (stale member list), the list reloads so the offending row gets flagged.\n\n**Error tracking** (`frontend/src/initKea.ts`)\n- The reports came from the frontend's global loader-failure handler, which captures every 400 as an exception. The backend never reported these.\n- I added a small allow list so a 400 `already_member` from `inviteTeamMembers` is no longer captured. The toast still shows.\n\n## Tests added\n- `test_bulk_invite_with_existing_member_creates_no_invites`: a batch of two valid emails plus your own (uppercased) returns 400 `already_member`, with zero invites and zero emails.\n- `inviteLogic.test.ts`: parameterized over existing member, own email and new teammate, checking the row error and `canSubmit`.\n\n## Things to know\n- I hand-edited the kea-typegen block in `inviteLogic.ts`; typegen will reconcile it on the next run.\n- No OpenAPI regeneration should be needed, since no serializer fields changed.\n- Two pre-existing gaps on the invite serializer and bulk action (missing `help_text` and schema annotation) are left alone as out of scope.\n- The inline row messages are new user-facing copy, worth a quick read:\n  - \"This is your own email address. Enter a teammate's email or remove this row.\"\n  - \"This person is already a member of your organization. Enter a different email or remove this row.\"",

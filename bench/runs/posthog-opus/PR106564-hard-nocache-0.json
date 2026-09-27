@@ -50,51 +50,102 @@
       "posthog/utils.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 0.8,
       "all": 0.625,
+      "extra": 0.3333333333333333,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "`_flag_enrolls_request` returns `feature_flags.get(STABLE_CHUNKS_FLAG) is True` for an authenticated user. It is reached when no param or cookie is set. `_build_template_context` passes the evaluated `feature_flags`, and `index.html` renders the importmap when `stable_chunks_import_map` is set."
+          "evidence": "With no param and no cookie, `stable_chunks_opted_in` falls through to `return _flag_enrolls_request(request, feature_flags)`, which returns `feature_flags.get(STABLE_CHUNKS_FLAG) is True` for authenticated users. `feature_flags` comes from `posthoganalytics.get_all_flags(posthog_distinct_id, ...)`. When true, `context[\"stable_chunks_import_map\"] = stable_chunks.import_map_json(...)` and `context[\"preload_js_urls\"] = stable_chunks.preload_urls(is_authenticated)` are set and the template renders `<script type=\"importmap\" ...>`. Flag off leaves the current build. Note only a boolean `True` enrolls; a string variant would not."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "`if not (request.user and request.user.is_authenticated): return False` sits ahead of the flag lookup, so an anonymous request is never enrolled by the flag, even when the flags dict holds `True`."
+          "evidence": "`_flag_enrolls_request` begins with `if not (request.user and request.user.is_authenticated): return False`, before the flag value is read, so an on value in the flags cannot enrol an anonymous request."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "`stable_chunks_for_request(request, feature_flags or {})` turns a `None` result from `get_all_flags` into an empty dict. A missing or non-True flag makes `.get(...) is True` false, and `feature_flags` is initialised to `{}`. The page then renders the current build."
+          "evidence": "`feature_flags: dict[str, Any] = {}` is the default when flags are not evaluated, and the call site passes `stable_chunks_for_request(request, feature_flags or {})`, which covers a `None` return from `get_all_flags`. The check `feature_flags.get(STABLE_CHUNKS_FLAG) is True` yields False for a missing or non-True value, so `stable_chunks` is None and the current-build context is left unchanged."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "`stable_chunks_opted_in` checks `request.GET.get(STABLE_CHUNKS_PARAM)` first and returns `param == \"1\"`. That result takes precedence over both the cookie and the flag in both directions."
+          "evidence": "In `stable_chunks_opted_in` the param is checked first: `param = request.GET.get(STABLE_CHUNKS_PARAM)`; `if param is not None: return param == \"1\"`. This runs before the cookie check and before `_flag_enrolls_request`, so `1` forces the stable build and `0` forces the current build regardless of cookie or flag."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "Forcing on sets a 30-day cookie with `max_age=_COOKIE_MAX_AGE_SECONDS`. Forcing off only runs `response.delete_cookie(STABLE_CHUNKS_COOKIE)`. That stores nothing, so a later request with the flag on falls through to `_flag_enrolls_request` and gets the stable build. The off choice is not remembered and does not outrank the flag."
+          "evidence": "Forcing on is remembered: `response.set_cookie(STABLE_CHUNKS_COOKIE, \"1\", max_age=_COOKIE_MAX_AGE_SECONDS, ...)` with `60 * 60 * 24 * 30`. Forcing off is not: `elif param == \"0\": response.delete_cookie(STABLE_CHUNKS_COOKIE)`. On the next request there is no cookie, so `STABLE_CHUNKS_COOKIE in request.COOKIES` is false and the code falls to `_flag_enrolls_request`, which serves the stable build to a flag-on user. The off choice does not outrank the flag on later requests."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "The same `feature_flags` dict is assigned to `posthog_bootstrap[\"featureFlags\"]`, which is serialized into the page for the client. It is also passed to `stable_chunks_for_request`, so the flag value used to decide the build is the value the analytics client receives."
+          "evidence": "The same `feature_flags` object is used for both: `posthog_bootstrap[\"featureFlags\"] = feature_flags` then `context[\"posthog_bootstrap\"] = json.dumps(posthog_bootstrap)`, and later `stable_chunks_for_request(request, feature_flags or {})`. The flag is not re-evaluated for the build decision, so the client is bootstrapped with the value that decided the build."
         },
         {
           "id": "c7",
           "verdict": "unclear",
-          "evidence": "The patch shows no runtime-failure reload logic and no loader script. A reload that carries `?stable_chunks=0` would get the current build and clear the cookie without setting an opt-out. Whether the reload does that is not visible in what is shown."
+          "evidence": "The patch contains no handling for a runtime-failure reload, and the frontend fallback/reload code is not shown. The server recognises only `stable_chunks` = `1`/`0` and the cookie. If the reload is a plain reload, a flag-on user would be served the stable build again via `_flag_enrolls_request`, which would loop. If the reload adds `?stable_chunks=0`, the current build is served and only `delete_cookie` runs. Which of these the frontend does cannot be determined from what is shown."
         },
         {
           "id": "c8",
-          "verdict": "unclear",
-          "evidence": "The patch does not touch the page address. The server only sets or clears the cookie in `persist_stable_chunks_choice`. Any client-side removal of the param (for example `history.replaceState`) would have to exist elsewhere, and it is not shown."
+          "verdict": "not_met",
+          "evidence": "Nothing removes the parameter from the address. `persist_stable_chunks_choice` only sets or deletes the cookie and calls `patch_cache_control(response, no_store=True)`; `render_template` returns the rendered `HttpResponse(html)` with no redirect. The only inline script in `index.html` does console logging and an old-browser check, with no `history.replaceState` or similar URL rewrite."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8,
+        "all": 0.625,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "`_flag_enrolls_request` returns `feature_flags.get(STABLE_CHUNKS_FLAG) is True` for an authenticated user. It is reached when no param or cookie is set. `_build_template_context` passes the evaluated `feature_flags`, and `index.html` renders the importmap when `stable_chunks_import_map` is set."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "`if not (request.user and request.user.is_authenticated): return False` sits ahead of the flag lookup, so an anonymous request is never enrolled by the flag, even when the flags dict holds `True`."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "`stable_chunks_for_request(request, feature_flags or {})` turns a `None` result from `get_all_flags` into an empty dict. A missing or non-True flag makes `.get(...) is True` false, and `feature_flags` is initialised to `{}`. The page then renders the current build."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "`stable_chunks_opted_in` checks `request.GET.get(STABLE_CHUNKS_PARAM)` first and returns `param == \"1\"`. That result takes precedence over both the cookie and the flag in both directions."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "Forcing on sets a 30-day cookie with `max_age=_COOKIE_MAX_AGE_SECONDS`. Forcing off only runs `response.delete_cookie(STABLE_CHUNKS_COOKIE)`. That stores nothing, so a later request with the flag on falls through to `_flag_enrolls_request` and gets the stable build. The off choice is not remembered and does not outrank the flag."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "The same `feature_flags` dict is assigned to `posthog_bootstrap[\"featureFlags\"]`, which is serialized into the page for the client. It is also passed to `stable_chunks_for_request`, so the flag value used to decide the build is the value the analytics client receives."
+          },
+          {
+            "id": "c7",
+            "verdict": "unclear",
+            "evidence": "The patch shows no runtime-failure reload logic and no loader script. A reload that carries `?stable_chunks=0` would get the current build and clear the cookie without setting an opt-out. Whether the reload does that is not visible in what is shown."
+          },
+          {
+            "id": "c8",
+            "verdict": "unclear",
+            "evidence": "The patch does not touch the page address. The server only sets or clears the cookie in `persist_stable_chunks_choice`. Any client-side removal of the param (for example `history.replaceState`) would have to exist elsewhere, and it is not shown."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

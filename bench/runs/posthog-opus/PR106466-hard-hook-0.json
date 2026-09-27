@@ -34,56 +34,112 @@
   "grade": {
     "error": "judge failed: ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"fdba9e9a-b5bd-472c-9a83-ef781ec88a8b\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"44a06d53-9549-433e-96ef-633432d49019\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"a856701d-bc1f-4e9b-8bd4-8d458e936798\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"",
     "criteria": {
+      "judge": "fable",
       "essential": 0.6666666666666666,
-      "all": 0.4444444444444444,
+      "all": 0.3333333333333333,
+      "extra": 0.16666666666666666,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "Summary shows 'Move to draft' button calling returnToDraft, which does hogFlowsPartialUpdate(..., {status:'draft'}) and saveBroadcastFinished(updated); isReadOnly then false. Scheduler doesn't fire non-active flows (comment claims; scheduler code not shown), so schedule doesn't send."
+          "evidence": "The summary renders a `Move to draft` button (`{canReturnToDraft && (<LemonButton ... data-attr=\"broadcast-return-to-draft\">`). Its handler runs `hogFlowsPartialUpdate(String(values.currentProjectId), values.broadcastId, { status: 'draft' })`, then `actions.saveBroadcastFinished(updated)` and `actions.setStep(values.firstInvalidStep ?? 'review')`. `isReadOnly` is `!!broadcast && broadcast.status !== 'draft'`, so it becomes false and the wizard is editable again. Caveat: the schedule row is deliberately kept, and the claim that a draft never sends rests on the scheduler only firing schedules of active workflows (stated in a code comment); the scheduler code is not shown, so that part is not verified here."
         },
         {
           "id": "c2",
-          "verdict": "met",
-          "evidence": "canReturnToDraft = broadcast?.status === 'active' && (broadcast.schedules?.length ?? 0) > 0. Draft and immediate sends (no schedule) excluded. A completed one-time schedule might still have a schedule row, so that case is not clearly excluded, though the frontend can't tell; partially unclear. Leaning met for draft/immediate."
+          "verdict": "not_met",
+          "evidence": "`canReturnToDraft` is `broadcast?.status === 'active' && (broadcast.schedules?.length ?? 0) > 0`. This correctly excludes drafts, and excludes immediate sends because launch destroys existing schedules first. But it only counts schedule rows and never checks whether the schedule is still pending. A one-time schedule that has already fired still has its row, and `returnToDraftDisabledReason` only flags jobs in `['waiting', 'queued', 'active']`, so a broadcast with a completed send would still be offered an enabled button."
         },
         {
           "id": "c3",
-          "verdict": "not_met",
-          "evidence": "Existing schedules are destroyed only from `saved.schedules` of the partial update, and a new one is created. But for 'now' mode, leftover schedules are destroyed too. However, the destroy happens on the frontend, and the loop `for (const schedule of existingSchedules) await hogFlowsSchedulesDestroy` relies on saved.schedules being returned by the update; unverified. Also the destroy happens before the status change, fine. Not verifiable that schedules are returned by partialUpdate."
+          "verdict": "met",
+          "evidence": "On launch, `existingSchedules = saved.schedules ?? []` is followed by `for (const schedule of existingSchedules) { await hogFlowsSchedulesDestroy(projectId, broadcastId, schedule.id) }`, which runs before the `scheduleMode` branch. The 'now' path therefore leaves no schedule behind, and the later/recurring path creates exactly one new schedule with `hogFlowsSchedulesCreate(projectId, broadcastId, schedule as any)`. Existing schedules are deleted, not reused or edited."
         },
         {
           "id": "c4",
-          "verdict": "met",
-          "evidence": "Destroy loop precedes `activated = await hogFlowsPartialUpdate(..., {status:'active'})`, and the draft is saved with status 'draft' in buildBroadcastPayload; interruption during destroy leaves draft. However the create of the new schedule happens after activation, so interruption there leaves live with none (catch reverts to draft only on error)."
+          "verdict": "not_met",
+          "evidence": "The order is destroy old schedules, then `activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })`, and only afterwards `hogFlowsSchedulesCreate(...)`. The broadcast is marked live before the replacement schedule exists, so an interruption between the two calls leaves it live with no schedule. The catch block's revert to draft only covers thrown errors, not an interrupted session."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "Only a sending batch job status disables the button (returnToDraftDisabledReason). No check for batch jobs not yet loaded, more than one schedule, or workflow shape changes."
+          "evidence": "The only safety guard is `batchJobs.some((job) => SENDING_BATCH_JOB_STATUSES.includes(job.status ?? ''))`, which disables the button rather than withholding it. Nothing accounts for run history not yet loaded (`batchJobs` defaults to `[]` and `batchJobsLoading` is not consulted), for more than one schedule (`schedules.length > 0` accepts any count), or for a workflow shape the wizard cannot edit."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "LemonDialog.open with title 'Move this broadcast back to draft?', content explaining nothing goes out until launched again, primaryButton onClick returnToDraft, secondaryButton 'Keep it scheduled' to cancel."
+          "evidence": "The button's `onClick` opens `LemonDialog.open({ title: 'Move this broadcast back to draft?', content: 'The scheduled send is called off, so nothing goes out until you launch the broadcast again. You can then edit it.', primaryButton: { children: 'Move to draft', onClick: returnToDraft }, secondaryButton: { children: 'Keep it scheduled' } })`. `returnToDraft` is only dispatched from the dialog's primary button."
         },
         {
           "id": "c7",
           "verdict": "not_met",
-          "evidence": "returnToDraft only does a partial update to draft and shows a single success toast; no cancellation of started batch runs and no warning/failure variants."
+          "evidence": "The `returnToDraft` listener only calls `hogFlowsPartialUpdate(..., { status: 'draft' })` and shows a single success toast, \"Broadcast moved back to draft. It won't send until you launch it again.\" There is no batch job cancellation call, no warning variant for a send that had started, and no handling for a failed cancellation."
         },
         {
           "id": "c8",
           "verdict": "not_met",
-          "evidence": "Patch changes only frontend files; no scheduler change re-verifying status before creating a run."
+          "evidence": "The patch touches only three frontend files (BroadcastSummary.tsx, broadcastWizardLogic.ts, broadcastsLogic.ts). No scheduler or backend code is changed, so no status re-verification before run creation is added."
         },
         {
           "id": "c9",
           "verdict": "not_met",
-          "evidence": "New schedule is built with only rrule, starts_at, timezone; previous schedule's variables/overrides are not carried over."
+          "evidence": "The replacement schedule is built with only `rrule`, `starts_at` and `timezone` (`const schedule: Partial<HogFlowScheduleApi> = { rrule: ..., starts_at: ..., timezone: values.effectiveTimezone }`). Nothing is copied from `existingSchedules`, which are only iterated to destroy them, so any variable overrides on the previous schedule are dropped."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.6666666666666666,
+        "all": 0.4444444444444444,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "Summary shows 'Move to draft' button calling returnToDraft, which does hogFlowsPartialUpdate(..., {status:'draft'}) and saveBroadcastFinished(updated); isReadOnly then false. Scheduler doesn't fire non-active flows (comment claims; scheduler code not shown), so schedule doesn't send."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "canReturnToDraft = broadcast?.status === 'active' && (broadcast.schedules?.length ?? 0) > 0. Draft and immediate sends (no schedule) excluded. A completed one-time schedule might still have a schedule row, so that case is not clearly excluded, though the frontend can't tell; partially unclear. Leaning met for draft/immediate."
+          },
+          {
+            "id": "c3",
+            "verdict": "not_met",
+            "evidence": "Existing schedules are destroyed only from `saved.schedules` of the partial update, and a new one is created. But for 'now' mode, leftover schedules are destroyed too. However, the destroy happens on the frontend, and the loop `for (const schedule of existingSchedules) await hogFlowsSchedulesDestroy` relies on saved.schedules being returned by the update; unverified. Also the destroy happens before the status change, fine. Not verifiable that schedules are returned by partialUpdate."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "Destroy loop precedes `activated = await hogFlowsPartialUpdate(..., {status:'active'})`, and the draft is saved with status 'draft' in buildBroadcastPayload; interruption during destroy leaves draft. However the create of the new schedule happens after activation, so interruption there leaves live with none (catch reverts to draft only on error)."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "Only a sending batch job status disables the button (returnToDraftDisabledReason). No check for batch jobs not yet loaded, more than one schedule, or workflow shape changes."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "LemonDialog.open with title 'Move this broadcast back to draft?', content explaining nothing goes out until launched again, primaryButton onClick returnToDraft, secondaryButton 'Keep it scheduled' to cancel."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "returnToDraft only does a partial update to draft and shows a single success toast; no cancellation of started batch runs and no warning/failure variants."
+          },
+          {
+            "id": "c8",
+            "verdict": "not_met",
+            "evidence": "Patch changes only frontend files; no scheduler change re-verifying status before creating a run."
+          },
+          {
+            "id": "c9",
+            "verdict": "not_met",
+            "evidence": "New schedule is built with only rrule, starts_at, timezone; previous schedule's variables/overrides are not carried over."
+          }
+        ]
+      }
     }
   },
   "result": "You've hit your session limit · resets 8:40pm (America/Los_Angeles)",

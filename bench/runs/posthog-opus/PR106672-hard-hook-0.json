@@ -56,51 +56,102 @@
       "products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2"
     ],
     "criteria": {
-      "essential": 0.8571428571428571,
-      "all": 0.875,
+      "judge": "fable",
+      "essential": 0.7142857142857143,
+      "all": 0.625,
+      "extra": 0,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "normalize_query_for_write now has `if existing_uuid: ... else: normalized_query[\"uuid\"] = str(uuid4())`, so a supplied uuid is discarded on create; the rest of the query is copied via dict(query)."
+          "evidence": "In `normalize_query_for_write`, when no `existing_uuid` is passed (the create path), the branch is now an unconditional `else: normalized_query[\"uuid\"] = str(uuid4())`, replacing `elif not incoming_uuid:`. A supplied uuid is therefore overwritten. The rest is copied unchanged via `normalized_query = dict(query)` and stored as `query=normalized_query`."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "update_saved_metric passes existing_uuid; `if existing_uuid: normalized_query[\"uuid\"] = existing_uuid` preserves it."
+          "evidence": "`update_saved_metric` still passes `existing_uuid = saved_metric.query.get(\"uuid\")` into `normalize_query_for_write(update_data[\"query\"], existing_uuid=existing_uuid)`, and the unchanged branch `if existing_uuid: normalized_query[\"uuid\"] = existing_uuid` preserves it. A mismatching incoming uuid still raises \"Saved metric UUID cannot be changed\"."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "For each of (\"metrics\",\"metrics_secondary\") not in update_data, if any stored metric's uuid is in attached_saved_metric_uuids, `update_data[metric_field] = self._assign_uuids_to_metrics(stored_metrics, seen=seen_metric_uuids)`. seen contains the attached uuids, so the clashing metric is regenerated. Depends on the unseen _assign_uuids_to_metrics regenerating duplicates against seen."
+          "evidence": "`attached_saved_metric_uuids = self._collect_saved_metric_uuids(update_data[\"saved_metrics_ids\"])` is collected, then `for metric_field in (\"metrics\", \"metrics_secondary\"): if metric_field in update_data: continue; stored_metrics = getattr(experiment, metric_field) or []; if any(... metric.get(\"uuid\") in attached_saved_metric_uuids ...): update_data[metric_field] = self._assign_uuids_to_metrics(stored_metrics, seen=seen_metric_uuids)`. `seen_metric_uuids` contains the attached shared uuids, so the clashing stored inline metric is regenerated. Both collections are covered. The body of `_assign_uuids_to_metrics` is not shown; this relies on its existing use as the regenerate-on-seen dedup helper."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "The rewrite only happens inside the `if any(... in attached_saved_metric_uuids ...)` guard. Without a clash update_data is not touched for that field, so the stored metrics and ordering stay unchanged."
+          "evidence": "The rewrite is guarded by `if any(isinstance(metric, dict) and metric.get(\"uuid\") in attached_saved_metric_uuids for metric in stored_metrics)`. With no clash, `update_data[metric_field]` is not set by the new block, so stored inline metrics and their ordering entries follow the unchanged pre-patch path."
         },
         {
           "id": "c5",
-          "verdict": "met",
-          "evidence": "The rewrite runs before _sync_ordering_with_metric_changes. The existing comment says regenerated dups keep the original uuid in ordering and the new uuid is appended, and _sync_ordering_for_saved_metrics_on_update covers the shared uuid. I could not see the ordering sync code itself, so this rests on that comment."
+          "verdict": "unclear",
+          "evidence": "The patch injects the regenerated list into `update_data[metric_field]` and then relies on the unmodified `_sync_ordering_with_metric_changes(experiment, update_data)` and `_sync_ordering_for_saved_metrics_on_update(...)`. Neither body is shown. If the first removes uuids no longer carried by inline metrics, the original uuid would be dropped unless the saved-metric sync re-adds it. The patch changes no ordering logic, so the outcome cannot be determined from the code provided."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "The new block only writes update_data for inline metric fields. Saved metric rows and the link sync code are untouched, and the uuid set is only read."
+          "evidence": "The new block only writes `update_data[metric_field]` for the inline fields `metrics` / `metrics_secondary`. The saved-metric link sync (`to_delete = existing_saved_metric_ids - new_saved_metric_ids`, then create/update links from `saved_metrics_data`) is unchanged, and nothing writes to the saved metric's query. The comment states \"Regenerate the inline side; the shared metric keeps the uuid.\""
         },
         {
           "id": "c7",
           "verdict": "not_met",
-          "evidence": "The guidance now says to create the shared metric \"with the same `query`\" and send one update that attaches it and resends `metrics` without the inline copy. It never tells the agent to omit the identifier (uuid) when creating the shared metric, so half of the required instruction is missing."
+          "evidence": "The guidance does now say to remove the inline copy in the same update: \"send one `experiment-update` that both attaches it via `saved_metrics_ids` and resends `metrics` without the inline copy\". But it still says \"create the shared metric with the same `query` (the `ExperimentMetric` object)\" and nowhere instructs omitting the uuid/identifier when creating the shared metric. SKILL.md likewise has no instruction to omit the identifier."
         },
         {
           "id": "c8",
-          "verdict": "met",
-          "evidence": "When metrics is resent, seen_metric_uuids already includes the linked saved metric uuids (from the current links in the else branch, or from the payload). `_assign_uuids_to_metrics(update_data[\"metrics\"], seen=seen_metric_uuids)` regenerates the clashing inline uuid. This is unchanged pre-existing behavior."
+          "verdict": "unclear",
+          "evidence": "The regeneration half is provided by existing code: linked shared uuids are seeded into `seen_metric_uuids` in the `else:` branch over `experiment.experimenttosavedmetric_set`, and `update_data[\"metrics\"] = self._assign_uuids_to_metrics(update_data[\"metrics\"], seen=seen_metric_uuids)` regenerates the inline copy. Whether the clashing uuid stays in the ordering depends on `_sync_ordering_with_metric_changes`, which is not shown and not modified by the patch. Since the shared metric is already linked, the saved-metric ordering sync would not re-add the uuid as a new link if the inline sync removes it."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8571428571428571,
+        "all": 0.875,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "normalize_query_for_write now has `if existing_uuid: ... else: normalized_query[\"uuid\"] = str(uuid4())`, so a supplied uuid is discarded on create; the rest of the query is copied via dict(query)."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "update_saved_metric passes existing_uuid; `if existing_uuid: normalized_query[\"uuid\"] = existing_uuid` preserves it."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "For each of (\"metrics\",\"metrics_secondary\") not in update_data, if any stored metric's uuid is in attached_saved_metric_uuids, `update_data[metric_field] = self._assign_uuids_to_metrics(stored_metrics, seen=seen_metric_uuids)`. seen contains the attached uuids, so the clashing metric is regenerated. Depends on the unseen _assign_uuids_to_metrics regenerating duplicates against seen."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "The rewrite only happens inside the `if any(... in attached_saved_metric_uuids ...)` guard. Without a clash update_data is not touched for that field, so the stored metrics and ordering stay unchanged."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "The rewrite runs before _sync_ordering_with_metric_changes. The existing comment says regenerated dups keep the original uuid in ordering and the new uuid is appended, and _sync_ordering_for_saved_metrics_on_update covers the shared uuid. I could not see the ordering sync code itself, so this rests on that comment."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "The new block only writes update_data for inline metric fields. Saved metric rows and the link sync code are untouched, and the uuid set is only read."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "The guidance now says to create the shared metric \"with the same `query`\" and send one update that attaches it and resends `metrics` without the inline copy. It never tells the agent to omit the identifier (uuid) when creating the shared metric, so half of the required instruction is missing."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "When metrics is resent, seen_metric_uuids already includes the linked saved metric uuids (from the current links in the else branch, or from the payload). `_assign_uuids_to_metrics(update_data[\"metrics\"], seen=seen_metric_uuids)` regenerates the clashing inline uuid. This is unchanged pre-existing behavior."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

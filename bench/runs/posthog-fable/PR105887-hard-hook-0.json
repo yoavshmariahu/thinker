@@ -50,6 +50,7 @@
       "products/experiments/backend/temporal/test_discovery_fingerprints.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 1,
       "all": 1,
       "pass": true,
@@ -57,34 +58,73 @@
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "In `_get_experiment_saved_metrics_for_hour_sync` (posthog/temporal/experiments/activities.py), the fingerprint is now computed as `compute_metric_fingerprint(merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata), ...)`, deriving the identifier from the saved query merged with the per-experiment link's breakdowns instead of `saved_metric.query` alone. `merge_saved_metric_breakdowns` sets `breakdownFilter.breakdowns` from `metadata.get('breakdowns')`, so a link with breakdowns produces a different dict (and hash) than the raw query."
+          "evidence": "In `_get_experiment_saved_metrics_for_hour_sync` the fingerprint is now `compute_metric_fingerprint(merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata), experiment.start_date, ...)`. The helper returns `{**saved_query, \"breakdownFilter\": {**(saved_query.get(\"breakdownFilter\") or {}), \"breakdowns\": metadata.get(\"breakdowns\") or []}}`. With a non-empty breakdowns list, `_strip_empty_breakdowns` leaves the breakdownFilter in place, so the hashed dict differs from the raw saved query and so does the identifier."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "Discovery computes the fingerprint over `merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata)`. Readers via `iter_metric_dicts`/`find_metric_dict` (products/experiments/backend/temporal/metric_resolution.py) compute the same dict as `merge_saved_metric_breakdowns(saved_query, link.metadata)` where `saved_query = link.saved_metric.query` — identical inputs (same saved query, same link metadata) yield a byte-identical merged dict and thus identical fingerprint. The API/chart path (serializer) now also fingerprints `merge_saved_metric_breakdowns(saved_metric['query'], saved_metric.get('metadata'))`, and the calculation activity builds its executed query the same way, all using the shared, unmodified `merge_saved_metric_breakdowns` function."
+          "evidence": "Discovery hashes `merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata)`. The reader resolution path `iter_metric_dicts` / `find_metric_dict` builds its dict with the same helper on the same inputs: `dicts.append(merge_saved_metric_breakdowns(saved_query, link.metadata))`. The chart/API fingerprint in the serializer also hashes `merge_saved_metric_breakdowns(saved_metric[\"query\"], saved_metric.get(\"metadata\"))`. The other fingerprint arguments (start_date, stats method, exposure_criteria, only_count_matured_users, excluded_variants) are unchanged in discovery and the serializer. Caveat: the `compute_metric_fingerprint` call sites inside the timeseries sync and cold-start fallback are not shown; I rely on them hashing the `find_metric_dict` output with the same experiment-level arguments, as the task states and as already works for metrics without breakdowns."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "In serializers.py: `saved_metric['query']['fingerprint'] = compute_metric_fingerprint(merge_saved_metric_breakdowns(saved_metric['query'], saved_metric.get('metadata')), ...)` — the identifier returned to the frontend is now computed from the merged (query + link metadata/breakdowns) config rather than the raw `saved_metric['query']`, matching the batch's identifier for breakdown-configured metrics."
+          "evidence": "In `ExperimentSerializer.to_representation`: `saved_metric[\"query\"][\"fingerprint\"] = compute_metric_fingerprint(merge_saved_metric_breakdowns(saved_metric[\"query\"], saved_metric.get(\"metadata\")), instance.start_date, get_experiment_stats_method(instance), instance.exposure_criteria, ...)`. This is the same merge helper the batch discovery uses. The serialized link carrying `metadata` is not shown directly, but the comment in activities.py says the frontend builds the breakdownFilter 'from the link metadata, via sharedMetricsToExperimentMetrics', which implies the API returns it."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "`merge_saved_metric_breakdowns` sets `breakdowns: metadata.get('breakdowns') or []` when metadata has no breakdowns, producing a `breakdownFilter` with an empty breakdowns list; `_strip_empty_breakdowns` in experiment_metric_fingerprint.py then removes such a breakdownFilter (`if isinstance(breakdown_filter, dict) and not breakdown_filter.get('breakdowns'): ... clean_metric.pop('breakdownFilter')`), yielding the same fingerprint as hashing the raw query directly — the same normalization already applied to readers, so no-breakdown metrics keep their prior identifier and remain matched by readers."
+          "evidence": "With no breakdowns the helper yields `\"breakdowns\": metadata.get(\"breakdowns\") or []`, i.e. an empty list. `compute_metric_fingerprint` then calls `_strip_empty_breakdowns`, which for `not breakdown_filter.get(\"breakdowns\")` either keeps only the remaining keys or does `clean_metric.pop(\"breakdownFilter\")`. The hashed dict is therefore identical to the raw saved query's, so the fingerprint is unchanged and still equals the one readers compute through the same helper."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "`merge_saved_metric_breakdowns(saved_query, metadata)` begins with `metadata = metadata or {}` and uses `metadata.get('breakdowns') or []`, so passing `None` metadata (or metadata missing the 'breakdowns' key) does not raise and yields the same empty-breakdowns result as metadata containing no breakdowns."
+          "evidence": "`merge_saved_metric_breakdowns` starts with `metadata = metadata or {}` and uses `metadata.get(\"breakdowns\") or []`, so None metadata and null breakdowns both give an empty list without raising. Callers pass possibly-None values safely: the serializer passes `saved_metric.get(\"metadata\")`, discovery passes `exp_to_saved_metric.metadata`, and the calculation activity passes `exp_to_sm.metadata or {}`."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "In `_calculate_experiment_saved_metric_sync`, the executed query is built as `{**merge_saved_metric_breakdowns(saved_metric.query, saved_metric_metadata), 'fingerprint': fingerprint}`, so the query actually run still has the link's breakdowns applied, and `fingerprint` (passed in from discovery, which used the same `merge_saved_metric_breakdowns` fingerprint) is attached to the computed result — the same merged-config identifier used at discovery time."
+          "evidence": "`_calculate_experiment_saved_metric_sync` builds `query = {**merge_saved_metric_breakdowns(saved_metric.query, saved_metric_metadata), \"fingerprint\": fingerprint}`, then `metric_obj = build_metric(query)` and `ExperimentQuery(experiment_id=experiment_id, metric=metric_obj)`. The computation therefore still runs with the link's breakdowns applied. The `fingerprint` argument is the one produced by discovery from the merged dict and is carried into the query and the `ExperimentSavedMetricResult`. The code that persists the result row is past the end of the shown excerpt, but the patch does not touch it."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 1,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "In `_get_experiment_saved_metrics_for_hour_sync` (posthog/temporal/experiments/activities.py), the fingerprint is now computed as `compute_metric_fingerprint(merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata), ...)`, deriving the identifier from the saved query merged with the per-experiment link's breakdowns instead of `saved_metric.query` alone. `merge_saved_metric_breakdowns` sets `breakdownFilter.breakdowns` from `metadata.get('breakdowns')`, so a link with breakdowns produces a different dict (and hash) than the raw query."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "Discovery computes the fingerprint over `merge_saved_metric_breakdowns(saved_metric.query, exp_to_saved_metric.metadata)`. Readers via `iter_metric_dicts`/`find_metric_dict` (products/experiments/backend/temporal/metric_resolution.py) compute the same dict as `merge_saved_metric_breakdowns(saved_query, link.metadata)` where `saved_query = link.saved_metric.query` — identical inputs (same saved query, same link metadata) yield a byte-identical merged dict and thus identical fingerprint. The API/chart path (serializer) now also fingerprints `merge_saved_metric_breakdowns(saved_metric['query'], saved_metric.get('metadata'))`, and the calculation activity builds its executed query the same way, all using the shared, unmodified `merge_saved_metric_breakdowns` function."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "In serializers.py: `saved_metric['query']['fingerprint'] = compute_metric_fingerprint(merge_saved_metric_breakdowns(saved_metric['query'], saved_metric.get('metadata')), ...)` — the identifier returned to the frontend is now computed from the merged (query + link metadata/breakdowns) config rather than the raw `saved_metric['query']`, matching the batch's identifier for breakdown-configured metrics."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "`merge_saved_metric_breakdowns` sets `breakdowns: metadata.get('breakdowns') or []` when metadata has no breakdowns, producing a `breakdownFilter` with an empty breakdowns list; `_strip_empty_breakdowns` in experiment_metric_fingerprint.py then removes such a breakdownFilter (`if isinstance(breakdown_filter, dict) and not breakdown_filter.get('breakdowns'): ... clean_metric.pop('breakdownFilter')`), yielding the same fingerprint as hashing the raw query directly — the same normalization already applied to readers, so no-breakdown metrics keep their prior identifier and remain matched by readers."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "`merge_saved_metric_breakdowns(saved_query, metadata)` begins with `metadata = metadata or {}` and uses `metadata.get('breakdowns') or []`, so passing `None` metadata (or metadata missing the 'breakdowns' key) does not raise and yields the same empty-breakdowns result as metadata containing no breakdowns."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "In `_calculate_experiment_saved_metric_sync`, the executed query is built as `{**merge_saved_metric_breakdowns(saved_metric.query, saved_metric_metadata), 'fingerprint': fingerprint}`, so the query actually run still has the link's breakdowns applied, and `fingerprint` (passed in from discovery, which used the same `merge_saved_metric_breakdowns` fingerprint) is attached to the computed result — the same merged-config identifier used at discovery time."
+          }
+        ]
+      }
     }
   },
   "result": "The overnight saved-metrics job now fingerprints each saved metric using the saved query merged with the breakdowns on its experiment link, the same way the readers do. Nothing was run (per your instructions, and `ruff` isn't installed here), so this is untested.\n\n## What was wrong\n\n`_get_experiment_saved_metrics_for_hour_sync` in `posthog/temporal/experiments/activities.py` hashed the raw `saved_metric.query`. The timeseries sync, cold-start fallback and recalculation results hash the dict from `find_metric_dict`, which merges in the link's breakdowns. With no breakdowns the two hashes match, but with real breakdowns they differ, so the rows were written under a key no reader looked up.\n\n## Changes\n\n- **`posthog/temporal/experiments/activities.py`**: discovery hashes the merged query. The calculation activity builds its query with the same helper instead of a hand-copied merge.\n- **`products/experiments/backend/temporal/metric_resolution.py`**: `_merge_saved_metric_breakdowns` is now public as `merge_saved_metric_breakdowns`.\n- **`products/experiments/backend/presentation/serializers.py`**: the fingerprint the API returns for saved metrics is now computed on the merged query too. See the note below.\n- **`products/experiments/backend/hogql_queries/experiment_metric_fingerprint.py`**: refreshed a docstring that described the old raw-query behavior.\n- **`products/experiments/backend/temporal/test_discovery_fingerprints.py`**: the existing discovery-vs-`find_metric_dict` test is now parameterized over a link with no breakdowns and a link with breakdowns. The breakdown case fails on the old code.\n\n## One addition beyond the request\n\nThe serializer change was not in your description, but I think it is required. The frontend uses the serializer's fingerprint to fetch the timeseries chart and sends it in the `/query` body, which the activity mirrors to warm the response cache. Left on the raw query, both would stop matching the overnight job for saved metrics with breakdowns.\n\n## Rollout effect\n\nFor saved metrics with per-experiment breakdowns only, the fingerprint changes once. Their existing timeseries rows sit under the old fingerprint, so the timeseries chart for those metrics shows no history until the next overnight run or a timeseries recalculation. Metrics without breakdowns keep the same fingerprint.\n\nI did not add a serializer-level test or regenerate OpenAPI types; the response shape is unchanged.",

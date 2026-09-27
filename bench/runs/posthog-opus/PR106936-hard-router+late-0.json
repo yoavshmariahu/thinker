@@ -38,56 +38,112 @@
   "grade": {
     "error": "judge failed: ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"8e1727c2-9042-4688-a137-c54688c5027c\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"46098e75-fea9-4350-9bea-b024eae62d00\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\" | ERR claude -p exited 1:  {\"duration_api_ms\":0,\"stop_reason\":\"stop_sequence\",\"session_id\":\"6d842b97-03e3-4c5a-882d-863d5b1a5a63\",\"total_cost_usd\":0,\"usage\":{\"output_tokens_details\":{\"thinking_tokens\":0},\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"",
     "criteria": {
+      "judge": "fable",
       "essential": 0.8333333333333334,
       "all": 0.6666666666666666,
+      "extra": 0.3333333333333333,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "InviteRow: `className={`error-on-blur${!invitesToSend[index]?.isValid || rowError ? ' errored' : ''}`}` with `rowError = inviteRowErrors[index]`; inviteRowErrors returns EXISTING_MEMBER_ROW_ERROR when `memberEmails.has(email)`. Depends on members being loaded (see c5)."
+          "evidence": "InviteRow (used by the settings invite dialog) now reads `const rowError = inviteRowErrors[index]` and applies error styling to the email input: `className={`error-on-blur${!invitesToSend[index]?.isValid || rowError ? ' errored' : ''}`}`. `inviteRowErrors` is a selector over `invitesToSend`, `members`, `user` returning `memberEmails.has(email) ? EXISTING_MEMBER_ROW_ERROR : null`, so it is computed while typing, before submit. Caveats: only the error styling is applied; the message text itself is not rendered in the row in the code shown, and the flag depends on `membersLogic.members` being populated (see c5)."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "inviteRowErrors: `if (ownEmail && email === ownEmail) { return SELF_INVITE_ROW_ERROR }`, using user from userLogic; row gets the errored class."
+          "evidence": "In `inviteRowErrors`: `const ownEmail = user?.email?.toLowerCase()` and `if (ownEmail && email === ownEmail) { return SELF_INVITE_ROW_ERROR }`. That value feeds the same `rowError` that sets the `errored` class on the row, and the same `firstInviteRowError` that blocks `canSubmit`."
         },
         {
           "id": "c3",
           "verdict": "not_met",
-          "evidence": "Only canSubmit gains `!firstInviteRowError`. No UI change passes a disabledReason (about removing existing members) to the submit button, and the onboarding step and per-row send button are untouched in the patch. firstInviteRowError is defined but no consumer is shown."
+          "evidence": "The patch only adds `!firstInviteRowError &&` to the `canSubmit` selector, so submit is blocked, but no component consumes `firstInviteRowError` or the row error to give a reason. The only component change is the `className` on the email input in InviteRow. No submit button in InviteModal.tsx or the onboarding invite step was changed to set a disabled reason about removing people who are already members, and the per-row send control was not changed to be disabled for a flagged row."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "`const email = target_email.trim().toLowerCase()` compared against `member.user.email.toLowerCase()` in a Set."
+          "evidence": "`const email = target_email.trim().toLowerCase()` is compared against `new Set((members ?? []).map((member) => member.user.email.toLowerCase()).filter(Boolean))`. ' Rose.Dawson@PostHog.com' becomes 'rose.dawson@posthog.com' and matches."
         },
         {
           "id": "c5",
           "verdict": "unclear",
-          "evidence": "The patch adds no explicit loadMembers on modal open; it only connects `members` from membersLogic. Whether that selector lazily loads is not visible. The own-email check does work without member data (`(members ?? [])`, user check independent)."
+          "evidence": "The own-email half holds: `(members ?? [])` plus `if (ownEmail && email === ownEmail)` works with `members` null. For the fetch half, the patch only connects the value: `values: [preflightLogic, ['preflight'], membersLogic, ['members'], userLogic, ['user']]`. No action such as loading members is dispatched on `showInviteModal` or on mount. Whether members get fetched depends on `membersLogic` internals (e.g. a lazy loader or afterMount), which are not shown."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "The existing-member check moved from create() to validate_target_email (`validate_invite_target_email_is_invitable`), which runs during serializer validation before any row is saved, so no invites from the batch are created or emailed."
+          "evidence": "The existing-member check moved out of `create()` (removed block `if OrganizationMembership.objects.filter(...).exists(): raise exceptions.ValidationError(...)`) into `validate_target_email`, which calls `validate_invite_target_email_is_invitable(organization_id=..., inviter=..., email=email)`. Field validation runs for every row during `is_valid` before any `create()`, so no invite is created or emailed (`send_invite` is only in `create`). A ValidationError yields a 400. The bulk view itself is not shown; the existing `first_bulk_invite_error(errors)` helper for many=True errors indicates it validates the whole batch before saving."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=EXISTING_ORGANIZATION_MEMBER_CODE)` raised inside validate_target_email, so it is a field-level error on target_email with code 'existing_organization_member'."
+          "evidence": "Raised from the field validator `validate_target_email`, so it is attributed to `target_email`: `raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=EXISTING_ORGANIZATION_MEMBER_CODE)` with `EXISTING_ORGANIZATION_MEMBER_CODE = \"existing_organization_member\"`. For bulk, `first_bulk_invite_error` re-raises `exceptions.ValidationError(row_errors)` with the per-row dict, which keeps the field key and the ErrorDetail code."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "shouldReportApiFailure: `if (status === 400 && failure.code != null && HANDLED_VALIDATION_CODES.has(failure.code)) { return false }`; other statuses and codes still fall through to `return !isApprovalRequiredError(failure)` / true."
+          "evidence": "`shouldReportApiFailure` now has `if (status === 400 && failure.code != null && HANDLED_VALIDATION_CODES.has(failure.code)) { return false }`, where the set contains `'self_invite'` and `'existing_organization_member'`, matching the backend codes. Other 400s and 500s fall through to `return !isApprovalRequiredError(failure)` and are still reported. `ApiError.code` is populated from `data?.code`. The call site that consults `shouldReportApiFailure` for loader failures is not shown, but the function is the documented reporting gate."
         },
         {
           "id": "c9",
           "verdict": "not_met",
-          "evidence": "No listener in inviteLogic reacts to inviteTeamMembersFailure to reload members; listeners only handle inviteTeamMembersSuccess and addProjectAccess."
+          "evidence": "The `listeners` block in inviteLogic contains only `inviteTeamMembersSuccess` and `addProjectAccess`. There is no `inviteTeamMembersFailure` listener or any other code that reloads members (e.g. a `membersLogic` load action) when the server rejects with `existing_organization_member`; inviteLogic connects only `values` from membersLogic, no actions."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8333333333333334,
+        "all": 0.6666666666666666,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "InviteRow: `className={`error-on-blur${!invitesToSend[index]?.isValid || rowError ? ' errored' : ''}`}` with `rowError = inviteRowErrors[index]`; inviteRowErrors returns EXISTING_MEMBER_ROW_ERROR when `memberEmails.has(email)`. Depends on members being loaded (see c5)."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "inviteRowErrors: `if (ownEmail && email === ownEmail) { return SELF_INVITE_ROW_ERROR }`, using user from userLogic; row gets the errored class."
+          },
+          {
+            "id": "c3",
+            "verdict": "not_met",
+            "evidence": "Only canSubmit gains `!firstInviteRowError`. No UI change passes a disabledReason (about removing existing members) to the submit button, and the onboarding step and per-row send button are untouched in the patch. firstInviteRowError is defined but no consumer is shown."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "`const email = target_email.trim().toLowerCase()` compared against `member.user.email.toLowerCase()` in a Set."
+          },
+          {
+            "id": "c5",
+            "verdict": "unclear",
+            "evidence": "The patch adds no explicit loadMembers on modal open; it only connects `members` from membersLogic. Whether that selector lazily loads is not visible. The own-email check does work without member data (`(members ?? [])`, user check independent)."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "The existing-member check moved from create() to validate_target_email (`validate_invite_target_email_is_invitable`), which runs during serializer validation before any row is saved, so no invites from the batch are created or emailed."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=EXISTING_ORGANIZATION_MEMBER_CODE)` raised inside validate_target_email, so it is a field-level error on target_email with code 'existing_organization_member'."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "shouldReportApiFailure: `if (status === 400 && failure.code != null && HANDLED_VALIDATION_CODES.has(failure.code)) { return false }`; other statuses and codes still fall through to `return !isApprovalRequiredError(failure)` / true."
+          },
+          {
+            "id": "c9",
+            "verdict": "not_met",
+            "evidence": "No listener in inviteLogic reacts to inviteTeamMembersFailure to reload members; listeners only handle inviteTeamMembersSuccess and addProjectAccess."
+          }
+        ]
+      }
     }
   },
   "result": "You've hit your session limit · resets 8:40pm (America/Los_Angeles)",

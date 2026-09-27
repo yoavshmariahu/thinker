@@ -52,51 +52,101 @@
       "products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx"
     ],
     "criteria": {
-      "essential": 0.8,
-      "all": 0.875,
+      "judge": "fable",
+      "essential": 0.6,
+      "all": 0.625,
       "pass": false,
       "results": [
         {
           "id": "c1",
-          "verdict": "met",
-          "evidence": "In insightLogic.tsx's duplicateInsight listener: `if (redirectToInsight) { router.actions.push(urls.insightEdit(newInsight.short_id)); const sceneLayout = sceneLayoutLogic.findMounted(); const mainContentWidth = sceneLayout?.values.mainContentRect?.width; if (sceneLayout?.values.scenePanelOpenManual && !(mainContentWidth && mainContentWidth >= SCENE_PANEL_INLINE_MIN_WIDTH)) { sceneLayout.actions.setScenePanelOpen(false) } }`. When the panel is manually open and the main content width is below the 1200px inline threshold (i.e. the panel is overlaying), it is explicitly closed after redirecting."
+          "verdict": "unclear",
+          "evidence": "The close is gated on a width heuristic, not on the panel's actual overlay state: `if (sceneLayout?.values.scenePanelOpenManual && !(mainContentWidth && mainContentWidth >= SCENE_PANEL_INLINE_MIN_WIDTH)) { sceneLayout.actions.setScenePanelOpen(false) }`. Whether this matches the overlay presentation depends on code not shown. The 1200 breakpoint is only asserted by a comment (\"Keep in sync with the `@[1200px]/main-content-container` classes in Navigation.tsx\"), and Navigation.tsx is not provided. The `setScenePanelOpen` reducer/listeners are not shown either. `scenePanelOpen` is derived from `(scenePanelOpenManual, sidePanelOpen, selectedTab)`, so a panel open via the side panel path with `scenePanelOpenManual` false would not be closed. The new test mentioned in the summary is not in the patch."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "`lemonToast.success('Insight duplicated')` fires before the redirect block, and `router.actions.push(urls.insightEdit(newInsight.short_id))` executes unconditionally when `redirectToInsight` is true, before the panel-close logic runs. Neither the success toast nor the redirect is gated on or replaced by the panel-closing code."
+          "evidence": "The success toast and redirect still run, before and independent of the panel close: `lemonToast.success('Insight duplicated')` then `if (redirectToInsight) { router.actions.push(urls.insightEdit(newInsight.short_id)) ...`. The close happens after the push and does not replace it."
         },
         {
           "id": "c3",
-          "verdict": "met",
-          "evidence": "The close condition is `!(mainContentWidth && mainContentWidth >= SCENE_PANEL_INLINE_MIN_WIDTH)`; when `mainContentWidth >= 1200` (docked/wide presentation) this negation is false, so `setScenePanelOpen(false)` is never called and the panel remains open."
+          "verdict": "unclear",
+          "evidence": "When the width is known and >= 1200 the close is skipped: `!(mainContentWidth && mainContentWidth >= SCENE_PANEL_INLINE_MIN_WIDTH)`. Whether 1200px of main content width is really the docked/overlay boundary depends on Navigation.tsx, which is not shown. Also, if `mainContentRect` is null or width is 0, the condition is true and the panel is closed regardless of presentation, so a docked panel could be closed in that case."
         },
         {
           "id": "c4",
           "verdict": "not_met",
-          "evidence": "`ResourceTransferLogicProps` still only has `resourceKind: string; resourceId: string}` and `paramsToProps: ({ params: { resourceKind, resourceId } }) => ({ resourceKind, resourceId })` is unchanged — no short identifier is carried through navigation/URL params. Instead, `resourceTransferLogic` derives the short id after the page mounts via a separate API call: `loadInsightShortId: async () => { const insight = await insightsApi.getByNumericId(Number(logicProps.resourceId)); return insight?.short_id ?? null }`. Navigating to the transfer page does not itself carry the insight's short identifier alongside the numeric one; it is fetched afterward from the numeric id alone."
+          "evidence": "No navigation or URL to the transfer page is changed in the patch. The scene still receives only `paramsToProps: ({ params: { resourceKind, resourceId } }) => ({ resourceKind, resourceId })` and `ResourceTransferLogicProps` still has only `resourceKind` and `resourceId`. The short ID is not carried; it is fetched afterwards via `insightsApi.getByNumericId(Number(logicProps.resourceId))`."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "`sourceResourceUrl` selector: `case 'Insight': return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()`, and `ResourceTransfer.tsx` uses `forceBackTo={{ ... path: sourceResourceUrl, ... }}`. Back now resolves to `urls.insightView(shortId)`, the same short-id-based URL form used elsewhere to open insights, instead of a numeric-ID-based URL."
+          "evidence": "The Back path now comes from the selector: `case 'Insight': return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()`, with `insightShortId` loaded on mount: `afterMount(... if (logicProps.resourceKind === 'Insight') { actions.loadInsightShortId() })` and `return insight?.short_id ?? null`. The component uses `path: sourceResourceUrl`. The numeric ID is no longer passed to `urls.insightView`. Caveats: until the lookup resolves, Back points to the insights list, and `insightsApi.getByNumericId` is not shown in the provided code."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "`return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()` — when no short id is available (e.g. lookup fails/returns null), Back falls back to `urls.savedInsights()` (the insights list) rather than building an insight URL from the numeric id."
+          "evidence": "`return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()`. The initial value is `null as InsightShortId | null` and the loader returns `insight?.short_id ?? null`, so a missing or failed lookup yields the insights list."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "The switch retains `case 'Dashboard': return urls.dashboard(resourceId)` and `case 'Survey': return urls.survey(resourceId)`, both numeric-ID-based and unchanged from before. `afterMount(({ actions, props: logicProps }) => { if (logicProps.resourceKind === 'Insight') { actions.loadInsightShortId() } })` means the extra short-id lookup only happens for Insight kind, so non-insight transfer flows gain no extra identifier parameter."
+          "evidence": "`case 'Dashboard': return urls.dashboard(resourceId)` and `case 'Survey': return urls.survey(resourceId)` are unchanged, with `default: return urls.projectHomepage()`. The patch changes no transfer URL builders, so no extra parameter is added for any kind. The short-ID lookup only runs for `resourceKind === 'Insight'`."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "`<LemonCard hoverEffect={false} className=\"p-6 @container\"><div className=\"flex flex-col gap-3 items-start @md:flex-row\">` — the card establishes a container-query context and defaults to `flex-col` (stacked), only switching to `flex-row` (illustration beside text) once the container reaches the `@md` container breakpoint, so in a narrow modal the layout stacks vertically instead of placing the illustration beside the text."
+          "evidence": "The featured card becomes a container and the row stacks by default: `<LemonCard hoverEffect={false} className=\"p-6 @container\">` and `<div className=\"flex flex-col gap-3 items-start @md:flex-row\">`. The illustration sits beside the text only when the card itself is at least the `@md` container width; below that it stacks vertically. The card's width follows the modal's. Container-query syntax is already used in the repo per the `@[1200px]/main-content-container` reference. Not visually verified."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8,
+        "all": 0.875,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "In insightLogic.tsx's duplicateInsight listener: `if (redirectToInsight) { router.actions.push(urls.insightEdit(newInsight.short_id)); const sceneLayout = sceneLayoutLogic.findMounted(); const mainContentWidth = sceneLayout?.values.mainContentRect?.width; if (sceneLayout?.values.scenePanelOpenManual && !(mainContentWidth && mainContentWidth >= SCENE_PANEL_INLINE_MIN_WIDTH)) { sceneLayout.actions.setScenePanelOpen(false) } }`. When the panel is manually open and the main content width is below the 1200px inline threshold (i.e. the panel is overlaying), it is explicitly closed after redirecting."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "`lemonToast.success('Insight duplicated')` fires before the redirect block, and `router.actions.push(urls.insightEdit(newInsight.short_id))` executes unconditionally when `redirectToInsight` is true, before the panel-close logic runs. Neither the success toast nor the redirect is gated on or replaced by the panel-closing code."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "The close condition is `!(mainContentWidth && mainContentWidth >= SCENE_PANEL_INLINE_MIN_WIDTH)`; when `mainContentWidth >= 1200` (docked/wide presentation) this negation is false, so `setScenePanelOpen(false)` is never called and the panel remains open."
+          },
+          {
+            "id": "c4",
+            "verdict": "not_met",
+            "evidence": "`ResourceTransferLogicProps` still only has `resourceKind: string; resourceId: string}` and `paramsToProps: ({ params: { resourceKind, resourceId } }) => ({ resourceKind, resourceId })` is unchanged — no short identifier is carried through navigation/URL params. Instead, `resourceTransferLogic` derives the short id after the page mounts via a separate API call: `loadInsightShortId: async () => { const insight = await insightsApi.getByNumericId(Number(logicProps.resourceId)); return insight?.short_id ?? null }`. Navigating to the transfer page does not itself carry the insight's short identifier alongside the numeric one; it is fetched afterward from the numeric id alone."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "`sourceResourceUrl` selector: `case 'Insight': return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()`, and `ResourceTransfer.tsx` uses `forceBackTo={{ ... path: sourceResourceUrl, ... }}`. Back now resolves to `urls.insightView(shortId)`, the same short-id-based URL form used elsewhere to open insights, instead of a numeric-ID-based URL."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "`return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()` — when no short id is available (e.g. lookup fails/returns null), Back falls back to `urls.savedInsights()` (the insights list) rather than building an insight URL from the numeric id."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "The switch retains `case 'Dashboard': return urls.dashboard(resourceId)` and `case 'Survey': return urls.survey(resourceId)`, both numeric-ID-based and unchanged from before. `afterMount(({ actions, props: logicProps }) => { if (logicProps.resourceKind === 'Insight') { actions.loadInsightShortId() } })` means the extra short-id lookup only happens for Insight kind, so non-insight transfer flows gain no extra identifier parameter."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "`<LemonCard hoverEffect={false} className=\"p-6 @container\"><div className=\"flex flex-col gap-3 items-start @md:flex-row\">` — the card establishes a container-query context and defaults to `flex-col` (stacked), only switching to `flex-row` (illustration beside text) once the container reaches the `@md` container breakpoint, so in a narrow modal the layout stacks vertically instead of placing the illustration beside the text."
+          }
+        ]
+      }
     }
   },
   "result": "All three fixes are in place. Nothing was run (per your instructions) apart from the formatter, so the new test and the type check are unverified.\n\n## What changed\n\n**1. Sidebar closes after duplicating on a narrow screen**\n- In `frontend/src/scenes/insights/insightLogic.tsx`, after duplicating and redirecting to the copy, the actions sidebar now closes if it is overlaying the scene.\n- \"Narrow\" means the main content area is under 1200px, which is the width where the panel switches from sitting beside the scene to covering it. On wider screens the panel stays open as before.\n- If the width is not known yet, the panel closes.\n- I added the 1200px value as a constant in `sceneLayoutLogic.tsx`. It duplicates the breakpoint in the `Navigation.tsx` class names, so the two need to be kept in sync by hand.\n- Added one parameterized test in `insightLogic.test.ts` covering the narrow (closes) and wide (stays open) cases.\n\n**2. Back link on the transfer page**\n- The transfer URL carries the insight's numeric ID, which the transfer API needs, but the insight page only loads by short ID. The old Back link passed the numeric ID straight into the insight URL.\n- `resourceTransferLogic.ts` now looks up the insight by numeric ID when the page opens and builds the Back link from its short ID.\n- Until that lookup finishes, or if it fails, Back goes to the saved insights list.\n- This costs one extra request on the transfer page for insights. Dashboard and survey links are unchanged.\n\n**3. Subscriptions empty-state card in a narrow modal**\n- In `SubscriptionOverviewComponents.tsx`, the featured empty-state card now stacks the illustration above the text by default and only places them side by side once the card itself is at least about 448px wide.\n- It responds to the card's own width rather than the window's, so it adapts to the modal. I did not render it to check visually.",

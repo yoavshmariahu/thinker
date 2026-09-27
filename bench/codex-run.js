@@ -20,8 +20,10 @@ const OUT = path.join(HERE, 'runs', TAG);
 const CLI = path.join(ROOT, 'src', 'cli.js');
 const CACHE_GUIDANCE = 'Context injected as <thinker-cache> comes from a cache of notes about this repository whose code dependencies are verified against the current code when served. Use it to skip re-deriving what it states.';
 const CACHE_ARM_GUIDANCE = 'This repository has a thinker knowledge cache from previous sessions. Use the supplied <thinker-cache> notes to skip re-deriving what they state; only search/read to confirm or fill gaps. Treat notes marked STALE as unverified.';
-const tasks = JSON.parse(fs.readFileSync(TASKS, 'utf8')).tasks;
-fs.mkdirSync(OUT, { recursive: true });
+// BENCH_ONLY=id,id limits the run to those tasks
+const ONLY = (process.env.BENCH_ONLY || '').split(',').filter(Boolean);
+const tasks = JSON.parse(fs.readFileSync(TASKS, 'utf8')).tasks.filter(t => !ONLY.length || ONLY.includes(t.id));
+fs.mkdirSync(path.join(OUT, 'events'), { recursive: true });
 
 function makeWorktree(i) {
   const wt = path.join(HERE, 'worktrees', `${TAG}-${i}`);
@@ -135,6 +137,8 @@ async function worker(wi) {
       run.api_ms = null;
       run.grade = null;
       run.diff = task.type === 'change' ? getDiff(cwd) : null;
+      // the session is ephemeral, so this stream is the only record of what the agent did
+      fs.writeFileSync(path.join(OUT, 'events', `${id}.jsonl`), run.raw_events.map(e => JSON.stringify(e)).join('\n'));
       delete run.raw_events;
       fs.writeFileSync(file, JSON.stringify(run, null, 2));
       console.log(`${id}: turns=${run.turns} tools=${run.tools.calls} injected=${run.tools.injected.length} ${(run.wall_ms / 1000).toFixed(0)}s in=${run.in_tokens} out=${run.out_tokens}`);

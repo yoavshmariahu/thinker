@@ -6,12 +6,12 @@ short notes keyed to the code they describe, and serves the relevant ones
 into each request. When the code under a note changes, the note is flagged
 stale and re-verified.
 
-**With Claude Fable on real tasks, the cache solved more tasks and spent
-less doing it.**
+**With Claude Fable on real tasks, the cache raised the correctness score
+and lowered the cost.**
 
 ```
-runs fully correct   without thinker  █████████░░░░░░░░░░░   9/20
-                     with thinker     ██████████████░░░░░░  14/20   +5 runs
+correctness score    without thinker  ████████████████░░░░  0.80
+                     with thinker     ██████████████████░░  0.89   +0.08
 
 input tokens         without thinker  ████████████████████  1.25M
                      with thinker     ████████████████░░░░  1.02M   -18%
@@ -50,12 +50,12 @@ Notes:
 
 ## Benchmarks
 
-### Fable with thinker: more tasks solved, fewer tokens spent
+### Fable with thinker: higher correctness score, fewer tokens spent
 
 | | without thinker | with thinker | change |
 |---|---|---|---|
-| **Runs fully correct** (every essential criterion met) | 9 of 20 | **14 of 20** | **+5 runs, 45% → 70%** |
-| **Essential criteria met** | 0.79 | **0.89** | **+0.10** |
+| **Correctness score** (share of essential criteria met) | 0.80 | **0.89** | **+0.08** |
+| **Thoroughness** (share of the further criteria met) | 0.28 | 0.34 | +0.06 |
 | **Input tokens per task** | 1.25M | **1.02M** | **-18%** |
 | **Cost per task** | $2.72 | **$2.45** | **-10%** |
 | **Tool calls per task** | 18.1 | **14.9** | **-17%** |
@@ -63,12 +63,17 @@ Notes:
 
 - **Cheaper in 15 of 20 paired runs.** The same task and seed cost less with
   the cache three times out of four.
-- **7 runs went from failing to fully correct;** 2 went the other way.
+- **Correctness rose in 6 of 20 pairs** and fell in 2; 12 scored the same.
+  Every essential criterion was met in 12 of 20 runs with the cache and 9
+  of 20 without.
+- **Thoroughness is low with or without the cache.** The patches fix what
+  was asked and handle about a third of the further edge cases the merged
+  patch covered. The cache does not change that measurably.
 - **Both directions at once.** The agent spends less time finding the code
   and gets more of the fix right.
-- **Better than Opus at about half the price.** On the three tasks run on
-  every model, Fable with the cache met every essential criterion at $2.27
-  per task. Opus without it met 0.95 at $4.26.
+- **As correct as Opus at about half the price.** On the seven tasks run
+  on both, Fable with the cache scored 0.83 at $2.37 per task. Opus without
+  it scored 0.83 at $4.54, and was more thorough: 0.43 against 0.33.
 
 ### What was measured
 
@@ -79,21 +84,30 @@ and without the cache as a pair, same task and seed, and graded on
 behavioural criteria calibrated against the merged patch. 20 pairs, all
 graded.
 
+Claude Fable is the judge. It reads each patch with the code around it and
+decides, criterion by criterion, whether the behaviour is there.
+**Correctness**, the key metric, is the share of the essential criteria a
+patch meets: the ones without which the request is not fulfilled.
+**Thoroughness** is the share of the remaining criteria: edge cases and
+hardening the merged patch also handled.
+
 This is transfer, not recall: notes come from other sessions and pull
 requests, never from the task being evaluated.
 
 How sure the numbers are: the cost saving is $0.28 ±0.12 per run, a little
-over two standard errors. The gain in criteria met is +0.10 ±0.08, about one
-standard error, so with 20 pairs it is a consistent direction rather than a
-settled effect size. No prompt-only control was run on Fable.
+over two standard errors. The gain in correctness is +0.08 ±0.06, a little
+over one standard error, so with 20 pairs it is a consistent direction
+rather than a settled effect size. The change in thoroughness, +0.06 ±0.06,
+is within one standard error. No prompt-only control was run on Fable.
 
 ### Other models, same tasks
 
 | model | cost per task, no cache | effect of the cache |
 |---|---|---|
-| **Fable** | $2.72 | **18% fewer input tokens, 10% lower cost, 14 of 20 runs fully correct instead of 9** |
-| Opus | $4.54 | no change in cost or success |
-| Sonnet | $0.41 | 2 to 9% fewer input tokens, success unchanged |
+| **Fable** | $2.72 | **18% fewer input tokens, 10% lower cost, correctness 0.89 instead of 0.80** |
+| **Gemini 3.8 Flash** | — | **10% fewer input tokens, 8% faster, 8% fewer tool calls (cheaper/faster in 71% of pairs); strict pass 50% vs 43% (graded by Fable)** |
+| Opus | $4.54 | no change in cost or correctness |
+| Sonnet | $0.41 | 2 to 9% fewer input tokens, correctness unchanged (graded by Sonnet; not yet regraded by Fable) |
 
 On requests that name the code involved, Sonnet used 27% fewer turns and 32%
 fewer input tokens with the cache at equal success.

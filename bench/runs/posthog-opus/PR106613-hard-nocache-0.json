@@ -45,36 +45,72 @@
       "products/ml_inference/manifest.tsx"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 1,
       "all": 0.75,
+      "extra": 0,
       "pass": true,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "manifest routes and products.tsx productRoutes now have `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']`, same scene as before."
+          "evidence": "The new path is registered against the same scene in both the manifest and the generated aggregate: `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],` appears in `products/ml_inference/manifest.tsx` routes and in `frontend/src/products.tsx` productRoutes. The scene still imports `./frontend/DecisionPlaygroundScene`."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "The old key `'/ml-inference/decisions'` was replaced in both manifest.tsx and products.tsx; no route entry remains for it in the shown code, and `redirects: {}` is empty."
+          "evidence": "The old route key is removed in both files: `-    '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],`. After the patch the manifest's `routes` contains only `'/ml-inference/playground'`, and `redirects: {}` is empty, so nothing shown serves the old path."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "Both `urls.decisionPlayground` (manifest) and `productUrls.decisionPlayground` return '/ml-inference/playground'. The author reports the only call site uses urls.decisionPlayground() and a repo search for the old path returns nothing. The shown code doesn't let me verify that search, but the URL builders are correct."
+          "evidence": "The URL builder now returns the new address in both places: `decisionPlayground: (): string => '/ml-inference/playground',` in `productUrls` and in the manifest `urls`. The manifest declares no menu entries (`treeItemsNew: []`, `treeItemsProducts: []`), so anything navigating via `urls.decisionPlayground()` lands on the new route, which maps to the same `DecisionPlayground` scene. Caveat: the absence of hardcoded `/ml-inference/decisions` strings elsewhere in the app rests on the author's search claim and is not visible in the code shown."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "Only the route path strings and URL builders changed. The scene import, name, description, layout and the DecisionPlayground scene key are unchanged."
+          "evidence": "The patch changes only route keys and URL strings. The scene definition is untouched: `DecisionPlayground: { import: () => import('./frontend/DecisionPlaygroundScene'), projectBased: true, name: 'Decisions playground', ... layout: 'app-container' }`. No scene, logic or component file appears in the diff."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "`redirects: {}` remains empty in manifest.tsx. The author admits the old address now 404s and no redirect was added."
+          "evidence": "No redirect from the old address was added: the manifest after the patch still has `redirects: {},` and the diff adds no redirect entry in `frontend/src/products.tsx`. The old route is simply removed, so `/ml-inference/decisions` falls through to not-found. The author's summary confirms this: \"The old address now 404s rather than redirecting\"."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 0.75,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "manifest routes and products.tsx productRoutes now have `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']`, same scene as before."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "The old key `'/ml-inference/decisions'` was replaced in both manifest.tsx and products.tsx; no route entry remains for it in the shown code, and `redirects: {}` is empty."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "Both `urls.decisionPlayground` (manifest) and `productUrls.decisionPlayground` return '/ml-inference/playground'. The author reports the only call site uses urls.decisionPlayground() and a repo search for the old path returns nothing. The shown code doesn't let me verify that search, but the URL builders are correct."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "Only the route path strings and URL builders changed. The scene import, name, description, layout and the DecisionPlayground scene key are unchanged."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "`redirects: {}` remains empty in manifest.tsx. The author admits the old address now 404s and no redirect was added."
+          }
+        ]
+      }
     }
   },
   "result": "## What changed\n\nTwo files, four lines — the route and the URL builder for the decisions playground now say `/ml-inference/playground`:\n\n- `products/ml_inference/manifest.tsx:15` — route key `'/ml-inference/decisions'` → `'/ml-inference/playground'`, still mapped to the same scene (`DecisionPlayground`) and the same URL key (`decisionPlayground`).\n- `products/ml_inference/manifest.tsx:19` — `urls.decisionPlayground()` returns the new path.\n- `frontend/src/products.tsx:221` and `:1498` — the generated aggregate of all product manifests, carrying the same two changes. It's a tracked, generated file (\"Generated by build-products.mjs – DO NOT EDIT BY HAND\"), so it has to move with the manifest or the app would keep serving the old path.\n\nNothing else in the repo needed touching, and I checked for it:\n\n- Every in-app link goes through `urls.decisionPlayground()` (the only call site is `DecisionPlayground.stories.tsx:55`), so links follow the manifest automatically. The playground has no nav/menu entry of its own — `treeItemsNew` and `treeItemsProducts` are empty and it's reached by URL behind the `ml-inference-decisions` flag.\n- A repo-wide search for `ml-inference/decisions` (all file types, excluding `node_modules`/`.git`) now returns nothing — no snapshots, Playwright specs, docs, or Python references.\n- The backend API route `ml_inference/decisions` (`products/ml_inference/backend/routes.py:7`) and the `ml-inference-decisions` feature flag key are untouched on purpose: those are the API path and a flag key, not the page address, and renaming either would change behavior.\n\nNo test added. The natural candidate — asserting the route resolves to the scene, like `products/workflows/frontend/Broadcasts/broadcastsRoutes.test.ts` — exists there because tab segments can shadow a `/:id` route. ML inference has one static route with no such ambiguity, so the test would only restate the constant it's next to, which the `/writing-tests` gate rules out. The existing `decisionPlaygroundLogic.test.ts` covers request building and is unaffected.\n\nTwo things to note:\n\n- I didn't run typecheck or the generator: `node_modules` isn't installed here and you asked me not to install dependencies. `frontend/build-products.mjs` failed with `ERR_MODULE_NOT_FOUND` for that reason, so `products.tsx` was updated to exactly the lines the generator emits from the manifest rather than by running it. Worth a `pnpm --filter=@posthog/frontend build:products` diff check when deps are available; it should come back clean.\n- The old address now 404s rather than redirecting, which matches \"instead of\". If you'd rather keep old bookmarks working, the manifest's `redirects` map is the place for a one-line `'/ml-inference/decisions': '/ml-inference/playground'` — say the word and I'll add it.",
