@@ -61,19 +61,15 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.85,
   "status": "fresh",
-  "uses": 38,
+  "uses": 44,
   "related": [
     "places-that-must-compute-the-same-metric-fingerprint-saved-v",
     "experiment-metric-fingerprints-computation-and-call-sites",
     "experiment-metric-identity-uuid-vs-config-fingerprint",
     "map-an-experimentholdout-onto-flag-filters-via-apply-holdout"
   ],
-  "lastUsed": "2026-09-27T16:07:07.453Z",
+  "lastUsed": "2026-09-27T19:32:06.156Z",
   "servedIn": [
-    "0f544b05-7ebd-4b31-867b-086e7019dd17",
-    "bc7bdba1-1b39-43a1-acd9-79de7ec24874",
-    "dc57c855-9d09-4ae7-80f5-246632cf3126",
-    "94c4f715-51d3-47f5-84dd-cce53a15f20e",
     "7509243b-8859-4cf6-a36d-f2a353754833",
     "983841c6-448d-4c99-8bfd-b5c7d3ee8fd7",
     "b1480431-e51f-41d1-99be-1bdab52e1970",
@@ -99,6 +95,10 @@
     "codex-posthog-codex-gpt6-sol-PR106672-hard-0",
     "codex-posthog-codex-gpt6-sol-PR105887-hard-0",
     "codex-posthog-codex-gpt6-sol-PR106672-hard-1",
-    "codex-posthog-codex-gpt6-sol-PR105887-hard-1"
+    "codex-posthog-codex-gpt6-sol-PR105887-hard-1",
+    "probe-PR106672-hard",
+    "probe-PR105887-hard",
+    "probe-PR106672-hard",
+    "probe-PR105887-hard"
   ]
 }

@@ -105,12 +105,56 @@ is within one standard error. No prompt-only control was run on Fable.
 | model | cost per task, no cache | effect of the cache |
 |---|---|---|
 | **Fable** | $2.72 | **18% fewer input tokens, 10% lower cost, correctness 0.89 instead of 0.80** |
-| **Gemini 3.8 Flash** | — | **10% fewer input tokens, 8% faster, 8% fewer tool calls (cheaper/faster in 71% of pairs); strict pass 50% vs 43% (graded by Fable)** |
+| **Gemini 3.8 Flash** | not measured | **10% fewer input tokens, 8% fewer tool calls, 8% less time; correctness unchanged** ([details below](#gemini-38-flash-with-thinker-less-work-for-the-same-result)) |
 | Opus | $4.54 | no change in cost or correctness |
 | Sonnet | $0.41 | 2 to 9% fewer input tokens, correctness unchanged (graded by Sonnet; not yet regraded by Fable) |
 
 On requests that name the code involved, Sonnet used 27% fewer turns and 32%
 fewer input tokens with the cache at equal success.
+
+### Gemini 3.8 Flash with thinker: less work for the same result
+
+The same 14 tasks, run through a different vendor's model and agent
+(Antigravity CLI), one pair per task, graded by Fable on the same criteria.
+
+| per task | without thinker | with thinker | change |
+|---|---|---|---|
+| **Input tokens** | 0.86M | **0.77M** | **-10%** |
+| **Cached context re-read** | 16.6M | **14.8M** | **-11%** |
+| **Output tokens** | 99k | **92k** | **-7%** |
+| **Tool calls** | 145.8 | **134.3** | **-8%** |
+| **File edits** | 13.1 | **11.5** | **-13%** |
+| **Time** | 14.9 min | **13.7 min** | **-8%** |
+| Correctness score | 0.82 | 0.79 | -0.02 |
+| Every essential criterion met | 6 of 14 | 7 of 14 | +1 |
+
+- **Less work in 10 of 14 pairs.** Input tokens, tool calls and time each
+  went down in 10 of the 14 pairs, and all three went down together in 9.
+- **The typical task used 22% fewer input tokens.** The median fell from
+  0.90M to 0.70M. The mean saving is smaller because two tasks used far
+  more with the cache.
+- **The largest savings were a third to a half of the run.**
+
+  | task | input tokens | tool calls | time |
+  |---|---|---|---|
+  | retention filter | -50% | 131 to 85 | 6.0 min faster |
+  | survey filter | -38% | 221 to 155 | 8.2 min faster |
+  | invite existing member | -37% | 199 to 140 | 6.5 min faster |
+
+- **Two failing tasks became passing ones, and one went the other way.**
+  Stopping a broadcast and saved-metric breakdowns met every essential
+  criterion only with the cache. Saved insights query state did so only
+  without it.
+- **Correctness did not improve on this model.** The score is 0.02 lower
+  with the cache, well within its standard error of 0.05, and thoroughness
+  did not rise either. The gain here is in effort, not in quality.
+
+How sure the numbers are: one seed and 14 pairs, so each mean saving is
+about one standard error: input tokens -0.09M ±0.09M, tool calls -11.5
+±9.7, time -1.2 ±1.1 min. The steadiest effects are cached context re-read,
+-1.75M ±0.94M, and file edits, -1.6 ±0.9. Read them as a consistent
+direction, matching the Fable result, rather than a settled effect size.
+Cost in dollars was not measured for this model.
 
 Method, all arms, per-task results, other agents (Cursor Auto, Grok), earlier
 repositories, caveats and how to run it yourself:

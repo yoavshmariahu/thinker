@@ -58,12 +58,12 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.75,
   "status": "fresh",
-  "uses": 13,
+  "uses": 16,
   "related": [
     "marking-a-cdc-source-broken-pausing-schemas",
     "temporal-schedules-in-data-load-service-per-schema-sync-and-"
   ],
-  "lastUsed": "2026-09-27T16:10:06.782Z",
+  "lastUsed": "2026-09-27T19:35:15.891Z",
   "servedIn": [
     "d33f1871-0064-497f-bd60-0a14a8b56836",
     "16f5ca99-cdb8-4381-89ea-cf164c731422",
@@ -74,6 +74,8 @@
     "codex-posthog-codex-gpt56-PR106917-hard-0",
     "codex-posthog-codex-gpt56-PR106917-hard-1",
     "codex-posthog-codex-gpt6-sol-PR106917-hard-0",
-    "codex-posthog-codex-gpt6-sol-PR106917-hard-1"
+    "codex-posthog-codex-gpt6-sol-PR106917-hard-1",
+    "probe-PR106917-hard",
+    "probe-PR106917-hard"
   ]
 }

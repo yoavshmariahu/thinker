@@ -186,11 +186,15 @@ export function specificity(repo, task) {
   return n;
 }
 
+// Room for the two notes a prompt hook serves, each in full: a body of up to 12 lines and its pointers.
+// Below this the second note is cut to its first line, and the agent works the rest out again.
+export const HOOK_BUDGET = 1500;
+
 // early: 'full' (notes with prose), 'pointers' (titles + anchors only),
 // 'auto' (full when the request names code that exists, else pointers), 'none'.
 // maxNotes/relFloor: the prompt hooks serve two notes; a caller that names its own budget (the MCP
 // tool) passes a higher maxNotes, and notes past the second must then reach relFloor of the best hit.
-export async function orient(store, { task, file, session, budget = 600, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
+export async function orient(store, { task, file, session, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
   if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
   const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
   if (early === 'auto' || early === 'router') early = specificity(store.repo, task) >= 1 ? 'full' : 'pointers'; // heuristic, also the router's fallback

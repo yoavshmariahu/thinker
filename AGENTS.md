@@ -177,6 +177,7 @@ the cache fixed with `--no-learn` at install time, or `THINKER_NO_LEARN=1` in
 the environment, which also silences hooks that are already installed.
 
 Controls for experiments: `THINKER_NO_LINKS=1`, `THINKER_NO_COCHANGE=1`,
+`THINKER_MCP=off` (the MCP server offers no tools),
 `THINKER_NAIVE=1` (no invalidation), `THINKER_FORCE=1` (inject regardless
 of relevance), `THINKER_RERANK=haiku`.
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
-import { orient, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
+import { orient, HOOK_BUDGET, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
 import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs } from './prs.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
@@ -214,7 +214,7 @@ async function main() {
         if (!store.exists() || !store.list().length) break;
         // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
         if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
-        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, budget: Number(flags.budget) || 600 });
+        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, budget: Number(flags.budget) || HOOK_BUDGET });
         if (!r.included.length) break;
         const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their code dependencies were re-hashed just now and match the current code${r.included.some(n => n.status === 'stale') ? ', except notes marked STALE' : ''}, so the facts below are current: rely on them and do not re-read files only to confirm them. They cover where things are and how they connect, not the design of this change.\n\n${r.text}\n</thinker-cache>`;
         if (client === 'cursor') parkPending(store.dir, session, text);
@@ -237,7 +237,7 @@ async function main() {
           const turn = path.join(store.dir, 'state', `oriented-${String(ev.generation_id || session).replace(/[^\w.-]/g, '_')}`);
           if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && store.list().length) {
             const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-            if (task) { const r = await orient(store, { task, session, budget: Number(flags.budget) || 600 }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
+            if (task) { const r = await orient(store, { task, session, budget: Number(flags.budget) || HOOK_BUDGET }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
           }
           fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '');
           if (p && !mcpCall) parts.push(p);

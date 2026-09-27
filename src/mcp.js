@@ -8,11 +8,16 @@ import { Store, findRepoRoot } from './store.js';
 import { orient, lookup, createNote, feedback, KINDS } from './ops.js';
 
 const repo = findRepoRoot(process.env.THINKER_REPO || process.cwd());
-const store = new Store(repo).init();
+// THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
+// benchmark when the agent's MCP registration is machine-wide and cannot be left out for one run.
+const off = process.env.THINKER_MCP === 'off';
+const store = off ? null : new Store(repo).init();
 
-const server = new McpServer({ name: 'thinker', version: '0.1.0' }, {
+const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : {
   instructions: `thinker is a cache of distilled understanding about this repository (${repo}), written by previous agent sessions and humans. Call \`orient\` FIRST, before any grep/read, whenever you start a task in this repo: it returns notes about where things live, call paths, what must change together, how to build/test, and non-obvious rules. Notes come with file:symbol pointers so you can jump straight to the code. Notes flagged STALE had their dependencies change since verification; confirm them against the code. When you finish figuring something out that took several tool calls (a call path, a location, a co-change rule, a build/test recipe, a gotcha, a "why"), call \`remember\` so the next session can skip that work.`,
 });
+
+const register = off ? () => {} : server.registerTool.bind(server);
 
 const text = s => ({ content: [{ type: 'text', text: s }] });
 // THINKER_ORIENT_GUIDE: a file with instructions on how to use the notes, put above them (per-model guidance).
@@ -20,7 +25,7 @@ const text = s => ({ content: [{ type: 'text', text: s }] });
 const emptyCache = () => store.list().length ? '' : `The cache is empty: no notes in ${store.notesDir}. `;
 const guide = (() => { try { return process.env.THINKER_ORIENT_GUIDE ? fs.readFileSync(process.env.THINKER_ORIENT_GUIDE, 'utf8').trim() : ''; } catch { return ''; } })();
 
-server.registerTool('orient', {
+register('orient', {
   title: 'Orient in this repo',
   description: 'Call this first when starting a task in this repository. Returns cached, verified notes relevant to the task (locations, call paths, co-change rules, build/test recipes, conventions, gotchas) with file:symbol pointers, packed into a token budget. Prefer following these pointers over grepping from scratch. Notes marked STALE need confirmation against the current code.',
   inputSchema: {
@@ -38,7 +43,7 @@ server.registerTool('orient', {
   return text(guide ? `${guide}\n\n<thinker-cache>\n${notes}\n</thinker-cache>` : notes);
 });
 
-server.registerTool('lookup', {
+register('lookup', {
   title: 'Look up cached knowledge',
   description: 'Ask the cache a specific question mid-task, e.g. "what do we know about the session middleware" or "how are migrations run". Returns matching notes with pointers. Cheaper than grepping when the answer has been learned before.',
   inputSchema: {
@@ -51,7 +56,7 @@ server.registerTool('lookup', {
   return text(r.text);
 });
 
-server.registerTool('remember', {
+register('remember', {
   title: 'Save a reusable note',
   description: `Save something you had to work out that a future agent would otherwise re-derive with several greps/reads. Good notes answer a recurring question: WHERE something happens, a CALL PATH across files, what must CHANGE TOGETHER, HOW TO build/test/run, a local CONVENTION, a GOTCHA, or WHY something is the way it is (rejected approaches, incident-driven constraints). Do NOT save plain summaries of what a file does. Be concrete: name files and symbols. Every note must list the files/symbols it depends on; the cache hashes them and flags the note stale when they change. Kinds: ${KINDS.join(', ')}.`,
   inputSchema: {
@@ -71,7 +76,7 @@ server.registerTool('remember', {
   return text(`Saved note ${r.note.id} with ${r.note.deps.length} tracked dependencies${warn}.`);
 });
 
-server.registerTool('feedback', {
+register('feedback', {
   title: 'Report whether a note was right',
   description: 'After using a cached note, report whether it was accurate. If it was wrong or outdated, give the corrected body so the cache improves. Wrong notes lose confidence and are eventually retired.',
   inputSchema: {

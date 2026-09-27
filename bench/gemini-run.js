@@ -160,7 +160,7 @@ Rely directly on the verified file:symbol pointers below and do not re-explore f
       '--output-format', 'json',
       '--dangerously-skip-permissions'
     ];
-    const p = spawn('agy', args, { cwd, env: { ...process.env, THINKER_LOG: 'local', THINKER_NO_LEARN: '1' } });
+    const p = spawn('agy', args, { cwd, env: { ...process.env, THINKER_LOG: 'local', THINKER_NO_LEARN: '1', ...(arm === 'cache' ? {} : { THINKER_MCP: 'off' }) } });
     let o = '', e = '';
     p.stdout.on('data', d => o += d);
     p.stderr.on('data', d => e += d);
@@ -230,6 +230,15 @@ async function main() {
       const convId = r.conversation_id;
       const transcriptFile = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain', convId, '.system_generated', 'logs', 'transcript.jsonl');
       const tools = toolStats(transcriptFile);
+
+      // Detect rate limit / quota exhaustion / empty run
+      if (tools.calls === 0 && (!r.usage?.total_tokens || r.usage?.total_tokens === 0)) {
+        console.log(`[rate-limit] ${id}: 0 tools and 0 tokens (quota or API error). Pausing 60s and retrying...`);
+        jobs.unshift({ task, arm, rep });
+        resetWorktree(cwd);
+        await new Promise(res => setTimeout(res, 60000));
+        continue;
+      }
 
       // Extract patch
       let diff = '';

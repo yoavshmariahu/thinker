@@ -34,9 +34,9 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 16,
+  "uses": 19,
   "related": [],
-  "lastUsed": "2026-09-27T15:54:12.243Z",
+  "lastUsed": "2026-09-27T19:29:09.632Z",
   "servedIn": [
     "7f55fb13-0cd8-44cb-8c17-e95628f2e036",
     "aa0facb4-3469-4ea0-a240-86f0eb879eca",
@@ -51,6 +51,8 @@
     "codex-posthog-codex-gpt56-PR106564-hard-0",
     "codex-posthog-codex-gpt56-PR106564-hard-1",
     "codex-posthog-codex-gpt6-sol-PR106564-hard-0",
-    "codex-posthog-codex-gpt6-sol-PR106564-hard-1"
+    "codex-posthog-codex-gpt6-sol-PR106564-hard-1",
+    "probe-PR106564-hard",
+    "probe-PR106564-hard"
   ]
 }

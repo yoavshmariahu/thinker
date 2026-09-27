@@ -58,14 +58,14 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.7,
   "status": "fresh",
-  "uses": 19,
+  "uses": 22,
   "related": [
     "cloud-task-run-lifecycle-api-facade-temporal-process-task",
     "follow-up-loop-must-skip-ticks-while-a-push-would-eject-the-",
     "sandbox-backend-selection-and-provider-class-resolution",
     "new-skip-decision-branches-in-tasks-workflows-need-a-workflo"
   ],
-  "lastUsed": "2026-09-27T17:35:06.907Z",
+  "lastUsed": "2026-09-27T19:29:14.838Z",
   "servedIn": [
     "cd76606d-c96b-430c-ad43-581d2fce050c",
     "60f35ce4-fb66-4a14-b930-15bdc40742fc",
@@ -82,6 +82,8 @@
     "codex-posthog-codex-gpt56-PR106522-hard-1",
     "codex-posthog-codex-gpt6-sol-PR106522-hard-0",
     "codex-posthog-codex-gpt6-sol-PR106522-hard-1",
-    "codex-posthog-codex-gpt6-sol-trace-PR106522-hard-0"
+    "codex-posthog-codex-gpt6-sol-trace-PR106522-hard-0",
+    "probe-PR106522-hard",
+    "probe-PR106522-hard"
   ]
 }
