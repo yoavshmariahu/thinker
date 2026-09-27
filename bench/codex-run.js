@@ -19,7 +19,7 @@ const MODEL = process.argv[5] || 'gpt-5.6-terra';
 const OUT = path.join(HERE, 'runs', TAG);
 const CLI = path.join(ROOT, 'src', 'cli.js');
 const CACHE_GUIDANCE = 'Context injected as <thinker-cache> comes from a cache of notes about this repository whose code dependencies are verified against the current code when served. Use it to skip re-deriving what it states.';
-const CACHE_ARM_GUIDANCE = 'This repository has a thinker cache of understanding from previous sessions. Use the supplied <thinker-cache> notes to skip re-deriving what they state; only search/read to confirm or fill gaps. Treat notes marked STALE as unverified.';
+const CACHE_ARM_GUIDANCE = 'This repository has a thinker knowledge cache from previous sessions. Use the supplied <thinker-cache> notes to skip re-deriving what they state; only search/read to confirm or fill gaps. Treat notes marked STALE as unverified.';
 const tasks = JSON.parse(fs.readFileSync(TASKS, 'utf8')).tasks;
 fs.mkdirSync(OUT, { recursive: true });
 

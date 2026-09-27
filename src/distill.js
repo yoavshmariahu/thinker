@@ -98,7 +98,7 @@ const ASSESS_SCHEMA = {
   required: ['notes', 'assessments'],
 };
 
-export const DISTILL_SYSTEM = `You distill a coding agent's session into a small number of reusable notes for a "cache of understanding" about this repository. A future agent will read these notes at the start of a task instead of re-grepping and re-reading files.
+export const DISTILL_SYSTEM = `You distill a coding agent's session into a small number of reusable notes for a "knowledge cache" about this repository. A future agent will read these notes at the start of a task instead of re-grepping and re-reading files.
 
 Write a note ONLY for understanding that (a) took the agent real effort to establish (several greps/reads/traces), (b) is likely to be needed again by a different task, and (c) is stated concretely enough to act on. Kinds, in order of value:
 - callpath: how control/data flows across files for some operation (list the hops as file:symbol → file:symbol).

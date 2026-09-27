@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# thinker onboarding: sets up this repository to use a cache of understanding
+# thinker onboarding: sets up this repository to use a knowledge cache
 # with Claude Code. Run it from inside the repository.
 #
 # The thinker repository is private, so you need access to it and a GitHub

@@ -29,7 +29,7 @@ const readStdin = () => fs.readFileSync(0, 'utf8');
 
 const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: repo } });
 
-const HELP = `thinker — cache of understanding for coding agents
+const HELP = `thinker — knowledge cache for coding agents
 
   setup [--clients list|all|auto] [--areas n] [--prs n] [--no-seed] [--no-prs] [--learn] [--late] [--shared] [--git-hook] [--export f.tgz] [--yes]
                                  everything for a new repo in one step: build the cache (co-change, merged PRs,

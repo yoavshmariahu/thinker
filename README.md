@@ -1,4 +1,4 @@
-# thinker — a cache of understanding for coding agents
+# thinker — a knowledge cache for coding agents
 
 Coding agents re-orient in a repo every session: grep, read, trace imports,
 figure out how X flows from A to B. `thinker` caches that understanding as

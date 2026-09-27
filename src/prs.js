@@ -30,7 +30,7 @@ const SCHEMA = {
   required: ['notes'],
 };
 
-const SYSTEM = `You turn one merged pull request into 0-3 reusable notes for a cache of understanding that coding agents read before and while working in this repository. The reader is an agent facing a DIFFERENT future task in the same area.
+const SYSTEM = `You turn one merged pull request into 0-3 reusable notes for a knowledge cache that coding agents read before and while working in this repository. The reader is an agent facing a DIFFERENT future task in the same area.
 
 Allowed kinds and what each must contain:
 - fix: four labelled lines. "Symptom:" as a user would report it, in product vocabulary. "Root cause:" with file:symbol. "Fix pattern:" the kind of change that resolved it, general enough to reuse. "Constraints:" when the pattern applies and when it does not.

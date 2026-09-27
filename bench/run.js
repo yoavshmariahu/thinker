@@ -24,7 +24,7 @@ const only = flags.only ? flags.only.split(',') : null;
 const outDir = path.join(HERE, 'runs', tag);
 fs.mkdirSync(outDir, { recursive: true });
 
-const CACHE_PROMPT = `This repository has a "thinker" cache of understanding from previous sessions, exposed as MCP tools. Before exploring the codebase, call mcp__thinker__orient with the task. Follow the file:symbol pointers it returns instead of re-deriving them; only grep/read to confirm or to fill gaps. Use mcp__thinker__lookup for specific questions mid-task. Treat notes marked STALE as unverified.`;
+const CACHE_PROMPT = `This repository has a "thinker" knowledge cache from previous sessions, exposed as MCP tools. Before exploring the codebase, call mcp__thinker__orient with the task. Follow the file:symbol pointers it returns instead of re-deriving them; only grep/read to confirm or to fill gaps. Use mcp__thinker__lookup for specific questions mid-task. Treat notes marked STALE as unverified.`;
 
 function transcriptPath(sessionId, cwd = repo) {
   const enc = cwd.replace(/[\/.]/g, '-');
