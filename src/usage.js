@@ -1,6 +1,6 @@
-// Usage history: a summary of .thinker/log.jsonl, the append-only record of what was
-// served, learned, verified and mined in this checkout, with an estimate of the
-// exploration the served notes saved.
+// Usage history: a summary of the machine's log (see store.js: logFile), the append-only
+// record of what was served, learned, verified and mined in every repository, with an
+// estimate of the exploration the served notes saved.
 //
 // The estimate counts only servings that the end-of-session assessment marked
 // `confirmed` (the agent acted on the note and nothing contradicted it). For each,
@@ -11,6 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { estTokens } from './rank.js';
+import { Store, logFile, adoptLocalLog } from './store.js';
 
 const FILE_CAP = 6000;   // tokens one read of a large file returns (about 2000 lines)
 const MAX_FILES = 5;
@@ -26,79 +27,100 @@ export function savingOf(repo, note) {
 // fields added to a serving's log line
 export const servedFields = (store, notes, text) => ({ tokens: estTokens(text || ''), est: notes.map(n => { const s = savingOf(store.repo, n); return [s.calls, s.tokens]; }) });
 
-export function readLog(store) {
-  let raw = ''; try { raw = fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8'); } catch {}
-  return raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op);
+const parse = (f, repo) => {
+  let raw = ''; try { raw = fs.readFileSync(f, 'utf8'); } catch {}
+  return raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op).map(e => e.repo ? e : { ...e, repo });
+};
+
+// The machine's log; what this repository logged locally before the log was shared is moved into it first.
+export function readLog(store, { all = false } = {}) {
+  adoptLocalLog(store);
+  const main = logFile(store);
+  const events = main ? parse(main, store.repo) : [];
+  return events.filter(e => all || e.repo === store.repo).sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
 }
 
-export function summarize(store, { days } = {}) {
+export function summarize(store, { days, all = false } = {}) {
   const since = days ? new Date(Date.now() - days * 86400_000).toISOString() : '';
-  const events = readLog(store).filter(e => e.t >= since);
+  const events = readLog(store, { all }).filter(e => e.t >= since);
+  const stores = new Map([[store.repo, store]]);
+  const storeOf = repo => { if (!stores.has(repo)) stores.set(repo, new Store(repo)); return stores.get(repo); };
   const u = {
+    scope: all ? 'machine' : store.repo,
     from: events[0]?.t || null, to: events[events.length - 1]?.t || null, events: events.length,
     requests: 0, answered: 0, sessions: 0,
-    servings: { prompt: 0, file: 0, lookup: 0 }, notesServed: 0, tokensServed: 0,
+    servings: { prompt: 0, file: 0, lookup: 0 }, notesServed: 0, notes: 0, tokensServed: 0,
     assessed: { confirmed: 0, contradicted: 0, unused: 0, pending: 0 },
     learned: { sessions: 0, notes: 0, merged: 0, prs: 0, prNotes: 0 },
     verified: { still_valid: 0, update: 0, invalid: 0 },
     feedback: { useful: 0, notUseful: 0 }, corrections: 0,
-    spent: 0, saved: { calls: 0, tokens: 0, servings: 0 }, top: [],
+    spent: 0, saved: { calls: 0, tokens: 0, servings: 0 }, repos: [], top: [],
   };
-  const sessions = new Map();   // session → Map(note id → [calls, tokens])
-  const verdicts = new Map();   // session → Map(note id → verdict)
+  const repos = new Map();      // repo → its line in the summary
+  const per = repo => { if (!repos.has(repo)) repos.set(repo, { repo, requests: 0, served: 0, learned: 0, calls: 0, tokens: 0 }); return repos.get(repo); };
+  const sessions = new Map();   // repo|session → { repo, notes: Map(note id → [calls, tokens]) }
+  const verdicts = new Map();   // repo|session → Map(note id → verdict)
   const count = new Map();
   let anon = 0;
   for (const e of events) {
+    const r = per(e.repo), s = storeOf(e.repo);
     if (typeof e.cost === 'number') u.spent += e.cost;
     if (e.op === 'orient' || e.op === 'late' || e.op === 'lookup') {
       const ids = e.served || [];
-      if (e.op !== 'late') { u.requests++; if (ids.length) u.answered++; }
+      if (e.op !== 'late') { u.requests++; r.requests++; if (ids.length) u.answered++; }
       if (!ids.length) continue;
-      u.servings[e.op === 'orient' ? 'prompt' : e.op === 'late' ? 'file' : 'lookup'] += ids.length;
+      u.servings[e.op === 'orient' ? 'prompt' : e.op === 'late' ? 'file' : 'lookup'] += ids.length; r.served += ids.length;
       // lines written before the estimate was recorded: the note's text and files as they are now
-      u.tokensServed += typeof e.tokens === 'number' ? e.tokens : ids.reduce((s, id) => s + estTokens(store.get(id)?.body || ''), 0);
-      const key = e.session && e.session !== 'unknown' ? e.session : `?${anon++}`;
-      if (!sessions.has(key)) sessions.set(key, new Map());
+      u.tokensServed += typeof e.tokens === 'number' ? e.tokens : ids.reduce((n, id) => n + estTokens(s.get(id)?.body || ''), 0);
+      const named = e.session && e.session !== 'unknown';
+      const key = `${e.repo}|${named ? e.session : `?${anon++}`}`;
+      if (!sessions.has(key)) sessions.set(key, { repo: e.repo, named, notes: new Map() });
       ids.forEach((id, i) => {
-        count.set(id, (count.get(id) || 0) + 1);
-        if (!sessions.get(key).has(id)) sessions.get(key).set(id, e.est?.[i] || Object.values(savingOf(store.repo, store.get(id))));
+        const k = `${e.repo}|${id}`; count.set(k, { repo: e.repo, id, n: (count.get(k)?.n || 0) + 1 });
+        if (!sessions.get(key).notes.has(id)) sessions.get(key).notes.set(id, e.est?.[i] || Object.values(savingOf(e.repo, s.get(id))));
       });
     } else if (e.op === 'attest') {
-      if (!verdicts.has(e.session)) verdicts.set(e.session, new Map());
-      for (const a of e.applied || []) verdicts.get(e.session).set(a.id, a.verdict);
-    } else if (e.op === 'distill') { u.learned.sessions++; u.learned.notes += (e.saved || []).length; u.learned.merged += (e.merged || []).length; }
-    else if (e.op === 'mine-prs') { u.learned.prs += e.prs || 0; u.learned.prNotes += e.saved || 0; }
+      const key = `${e.repo}|${e.session}`;
+      if (!verdicts.has(key)) verdicts.set(key, new Map());
+      for (const a of e.applied || []) verdicts.get(key).set(a.id, a.verdict);
+    } else if (e.op === 'distill') { u.learned.sessions++; u.learned.notes += (e.saved || []).length; u.learned.merged += (e.merged || []).length; r.learned += (e.saved || []).length; }
+    else if (e.op === 'mine-prs') { u.learned.prs += e.prs || 0; u.learned.prNotes += e.saved || 0; r.learned += e.saved || 0; }
     else if (e.op === 'verify') { if (e.verdict in u.verified) u.verified[e.verdict]++; }
-    else if (e.op === 'feedback') { u.feedback[e.useful ? 'useful' : 'notUseful']++; }
+    else if (e.op === 'feedback') u.feedback[e.useful ? 'useful' : 'notUseful']++;
     else if (e.op === 'outcome' && !e.positive) u.corrections++;
   }
-  u.sessions = [...sessions.keys()].filter(k => !k.startsWith('?')).length;
+  u.sessions = [...sessions.values()].filter(x => x.named).length;
   const distinct = new Set();
-  for (const [key, notes] of sessions) for (const [id, est] of notes) {
-    distinct.add(id);
+  for (const [key, x] of sessions) for (const [id, est] of x.notes) {
+    distinct.add(`${x.repo}|${id}`);
     const v = verdicts.get(key)?.get(id);
-    if (v === 'confirmed') { u.assessed.confirmed++; u.saved.servings++; u.saved.calls += est[0] || 0; u.saved.tokens += est[1] || 0; }
+    if (v === 'confirmed') { u.assessed.confirmed++; u.saved.servings++; u.saved.calls += est[0] || 0; u.saved.tokens += est[1] || 0; const r = per(x.repo); r.calls += est[0] || 0; r.tokens += est[1] || 0; }
     else if (v === 'contradicted') u.assessed.contradicted++;
     else if (v) u.assessed.unused++;
     else u.assessed.pending++;
   }
   u.notesServed = distinct.size;
+  if (!repos.size && !all) per(store.repo);
+  u.repos = [...repos.values()].map(r => ({ ...r, notes: storeOf(r.repo).list().length })).sort((a, b) => b.served - a.served || b.requests - a.requests);
+  u.notes = u.repos.reduce((n, r) => n + r.notes, 0);
   u.saved.net = u.saved.tokens - u.tokensServed;
   u.spent = Math.round(u.spent * 100) / 100;
-  u.top = [...count].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, n]) => ({ id, served: n, title: store.get(id)?.title || '(removed)' }));
+  u.top = [...count.values()].sort((a, b) => b.n - a.n).slice(0, 5).map(c => ({ id: c.id, repo: c.repo, served: c.n, title: storeOf(c.repo).get(c.id)?.title || '(removed)' }));
   return u;
 }
 
 const num = n => Math.round(n).toLocaleString('en-US');
-export function renderUsage(u, { repo, notes, days }) {
-  if (!u.events) return `No usage recorded for ${repo}${days ? ` in the last ${days} days` : ''}. thinker records it in .thinker/log.jsonl as notes are served.`;
+export function renderUsage(u, { days } = {}) {
+  const machine = u.scope === 'machine';
+  const where = machine ? 'on this machine' : `for ${path.basename(u.scope)}`;
+  if (!u.events) return `No usage recorded ${where}${days ? ` in the last ${days} days` : ''}. thinker records it as notes are served${machine ? '' : '; `thinker usage` without --here shows every repository'}.`;
   const L = [];
   const servings = u.servings.prompt + u.servings.file + u.servings.lookup;
   const assessed = u.assessed.confirmed + u.assessed.contradicted + u.assessed.unused;
-  L.push(`thinker usage for ${repo}, ${u.from.slice(0, 10)} to ${u.to.slice(0, 10)}${days ? ` (last ${days} days)` : ''}`, '');
+  L.push(`thinker usage ${where}${machine ? `, ${num(u.repos.length)} ${u.repos.length === 1 ? 'repository' : 'repositories'}` : ''}, ${u.from.slice(0, 10)} to ${u.to.slice(0, 10)}${days ? ` (last ${days} days)` : ''}`, '');
   L.push('Served');
   L.push(`  requests        ${num(u.requests)}, ${num(u.answered)} answered with notes${u.sessions ? `, in ${num(u.sessions)} sessions` : ''}`);
-  L.push(`  notes served    ${num(servings)} (${num(u.servings.prompt)} with the request, ${num(u.servings.file)} on opening a file, ${num(u.servings.lookup)} by lookup); ${num(u.notesServed)} different notes of ${num(notes)}`);
+  L.push(`  notes served    ${num(servings)} (${num(u.servings.prompt)} with the request, ${num(u.servings.file)} on opening a file, ${num(u.servings.lookup)} by lookup); ${num(u.notesServed)} different notes, ${num(u.notes)} in the cache now`);
   L.push(`  tokens added    ${num(u.tokensServed)}`);
   L.push('', 'What the sessions showed');
   L.push(`  acted on        ${num(u.assessed.confirmed)}${assessed ? ` of ${num(assessed)} assessed` : ''}`);
@@ -119,6 +141,14 @@ export function renderUsage(u, { repo, notes, days }) {
     L.push(`  basis           ${num(u.saved.servings)} servings the agent acted on: one read per file a note rests on (at most ${MAX_FILES}),`);
     L.push(`                  at the file's size (at most ${num(FILE_CAP)} tokens). Searches and re-read context are not counted. An estimate, not a measurement.`);
   }
-  if (u.top.length) { L.push('', 'Most served'); for (const t of u.top) L.push(`  ${String(t.served).padStart(4)}  ${t.title.slice(0, 90)}`); }
+  if (machine) {
+    const home = process.env.HOME || '';
+    const name = r => home && r.startsWith(home + path.sep) ? '~' + r.slice(home.length) : r;
+    const w = Math.min(48, Math.max(10, ...u.repos.map(r => name(r.repo).length)));
+    L.push('', 'By repository', `  ${'repository'.padEnd(w)}  ${'notes'.padStart(6)}  ${'requests'.padStart(8)}  ${'served'.padStart(6)}  ${'learned'.padStart(7)}  ${'calls saved'.padStart(11)}  ${'tokens saved'.padStart(12)}`);
+    for (const r of u.repos.slice(0, 20)) L.push(`  ${name(r.repo).slice(-w).padEnd(w)}  ${num(r.notes).padStart(6)}  ${num(r.requests).padStart(8)}  ${num(r.served).padStart(6)}  ${num(r.learned).padStart(7)}  ${num(r.calls).padStart(11)}  ${num(r.tokens).padStart(12)}`);
+    if (u.repos.length > 20) L.push(`  and ${u.repos.length - 20} more`);
+  }
+  if (u.top.length) { L.push('', 'Most served'); for (const t of u.top) L.push(`  ${String(t.served).padStart(4)}  ${t.title.slice(0, 80)}${machine ? `  (${path.basename(t.repo)})` : ''}`); }
   return L.join('\n');
 }
