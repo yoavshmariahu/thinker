@@ -132,7 +132,7 @@ async function runAgy(prompt, { arm, cwd }) {
   let fullPrompt = prompt;
   if (arm === 'cache') {
     // Generate orientation bundle from thinker
-    const budget = flags.budget || '1000';
+    const budget = flags.budget || '750';
     let hookBundle = '';
     try {
       const input = JSON.stringify({ prompt });
@@ -146,10 +146,11 @@ async function runAgy(prompt, { arm, cwd }) {
     }
 
     const guidance = `This repository has a "thinker" knowledge cache from previous sessions, exposed via MCP tools in Antigravity (call_mcp_tool with ServerName="thinker"):
-- Use ToolName="lookup" with Arguments={"query": "<keyword or concept>"} for targeted architecture lookups.
-- Use ToolName="orient" with Arguments={"task": "<task description>"} for high-level module overviews.
+- The most relevant notes for your task have been served above. Additional related notes exist in the cache for this repository.
+- Use ToolName="lookup" with Arguments={"query": "<keyword, concept, or note id>"} to fetch additional notes or architectural details as needed.
+- Use ToolName="orient" with Arguments={"task": "<task description>"} if you need a broader overview of other areas.
 - Use ToolName="remember" to record non-obvious architecture, invariants or rules you discover.
-Rely directly on the verified file:symbol pointers below and do not re-explore files merely to confirm them:`;
+Rely directly on the verified file:symbol pointers above and do not re-explore files merely to confirm them:`;
     fullPrompt = `${hookBundle ? hookBundle + '\n\n' : ''}${guidance}\n\nTASK:\n${prompt}`;
   }
 
