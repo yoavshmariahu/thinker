@@ -3,6 +3,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import fs from 'node:fs';
 import { Store, findRepoRoot } from './store.js';
 import { orient, lookup, createNote, feedback, KINDS } from './ops.js';
 
@@ -14,6 +15,8 @@ const server = new McpServer({ name: 'thinker', version: '0.1.0' }, {
 });
 
 const text = s => ({ content: [{ type: 'text', text: s }] });
+// THINKER_ORIENT_GUIDE: a file with instructions on how to use the notes, put above them (per-model guidance).
+const guide = (() => { try { return process.env.THINKER_ORIENT_GUIDE ? fs.readFileSync(process.env.THINKER_ORIENT_GUIDE, 'utf8').trim() : ''; } catch { return ''; } })();
 
 server.registerTool('orient', {
   title: 'Orient in this repo',
@@ -28,8 +31,8 @@ server.registerTool('orient', {
   const r = await orient(store, { task, file, budget: budget || 1000, ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
   if (!r.included.length) return text(`No cached notes match this task yet (${store.list().length} notes in cache). Explore normally, then call remember with what you learn.`);
   const more = r.more?.length ? `\n\nAlso in the cache, not shown. Call lookup with the id before searching for what the title covers:\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
-  const notes = `Cached understanding for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
-  return text(notes);
+  const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
+  return text(guide ? `${guide}\n\n<thinker-cache>\n${notes}\n</thinker-cache>` : notes);
 });
 
 server.registerTool('lookup', {

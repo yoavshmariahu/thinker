@@ -99,6 +99,8 @@ export class Store {
     this.notesDir = process.env.THINKER_NOTES_DIR || path.join(this.dir, 'notes');
   }
   init() {
+    // Notes may live outside the repo (THINKER_NOTES_DIR). config.json still belongs in <repo>/.thinker.
+    fs.mkdirSync(this.dir, { recursive: true });
     fs.mkdirSync(this.notesDir, { recursive: true });
     const cfg = path.join(this.dir, 'config.json');
     if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1, verifyModel: 'haiku', distillModel: 'sonnet' }, null, 2) + '\n');
