@@ -75,7 +75,10 @@ automatically.
 
 Every serving, assessment, distillation, verification and mining run is
 appended to one file for the machine, `~/.thinker/log.jsonl` (under
-`THINKER_HOME`), each line naming its repository. `THINKER_LOG` changes
+`THINKER_HOME`). Each line names its repository by the origin in
+`.git/config` (`github.com/owner/repo`), so worktrees and further clones of
+a repository count as that repository; a checkout without an origin is
+named by its path. `THINKER_LOG` changes
 that: a path, `local` (the repository's own `.thinker/log.jsonl`) or `off`.
 Runs with `THINKER_NOTES_DIR` set, which is how benchmark arms serve a
 noteset, log locally by default, so experiments stay out of the machine's

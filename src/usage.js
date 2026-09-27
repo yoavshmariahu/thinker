@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { estTokens } from './rank.js';
-import { Store, logFile, adoptLocalLog } from './store.js';
+import { Store, logFile, adoptLocalLog, repoId } from './store.js';
 
 const FILE_CAP = 6000;   // tokens one read of a large file returns (about 2000 lines)
 const MAX_FILES = 5;
@@ -29,7 +29,9 @@ export const servedFields = (store, notes, text) => ({ tokens: estTokens(text ||
 
 const parse = (f, repo) => {
   let raw = ''; try { raw = fs.readFileSync(f, 'utf8'); } catch {}
-  return raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op).map(e => e.repo ? e : { ...e, repo });
+  return raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op).map(e => e.repo ? e : { ...e, repo })
+    // which repository: the origin recorded with the event, else that of the checkout it names
+    .map(e => ({ ...e, origin: e.origin || repoId(e.repo) }));
 };
 
 // The machine's log; what this repository logged locally before the log was shared is moved into it first.
@@ -37,7 +39,8 @@ export function readLog(store, { all = false } = {}) {
   adoptLocalLog(store);
   const main = logFile(store);
   const events = main ? parse(main, store.repo) : [];
-  return events.filter(e => all || e.repo === store.repo).sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
+  const here = repoId(store.repo);
+  return events.filter(e => all || e.origin === here).sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
 }
 
 export function summarize(store, { days, all = false } = {}) {
@@ -46,7 +49,7 @@ export function summarize(store, { days, all = false } = {}) {
   const stores = new Map([[store.repo, store]]);
   const storeOf = repo => { if (!stores.has(repo)) stores.set(repo, new Store(repo)); return stores.get(repo); };
   const u = {
-    scope: all ? 'machine' : store.repo,
+    scope: all ? 'machine' : repoId(store.repo),
     from: events[0]?.t || null, to: events[events.length - 1]?.t || null, events: events.length,
     requests: 0, answered: 0, sessions: 0,
     servings: { prompt: 0, file: 0, lookup: 0 }, notesServed: 0, notes: 0, tokensServed: 0,
@@ -56,14 +59,15 @@ export function summarize(store, { days, all = false } = {}) {
     feedback: { useful: 0, notUseful: 0 }, corrections: 0,
     spent: 0, saved: { calls: 0, tokens: 0, servings: 0 }, repos: [], top: [],
   };
-  const repos = new Map();      // repo → its line in the summary
-  const per = repo => { if (!repos.has(repo)) repos.set(repo, { repo, requests: 0, served: 0, learned: 0, calls: 0, tokens: 0 }); return repos.get(repo); };
-  const sessions = new Map();   // repo|session → { repo, notes: Map(note id → [calls, tokens]) }
-  const verdicts = new Map();   // repo|session → Map(note id → verdict)
+  // a repository is its origin; its checkouts (clones, worktrees) are counted together
+  const repos = new Map();      // origin → its line in the summary
+  const per = (origin, checkout) => { if (!repos.has(origin)) repos.set(origin, { repo: origin, checkouts: new Set(), requests: 0, served: 0, learned: 0, calls: 0, tokens: 0 }); const r = repos.get(origin); if (checkout) r.checkouts.add(checkout); return r; };
+  const sessions = new Map();   // origin|session → { origin, notes: Map(note id → [calls, tokens]) }
+  const verdicts = new Map();   // origin|session → Map(note id → verdict)
   const count = new Map();
   let anon = 0;
   for (const e of events) {
-    const r = per(e.repo), s = storeOf(e.repo);
+    const r = per(e.origin, e.repo), s = storeOf(e.repo);
     if (typeof e.cost === 'number') u.spent += e.cost;
     if (e.op === 'orient' || e.op === 'late' || e.op === 'lookup') {
       const ids = e.served || [];
@@ -73,14 +77,14 @@ export function summarize(store, { days, all = false } = {}) {
       // lines written before the estimate was recorded: the note's text and files as they are now
       u.tokensServed += typeof e.tokens === 'number' ? e.tokens : ids.reduce((n, id) => n + estTokens(s.get(id)?.body || ''), 0);
       const named = e.session && e.session !== 'unknown';
-      const key = `${e.repo}|${named ? e.session : `?${anon++}`}`;
-      if (!sessions.has(key)) sessions.set(key, { repo: e.repo, named, notes: new Map() });
+      const key = `${e.origin}|${named ? e.session : `?${anon++}`}`;
+      if (!sessions.has(key)) sessions.set(key, { origin: e.origin, named, notes: new Map() });
       ids.forEach((id, i) => {
-        const k = `${e.repo}|${id}`; count.set(k, { repo: e.repo, id, n: (count.get(k)?.n || 0) + 1 });
+        const k = `${e.origin}|${id}`; count.set(k, { origin: e.origin, repo: e.repo, id, n: (count.get(k)?.n || 0) + 1 });
         if (!sessions.get(key).notes.has(id)) sessions.get(key).notes.set(id, e.est?.[i] || Object.values(savingOf(e.repo, s.get(id))));
       });
     } else if (e.op === 'attest') {
-      const key = `${e.repo}|${e.session}`;
+      const key = `${e.origin}|${e.session}`;
       if (!verdicts.has(key)) verdicts.set(key, new Map());
       for (const a of e.applied || []) verdicts.get(key).set(a.id, a.verdict);
     } else if (e.op === 'distill') { u.learned.sessions++; u.learned.notes += (e.saved || []).length; u.learned.merged += (e.merged || []).length; r.learned += (e.saved || []).length; }
@@ -92,27 +96,29 @@ export function summarize(store, { days, all = false } = {}) {
   u.sessions = [...sessions.values()].filter(x => x.named).length;
   const distinct = new Set();
   for (const [key, x] of sessions) for (const [id, est] of x.notes) {
-    distinct.add(`${x.repo}|${id}`);
+    distinct.add(`${x.origin}|${id}`);
     const v = verdicts.get(key)?.get(id);
-    if (v === 'confirmed') { u.assessed.confirmed++; u.saved.servings++; u.saved.calls += est[0] || 0; u.saved.tokens += est[1] || 0; const r = per(x.repo); r.calls += est[0] || 0; r.tokens += est[1] || 0; }
+    if (v === 'confirmed') { u.assessed.confirmed++; u.saved.servings++; u.saved.calls += est[0] || 0; u.saved.tokens += est[1] || 0; const r = per(x.origin); r.calls += est[0] || 0; r.tokens += est[1] || 0; }
     else if (v === 'contradicted') u.assessed.contradicted++;
     else if (v) u.assessed.unused++;
     else u.assessed.pending++;
   }
   u.notesServed = distinct.size;
-  if (!repos.size && !all) per(store.repo);
-  u.repos = [...repos.values()].map(r => ({ ...r, notes: storeOf(r.repo).list().length })).sort((a, b) => b.served - a.served || b.requests - a.requests);
+  if (!repos.size && !all) per(repoId(store.repo), store.repo);
+  // notes now: in the checkout of the repository that holds the most (a worktree often has none of its own)
+  const notesOf = r => Math.max(0, ...[...r.checkouts].map(c => storeOf(c).list().length));
+  u.repos = [...repos.values()].map(r => ({ ...r, checkouts: [...r.checkouts], notes: notesOf(r) })).sort((a, b) => b.served - a.served || b.requests - a.requests);
   u.notes = u.repos.reduce((n, r) => n + r.notes, 0);
   u.saved.net = u.saved.tokens - u.tokensServed;
   u.spent = Math.round(u.spent * 100) / 100;
-  u.top = [...count.values()].sort((a, b) => b.n - a.n).slice(0, 5).map(c => ({ id: c.id, repo: c.repo, served: c.n, title: storeOf(c.repo).get(c.id)?.title || '(removed)' }));
+  u.top = [...count.values()].sort((a, b) => b.n - a.n).slice(0, 5).map(c => ({ id: c.id, repo: c.origin, served: c.n, title: storeOf(c.repo).get(c.id)?.title || '(removed)' }));
   return u;
 }
 
 const num = n => Math.round(n).toLocaleString('en-US');
 export function renderUsage(u, { days } = {}) {
   const machine = u.scope === 'machine';
-  const where = machine ? 'on this machine' : `for ${path.basename(u.scope)}`;
+  const where = machine ? 'on this machine' : `for ${path.isAbsolute(u.scope) ? path.basename(u.scope) : u.scope}`;
   if (!u.events) return `No usage recorded ${where}${days ? ` in the last ${days} days` : ''}. thinker records it as notes are served${machine ? '' : '; `thinker usage` without --here shows every repository'}.`;
   const L = [];
   const servings = u.servings.prompt + u.servings.file + u.servings.lookup;

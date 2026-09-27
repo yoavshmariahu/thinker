@@ -22,8 +22,48 @@ export function gitHead(repo) {
   catch { return null; }
 }
 
+// Which repository a checkout is: its origin as .git/config names it, so that worktrees and
+// further clones of a repository count as that repository. Without an origin, the path.
+//   git@github.com:Owner/Repo.git, https://github.com/Owner/Repo → github.com/owner/repo
+export function normalizeOrigin(url) {
+  let u = String(url || '').trim();
+  if (!u) return '';
+  const scp = u.match(/^(?:[^@/\s]+@)?([^:/\s]+):(?!\/)(.+)$/);        // user@host:path
+  if (scp) u = `${scp[1]}/${scp[2]}`;
+  else u = u.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^[^@/]+@/, '').replace(/^([^/:]+):\d+\//, '$1/');
+  return u.replace(/\/+$/, '').replace(/\.git$/i, '').toLowerCase();
+}
+function gitConfigFile(repo) {
+  const dot = path.join(repo, '.git');
+  const st = fs.statSync(dot);
+  if (st.isDirectory()) return path.join(dot, 'config');
+  // a linked worktree or submodule: .git is a file naming the git directory, whose commondir holds the config
+  const m = fs.readFileSync(dot, 'utf8').match(/^gitdir:\s*(.+)$/m); if (!m) return null;
+  const gitDir = path.resolve(repo, m[1].trim());
+  let common = gitDir; try { common = path.resolve(gitDir, fs.readFileSync(path.join(gitDir, 'commondir'), 'utf8').trim()); } catch {}
+  return path.join(common, 'config');
+}
+const ids = new Map();
+export function repoId(repo) {
+  if (ids.has(repo)) return ids.get(repo);
+  let id = '';
+  try {
+    let section = '';
+    for (const line of fs.readFileSync(gitConfigFile(repo), 'utf8').split('\n')) {
+      const h = line.match(/^\s*\[\s*([^\]]+?)\s*\]/);
+      if (h) { section = h[1].replace(/\s+/g, ' '); continue; }
+      const kv = section === 'remote "origin"' && line.match(/^\s*url\s*=\s*(.+?)\s*$/);
+      if (kv) { id = normalizeOrigin(kv[1].replace(/^"(.*)"$/, '$1')); break; }
+    }
+  } catch {}
+  id = id || repo;
+  ids.set(repo, id);
+  return id;
+}
+
 // Usage history is kept in one file for the machine, THINKER_HOME/log.jsonl (default
-// ~/.thinker), each line naming the repository it is about. THINKER_LOG changes that:
+// ~/.thinker), each line naming the repository it is about (`origin`, see repoId)
+// and the checkout it came from (`repo`). THINKER_LOG changes that:
 // a path, `local` (the repository's own .thinker/log.jsonl) or `off`. Runs that serve
 // notes from elsewhere (THINKER_NOTES_DIR: benchmark arms) log locally unless told
 // otherwise, so experiments stay out of the machine's history.
@@ -45,7 +85,7 @@ export function adoptLocalLog(store) {
   const moved = path.join(store.dir, 'state', 'log-before-shared.jsonl');
   try { fs.mkdirSync(path.dirname(moved), { recursive: true }); fs.renameSync(local, moved); } catch { return; }
   try {
-    const lines = fs.readFileSync(moved, 'utf8').split('\n').filter(Boolean).map(l => { try { const e = JSON.parse(l); return JSON.stringify(e.repo ? e : { t: e.t, repo: store.repo, ...e }); } catch { return null; } }).filter(Boolean);
+    const lines = fs.readFileSync(moved, 'utf8').split('\n').filter(Boolean).map(l => { try { const e = JSON.parse(l); return JSON.stringify(e.repo ? e : { t: e.t, repo: store.repo, origin: repoId(store.repo), ...e }); } catch { return null; } }).filter(Boolean);
     fs.mkdirSync(path.dirname(main), { recursive: true });
     if (lines.length) fs.appendFileSync(main, lines.join('\n') + '\n');
   } catch { try { fs.renameSync(moved, local); } catch {} }
@@ -90,7 +130,7 @@ export class Store {
       const f = logFile(this); if (!f) return;
       adoptLocalLog(this);
       fs.mkdirSync(path.dirname(f), { recursive: true });
-      fs.appendFileSync(f, JSON.stringify({ t: new Date().toISOString(), repo: this.repo, ...event }) + '\n');
+      fs.appendFileSync(f, JSON.stringify({ t: new Date().toISOString(), repo: this.repo, origin: repoId(this.repo), ...event }) + '\n');
     } catch { /* ignore */ }
   }
 }
