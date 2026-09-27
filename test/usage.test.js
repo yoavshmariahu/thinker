@@ -88,3 +88,42 @@ test('experiments and THINKER_LOG keep events out of the machine log', () => {
   assert.equal(fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').trim().split('\n').length, 2);
   assert.equal(JSON.parse(fs.readFileSync(other, 'utf8')).repo, store.repo);
 });
+
+test('a repository is its origin: clones and worktrees count together', async () => {
+  const { repoId, normalizeOrigin } = await import('../src/store.js');
+  const { execFileSync } = await import('node:child_process');
+  for (const u of ['git@github.com:Owner/Repo.git', 'https://github.com/Owner/Repo', 'https://user:pw@github.com/owner/repo.git/', 'ssh://git@github.com/owner/repo.git', 'ssh://git@github.com:22/owner/repo'])
+    assert.equal(normalizeOrigin(u), 'github.com/owner/repo', u);
+  const git = (cwd, ...a) => execFileSync('git', a, { cwd, stdio: 'pipe', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
+  const mk = origin => { const d = tmp('thinker-origin-'); git(d, 'init', '-q'); if (origin) git(d, 'remote', 'add', 'origin', origin); fs.writeFileSync(path.join(d, 'a.js'), 'x'); git(d, 'add', '.'); git(d, 'commit', '-q', '-m', 'x'); return d; };
+  const clone = mk('git@github.com:Owner/Repo.git'), again = mk('https://github.com/owner/repo'), bare = mk(), other = mk('https://github.com/owner/other.git');
+  const wt = path.join(tmp('thinker-wt-'), 'w'); git(clone, 'worktree', 'add', '-q', '--detach', wt);
+  assert.equal(repoId(clone), 'github.com/owner/repo');
+  assert.equal(repoId(again), 'github.com/owner/repo');
+  assert.equal(repoId(wt), 'github.com/owner/repo');
+  assert.equal(repoId(bare), bare);
+
+  const home = tmp('thinker-home-');
+  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, () => {
+    const a = new Store(clone).init(), w = new Store(wt), o = new Store(other), b = new Store(bare);
+    a.put({ id: 'n1', kind: 'location', title: 'n1', body: 'b', deps: [{ path: 'a.js' }] });
+    a.log({ op: 'orient', session: 's1', task: 't', served: ['n1'], tokens: 10, est: [[1, 1]] });
+    w.log({ op: 'orient', session: 's2', task: 't', served: ['n1'], tokens: 10, est: [[1, 1]] });
+    w.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });     // an event's own id is kept
+    o.log({ op: 'orient', session: 's3', task: 't', served: [] });
+    b.log({ op: 'orient', session: 's4', task: 't', served: [] });
+    // an event written before the origin was recorded is placed by its checkout
+    fs.appendFileSync(path.join(home, 'log.jsonl'), JSON.stringify({ t: new Date().toISOString(), repo: again, op: 'orient', task: 't', served: [] }) + '\n');
+    const lines = fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+    assert.equal(lines[1].origin, 'github.com/owner/repo'); assert.equal(lines[1].repo, wt); assert.equal(lines[2].id, 'n1');
+
+    const all = summarize(a, { all: true });
+    assert.deepEqual(all.repos.map(r => [r.repo, r.requests, r.served, r.notes]).sort(), [[bare, 1, 0, 0], ['github.com/owner/other', 1, 0, 0], ['github.com/owner/repo', 3, 2, 1]].sort());
+    assert.equal(all.repos.find(r => r.repo === 'github.com/owner/repo').checkouts.length, 3);
+    // --here from the worktree covers every checkout of the repository
+    const here = summarize(w);
+    assert.equal(here.requests, 3); assert.equal(here.scope, 'github.com/owner/repo');
+    assert.match(renderUsage(here), /^thinker usage for github.com\/owner\/repo,/);
+    assert.match(renderUsage(all), /github\.com\/owner\/repo +1 +3 +2/);
+  });
+});
