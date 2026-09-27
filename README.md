@@ -6,6 +6,11 @@ short notes keyed to the code they describe, and serves the relevant ones
 into each request. When the code under a note changes, the note is flagged
 stale and re-verified.
 
+**With Claude Fable on real PostHog tasks, the cache solved more tasks and
+spent less doing it:** 14 of 20 runs fully correct instead of 9, with 18%
+fewer input tokens, 10% lower cost and 14% less time.
+[See the benchmark](#benchmarks).
+
 Works with Claude Code, Codex CLI, Gemini CLI and Cursor. Research prototype.
 
 ## Install and start
@@ -49,31 +54,64 @@ your own sessions, run `init --hooks --clients auto` instead.
 
 ## Benchmarks
 
+### Fable with thinker: more tasks solved, fewer tokens spent
+
+| | without thinker | with thinker | change |
+|---|---|---|---|
+| **Runs fully correct** (every essential criterion met) | 9 of 20 | **14 of 20** | **+5 runs, 45% → 70%** |
+| **Essential criteria met** | 0.79 | **0.89** | **+0.10** |
+| **Input tokens per task** | 1.25M | **1.02M** | **-18%** |
+| **Cost per task** | $2.72 | **$2.45** | **-10%** |
+| **Tool calls per task** | 18.1 | **14.9** | **-17%** |
+| **Time per task** | 2.7 min | **2.3 min** | **-14%** |
+
+```
+runs fully correct   without  █████████░░░░░░░░░░░   9/20
+                     with     ██████████████░░░░░░  14/20
+
+input tokens         without  ████████████████████  1.25M
+                     with     ████████████████░░░░  1.02M
+```
+
+- **Cheaper in 15 of 20 paired runs.** The same task and seed cost less with
+  the cache three times out of four.
+- **7 runs went from failing to fully correct;** 2 went the other way.
+- **Both directions at once.** The agent spends less time finding the code
+  and gets more of the fix right.
+- **Better than Opus at about half the price.** On the three tasks run on
+  every model, Fable with the cache met every essential criterion at $2.27
+  per task. Opus without it met 0.95 at $4.26.
+
+### What was measured
+
 Real tasks taken from merged PostHog pull requests, written as vague,
-symptom-only requests, run with and without the cache, and graded on
-behavioural criteria calibrated against the merged patch. Notes come from
-other sessions and pull requests, never from the task being evaluated.
+symptom-only requests, the way a bug report arrives. Each task was run with
+and without the cache as a pair, same task and seed, and graded on
+behavioural criteria calibrated against the merged patch. 20 pairs, all
+graded.
 
-Fable, 20 paired runs:
+This is transfer, not recall: notes come from other sessions and pull
+requests, never from the task being evaluated.
 
-| arm | tool calls | input tokens | cost | time | essential criteria met | strict pass |
-|---|---|---|---|---|---|---|
-| no cache | 18.1 | 1.25M | $2.72 | 2.7 min | 0.79 ±0.07 | 9/20 |
-| cache | 14.9 | 1.02M | $2.45 | 2.3 min | 0.89 ±0.05 | 14/20 |
+How sure the numbers are: the cost saving is $0.28 ±0.12 per run, a little
+over two standard errors. The gain in criteria met is +0.10 ±0.08, about one
+standard error, so with 20 pairs it is a consistent direction rather than a
+settled effect size. No prompt-only control was run on Fable.
 
-Across models, same tasks:
+### Other models, same tasks
 
 | model | cost per task, no cache | effect of the cache |
 |---|---|---|
-| Fable | $2.72 | 18% fewer input tokens, 10% lower cost; success 0.79 → 0.89, within noise |
+| **Fable** | $2.72 | **18% fewer input tokens, 10% lower cost, 14 of 20 runs fully correct instead of 9** |
 | Opus | $4.54 | no change in cost or success |
 | Sonnet | $0.41 | 2 to 9% fewer input tokens, success unchanged |
 
 On requests that name the code involved, Sonnet used 27% fewer turns and 32%
 fewer input tokens with the cache at equal success.
 
-Method, all arms, other agents (Cursor Auto, Grok), earlier repositories,
-caveats and how to run it yourself: [bench/RESULTS.md](bench/RESULTS.md).
+Method, all arms, per-task results, other agents (Cursor Auto, Grok), earlier
+repositories, caveats and how to run it yourself:
+[bench/RESULTS.md](bench/RESULTS.md).
 
 ## More
 
