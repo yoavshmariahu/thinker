@@ -12,7 +12,7 @@ import { hashDep } from './deps.js';
 import { CLIENTS, parseClients, installClient, uninstallClients, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, parkPending, takePending } from './clients.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from './transcripts.js';
 import { available, provider, findBin } from './llm.js';
-import { summarize, renderUsage } from './usage.js';
+import { summarize, renderUsage, sessionKey } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -552,7 +552,9 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served });
   if (dry) { out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, cost $${(r.cost || 0).toFixed(3)}, trace ${r.traceChars} chars)`); return; }
   const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') } });
-  const applied = attest(store, r.assessments, { session: path.basename(file, '.jsonl') });
+  // under the session's id, which is what servings are logged under: a transcript's file name is
+  // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
+  const applied = attest(store, r.assessments, { session: session || sessionKey(path.basename(file)) });
   if (!quiet) for (const a of applied) out(`attest  ${a.verdict.padEnd(12)} ${a.id} → c=${Math.round(a.confidence * 100)}%`);
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(stateFile, JSON.stringify({ line: lineCount, assessed: [...new Set([...(state.assessed || []), ...served.map(n => n.id)])], at: new Date().toISOString() }));

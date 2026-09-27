@@ -79,11 +79,10 @@ function runClaude(prompt, { arm, allowEdit, cwd }) {
   if (!allowEdit) a.push('--disallowedTools', 'Edit,Write,NotebookEdit,mcp__thinker__remember,mcp__thinker__feedback');
   const env = { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
   const notesDir = path.resolve(flags['notes-dir'] || path.join(repo, '.thinker', 'notes'));
-  if (arm === 'cache') { a.push('--mcp-config', JSON.stringify({ mcpServers: { thinker: { command: 'node', args: [path.join(HERE, '..', 'src', 'mcp.js')], env: { THINKER_REPO: cwd, THINKER_NOTES_DIR: notesDir } } } }), '--append-system-prompt', CACHE_PROMPT); }
-  else a.push('--mcp-config', '{"mcpServers":{}}');
-  // Hook-based arms. early: what the UserPromptSubmit hook injects; late: PostToolUse
+  // Hook-based and cache arms. early: what the UserPromptSubmit hook injects; late: PostToolUse
   // file-keyed notes; nudge: Stop-hook completeness check.
   const ARMS = {
+    cache:      { early: 'full', mcp: true },
     hook:       { early: 'full' },
     rerank:     { early: 'full', env: 'THINKER_RERANK=haiku ' },
     naive:      { early: 'full', env: 'THINKER_NAIVE=1 ' },
@@ -99,6 +98,11 @@ function runClaude(prompt, { arm, allowEdit, cwd }) {
     'router+late': { early: 'router', late: true, nudge: true },
   };
   const cfg = ARMS[arm];
+  if (arm === 'cache' || cfg?.mcp) {
+    a.push('--mcp-config', JSON.stringify({ mcpServers: { thinker: { command: 'node', args: [path.join(HERE, '..', 'src', 'mcp.js')], env: { THINKER_REPO: cwd, THINKER_NOTES_DIR: notesDir } } } }), '--append-system-prompt', CACHE_PROMPT);
+  } else {
+    a.push('--mcp-config', '{"mcpServers":{}}');
+  }
   if (cfg) {
     const nd = cfg.notes || notesDir;
     const hookEnv = `${cfg.env || ''}THINKER_NOTES_DIR=${nd} THINKER_EARLY=${cfg.early} THINKER_NO_BG_VERIFY=1 `;

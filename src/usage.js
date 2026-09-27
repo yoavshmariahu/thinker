@@ -24,6 +24,14 @@ export function savingOf(repo, note) {
   return { calls, tokens };
 }
 
+// One form for a session's id wherever it was written: as the agent gave it, as the name of
+// the trace recorded for it, or (in older assessments) as the name of its transcript file.
+export function sessionKey(s) {
+  s = String(s ?? '').replace(/\.jsonl?$/, '').replace(/^trace-/, '');
+  const codex = s.match(/^rollout-.*?([0-9a-f]{8}-[0-9a-f-]{27,})$/);
+  return (codex ? codex[1] : s).replace(/[^\w.-]/g, '_');
+}
+
 // fields added to a serving's log line
 export const servedFields = (store, notes, text) => ({ tokens: estTokens(text || ''), est: notes.map(n => { const s = savingOf(store.repo, n); return [s.calls, s.tokens]; }) });
 
@@ -77,14 +85,14 @@ export function summarize(store, { days, all = false } = {}) {
       // lines written before the estimate was recorded: the note's text and files as they are now
       u.tokensServed += typeof e.tokens === 'number' ? e.tokens : ids.reduce((n, id) => n + estTokens(s.get(id)?.body || ''), 0);
       const named = e.session && e.session !== 'unknown';
-      const key = `${e.origin}|${named ? e.session : `?${anon++}`}`;
+      const key = `${e.origin}|${named ? sessionKey(e.session) : `?${anon++}`}`;
       if (!sessions.has(key)) sessions.set(key, { origin: e.origin, named, notes: new Map() });
       ids.forEach((id, i) => {
         const k = `${e.origin}|${id}`; count.set(k, { origin: e.origin, repo: e.repo, id, n: (count.get(k)?.n || 0) + 1 });
         if (!sessions.get(key).notes.has(id)) sessions.get(key).notes.set(id, e.est?.[i] || Object.values(savingOf(e.repo, s.get(id))));
       });
     } else if (e.op === 'attest') {
-      const key = `${e.origin}|${e.session}`;
+      const key = `${e.origin}|${sessionKey(e.session)}`;
       if (!verdicts.has(key)) verdicts.set(key, new Map());
       for (const a of e.applied || []) verdicts.get(key).set(a.id, a.verdict);
     } else if (e.op === 'distill') { u.learned.sessions++; u.learned.notes += (e.saved || []).length; u.learned.merged += (e.merged || []).length; r.learned += (e.saved || []).length; }

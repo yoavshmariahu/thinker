@@ -189,7 +189,8 @@ of relevance), `THINKER_RERANK=haiku`.
   `budget`, up to five are served (past the second, a note must reach 0.7 of
   the best hit's relevance), a linked note is added instead of replacing a
   hit, and relevant notes that were not served are listed by title and id;
-  `lookup` takes such an id.
+  `lookup` takes such an id. `THINKER_ORIENT_GUIDE` names a file whose text
+  is put above the notes `orient` returns (per-model guidance).
 - Prompt-time hook: injects the orientation bundle into every prompt
   automatically (no tool call needed). See [Supported agents](#supported-agents).
 - Ranking: BM25 over title/answers/tags/deps/body with identifier splitting,

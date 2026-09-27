@@ -127,3 +127,44 @@ test('a repository is its origin: clones and worktrees count together', async ()
     assert.match(renderUsage(all), /github\.com\/owner\/repo +1 +3 +2/);
   });
 });
+
+test('assessments are logged under the session id, and older ones under a file name still match', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const { recordEvent, traceFile } = await import('../src/transcripts.js');
+  const { sessionKey } = await import('../src/usage.js');
+  const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
+  assert.equal(sessionKey('trace-abc.jsonl'), 'abc');
+  assert.equal(sessionKey('rollout-2026-09-27T10-00-00-0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b'), '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b');
+  assert.equal(sessionKey('session-1.json'), 'session-1');
+  assert.equal(sessionKey('8c1552c5-1ea2-4551-946c-25fea13d296d'), '8c1552c5-1ea2-4551-946c-25fea13d296d');
+
+  const home = tmp('thinker-home-');
+  const store = repoWith({ n1: ['a.js'] });
+  execFileSync('git', ['init', '-q'], { cwd: store.repo });
+  const env = { THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined, THINKER_NO_LEARN: undefined };
+  // a session of an agent that gives no transcript: the hooks recorded it, and served n1 in it
+  withEnv(env, () => {
+    store.put({ ...store.get('n1'), servedIn: ['sess-1'] });
+    store.log({ op: 'orient', session: 'sess-1', task: 't', served: ['n1'], tokens: 10, est: [[1, 1000]] });
+    recordEvent(store.dir, 'sess-1', { t: 'prompt', text: 'where is a' });
+    for (let i = 0; i < 3; i++) recordEvent(store.dir, 'sess-1', { t: 'tool', name: 'Read', input: { file_path: 'a.js' }, result: 'x' });
+    recordEvent(store.dir, 'sess-1', { t: 'say', text: 'it is in a.js' });
+  });
+  const model = path.join(home, 'model.js');
+  fs.writeFileSync(model, `process.stdin.resume(); process.stdin.on('end', () => console.log(JSON.stringify({ notes: [], assessments: [{ id: 'n1', verdict: 'confirmed', evidence: 'read a.js', correction: '' }] })));`);
+  const childEnv = { ...process.env, THINKER_HOME: home, THINKER_LLM_CMD: `node ${model}` };
+  for (const k of ['THINKER_LOG', 'THINKER_NOTES_DIR', 'THINKER_NO_LEARN', 'THINKER_LLM', 'ANTHROPIC_API_KEY']) delete childEnv[k];
+  execFileSync('node', [CLI, 'distill', traceFile(store.dir, 'sess-1'), '--incremental', '--quiet', '--session', 'sess-1', '--repo', store.repo], { env: childEnv, stdio: 'pipe' });
+  withEnv(env, () => {
+    const log = fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+    assert.equal(log.find(e => e.op === 'attest').session, 'sess-1');
+    const u = summarize(store);
+    assert.deepEqual(u.assessed, { confirmed: 1, contradicted: 0, unused: 0, pending: 0 });
+    assert.deepEqual({ calls: u.saved.calls, tokens: u.saved.tokens }, { calls: 1, tokens: 1000 });
+    // an assessment written before the fix, under the trace's file name
+    store.log({ op: 'orient', session: 'sess-2', task: 't', served: ['n1'], tokens: 10, est: [[1, 1000]] });
+    store.log({ op: 'attest', session: 'trace-sess-2', applied: [{ id: 'n1', verdict: 'confirmed' }] });
+    assert.equal(summarize(store).saved.calls, 2);
+  });
+});
