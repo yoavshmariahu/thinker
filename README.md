@@ -6,51 +6,47 @@ short notes keyed to the code they describe, and serves the relevant ones
 into each request. When the code under a note changes, the note is flagged
 stale and re-verified.
 
-**With Claude Fable on real PostHog tasks, the cache solved more tasks and
-spent less doing it:** 14 of 20 runs fully correct instead of 9, with 18%
-fewer input tokens, 10% lower cost and 14% less time.
+**With Claude Fable on real tasks, the cache solved more tasks and spent
+less doing it.**
+
+```
+runs fully correct   without thinker  █████████░░░░░░░░░░░   9/20
+                     with thinker     ██████████████░░░░░░  14/20   +5 runs
+
+input tokens         without thinker  ████████████████████  1.25M
+                     with thinker     ████████████████░░░░  1.02M   -18%
+
+cost per task        without thinker  ████████████████████  $2.72
+                     with thinker     ██████████████████░░  $2.45   -10%
+```
+
 [See the benchmark](#benchmarks).
 
 Works with Claude Code, Codex CLI, Gemini CLI and Cursor. Research prototype.
 
 ## Install and start
 
-Requires git, Node 20+ and at least one of the agents above, logged in.
-
-### In your repository, one line
-
-The thinker repository is private, so this needs a GitHub token with read
-access, exported as `GITHUB_TOKEN`. From inside your repository:
+From inside your repository:
 
 ```bash
-curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
-  https://api.github.com/repos/yoavshmariahu/thinker/contents/install.sh | bash -s -- --build
+gh api repos/yoavshmariahu/thinker/contents/install.sh -H "Accept: application/vnd.github.raw" | bash -s -- --build
 ```
-
-This installs the tool under `~/.thinker`, builds a cache of notes from the
-repository's git history, merged pull requests and source areas, and wires
-it into the agents found on the machine. Building costs roughly $9 of agent
-usage with the defaults; the estimate is printed before anything runs. If a
-cache was already built for the repository, use `--cache <file|url>` instead
-of `--build` (see [ONBOARDING.md](ONBOARDING.md) for all options).
 
 Then work with your agent as usual. Notes are added to each request
 automatically.
 
-### From a checkout
+Notes:
 
-```bash
-git clone https://github.com/yoavshmariahu/thinker.git
-cd thinker && npm install && npm test
-
-cd /path/to/your-repo
-node /path/to/thinker/src/cli.js setup          # build the cache and wire up agents
-node /path/to/thinker/src/cli.js list           # see the notes
-node /path/to/thinker/src/cli.js orient "add rate limiting to the upload endpoint"
-```
-
-`setup` asks before spending. To start with an empty cache that fills from
-your own sessions, run `init --hooks --clients auto` instead.
+- **Requirements.** git, curl, tar, Node 20+, the GitHub CLI logged in (`gh auth login`)
+  with access to the thinker repository, which is private, and at least one
+  of the agents above, logged in.
+- **What it does.** Installs the tool under `~/.thinker`, builds a cache of
+  notes from the repository's git history, merged pull requests and source
+  areas, and wires it into the agents found on the machine.
+- **Cost.** Building costs roughly $9 of agent usage with the defaults. The
+  estimate is printed before anything runs.
+- **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
+  See [ONBOARDING.md](ONBOARDING.md) for all options.
 
 ## Benchmarks
 
@@ -65,14 +61,6 @@ your own sessions, run `init --hooks --clients auto` instead.
 | **Tool calls per task** | 18.1 | **14.9** | **-17%** |
 | **Time per task** | 2.7 min | **2.3 min** | **-14%** |
 
-```
-runs fully correct   without  █████████░░░░░░░░░░░   9/20
-                     with     ██████████████░░░░░░  14/20
-
-input tokens         without  ████████████████████  1.25M
-                     with     ████████████████░░░░  1.02M
-```
-
 - **Cheaper in 15 of 20 paired runs.** The same task and seed cost less with
   the cache three times out of four.
 - **7 runs went from failing to fully correct;** 2 went the other way.
@@ -84,8 +72,9 @@ input tokens         without  ████████████████�
 
 ### What was measured
 
-Real tasks taken from merged PostHog pull requests, written as vague,
-symptom-only requests, the way a bug report arrives. Each task was run with
+Real tasks taken from merged pull requests in a large open-source
+repository, written as vague, symptom-only requests, the way a bug report
+arrives. Each task was run with
 and without the cache as a pair, same task and seed, and graded on
 behavioural criteria calibrated against the merged patch. 20 pairs, all
 graded.
