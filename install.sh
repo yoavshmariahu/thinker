@@ -5,9 +5,19 @@
 # The thinker repository is private, so you need access to it and either the
 # GitHub CLI (gh auth login) or a token in GITHUB_TOKEN:
 #
-#   gh api repos/yoavshmariahu/thinker/contents/install.sh -H "Accept: application/vnd.github.raw" | bash -s -- --cache gh:caches/<repo>.tgz
+#   gh api repos/yoavshmariahu/thinker/contents/install.sh -H "Accept: application/vnd.github.raw" | bash -s -- --build
+#
+# --build does everything for a repository that has no cache yet: installs the
+# tool, builds the cache from the code and merged pull requests, and wires it
+# into the coding agents found on this machine. If a cache was already built
+# for the repository, pass --cache instead and nothing has to be built.
 #
 # Options
+#   --build             build the cache here (uses your Claude usage; the estimate is printed first)
+#   --areas <n>         with --build: source areas to explore, one agent session each (default 12)
+#   --prs <n>           with --build: merged pull requests to mine (default 60; needs the gh CLI)
+#   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, all or auto
+#                       (default: auto with --build, otherwise claude)
 #   --cache <source>    cache built for this repo. One of: gh:<path in the thinker repo>, an https URL, a local file.
 #                       Omit if .thinker/notes is already in the repo.
 #   --learn             also distill your own sessions into new notes when they end (uses your Claude usage)
@@ -28,10 +38,14 @@
 set -euo pipefail
 
 main() {
-  local cache="" learn=0 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0
+  local cache="" build=0 areas="" prs="" clients="" learn=0 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; shift 2 ;;
+      --build) build=1; shift ;;
+      --areas) areas="${2:-}"; shift 2 ;;
+      --prs) prs="${2:-}"; shift 2 ;;
+      --clients) clients="${2:-}"; shift 2 ;;
       --learn) learn=1; shift ;;
       --late) late=1; shift ;;
       --shared) shared=1; shift ;;
@@ -111,6 +125,9 @@ exec node "$home/app/src/cli.js" "\$@"
 SHIM
   chmod +x "$thinker"
 
+  [ "$build" = 1 ] && [ -z "$clients" ] && clients="auto"
+  # Cursor is served through the MCP server, which needs its dependencies
+  case "$clients" in *cursor*|all|auto) mcp=1 ;; esac
   if [ "$mcp" = 1 ]; then
     command -v npm >/dev/null || die "--mcp needs npm to install the MCP server's dependencies"
     say "Installing MCP server dependencies"
@@ -123,22 +140,37 @@ SHIM
       gh:*) gh_fetch "repos/$ghrepo/contents/${cache#gh:}?ref=$ref" "$tmp/cache.tgz"; "$thinker" import "$tmp/cache.tgz" --repo "$repo" ;;
       *) "$thinker" import "$cache" --repo "$repo" ;;
     esac
+  elif [ "$build" = 1 ]; then
+    :
   elif [ -d "$repo/.thinker/notes" ] && ls "$repo/.thinker/notes"/*.json >/dev/null 2>&1; then
     say "Using the cache already in this repository (.thinker/notes)"
   else
-    say "No cache found for this repository. Re-run with --cache <url> once yours is ready,"
-    say "or with --learn to build one from your own sessions."
+    say "No cache found for this repository. Re-run with --build to build one here,"
+    say "with --cache <url> if one was built for you, or with --learn to grow one from your own sessions."
   fi
 
   # --- wire it into this repository -------------------------------------------
   local args=""
+  if [ "$build" = 1 ]; then
+    args="--yes --clients $clients"
+    [ -n "$areas" ] && args="$args --areas $areas"
+    [ -n "$prs" ] && args="$args --prs $prs"
+    [ "$learn" = 1 ] && args="$args --learn"
+    [ "$late" = 1 ] && args="$args --late"
+    [ "$shared" = 1 ] && args="$args --shared"
+    [ "$githook" = 1 ] && args="$args --git-hook"
+    # shellcheck disable=SC2086
+    "$thinker" setup $args --repo "$repo"
+  else
   if [ "$learn" = 1 ]; then args="--hooks"; else args="--serve-only"; fi
   [ "$late" = 1 ] && args="$args --late"
   [ "$shared" = 1 ] || args="$args --local"
   [ "$mcp" = 1 ] || args="$args --no-mcp"
   [ "$githook" = 1 ] && args="$args --git-hook"
+  [ -n "$clients" ] && args="$args --clients $clients"
   # shellcheck disable=SC2086
   "$thinker" init $args --repo "$repo"
+  fi
 
   if ! command -v claude >/dev/null; then
     say "Note: the claude CLI was not found. Notes will still be served; learning and re-verification need it."
@@ -148,7 +180,7 @@ SHIM
   local count; count="$(ls "$repo/.thinker/notes"/*.json 2>/dev/null | wc -l | tr -d ' ')"
   say ""
   say "thinker is set up for $(basename "$repo"): $count notes."
-  say "  Start Claude Code in this repository as usual; relevant notes are added to each request."
+  say "  Start your coding agent in this repository as usual; relevant notes are added to each request."
   say "  See what it knows:      $thinker list --repo \"$repo\""
   say "  Try a request:          $thinker orient \"<what you want to change>\" --repo \"$repo\""
   say "  Remove from this repo:  $thinker uninstall --repo \"$repo\""

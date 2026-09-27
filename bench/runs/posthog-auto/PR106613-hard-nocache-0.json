@@ -1,0 +1,70 @@
+{
+  "id": "PR106613-hard-nocache-0",
+  "task": "PR106613-hard",
+  "area": "frontend",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "auto",
+  "session": "884c9756-2c46-40c0-afdc-2fe75601073d",
+  "turns": 32,
+  "wall_ms": 180803,
+  "wall_note": "start timestamp is minute resolution (11:50 PM UTC-7)",
+  "api_ms": null,
+  "cost": null,
+  "in_tokens": null,
+  "out_tokens": null,
+  "tools": {
+    "calls": 87,
+    "byTool": {
+      "Read": 30,
+      "Grep": 50,
+      "Glob": 2,
+      "StrReplace": 4,
+      "Write": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 19,
+    "greps": 52,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "criteria": {
+      "essential": 0.6666666666666666,
+      "all": 0.75,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "Both frontend/src/products.tsx (`'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],`) and products/ml_inference/manifest.tsx (`'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],`) now register a route at the new address pointing to the same DecisionPlayground scene/decisionPlayground url key that previously lived at '/ml-inference/decisions'."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "The old routes entry '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'] was removed from both productRoutes in frontend/src/products.tsx and manifest.routes in products/ml_inference/manifest.tsx; it no longer appears as a routes key in either file, only as a redirect target key."
+        },
+        {
+          "id": "c3",
+          "verdict": "unclear",
+          "evidence": "productUrls.decisionPlayground and manifest.urls.decisionPlayground were both updated to return '/ml-inference/playground' (`decisionPlayground: (): string => '/ml-inference/playground',`), so any code calling that url builder function will automatically point to the new address. However, the diff only touches frontend/src/products.tsx and products/ml_inference/manifest.tsx; no menu/sidebar/navigation files are shown, so it can't be confirmed from the given context whether any other file hardcodes the literal string '/ml-inference/decisions' instead of calling urls.decisionPlayground()."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "products/ml_inference/manifest.tsx still points the DecisionPlayground scene at the same import (`import: () => import('./frontend/DecisionPlaygroundScene')`) with unchanged name/description/layout; only the routes/redirects/urls keys change to the new path, so the scene component and its behavior are untouched."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "A redirect was added in both files: frontend/src/products.tsx productRedirects now has `'/ml-inference/decisions': '/ml-inference/playground',` and manifest.tsx has `redirects: { '/ml-inference/decisions': '/ml-inference/playground', }`, using the same redirect mechanism already used for other paths (e.g. '/mcp-analytics'), so visiting the old address redirects to the new one instead of 404ing."
+        }
+      ]
+    }
+  },
+  "result": "The decisions playground is now served at `/ml-inference/playground`, matching the AI observability playground address. The scene, its content, and the decide API are unchanged.\n\n`products/ml_inference/manifest.tsx` is the source of the app route. Its route and `decisionPlayground` URL builder now return `/ml-inference/playground`, so menu entries and in-app links that call `urls.decisionPlayground()` open the same DecisionPlayground scene at the new address. The old `/ml-inference/decisions` path is a redirect to that address, which is how this repo keeps a shipped app URL working after a rename.\n\n`frontend/src/products.tsx` is the generated route table the app actually mounts (`productRoutes`, `productRedirects`, and `productUrls`). Those three entries were updated to match the manifest.",
+  "is_error": false,
+  "diff": "diff --git a/frontend/src/products.tsx b/frontend/src/products.tsx\nindex 63441ff619..9f57db10ee 100644\n--- a/frontend/src/products.tsx\n+++ b/frontend/src/products.tsx\n@@ -218,7 +218,7 @@ export const productRoutes: Record<string, [string, string]> = {\n     '/mcp-servers': ['McpGateway', 'mcpGateway'],\n     '/mcp-servers/:tab': ['McpGateway', 'mcpGatewayTab'],\n     '/metrics': ['Metrics', 'metrics'],\n-    '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+    '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n     '/notebooks/widgets/:widgetId': ['ReusableWidget', 'reusableWidget'],\n     '/person/*': ['Person', 'personByDistinctId'],\n     '/persons/*': ['Person', 'personByUUID'],\n@@ -462,6 +462,7 @@ export const productRedirects: Record<\n         combineUrl(`/logs/drop-rules/${params.id}`, searchParams, hashParams).url,\n     '/mcp-analytics': (_params, searchParams, hashParams) =>\n         combineUrl(urls.mcpAnalyticsDashboard(), { ...searchParams, landing: 'auto' }, hashParams).url,\n+    '/ml-inference/decisions': '/ml-inference/playground',\n     '/replay-vision/templates': '/replay-vision/new/template',\n     '/replay/vision': '/replay-vision',\n     '/community-skills': (_params, searchParams, hashParams) =>\n@@ -1495,7 +1496,7 @@ export const productUrls = {\n     mcpGatewayAgent: (id: string): string => `/mcp-servers/agent/${id}`,\n     mcpGatewayMember: (id: string | number): string => `/mcp-servers/member/${id}`,\n     metrics: (): string => '/metrics',\n-    decisionPlayground: (): string => '/ml-inference/decisions',\n+    decisionPlayground: (): string => '/ml-inference/playground',\n     notebooks: (): string => '/notebooks',\n     notebook: (shortId: string): string => `/notebooks/${shortId}`,\n     canvas: (): string => `/canvas`,\ndiff --git a/products/ml_inference/manifest.tsx b/products/ml_inference/manifest.tsx\nindex 1c71032607..5fbe28cb8f 100644\n--- a/products/ml_inference/manifest.tsx\n+++ b/products/ml_inference/manifest.tsx\n@@ -12,11 +12,13 @@ export const manifest: ProductManifest = {\n         },\n     },\n     routes: {\n-        '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+        '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n+    },\n+    redirects: {\n+        '/ml-inference/decisions': '/ml-inference/playground',\n     },\n-    redirects: {},\n     urls: {\n-        decisionPlayground: (): string => '/ml-inference/decisions',\n+        decisionPlayground: (): string => '/ml-inference/playground',\n     },\n     fileSystemTypes: {},\n     treeItemsNew: [],\n",
+  "harness": "cursor-auto"
+}

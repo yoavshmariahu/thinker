@@ -51,7 +51,49 @@
       "products/slack_app/backend/tests/services/test_slack_settings.py",
       "products/slack_app/backend/tests/test_thread_message_routing.py",
       "products/slack_app/backend/tests/test_untagged_followup_interactivity.py"
-    ]
+    ],
+    "criteria": {
+      "essential": 1,
+      "all": 0.4,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "resolve_untagged_followup_mode now returns None (not NEVER) for an absent row, an empty column, or slack_user_id being falsy: 'if not slack_user_id: return None' ... 'if stored in UntaggedFollowupMode.values: return UntaggedFollowupMode(stored) return None'. At the webhook gate, _untagged_followups_switched_off only stops the reply when mode == NEVER, so a None mode passes through to the workflow. In request_untagged_followup_confirmation_activity, mode is None which is neither AUTO nor NEVER, so it falls through to '_post_untagged_followup_prompt(..., offer_default=mode is None)' which posts the ask-the-replier prompt instead of silently dropping the reply."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "resolve_untagged_followup_mode_for_reply: 'creator_mode = resolve_untagged_followup_mode(...); if creator_mode is not None or replier_slack_user_id == creator_slack_user_id: return creator_mode'. So an explicit creator AUTO/NEVER always governs, even for the creator's own reply (replier==creator forces creator_mode to be returned regardless). In the activity, 'if mode == UntaggedFollowupMode.AUTO: return False' (forwards, no prompt) and 'if mode == UntaggedFollowupMode.NEVER: ... return True' (silently drops, no prompt). ASK falls through to _post_untagged_followup_prompt with offer_default=False (mode is not None), preserving the existing two-button prompt with no extra buttons."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "_post_untagged_followup_prompt always includes UNTAGGED_FOLLOWUP_ACTION_RUN ('Yes, take a look') and, when offer_default is true, adds UNTAGGED_FOLLOWUP_ACTION_ALWAYS ('Always pick them up') and UNTAGGED_FOLLOWUP_ACTION_NEVER ('Never pick them up'). The ALWAYS handler calls '_handle_untagged_followup_run(payload, save_as_default=True)' which both dispatches the message and calls 'save_untagged_followup_mode(integration, clicker_slack_user_id, UntaggedFollowupMode.AUTO)', letting the same click send this reply and record a default for future ones."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "_build_home_view now passes 'show_untagged_followups=True' unconditionally, and render_home_view's gate is 'if show_untagged_followups or untagged_followup_mode is not None:', so the section is no longer omitted. However _untagged_followups_section_blocks for mode is None does NOT select the ask option: 'if mode is None: select[\"placeholder\"] = {\"type\": \"plain_text\", \"text\": \"Choose a default\", ...}' with no 'initial_option' set, whereas only the else branch (mode is not None) sets 'select[\"initial_option\"] = next(o for o in options if o[\"value\"] == mode.value)'. So the currently-unset case renders with nothing selected rather than reflecting the ask default as the selected option, contradicting the criterion's specific requirement."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "resolve_untagged_followup_mode was changed so an unrecognised/absent value returns None uniformly with the never-set case: 'stored = row[\"untagged_followup_mode\"] if row else None; if stored in UntaggedFollowupMode.values: return UntaggedFollowupMode(stored); return None'. Previously this branch returned UntaggedFollowupMode.NEVER for both 'never set' and 'unrecognised value'; now both return None, which drives the caller into the new ask-and-offer-default path (prompting) rather than the never-pick-up behaviour the criterion requires for unrecognised values."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "The offer_default context block in _post_untagged_followup_prompt uses fixed plain text with no link construction or conditional degrading: '\"text\": (\"Always and Never save your choice for future follow-ups. \" \"You can change it on the PostHog app\\'s Home tab.\")'. There is no use of a home-page URL builder (e.g. app_home_url) or any conditional logic to insert a Slack markdown link when one can be built, so the criterion's link/degrade behavior is not implemented."
+        },
+        {
+          "id": "c7",
+          "verdict": "unclear",
+          "evidence": "No AI-credits-quota logic appears anywhere in the shown diff or surrounding code (no mention of 'quota', 'credits', or a denial-message gate in messaging.py or api.py excerpts). There is no evidence in the patch or the provided post-patch code of quota-check behavior being added, changed, or preserved for the new unconfirmed-untagged-reply path, so it cannot be determined from what is shown whether this criterion holds."
+        }
+      ]
+    }
   },
   "result": "The change is in place: someone who replies without tagging PostHog, where no thread follow-up setting has been chosen, now gets the prompt with two extra buttons that save a default. Nothing was run beyond a syntax compile of the touched files. `ruff` isn't installed here and I left the test suite alone as you asked, so the new and updated tests are unverified.\n\n## What changed\n\n- **Unset no longer means \"never\".** Previously a user with no saved setting was treated as `never` and the reply was dropped at the webhook. Now an unset setting lets the reply through to the workflow, which posts the prompt once the classifier judges the reply worth forwarding.\n- **The prompt offers a default.** On top of \"Yes, take a look\" and \"No thanks\", the first-time prompt adds \"Always pick them up\" and \"Never pick them up\". Each one answers for this message and saves the choice to the clicker's own setting. A short note points to the Home tab.\n- **Home tab.** The thread follow-ups card now always renders. For someone who never chose, it shows a \"Choose a default\" placeholder with nothing preselected, plus a note that PostHog asks each time until they pick.\n- **Existing choices are untouched.** `auto`, `ask` and `never` behave as before, and `ask` keeps its two-button prompt.\n\n## Decision for you: whose setting applies\n\nThe existing code reads the setting from the thread creator, not the replier. I kept that, and added a fallback: when the creator never chose, the replier's own saved setting applies. Without the fallback, someone who clicks \"Always\" in another person's thread would keep being prompted there, because the saved default would only cover threads they start.\n\nThe catch is that the Home tab copy still says the setting covers \"a thread you started\", which is now slightly narrower than the real behavior. If you'd rather the replier's setting never affect someone else's thread, remove the fallback in `resolve_untagged_followup_mode_for_reply`.\n\n## Things to know\n\n- **More classifier calls.** Untagged replies in threads PostHog owns used to drop before any LLM call when nobody had chosen a setting. They now reach the classifier, which is the cost of being able to ask.\n- **No migration.** The column already allowed null; only comments and docstrings changed in `models.py`.\n- **Analytics.** The confirmed and dismissed events carry a new `saved_as_default` property.\n\n## Tests\n\nI updated the existing tests that asserted unset behaves as `never`, and added cases for:\n\n- the creator-then-replier resolution order\n- the unset prompt offering a default, in the activity test\n- the Always and Never buttons saving and dispatching correctly\n- nothing being saved when the clicker isn't the prompt's recipient, or on the plain Yes/No buttons\n- the Home card rendering with nothing preselected when unset\n\nThe main edits are in `products/slack_app/backend/api.py`, `services/slack_settings.py`, `services/slack_app_home.py`, and `posthog/temporal/ai/slack_app/activities/messaging.py`.",
   "is_error": false,

@@ -50,7 +50,54 @@
       "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
       "products/feature_flags/backend/temporal/health_checks/tests/test_stale_flags.py",
       "products/feature_flags/backend/test/test_reencrypt_flag_payloads.py"
-    ]
+    ],
+    "criteria": {
+      "essential": 1,
+      "all": 0.6,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "In reencrypt_flag_payloads.py the format check runs before any decrypt/rotate work and before the flag is even counted: `for flag in self._get_flags(team_id, limit).iterator(chunk_size=batch_size): if detect_config_format(flag.filters).kind != \"v1\": continue` — the loop `continue`s straight past the `scanned += 1` line and the `_reencrypt`/`_needs_reencrypt` calls, so no payload is read/decrypted/rotated and `flag.filters` is never written. v1 flags fall through normally to `self._reencrypt(flag.pk, codec)` / `self._needs_reencrypt(flag, codec)`, so they are still processed."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "`_reencrypt` re-checks under the lock and returns False without writing: `if detect_config_format(filters).kind != \"v1\": return False`. Back in `handle()`, `changed = self._reencrypt(...)` then only `if changed: updated += 1` runs — there is no corresponding increment to `skipped` for this path (that counter is only bumped in the `except InvalidToken` branch). So the run would report `re-encrypted=0` but `skipped=0`, not the 'one skip' the criterion requires."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "audit_flag_filters.py skips before any counting or violation collection: `if isinstance(flag.filters, dict) and detect_config_format(flag.filters).kind != \"v1\": continue` runs before `scanned += 1`, `collect_filters_violations(...)`, and `divergences.record(...)`, so a non-v1 dict flag produces no violation, no unknown-key record, no divergence entry, and is not counted in `scanned`/`flags_with_violations`. Other flags in the same run proceed through `collect_filters_violations` and reporting as before."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "The skip happens via a bare `continue` before `scanned += 1`, so skipped flags are excluded from `scanned` — contradicting 'the total scanned count still includes them'. There is also no new counter for format-skipped flags anywhere in the shown code, and `self._emit_json(scanned, flags_with_violations, reports, sink, divergences)` / `self._emit_console(scanned, flags_with_violations, reports, sink, divergences)` are called with the same argument list as before, with no skip count passed through to either output mode."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "Both candidate sources in stale_flags.py are filtered through the same guard: `stale_candidates = [flag for flag in filter_stale_flags(...) if _is_v1_config(flag)]` and `full_rollout_candidates = [flag for flag in full_rollout_query if _is_v1_config(flag) and not _serves_more_than_one_result(flag) and ...]`. Since `issues` is only built from `candidates = stale_candidates + full_rollout_candidates`, a flag whose dict-based filters report a non-v1 version is excluded from both paths and cannot generate an issue or appear twice."
+        },
+        {
+          "id": "c6",
+          "verdict": "met",
+          "evidence": "The v1 filter runs as a plain list-comprehension predicate before any v1-only reader touches the flag, per the comment: 'The format check runs first because a reader that meets another format raises and fails the batch for every team in it.' Because filtering happens up front and `issues.setdefault(flag.team_id, []).append(...)` only iterates surviving `candidates`, one team's excluded flag doesn't raise or block the loop, so other teams' issues are still returned in the same `detect()` call, and a team with no surviving candidates never gets a key in `issues`."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "`_is_v1_config` in stale_flags.py is `return not isinstance(filters, dict) or detect_config_format(filters).kind == \"v1\"` — for a list or scalar, `not isinstance(filters, dict)` is True, so the function returns True (treated as v1/kept), identically to how it treats `None`, instead of being skipped as unrecognised. Likewise audit_flag_filters.py's guard `if isinstance(flag.filters, dict) and detect_config_format(flag.filters).kind != \"v1\": continue` never skips when `flag.filters` is a list/scalar (isinstance check fails), so such flags fall through to `collect_filters_violations(flag.filters, ...)` instead of being silently skipped — contradicting the requirement that non-dict, non-null rules be treated as unrecognised and skipped rather than processed/erroring."
+        },
+        {
+          "id": "c8",
+          "verdict": "unclear",
+          "evidence": "The patch fully deletes `posthog/management/commands/fix_invalid_flag_property_types.py`, so the command can no longer exist or be invoked. However, the author's summary claims corresponding edits to `feature_flag_gated_writes_baseline.txt` and `ALLOWED_REASONS` in `test_feature_flag_gated_writes.py`, but no diff hunks for those files are present in the given patch, so it cannot be confirmed from the shown code whether any lingering baseline/allow-list entry for this command was actually removed."
+        }
+      ]
+    }
   },
   "result": "The three jobs now skip any flag whose rules are not in the original (v1) format, and the one-off property-type repair command is gone. Nothing was run: per your instructions I did not run the test suite, and `ruff` is not installed here, so lint and format are unchecked too.\n\n## What changed\n\nAll three guards use the existing `detect_config_format` helper from `products/feature_flags/backend/facade/config.py`, the same check the flags cache and facade already use.\n\n- **Payload re-encryption** (`posthog/management/commands/reencrypt_flag_payloads.py`): non-v1 flags are skipped in the scan loop, before they are counted as scanned or skipped. The check is repeated inside the row lock in `_reencrypt`, because the flag could change format between the scan and the write.\n- **Rules audit** (`products/feature_flags/backend/management/commands/audit_flag_filters.py`): non-v1 flags are skipped before counting, so they appear in neither `scanned`, the violations, the unknown keys, nor the round-trip divergences.\n- **Weekly stale-flag check** (`products/feature_flags/backend/temporal/health_checks/stale_flags.py`): both candidate sources are filtered through a new `_is_v1_config` before any v1 reader touches them.\n- **Removed command**: deleted `posthog/management/commands/fix_invalid_flag_property_types.py` and its entries in `feature_flag_gated_writes_baseline.txt` and `ALLOWED_REASONS` in `test_feature_flag_gated_writes.py`. There were no other references.\n\n## Behavior to be aware of\n\n- \"Not in the original format\" covers both v2 and unrecognized versions (for example `version: 3`, or a string or boolean version).\n- Because skipped flags are not counted, the audit's `scanned` total and the re-encrypt command's `scanned=` figure will be lower than the number of rows read once such flags exist.\n- With `--limit`, skipped flags still use up part of the limit in both commands.\n\n## Tests\n\nAdded to the existing test files, no new ones:\n\n- `test_reencrypt_flag_payloads.py`: a v2 flag with an old-key payload is left byte-identical by a live run, and `_reencrypt` returns `False` for it under the lock.\n- `test_audit_flag_filters.py`: parameterized over v2 and unsupported, asserting only the v1 flag is scanned and reported.\n- `test_stale_flags.py`: two new rows in the existing inclusion/exclusion table. One is a v2 flag that is stale by usage; the other is an unsupported-version flag that still carries a v1 `groups` key, so the SQL prefilter selects it and only the format check keeps it out.",
   "is_error": false,

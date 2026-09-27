@@ -1,0 +1,72 @@
+{
+  "id": "PR106613-hard-hook-0",
+  "task": "PR106613-hard",
+  "area": "frontend",
+  "arm": "hook",
+  "rep": 0,
+  "model": "auto",
+  "session": "d406c9ed-136c-48e2-9775-00c5160b66e2",
+  "turns": 18,
+  "wall_ms": 104766,
+  "wall_note": "start timestamp is minute resolution (11:50 PM UTC-7)",
+  "api_ms": null,
+  "cost": null,
+  "in_tokens": null,
+  "out_tokens": null,
+  "tools": {
+    "calls": 48,
+    "byTool": {
+      "Read": 17,
+      "Grep": 23,
+      "Glob": 3,
+      "StrReplace": 4,
+      "Write": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 9,
+    "greps": 26,
+    "injected": [
+      "ml-inference-route-registration-backend-auto-discovery-and-f"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "criteria": {
+      "essential": 1,
+      "all": 0.75,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "Both frontend/src/products.tsx and products/ml_inference/manifest.tsx now map the route: `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']`, which is the same scene/id pairing that previously answered at '/ml-inference/decisions'. Since the scene component and its registration are otherwise unchanged, visiting the new path resolves to the same DecisionPlaygroundScene."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "The old route key '/ml-inference/decisions' was replaced (not duplicated) in both productRoutes (frontend/src/products.tsx) and manifest.routes (products/ml_inference/manifest.tsx): `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],` is the only entry for this scene now, so '/ml-inference/decisions' is no longer a registered route mapping to the playground scene."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "The single in-app URL builder for this page, `decisionPlayground: (): string => '/ml-inference/playground'`, was updated in both products.tsx and manifest.tsx, and the manifest shows `fileSystemTypes: {}`, `treeItemsNew: []`, `treeItemsProducts: []`, meaning there are no menu/tree entries for this product that could hardcode the old path. Any caller using `urls.decisionPlayground()` automatically gets the new address."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "The manifest's scene registration is unchanged aside from the route key: `DecisionPlayground: { import: () => import('./frontend/DecisionPlaygroundScene'), projectBased: true, name: 'Decisions playground', description: '...', layout: 'app-container' }` — same component, same metadata, only the routes/urls path strings changed."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "The manifest still declares `redirects: {},` (empty) and no redirect entry was added anywhere in the diff mapping '/ml-inference/decisions' to '/ml-inference/playground'. Since the old route key was removed from productRoutes with no replacement redirect, a request to '/ml-inference/decisions' would no longer resolve to any route rather than being redirected to the new address."
+        }
+      ]
+    }
+  },
+  "result": "The ML inference decisions playground is now served at `/ml-inference/playground` instead of `/ml-inference/decisions`, matching AI observability’s playground path.\n\nThe scene, its title, and its behavior are unchanged. Only the web route and the in-app URL builder moved.\n\n- `products/ml_inference/manifest.tsx` is the source of truth. Its route now maps `/ml-inference/playground` to the existing `DecisionPlayground` scene, and `urls.decisionPlayground()` returns that path. Storybook and any other caller of that helper follow it automatically. The product has no menu or tree entries, and nothing else in the app hardcoded the old web path.\n- `frontend/src/products.tsx` is generated from the manifests and is what the app actually routes on, so the same two strings were updated there. CI checks that file against a rebuild of the manifests.\n\nThe backend decide API stays at `ml_inference/decisions`. That path is the HTTP API, not the page address.",
+  "is_error": false,
+  "diff": "diff --git a/frontend/src/products.tsx b/frontend/src/products.tsx\nindex 63441ff619..fb80102fcd 100644\n--- a/frontend/src/products.tsx\n+++ b/frontend/src/products.tsx\n@@ -218,7 +218,7 @@ export const productRoutes: Record<string, [string, string]> = {\n     '/mcp-servers': ['McpGateway', 'mcpGateway'],\n     '/mcp-servers/:tab': ['McpGateway', 'mcpGatewayTab'],\n     '/metrics': ['Metrics', 'metrics'],\n-    '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+    '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n     '/notebooks/widgets/:widgetId': ['ReusableWidget', 'reusableWidget'],\n     '/person/*': ['Person', 'personByDistinctId'],\n     '/persons/*': ['Person', 'personByUUID'],\n@@ -1495,7 +1495,7 @@ export const productUrls = {\n     mcpGatewayAgent: (id: string): string => `/mcp-servers/agent/${id}`,\n     mcpGatewayMember: (id: string | number): string => `/mcp-servers/member/${id}`,\n     metrics: (): string => '/metrics',\n-    decisionPlayground: (): string => '/ml-inference/decisions',\n+    decisionPlayground: (): string => '/ml-inference/playground',\n     notebooks: (): string => '/notebooks',\n     notebook: (shortId: string): string => `/notebooks/${shortId}`,\n     canvas: (): string => `/canvas`,\ndiff --git a/products/ml_inference/manifest.tsx b/products/ml_inference/manifest.tsx\nindex 1c71032607..d29ab99a05 100644\n--- a/products/ml_inference/manifest.tsx\n+++ b/products/ml_inference/manifest.tsx\n@@ -12,11 +12,11 @@ export const manifest: ProductManifest = {\n         },\n     },\n     routes: {\n-        '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+        '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n     },\n     redirects: {},\n     urls: {\n-        decisionPlayground: (): string => '/ml-inference/decisions',\n+        decisionPlayground: (): string => '/ml-inference/playground',\n     },\n     fileSystemTypes: {},\n     treeItemsNew: [],\n",
+  "harness": "cursor-auto"
+}

@@ -1,6 +1,6 @@
 # Benchmark results
 
-All runs: `claude -p`, model `claude-sonnet-5`, `bypassPermissions`, max 60 turns, same task text and tools in every arm; judge = Sonnet against an Opus-written reference (question tasks) or against the merged upstream PR diff (change tasks). Wall-clock includes hook/tool latency. `in_tokens` = input + cache-creation + cache-read tokens summed over turns.
+All runs: `claude -p`, model `claude-sonnet-5` unless a section names another model (Opus and Fable on PostHog), `bypassPermissions`, max 60 turns, same task text and tools in every arm; judge = Sonnet against an Opus-written reference (question tasks) or against the merged upstream PR diff (change tasks). Wall-clock includes hook/tool latency. `in_tokens` = input + cache-creation + cache-read tokens summed over turns.
 
 Arms:
 
@@ -159,6 +159,48 @@ Opus works very differently from Sonnet on the same tasks: about 56 tool calls, 
 | early full, slim bundle + "verified current" preamble | 7 | see text | 34.2 | 23.5 | 5.5 | 4.55 | 0.67 |
 
 Reading: cost is the same in every arm. Notes cut Opus's pre-edit exploration by roughly a quarter, and Opus spends the saving on more editing and tests, so total calls and tokens do not drop. Halving the injected bundle and replacing the "notes are partial, verify" preamble with a statement that dependencies were re-hashed and match did not change that. Success differences are within single-run noise (one task moved 0.80 → 0.00 and another 0.00 → 0.33 between arms). On vague requests Opus's cost is set by how thoroughly it works, not by how long it takes to find the code.
+
+### Symptom-only tasks on Fable (`claude -p --model fable`, calibrated criteria; `posthog-fable`)
+
+Arms `nocache` and `hook` with the v2 notes, run as pairs (same task and seed). 20 complete pairs, all graded: 14 tasks at seed 0 and 6 of them again at seed 1. Two seeds were planned (56 runs); the run was stopped at 40. Reproduce the table with `node bench/fable-report.js`.
+
+| arm | n | calls | in Mtok | $/run | min | essential met | strict pass |
+|---|---|---|---|---|---|---|---|
+| nocache | 20 | 18.1 | 1.25 | 2.72 | 2.7 | 0.79 ±0.07 | 9/20 |
+| hook | 20 | 14.9 | 1.02 | 2.45 | 2.3 | 0.89 ±0.05 | 14/20 |
+
+Paired change with the cache: calls -17%, input tokens -18%, cost -10% (-$0.28 ±0.12 per run, cheaper in 15 of 20 pairs), time -14%. Essential met +0.10 ±0.08: better in 8 pairs, same in 9, worse in 3.
+
+| task | seed | nocache: calls | $ | essential | hook: calls | $ | essential | notes served |
+|---|---|---|---|---|---|---|---|---|
+| PR105793 | 0 | 16 | 3.43 | 1.00 | 22 | 3.97 | 1.00 | 1 |
+| PR105871 | 0 | 17 | 2.90 | 1.00 | 18 | 2.67 | 1.00 | 1 |
+| PR105887 | 0 | 23 | 2.56 | 1.00 | 16 | 2.23 | 1.00 | 1 |
+| PR106322 | 0 | 22 | 2.69 | 0.75 | 22 | 2.84 | 0.75 | 2 |
+| PR106466 | 0 | 21 | 3.01 | 1.00 | 13 | 2.55 | 1.00 | 2 |
+| PR106466 | 1 | 17 | 3.07 | 1.00 | 7 | 2.14 | 0.67 | 2 |
+| PR106491 | 0 | 9 | 1.80 | 0.00 | 19 | 2.25 | 1.00 | 2 |
+| PR106522 | 0 | 20 | 3.05 | 0.80 | 16 | 2.67 | 1.00 | 2 |
+| PR106564 | 0 | 13 | 1.94 | 0.80 | 9 | 1.76 | 1.00 | 2 |
+| PR106564 | 1 | 18 | 1.91 | 0.00 | 7 | 1.65 | 0.80 | 2 |
+| PR106579 | 0 | 20 | 3.15 | 1.00 | 14 | 2.15 | 1.00 | 1 |
+| PR106613 | 0 | 4 | 0.86 | 1.00 | 3 | 0.82 | 1.00 | 1 |
+| PR106613 | 1 | 10 | 1.18 | 0.67 | 2 | 0.83 | 1.00 | 1 |
+| PR106672 | 0 | 28 | 3.71 | 0.86 | 14 | 2.51 | 1.00 | 2 |
+| PR106672 | 1 | 21 | 3.06 | 1.00 | 23 | 3.43 | 1.00 | 2 |
+| PR106917 | 0 | 18 | 3.01 | 0.75 | 17 | 2.13 | 0.75 | 2 |
+| PR106936 | 0 | 23 | 3.82 | 0.67 | 20 | 3.48 | 1.00 | 2 |
+| PR106936 | 1 | 20 | 2.86 | 0.83 | 21 | 3.47 | 0.00 | 2 |
+| PR107042 | 0 | 17 | 2.86 | 1.00 | 20 | 2.81 | 0.80 | 2 |
+| PR107042 | 1 | 25 | 3.63 | 0.60 | 16 | 2.54 | 1.00 | 2 |
+
+Reading:
+
+- Unlike Opus, Fable turns the notes into a lower total: fewer calls, tokens and dollars, with the cost difference a little over two standard errors.
+- The success difference is about one standard error and should be read as "not worse", not as a gain. Single runs swing widely in both arms (PR106936 with notes: 1.00 at seed 0, 0.00 at seed 1; PR106564 without: 0.80 and 0.00).
+- This is transfer, not recall: the notes come from seed sessions and mined PRs, and no evaluation PR was mined.
+- Limits: no prompt-only or irrelevant-notes control was run on Fable, so the saving is not split into instruction and content effects; the six seed-1 tasks are the ones the run reached before it was stopped, not a chosen subset.
+- Fable costs $2.72 per task without notes, against $0.41 for Sonnet and $4.54 for Opus on the same tasks.
 
 ### Harness incidents
 

@@ -1,0 +1,96 @@
+{
+  "id": "PR106564-hard-nocache-1",
+  "task": "PR106564-hard",
+  "area": "common",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "fable",
+  "session": "f56874b0-101a-467c-a428-796e26ec8ab9",
+  "turns": 19,
+  "wall_ms": 228876,
+  "api_ms": 94842,
+  "cost": 1.9081577500000002,
+  "in_tokens": 1080457,
+  "out_tokens": 5692,
+  "tools": {
+    "calls": 18,
+    "byTool": {
+      "Bash": 17,
+      "Read": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 1,
+    "greps": 17,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0,
+    "samples": [
+      0,
+      0,
+      0
+    ],
+    "reasons": [
+      "The agent made no code changes whatsoever, claiming the stable chunk build feature and its query-parameter opt-in do not exist in the checkout. This is factually incorrect relative to the upstream repo, which clearly has posthog/stable_chunks.py, posthog/utils.py integration, and common/esbuilder/utils.mjs logic for exactly this feature, as shown in the merged patch. The agent failed to locate existing files that should be present, and produced zero functional change. This does not achieve the request in any way and does not touch the right location, so it merits the lowest score.",
+      "The agent made no code changes whatsoever, incorrectly claiming that the stable chunk build feature and its query-parameter opt-in do not exist in the repository. The merged upstream patch shows this feature clearly exists (posthog/stable_chunks.py, posthog/utils.py, common/esbuilder/utils.mjs, and associated tests), and the agent needed to add feature-flag-based gating to it. The agent's investigation was faulty and resulted in a completely empty patch, achieving none of the requested functionality (no feature flag added, no A/B split implemented, no exemption for anonymous users implemented). This is a clear case of no functional change being made at all.\"",
+      "The agent produced an empty patch, claiming the stable chunk build feature doesn't exist in its checkout and asking for more information instead of implementing the change. The upstream patch shows the feature (posthog/stable_chunks.py, common/esbuilder/utils.mjs, posthog/utils.py) clearly exists in the actual repository, so the agent's investigation was based on an incorrect or incomplete checkout/search, and it failed to make any functional change at all.</reason>\n</invoke>\n"
+    ],
+    "reason": "The agent made no code changes whatsoever, claiming the stable chunk build feature and its query-parameter opt-in do not exist in the checkout. This is factually incorrect relative to the upstream repo, which clearly has posthog/stable_chunks.py, posthog/utils.py integration, and common/esbuilder/utils.mjs logic for exactly this feature, as shown in the merged patch. The agent failed to locate existing files that should be present, and produced zero functional change. This does not achieve the request in any way and does not touch the right location, so it merits the lowest score.",
+    "mustHit": 0,
+    "mustTotal": 3,
+    "touched": [],
+    "criteria": {
+      "essential": 0,
+      "all": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "The patch is empty and no code was changed. There is no feature-flag decision function anywhere in the codebase; the author's search confirmed 'posthog/utils.py reads exactly one preload manifest ... and one index.html' with no stable-build variant to gate. No flag evaluation logic exists to decide which build a logged-in user receives."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "No code exists that checks login status before serving a stable build, since no stable build or gating logic was added (patch is empty)."
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "There is no flag-absence fallback logic in the code; nothing was implemented to handle missing/unresolvable flag values because the whole feature is absent."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "No query-parameter opt-in exists in this checkout: 'The only query parameter the template context reads is no-preloaded-app-context.' No override/precedence logic was added by this empty patch."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "No persistence mechanism (cookie/storage) for a remembered choice was added; the patch made no changes at all."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "No code passes a flag value to an analytics client for this purpose since no such flag/decision exists in the codebase after the (empty) patch."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "No runtime fallback/reload handling was implemented; there is no stable-build/runtime-error path in the code at all."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "No URL-cleanup logic was added; no query parameter handling for this feature exists post-patch."
+        }
+      ]
+    }
+  },
+  "result": "I made no code changes: the stable chunk build and its query-parameter opt-in do not exist in this checkout, so there is nothing for a feature flag to gate.\n\n## What I checked\n\nThe checkout is a detached HEAD at `a3b3c3685bc`, with `master` as the only branch.\n\n- **Build:** `frontend/build.mjs` produces a single esbuild \"PostHog App\" bundle into `frontend/dist`. There is no second build variant, output directory or manifest.\n- **Serving:** `posthog/utils.py` reads exactly one preload manifest (`frontend/dist/preload-manifest.json`) and one `index.html`. The only query parameter the template context reads is `no-preloaded-app-context`.\n- **Loader:** the boot script generated in `common/esbuilder/utils.mjs` and the template `frontend/src/index.html` read no query parameters.\n- **Repo-wide search:** nothing for \"stable chunk\" in any spelling, and no `rolldown` or `rspack` in the build config. The only Vite usage is the dev server.\n\nA history search for the likely identifiers (`git log -S`) timed out and had returned nothing when I stopped.\n\n## Why I stopped\n\nThe flag has to pick between two sets of built assets at the point where the server renders the HTML. I can't write that without knowing how the stable build is emitted and served, and what the opt-in parameter is called. Guessing would give you code that compiles against names that aren't in the real implementation.\n\n## What I need\n\nEither of these unblocks it:\n\n- The branch or PR that adds the stable chunk build and the query-parameter opt-in, so I can rebase onto it.\n- The parameter name and how the stable assets are laid out (separate output directory, separate manifest, or separate HTML template).\n\n## Planned change once that exists\n\n- **Decision function:** a small one in `posthog/utils.py` that returns true if the query parameter is set, false for anonymous users, and otherwise the flag's value for the user's distinct ID.\n- **Flag evaluation:** evaluated locally on the server, because the choice must be made before the HTML is sent. A client-side flag is too late to change which chunks load.\n- **Exposure:** the flag-called event is sent for logged-in users only, so the experiment has clean exposure data and anonymous users are never enrolled.\n- **Test:** one parameterized test covering the override, anonymous, flag-on and flag-off cases.\n\nOne thing to decide when you set up the flag: 50% of users or 50% of organizations. Per-user is what you described; per-organization would keep teammates on the same build.",
+  "is_error": false,
+  "diff": "",
+  "distill": null
+}

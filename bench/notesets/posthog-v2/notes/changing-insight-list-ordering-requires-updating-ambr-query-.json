@@ -43,11 +43,11 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 7,
+  "uses": 10,
   "related": [
     "insight-list-default-ordering-must-use-an-indexed-column"
   ],
-  "lastUsed": "2026-09-27T06:12:40.889Z",
+  "lastUsed": "2026-09-27T07:04:14.572Z",
   "servedIn": [
     "16f2af5b-640f-43cc-933f-9db4fa4f997d",
     "8a2027b0-97a9-496b-901f-da33440c4feb",
@@ -55,6 +55,8 @@
     "fbb19671-8730-46af-87c2-153efc2fcece",
     "7b016e34-4074-4f02-aaa7-00989843f0ac",
     "74c1862a-2c56-4845-8167-1c019dd827d0",
-    "c88cf1c1-3105-45b6-873d-e747e5e94b4d"
+    "c88cf1c1-3105-45b6-873d-e747e5e94b4d",
+    "afc6603a-63fc-40f1-8eb2-74565bdc41da",
+    "codex-posthog-codex-gpt56-PR107042-hard-0"
   ]
 }

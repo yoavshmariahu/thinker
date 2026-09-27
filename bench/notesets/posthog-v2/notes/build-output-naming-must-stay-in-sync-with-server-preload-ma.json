@@ -64,7 +64,7 @@
   "verified": "2026-09-27T00:25:59.127Z",
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
-  "status": "stale",
+  "status": "fresh",
   "uses": 6,
   "related": [
     "how-django-picks-which-frontend-build-assets-to-serve-debug-",
@@ -80,20 +80,5 @@
     "01de268d-b79f-4536-878a-05cd626d33e6",
     "14bdd8ea-719f-4bca-937b-f2b36407619a",
     "2e9c5e0e-8c55-49dd-8d88-b1af1258e010"
-  ],
-  "stale": {
-    "since": "2026-09-27T06:28:56.508Z",
-    "changed": [
-      {
-        "path": "frontend/build.mjs",
-        "symbol": "writePreloadManifest",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "common/esbuilder/utils.mjs",
-        "symbol": "copyIndexHtml",
-        "reason": "symbol body changed"
-      }
-    ]
-  }
+  ]
 }

@@ -52,7 +52,49 @@
       "products/slack_app/backend/tests/services/test_slack_settings.py",
       "products/slack_app/backend/tests/test_thread_message_routing.py",
       "products/slack_app/backend/tests/test_untagged_followup_interactivity.py"
-    ]
+    ],
+    "criteria": {
+      "essential": 1,
+      "all": 0.4,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "In `_untagged_followups_switched_off` (api.py): `mode = resolve_untagged_followup_mode(integration, mapping.mentioning_slack_user_id, replier_slack_user_id); if mode != UntaggedFollowupMode.NEVER: return False` — so an unset preference (mode=None) is not treated as switched-off and the reply proceeds to `_start_mention_workflow`. There, `request_untagged_followup_confirmation_activity` computes `mode = resolve_untagged_followup_mode(...)`; when `mode` is `None` it falls through past the `AUTO`/`NEVER` checks to `_post_untagged_followup_prompt(..., offer_default=mode is None)`, i.e. `offer_default=True`, posting the ask-the-replier prompt instead of silently dropping the reply."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "`if mode == UntaggedFollowupMode.AUTO: return False` forwards with no prompt; `if mode == UntaggedFollowupMode.NEVER: ... return True` drops with no prompt both in the webhook gate (`_untagged_followups_switched_off`) and in the activity, and this NEVER short-circuit applies uniformly including the thread creator's own replies (creator's mode wins in `resolve_untagged_followup_mode`'s creator-then-replier precedence). Explicit `ASK` yields `mode is None` == False, so `_post_untagged_followup_prompt(..., offer_default=False)` — the old plain prompt with no save buttons — preserving prior behaviour."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "When `offer_default=True`, `_post_untagged_followup_prompt` adds two extra buttons: `UNTAGGED_FOLLOWUP_ACTION_ALWAYS` ('Yes, and always pick them up') and `UNTAGGED_FOLLOWUP_ACTION_NEVER` ('No, and don't ask again'), alongside the existing one-off Yes/No buttons. Their handlers call `save_untagged_followup_mode(integration, clicker_slack_user_id, UntaggedFollowupMode.AUTO/NEVER)` in addition to dispatching/dismissing the single reply, so the replier can both act on this one reply and store a default for future untagged follow-ups."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "`_build_home_view` now sets `untagged_followup_mode=stored_untagged_followup_mode(integration, slack_user_id) or UntaggedFollowupMode.ASK` instead of the old NEVER-resolving call, and `_untagged_followups_section_blocks(mode)` unconditionally renders the `static_select` picker with `initial_option` matching `mode.value`, so a never-picked user sees the section with 'Ask first' pre-selected and can change it via `ACTION_SET_UNTAGGED_FOLLOWUP_MODE` → `_apply_untagged_followup_mode_pick` → `save_untagged_followup_mode`."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "`_stored_untagged_followup_modes` builds its dict only `if stored in UntaggedFollowupMode.values`, silently dropping rows with an unrecognised value — identical to having no row at all. `stored_untagged_followup_mode`'s docstring even states this explicitly: 'An absent row, an empty column, and a value we no longer recognise all count as never picked.' Because 'never picked' is exactly the condition that now triggers the new ask-with-offer-default prompt (mode resolves to `None`), an unrecognised stored value now starts prompting instead of continuing to resolve to NEVER as the criterion requires."
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "The `offer_default` prompt text is a fixed string: '...and change it later in the Home tab of the PostHog app.' — plain text with no attempt to build or embed a link (e.g. via the already-imported `app_home_url`), and no conditional degradation logic for when a link can or cannot be built for the workspace."
+        },
+        {
+          "id": "c7",
+          "verdict": "unclear",
+          "evidence": "No code touching AI-credits quota checks or quota-denial messaging appears anywhere in the patch or the surrounding code shown, so it's not possible to tell whether an unconfirmed untagged reply is stopped pre-quota-check or whether the denial-message suppression behaviour described in this criterion exists at all in the current code."
+        }
+      ]
+    }
   },
   "result": "The change is in place, but nothing was run: I skipped the test suite as you asked, and `ruff` isn't installed in this shell, so lint and format are unchecked. The edited files do compile.\n\n## What changed\n\n**Behavior**\n\n- A reply that doesn't tag PostHog, from someone with no setting, now reaches the workflow instead of being dropped in the webhook. If the classifier judges it agent-directed, the replier gets an ephemeral prompt with four buttons:\n  - **Yes, take a look** sends this reply only.\n  - **No thanks** drops this reply only.\n  - **Yes, and always pick them up** sends it and saves \"auto\" as their default.\n  - **No, and don't ask again** drops it and saves \"never\" as their default.\n- The prompt text tells them the default can be changed later in the Home tab.\n- Users with a saved setting behave as before. The \"ask\" prompt is unchanged, with no save buttons.\n\n**Whose setting applies**\n\nThe existing code reads the *thread creator's* setting, not the replier's. I kept that and added a fallback:\n\n1. the creator's choice, if they made one;\n2. otherwise the replier's own choice;\n3. otherwise the new prompt.\n\nWithout step 2, a default saved from the prompt would do nothing in someone else's thread and the person would be asked again every time. The creator still wins, so a replier can't switch on a thread whose creator chose \"never\".\n\n**Home tab**\n\n- The Thread follow-ups card shows \"Ask first\" for someone who never chose, where it used to show \"Leave them alone\".\n- The card copy now says the setting also covers your replies in threads whose creator hasn't chosen.\n- I shortened the option label \"Ask them first\" to \"Ask first\".\n\n**Code**\n\n- `services/slack_settings.py`: `resolve_untagged_followup_mode` now takes creator and replier and returns `None` for unset. It also gains `stored_untagged_followup_mode` and `save_untagged_followup_mode`.\n- `api.py`: two new action ids, the `offer_default` prompt variant, and save-on-click in the run and dismiss handlers.\n- `activities/messaging.py`: the confirmation activity prompts on unset. The workflow itself is unchanged, so there is no Temporal determinism concern.\n- No migration: the nullable column already exists.\n\n## Tests\n\n- `test_slack_settings.py`: unset resolves to `None`, plus the creator/replier precedence cases.\n- `test_thread_message_routing.py`: the `unset` case now expects a dispatch.\n- `test_request_untagged_followup_confirmation_activity.py`: a creator-unset matrix covering whether the reply is held, prompted, and offered a default.\n- `test_untagged_followup_interactivity.py`: only the two new buttons save a default, and a click from anyone but the recipient saves nothing.\n\n## Things to know\n\n- **More classifier calls.** Replies in threads where nobody chose a setting used to cost nothing; they now each get an LLM classifier call before the prompt decision.\n- **\"Ask first\" can't be saved directly from unset.** The Home tab picker preselects it for unset users, and Slack sends no event when the preselected option is picked again. Such a user keeps getting the prompt with the save buttons until they pick another option.\n- **No confirmation after saving.** The prompt disappears after a save click, the same as the one-off buttons.",
   "is_error": false,

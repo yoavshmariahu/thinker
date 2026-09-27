@@ -9,6 +9,7 @@ import { listMergedPrs, distillPr } from './prs.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
 import { hashDep } from './deps.js';
+import { CLIENTS, parseClients, installClient, uninstallClients, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, parkPending, takePending } from './clients.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -24,22 +25,15 @@ const store = new Store(repo);
 const out = s => process.stdout.write(s + '\n');
 const readStdin = () => fs.readFileSync(0, 'utf8');
 
-function mcpConfig() {
-  return { thinker: { command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: repo } } };
-}
-
-function mergeJson(file, patch) {
-  let cur = {};
-  try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-  const next = patch(cur);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(next, null, 2) + '\n');
-}
+const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: repo } });
 
 const HELP = `thinker — cache of understanding for coding agents
 
-  init [--hooks | --serve-only] [--late] [--local] [--git-hook] [--no-mcp]
-                                 set up .thinker/, Claude Code hooks and the MCP server for this repo
+  setup [--clients list|all|auto] [--areas n] [--prs n] [--no-seed] [--no-prs] [--learn] [--late] [--shared] [--git-hook] [--export f.tgz] [--yes]
+                                 everything for a new repo in one step: build the cache (co-change, merged PRs,
+                                 one exploration session per source area) and wire it into the coding agents found
+  init [--hooks | --serve-only] [--late] [--local] [--git-hook] [--no-mcp] [--clients list|all|auto]
+                                 set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
   export [file.tgz]              pack this repo's cache for delivery
   import <file.tgz|url>          unpack a delivered cache and check it against this checkout
@@ -55,11 +49,10 @@ const HELP = `thinker — cache of understanding for coding agents
   relink                         recompute cross-note links
   verify [ids...] [--model m]    re-verify stale notes with a small model
   distill [transcript.jsonl] [--min-explore n] [--dry] [--model m]
-  hook <prompt|stop>             Claude Code hook entrypoints (read JSON on stdin)
   seed [--areas n] [--prompts f.json] [--dry]   bootstrap coverage: one exploration session per source area
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
   mine-prs <owner/repo> --before <iso> [--after <iso>] [--limit n]   distill merged PRs into fix / invariant / convention notes
-  hook <prompt|tool|stop [--nudge]>             prompt = early injection, tool = late file-keyed injection, stop = nudge + distill
+  hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = early injection, tool = late file-keyed injection, stop = nudge + distill
   stats
 `;
 
@@ -67,43 +60,17 @@ async function main() {
   switch (cmd) {
     case 'init': {
       // flags: --hooks (serve + learn), --serve-only (no learning at session end), --late (file-keyed notes),
-      //        --local (write .claude/settings.local.json, not shared), --git-hook, --no-mcp
-      store.init();
-      if (!flags['no-mcp']) { mergeJson(path.join(repo, '.mcp.json'), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), ...mcpConfig() } })); out(`initialized ${store.dir} and registered MCP server in .mcp.json`); }
-      else out(`initialized ${store.dir}`);
-      if (flags.hooks || flags['serve-only']) {
-        const cli = path.join(HERE, 'cli.js');
-        const target = path.join(repo, '.claude', flags.local ? 'settings.local.json' : 'settings.json');
-        mergeJson(target, c => {
-          const hooks = { ...(c.hooks || {}) };
-          const strip = ev => { hooks[ev] = (hooks[ev] || []).filter(h => !JSON.stringify(h).includes('thinker')); if (!hooks[ev].length) delete hooks[ev]; };
-          const add = (ev, command, extra = {}, matcher = '') => { (hooks[ev] ||= []).push({ matcher, hooks: [{ type: 'command', command, ...extra }] }); };
-          for (const ev of ['UserPromptSubmit', 'Stop', 'PostToolUse']) strip(ev);
-          add('UserPromptSubmit', `node "${cli}" hook prompt`, { timeout: 15 });
-          if (flags.late) add('PostToolUse', `node "${cli}" hook tool`, { timeout: 10 }, 'Read|Bash|Grep');
-          if (!flags['serve-only']) add('Stop', `node "${cli}" hook stop`, { timeout: 10 });
-          return { ...c, hooks };
-        });
-        out(`installed Claude Code hooks in ${path.relative(repo, target)}: notes injected on each prompt${flags.late ? ', file-keyed notes while working' : ''}${flags['serve-only'] ? '' : ', sessions distilled into new notes when they end'}`);
-      }
-      if (flags['git-hook']) {
-        const hook = path.join(repo, '.git', 'hooks', 'post-commit');
-        if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) out(`skipped git hook: ${hook} already exists and is not ours`);
-        else { fs.writeFileSync(hook, `#!/bin/sh\n# thinker: re-hash note dependencies${flags['serve-only'] ? '' : ' and re-verify stale notes'} in the background\nnohup node "${path.join(HERE, 'cli.js')}" check --quiet${flags['serve-only'] ? '' : ' --verify'} --repo "${repo}" >/dev/null 2>&1 &\n`, { mode: 0o755 }); out('installed git post-commit hook'); }
-      }
-      if (!fs.existsSync(path.join(store.dir, 'cochange.json'))) { try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {} }
-      const gi = path.join(repo, '.thinker', '.gitignore');
-      if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'log.jsonl\nstate/\n');
+      //        --local (write .claude/settings.local.json, not shared), --git-hook, --no-mcp, --clients
+      init({ clients: parseClients(flags.clients), hooks: !!(flags.hooks || flags['serve-only']), learn: !!flags.hooks && !flags['serve-only'], late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !!flags['git-hook'] });
+      break;
+    }
+    case 'setup': {
+      await setup();
       break;
     }
     case 'uninstall': {
-      // remove hooks and MCP registration; notes stay unless --purge
-      for (const f of ['settings.json', 'settings.local.json']) {
-        const file = path.join(repo, '.claude', f); if (!fs.existsSync(file)) continue;
-        mergeJson(file, c => { const hooks = { ...(c.hooks || {}) }; for (const ev of Object.keys(hooks)) { hooks[ev] = hooks[ev].filter(h => !JSON.stringify(h).includes('thinker')); if (!hooks[ev].length) delete hooks[ev]; } const n = { ...c, hooks }; if (!Object.keys(hooks).length) delete n.hooks; return n; });
-      }
-      const mcp = path.join(repo, '.mcp.json');
-      if (fs.existsSync(mcp)) mergeJson(mcp, c => { const m = { ...(c.mcpServers || {}) }; delete m.thinker; return { ...c, mcpServers: m }; });
+      // remove hooks and MCP registration for every client; notes stay unless --purge
+      uninstallClients(repo);
       const gh = path.join(repo, '.git', 'hooks', 'post-commit');
       if (fs.existsSync(gh) && fs.readFileSync(gh, 'utf8').includes('thinker')) fs.unlinkSync(gh);
       if (flags.purge) fs.rmSync(store.dir, { recursive: true, force: true });
@@ -211,22 +178,27 @@ async function main() {
     }
     case 'hook': {
       const ev = JSON.parse(readStdin() || '{}');
+      const client = hookClient(flags.client, ev);
+      // Cursor also runs the Claude Code hooks it imports; its own hooks do the work
+      if (client === 'cursor-import') break;
+      const session = sessionOf(ev);
       if (pos[0] === 'prompt') {
+        if (client === 'cursor') out(JSON.stringify({ continue: true })); // cannot add context here; see clients.js
         if (!store.exists() || !store.list().length) break;
         // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
-        if (ev.session_id && looksLikeCorrection(ev.prompt)) outcome(store, { session: ev.session_id, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
-        const r = await orient(store, { task: ev.prompt || '', session: ev.session_id, budget: Number(flags.budget) || 600 });
-        if (r.included.length) out(`<thinker-cache>\nNotes about this repo from earlier sessions. Their code dependencies were re-hashed just now and match the current code${r.included.some(n => n.status === 'stale') ? ', except notes marked STALE' : ''}, so the facts below are current: rely on them and do not re-read files only to confirm them. They cover where things are and how they connect, not the design of this change.\n\n${r.text}\n</thinker-cache>`);
+        if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
+        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, budget: Number(flags.budget) || 600 });
+        if (!r.included.length) break;
+        const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their code dependencies were re-hashed just now and match the current code${r.included.some(n => n.status === 'stale') ? ', except notes marked STALE' : ''}, so the facts below are current: rely on them and do not re-read files only to confirm them. They cover where things are and how they connect, not the design of this change.\n\n${r.text}\n</thinker-cache>`;
+        if (client === 'cursor') parkPending(store.dir, session, text);
+        else out(promptOutput(client, text));
       } else if (pos[0] === 'tool') {
-        // PostToolUse: the agent opened files; serve notes anchored to them, once each.
+        // After a tool call: the agent opened files; serve notes anchored to them, once each.
         if (!store.exists()) break;
-        const ti = ev.tool_input || {};
-        const files = [];
-        if (ti.file_path) files.push(ti.file_path);
-        if (ti.path && /\.\w+$/.test(ti.path)) files.push(ti.path);
-        if (typeof ti.command === 'string') for (const m of ti.command.matchAll(/(?:^|[\s'"=])((?:[\w.@-]+\/)+[\w.@-]+\.\w{1,5})(?=$|[\s'":|;)])/g)) { const f = m[1]; if (fs.existsSync(path.join(repo, f))) files.push(f); }
-        const r = lateNotes(store, { session: ev.session_id || 'unknown', files });
-        if (r.text) out(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: r.text } }));
+        const parts = [];
+        if (client === 'cursor') { const p = takePending(store.dir, session); if (p) parts.push(p); }
+        if (client !== 'cursor' || flags.late) { const r = lateNotes(store, { session, files: toolFiles(ev, repo) }); if (r.text) parts.push(r.text); }
+        if (parts.length) out(toolOutput(client, parts.join('\n\n')));
       } else if (pos[0] === 'stop') {
         if (!store.exists()) break;
         // completeness nudge (once per session, never when already continuing from a stop hook)
@@ -246,22 +218,7 @@ async function main() {
     }
     case 'mine-prs': {
       // thinker mine-prs <owner/repo> --before <iso> [--after <iso>] [--limit n] [--dry]
-      const slug = pos[0];
-      const prs = listMergedPrs(slug, { before: flags.before, after: flags.after, limit: Number(flags.limit) || 60 })
-        .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) && (p.body || '').length > 120 && p.additions <= 600 && p.additions >= 5);
-      out(`${prs.length} PRs to mine`);
-      let cost = 0, saved = 0;
-      for (const pr of prs) {
-        try {
-          const r = await distillPr(slug, pr, { model: flags.model || store.config().distillModel || 'sonnet' });
-          cost += r.cost || 0;
-          if (flags.dry) { out(`#${pr.number} ${pr.title.slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || '-'}`); continue; }
-          const s2 = saveNotes(store, r.notes, { source: { type: 'pr', ref: `${slug}#${pr.number}` } });
-          saved += s2.saved.length + s2.merged.length;
-          out(`#${pr.number} ${pr.title.slice(0, 60)} → ${[...s2.saved, ...s2.merged].map(n => `[${n.kind}] ${n.id}`).join(', ') || '-'}${s2.skipped.length ? ` (skipped ${s2.skipped.length})` : ''}`);
-        } catch (e) { out(`#${pr.number} error ${String(e.message).slice(0, 120)}`); }
-      }
-      out(`mined ${prs.length} PRs → ${saved} notes, cost $${cost.toFixed(2)}`);
+      await minePrs(pos[0], { before: flags.before, after: flags.after, limit: Number(flags.limit) || 60, model: flags.model, dry: !!flags.dry });
       break;
     }
     case 'outcome': {
@@ -284,6 +241,81 @@ async function main() {
     }
     default: out(HELP);
   }
+}
+
+function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
+  store.init();
+  out(`initialized ${store.dir}`);
+  for (const c of clients) for (const line of installClient(c, { repo, cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), hooks, learn, late, shared, mcp })) out(line);
+  if (gitHook) {
+    const hook = path.join(repo, '.git', 'hooks', 'post-commit');
+    if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) out(`skipped git hook: ${hook} already exists and is not ours`);
+    else { fs.writeFileSync(hook, `#!/bin/sh\n# thinker: re-hash note dependencies${learn ? ' and re-verify stale notes' : ''} in the background\nnohup node "${path.join(HERE, 'cli.js')}" check --quiet${learn ? ' --verify' : ''} --repo "${repo}" >/dev/null 2>&1 &\n`, { mode: 0o755 }); out('installed git post-commit hook'); }
+  }
+  if (!fs.existsSync(path.join(store.dir, 'cochange.json'))) { try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {} }
+  const gi = path.join(repo, '.thinker', '.gitignore');
+  if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'log.jsonl\nstate/\n');
+}
+
+// owner/name of the GitHub repository behind `origin`, or null
+function githubSlug() {
+  try {
+    const url = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    const m = url.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?\/?$/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+const hasBin = b => { try { execFileSync(b, ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } };
+
+// One step for a new repo: build the cache, then wire it into the clients.
+async function setup() {
+  const clients = parseClients(flags.clients, parseClients('auto'));
+  const num = (v, d) => v === undefined || v === true || Number.isNaN(Number(v)) ? d : Number(v);
+  const areas = flags['no-seed'] ? 0 : num(flags.areas, 12);
+  const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug());
+  const prs = slug ? num(flags.prs, 60) : 0;
+  const canBuild = hasBin('claude') || !!process.env.ANTHROPIC_API_KEY;
+  const canSeed = hasBin('claude');
+  const canMine = prs && hasBin('gh');
+  out(`thinker setup for ${path.basename(repo)}`);
+  out(`  clients:      ${clients.join(', ')}`);
+  out(`  explore:      ${areas && canSeed ? `${areas} source areas, one agent session each` : areas ? 'skipped (needs the claude CLI)' : 'skipped'}`);
+  out(`  merged PRs:   ${canMine && canBuild ? `up to ${prs} from ${slug}` : flags['no-prs'] || (slug && !prs) ? 'skipped' : !slug ? 'skipped (origin is not a GitHub repository)' : 'skipped (needs the gh CLI and a model)'}`);
+  // measured on PostHog: ~$0.45 per exploration session incl. distillation, ~$0.06 per mined PR
+  const est = (areas && canSeed ? areas * 0.45 : 0) + (canMine && canBuild ? prs * 0.06 : 0);
+  if (est) out(`  model usage:  roughly $${est.toFixed(0)} through your Claude login (estimate from earlier builds; varies with repo size)`);
+  if (est && !flags.yes && process.stdin.isTTY) {
+    const rl = (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout });
+    const a = await rl.question('Continue? [Y/n] '); rl.close();
+    if (/^n/i.test(a.trim())) { out('stopped before building; nothing was changed'); return; }
+  }
+  init({ clients, hooks: true, learn: !!flags.learn, late: !!flags.late, shared: !!flags.shared, mcp: true, gitHook: !!flags['git-hook'] });
+  if (canMine && canBuild) await minePrs(slug, { before: new Date().toISOString(), limit: prs, model: flags.model });
+  if (areas && canSeed) await seed({ areas, model: flags.model || 'sonnet' });
+  const notes = store.list();
+  for (const n of notes) linkNotes(store, n, notes);
+  if (typeof flags.export === 'string') { execFileSync('node', [path.join(HERE, 'cli.js'), 'export', flags.export, '--repo', repo], { stdio: 'inherit' }); }
+  out(`\nthinker is set up for ${path.basename(repo)}: ${notes.length} notes, served to ${clients.join(', ')}.`);
+  if (!notes.length) out('The cache is empty. With --learn it fills from your own Claude Code sessions; or re-run setup where the claude CLI is available.');
+}
+
+async function minePrs(slug, { before, after, limit, model, dry }) {
+  const prs = listMergedPrs(slug, { before, after, limit })
+    .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) && (p.body || '').length > 120 && p.additions <= 600 && p.additions >= 5);
+  out(`${prs.length} PRs to mine`);
+  let cost = 0, saved = 0;
+  for (const pr of prs) {
+    try {
+      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet' });
+      cost += r.cost || 0;
+      if (dry) { out(`#${pr.number} ${pr.title.slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || '-'}`); continue; }
+      const s2 = saveNotes(store, r.notes, { source: { type: 'pr', ref: `${slug}#${pr.number}` } });
+      saved += s2.saved.length + s2.merged.length;
+      out(`#${pr.number} ${pr.title.slice(0, 60)} → ${[...s2.saved, ...s2.merged].map(n => `[${n.kind}] ${n.id}`).join(', ') || '-'}${s2.skipped.length ? ` (skipped ${s2.skipped.length})` : ''}`);
+    } catch (e) { out(`#${pr.number} error ${String(e.message).slice(0, 120)}`); }
+  }
+  out(`mined ${prs.length} PRs → ${saved} notes, cost $${cost.toFixed(2)}`);
+  return { cost, saved };
 }
 
 function sourceAreas(limit) {

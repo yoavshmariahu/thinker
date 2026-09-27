@@ -1,0 +1,85 @@
+{
+  "id": "PR106613-hard-nocache-1",
+  "task": "PR106613-hard",
+  "area": "frontend",
+  "arm": "nocache",
+  "rep": 1,
+  "model": "fable",
+  "session": "9e42a42c-d64d-46f5-8c16-6293453ebbbf",
+  "turns": 11,
+  "wall_ms": 51778,
+  "api_ms": 35354,
+  "cost": 1.179648,
+  "in_tokens": 270633,
+  "out_tokens": 2602,
+  "tools": {
+    "calls": 10,
+    "byTool": {
+      "Bash": 3,
+      "Read": 3,
+      "Edit": 4
+    },
+    "thinkerCalls": 0,
+    "filesRead": 2,
+    "greps": 3,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "score": 0.5,
+    "samples": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "reasons": [
+      "The agent correctly renamed the route key and updated `decisionPlayground()` in both frontend/src/products.tsx and products/ml_inference/manifest.tsx (the source of truth), matching the core rename in the merged patch. However, it omitted the productRedirects entry that upstream added ('/ml-inference/decisions' -> '/ml-inference/playground'), which the merged patch included so the old address still resolves to the same page rather than 404ing. This is a real functional gap versus the merged patch, though the primary rename is correct and in the right place.\"",
+      "The agent correctly identified and updated the core route definition and URL helper (in frontend/src/products.tsx, and additionally in products/ml_inference/manifest.tsx) from '/ml-inference/decisions' to '/ml-inference/playground', matching the primary change in the merged upstream patch. However, it omitted the productRedirects entry that upstream added to forward the old path to the new one, meaning old links/bookmarks would 404 rather than transparently redirect as in the merged patch. This makes the change correct in direction and location but incomplete relative to the actual merged behavior.\"",
+      "The agent correctly renamed the route and URL helper in both frontend/src/products.tsx and the source manifest, matching the core of the upstream change. However, it explicitly chose not to add the productRedirects entry that upstream includes to forward the old '/ml-inference/decisions' address to the new one, leaving old links resulting in a not-found page instead of the same page as before — a functional gap relative to the merged patch.</reason>\n</invoke>\n"
+    ],
+    "reason": "The agent correctly renamed the route key and updated `decisionPlayground()` in both frontend/src/products.tsx and products/ml_inference/manifest.tsx (the source of truth), matching the core rename in the merged patch. However, it omitted the productRedirects entry that upstream added ('/ml-inference/decisions' -> '/ml-inference/playground'), which the merged patch included so the old address still resolves to the same page rather than 404ing. This is a real functional gap versus the merged patch, though the primary rename is correct and in the right place.\"",
+    "mustHit": 2,
+    "mustTotal": 2,
+    "touched": [
+      "frontend/src/products.tsx",
+      "products/ml_inference/manifest.tsx"
+    ],
+    "criteria": {
+      "essential": 0.6666666666666666,
+      "all": 0.5,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "In both frontend/src/products.tsx and products/ml_inference/manifest.tsx the route table now contains `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']`, so visiting that address resolves to the same DecisionPlayground scene that previously answered at /ml-inference/decisions."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "The old route key `'/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground']` was removed from both routes tables and replaced by the `/ml-inference/playground` entry, with no other route entry for `/ml-inference/decisions` remaining, so it no longer serves the page as its own route."
+        },
+        {
+          "id": "c3",
+          "verdict": "unclear",
+          "evidence": "The single source-of-truth helper `decisionPlayground: (): string => '/ml-inference/playground'` was updated in both frontend/src/products.tsx and products/ml_inference/manifest.tsx, which would update any caller that uses `urls.decisionPlayground()`. However, the patch shown only touches these two files; there is no visibility into whether any menu/navigation component hardcodes the literal string '/ml-inference/decisions' instead of calling the urls helper, so it cannot be fully confirmed that no stale reference remains."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "The manifest's scenes entry for DecisionPlayground (`import: () => import('./frontend/DecisionPlaygroundScene')`, same name/description/layout) is untouched by the patch — only the `routes` key and `urls.decisionPlayground()` string changed, so the same scene/component is rendered with no change to its content or behavior."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "The manifest still declares `redirects: {}` (unchanged by the patch), and the old route key '/ml-inference/decisions' was deleted outright rather than replaced with a redirect entry, meaning a request to the old address is not redirected — confirmed by the author's own note: \"The old `/ml-inference/decisions` address now shows a not-found page.\""
+        }
+      ]
+    }
+  },
+  "result": "The decisions playground is now served at `/ml-inference/playground` instead of `/ml-inference/decisions`. Nothing was run or tested, as you asked.\n\n## What changed\n\n- **`products/ml_inference/manifest.tsx`**: the route key and the `urls.decisionPlayground()` return value both now use `/ml-inference/playground`. This is the source of truth.\n- **`frontend/src/products.tsx`**: the same two lines, updated to match. This file is built from the product manifests; I edited it by hand rather than running the generator, so the result should be identical to a regeneration.\n\nThe route still maps to the same `DecisionPlayground` scene, so the page itself is unchanged.\n\n## Links and navigation\n\nThe only in-app reference to the playground is `urls.decisionPlayground()` in the Storybook story, which picks up the new address automatically. The product has no menu or tree entries, and no hardcoded copies of the old path remain in the repo.\n\n## Left alone on purpose\n\n- The backend API path `ml_inference/decisions/decide/` and the feature flag key `ml-inference-decisions` are unchanged. They are the API and flag contract, not the page address.\n- I added no test: the change is two string constants, and no existing test asserts the path.\n\n## Decision for you\n\nThe old `/ml-inference/decisions` address now shows a not-found page, since you asked for the new address \"instead of\" the old one. If anyone has the old URL bookmarked, a one-line entry in the manifest's `redirects` would forward it to the new address; say if you want it.",
+  "is_error": false,
+  "diff": "diff --git a/frontend/src/products.tsx b/frontend/src/products.tsx\nindex 63441ff619..fb80102fcd 100644\n--- a/frontend/src/products.tsx\n+++ b/frontend/src/products.tsx\n@@ -218,7 +218,7 @@ export const productRoutes: Record<string, [string, string]> = {\n     '/mcp-servers': ['McpGateway', 'mcpGateway'],\n     '/mcp-servers/:tab': ['McpGateway', 'mcpGatewayTab'],\n     '/metrics': ['Metrics', 'metrics'],\n-    '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+    '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n     '/notebooks/widgets/:widgetId': ['ReusableWidget', 'reusableWidget'],\n     '/person/*': ['Person', 'personByDistinctId'],\n     '/persons/*': ['Person', 'personByUUID'],\n@@ -1495,7 +1495,7 @@ export const productUrls = {\n     mcpGatewayAgent: (id: string): string => `/mcp-servers/agent/${id}`,\n     mcpGatewayMember: (id: string | number): string => `/mcp-servers/member/${id}`,\n     metrics: (): string => '/metrics',\n-    decisionPlayground: (): string => '/ml-inference/decisions',\n+    decisionPlayground: (): string => '/ml-inference/playground',\n     notebooks: (): string => '/notebooks',\n     notebook: (shortId: string): string => `/notebooks/${shortId}`,\n     canvas: (): string => `/canvas`,\ndiff --git a/products/ml_inference/manifest.tsx b/products/ml_inference/manifest.tsx\nindex 1c71032607..d29ab99a05 100644\n--- a/products/ml_inference/manifest.tsx\n+++ b/products/ml_inference/manifest.tsx\n@@ -12,11 +12,11 @@ export const manifest: ProductManifest = {\n         },\n     },\n     routes: {\n-        '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],\n+        '/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],\n     },\n     redirects: {},\n     urls: {\n-        decisionPlayground: (): string => '/ml-inference/decisions',\n+        decisionPlayground: (): string => '/ml-inference/playground',\n     },\n     fileSystemTypes: {},\n     treeItemsNew: [],\n",
+  "distill": null
+}

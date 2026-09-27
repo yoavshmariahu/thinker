@@ -38,16 +38,18 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 5,
+  "uses": 8,
   "related": [
     "guards-must-not-depend-on-insightscenelogic-insightlogicref-"
   ],
-  "lastUsed": "2026-09-27T00:59:41.590Z",
+  "lastUsed": "2026-09-27T07:04:57.934Z",
   "servedIn": [
     "probe1",
     "1fac1cf0-9f8e-4c80-ae03-e7c1edf0c78a",
     "4d55e782-40c6-4757-a58b-277d24913095",
     "020716d5-b008-4ebb-b299-67f837c9a985",
-    "89189e0c-41b6-4792-9702-6cf5c9d8c7f1"
+    "89189e0c-41b6-4792-9702-6cf5c9d8c7f1",
+    "a4704067-874f-461f-9346-7b7c78bc5bcf",
+    "codex-posthog-codex-gpt56-PR106491-hard-0"
   ]
 }

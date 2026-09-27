@@ -16,15 +16,19 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.
   https://api.github.com/repos/yoavshmariahu/thinker/contents/install.sh | bash -s -- --cache gh:caches/<repo>.tgz
 ```
 
+If no cache was built for their repository, `--build` in place of `--cache …` builds one on their machine in the same step (about $9 of their Claude usage with the defaults; the estimate is printed first).
+
 That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in the repository, checks every note against their checkout, and adds a Claude Code hook in `.claude/settings.local.json` that injects relevant notes into each request. Nothing else is changed and no `sudo` is used. Requirements: git, curl, tar, Node.js 20+.
 
 | option | effect |
 |---|---|
 | `--cache <source>` | the cache built for this repository: `gh:caches/<repo>.tgz` (a file in the thinker repo), an https URL, or a local file; omit when `.thinker/notes` is already committed in the user's repo |
+| `--build` | build the cache on this machine: co-change, merged pull requests (`--prs n`, default 60), one exploration session per source area (`--areas n`, default 12) |
+| `--clients <list>` | agents to wire up: `claude`, `codex`, `cursor`, `gemini`, `all` or `auto` (default `auto` with `--build`, otherwise `claude`); see "Supported agents" in the README |
 | `--learn` | also distill the user's own sessions into new notes (uses their Claude usage, about $0.05 per session) |
 | `--late` | also serve notes about files as the agent opens them |
 | `--shared` | write hooks to `.claude/settings.json` so the whole team gets them on pull |
-| `--mcp` | register the MCP server for Cursor, Codex and other MCP clients (needs npm) |
+| `--mcp` | also register the MCP server for the chosen agents (needs npm); always on for Cursor |
 | `--git-hook` | re-check notes after each commit |
 | `--uninstall [--purge]` | remove hooks; `--purge` also deletes the notes |
 
@@ -36,12 +40,11 @@ Add each user as a collaborator with read access on `yoavshmariahu/thinker` (Set
 
 ```bash
 git clone <their repo> && cd <their repo>
-thinker init --no-mcp                                         # creates .thinker/, mines co-change from git history
-thinker seed --areas 20                                       # one exploration session per source area
-thinker mine-prs <owner/repo> --before <today> --limit 100    # fix records, invariants, conventions from merged PRs
-thinker export /path/to/thinker/caches/<repo>.tgz            # notes + co-change index + manifest with the commit
+thinker setup --areas 20 --prs 100 --export /path/to/thinker/caches/<repo>.tgz
 # commit and push caches/<repo>.tgz in the thinker repository
 ```
+
+`setup` runs `init` (creates `.thinker/`, mines co-change), `mine-prs` on the GitHub `origin`, `seed`, `relink` and `export`; each is also a command of its own.
 
 Cost on PostHog (54k files): about $20 for 259 notes. The cache is keyed to file and symbol hashes, not to a commit, so it stays usable as their code moves: notes whose code changed are flagged stale when served and re-verified in the background if the user has the `claude` CLI.
 

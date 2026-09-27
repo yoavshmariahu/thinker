@@ -52,7 +52,54 @@
       "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
       "products/feature_flags/backend/temporal/health_checks/tests/test_stale_flags.py",
       "products/feature_flags/backend/test/test_reencrypt_flag_payloads.py"
-    ]
+    ],
+    "criteria": {
+      "essential": 1,
+      "all": 0.6,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "In reencrypt_flag_payloads.py the scan loop is: `for flag in self._get_flags(team_id, limit).iterator(chunk_size=batch_size):\\n    if not self._is_v1_config(flag.filters):\\n        continue\\n    scanned += 1`. The continue fires before `scanned` is incremented and before the try/except that calls `_reencrypt`/`_needs_reencrypt`, so a non-v1 flag is never read for payloads, decrypted, or rotated in either dry or live run, while v1 flags fall through to normal re-encryption."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "`_reencrypt` re-checks under lock: `if not self._is_v1_config(flag.filters): return False`, which correctly prevents the rewrite. But `changed=False` from this path does not increment any counter distinguishing it from a no-op; `skipped` is only incremented inside `except InvalidToken as e:` in the main loop. So the run's final summary (`scanned={scanned} {verb}={updated} skipped={skipped}`) would show scanned=1, updated=0, skipped=0 for this flag, not 'zero re-encryptions and one skip' as the criterion requires."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "audit_flag_filters.py: `if isinstance(flag.filters, dict) and detect_config_format(flag.filters).kind != \"v1\": continue` occurs before `scanned += 1` and before `collect_filters_violations(...)` and `divergences.record(...)` are called, so non-v1 flags produce no violations, no unknown-key records, no divergence entries, and are excluded from `scanned`/`flags_with_violations`, while other flags in the same run are still processed normally."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "The skip `continue` in audit_flag_filters.py happens before `scanned += 1`, so skipped flags are excluded from the scanned total, contradicting 'the total scanned count still includes them'. Additionally, no new counter for format-skipped flags is introduced or added to `_emit_json`/`_emit_console` in the diff — there is no code exposing such a count in either output mode."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "Both candidate-discovery paths filter on v1 format: `stale_candidates = [flag for flag in filter_stale_flags(...) if _has_v1_config(flag)]` and `full_rollout_candidates = [flag for flag in full_rollout_query if _has_v1_config(flag) and not _serves_more_than_one_result(flag) and ...]`, so non-v1 flags never enter `candidates` and thus never generate an issue via either detection path, and can't double-surface or replace a valid flag since they're excluded up front."
+        },
+        {
+          "id": "c6",
+          "verdict": "met",
+          "evidence": "`_has_v1_config` filtering happens inside the list comprehensions building `stale_candidates`/`full_rollout_candidates` before any team-specific processing; downstream `issues.setdefault(flag.team_id, []).append(...)` only iterates over `candidates`, which already excludes non-v1 flags, so no exception is raised reading unrecognised data, the run completes, other teams'/flags' issues are still reported, and a team whose only flags were skipped gets no entry in `issues`."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "The audit job's check `if isinstance(flag.filters, dict) and detect_config_format(flag.filters).kind != \"v1\": continue` only skips when filters IS a dict and non-v1; when filters is a list/scalar, `isinstance(flag.filters, dict)` is False so the condition is False and the flag is NOT skipped — it proceeds to `scanned += 1` and `collect_filters_violations(flag.filters, ...)`, matching the author's own comment 'it stays in the scan as malformed v1 data.' This treats non-object rules as v1/malformed rather than unrecognised-and-skipped, contradicting the criterion for this job."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "The diff shows the deletion of `posthog/management/commands/fix_invalid_flag_property_types.py` (satisfying the 'no longer exists' half), but contains no hunk touching `feature_flag_gated_writes_baseline.txt` or `ALLOWED_REASONS` in `test_feature_flag_gated_writes.py`, despite the author's summary claiming those were also removed. With no evidence in the given patch that those allow-list/baseline entries were removed, the criterion's second half ('no remaining configuration, allow-list or baseline... still grants it permission') is unverified/unaddressed by this patch."
+        }
+      ]
+    }
   },
   "result": "The three jobs now skip any flag whose stored rules are not in the original (v1) format, and the one-off repair command is removed. Nothing was run: per your instructions I did not run the tests, and `ruff` is not installed here, so lint and format are unchecked too.\n\n## What changed\n\nAll three jobs use the repo's existing format detector, `detect_config_format` in `products/feature_flags/backend/facade/config.py`. It treats an absent version or version 1 as the original format and everything else as not readable.\n\n| Job | File | Behavior now |\n|---|---|---|\n| Re-encrypt payloads | `posthog/management/commands/reencrypt_flag_payloads.py` | Skips the flag before it is counted, and checks again after re-reading the row under the lock. |\n| Audit of flag rules | `products/feature_flags/backend/management/commands/audit_flag_filters.py` | Skips the flag before it is counted, so it adds nothing to `scanned`, violations, unknown keys, or divergences. |\n| Weekly stale-flag check | `products/feature_flags/backend/temporal/health_checks/stale_flags.py` | Drops such flags from both candidate lists and from the dependency walk. |\n\n**Removed:** `posthog/management/commands/fix_invalid_flag_property_types.py`, along with its two lines in `feature_flag_gated_writes_baseline.txt` and its entry in `ALLOWED_REASONS` in `test_feature_flag_gated_writes.py`. No other references remain.\n\n## Behavior you might not expect\n\n- **Audit and malformed data:** a stored value that is not a JSON object is still audited and reported as malformed, as before.\n- **Audit `--limit`:** skipped flags still count toward `--limit`, because the limit applies to rows read, not rows audited.\n- **Stale check and dependencies:** a newer-format flag no longer protects the flags it depends on from being reported as stale, since the job cannot read its dependencies.\n\n## Tests\n\n- `test_stale_flags.py`: three new cases in the existing `test_detect_inclusion_and_exclusion` table, covering a newer-format flag on each candidate path and an unrecognized version.\n- `test_audit_flag_filters.py`: one parameterized test (version 2 and an unrecognized version) where the flag would produce violations if read as the original format.\n- `test_reencrypt_flag_payloads.py`: one test that a live run leaves a newer-format flag's stored data byte-identical.",
   "is_error": false,
