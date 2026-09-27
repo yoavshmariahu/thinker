@@ -52,11 +52,11 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 17,
+  "uses": 21,
   "related": [
     "error-tracking-issue-writes-which-mutations-emit-lifecycle-e"
   ],
-  "lastUsed": "2026-09-27T19:35:27.743Z",
+  "lastUsed": "2026-09-27T21:00:53.373Z",
   "servedIn": [
     "5eebb144-500a-4ee7-b484-68f19134555f",
     "bada6a04-90ca-402b-b4a8-ac0932a722e5",
@@ -69,6 +69,10 @@
     "codex-posthog-codex-gpt56-PR106579-hard-1",
     "codex-posthog-codex-gpt6-sol-PR106579-hard-0",
     "codex-posthog-codex-gpt6-sol-PR106579-hard-1",
+    "probe-PR106579-hard",
+    "probe-PR106579-hard",
+    "probe-PR106579-hard",
+    "probe-PR106579-hard",
     "probe-PR106579-hard",
     "probe-PR106579-hard"
   ]

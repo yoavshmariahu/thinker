@@ -38,11 +38,11 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 15,
+  "uses": 19,
   "related": [
     "guards-must-not-depend-on-insightscenelogic-insightlogicref-"
   ],
-  "lastUsed": "2026-09-27T19:29:27.521Z",
+  "lastUsed": "2026-09-27T21:00:54.505Z",
   "servedIn": [
     "probe1",
     "1fac1cf0-9f8e-4c80-ae03-e7c1edf0c78a",
@@ -54,6 +54,10 @@
     "codex-posthog-codex-gpt56-PR106491-hard-1",
     "codex-posthog-codex-gpt6-sol-PR106491-hard-0",
     "codex-posthog-codex-gpt6-sol-PR106491-hard-1",
+    "probe-PR106491-hard",
+    "probe-PR106491-hard",
+    "probe-PR106491-hard",
+    "probe-PR106491-hard",
     "probe-PR106491-hard",
     "probe-PR106491-hard"
   ]

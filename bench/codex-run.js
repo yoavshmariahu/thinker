@@ -18,8 +18,9 @@ const CONC = Number(process.argv[4]) || 3;
 const MODEL = process.argv[5] || 'gpt-5.6-terra';
 const OUT = path.join(HERE, 'runs', TAG);
 const CLI = path.join(ROOT, 'src', 'cli.js');
-const CACHE_GUIDANCE = 'Context injected as <thinker-cache> comes from a cache of notes about this repository whose code dependencies are verified against the current code when served. Use it to skip re-deriving what it states.';
-const CACHE_ARM_GUIDANCE = 'This repository has a thinker knowledge cache from previous sessions. Use the supplied <thinker-cache> notes to skip re-deriving what they state; only search/read to confirm or fill gaps. Treat notes marked STALE as unverified.';
+// Worktrees are cut from a clone that ends at the base commit, so the merged fixes are not in its history
+const WT_REPO = fs.existsSync(path.join(HERE, 'repos', 'posthog-base')) ? path.join(HERE, 'repos', 'posthog-base') : REPO;
+const BUDGET = Number(process.env.BENCH_BUDGET) || 1500;
 // BENCH_ONLY=id,id limits the run to those tasks
 const ONLY = (process.env.BENCH_ONLY || '').split(',').filter(Boolean);
 const tasks = JSON.parse(fs.readFileSync(TASKS, 'utf8')).tasks.filter(t => !ONLY.length || ONLY.includes(t.id));
@@ -29,10 +30,10 @@ function makeWorktree(i) {
   const wt = path.join(HERE, 'worktrees', `${TAG}-${i}`);
   fs.mkdirSync(path.dirname(wt), { recursive: true });
   if (fs.existsSync(wt)) {
-    try { execFileSync('git', ['worktree', 'remove', '--force', wt], { cwd: REPO }); }
+    try { execFileSync('git', ['worktree', 'remove', '--force', wt], { cwd: WT_REPO }); }
     catch { fs.rmSync(wt, { recursive: true, force: true }); }
   }
-  execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, 'HEAD'], { cwd: REPO });
+  execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, 'HEAD'], { cwd: WT_REPO });
   return wt;
 }
 function resetWorktree(wt) {
@@ -49,7 +50,7 @@ function contextFor(task, session) {
     THINKER_NO_BG_VERIFY: '1',
   };
   try {
-    return execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'codex', '--repo', REPO], {
+    const text = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'codex', '--repo', REPO, '--budget', String(BUDGET)], {
       cwd: REPO,
       env,
       input: JSON.stringify({ prompt: task.prompt, session_id: session }),
@@ -57,6 +58,8 @@ function contextFor(task, session) {
       maxBuffer: 1 << 24,
       stdio: ['pipe', 'pipe', 'ignore'],
     }).trim();
+    // the list of notes not shown asks for a lookup call, and this harness gives Codex no MCP tools
+    return text.replace(/\n\nAlso in the cache, not shown[\s\S]*?(?=\n<\/thinker-cache>)/, '');
   } catch (e) {
     throw new Error(`cache orientation failed: ${e.message}`);
   }
@@ -123,12 +126,14 @@ async function worker(wi) {
     let injected = '';
     if (arm === 'hook') {
       injected = contextFor(task, session);
-      prompt = `${CACHE_ARM_GUIDANCE}\n\n${injected}\n\n${task.prompt}\n\n${CACHE_GUIDANCE}`;
+      // the notes carry their own preamble; no second instruction around them
+      prompt = `${injected}\n\n${task.prompt}`;
     }
     try {
       const run = await runCodex(prompt, cwd);
       run.tools.injected = [...new Set([...injected.matchAll(/\(id: ([\w-]+), confidence/g)].map(m => m[1]))];
       run.model = MODEL;
+      run.budget = arm === 'hook' ? BUDGET : null;
       run.arm = arm;
       run.task = task.id;
       run.rep = rep;

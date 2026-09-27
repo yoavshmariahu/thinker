@@ -62,14 +62,14 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.85,
   "status": "fresh",
-  "uses": 10,
+  "uses": 12,
   "related": [
     "writes-that-bypass-django-mutations-no-events-activity-log",
     "issue-assignment-validation-notifications-auto-assign",
     "lifecycle-event-payload-fields-consumers-depend-on",
     "lifecycle-events-emission-flow-and-temporal-alert-delivery"
   ],
-  "lastUsed": "2026-09-27T19:35:27.759Z",
+  "lastUsed": "2026-09-27T21:00:53.380Z",
   "servedIn": [
     "5eebb144-500a-4ee7-b484-68f19134555f",
     "bada6a04-90ca-402b-b4a8-ac0932a722e5",
@@ -77,6 +77,8 @@
     "50d00da5-e8ed-4cbd-b114-2290506e0b28",
     "13935055-b92f-4957-9b47-f87439c7994c",
     "043b894d-7483-463a-981a-37bca4b0739d",
+    "probe-PR106579-hard",
+    "probe-PR106579-hard",
     "probe-PR106579-hard"
   ]
 }

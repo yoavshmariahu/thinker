@@ -40,11 +40,11 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 20,
+  "uses": 25,
   "related": [
     "changing-insight-list-ordering-requires-updating-ambr-query-"
   ],
-  "lastUsed": "2026-09-27T19:48:59.420Z",
+  "lastUsed": "2026-09-27T21:02:05.477Z",
   "servedIn": [
     "16f2af5b-640f-43cc-933f-9db4fa4f997d",
     "8a2027b0-97a9-496b-901f-da33440c4feb",
@@ -61,6 +61,11 @@
     "codex-posthog-codex-gpt6-sol-trace-PR107042-hard-0",
     "probe-PR107042-hard",
     "probe-PR107042-hard",
-    "423a91fd-f01c-4af7-bb5a-3bcb16aab914"
+    "423a91fd-f01c-4af7-bb5a-3bcb16aab914",
+    "probe-PR107042-hard",
+    "probe-PR107042-hard",
+    "probe-PR107042-hard",
+    "probe-PR107042-hard",
+    "codex-posthog-codex-gpt6-sol-v2-PR107042-hard-0"
   ]
 }

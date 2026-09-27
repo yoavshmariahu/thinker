@@ -55,14 +55,14 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 21,
+  "uses": 25,
   "related": [
     "how-task-run-failures-are-recorded",
     "cloud-task-run-lifecycle-api-facade-temporal-process-task",
     "follow-up-loop-must-skip-ticks-while-a-push-would-eject-the-",
     "new-skip-decision-branches-in-tasks-workflows-need-a-workflo"
   ],
-  "lastUsed": "2026-09-27T19:49:49.990Z",
+  "lastUsed": "2026-09-27T21:00:47.891Z",
   "servedIn": [
     "17902b5e-665f-4276-998f-410cc6809daf",
     "afad1150-74a1-4e9a-9a6e-93d48551d352",
@@ -80,6 +80,10 @@
     "codex-posthog-codex-gpt6-sol-trace-PR106522-hard-0",
     "probe-PR106522-hard",
     "probe-PR106522-hard",
-    "6f81f27d-b9dc-4e64-94bd-2b46a9b71878"
+    "6f81f27d-b9dc-4e64-94bd-2b46a9b71878",
+    "probe-PR106522-hard",
+    "probe-PR106522-hard",
+    "probe-PR106522-hard",
+    "probe-PR106522-hard"
   ]
 }
