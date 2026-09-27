@@ -50,56 +50,112 @@
       "posthog/api/organization_invite.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 1,
       "all": 1,
+      "extra": 1,
       "pass": true,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "InviteRow computes `rowError = inviteRowErrors[index]`, adds `' errored'` to the email input class, and renders `<LemonField.Error error={rowError} />` under the row. `inviteRowErrors` is derived from members plus the typed email, so it shows before any submit."
+          "evidence": "InviteRow reads `const rowError = inviteRowErrors[index]` and applies it to the email input: `className={`error-on-blur${!invitesToSend[index]?.isValid || rowError ? ' errored' : ''}`}`, plus an inline message `{rowError && (<div className=\"mt-1\" data-attr=\"invite-email-error\"><LemonField.Error error={rowError} /></div>)}`. `inviteRowErrors` is a selector over `invitesToSend`, so it updates while typing, before submit. InviteModal renders `<InviteTeamMatesComponent />`, which renders the rows. Caveat: the definitions of `LemonField.Error` and `membersLogic` are not shown, so I assume they exist as used."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "`existingMemberError` returns \"You're already a member of this organization.\" when `ownEmail && normalizedEmail === ownEmail`. `ownEmail` comes from `userLogic`'s `user.email`."
+          "evidence": "`existingMemberError` checks own email first: `if (ownEmail && normalizedEmail === ownEmail) { return \"You're already a member of this organization.\" }`, with `const ownEmail = user?.email?.trim().toLowerCase() || null` from `userLogic`'s `user`. The result feeds the same `inviteRowErrors` / `hasExistingMemberError` path as member matches."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "InviteModal's submit has `disabledReason` `hasExistingMemberError ? 'Remove the emails that already belong to members of this organization'`. Onboarding's `continueDisabledReason` has the same branch, and `canSubmit` includes `!hasExistingMemberError`. The per-row Submit button has `disabled={!isEmail(...) || !!rowError}`."
+          "evidence": "Modal: `disabledReason={userCannotInvite ? ... : hasExistingMemberError ? 'Remove the emails that already belong to members of this organization' : !canSubmit ? ...}`. Onboarding: `continueDisabledReason` includes `: hasExistingMemberError ? 'Remove the emails that already belong to members of this organization'`. Per-row button: `disabled={!isEmail(invitesToSend[index].target_email) || !!rowError}`. `canSubmit` also includes `!hasExistingMemberError`, and the loader returns early with `if (!values.canSubmit) { return [] }`."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "Both the member set (`user.email?.trim().toLowerCase()`) and the typed email (`email.trim().toLowerCase()`) are normalized before comparison."
+          "evidence": "Input side: `const normalizedEmail = email.trim().toLowerCase()`. Member side: `.map(({ user }) => user.email?.trim().toLowerCase())`. Match is `memberEmails.has(normalizedEmail)`, so ' Rose.Dawson@PostHog.com' normalizes to 'rose.dawson@posthog.com' and is flagged."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "`InviteTeamMatesComponent` calls `useOnMountEffect(ensureAllMembersLoaded)`. The own-email check depends only on `user`, so it works before members load, and `members ?? []` handles the unloaded state. Whether `ensureAllMembersLoaded` exists in `membersLogic` is not shown, but the patch calls it as an existing action."
+          "evidence": "InviteTeamMatesComponent (used by both the modal and onboarding) does `const { ensureAllMembersLoaded } = useActions(membersLogic)` and `useOnMountEffect(ensureAllMembersLoaded)`. The own-email check does not depend on members: `existingMemberEmails` falls back to `(members ?? [])`, and `existingMemberError` compares against `ownEmail` before consulting `memberEmails`. Assumes `ensureAllMembersLoaded` exists on membersLogic, which is not shown."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "The membership check moved from `create()` into `validate_target_email`, which runs during serializer validation. In a bulk request every row is validated before any is created, so a bad row anywhere rejects the whole batch with a 400. The bulk view is not shown, but the existing `first_bulk_invite_error` shows bulk validation failures are raised as validation errors."
+          "evidence": "The membership check moved from `create()` (removed: `if OrganizationMembership.objects.filter(...).exists(): raise exceptions.ValidationError(...)`) into field validation: `validate_target_email` now calls `validate_invite_target_email_is_not_a_member(organization_id=self.context[\"organization_id\"], email=email, inviter=inviter)`. Field validation runs for every row of a many=True serializer before any `create()`, and the existing `first_bulk_invite_error` helper shows the bulk path validates per-row errors. The bulk view body itself is not shown, so this relies on it calling is_valid before save, which that helper implies."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "`raise exceptions.ValidationError(..., code=EXISTING_MEMBER_ERROR_CODE)` with `EXISTING_MEMBER_ERROR_CODE = \"existing_member\"`, raised inside the `target_email` field validator so it is attributed to that field. The frontend relies on `errorObject.code === 'existing_member'`."
+          "evidence": "Raised from `validate_target_email` (so keyed to the `target_email` field) with `raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=EXISTING_MEMBER_ERROR_CODE)` where `EXISTING_MEMBER_ERROR_CODE = \"existing_member\"`. The own-email branch uses the same code. In bulk, `first_bulk_invite_error` re-raises `exceptions.ValidationError(row_errors)` with the per-row dict, which keeps the field key and the ErrorDetail code."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "`shouldReportApiFailure` adds `if (status === 400 && failure.code != null && SELF_DESCRIBING_VALIDATION_CODES.has(failure.code)) return false`. Other statuses and codes fall through and are still reported."
+          "evidence": "`shouldReportApiFailure` adds `if (status === 400 && failure.code != null && SELF_DESCRIBING_VALIDATION_CODES.has(failure.code)) { return false }` with `SELF_DESCRIBING_VALIDATION_CODES = new Set([EXISTING_MEMBER_ERROR_CODE])`. `ApiError` sets `this.code = data?.code || null`. Other 400s and 500s fall through to `return !isApprovalRequiredError(failure)` and stay reportable. The call site that consults `shouldReportApiFailure` for loader failures is not shown; the function's docstring presents it as the gate for error tracking."
         },
         {
           "id": "c9",
           "verdict": "met",
-          "evidence": "The `inviteTeamMembersFailure` listener runs `membersLogic.actions.loadAllMembers()` when `errorObject?.code === EXISTING_MEMBER_ERROR_CODE`. The rows stay, so the row then flags itself from the refreshed member list."
+          "evidence": "New listener: `inviteTeamMembersFailure: ({ errorObject }): void => { if (errorObject?.code === EXISTING_MEMBER_ERROR_CODE) { membersLogic.actions.loadAllMembers() } }`. `members` is connected into inviteLogic (`membersLogic, ['members']`), so the refreshed list recomputes `existingMemberEmails` and `inviteRowErrors`. Rows persist on failure since only success resets them."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 1,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "InviteRow computes `rowError = inviteRowErrors[index]`, adds `' errored'` to the email input class, and renders `<LemonField.Error error={rowError} />` under the row. `inviteRowErrors` is derived from members plus the typed email, so it shows before any submit."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "`existingMemberError` returns \"You're already a member of this organization.\" when `ownEmail && normalizedEmail === ownEmail`. `ownEmail` comes from `userLogic`'s `user.email`."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "InviteModal's submit has `disabledReason` `hasExistingMemberError ? 'Remove the emails that already belong to members of this organization'`. Onboarding's `continueDisabledReason` has the same branch, and `canSubmit` includes `!hasExistingMemberError`. The per-row Submit button has `disabled={!isEmail(...) || !!rowError}`."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "Both the member set (`user.email?.trim().toLowerCase()`) and the typed email (`email.trim().toLowerCase()`) are normalized before comparison."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "`InviteTeamMatesComponent` calls `useOnMountEffect(ensureAllMembersLoaded)`. The own-email check depends only on `user`, so it works before members load, and `members ?? []` handles the unloaded state. Whether `ensureAllMembersLoaded` exists in `membersLogic` is not shown, but the patch calls it as an existing action."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "The membership check moved from `create()` into `validate_target_email`, which runs during serializer validation. In a bulk request every row is validated before any is created, so a bad row anywhere rejects the whole batch with a 400. The bulk view is not shown, but the existing `first_bulk_invite_error` shows bulk validation failures are raised as validation errors."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "`raise exceptions.ValidationError(..., code=EXISTING_MEMBER_ERROR_CODE)` with `EXISTING_MEMBER_ERROR_CODE = \"existing_member\"`, raised inside the `target_email` field validator so it is attributed to that field. The frontend relies on `errorObject.code === 'existing_member'`."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "`shouldReportApiFailure` adds `if (status === 400 && failure.code != null && SELF_DESCRIBING_VALIDATION_CODES.has(failure.code)) return false`. Other statuses and codes fall through and are still reported."
+          },
+          {
+            "id": "c9",
+            "verdict": "met",
+            "evidence": "The `inviteTeamMembersFailure` listener runs `membersLogic.actions.loadAllMembers()` when `errorObject?.code === EXISTING_MEMBER_ERROR_CODE`. The rows stay, so the row then flags itself from the refreshed member list."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

@@ -55,51 +55,102 @@
       "products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx"
     ],
     "criteria": {
-      "essential": 1,
-      "all": 0.875,
-      "pass": true,
+      "judge": "fable",
+      "essential": 0.8,
+      "all": 0.75,
+      "extra": 0.6666666666666666,
+      "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "In duplicateInsight, `if (redirectToInsight) { sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false) ...` closes the scene panel before redirecting, so an overlay panel no longer covers the copy."
+          "evidence": "In `duplicateInsight`: `if (redirectToInsight) { sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false); router.actions.push(urls.insightEdit(newInsight.short_id)) }`. The panel is closed whenever duplication redirects, which includes the overlay presentation. Caveat: `sceneLayoutLogic` itself is not shown, so this assumes `setScenePanelOpen` is the action that controls the panel's open state."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "The toast `lemonToast.success('Insight duplicated')` is unchanged, and `router.actions.push(urls.insightEdit(newInsight.short_id))` still runs right after the panel close."
+          "evidence": "`lemonToast.success('Insight duplicated')` still runs, followed inside the `if (redirectToInsight)` block by `router.actions.push(urls.insightEdit(newInsight.short_id))`. The close call comes before the push and uses optional chaining (`findMounted()?.`), so it does not replace or suppress the redirect."
         },
         {
           "id": "c3",
-          "verdict": "unclear",
-          "evidence": "The close is unconditional: `setScenePanelOpen(false)` has no check for overlay vs docked presentation. sceneLayoutLogic isn't shown, so I can't tell whether this action affects a docked panel."
+          "verdict": "not_met",
+          "evidence": "The close is unconditional on panel presentation: `sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false)` is guarded only by `if (redirectToInsight)`. Nothing checks whether the panel is an overlay or docked, so a docked wide-screen panel would also be closed on duplicate."
         },
         {
           "id": "c4",
-          "verdict": "met",
-          "evidence": "The transfer URL doesn't carry the short id. Instead the transfer logic resolves it: `insightsApi.getByNumericId(Number(logicProps.resourceId))` returns `insight?.short_id`. That gives the page the short id, which is the behaviour the criterion needs. `getByNumericId` isn't shown, so I'm assuming it exists."
+          "verdict": "not_met",
+          "evidence": "The patch does not change the transfer URL or any navigation to it. The scene still has `paramsToProps: ({ params: { resourceKind, resourceId } }) => ({ resourceKind, resourceId })` and `ResourceTransferLogicProps` still holds only `resourceKind` and `resourceId`. The short id is instead fetched after mount with `insightsApi.getByNumericId(Number(logicProps.resourceId))`, so it is not carried along in navigation."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "`case 'Insight': return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()`. When the short id has loaded, Back uses the insight view URL instead of the numeric id."
+          "evidence": "`case 'Insight': return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()`, where `sourceInsightShortId` is loaded in `afterMount` (`if (logicProps.resourceKind === 'Insight') { actions.loadSourceInsightShortId() }`) and returns `insight?.short_id ?? null`. Once the loader resolves, Back points to the short-id view URL and never to a numeric-ID URL. Caveats: until the fetch completes Back points to the insights list, and `insightsApi.getByNumericId` is not shown in the provided code."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "When `insightShortId` is null (not resolved, or none available), sourceResourceUrl returns `urls.savedInsights()`, the insights list."
+          "evidence": "`return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()`. When the short id is null (initial state, or the loader returns `insight?.short_id ?? null` as null), Back resolves to the insights list."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "The Dashboard case still returns `urls.dashboard(resourceId)` and the Survey case still returns `urls.survey(resourceId)`. No URL parameters were added, and `afterMount` only loads the short id when `resourceKind === 'Insight'`."
+          "evidence": "`case 'Dashboard': return urls.dashboard(resourceId)` and `case 'Survey': return urls.survey(resourceId)` are unchanged. The patch does not touch transfer URL construction, and the short-id loader only runs when `logicProps.resourceKind === 'Insight'`."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "The card gets `@container`, and the illustration is wrapped as `<div className=\"hidden @sm:block shrink-0\">{illustration}</div>`. Below the container's sm width the illustration is hidden, so the text takes the full width of the narrow modal."
+          "evidence": "The card is now a container, `<LemonCard hoverEffect={false} className=\"p-6 @container\">`, and the illustration is wrapped in `<div className=\"hidden @sm:block shrink-0\">{illustration}</div>`. Below the `@sm` container width the illustration is hidden, so it no longer sits beside the text; what remains is the text column `flex flex-col gap-2 min-w-0`, which stacks title, description and button vertically. At or above that width the illustration is shown beside the text. Note the illustration is dropped rather than stacked above the text when narrow."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 0.875,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "In duplicateInsight, `if (redirectToInsight) { sceneLayoutLogic.findMounted()?.actions.setScenePanelOpen(false) ...` closes the scene panel before redirecting, so an overlay panel no longer covers the copy."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "The toast `lemonToast.success('Insight duplicated')` is unchanged, and `router.actions.push(urls.insightEdit(newInsight.short_id))` still runs right after the panel close."
+          },
+          {
+            "id": "c3",
+            "verdict": "unclear",
+            "evidence": "The close is unconditional: `setScenePanelOpen(false)` has no check for overlay vs docked presentation. sceneLayoutLogic isn't shown, so I can't tell whether this action affects a docked panel."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "The transfer URL doesn't carry the short id. Instead the transfer logic resolves it: `insightsApi.getByNumericId(Number(logicProps.resourceId))` returns `insight?.short_id`. That gives the page the short id, which is the behaviour the criterion needs. `getByNumericId` isn't shown, so I'm assuming it exists."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "`case 'Insight': return insightShortId ? urls.insightView(insightShortId) : urls.savedInsights()`. When the short id has loaded, Back uses the insight view URL instead of the numeric id."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "When `insightShortId` is null (not resolved, or none available), sourceResourceUrl returns `urls.savedInsights()`, the insights list."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "The Dashboard case still returns `urls.dashboard(resourceId)` and the Survey case still returns `urls.survey(resourceId)`. No URL parameters were added, and `afterMount` only loads the short id when `resourceKind === 'Insight'`."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "The card gets `@container`, and the illustration is wrapped as `<div className=\"hidden @sm:block shrink-0\">{illustration}</div>`. Below the container's sm width the illustration is hidden, so the text takes the full width of the narrow modal."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

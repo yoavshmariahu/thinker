@@ -53,6 +53,7 @@
       "products/error_tracking/skills/authoring-error-tracking-alerts/references/event-triggers.md"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 1,
       "all": 0.7142857142857143,
       "pass": true,
@@ -60,44 +61,93 @@
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "lifecycle_events.py: `assignee_name = resolve_assignee_name(team_id, properties.get(\"assignee\")); if assignee_name is not None: properties[\"assignee_name\"] = assignee_name` adds a name property alongside the existing `assignee` identifier. Same pattern in side_effects.py's `produce_issue_lifecycle_internal_event`: `properties[\"assignee\"] = inputs.assignee; assignee_name = resolve_assignee_name(...); if assignee_name is not None: properties[\"assignee_name\"] = assignee_name`."
+          "evidence": "Both producers add a separate `assignee_name` property next to `assignee`. Manual transitions in lifecycle_events.py: `assignee_name = resolve_assignee_name(team_id, properties.get(\"assignee\"))` / `if assignee_name is not None: properties[\"assignee_name\"] = assignee_name`. Ingestion-driven events in side_effects.py: `properties[\"assignee\"] = inputs.assignee` followed by `properties[\"assignee_name\"] = assignee_name`."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "assignee.py: for a user, `return user.get_full_name() or user.email` (the user's own name); for a role, `return Role.objects.filter(id=role_id, organization__team__id=team_id).values_list(\"name\", flat=True).first()` (the role's name)."
+          "evidence": "resolve_assignee_name branches on the assignee type. For a user: `if assignee_type == \"user\" and isinstance(assignee_id, int): ... return user.get_full_name() or user.email`. For a role: `return Role.objects.filter(id=role_id, organization__team__id=team_id).values_list(\"name\", flat=True).first()`."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "resolve_assignee_name returns None immediately when `assignee is None`. In lifecycle_events.py, assignee is only put in `properties` when `current_assignee is not None`, and assignee_name is only added `if assignee_name is not None`, so when unassigned neither key is set. Same guard in side_effects.py: `if inputs.assignee is not None: properties[\"assignee\"] = ...; ... properties[\"assignee_name\"] = ...` (whole block skipped when unassigned)."
+          "evidence": "The resolver returns None for no assignee: `if assignee is None: return None`. lifecycle_events.py only adds keys when set: `**({\"assignee\": current_assignee} if current_assignee is not None else {})` and `if assignee_name is not None: properties[\"assignee_name\"] = assignee_name`. In side_effects.py both keys sit inside `if inputs.assignee is not None:`. No null or placeholder value is written."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "The existing `assignee_property` function that serializes `{\"type\":..,\"id\":..}` with `int` for user ids and `str` for role ids via `json.dumps(..., separators=(\",\", \":\"))` is untouched by the patch; the diff only adds a sibling `assignee_name` computation without altering how the `assignee` value is produced or serialized."
+          "evidence": "`assignee_property` is unchanged: `assignee_id = int(assignee[\"id\"]) if assignee[\"type\"] == \"user\" else str(assignee[\"id\"])` and `json.dumps({\"type\": assignee[\"type\"], \"id\": assignee_id}, separators=(\",\", \":\"))`. The patch only adds lines after `properties[\"assignee\"] = inputs.assignee` and after the properties dict; it does not alter the `assignee` value."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "assignee.py: `return user.get_full_name() or user.email` — when no name is recorded, `get_full_name()` is falsy and the email is returned instead, so the name property still has a usable value."
+          "evidence": "`return user.get_full_name() or user.email` — an empty full name falls back to the email. The query loads the needed fields: `.only(\"first_name\", \"last_name\", \"email\")`."
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "No code in the patch adds an 'assignee_email' (or similarly named) property anywhere. Only `assignee_name` is added in lifecycle_events.py and side_effects.py; assignee.py's `.only(\"first_name\", \"last_name\", \"email\")` is used solely as a fallback inside `resolve_assignee_name`'s return value, not exposed as a separate event property."
+          "evidence": "No assignee email property is emitted anywhere. The only new property is `assignee_name` (`properties[\"assignee_name\"] = assignee_name`); the resolver returns a single string and email is used only as a fallback for the name. The docs likewise describe just 'Two properties'."
         },
         {
           "id": "c7",
           "verdict": "not_met",
-          "evidence": "Org-membership exclusion is handled: `User.objects.filter(id=assignee_id, organization_membership__organization__team__id=team_id)` returns None (and thus no name) if the user left the org. But there is no check anywhere in the diff comparing the issue's current assignee to the assignee captured on the event being delivered — `alert_delivery_inputs` simply calls `resolve_assignee_name(inputs.team_id, inputs.assignee)` on the captured value with no staleness/current-assignment comparison, so a mismatched-at-delivery-time reassignment is not detected or suppressed."
+          "evidence": "The non-member half is handled: `User.objects.filter(id=assignee_id, organization_membership__organization__team__id=team_id)` returns None for a user outside the organization, so the name is omitted while `assignee` is still emitted. The stale-assignee half is not: side_effects.py calls `resolve_assignee_name(inputs.team_id, inputs.assignee)` on the assignee captured in the workflow inputs and never compares it with the issue's current ErrorTrackingIssueAssignment. If the issue was reassigned before delivery, the captured assignee's name is still emitted."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "event-triggers.md new '### Assignee' section: 'Two properties describe who the issue is assigned to. Both are absent when the issue is unassigned.' plus '`event.properties.assignee` — a JSON **string**, not an object: ... Do not print it in a message.' and '`event.properties.assignee_name` — the display name as plain text ... Use it in message bodies.', with links added from both trigger sections ('see [Assignee](#assignee)')."
+          "evidence": "event-triggers.md gains an 'Assignee' section: 'Both are absent when the issue is unassigned.'; '`event.properties.assignee` — a JSON **string**, not an object: `{\"type\":\"user\",\"id\":1234}` ... User ids are numbers and role ids are strings ... Do not print it in a message.'; '`event.properties.assignee_name` — the display name as plain text ... Use it in message bodies.' The created and spiking property lists link to this section."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 0.7142857142857143,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "lifecycle_events.py: `assignee_name = resolve_assignee_name(team_id, properties.get(\"assignee\")); if assignee_name is not None: properties[\"assignee_name\"] = assignee_name` adds a name property alongside the existing `assignee` identifier. Same pattern in side_effects.py's `produce_issue_lifecycle_internal_event`: `properties[\"assignee\"] = inputs.assignee; assignee_name = resolve_assignee_name(...); if assignee_name is not None: properties[\"assignee_name\"] = assignee_name`."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "assignee.py: for a user, `return user.get_full_name() or user.email` (the user's own name); for a role, `return Role.objects.filter(id=role_id, organization__team__id=team_id).values_list(\"name\", flat=True).first()` (the role's name)."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "resolve_assignee_name returns None immediately when `assignee is None`. In lifecycle_events.py, assignee is only put in `properties` when `current_assignee is not None`, and assignee_name is only added `if assignee_name is not None`, so when unassigned neither key is set. Same guard in side_effects.py: `if inputs.assignee is not None: properties[\"assignee\"] = ...; ... properties[\"assignee_name\"] = ...` (whole block skipped when unassigned)."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "The existing `assignee_property` function that serializes `{\"type\":..,\"id\":..}` with `int` for user ids and `str` for role ids via `json.dumps(..., separators=(\",\", \":\"))` is untouched by the patch; the diff only adds a sibling `assignee_name` computation without altering how the `assignee` value is produced or serialized."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "assignee.py: `return user.get_full_name() or user.email` — when no name is recorded, `get_full_name()` is falsy and the email is returned instead, so the name property still has a usable value."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "No code in the patch adds an 'assignee_email' (or similarly named) property anywhere. Only `assignee_name` is added in lifecycle_events.py and side_effects.py; assignee.py's `.only(\"first_name\", \"last_name\", \"email\")` is used solely as a fallback inside `resolve_assignee_name`'s return value, not exposed as a separate event property."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "Org-membership exclusion is handled: `User.objects.filter(id=assignee_id, organization_membership__organization__team__id=team_id)` returns None (and thus no name) if the user left the org. But there is no check anywhere in the diff comparing the issue's current assignee to the assignee captured on the event being delivered — `alert_delivery_inputs` simply calls `resolve_assignee_name(inputs.team_id, inputs.assignee)` on the captured value with no staleness/current-assignment comparison, so a mismatched-at-delivery-time reassignment is not detected or suppressed."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "event-triggers.md new '### Assignee' section: 'Two properties describe who the issue is assigned to. Both are absent when the issue is unassigned.' plus '`event.properties.assignee` — a JSON **string**, not an object: ... Do not print it in a message.' and '`event.properties.assignee_name` — the display name as plain text ... Use it in message bodies.', with links added from both trigger sections ('see [Assignee](#assignee)')."
+          }
+        ]
+      }
     }
   },
   "result": "Issue alert events now carry a new `assignee_name` property next to the unchanged `assignee` string. Nothing was run: you asked me not to run tests, and `ruff` isn't installed in this shell, so the change is unlinted and untested.\n\n## What changed\n\n- **New property `assignee_name`**: the user's full name (falling back to their email when no name is set), or the role's name. Templates can use `{event.properties.assignee_name}` directly.\n- **`assignee` is untouched**: it is still the compact `{\"type\":\"user\",\"id\":1234}` string, so existing exact-match filters keep working.\n- **Unassigned issues**: both properties are absent, as `assignee` is today.\n- **Both event sources covered**: manual transitions (assign, resolve, merge, etc.) in `logic/lifecycle_events.py`, and ingestion-driven ones (created, reopened, spiking) in `temporal/lifecycle/side_effects.py`.\n- **Shared resolver** in the new `products/error_tracking/backend/logic/assignee.py`. Lookups are restricted to the organization that owns the team, and return nothing if the user or role no longer exists, so `assignee_name` can be absent while `assignee` is set.\n- **Native alert filters**: `assignee_name` is also passed to the alert delivery workflow and its filter evaluation. Without this, a filter on `assignee_name` would silently never match on manual transitions.\n- **AI assistant docs**: `references/event-triggers.md` in the alert-authoring skill now has an \"Assignee\" section describing both properties, their shape, and a guarded template example.\n\n## Tests\n\n- `test_error_tracking_api.py`: the assign test now checks the user's name, a new test covers role assignment, and the unassign test checks both properties are absent.\n- `test_side_effects.py`: the name lookup is stubbed (these tests have no database) and the expected payloads include `assignee_name`.\n- `test_alert_delivery.py`: one new parameterized case for a filter on `assignee_name` on a manual transition.\n\n## Things to know\n\n- **Naming choice**: I added a sibling property rather than putting the name inside the `assignee` string, because changing that string would break existing exact-match filters. Say so if you'd prefer a different shape.\n- **Extra query per event**: each event with an assignee costs one more lookup, so a bulk action over N assigned issues adds N small queries.\n- **Built-in Slack thread replies** still say \"Assigned by …\" without naming the assignee; I left `messages.py` alone.",

@@ -52,46 +52,92 @@
       "products/tasks/backend/temporal/process_task/workflow.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 0.8,
       "all": 0.5714285714285714,
+      "extra": 0,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "facade/api.py update_task_run's task_run_failed capture now includes `\"sandbox_backend\": run.sandbox_backend` alongside error_type \"agent_reported\"."
+          "evidence": "In facade/api.py update_task_run, the agent-reported FAILED transition now captures `\"sandbox_backend\": run.sandbox_backend` alongside `\"error_type\": \"agent_reported\"` in the `task_run_failed` event. `TaskRun.sandbox_backend` returns `sandbox_backend_from_state(self.state ...)`, so a value is always present."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "TaskRun.mark_failed adds `\"sandbox_backend\": self.sandbox_backend` to its task_run_failed event. _terminalize_unstarted_task_run adds `task_run.sandbox_backend`. The workflow failure events add `self.context.sandbox_backend`."
+          "evidence": "models.py `mark_failed` adds `\"sandbox_backend\": self.sandbox_backend` to the `task_run_failed` capture. temporal/client.py `_terminalize_unstarted_task_run` adds `\"sandbox_backend\": task_run.sandbox_backend` to its capture."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "The workflow's _update_task_run_status passes `sandbox_backend=self._context.sandbox_backend if self._context else None`. _capture_terminal_analytics emits `\"sandbox_backend\": input.sandbox_backend or task_run.sandbox_backend`, so it uses the run's backend first and falls back to the stored state."
+          "evidence": "update_task_run_status.py `_capture_terminal_analytics` adds `\"sandbox_backend\": input.sandbox_backend or task_run.sandbox_backend`. Both workflows pass `sandbox_backend=self._context.sandbox_backend if self._context else None` in `UpdateTaskRunStatusInput`. So the executing run's backend is used when present, otherwise the stored state's. Caveat: the definition of `sandbox_backend` on the workflow context is not shown and is not added by this patch; it is assumed to exist already."
         },
         {
           "id": "c4",
           "verdict": "not_met",
-          "evidence": "The patch changes no provisioning, resume or continuation code that hands the backend to a continued segment. The new docstring even says a cloud resume drops the stamp so the backend is re-resolved, so a continuation may still report a freshly resolved backend."
+          "evidence": "The patch only reads `self.context.sandbox_backend` / `self._context.sandbox_backend` when emitting events. It changes no continuation or handoff input, no context construction, and no resolution code, so nothing carries the earlier segment's backend into the continued segment. The new docstring itself says `a cloud resume drops the stamp so the backend is re-resolved`. A continuation would therefore still report whatever is freshly resolved. The context-building code is not shown, so this rests on the absence of any change there."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "No reattach logic was added to fall back to the stored backend for the same sandbox when no backend is handed over. `sandbox_backend_from_state` defaults to \"modal\" for a missing stamp, but it is not wired into any reattach path."
+          "evidence": "No code was added that, on reattach without a handed-over backend, reads the stored backend for that same sandbox. `sandbox_backend_from_state` reads `state.get(SANDBOX_BACKEND_STATE_KEY)` without checking that the state's sandbox id matches the reattached one. The only fallback is at event time (`input.sandbox_backend or task_run.sandbox_backend`), not in the continued run's backend determination. The legacy default to `modal` does exist (`return DEFAULT_SANDBOX_BACKEND`), but the sandbox-scoped fallback does not."
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "`sandbox_backend_from_state` always returns a string: `return DEFAULT_SANDBOX_BACKEND` when the stamp is missing or unrecognized. Every emit site includes the key unconditionally, so it is never omitted for a run with no sandbox or for an unrecognized value."
+          "evidence": "`sandbox_backend_from_state` never returns None: `if isinstance(backend, str) and backend in SANDBOX_BACKENDS: return backend` and otherwise `return DEFAULT_SANDBOX_BACKEND`. Every capture site adds `\"sandbox_backend\": ...` unconditionally. A run with no sandbox, or with an unrecognised recorded value, therefore reports `modal` instead of omitting the property."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "The existing fields `truncate_error_message(...)`, `error_type or \"unspecified\"`, `duration_seconds` and the status handling are unchanged in every diff hunk. The patch only adds the `sandbox_backend` key."
+          "evidence": "Existing keys are untouched and the new key is purely additive. `mark_failed` still has `\"error_message\": truncate_error_message(error)`, `\"error_type\": error_type or \"unspecified\"`, `\"duration_seconds\": self._duration_seconds()`. The activity capture still has `\"error_type\": input.error_type or \"unspecified\"`, `duration_seconds`, `termination_reason` and `**relay_state`. Status-setting code is unchanged."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8,
+        "all": 0.5714285714285714,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "facade/api.py update_task_run's task_run_failed capture now includes `\"sandbox_backend\": run.sandbox_backend` alongside error_type \"agent_reported\"."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "TaskRun.mark_failed adds `\"sandbox_backend\": self.sandbox_backend` to its task_run_failed event. _terminalize_unstarted_task_run adds `task_run.sandbox_backend`. The workflow failure events add `self.context.sandbox_backend`."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "The workflow's _update_task_run_status passes `sandbox_backend=self._context.sandbox_backend if self._context else None`. _capture_terminal_analytics emits `\"sandbox_backend\": input.sandbox_backend or task_run.sandbox_backend`, so it uses the run's backend first and falls back to the stored state."
+          },
+          {
+            "id": "c4",
+            "verdict": "not_met",
+            "evidence": "The patch changes no provisioning, resume or continuation code that hands the backend to a continued segment. The new docstring even says a cloud resume drops the stamp so the backend is re-resolved, so a continuation may still report a freshly resolved backend."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "No reattach logic was added to fall back to the stored backend for the same sandbox when no backend is handed over. `sandbox_backend_from_state` defaults to \"modal\" for a missing stamp, but it is not wired into any reattach path."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "`sandbox_backend_from_state` always returns a string: `return DEFAULT_SANDBOX_BACKEND` when the stamp is missing or unrecognized. Every emit site includes the key unconditionally, so it is never omitted for a run with no sandbox or for an unrecognized value."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "The existing fields `truncate_error_message(...)`, `error_type or \"unspecified\"`, `duration_seconds` and the status handling are unchanged in every diff hunk. The patch only adds the `sandbox_backend` key."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

@@ -54,10 +54,65 @@
       "posthog/api/test/test_organization_invites.py"
     ],
     "criteria": {
-      "essential": 0,
-      "all": 0,
-      "pass": false,
-      "results": []
+      "judge": "fable",
+      "essential": 1,
+      "all": 0.8888888888888888,
+      "pass": true,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "InviteRow (used by the settings dialog via InviteTeamMatesComponent) reads `const rowError = inviteRowErrors[index]` and renders `<LemonField.Pure error={rowError ?? undefined}>` around the input, with `className={`error-on-blur${!invitesToSend[index]?.isValid || rowError ? ' errored' : ''}`}`. The `inviteRowErrors` selector returns 'This person is already a member of this organization.' when `memberEmails.has(email)`. It is a selector over invitesToSend, so it updates while typing, before any submit."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "In the `inviteRowErrors` selector: `const ownEmail = user?.email?.toLowerCase()` and `if (email === ownEmail) { return 'This is your own email address. You are already a member of this organization.' }`. This feeds the same rowError / errored styling and the same `canSubmit` gate (`inviteRowErrors.every((error) => !error)`)."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "Settings dialog: `disabledReason={ userCannotInvite ? ... : hasExistingMember ? 'Remove the people who are already members' : !canSubmit ? ... }` where `hasExistingMember = inviteRowErrors.some((error) => !!error)`. Onboarding: `continueDisabledReason` contains `: hasExistingMember ? 'Remove the people who are already members'`. Per-row control: `disabled={!isEmail(invitesToSend[index].target_email) || !!rowError}`. `canSubmit` also requires `inviteRowErrors.every((error) => !error)`, so the loader returns early. Note the onboarding reason only applies when `emailServiceAvailable && hasFilledEmail`; without email service the per-row button is the send control and it is disabled."
+        },
+        {
+          "id": "c4",
+          "verdict": "met",
+          "evidence": "`const memberEmails = new Set((members ?? []).map((member) => member.user.email.toLowerCase()))` and for each row `const email = target_email?.trim().toLowerCase()` followed by `memberEmails.has(email)`. ' Rose.Dawson@PostHog.com' becomes 'rose.dawson@posthog.com' and matches."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "`showInviteModal: (): void => { actions.ensureAllMembersLoaded() }` fetches on opening the dialog, with `connect` to `membersLogic` for `members` and `ensureAllMembersLoaded`. Own-email check works before load because `(members ?? [])` tolerates null and `email === ownEmail` comes from `userLogic`. Caveat: the onboarding step does not go through `showInviteModal`; there the fetch is triggered on the first keystroke via `updateInviteAtIndex: () => { if (!values.members) { actions.ensureAllMembersLoaded() } }`, not on open. membersLogic itself is not shown."
+        },
+        {
+          "id": "c6",
+          "verdict": "met",
+          "evidence": "The membership check moved out of `create` into `validate_target_email`: `if OrganizationMembership.objects.filter(organization_id=self.context[\"organization_id\"], user__email__iexact=email).exists(): raise exceptions.ValidationError(..., code=\"already_member\")`, and was deleted from `create`. Field validation runs for every row of a list serializer before any `create` is called, so no row is saved or emailed. The bulk view is not shown; this relies on it validating the whole batch (many=True + is_valid) before save, which matches the reported prior behaviour where the failure came from `create` mid-batch."
+        },
+        {
+          "id": "c7",
+          "verdict": "met",
+          "evidence": "Raised from the field validator `validate_target_email`, so DRF attributes it to `target_email`: `raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"already_member\")`. Previously it was raised from `create` with no code (default `invalid`, no field)."
+        },
+        {
+          "id": "c8",
+          "verdict": "met",
+          "evidence": "initKea.ts: `const isSelfHandledAlreadyMember = ALREADY_MEMBER_SELF_HANDLED.has(String(actionKey)) && error?.code === 'already_member'` and `if (shouldReportApiFailure(error) && !isSelfHandledNotFound && !isSelfHandledAlreadyMember) { posthog.captureException(error) }`, with `ALREADY_MEMBER_SELF_HANDLED = new Set(['inviteTeamMembers'])`. Any other error code on `inviteTeamMembers` still falls through to `captureException`."
+        },
+        {
+          "id": "c9",
+          "verdict": "unclear",
+          "evidence": "The failure listener does `if (errorObject?.code === ALREADY_MEMBER_ERROR_CODE) { lemonToast.error(...); actions.ensureAllMembersLoaded() }`. Whether this refreshes depends on membersLogic's `ensureAllMembersLoaded`, which is not shown. In this scenario the member list is already loaded (just stale), and an action named 'ensure ... loaded' typically no-ops when data is present; if so, nothing is refetched and the row stays unflagged. No explicit reload (e.g. a loadAllMembers call) is made in the patch."
+        }
+      ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0,
+        "all": 0,
+        "pass": false,
+        "results": []
+      }
     }
   },
   "result": "The change is in place across backend and frontend, but nothing has been run: no tests, no typecheck, and `ruff` isn't installed here, so the Python is unlinted. Only the frontend files were formatted with Oxfmt.\n\n## What was wrong\n\n- **Partial batches:** the existing-member check ran while each invite was being saved, so earlier rows were already created and emailed when a later row failed.\n- **Error tracking noise:** the report came from the frontend, not the backend. The global kea loader failure handler captures any failed request as an exception, including this 400.\n\n## What changed\n\n**Backend** (`posthog/api/organization_invite.py`)\n- The existing-member check now runs during validation, which covers the whole batch before anything is saved. A batch containing a member is rejected with no invites created and no emails sent.\n- The error now carries code `already_member` on `target_email`; the message is unchanged. Single invites go through the same check.\n\n**Frontend**\n- `inviteLogic.ts`: each row is checked against the organization's member list and your own email, case-insensitively, and submitting is blocked while any row is flagged.\n- The member list loads when the invite modal opens, or on the first keystroke in onboarding, so it adds no request to normal page loads.\n- `InviteModal.tsx`: the email input shows the error under the row. This covers both onboarding and settings, since they share the component.\n- The submit button in the modal and Continue in onboarding say \"Remove the people who are already members\".\n- `initKea.ts`: an `already_member` failure from the invite action no longer gets the generic toast and is no longer captured as an exception.\n- If the server still rejects a batch, for example because someone joined after the list loaded, you get a specific toast and the member list refreshes so the row gets flagged.\n\n## Tests added\n\n- `test_bulk_invite_with_existing_member_creates_no_invites`: a member in the third row, in a different case, returns 400 `already_member` with zero invites and zero emails.\n- `inviteLogic.test.ts`: parameterized over an existing member, your own email, and a new email, checking the row flag and whether submit is allowed.\n\n## Things to know\n\n- The server error still doesn't say which row failed; the frontend works that out from the member list.\n- The email input is now wrapped in `LemonField.Pure` to show the error. I haven't rendered it, so check the row layout at a narrow width.\n- Any API client that matched on this error now sees `attr: \"target_email\"` and `code: \"already_member\"` instead of a null `attr` and the default `invalid` code, so run `hogli build:openapi` in case the generated types change.",

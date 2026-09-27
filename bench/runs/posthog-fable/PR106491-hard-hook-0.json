@@ -53,6 +53,7 @@
       "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 1,
       "all": 1,
       "pass": true,
@@ -60,39 +61,83 @@
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "InsightAsScene.tsx sets `insightPage: true` in the context passed to `Query`; InsightVizDisplay.tsx forwards it as `insightPage={context?.insightPage}` to `ChartAlternatives`; and `chartAlternativesLogic.ts`'s `isEditableSurface` selector now reads `(!!editMode || !!insightPage) && !embedded && !inSharedMode && !isInDashboardContext && canEditInsight && !editingDisabledReason`. When true (and canShowAlternatives conditions hold), `ChartAlternatives.tsx` renders the `Popover`/`ChartGallery` with the same `options`/`alternatives` selectors used in edit mode, so viewers see the same gallery contents."
+          "evidence": "InsightAsScene now passes `insightPage: true` in the Query context, and InsightVizDisplay forwards it: `insightPage={context?.insightPage}`. The gate in chartAlternativesLogic is widened to `(!!editMode || !!insightPage) && !embedded && !inSharedMode && !isInDashboardContext && canEditInsight && !editingDisabledReason`, so `isEditableSurface` is true in view mode on the insight page. ChartAlternatives then skips `if (!canShowAlternatives) { return <ChartFilter /> }` and renders the Popover with `<ChartGallery .../>`. The options come from the same `options`/`previews` selectors, which do not depend on mode, so the set matches edit mode."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "ChartAlternatives.tsx: `if (!canShowAlternatives) { return <ChartFilter /> } ... return <Popover ... overlay={<ChartGallery .../>}> <LemonButton .../> </Popover>` — this is an if/else, so only one of the dropdown (`ChartFilter`) or the gallery button+popover is ever rendered for a given surface; since canShowAlternatives is now true in insight-page view mode, the dropdown branch is skipped there."
+          "evidence": "ChartAlternatives renders one picker or the other, never both: `if (!canShowAlternatives) { return <ChartFilter /> }`, otherwise `return (<Popover ... overlay={<ChartGallery .../>}>`. With `insightPage` true in view mode, `canShowAlternatives` is true and the ChartFilter dropdown is not returned. InsightDisplayConfig receives this single element through `chartTypeControl={<ChartAlternatives .../>}`."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "`isEditableSurface` still includes `!!editMode` as one side of the OR, and all other conditions (`!embedded && !inSharedMode && !isInDashboardContext && canEditInsight && !editingDisabledReason`) are untouched; `canShowAlternatives`, `options`, `alternatives`, `selectChart`, and the Popover open/close reducers (`openGallery`/`closeGallery`/`toggleGallery`) are unchanged, so edit-mode behavior is preserved exactly."
+          "evidence": "The only logic change is `!!editMode` becoming `(!!editMode || !!insightPage)`, which still evaluates true whenever editMode is true. The reducers (`openGallery`, `closeGallery`, `toggleGallery`, `selectChart: () => false`), the `options` selector, the listeners and the Popover markup are untouched. The new prop is only threaded through into `logicProps`."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "`selectChart` action/listener in chartAlternativesLogic.ts is not gated by editMode vs insightPage; ChartGallery.tsx's `onSelect={() => selectChart(preview.option.display, ...)}` calls the same action used in edit mode, which (via `updateQuerySource` bound from `insightVizDataLogic(props)`) updates the query the same way in both modes."
+          "evidence": "ChartGallery tiles call the same action in both modes: `onSelect={() => selectChart(preview.option.display, preview.suggested ? 'recommended' : 'gallery')}`, with `disabledReason={selectionDisabledReason}`. `selectionDisabledReason` returns `canShowAlternatives ? undefined : 'Chart types are unavailable.'`, so it is undefined in view mode once loading finishes, and `canSelectCharts` is `canShowAlternatives && !insightDataLoading`. None of the visible gates depend on editMode beyond `isEditableSurface`, which now passes. Caveat: the body of the `selectChart` listener is cut off in the excerpt, so this verdict rests on the patch adding no mode-specific branch and the listener being the shared one connected to `insightDataLogic.setQuery` / `insightVizDataLogic.updateQuerySource`."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "`isEditableSurface` still requires `!embedded && !inSharedMode && !isInDashboardContext && canEditInsight`; the new `insightPage` flag only widens the edit-mode part of the OR and does not override these other gates, so dashboard tiles (`isInDashboardContext`), embedded/shared views (`embedded`/`inSharedMode`), and users without edit permission (`canEditInsight`) still fall through to `ChartFilter` regardless of `insightPage`."
+          "evidence": "The exclusions in `isEditableSurface` are still ANDed after the widened mode check: `(!!editMode || !!insightPage) && !embedded && !inSharedMode && !isInDashboardContext && canEditInsight && !editingDisabledReason`. Embedded, shared, dashboard-context and no-edit-permission cases therefore still fall through to `<ChartFilter />`. In addition, only InsightAsScene sets `insightPage: true`, so other surfaces never opt in."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "`canShowAlternatives` selector is unchanged: `!!featureFlags[FEATURE_FLAGS.PRODUCT_ANALYTICS_CHART_ALTERNATIVES] && isEditableSurface && isTrends && !!query && !!trendsSource` — the flag gate and `isTrends`/`trendsSource` (trends-only) checks still apply identically in view mode via the same `isEditableSurface` boolean."
+          "evidence": "The `canShowAlternatives` selector is unchanged: `!!featureFlags[FEATURE_FLAGS.PRODUCT_ANALYTICS_CHART_ALTERNATIVES] && isEditableSurface && isTrends && !!query && !!trendsSource`. The feature flag, trends-only and query-shape conditions apply in view mode exactly as in edit mode."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "ChartAlternatives.tsx uses the same `<Popover visible={galleryOpen} ... placement=\"bottom-end\" overlay={<ChartGallery .../>}>` wrapping the same `LemonButton ref={triggerRef}` trigger regardless of editMode/insightPage, with `toggleGallery`/`closeGallery` driving `galleryOpen` — identical popover anchoring/interaction is used in both modes."
+          "evidence": "View mode renders the same component tree as edit mode: `<Popover visible={galleryOpen} onClickOutside={... closeGallery() ...} placement=\"bottom-end\" ...>` wrapping `<LemonButton ref={triggerRef} ... active={galleryOpen} onClick={toggleGallery}>`. The `galleryOpen` reducer (`toggleGallery: (state) => !state`, `closeGallery: () => false`) does not depend on mode."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 1,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "InsightAsScene.tsx sets `insightPage: true` in the context passed to `Query`; InsightVizDisplay.tsx forwards it as `insightPage={context?.insightPage}` to `ChartAlternatives`; and `chartAlternativesLogic.ts`'s `isEditableSurface` selector now reads `(!!editMode || !!insightPage) && !embedded && !inSharedMode && !isInDashboardContext && canEditInsight && !editingDisabledReason`. When true (and canShowAlternatives conditions hold), `ChartAlternatives.tsx` renders the `Popover`/`ChartGallery` with the same `options`/`alternatives` selectors used in edit mode, so viewers see the same gallery contents."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "ChartAlternatives.tsx: `if (!canShowAlternatives) { return <ChartFilter /> } ... return <Popover ... overlay={<ChartGallery .../>}> <LemonButton .../> </Popover>` — this is an if/else, so only one of the dropdown (`ChartFilter`) or the gallery button+popover is ever rendered for a given surface; since canShowAlternatives is now true in insight-page view mode, the dropdown branch is skipped there."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "`isEditableSurface` still includes `!!editMode` as one side of the OR, and all other conditions (`!embedded && !inSharedMode && !isInDashboardContext && canEditInsight && !editingDisabledReason`) are untouched; `canShowAlternatives`, `options`, `alternatives`, `selectChart`, and the Popover open/close reducers (`openGallery`/`closeGallery`/`toggleGallery`) are unchanged, so edit-mode behavior is preserved exactly."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "`selectChart` action/listener in chartAlternativesLogic.ts is not gated by editMode vs insightPage; ChartGallery.tsx's `onSelect={() => selectChart(preview.option.display, ...)}` calls the same action used in edit mode, which (via `updateQuerySource` bound from `insightVizDataLogic(props)`) updates the query the same way in both modes."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "`isEditableSurface` still requires `!embedded && !inSharedMode && !isInDashboardContext && canEditInsight`; the new `insightPage` flag only widens the edit-mode part of the OR and does not override these other gates, so dashboard tiles (`isInDashboardContext`), embedded/shared views (`embedded`/`inSharedMode`), and users without edit permission (`canEditInsight`) still fall through to `ChartFilter` regardless of `insightPage`."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "`canShowAlternatives` selector is unchanged: `!!featureFlags[FEATURE_FLAGS.PRODUCT_ANALYTICS_CHART_ALTERNATIVES] && isEditableSurface && isTrends && !!query && !!trendsSource` — the flag gate and `isTrends`/`trendsSource` (trends-only) checks still apply identically in view mode via the same `isEditableSurface` boolean."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "ChartAlternatives.tsx uses the same `<Popover visible={galleryOpen} ... placement=\"bottom-end\" overlay={<ChartGallery .../>}>` wrapping the same `LemonButton ref={triggerRef}` trigger regardless of editMode/insightPage, with `toggleGallery`/`closeGallery` driving `galleryOpen` — identical popover anchoring/interaction is used in both modes."
+          }
+        ]
+      }
     }
   },
   "result": "The chart type gallery now shows on the insight page in view mode as well as edit mode, and the plain dropdown no longer takes its place there. Nothing was run, per your instructions: no tests, typecheck or lint, so this is unverified.\n\n## What changed\n\nThe gallery was gated by a check in `chartAlternativesLogic` that required `editMode`. That check now accepts either edit mode or a new `insightPage` flag; every other condition is unchanged.\n\n- **`InsightAsScene.tsx`** sets `insightPage: true` in the query context it passes down, so only the insight page opts in.\n- **`frontend/src/queries/types.ts`** adds `insightPage` to `QueryContext`.\n- **`InsightVizDisplay.tsx`** forwards `context?.insightPage` to `ChartAlternatives`.\n- **`ChartAlternatives.tsx` / `ChartGallery.tsx`** accept the prop and pass it into the logic props.\n- **`chartAlternativesLogic.ts`** adds the prop, a selector for it, and the widened check, with the inline kea types updated by hand to match.\n\n## Behavior to be aware of\n\n- **Other view-mode surfaces keep the dropdown.** Notebooks, dashboard cards, shared and embedded insights do not set the flag. I used an explicit flag because `query.full` is also set by web analytics, surveys and others.\n- **Insights opened from a dashboard still get the dropdown**, in both modes. That exclusion already applied in edit mode and I left it alone.\n- **The existing conditions still apply in view mode.** The gallery needs the `PRODUCT_ANALYTICS_CHART_ALTERNATIVES` flag, a trends query, and a user who can edit the insight; otherwise the dropdown shows.\n- **Picking a chart in view mode changes the query the same way the dropdown did.** I did not touch how that change is saved.\n\n## Test\n\nI added one parameterized case to `ChartAlternatives.test.tsx` covering three surfaces:\n\n| Surface | Expected control |\n|---|---|\n| Insight page, view mode | Gallery |\n| View-mode chart outside the insight page | Dropdown |\n| Shared insight page | Dropdown |\n\nIt guards against someone re-requiring edit mode, or the gallery leaking onto other view-mode surfaces.",

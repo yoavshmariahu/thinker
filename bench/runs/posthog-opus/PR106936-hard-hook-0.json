@@ -54,56 +54,112 @@
       "posthog/api/organization_invite.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 1,
       "all": 0.8888888888888888,
+      "extra": 0.6666666666666666,
       "pass": true,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "InviteRow computes `existingMemberErrors[index]`, adds ' errored' to the email input class and renders `<div ... data-attr=\"invite-email-existing-member-error\">{existingMemberError}</div>`; InviteRow is used by InviteTeamMatesComponent inside InviteModal."
+          "evidence": "InviteRow (used by the settings InviteModal) reads `const existingMemberError = existingMemberErrors[index]`, adds error styling via `className={`error-on-blur${!invitesToSend[index]?.isValid || existingMemberError ? ' errored' : ''}`}` and renders `{existingMemberError && (<div className=\"text-danger text-xs mt-1\" data-attr=\"invite-email-existing-member-error\">{existingMemberError}</div>)}`. The selector `existingMemberErrors` is derived live from `invitesToSend` and the member emails, so it shows before any submission. Assumes `membersLogic` exposes `members`, which is not shown in the excerpt."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "existingMemberEmails adds `user.email.toLowerCase()`; existingMemberErrors returns 'This is your own email address' for it, so the row is flagged."
+          "evidence": "`existingMemberEmails` adds the user's own address: `if (user?.email) { emails.add(user.email.toLowerCase()) }`. `existingMemberErrors` then returns `'This is your own email address'` for that row, which feeds the same inline error, error styling and `hasExistingMemberErrors`."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "canSubmit includes `!hasExistingMemberErrors`; InviteModal's submit has `hasExistingMemberErrors ? 'Remove the emails that already belong to people in your organization'`; onboarding continueDisabledReason has the same branch; per-row Submit has `disabledReason={existingMemberError ?? undefined}`."
+          "evidence": "Settings dialog: `disabledReason={userCannotInvite ? ... : hasExistingMemberErrors ? 'Remove the emails that already belong to people in your organization' : !canSubmit ? ...}`. Onboarding: `continueDisabledReason` includes `: hasExistingMemberErrors ? 'Remove the emails that already belong to people in your organization'`. Per-row button: `disabledReason={existingMemberError ?? undefined}`. In addition `canSubmit` includes `!hasExistingMemberErrors` and the loader returns `[]` when `!values.canSubmit`, so Enter on a row does not submit either."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "Row email is `target_email.trim().toLowerCase()` and the set stores `member.user.email.toLowerCase()`."
+          "evidence": "Row side: `const email = target_email.trim().toLowerCase()` then `existingMemberEmails.has(email)`. Member side: `emails.add(member.user.email.toLowerCase())`. So ' Rose.Dawson@PostHog.com' normalises to 'rose.dawson@posthog.com' and matches."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "InviteTeamMatesComponent calls `useOnMountEffect(ensureAllMembersLoaded)` (action connected from membersLogic); own email is added from userLogic's `user` regardless of members loading."
+          "evidence": "`InviteTeamMatesComponent` (shared by the modal and the onboarding step) calls `useOnMountEffect(ensureAllMembersLoaded)`, connected via `actions: [membersLogic, ['ensureAllMembersLoaded']]`. The own-email check does not depend on the list: `if (user?.email) { emails.add(...) }` runs before `for (const member of members ?? [])`, which tolerates `members` being null. The `membersLogic` implementation of `ensureAllMembersLoaded` is not shown in the excerpt; verdict assumes it exists as the connect implies."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "The check moved from create() into `validate_target_email` via `validate_invite_target_is_not_a_member`; bulk many=True validates all rows before any create, so no invites are created or emailed."
+          "evidence": "The membership check moved from `create()` (removed: `if OrganizationMembership.objects.filter(...).exists(): raise exceptions.ValidationError(...)`) into field validation: `validate_invite_target_is_not_a_member(self.context[\"organization_id\"], email)` inside the target email validator. Field validation of a many=True serializer runs for every row before any `create()`, so no earlier row is saved or emailed; a ValidationError yields a 400. The bulk view itself is not in the excerpt, but the existing `first_bulk_invite_error` helper (\"A many=True error is a list of per-row dicts\") indicates the bulk path validates through the many=True serializer before saving."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "`raise exceptions.ValidationError(..., code=\"existing_member\")` in the target_email field validator; first_bulk_invite_error re-raises the per-row dict so the error is attributed to target_email with that code."
+          "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"existing_member\")` is raised from the target email field validator, so the error is keyed to `target_email`. For bulk requests `first_bulk_invite_error` re-raises `exceptions.ValidationError(row_errors)` with the per-row field dict, preserving the field attribution and the `existing_member` code."
         },
         {
           "id": "c8",
           "verdict": "met",
-          "evidence": "initKea: `EXISTING_MEMBER_SELF_HANDLED.has(actionKey) && isExistingMemberError(error)` is excluded from `posthog.captureException`; other errors still go through shouldReportApiFailure."
+          "evidence": "initKea: `const EXISTING_MEMBER_SELF_HANDLED = new Set(['inviteTeamMembers'])`, `const isSelfHandledExistingMember = EXISTING_MEMBER_SELF_HANDLED.has(String(actionKey)) && isExistingMemberError(error)` and `if (shouldReportApiFailure(error) && !isSelfHandledNotFound && !isSelfHandledExistingMember) { posthog.captureException(error) }`. `isExistingMemberError` only matches `failure?.status === 400 && failure?.code === EXISTING_MEMBER_ERROR_CODE`, so other failures on `inviteTeamMembers` still reach `captureException`."
         },
         {
           "id": "c9",
           "verdict": "not_met",
-          "evidence": "No listener on inviteTeamMembersFailure (or elsewhere) reloads members after a server existing_member rejection; listeners only handle inviteTeamMembersSuccess and addProjectAccess."
+          "evidence": "No code reacts to a failed submission by reloading members. The `listeners` block in inviteLogic only has `inviteTeamMembersSuccess` and `addProjectAccess`; there is no `inviteTeamMembersFailure` listener. The only member load is `useOnMountEffect(ensureAllMembersLoaded)`, which runs once on mount, so after a server `existing_member` rejection the row stays unflagged."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 0.8888888888888888,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "InviteRow computes `existingMemberErrors[index]`, adds ' errored' to the email input class and renders `<div ... data-attr=\"invite-email-existing-member-error\">{existingMemberError}</div>`; InviteRow is used by InviteTeamMatesComponent inside InviteModal."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "existingMemberEmails adds `user.email.toLowerCase()`; existingMemberErrors returns 'This is your own email address' for it, so the row is flagged."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "canSubmit includes `!hasExistingMemberErrors`; InviteModal's submit has `hasExistingMemberErrors ? 'Remove the emails that already belong to people in your organization'`; onboarding continueDisabledReason has the same branch; per-row Submit has `disabledReason={existingMemberError ?? undefined}`."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "Row email is `target_email.trim().toLowerCase()` and the set stores `member.user.email.toLowerCase()`."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "InviteTeamMatesComponent calls `useOnMountEffect(ensureAllMembersLoaded)` (action connected from membersLogic); own email is added from userLogic's `user` regardless of members loading."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "The check moved from create() into `validate_target_email` via `validate_invite_target_is_not_a_member`; bulk many=True validates all rows before any create, so no invites are created or emailed."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "`raise exceptions.ValidationError(..., code=\"existing_member\")` in the target_email field validator; first_bulk_invite_error re-raises the per-row dict so the error is attributed to target_email with that code."
+          },
+          {
+            "id": "c8",
+            "verdict": "met",
+            "evidence": "initKea: `EXISTING_MEMBER_SELF_HANDLED.has(actionKey) && isExistingMemberError(error)` is excluded from `posthog.captureException`; other errors still go through shouldReportApiFailure."
+          },
+          {
+            "id": "c9",
+            "verdict": "not_met",
+            "evidence": "No listener on inviteTeamMembersFailure (or elsewhere) reloads members after a server existing_member rejection; listeners only handle inviteTeamMembersSuccess and addProjectAccess."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

@@ -58,56 +58,112 @@
       "products/workflows/frontend/Broadcasts/broadcastsLogic.ts"
     ],
     "criteria": {
-      "essential": 0,
-      "all": 0.1111111111111111,
+      "judge": "fable",
+      "essential": 0.6666666666666666,
+      "all": 0.3333333333333333,
+      "extra": 0.16666666666666666,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "unclear",
-          "evidence": "UI: `canRevertToDraft && <LemonButton ... Move to draft>` calls `revertToDraft`, which does `hogFlowsPartialUpdate(..., {status:'draft'})` and `saveBroadcastFinished(reverted)`, so isReadOnly becomes false and the wizard is editable. But nothing in the patch stops the scheduled send while draft: the schedule is not deleted or paused, and the backend scheduler is not changed (no re-verification of status). Whether the backend already skips drafts is not shown."
+          "evidence": "The frontend half is present: the summary shows a `Move to draft` button whose confirm calls `revertToDraft`, which does `hogFlowsPartialUpdate(..., { status: 'draft' })` then `actions.saveBroadcastFinished(reverted)` and `actions.setStep(values.firstInvalidStep ?? 'review')`. That makes `isReadOnly` (`broadcast.status !== 'draft'`) false, so the wizard is editable again. But the revert only changes the flow status; it does not delete or pause the schedule. Whether the scheduled send is suppressed while the flow is a draft depends on backend scheduler code that is neither changed nor shown. The dialog copy 'This cancels the scheduled send' is a claim, not evidence."
         },
         {
           "id": "c2",
-          "verdict": "unclear",
-          "evidence": "`canRevertToDraft = broadcastStatus === 'scheduled' && hasLoadedBatchJobs`. Draft, sent (completed job) and immediate send (job exists) are excluded. But 'scheduled' is just active with no batch job; a completed one-time schedule is only excluded if a batch job exists (probably, but not verified), and an active broadcast with no schedule would also be offered."
+          "verdict": "met",
+          "evidence": "`canRevertToDraft: broadcastStatus === 'scheduled' && hasLoadedBatchJobs`, rendered as `{canRevertToDraft && (<LemonButton ... data-attr=\"broadcast-move-to-draft\"`. `getBroadcastStatus` returns 'draft' for `broadcast.status === 'draft'`, and returns 'sending'/'sent'/'failed' whenever a `latestJob` exists, so an immediate send or a completed one-time schedule (both have a run) does not get the button. 'scheduled' is only returned when active with no batch job. Caveat: the code does not check that a schedule actually exists, and after a revert-then-relaunch-now the stale empty `batchJobs` with `hasLoadedBatchJobs` already true could show the button briefly until `loadBatchJobs` returns."
         },
         {
           "id": "c3",
-          "verdict": "not_met",
-          "evidence": "Stale schedules are destroyed after `hogFlowsPartialUpdate(status:'active')`, and then a new one is created; for 'now' mode leftovers are destroyed. Deletion uses `activated.schedules`, which comes from the activation response; the new schedule is created with the API. This is plausibly met on the happy path, but ordering with activation before replacement conflicts with c4; also relies on the response including schedules. Overall the schedule replacement is present, but overrides are dropped (see c9)."
+          "verdict": "met",
+          "evidence": "In `launchBroadcast`, after activation: `for (const staleSchedule of activated.schedules ?? []) { await hogFlowsSchedulesDestroy(projectId, broadcastId, staleSchedule.id) }`. This runs before the mode branch, so it applies to both paths. For 'now' only `hogFlowsBatchJobsCreate` follows, leaving no schedule. Otherwise a single `hogFlowsSchedulesCreate(projectId, broadcastId, schedule as any)` creates a new one with `starts_at` and `rrule` from the chosen values. Existing schedules are deleted rather than reused or edited. This assumes `activated.schedules` lists paused schedules too, which the serializer (not shown) decides."
         },
         {
           "id": "c4",
           "verdict": "not_met",
-          "evidence": "Activation happens first: `activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })` and only afterwards the schedules are destroyed/created. An interruption between leaves the broadcast active with old or no schedules. The catch reverts to draft only on caught errors, not on interruption."
+          "evidence": "The order is the reverse of what the criterion requires: `activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })` runs first, and only afterwards the `hogFlowsSchedulesDestroy` loop and `hogFlowsSchedulesCreate`. An interruption part-way through (tab closed, network loss) leaves the broadcast live with the old schedules, or with none. The `catch` block's revert to draft only helps when an error is thrown and the client is still running."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "Only `broadcastStatus === 'scheduled' && hasLoadedBatchJobs` gates it. The run-in-progress and unknown history cases are covered, but there is no check for more than one schedule or for a workflow shape the wizard cannot safely edit."
+          "evidence": "`canRevertToDraft` is only `broadcastStatus === 'scheduled' && hasLoadedBatchJobs`. That covers a waiting/queued/active run (status becomes 'sending') and unknown run history (`hasLoadedBatchJobs`). There is no check on the number of schedules (`broadcast.schedules.length`) and no check that the workflow's actions are still in a shape the wizard can edit."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "The button opens `LemonDialog.open({ title: 'Move this broadcast back to draft?', content: 'This cancels the scheduled send. ...', primaryButton: { children: 'Move to draft', onClick: revertToDraft }, secondaryButton: { children: 'Keep it scheduled' } })`. It explains the send is cancelled, offers a cancel option, and reverts only on confirm. It doesn't literally say 'nothing sends until launched again', but it conveys that you launch again."
+          "evidence": "The button's `onClick` opens `LemonDialog.open({ title: 'Move this broadcast back to draft?', content: 'This cancels the scheduled send. You can edit the broadcast and launch it again to pick a new send time.', primaryButton: { children: 'Move to draft', onClick: revertToDraft }, secondaryButton: { children: 'Keep it scheduled' } })`. `revertToDraft` is only dispatched from the primary button; the secondary button cancels. The copy says the send is cancelled and that it must be launched again, though it does not literally state that nothing sends until relaunch."
         },
         {
           "id": "c7",
           "verdict": "not_met",
-          "evidence": "`revertToDraft` only calls hogFlowsPartialUpdate with status draft; no batch job cancellation and no varied messages (no warning about already-sent emails)."
+          "evidence": "`revertToDraft` only calls `hogFlowsPartialUpdate(..., { status: 'draft' })`, `saveBroadcastFinished(reverted)` and `setStep(...)`. It makes no call to cancel a batch job, shows no success toast, no warning about a just-started send, and has no separate handling for a failed cancellation. The only message is the error toast `Couldn't move the broadcast back to draft: ...`."
         },
         {
           "id": "c8",
           "verdict": "not_met",
-          "evidence": "The patch touches only frontend files; no scheduler/backend change re-verifies status before creating a run."
+          "evidence": "The patch touches only three frontend files (`BroadcastSummary.tsx`, `broadcastWizardLogic.ts`, `broadcastsLogic.ts`). No scheduler or backend code is changed, so no status re-check before run creation is added, and no existing one is shown."
         },
         {
           "id": "c9",
           "verdict": "not_met",
-          "evidence": "The new schedule is built only with rrule, starts_at and timezone; the stale schedules' variables are not read or carried over."
+          "evidence": "The replacement schedule is built with only `rrule`, `starts_at` and `timezone`: `const schedule: Partial<HogFlowScheduleApi> = { rrule: ..., starts_at: ..., timezone: values.effectiveTimezone }`. The old schedules are destroyed in the loop without reading their `variables`, so any overrides are dropped."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0,
+        "all": 0.1111111111111111,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "unclear",
+            "evidence": "UI: `canRevertToDraft && <LemonButton ... Move to draft>` calls `revertToDraft`, which does `hogFlowsPartialUpdate(..., {status:'draft'})` and `saveBroadcastFinished(reverted)`, so isReadOnly becomes false and the wizard is editable. But nothing in the patch stops the scheduled send while draft: the schedule is not deleted or paused, and the backend scheduler is not changed (no re-verification of status). Whether the backend already skips drafts is not shown."
+          },
+          {
+            "id": "c2",
+            "verdict": "unclear",
+            "evidence": "`canRevertToDraft = broadcastStatus === 'scheduled' && hasLoadedBatchJobs`. Draft, sent (completed job) and immediate send (job exists) are excluded. But 'scheduled' is just active with no batch job; a completed one-time schedule is only excluded if a batch job exists (probably, but not verified), and an active broadcast with no schedule would also be offered."
+          },
+          {
+            "id": "c3",
+            "verdict": "not_met",
+            "evidence": "Stale schedules are destroyed after `hogFlowsPartialUpdate(status:'active')`, and then a new one is created; for 'now' mode leftovers are destroyed. Deletion uses `activated.schedules`, which comes from the activation response; the new schedule is created with the API. This is plausibly met on the happy path, but ordering with activation before replacement conflicts with c4; also relies on the response including schedules. Overall the schedule replacement is present, but overrides are dropped (see c9)."
+          },
+          {
+            "id": "c4",
+            "verdict": "not_met",
+            "evidence": "Activation happens first: `activated = await hogFlowsPartialUpdate(projectId, broadcastId, { status: 'active' })` and only afterwards the schedules are destroyed/created. An interruption between leaves the broadcast active with old or no schedules. The catch reverts to draft only on caught errors, not on interruption."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "Only `broadcastStatus === 'scheduled' && hasLoadedBatchJobs` gates it. The run-in-progress and unknown history cases are covered, but there is no check for more than one schedule or for a workflow shape the wizard cannot safely edit."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "The button opens `LemonDialog.open({ title: 'Move this broadcast back to draft?', content: 'This cancels the scheduled send. ...', primaryButton: { children: 'Move to draft', onClick: revertToDraft }, secondaryButton: { children: 'Keep it scheduled' } })`. It explains the send is cancelled, offers a cancel option, and reverts only on confirm. It doesn't literally say 'nothing sends until launched again', but it conveys that you launch again."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "`revertToDraft` only calls hogFlowsPartialUpdate with status draft; no batch job cancellation and no varied messages (no warning about already-sent emails)."
+          },
+          {
+            "id": "c8",
+            "verdict": "not_met",
+            "evidence": "The patch touches only frontend files; no scheduler/backend change re-verifies status before creating a run."
+          },
+          {
+            "id": "c9",
+            "verdict": "not_met",
+            "evidence": "The new schedule is built only with rrule, starts_at and timezone; the stale schedules' variables are not read or carried over."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

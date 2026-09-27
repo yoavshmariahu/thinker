@@ -42,51 +42,101 @@
     "mustTotal": 3,
     "touched": [],
     "criteria": {
-      "essential": 0,
-      "all": 0,
+      "judge": "fable",
+      "essential": 0.4,
+      "all": 0.25,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "not_met",
-          "evidence": "The patch is empty and no code was changed. There is no feature-flag decision function anywhere in the codebase; the author's search confirmed 'posthog/utils.py reads exactly one preload manifest ... and one index.html' with no stable-build variant to gate. No flag evaluation logic exists to decide which build a logged-in user receives."
+          "evidence": "The patch is empty (\"(empty patch)\") and the author states \"I made no code changes\". No flag evaluation was added, so no logged-in user can be served the stable build based on a feature flag. There is no automatic enrolment path."
         },
         {
           "id": "c2",
-          "verdict": "not_met",
-          "evidence": "No code exists that checks login status before serving a stable build, since no stable build or gating logic was added (patch is empty)."
+          "verdict": "met",
+          "evidence": "Holds only vacuously. The patch is empty, so no code consults a feature flag when choosing the build; per the request the stable build \"currently only reaches a browser when someone manually opts in by adding a query parameter\". An anonymous request therefore cannot be served the stable build on the basis of a flag. No code was shown to quote; this rests on the absence of any change."
         },
         {
           "id": "c3",
-          "verdict": "not_met",
-          "evidence": "There is no flag-absence fallback logic in the code; nothing was implemented to handle missing/unresolvable flag values because the whole feature is absent."
+          "verdict": "met",
+          "evidence": "Holds only vacuously. The patch is empty, so rendering does not depend on flag values at all; with flags missing, empty or unevaluated, the unchanged code behaves as before and serves the current build unless the query parameter is used. No code was shown to quote; this rests on the absence of any change."
         },
         {
           "id": "c4",
-          "verdict": "not_met",
-          "evidence": "No query-parameter opt-in exists in this checkout: 'The only query parameter the template context reads is no-preloaded-app-context.' No override/precedence logic was added by this empty patch."
+          "verdict": "unclear",
+          "evidence": "The patch is empty and no surrounding code is provided. The request says a manual query-parameter opt-in exists, but the author claims it is not in this checkout (\"The only query parameter the template context reads is `no-preloaded-app-context`\"). Nothing shown lets me verify an on value, an off value, or precedence over a stored choice or a flag."
         },
         {
           "id": "c5",
-          "verdict": "not_met",
-          "evidence": "No persistence mechanism (cookie/storage) for a remembered choice was added; the patch made no changes at all."
+          "verdict": "unclear",
+          "evidence": "The patch is empty and no code is shown. There is no evidence of a remembered choice (for example a cookie of about 30 days) in either direction, and the patch adds none. Whether the existing code persists anything cannot be determined from what was provided."
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "No code passes a flag value to an analytics client for this purpose since no such flag/decision exists in the codebase after the (empty) patch."
+          "evidence": "The patch is empty, so no flag value decides the build and nothing was added to pass such a value to the in-page analytics client. Author: \"I made no code changes\"."
         },
         {
           "id": "c7",
-          "verdict": "not_met",
-          "evidence": "No runtime fallback/reload handling was implemented; there is no stable-build/runtime-error path in the code at all."
+          "verdict": "unclear",
+          "evidence": "The patch is empty and no code is shown for the runtime-failure reload path. Whether an existing fallback reload serves the current build without recording a persistent opt-out cannot be determined; the patch adds nothing for it."
         },
         {
           "id": "c8",
-          "verdict": "not_met",
-          "evidence": "No URL-cleanup logic was added; no query parameter handling for this feature exists post-patch."
+          "verdict": "unclear",
+          "evidence": "The patch is empty and no code is shown. There is no evidence that the query parameter is removed from the visible address after the server applies it, and the patch adds no such behaviour."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0,
+        "all": 0,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "not_met",
+            "evidence": "The patch is empty and no code was changed. There is no feature-flag decision function anywhere in the codebase; the author's search confirmed 'posthog/utils.py reads exactly one preload manifest ... and one index.html' with no stable-build variant to gate. No flag evaluation logic exists to decide which build a logged-in user receives."
+          },
+          {
+            "id": "c2",
+            "verdict": "not_met",
+            "evidence": "No code exists that checks login status before serving a stable build, since no stable build or gating logic was added (patch is empty)."
+          },
+          {
+            "id": "c3",
+            "verdict": "not_met",
+            "evidence": "There is no flag-absence fallback logic in the code; nothing was implemented to handle missing/unresolvable flag values because the whole feature is absent."
+          },
+          {
+            "id": "c4",
+            "verdict": "not_met",
+            "evidence": "No query-parameter opt-in exists in this checkout: 'The only query parameter the template context reads is no-preloaded-app-context.' No override/precedence logic was added by this empty patch."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "No persistence mechanism (cookie/storage) for a remembered choice was added; the patch made no changes at all."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "No code passes a flag value to an analytics client for this purpose since no such flag/decision exists in the codebase after the (empty) patch."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "No runtime fallback/reload handling was implemented; there is no stable-build/runtime-error path in the code at all."
+          },
+          {
+            "id": "c8",
+            "verdict": "not_met",
+            "evidence": "No URL-cleanup logic was added; no query parameter handling for this feature exists post-patch."
+          }
+        ]
+      }
     }
   },
   "result": "I made no code changes: the stable chunk build and its query-parameter opt-in do not exist in this checkout, so there is nothing for a feature flag to gate.\n\n## What I checked\n\nThe checkout is a detached HEAD at `a3b3c3685bc`, with `master` as the only branch.\n\n- **Build:** `frontend/build.mjs` produces a single esbuild \"PostHog App\" bundle into `frontend/dist`. There is no second build variant, output directory or manifest.\n- **Serving:** `posthog/utils.py` reads exactly one preload manifest (`frontend/dist/preload-manifest.json`) and one `index.html`. The only query parameter the template context reads is `no-preloaded-app-context`.\n- **Loader:** the boot script generated in `common/esbuilder/utils.mjs` and the template `frontend/src/index.html` read no query parameters.\n- **Repo-wide search:** nothing for \"stable chunk\" in any spelling, and no `rolldown` or `rspack` in the build config. The only Vite usage is the dev server.\n\nA history search for the likely identifiers (`git log -S`) timed out and had returned nothing when I stopped.\n\n## Why I stopped\n\nThe flag has to pick between two sets of built assets at the point where the server renders the HTML. I can't write that without knowing how the stable build is emitted and served, and what the opt-in parameter is called. Guessing would give you code that compiles against names that aren't in the real implementation.\n\n## What I need\n\nEither of these unblocks it:\n\n- The branch or PR that adds the stable chunk build and the query-parameter opt-in, so I can rebase onto it.\n- The parameter name and how the stable assets are laid out (separate output directory, separate manifest, or separate HTML template).\n\n## Planned change once that exists\n\n- **Decision function:** a small one in `posthog/utils.py` that returns true if the query parameter is set, false for anonymous users, and otherwise the flag's value for the user's distinct ID.\n- **Flag evaluation:** evaluated locally on the server, because the choice must be made before the HTML is sent. A client-side flag is too late to change which chunks load.\n- **Exposure:** the flag-called event is sent for logged-in users only, so the experiment has clean exposure data and anonymous users are never enrolled.\n- **Test:** one parameterized test covering the override, anonymous, flag-on and flag-off cases.\n\nOne thing to decide when you set up the flag: 50% of users or 50% of organizations. Per-user is what you described; per-organization would keep teammates on the same build.",

@@ -51,36 +51,72 @@
       "products/slack_app/backend/services/slack_settings.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 1,
       "all": 0.75,
+      "extra": 0,
       "pass": true,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "Manifest and generated products.tsx both have `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']`, same scene as before."
+          "evidence": "The new path is registered against the same scene in both the manifest and the generated route map: `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground'],` appears in `products/ml_inference/manifest.tsx` routes and in `frontend/src/products.tsx` productRoutes. The scene still imports the same page: `import: () => import('./frontend/DecisionPlaygroundScene')`."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "The route key `/ml-inference/decisions` was replaced in both manifest.tsx and products.tsx routes; `redirects: {}` is empty, so the old path is not a route of its own."
+          "evidence": "The old route key is removed in both places: `-    '/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground'],` in `frontend/src/products.tsx` and in `products/ml_inference/manifest.tsx`. The post-patch manifest `routes` contains only `'/ml-inference/playground'`, and the productRoutes listing shown has no `/ml-inference/decisions` entry."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "Both `urls.decisionPlayground` definitions now return `'/ml-inference/playground'`. The author says other consumers use `urls.decisionPlayground()`, and a grep for the old path finds nothing. The manifest has no tree items, so there are no menu entries with a hardcoded path."
+          "evidence": "The shared URL builder now returns the new address in both places: `decisionPlayground: (): string => '/ml-inference/playground',` in the manifest `urls` and in `productUrls`. The manifest declares no menu entries that could carry the path (`treeItemsNew: [],` `treeItemsProducts: [],`). Caveat: only the patched files are shown, so the absence of hardcoded `/ml-inference/decisions` strings elsewhere in the app rests on the author's grep claim and is not confirmed by the code shown."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "Only the route key and URL string changed; the scene import, name, layout and logic are untouched. The slack_app changes are unrelated to the playground."
+          "evidence": "The patch changes only path strings for the playground. The scene definition is unchanged: `DecisionPlayground: { import: () => import('./frontend/DecisionPlaygroundScene'), projectBased: true, name: 'Decisions playground', ... layout: 'app-container' }`, and the route still maps to `['DecisionPlayground', 'decisionPlayground']`. No scene, logic or API file for ml_inference is in the diff. The other changes in the diff are under `products/slack_app/backend/` and do not touch the playground page."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "`redirects: {}` is still empty and no redirect for `/ml-inference/decisions` was added. The author's summary admits old links will 404."
+          "evidence": "No redirect from the old address was added. The post-patch manifest still has `redirects: {},` and the diff adds no redirect entry for `/ml-inference/decisions` anywhere. The old route is removed, so the old address has nothing serving it. The author's summary confirms this: \"Old links will 404 ... did not add a redirect.\""
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 1,
+        "all": 0.75,
+        "pass": true,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "Manifest and generated products.tsx both have `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']`, same scene as before."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "The route key `/ml-inference/decisions` was replaced in both manifest.tsx and products.tsx routes; `redirects: {}` is empty, so the old path is not a route of its own."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "Both `urls.decisionPlayground` definitions now return `'/ml-inference/playground'`. The author says other consumers use `urls.decisionPlayground()`, and a grep for the old path finds nothing. The manifest has no tree items, so there are no menu entries with a hardcoded path."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "Only the route key and URL string changed; the scene import, name, layout and logic are untouched. The slack_app changes are unrelated to the playground."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "`redirects: {}` is still empty and no redirect for `/ml-inference/decisions` was added. The author's summary admits old links will 404."
+          }
+        ]
+      }
     }
   },
   "result": "Done. Only two files needed changing — nothing else in the repo hardcoded the path.\n\n**`products/ml_inference/manifest.tsx`** (the source of truth): the route key and the `decisionPlayground` URL builder both changed from `/ml-inference/decisions` to `/ml-inference/playground`.\n\n**`frontend/src/products.tsx`**: the generated mirror of every manifest — same two lines, in `productRoutes` and `productUrls`.\n\nI hand-edited the generated file rather than running `frontend/build-products.mjs`, since `node_modules` isn't installed here and you asked me not to install. The edit matches what the generator would emit: it collects routes and urls in manifest-file order without sorting keys (`build-products.mjs:60-100`), so renaming a key in place doesn't move it, and the change is a pure string substitution at the same two positions.\n\nNothing else pointed at the old address. Every other consumer already went through `urls.decisionPlayground()`:\n\n- `products/ml_inference/frontend/DecisionPlayground.stories.tsx:55` (`pageUrl`)\n- the scene lazy-import map in `frontend/src/productScenes.tsx:134`, keyed on the scene name, not the path\n\nThe manifest declares no `treeItemsProducts`, so there's no nav/menu entry carrying the URL, and `frontend/src/products.json` (the Python-facing extract) only includes tree items, so it's unaffected. A repo-wide grep for `ml-inference/decisions` now returns nothing. The `ml-inference-decisions` feature flag key (`frontend/src/lib/constants.tsx:412`, `products/ml_inference/backend/logic/decisions.py:33`) is unrelated to the URL and I left it alone.\n\nNo test change. The scene, its logic, and the API are untouched, and the route map is generated from the manifest, so a test asserting `urls.decisionPlayground() === '/ml-inference/playground'` would only restate the generated artifact rather than catch a regression. No existing test referenced the old path.\n\nTwo things worth flagging:\n\n- **Old links will 404.** You said \"instead of\", so I did a straight replacement and did not add a redirect. The manifest supports a `redirects` map (AI observability uses it to forward the retired `/llm-analytics/playground` and `/llm-observability/playground`), so if you want bookmarks to keep working, say so and I'll add `'/ml-inference/decisions'` there.\n- The working tree also contains unrelated in-progress edits under `products/slack_app/` (untagged follow-up mode defaults). Those aren't mine and I left them untouched — worth separating before you commit.",

@@ -51,6 +51,7 @@
       "posthog/models/person/util.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 0.75,
       "all": 0.5555555555555556,
       "pass": false,
@@ -58,49 +59,103 @@
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "`report_person_deletion_mode()` sets a labelled Gauge directly from configuration: `tombstone = bool(settings.PERSON_DELETE_TOMBSTONE); PERSON_DELETION_MODE_GAUGE.labels(mode=\"tombstone\").set(1 if tombstone else 0); PERSON_DELETION_MODE_GAUGE.labels(mode=\"hard_delete\").set(0 if tombstone else 1)`. This is derived from `settings.PERSON_DELETE_TOMBSTONE`, not from log lines, and the two label values let a viewer tell which mode is active."
+          "evidence": "A labelled gauge is derived from the setting: `tombstone = bool(settings.PERSON_DELETE_TOMBSTONE)`; `PERSON_DELETION_MODE_GAUGE.labels(mode=\"tombstone\").set(1 if tombstone else 0)`; `PERSON_DELETION_MODE_GAUGE.labels(mode=\"hard_delete\").set(0 if tombstone else 1)`. It is set at import (`report_person_deletion_mode()` at module level) and again in `_tombstone_and_delete_persons`."
         },
         {
           "id": "c2",
           "verdict": "not_met",
-          "evidence": "The only per-deletion hook is `report_person_deletion_mode()` called in `_tombstone_and_delete_persons` before either path runs: `failures: builtins.list[PersonDeletionFailure] = []\\n    report_person_deletion_mode()\\n    if settings.PERSON_DELETE_TOMBSTONE:`. That function only re-`set()`s the same config-derived 0/1 gauge value each time — it takes no `persons` count and does not increment anything by the number of persons covered, so it cannot show 'which order real deletes are taking' in volume terms, only which mode is configured."
+          "evidence": "The only per-deletion change is `report_person_deletion_mode()` in `_tombstone_and_delete_persons`, which re-sets a 0/1 gauge. No mode-labelled counter is incremented by the number of persons (no `.inc(len(persons))` or equivalent) on either the tombstone or legacy path."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "`PERSON_DELETION_MODE_GAUGE = Gauge(\"posthog_person_deletion_mode\", ..., labelnames=[\"mode\"], multiprocess_mode=\"max\")`. `multiprocess_mode=\"max\"` makes the Prometheus multiprocess collector take the max across processes rather than summing, so identical values from N processes still report as that single value, not N× or growing with process count."
+          "evidence": "The gauge is declared with `multiprocess_mode=\"max\"`, so multi-process aggregation takes the maximum across processes rather than summing. The value stays 1/0 regardless of worker count."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "`if not pending: return` exits before any timing; otherwise `wait_started = time.monotonic()` then conditionally `_flush_person_producers(...)` only if not all results are already done, then unconditionally `PERSON_TOMBSTONE_DELIVERY_WAIT_SECONDS.observe(time.monotonic() - wait_started)`. So one observation is made per ack cycle that had pending (published) work, and when everything was already `done()` the observed duration is just the time between two `monotonic()` calls with no flush in between, i.e. ~0."
+          "evidence": "After the `if not pending: return` guard: `wait_started = time.monotonic()`; `if not all(result.done() ...): _flush_person_producers(TOMBSTONE_DELIVERY_TIMEOUT_SECONDS)`; `PERSON_TOMBSTONE_DELIVERY_WAIT_SECONDS.observe(time.monotonic() - wait_started)`. The observe call is outside the `if`, so an already-delivered cycle records a ~0 observation. The metric is a Histogram."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "`if not pending:\\n            return` returns before `wait_started` is set, before `PERSON_TOMBSTONE_DELIVERY_WAIT_SECONDS.observe(...)`, and before `ack_person_tombstones(...)` is even called (which is what would drive success/failure counts), so an empty-pending cycle emits neither a wait observation nor any ack counts."
+          "evidence": "`if not pending: return` comes before `wait_started = time.monotonic()` and the `observe(...)` call, so nothing is observed when there is no published work. The ack-failure counter sits later in the same function and is not reached either."
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "`except Exception:\\n            PERSON_TOMBSTONE_ACK_FAILURES_COUNTER.inc()\\n            logger.warning(...)`. `Counter.inc()` with no argument increments by 1 per failed *call*, not by `len(delivered)` or any count of affected persons, so the criterion's requirement that the failure count increase 'by the number of persons whose acknowledgement did not go through' is not satisfied (the author's own summary confirms: 'counts failed ack calls, not persons'). The exception is still swallowed so the delete itself keeps reporting success, but the increment amount is wrong."
+          "evidence": "The failure path does `PERSON_TOMBSTONE_ACK_FAILURES_COUNTER.inc()`, which increments by 1 per failed ack call, not by `len(delivered)`. The author summary confirms: \"counts failed ack calls, not persons\". The exception is still swallowed and logged, so the delete reports success, but the count is not the number of affected persons."
         },
         {
           "id": "c7",
           "verdict": "not_met",
-          "evidence": "The diff adds only `PERSON_TOMBSTONE_ACK_FAILURES_COUNTER` for the failure path; there is no counter incremented on the success path of `ack_person_tombstones(self.team_id, delivered)` (the `try:` block that calls it has no metric update at all, only the `except` branch does). No metric exists to reflect queue rows actually cleared by successful acks."
+          "evidence": "No success metric is added. The only ack-related metric is `posthog_person_tombstone_ack_failures_total`. `ack_person_tombstones(self.team_id, delivered)` is called with its return value unused and nothing counted on success."
         },
         {
           "id": "c8",
           "verdict": "not_met",
-          "evidence": "The patched call site is a single call `ack_person_tombstones(self.team_id, delivered)` wrapped in one `try/except`; the diff shows no batching logic, and since no success-count metric exists at all (see c7), there is nothing that 'counts' rows cleared by earlier batches as succeeded even if batching existed underneath."
+          "evidence": "The patch leaves a single call `ack_person_tombstones(self.team_id, delivered)` inside one `try/except`, with no batching loop or per-batch error handling added. There is no counting of succeeded rows at all, so later batches cannot be 'still attempted and counted'. The body of `ack_person_tombstones` is not shown, but the patch does not touch it."
         },
         {
           "id": "c9",
           "verdict": "met",
-          "evidence": "Alongside the pre-existing queue gauges, the patch adds `Gauge(\"posthog_person_tombstone_queue_read_rows\", ...).set(result.listed)` and a labelled `handled` Gauge with `handled.labels(outcome=\"dropped\").set(result.dropped)`, `.labels(outcome=\"confirmed\").set(result.confirmed)`, `.labels(outcome=\"republished\").set(result.republished)`. These are `Gauge.set()` calls populated directly from the run's `QueueResolution` fields, so they reflect the run's actual results and are emitted even when the value is 0 (a `Gauge.set(0)` still exports)."
+          "evidence": "In `publish_queue_gauges`, in the same registry as the existing queue gauges: `posthog_person_tombstone_queue_read_rows` is `.set(result.listed)`; `posthog_person_tombstone_queue_handled_rows` with `labelnames=[\"outcome\"]` gets `handled.labels(outcome=\"dropped\").set(result.dropped)`, `.labels(outcome=\"confirmed\").set(result.confirmed)`, `.labels(outcome=\"republished\").set(result.republished)`. The sets are unconditional, so zeros are emitted. `QueueResolution`'s definition is not shown, so the field names are taken from the patch's usage."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.75,
+        "all": 0.5555555555555556,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "`report_person_deletion_mode()` sets a labelled Gauge directly from configuration: `tombstone = bool(settings.PERSON_DELETE_TOMBSTONE); PERSON_DELETION_MODE_GAUGE.labels(mode=\"tombstone\").set(1 if tombstone else 0); PERSON_DELETION_MODE_GAUGE.labels(mode=\"hard_delete\").set(0 if tombstone else 1)`. This is derived from `settings.PERSON_DELETE_TOMBSTONE`, not from log lines, and the two label values let a viewer tell which mode is active."
+          },
+          {
+            "id": "c2",
+            "verdict": "not_met",
+            "evidence": "The only per-deletion hook is `report_person_deletion_mode()` called in `_tombstone_and_delete_persons` before either path runs: `failures: builtins.list[PersonDeletionFailure] = []\\n    report_person_deletion_mode()\\n    if settings.PERSON_DELETE_TOMBSTONE:`. That function only re-`set()`s the same config-derived 0/1 gauge value each time — it takes no `persons` count and does not increment anything by the number of persons covered, so it cannot show 'which order real deletes are taking' in volume terms, only which mode is configured."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "`PERSON_DELETION_MODE_GAUGE = Gauge(\"posthog_person_deletion_mode\", ..., labelnames=[\"mode\"], multiprocess_mode=\"max\")`. `multiprocess_mode=\"max\"` makes the Prometheus multiprocess collector take the max across processes rather than summing, so identical values from N processes still report as that single value, not N× or growing with process count."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "`if not pending: return` exits before any timing; otherwise `wait_started = time.monotonic()` then conditionally `_flush_person_producers(...)` only if not all results are already done, then unconditionally `PERSON_TOMBSTONE_DELIVERY_WAIT_SECONDS.observe(time.monotonic() - wait_started)`. So one observation is made per ack cycle that had pending (published) work, and when everything was already `done()` the observed duration is just the time between two `monotonic()` calls with no flush in between, i.e. ~0."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "`if not pending:\\n            return` returns before `wait_started` is set, before `PERSON_TOMBSTONE_DELIVERY_WAIT_SECONDS.observe(...)`, and before `ack_person_tombstones(...)` is even called (which is what would drive success/failure counts), so an empty-pending cycle emits neither a wait observation nor any ack counts."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "`except Exception:\\n            PERSON_TOMBSTONE_ACK_FAILURES_COUNTER.inc()\\n            logger.warning(...)`. `Counter.inc()` with no argument increments by 1 per failed *call*, not by `len(delivered)` or any count of affected persons, so the criterion's requirement that the failure count increase 'by the number of persons whose acknowledgement did not go through' is not satisfied (the author's own summary confirms: 'counts failed ack calls, not persons'). The exception is still swallowed so the delete itself keeps reporting success, but the increment amount is wrong."
+          },
+          {
+            "id": "c7",
+            "verdict": "not_met",
+            "evidence": "The diff adds only `PERSON_TOMBSTONE_ACK_FAILURES_COUNTER` for the failure path; there is no counter incremented on the success path of `ack_person_tombstones(self.team_id, delivered)` (the `try:` block that calls it has no metric update at all, only the `except` branch does). No metric exists to reflect queue rows actually cleared by successful acks."
+          },
+          {
+            "id": "c8",
+            "verdict": "not_met",
+            "evidence": "The patched call site is a single call `ack_person_tombstones(self.team_id, delivered)` wrapped in one `try/except`; the diff shows no batching logic, and since no success-count metric exists at all (see c7), there is nothing that 'counts' rows cleared by earlier batches as succeeded even if batching existed underneath."
+          },
+          {
+            "id": "c9",
+            "verdict": "met",
+            "evidence": "Alongside the pre-existing queue gauges, the patch adds `Gauge(\"posthog_person_tombstone_queue_read_rows\", ...).set(result.listed)` and a labelled `handled` Gauge with `handled.labels(outcome=\"dropped\").set(result.dropped)`, `.labels(outcome=\"confirmed\").set(result.confirmed)`, `.labels(outcome=\"republished\").set(result.republished)`. These are `Gauge.set()` calls populated directly from the run's `QueueResolution` fields, so they reflect the run's actual results and are emitted even when the value is 0 (a `Gauge.set(0)` still exports)."
+          }
+        ]
+      }
     }
   },
   "result": "All four metrics are in place, but nothing was run: no tests (as you asked), and `ruff` isn't installed here, so the only check was that the files compile.\n\n## One thing to know first\n\nThis checkout did not contain the work the task builds on. The `PERSON_DELETE_TOMBSTONE` setting, the ack-after-delivery path and the weekly queue repair exist only on `master`. I cherry-picked those two commits onto the detached HEAD as local commits (nothing pushed):\n\n- `ef3fd376f35` — #102725, publish ClickHouse tombstones at the versions the replica wrote\n- `e7e2b5001c3` — #105640, resolve the person tombstone queue in the deletion sweep\n\nBoth applied cleanly. My change sits uncommitted on top of them. `master` also already contains a commit for this same task (#106322); I did not read or copy it, so the metric names below are my own and may differ from it.\n\n## What I added\n\n| Need | Metric | Type |\n|---|---|---|\n| Active deletion mode | `posthog_person_deletion_mode{mode=\"tombstone\"\\|\"hard_delete\"}` | Gauge, 1 for the active mode and 0 for the other |\n| Delivery wait before ack | `posthog_person_tombstone_delivery_wait_seconds` | Histogram, buckets from 5 ms up to the 10 s delivery timeout |\n| Ack failures | `posthog_person_tombstone_ack_failures_total` | Counter |\n| Rows the weekly repair read | `posthog_person_tombstone_queue_read_rows` | Pushed gauge |\n| How the repair handled them | `posthog_person_tombstone_queue_handled_rows{outcome=\"dropped\"\\|\"confirmed\"\\|\"republished\"}` | Pushed gauge |\n\n- **Mode gauge** (`posthog/models/person/util.py`): set at import and again on each profile deletion. Only processes that import the person deletion code report it.\n- **Delivery wait**: recorded once per delete request, and close to zero when Kafka had already delivered everything.\n- **Ack failures**: counts failed ack calls, not persons. The existing `person_tombstones.ack_failed` log line stays.\n- **Repair counts** (`posthog/dags/person_tombstone_queue.py`): published alongside the existing queue gauges, so they are per-run values rather than running totals. A dry run publishes nothing, as before.\n\n## Tests\n\nI extended existing tests rather than adding new ones, except for one small database-free case:\n\n- `test_publishes_the_gauges_the_alert_reads` now also asserts the read and handled counts.\n- `test_waits_once_for_kafka_delivery_before_acking` asserts one wait observation per delete.\n- `test_a_failed_queue_ack_is_only_logged` is renamed `..._and_counted` and asserts the counter increments.\n- New `PersonDeletionModeTests` checks the gauge labels for both settings, which guards against the labels being inverted.\n\nNo docs change: nothing under `docs/` covers the tombstone queue.",

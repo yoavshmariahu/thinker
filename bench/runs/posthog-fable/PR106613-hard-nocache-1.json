@@ -46,6 +46,7 @@
       "products/ml_inference/manifest.tsx"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 0.6666666666666666,
       "all": 0.5,
       "pass": false,
@@ -53,29 +54,63 @@
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "In both frontend/src/products.tsx and products/ml_inference/manifest.tsx the route table now contains `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']`, so visiting that address resolves to the same DecisionPlayground scene that previously answered at /ml-inference/decisions."
+          "evidence": "Route table now contains `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']` in both frontend/src/products.tsx and products/ml_inference/manifest.tsx; the scene is still `DecisionPlayground: { import: () => import('./frontend/DecisionPlaygroundScene') ... }`."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "The old route key `'/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground']` was removed from both routes tables and replaced by the `/ml-inference/playground` entry, with no other route entry for `/ml-inference/decisions` remaining, so it no longer serves the page as its own route."
+          "evidence": "The patch removes `'/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground']` from both productRoutes and the manifest `routes`; the only ml-inference route shown after the patch is `/ml-inference/playground`."
         },
         {
           "id": "c3",
           "verdict": "unclear",
-          "evidence": "The single source-of-truth helper `decisionPlayground: (): string => '/ml-inference/playground'` was updated in both frontend/src/products.tsx and products/ml_inference/manifest.tsx, which would update any caller that uses `urls.decisionPlayground()`. However, the patch shown only touches these two files; there is no visibility into whether any menu/navigation component hardcodes the literal string '/ml-inference/decisions' instead of calling the urls helper, so it cannot be fully confirmed that no stale reference remains."
+          "evidence": "The URL helper is updated: `decisionPlayground: (): string => '/ml-inference/playground'` in both files, so callers of `urls.decisionPlayground()` resolve to the new address, and the manifest has `treeItemsNew: []`, `treeItemsProducts: []` (no menu entries). However, whether any hardcoded '/ml-inference/decisions' string exists elsewhere in the app (other files, tests, stories, backend links) cannot be verified from the shown code; the claim that none remain is only in the author summary."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "The manifest's scenes entry for DecisionPlayground (`import: () => import('./frontend/DecisionPlaygroundScene')`, same name/description/layout) is untouched by the patch — only the `routes` key and `urls.decisionPlayground()` string changed, so the same scene/component is rendered with no change to its content or behavior."
+          "evidence": "Only path strings changed. Scene definition is untouched: `DecisionPlayground: { import: () => import('./frontend/DecisionPlaygroundScene'), projectBased: true, name: 'Decisions playground', ... layout: 'app-container' }` and the route still maps to `['DecisionPlayground', 'decisionPlayground']`. No scene or logic files are in the diff."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "The manifest still declares `redirects: {}` (unchanged by the patch), and the old route key '/ml-inference/decisions' was deleted outright rather than replaced with a redirect entry, meaning a request to the old address is not redirected — confirmed by the author's own note: \"The old `/ml-inference/decisions` address now shows a not-found page.\""
+          "evidence": "The manifest after the patch has `redirects: {},` and no redirect entry from '/ml-inference/decisions' was added anywhere in the diff. The author summary confirms: \"The old `/ml-inference/decisions` address now shows a not-found page\"."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.6666666666666666,
+        "all": 0.5,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "In both frontend/src/products.tsx and products/ml_inference/manifest.tsx the route table now contains `'/ml-inference/playground': ['DecisionPlayground', 'decisionPlayground']`, so visiting that address resolves to the same DecisionPlayground scene that previously answered at /ml-inference/decisions."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "The old route key `'/ml-inference/decisions': ['DecisionPlayground', 'decisionPlayground']` was removed from both routes tables and replaced by the `/ml-inference/playground` entry, with no other route entry for `/ml-inference/decisions` remaining, so it no longer serves the page as its own route."
+          },
+          {
+            "id": "c3",
+            "verdict": "unclear",
+            "evidence": "The single source-of-truth helper `decisionPlayground: (): string => '/ml-inference/playground'` was updated in both frontend/src/products.tsx and products/ml_inference/manifest.tsx, which would update any caller that uses `urls.decisionPlayground()`. However, the patch shown only touches these two files; there is no visibility into whether any menu/navigation component hardcodes the literal string '/ml-inference/decisions' instead of calling the urls helper, so it cannot be fully confirmed that no stale reference remains."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "The manifest's scenes entry for DecisionPlayground (`import: () => import('./frontend/DecisionPlaygroundScene')`, same name/description/layout) is untouched by the patch — only the `routes` key and `urls.decisionPlayground()` string changed, so the same scene/component is rendered with no change to its content or behavior."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "The manifest still declares `redirects: {}` (unchanged by the patch), and the old route key '/ml-inference/decisions' was deleted outright rather than replaced with a redirect entry, meaning a request to the old address is not redirected — confirmed by the author's own note: \"The old `/ml-inference/decisions` address now shows a not-found page.\""
+          }
+        ]
+      }
     }
   },
   "result": "The decisions playground is now served at `/ml-inference/playground` instead of `/ml-inference/decisions`. Nothing was run or tested, as you asked.\n\n## What changed\n\n- **`products/ml_inference/manifest.tsx`**: the route key and the `urls.decisionPlayground()` return value both now use `/ml-inference/playground`. This is the source of truth.\n- **`frontend/src/products.tsx`**: the same two lines, updated to match. This file is built from the product manifests; I edited it by hand rather than running the generator, so the result should be identical to a regeneration.\n\nThe route still maps to the same `DecisionPlayground` scene, so the page itself is unchanged.\n\n## Links and navigation\n\nThe only in-app reference to the playground is `urls.decisionPlayground()` in the Storybook story, which picks up the new address automatically. The product has no menu or tree entries, and no hardcoded copies of the old path remain in the repo.\n\n## Left alone on purpose\n\n- The backend API path `ml_inference/decisions/decide/` and the feature flag key `ml-inference-decisions` are unchanged. They are the API and flag contract, not the page address.\n- I added no test: the change is two string constants, and no existing test asserts the path.\n\n## Decision for you\n\nThe old `/ml-inference/decisions` address now shows a not-found page, since you asked for the new address \"instead of\" the old one. If anyone has the old URL bookmarked, a one-line entry in the manifest's `redirects` would forward it to the new address; say if you want it.",

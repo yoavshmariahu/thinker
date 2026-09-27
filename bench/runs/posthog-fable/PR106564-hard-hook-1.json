@@ -49,51 +49,101 @@
       "posthog/utils.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 0.8,
-      "all": 0.625,
+      "all": 0.5,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "In posthog/stable_chunks.py, stable_chunks_for_request only checks the flag when there is no cookie/param opt-in: `if stable_chunks_opted_in(request): return stable_chunks` then `if distinct_id and stable_chunks_flag_enabled(distinct_id): return stable_chunks` else `return None`. Since utils.py now calls `stable_chunks_for_request(request, posthog_distinct_id if is_authenticated else None)`, a logged-in user with no param/cookie falls straight to the flag check, so flag-on serves stable and flag-off serves current."
+          "evidence": "In `stable_chunks_for_request`, with no param and no cookie, the flag decides: `if distinct_id and stable_chunks_flag_enabled(distinct_id): return stable_chunks` followed by `return None`. The flag is evaluated per user via `posthoganalytics.get_feature_flag(STABLE_CHUNKS_FEATURE_FLAG, distinct_id, only_evaluate_locally=True, ...)` and counts as on with `return value is True or value == STABLE_CHUNKS_FLAG_TEST_VARIANT`. `utils.py` passes the distinct ID for authenticated requests, and a returned `stable_chunks` sets `context[\"stable_chunks_importmap\"]`."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "posthog/utils.py passes `None` as distinct_id for unauthenticated requests: `stable_chunks_for_request(request, posthog_distinct_id if is_authenticated else None)`. In stable_chunks.py the flag branch is `if distinct_id and stable_chunks_flag_enabled(distinct_id): return stable_chunks` — with distinct_id None this short-circuits to False regardless of the flag's actual value, so anonymous requests fall through to `return None` (current build)."
+          "evidence": "`utils.py` passes `posthog_distinct_id if is_authenticated else None`, and `stable_chunks_for_request` guards the flag read with `if distinct_id and stable_chunks_flag_enabled(distinct_id)`. For an anonymous request `distinct_id` is None, so the flag is never consulted and the function falls through to `return None` (current build). Only an explicit cookie or param opt-in can serve the stable build to an anonymous request."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "stable_chunks_flag_enabled wraps the flag call in try/except returning False on error: `except Exception as e: capture_exception(e); return False`, and otherwise `return value is True or value == STABLE_CHUNKS_FLAG_TEST_VARIANT` which is False for None/unset/other values. A False result makes stable_chunks_for_request fall through to `return None`, i.e. the current build, without raising."
+          "evidence": "`stable_chunks_flag_enabled` wraps evaluation in `try: ... except Exception as e: capture_exception(e); return False`, and otherwise returns `value is True or value == STABLE_CHUNKS_FLAG_TEST_VARIANT`. A None, missing, False or non-`test` value gives False, so `stable_chunks_for_request` returns None and the current build renders without error."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "`if request.GET.get(STABLE_CHUNKS_PARAM) == \"0\": return None` is checked before any flag evaluation, forcing the current build regardless of flag state. For the 'on' side, `if stable_chunks_opted_in(request): return stable_chunks` is checked before the flag branch, so an explicit opt-in (via the pre-existing, unchanged `stable_chunks_opted_in`, which the module docstring says the query param drives) returns the stable build without ever consulting the flag."
+          "evidence": "Off value: `if request.GET.get(STABLE_CHUNKS_PARAM) == \"0\": return None` runs first, before the cookie and the flag, so it forces the current build even with the flag on or a stored opt-in. On value: `if stable_chunks_opted_in(request): return stable_chunks` runs before the flag check, so a flag-off user is still served the stable build. Caveat: the param handling inside `stable_chunks_opted_in` is unchanged and only its last line (`return request.COOKIES.get(STABLE_CHUNKS_COOKIE) == \"1\"`) is shown; this verdict relies on the pre-existing `?stable_chunks=1` opt-in the request describes as working."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "The docstring says `?stable_chunks=0` 'clears' the cookie rather than persisting an off value, and the author's own summary states: \"`?stable_chunks=0` is not sticky. It applies to that request only and clears the cookie, so the next page load follows the flag again... I left it out.\" So while forcing 'on' persists via the cookie and outranks a later flag-off, forcing 'off' does not persist — a later flag-on request would serve the stable build again, contradicting the requirement that both directions persist for ~30 days."
+          "evidence": "Only the on direction is remembered (cookie `ph_stable_chunks` == \"1\", `_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30`). The off direction is not: the docstring says \"`?stable_chunks=0` clears it\", and on a later request with no cookie the code reaches `if distinct_id and stable_chunks_flag_enabled(distinct_id): return stable_chunks`, so a flag-on user gets the stable build again. The author's summary confirms this: \"`?stable_chunks=0` is not sticky. It applies to that request only and clears the cookie, so the next page load follows the flag again.\""
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "stable_chunks_flag_enabled returns only a bool (`return value is True or value == STABLE_CHUNKS_FLAG_TEST_VARIANT`), and this bool is used solely to decide `stable_chunks_for_request`'s return value in stable_chunks.py; posthog/utils.py's context building shows no new context variable carrying the raw flag value to the template/JS, and index.html's diff only removes 'opt-in' wording. There is no code in the patch exposing the flag value to the in-page analytics client."
+          "evidence": "The flag value is computed server-side in `stable_chunks_flag_enabled` and reduced to a bool that only selects the build. The only context set is `context[\"stable_chunks\"] = True` and `context[\"stable_chunks_importmap\"]`. Nothing in the patch passes the evaluated flag value to the in-page analytics client (no bootstrap or template variable), so page performance events are not guaranteed to carry the value that decided the build."
         },
         {
           "id": "c7",
-          "verdict": "met",
-          "evidence": "The early `if request.GET.get(STABLE_CHUNKS_PARAM) == \"0\": return None` guarantees a reload with that param cannot re-trigger the stable build via the flag on the same load, and since (per c5's finding) `?stable_chunks=0` clears rather than persists the cookie, no persistent opt-out is recorded, allowing a later navigation to be served the stable build again by the flag."
+          "verdict": "unclear",
+          "evidence": "The patch adds no handling for the runtime-failure reload, and the frontend fallback is not shown. If the reload uses `?stable_chunks=0`, then `if request.GET.get(STABLE_CHUNKS_PARAM) == \"0\": return None` would serve the current build without a persistent opt-out. If it reloads without that param, a flag-on user reaches `stable_chunks_flag_enabled(distinct_id)` again and is served the stable build again, which could loop. The shown code does not say which."
         },
         {
           "id": "c8",
-          "verdict": "unclear",
-          "evidence": "The diff contains no code (in stable_chunks.py, utils.py, or index.html) that strips the query parameter from the visible URL after applying it, and the relevant request-handling/view code is not shown ('CODE AFTER PATCH not available'), so it cannot be determined from the given change whether this behavior exists."
+          "verdict": "not_met",
+          "evidence": "The patch touches only a template comment in `index.html`, the decision logic in `stable_chunks.py`, and one call site in `utils.py`. There is no redirect and no client-side `history.replaceState` or similar that strips `stable_chunks` from the address, so the parameter stays in the visible URL. The rest of the codebase was not shown, so this rests on the patch adding nothing for it."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8,
+        "all": 0.625,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "In posthog/stable_chunks.py, stable_chunks_for_request only checks the flag when there is no cookie/param opt-in: `if stable_chunks_opted_in(request): return stable_chunks` then `if distinct_id and stable_chunks_flag_enabled(distinct_id): return stable_chunks` else `return None`. Since utils.py now calls `stable_chunks_for_request(request, posthog_distinct_id if is_authenticated else None)`, a logged-in user with no param/cookie falls straight to the flag check, so flag-on serves stable and flag-off serves current."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "posthog/utils.py passes `None` as distinct_id for unauthenticated requests: `stable_chunks_for_request(request, posthog_distinct_id if is_authenticated else None)`. In stable_chunks.py the flag branch is `if distinct_id and stable_chunks_flag_enabled(distinct_id): return stable_chunks` — with distinct_id None this short-circuits to False regardless of the flag's actual value, so anonymous requests fall through to `return None` (current build)."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "stable_chunks_flag_enabled wraps the flag call in try/except returning False on error: `except Exception as e: capture_exception(e); return False`, and otherwise `return value is True or value == STABLE_CHUNKS_FLAG_TEST_VARIANT` which is False for None/unset/other values. A False result makes stable_chunks_for_request fall through to `return None`, i.e. the current build, without raising."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "`if request.GET.get(STABLE_CHUNKS_PARAM) == \"0\": return None` is checked before any flag evaluation, forcing the current build regardless of flag state. For the 'on' side, `if stable_chunks_opted_in(request): return stable_chunks` is checked before the flag branch, so an explicit opt-in (via the pre-existing, unchanged `stable_chunks_opted_in`, which the module docstring says the query param drives) returns the stable build without ever consulting the flag."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "The docstring says `?stable_chunks=0` 'clears' the cookie rather than persisting an off value, and the author's own summary states: \"`?stable_chunks=0` is not sticky. It applies to that request only and clears the cookie, so the next page load follows the flag again... I left it out.\" So while forcing 'on' persists via the cookie and outranks a later flag-off, forcing 'off' does not persist — a later flag-on request would serve the stable build again, contradicting the requirement that both directions persist for ~30 days."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "stable_chunks_flag_enabled returns only a bool (`return value is True or value == STABLE_CHUNKS_FLAG_TEST_VARIANT`), and this bool is used solely to decide `stable_chunks_for_request`'s return value in stable_chunks.py; posthog/utils.py's context building shows no new context variable carrying the raw flag value to the template/JS, and index.html's diff only removes 'opt-in' wording. There is no code in the patch exposing the flag value to the in-page analytics client."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "The early `if request.GET.get(STABLE_CHUNKS_PARAM) == \"0\": return None` guarantees a reload with that param cannot re-trigger the stable build via the flag on the same load, and since (per c5's finding) `?stable_chunks=0` clears rather than persists the cookie, no persistent opt-out is recorded, allowing a later navigation to be served the stable build again by the flag."
+          },
+          {
+            "id": "c8",
+            "verdict": "unclear",
+            "evidence": "The diff contains no code (in stable_chunks.py, utils.py, or index.html) that strips the query parameter from the visible URL after applying it, and the relevant request-handling/view code is not shown ('CODE AFTER PATCH not available'), so it cannot be determined from the given change whether this behavior exists."
+          }
+        ]
+      }
     }
   },
   "result": "A feature flag can now decide whether a logged-in user is served the stable chunk build, and the `?stable_chunks=1` opt-in works as before. Nothing was run: the tests were not executed per your instruction, and `ruff` is not installed in this shell, so the change is unlinted.\n\n## What changed\n\n- **`posthog/stable_chunks.py`**: `stable_chunks_for_request` now takes the logged-in user's distinct ID and decides in this order:\n  1. `?stable_chunks=0` serves the current build for that request, even if the flag is on.\n  2. If there is no readable stable manifest, it serves the current build and does not read the flag.\n  3. `?stable_chunks=1` or the opt-in cookie serves the stable build.\n  4. Otherwise, for a logged-in user, the `frontend-stable-chunks` flag decides.\n- **`posthog/utils.py`**: passes the user's distinct ID only when the request is authenticated, so anonymous visitors are never enrolled.\n- **`frontend/src/index.html`**: dropped \"opt-in\" from the template comment.\n- **`posthog/test/test_get_context_for_template.py`**: extended the existing parameterized test with cases for flag off, boolean flag on, `test` and `control` variants, flag on but anonymous, and flag on with `?stable_chunks=0`.\n\n## How the flag is read\n\n- The flag counts as on when it returns `True` (boolean flag) or the variant `test` (experiment flag); `control` and anything else gets the current build.\n- It is evaluated locally, so page rendering makes no network call. It sends `$feature_flag_called`, so exposure is recorded.\n- A failure in flag evaluation falls back to the current build.\n\n## Things to know before starting the experiment\n\n- **The flag does not exist yet.** Create `frontend-stable-chunks` with `control`/`test` variants at 50%. It must not depend on person properties, because none are passed to the local evaluation.\n- **Manual opt-ins muddy the data.** Someone who forces the stable build while the flag puts them in `control` is counted as control. This is probably a handful of internal users; exclude them in the experiment if it matters.\n- **`?stable_chunks=0` is not sticky.** It applies to that request only and clears the cookie, so the next page load follows the flag again. Storing a persistent opt-out cookie would fix that, but it changes the existing cookie behavior, so I left it out — say if you want it.",

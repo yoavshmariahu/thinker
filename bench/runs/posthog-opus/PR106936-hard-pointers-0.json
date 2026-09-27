@@ -53,56 +53,112 @@
       "posthog/api/organization_invite.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 0.6666666666666666,
       "all": 0.6666666666666666,
+      "extra": 0.6666666666666666,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "InviteRow adds `existingMemberError = inviteRowErrors[index]`, applies ' errored' class to the email input and renders `<LemonField.Error error={existingMemberError} />`; inviteRowErrors is derived from membersLogic members."
+          "evidence": "InviteRow reads `const existingMemberError = inviteRowErrors[index]` and applies it to the email input: `className={`error-on-blur${!invitesToSend[index]?.isValid || existingMemberError ? ' errored' : ''}`}`, plus an inline message `{existingMemberError && <LemonField.Error error={existingMemberError} />}`. `inviteRowErrors` is a selector over `invitesToSend`, so it updates as the user types, before any submit: `return existingMemberEmails.has(email) ? EXISTING_MEMBER_INVITE_ERROR : null`. InviteModal renders `<InviteTeamMatesComponent />`, which renders these rows."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "inviteRowErrors: `if (user?.email && email === user.email.toLowerCase()) { return OWN_EMAIL_INVITE_ERROR }`."
+          "evidence": "In the `inviteRowErrors` selector: `if (user?.email && email === user.email.toLowerCase()) { return OWN_EMAIL_INVITE_ERROR }`. This feeds the same row error used for the errored class, the `LemonField.Error`, and `canSubmit` / `existingMemberDisabledReason`."
         },
         {
           "id": "c3",
           "verdict": "not_met",
-          "evidence": "The modal footer uses `existingMemberDisabledReason ?? ...`, and the per-row button has `disabledReason={existingMemberError ?? undefined}`. In OnboardingInviteTeammates, `existingMemberDisabledReason` is only destructured and never used; `continueDisabledReason` still falls to 'Please fill out all fields' when canSubmit is false. So the onboarding submit doesn't communicate the members reason."
+          "evidence": "The settings dialog is covered: `disabledReason={userCannotInvite ? ... : (existingMemberDisabledReason ?? (!canSubmit ? 'Please fill out all fields' : undefined))}`, and the per-row button has `disabledReason={existingMemberError ?? undefined}`. The onboarding step is not: the patch only adds `existingMemberDisabledReason` to the destructuring in OnboardingInviteTeammates.tsx and never uses it. `continueDisabledReason` is unchanged and falls through to `: !canSubmitInvites ? 'Please fill out all fields' : undefined`, so the control is disabled but the reason says nothing about existing members."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "Row email is `target_email.trim().toLowerCase()` and member emails are stored with `user.email.toLowerCase()` in the Set."
+          "evidence": "Row side: `const email = target_email.trim().toLowerCase()`. Member side: `new Set((members ?? []).map(({ user }) => user.email.toLowerCase()))`. ' Rose.Dawson@PostHog.com' becomes 'rose.dawson@posthog.com' and matches the set entry."
         },
         {
           "id": "c5",
           "verdict": "met",
-          "evidence": "`useOnMountEffect(ensureAllMembersLoaded)` in InviteTeamMatesComponent; own-email check depends only on `user`, so it applies before members load."
+          "evidence": "InviteTeamMatesComponent (used by both the modal and onboarding) does `const { ensureAllMembersLoaded } = useActions(membersLogic)` and `useOnMountEffect(ensureAllMembersLoaded)`. The own-email check does not depend on members: `existingMemberEmails` falls back to `(members ?? [])`, and the `user?.email` comparison runs before the set lookup. membersLogic itself is not shown, so this assumes `ensureAllMembersLoaded` exists there as the patch uses it."
         },
         {
           "id": "c6",
           "verdict": "met",
-          "evidence": "The check moved from create() into `validate_target_email` via `validate_invite_target_email_is_not_member`, so bulk validation of every row happens before any create()."
+          "evidence": "The membership check moved from `create()` into field validation: `validate_target_email` now calls `validate_invite_target_email_is_not_member(self.context[\"organization_id\"], email)`, and the old check in `create` was removed. It raises `exceptions.ValidationError(...)`, which is a 400. The bulk view is not shown, but `first_bulk_invite_error` documents 'A many=True error is a list of per-row dicts', indicating the bulk path validates all rows through a many=True serializer before any `create()` (which is where invites are created and `send_invite` is called)."
         },
         {
           "id": "c7",
           "verdict": "met",
-          "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"existing_member\")` inside validate_target_email, which DRF attributes to the target_email field."
+          "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"existing_member\")` is raised from `validate_target_email`, so DRF attributes it to the `target_email` field. For bulk, `first_bulk_invite_error` re-raises `exceptions.ValidationError(row_errors)` using the per-row dict, which keeps the field key and the ErrorDetail code. The bulk view and exception handler are not shown, so the final response shape is inferred."
         },
         {
           "id": "c8",
           "verdict": "not_met",
-          "evidence": "No change touches error-tracking/exception capture for the invite submission path; no listener or handling in inviteLogic filters existing_member failures."
+          "evidence": "Nothing in the patch touches error reporting on the submit path. The `inviteTeamMembers` loader is unchanged (`return await api.create<OrganizationInviteType[]>(...)`) with no try/catch or code check, and the `listeners` block only has `inviteTeamMembersSuccess` and `addProjectAccess`. There is no `inviteTeamMembersFailure` handling and no branch on the `existing_member` code, so the rejection is handled exactly as before."
         },
         {
           "id": "c9",
           "verdict": "not_met",
-          "evidence": "inviteLogic has no inviteTeamMembersFailure listener that reloads members; listeners only handle success and addProjectAccess."
+          "evidence": "There is no failure listener in inviteLogic: `listeners` contains only `inviteTeamMembersSuccess` and `addProjectAccess`. Nothing reloads members after a server rejection; the only member load is `useOnMountEffect(ensureAllMembersLoaded)` when the form mounts, so a row unknown to the client stays unflagged after the rejection."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.6666666666666666,
+        "all": 0.6666666666666666,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "InviteRow adds `existingMemberError = inviteRowErrors[index]`, applies ' errored' class to the email input and renders `<LemonField.Error error={existingMemberError} />`; inviteRowErrors is derived from membersLogic members."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "inviteRowErrors: `if (user?.email && email === user.email.toLowerCase()) { return OWN_EMAIL_INVITE_ERROR }`."
+          },
+          {
+            "id": "c3",
+            "verdict": "not_met",
+            "evidence": "The modal footer uses `existingMemberDisabledReason ?? ...`, and the per-row button has `disabledReason={existingMemberError ?? undefined}`. In OnboardingInviteTeammates, `existingMemberDisabledReason` is only destructured and never used; `continueDisabledReason` still falls to 'Please fill out all fields' when canSubmit is false. So the onboarding submit doesn't communicate the members reason."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "Row email is `target_email.trim().toLowerCase()` and member emails are stored with `user.email.toLowerCase()` in the Set."
+          },
+          {
+            "id": "c5",
+            "verdict": "met",
+            "evidence": "`useOnMountEffect(ensureAllMembersLoaded)` in InviteTeamMatesComponent; own-email check depends only on `user`, so it applies before members load."
+          },
+          {
+            "id": "c6",
+            "verdict": "met",
+            "evidence": "The check moved from create() into `validate_target_email` via `validate_invite_target_email_is_not_member`, so bulk validation of every row happens before any create()."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "`raise exceptions.ValidationError(\"A user with this email address already belongs to the organization.\", code=\"existing_member\")` inside validate_target_email, which DRF attributes to the target_email field."
+          },
+          {
+            "id": "c8",
+            "verdict": "not_met",
+            "evidence": "No change touches error-tracking/exception capture for the invite submission path; no listener or handling in inviteLogic filters existing_member failures."
+          },
+          {
+            "id": "c9",
+            "verdict": "not_met",
+            "evidence": "inviteLogic has no inviteTeamMembersFailure listener that reloads members; listeners only handle success and addProjectAccess."
+          }
+        ]
+      }
     }
   },
   "is_error": true,

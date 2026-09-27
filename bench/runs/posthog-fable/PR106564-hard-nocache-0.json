@@ -46,51 +46,101 @@
       "posthog/test/test_stable_chunks.py"
     ],
     "criteria": {
+      "judge": "fable",
       "essential": 0.8,
-      "all": 0.625,
+      "all": 0.5,
       "pass": false,
       "results": [
         {
           "id": "c1",
           "verdict": "met",
-          "evidence": "In `stable_chunks_for_request`: `manual_choice = stable_chunks_manual_choice(request)` returns `None` when there is no query param and no cookie. Since `manual_choice is False` is false, and `manual_choice` is falsy, the code falls through to `if manual_choice or stable_chunks_flag_enabled(request): return stable_chunks`, so for a logged-in user with no opt-in the outcome is decided purely by `stable_chunks_flag_enabled(request)`, which itself calls `posthoganalytics.get_feature_flag(STABLE_CHUNKS_FLAG, distinct_id, ...)` and returns True only when `variant is True or variant == STABLE_CHUNKS_FLAG_TEST_VARIANT`. Flag on ⇒ stable build returned; flag off/None ⇒ function returns None ⇒ current build."
+          "evidence": "With no param and no cookie, `stable_chunks_manual_choice` returns `None`, so `stable_chunks_for_request` reaches `if manual_choice or stable_chunks_flag_enabled(request): return stable_chunks` and otherwise `return None`. The flag is evaluated per user: `posthoganalytics.get_feature_flag(STABLE_CHUNKS_FLAG, distinct_id, ...)`, returning `variant is True or variant == STABLE_CHUNKS_FLAG_TEST_VARIANT`. The rendering of the import map from the returned `StableChunks` is existing code not shown, but it is the same path the manual opt-in already used."
         },
         {
           "id": "c2",
           "verdict": "met",
-          "evidence": "`stable_chunks_flag_enabled` starts with `user = getattr(request, \"user\", None); if user is None or not user.is_authenticated: return False`, returning False (never even calling `get_feature_flag`) before any flag value can matter, so an unauthenticated request can never get the stable build through the flag path regardless of what the flag would evaluate to."
+          "evidence": "`stable_chunks_flag_enabled` returns before any flag lookup for anonymous users: `if user is None or not user.is_authenticated: return False`. With no manual choice, `stable_chunks_for_request` then falls through to `return None`, i.e. the current build."
         },
         {
           "id": "c3",
           "verdict": "met",
-          "evidence": "In `stable_chunks_flag_enabled`, a failed evaluation is caught: `except Exception: logger.warning(...); return False`, and even a successful call returns False unless `variant is True or variant == STABLE_CHUNKS_FLAG_TEST_VARIANT`, so a missing/None/unresolvable flag value falls through to `stable_chunks_for_request` returning `None` (current build) rather than erroring or defaulting to stable."
+          "evidence": "A missing or unresolvable flag gives `variant` of `None`/`False`, and `return variant is True or variant == STABLE_CHUNKS_FLAG_TEST_VARIANT` yields False. Errors are caught: `except Exception: logger.warning(\"stable_chunks_flag_check_failed_defaulting_off\", exc_info=True); return False`. A missing `distinct_id` also returns False. In all cases the current build is served without raising."
         },
         {
           "id": "c4",
           "verdict": "met",
-          "evidence": "`stable_chunks_manual_choice` returns `param == \"1\"` whenever the query param is present, ignoring the cookie entirely. In `stable_chunks_for_request`, `if manual_choice is False: return None` short-circuits to current build for `?stable_chunks=0` before any flag check, and `if manual_choice or stable_chunks_flag_enabled(request): return stable_chunks` short-circuits to stable build for `?stable_chunks=1` without even evaluating the flag — both directions override the flag for that request."
+          "evidence": "The param is checked before the cookie: `param = request.GET.get(STABLE_CHUNKS_PARAM); if param is not None: return param == \"1\"`. In `stable_chunks_for_request`, `if manual_choice is False: return None` runs before any flag check, so `?stable_chunks=0` forces the current build even with the flag on. `if manual_choice or stable_chunks_flag_enabled(request)` short-circuits on `?stable_chunks=1`, so the stable build is served even with the flag off."
         },
         {
           "id": "c5",
           "verdict": "not_met",
-          "evidence": "The cookie-reading half of `stable_chunks_manual_choice` only recognizes an 'on' choice: `if request.COOKIES.get(STABLE_CHUNKS_COOKIE) == \"1\": return True` / `return None` otherwise — there is no stored representation of an 'off' choice, and `persist_stable_chunks_choice` is left unmodified by the diff. The author's own summary confirms this: \"`?stable_chunks=0` is not a persistent opt-out... on the next request a user in the test group gets the stable build again... Say so if you want a sticky opt-out and I'll add an 'off' cookie value.\" So only the 'on' direction of the manual choice persists across requests; the 'off' direction does not outrank a later flag-on evaluation."
+          "evidence": "Only the on direction is remembered. The cookie is read as `if request.COOKIES.get(STABLE_CHUNKS_COOKIE) == \"1\": return True` and otherwise `return None`; no stored value ever produces `False`. `persist_stable_chunks_choice` is unchanged, and the module docstring says `?stable_chunks=0` clears the cookie. After forcing off, a later flag-on request therefore has `manual_choice` None and is served the stable build by the flag. The author summary confirms this: \"`?stable_chunks=0` is not a persistent opt-out.\""
         },
         {
           "id": "c6",
           "verdict": "not_met",
-          "evidence": "`stable_chunks_flag_enabled` returns only a bare `bool` and `stable_chunks_for_request` returns `Optional[StableChunks]`; no field or return value carries the underlying flag/variant value forward, and the diff does not touch any template-context or analytics-initialization code (no changes outside `posthog/stable_chunks.py`) that would expose this decision value to the in-page PostHog client for event attribution."
+          "evidence": "The server-side flag value is reduced to a bool and discarded: `return variant is True or variant == STABLE_CHUNKS_FLAG_TEST_VARIANT`. `stable_chunks_for_request` returns only `stable_chunks` or `None`. Nothing in the patch passes the evaluated value to the template context or the in-page analytics client. The author summary acknowledges the frontend would evaluate the flag independently (\"if the frontend evaluates the flag for such a user...\"), so the two values are not guaranteed to match."
         },
         {
           "id": "c7",
-          "verdict": "met",
-          "evidence": "For a `?stable_chunks=0` reload, `stable_chunks_manual_choice` returns `False`, and `stable_chunks_for_request` does `if manual_choice is False: return None` immediately — current build served, flag never consulted (no re-trigger on that load). `persist_stable_chunks_choice` is unchanged, so (per existing behavior of clearing rather than setting an 'off' marker) no persistent opt-out cookie is written, allowing a later plain navigation to again be decided by `stable_chunks_flag_enabled`."
+          "verdict": "unclear",
+          "evidence": "The patch does not touch any runtime-failure or reload handling, and the surrounding code is not available. If the existing fallback reloads with `?stable_chunks=0`, then `if manual_choice is False: return None` would serve the current build and no persistent opt-out is stored. But the reload mechanism cannot be confirmed from what is shown. If the reload carries no param, a flag-on user would be served the stable build again via `stable_chunks_flag_enabled`, which could loop."
         },
         {
           "id": "c8",
           "verdict": "unclear",
-          "evidence": "The diff only touches `posthog/stable_chunks.py`'s decision/persistence functions; there is no code shown (here or elsewhere in the provided material) for rewriting the visible URL/query string after a server-side override is applied, so it cannot be determined from this patch whether that stripping behavior exists or still functions."
+          "evidence": "The patch adds nothing that removes `stable_chunks` from the page address; the diff only changes the decision logic in `posthog/stable_chunks.py`. Whether existing frontend or template code already strips the parameter cannot be determined because the surrounding code is not available."
         }
       ]
+    },
+    "criteriaBy": {
+      "sonnet": {
+        "essential": 0.8,
+        "all": 0.625,
+        "pass": false,
+        "results": [
+          {
+            "id": "c1",
+            "verdict": "met",
+            "evidence": "In `stable_chunks_for_request`: `manual_choice = stable_chunks_manual_choice(request)` returns `None` when there is no query param and no cookie. Since `manual_choice is False` is false, and `manual_choice` is falsy, the code falls through to `if manual_choice or stable_chunks_flag_enabled(request): return stable_chunks`, so for a logged-in user with no opt-in the outcome is decided purely by `stable_chunks_flag_enabled(request)`, which itself calls `posthoganalytics.get_feature_flag(STABLE_CHUNKS_FLAG, distinct_id, ...)` and returns True only when `variant is True or variant == STABLE_CHUNKS_FLAG_TEST_VARIANT`. Flag on ⇒ stable build returned; flag off/None ⇒ function returns None ⇒ current build."
+          },
+          {
+            "id": "c2",
+            "verdict": "met",
+            "evidence": "`stable_chunks_flag_enabled` starts with `user = getattr(request, \"user\", None); if user is None or not user.is_authenticated: return False`, returning False (never even calling `get_feature_flag`) before any flag value can matter, so an unauthenticated request can never get the stable build through the flag path regardless of what the flag would evaluate to."
+          },
+          {
+            "id": "c3",
+            "verdict": "met",
+            "evidence": "In `stable_chunks_flag_enabled`, a failed evaluation is caught: `except Exception: logger.warning(...); return False`, and even a successful call returns False unless `variant is True or variant == STABLE_CHUNKS_FLAG_TEST_VARIANT`, so a missing/None/unresolvable flag value falls through to `stable_chunks_for_request` returning `None` (current build) rather than erroring or defaulting to stable."
+          },
+          {
+            "id": "c4",
+            "verdict": "met",
+            "evidence": "`stable_chunks_manual_choice` returns `param == \"1\"` whenever the query param is present, ignoring the cookie entirely. In `stable_chunks_for_request`, `if manual_choice is False: return None` short-circuits to current build for `?stable_chunks=0` before any flag check, and `if manual_choice or stable_chunks_flag_enabled(request): return stable_chunks` short-circuits to stable build for `?stable_chunks=1` without even evaluating the flag — both directions override the flag for that request."
+          },
+          {
+            "id": "c5",
+            "verdict": "not_met",
+            "evidence": "The cookie-reading half of `stable_chunks_manual_choice` only recognizes an 'on' choice: `if request.COOKIES.get(STABLE_CHUNKS_COOKIE) == \"1\": return True` / `return None` otherwise — there is no stored representation of an 'off' choice, and `persist_stable_chunks_choice` is left unmodified by the diff. The author's own summary confirms this: \"`?stable_chunks=0` is not a persistent opt-out... on the next request a user in the test group gets the stable build again... Say so if you want a sticky opt-out and I'll add an 'off' cookie value.\" So only the 'on' direction of the manual choice persists across requests; the 'off' direction does not outrank a later flag-on evaluation."
+          },
+          {
+            "id": "c6",
+            "verdict": "not_met",
+            "evidence": "`stable_chunks_flag_enabled` returns only a bare `bool` and `stable_chunks_for_request` returns `Optional[StableChunks]`; no field or return value carries the underlying flag/variant value forward, and the diff does not touch any template-context or analytics-initialization code (no changes outside `posthog/stable_chunks.py`) that would expose this decision value to the in-page PostHog client for event attribution."
+          },
+          {
+            "id": "c7",
+            "verdict": "met",
+            "evidence": "For a `?stable_chunks=0` reload, `stable_chunks_manual_choice` returns `False`, and `stable_chunks_for_request` does `if manual_choice is False: return None` immediately — current build served, flag never consulted (no re-trigger on that load). `persist_stable_chunks_choice` is unchanged, so (per existing behavior of clearing rather than setting an 'off' marker) no persistent opt-out cookie is written, allowing a later plain navigation to again be decided by `stable_chunks_flag_enabled`."
+          },
+          {
+            "id": "c8",
+            "verdict": "unclear",
+            "evidence": "The diff only touches `posthog/stable_chunks.py`'s decision/persistence functions; there is no code shown (here or elsewhere in the provided material) for rewriting the visible URL/query string after a server-side override is applied, so it cannot be determined from this patch whether that stripping behavior exists or still functions."
+          }
+        ]
+      }
     }
   },
   "result": "A feature flag can now decide whether a logged-in user is served the stable chunk build, with the manual query-parameter opt-in still taking precedence. Nothing was run: I did not run the tests, per your instructions, and `ruff` isn't on the PATH here, so the change is unlinted and nothing is committed.\n\n## Baseline\n\nThis worktree's checkout did not contain the stable chunk opt-in at all. Your commit `5d798918e2e` (\"cherry-pick stable chunk opt-in prerequisite\") sat directly on top of HEAD, so I fast-forwarded the detached HEAD onto it and built on that.\n\n## What changed\n\n**`posthog/stable_chunks.py`**\n- The flag is `frontend-stable-chunks`. The stable build is served when its value is the `test` variant or boolean `True`. It checks the variant rather than \"enabled\" because every variant of an experiment flag, including `control`, counts as enabled.\n- The order of decision is:\n  1. `?stable_chunks=0` serves the current build.\n  2. `?stable_chunks=1` or the opt-in cookie serves the stable build, for anyone.\n  3. Otherwise the flag decides, for logged-in users only.\n- The flag is evaluated locally only, so there is no network call on page render. The user's email is passed so email-based conditions resolve. A failed check falls back to the current build.\n- The flag is only evaluated when its answer actually decides the build. Anonymous visitors, browsers that chose by hand, and deploys without a stable manifest never produce an exposure event, so they stay out of the experiment.\n- `stable_chunks_opted_in` became `stable_chunks_manual_choice`, which returns `True`, `False`, or `None` for \"no choice made\".\n\n**Tests**\n- `posthog/test/test_get_context_for_template.py`: the existing parameterized test gained cases for the `test` variant, boolean on, `control`, flag on but anonymous, and flag on but `?stable_chunks=0`. It also asserts the flag is not evaluated for anonymous or manually chosen requests.\n- `posthog/test/test_stable_chunks.py`: updated for the renamed helper.\n\n## Things to know\n\n- **The flag has to be created in PostHog.** Create `frontend-stable-chunks` as an experiment flag with `control`/`test` at 50%. Conditions must be locally evaluable, meaning rollout percentage or email only.\n- **`?stable_chunks=0` is not a persistent opt-out.** It applies to that request and clears the cookie; on the next request a user in the test group gets the stable build again. Say so if you want a sticky opt-out and I'll add an \"off\" cookie value.\n- **Manually opted-in users can still show up in the experiment.** The server never records an exposure for them, but if the frontend evaluates the flag for such a user, they could be counted while being served a build the flag did not choose. Excluding testers in the experiment's filters avoids this.",
