@@ -2,7 +2,16 @@
 // then greedy packing into a token budget.
 import path from 'node:path';
 
-const STOP = new Set('the a an and or of to in on for with is are be by as at from this that it its into how what where when which do does can should we you i'.split(' '));
+// Words that say nothing about the subject. A request in prose is mostly these, and notes are
+// written in prose too, so without the list two texts match on "why", "not" and "only".
+const STOP = new Set(`the a an and or of to in on for with is are be by as at from this that it its into how what where when which do does can should we you i
+ why not no but if so then than too also only even just still yet ever never always already again once
+ was were been being am has have had having did done doing will would could shall may might must
+ they them their there these those he she his her our your my me us who whom whose
+ about above after before between through during under over out up down off across against within without via per
+ any all some each every both either neither other another such same own more most less few many much
+ here now very really quite rather instead because while until unless although though whether however
+ need needs needed want wants wanted let lets see seen say says said`.split(/\s+/).filter(Boolean));
 
 export function tokenize(s) {
   const out = [];
@@ -86,9 +95,14 @@ function pathAffinity(note, file) {
 
 const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0.1, callpath: 0.05, location: 0.05, rationale: 0.05, overview: 0.1, invariant: 0.1, fix: 0.1 };
 
+// What a request tells the agent not to do is not what it is about: "do not run the test suite"
+// would otherwise bring up the notes on running tests. Only instructions: "it never updates" and
+// "launches without the check" describe the fault.
+export const subject = q => String(q).replace(/\b(?:do not|don't|dont|no need to)\b[^.;:\n]*/gi, ' ');
+
 export function rank(notes, { query = '', file = '', mode = 'orient', loose = false } = {}) {
   const idx = buildIndex(notes);
-  const qtoks = tokenize(query + ' ' + (file || ''));
+  const qtoks = tokenize(subject(query) + ' ' + (file || ''));
   const Q = bm25(idx.q, qtoks), B = bm25(idx.b, qtoks);
   const maxQ = Math.max(1e-9, ...Q.scores.values()), maxB = Math.max(1e-9, ...B.scores.values());
   // absolute gate: the note's question side (title/answers/tags) must share
