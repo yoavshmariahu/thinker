@@ -70,9 +70,8 @@ function armCache(wt) {
     repo: wt, cli: CLI, hooks: false, learn: false, late: true, shared: false, mcp: true,
     mcpEntry: { command: 'node', args: [path.join(ROOT, 'src', 'mcp.js')], env: { THINKER_REPO: wt, THINKER_NO_LEARN: '1', THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local' } },
   });
-  // codex exec refuses an MCP call that has no approval
   const cfg = path.join(wt, '.codex', 'config.toml');
-  fs.writeFileSync(cfg, fs.readFileSync(cfg, 'utf8').replace('[mcp_servers.thinker]\n', '[mcp_servers.thinker]\ndefault_tools_approval_mode = "approve"\nenabled_tools = ["orient", "lookup"]\n'));
+  fs.writeFileSync(cfg, fs.readFileSync(cfg, 'utf8').replace('[mcp_servers.thinker]\n', '[mcp_servers.thinker]\nenabled_tools = ["orient", "lookup"]\n'));
   // at the top: Codex reads a limited length of AGENTS.md, and PostHog's is longer
   const agents = path.join(wt, 'AGENTS.md');
   fs.writeFileSync(agents, AGENTS_BLOCK + (fs.existsSync(agents) ? fs.readFileSync(agents, 'utf8') : ''));

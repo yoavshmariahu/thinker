@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini'];
 
@@ -134,6 +135,56 @@ function excludeLocally(repo, entries) {
 }
 
 const isOurs = h => JSON.stringify(h).includes('thinker');
+
+// Codex keeps what the user has trusted in its own config.toml (CODEX_HOME, ~/.codex): a project,
+// before it reads the project's .codex/, and each hook by a hash of its definition.
+const codexConfig = () => path.join(process.env.CODEX_HOME || home('.codex'), 'config.toml');
+const real = f => { try { return fs.realpathSync(f); } catch { return f; } };
+const readText = f => { try { return fs.readFileSync(f, 'utf8'); } catch { return ''; } };
+function dropTomlTables(text, drop) {
+  const kept = []; let skip = false;
+  for (const l of text.split('\n')) {
+    if (/^\s*\[/.test(l)) skip = drop(l.trim());
+    if (!skip) kept.push(l);
+  }
+  return kept.join('\n');
+}
+const setTomlTable = (text, header, lines) => {
+  const rest = dropTomlTables(text, h => h === header).trimEnd();
+  return (rest ? rest + '\n\n' : '') + [header, ...lines].join('\n') + '\n';
+};
+// The hash Codex 0.157 stores for a reviewed hook: sha256 of the event and the handler, keys in order
+export function codexHookHash(event, h) {
+  const handler = { async: !!h.async, command: h.command, ...(h.timeout === undefined ? {} : { timeout: h.timeout }), type: h.type };
+  return 'sha256:' + createHash('sha256').update(JSON.stringify({ event_name: event, hooks: [handler] })).digest('hex');
+}
+const snake = ev => ev.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase();
+
+// Mark the repo as trusted and thinker's hooks in it as reviewed. Returns lines describing what was done.
+export function trustCodex(repo) {
+  const file = codexConfig();
+  const root = real(repo);
+  let text = setTomlTable(readText(file), `[projects.${tomlStr(root)}]`, ['trust_level = "trusted"']);
+  const hooksFile = path.join(root, '.codex', 'hooks.json');
+  let hooks = {}; try { hooks = JSON.parse(fs.readFileSync(hooksFile, 'utf8')).hooks || {}; } catch {}
+  let n = 0;
+  for (const [ev, groups] of Object.entries(hooks)) (groups || []).forEach((g, gi) => (g.hooks || []).forEach((h, hi) => {
+    // a matcher is part of what Codex hashes; thinker writes none
+    if (!isOurs(h) || g.matcher !== undefined) return;
+    text = setTomlTable(text, `[hooks.state.${tomlStr(`${hooksFile}:${snake(ev)}:${gi}:${hi}`)}]`, [`trusted_hash = ${tomlStr(codexHookHash(snake(ev), h))}`]);
+    n++;
+  }));
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text);
+  return [`Codex: marked this repository as trusted${n ? ` and thinker's ${n} hooks as reviewed` : ''} in ${file}`];
+}
+function untrustCodexHooks(repo) {
+  const file = codexConfig();
+  const cur = readText(file); if (!cur) return;
+  const prefix = `[hooks.state.${tomlStr(path.join(real(repo), '.codex', 'hooks.json') + ':').slice(0, -1)}`;
+  const next = dropTomlTables(cur, h => h.startsWith(prefix)).replace(/\n{3,}/g, '\n\n');
+  if (next !== cur) fs.writeFileSync(file, next);
+}
 function setHooks(hooks, events, entries) {
   const next = { ...(hooks || {}) };
   for (const ev of events) { next[ev] = (next[ev] || []).filter(h => !isOurs(h)); if (!next[ev].length) delete next[ev]; }
@@ -169,7 +220,7 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
       const cur = fs.existsSync(file) ? stripTomlBlock(fs.readFileSync(file, 'utf8')) : '';
       if (/^\[mcp_servers\.thinker\]/m.test(cur)) done.push('Codex: .codex/config.toml already defines mcp_servers.thinker; left as is');
       else {
-        const block = [TOML_START, '[mcp_servers.thinker]', `command = ${tomlStr(mcpEntry.command)}`, `args = [${mcpEntry.args.map(tomlStr).join(', ')}]`, '', '[mcp_servers.thinker.env]', ...Object.entries(mcpEntry.env || {}).map(([k, v]) => `${k} = ${tomlStr(v)}`), TOML_END].join('\n');
+        const block = [TOML_START, '[mcp_servers.thinker]', `command = ${tomlStr(mcpEntry.command)}`, `args = [${mcpEntry.args.map(tomlStr).join(', ')}]`, 'default_tools_approval_mode = "approve"', '', '[mcp_servers.thinker.env]', ...Object.entries(mcpEntry.env || {}).map(([k, v]) => `${k} = ${tomlStr(v)}`), TOML_END].join('\n');
         fs.mkdirSync(path.dirname(file), { recursive: true });
         fs.writeFileSync(file, (cur.trim() ? cur.trimEnd() + '\n\n' : '') + block + '\n');
         done.push('Codex: registered MCP server in .codex/config.toml');
@@ -183,7 +234,7 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
       if (late || learn) entries.push(['PostToolUse', { hooks: [{ type: 'command', command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10 }] }]);
       if (learn) entries.push(['Stop', { hooks: [{ type: 'command', command: cmd('stop', rec), timeout: 10 }] }]);
       mergeJson(file, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'PostToolUse', 'Stop'], entries) }));
-      done.push(`Codex: hooks in .codex/hooks.json: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}. Codex asks you to trust the project and review new hooks before they run`);
+      done.push(`Codex: hooks in .codex/hooks.json: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
       generated.push('.codex/hooks.json');
     }
     if (!shared && generated.length) excludeLocally(repo, generated);
@@ -238,6 +289,7 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
 
 // Remove everything installClient wrote for any client.
 export function uninstallClients(repo) {
+  untrustCodexHooks(repo);
   const stripHooks = (file, keepVersion) => {
     if (!fs.existsSync(file)) return;
     mergeJson(file, c => {

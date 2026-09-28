@@ -9,7 +9,7 @@ import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs } from './p
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
 import { hashDep } from './deps.js';
-import { CLIENTS, parseClients, installClient, uninstallClients, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, parkPending, takePending } from './clients.js';
+import { CLIENTS, parseClients, installClient, uninstallClients, trustCodex, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, parkPending, takePending } from './clients.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from './transcripts.js';
 import { available, provider, findBin } from './llm.js';
 import { summarize, renderUsage, sessionKey } from './usage.js';
@@ -37,11 +37,11 @@ const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], en
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--clients list|all|auto] [--areas n] [--prs n] [--no-seed] [--no-prs] [--no-learn] [--late] [--shared] [--git-hook] [--export f.tgz] [--yes]
+  setup [--clients list|all|auto] [--areas n] [--prs n] [--no-seed] [--no-prs] [--no-learn] [--late] [--shared] [--git-hook] [--no-trust] [--export f.tgz] [--yes]
                                  everything for a new repo in one step: build the cache (co-change, merged PRs,
                                  one exploration session per source area) and wire it into the coding agents found;
                                  sessions are distilled into new notes as they end (--no-learn or THINKER_NO_LEARN=1 turns that off, for evals)
-  init [--no-learn] [--no-hooks] [--late] [--local] [--git-hook] [--no-mcp] [--clients list|all|auto]
+  init [--no-learn] [--no-hooks] [--late] [--local] [--git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
   export [file.tgz]              pack this repo's cache for delivery
@@ -82,8 +82,9 @@ async function main() {
     case 'init': {
       // hooks serve notes and learn from sessions by default. flags: --no-learn (serve only, for evals; --serve-only is
       //        the older name), --no-hooks (MCP server only), --late (file-keyed notes),
-      //        --local (write .claude/settings.local.json, not shared), --git-hook, --no-mcp, --clients
-      init({ clients: parseClients(flags.clients), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !!flags['git-hook'] });
+      //        --local (write .claude/settings.local.json, not shared), --git-hook, --no-mcp, --clients,
+      //        --no-trust (leave Codex's trust in the project and the hooks to the user), --yes (do not ask)
+      await init({ clients: parseClients(flags.clients), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !!flags['git-hook'] });
       break;
     }
     case 'setup': {
@@ -327,10 +328,21 @@ async function main() {
   }
 }
 
-function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
+async function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
   store.init();
   out(`initialized ${store.dir}`);
   for (const c of clients) for (const line of installClient(c, { repo, cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), hooks, learn, late, shared, mcp })) out(line);
+  if (clients.includes('codex') && (hooks || mcp) && !flags['no-trust']) {
+    // Codex reads a project's .codex/ only once the project is trusted, and runs a hook only once it is reviewed
+    let ok = !!flags.yes;
+    if (!ok && process.stdin.isTTY) {
+      const rl = (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout });
+      const a = await rl.question(`Codex: mark this repository as trusted${hooks ? " and thinker's hooks as reviewed" : ''} in your Codex config, so Codex uses them without asking? [Y/n] `); rl.close();
+      ok = !/^n/i.test(a.trim());
+    }
+    if (ok) for (const line of trustCodex(repo)) out(line);
+    else out('Codex: not marked as trusted; Codex asks you to trust the project and review the hooks before they run (--yes does it here without asking)');
+  }
   if (clients.includes('cursor')) {
     // Cursor loads an MCP server only once it is approved for the workspace
     const agentBin = findBin(['agent', 'cursor-agent']);
@@ -382,7 +394,7 @@ async function setup() {
     const a = await rl.question('Continue? [Y/n] '); rl.close();
     if (/^n/i.test(a.trim())) { out('stopped before building; nothing was changed'); return; }
   }
-  init({ clients, hooks: true, learn: learnOn(), late: !!flags.late, shared: !!flags.shared, mcp: true, gitHook: !!flags['git-hook'] });
+  await init({ clients, hooks: true, learn: learnOn(), late: !!flags.late, shared: !!flags.shared, mcp: true, gitHook: !!flags['git-hook'] });
   if (canMine && canBuild) await minePrs(slug, { limit: prs, model: flags.model });
   if (areas && canSeed) await seed({ areas, model: flags.model, agent });
   const notes = store.list();

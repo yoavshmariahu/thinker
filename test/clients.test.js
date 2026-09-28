@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, toolFiles, hookClient } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, trustCodex, codexHookHash, toolFiles, hookClient } from '../src/clients.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 
@@ -32,6 +32,38 @@ test('parseClients validates names and expands all', () => {
   assert.throws(() => parseClients('copilot'), /unknown client/);
 });
 
+test('Codex trust: the project and thinker\'s hooks are written to Codex\'s config, and taken out on uninstall', () => {
+  // a hook Codex 0.157 reviewed, and the hash it stored
+  assert.equal(codexHookHash('user_prompt_submit', { type: 'command', command: 'THINKER_EARLY=full THINKER_NO_BG_VERIFY=1 THINKER_NO_LEARN=1 THINKER_LOG=local node "/Users/yoavshmariahu/src/thinker/src/cli.js" hook prompt --client codex --budget 750', timeout: 15 }),
+    'sha256:61183e6702c7973ceeece17d218a98de28b1345d2cca1e8b1181fe214f511471');
+
+  const dir = repo();
+  const codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-codex-home-'));
+  const cfg = path.join(codexHome, 'config.toml');
+  const before = 'model = "gpt-5"\n\n[projects."/elsewhere"]\ntrust_level = "trusted"\n';
+  fs.writeFileSync(cfg, before);
+  const old = process.env.CODEX_HOME; process.env.CODEX_HOME = codexHome;
+  try {
+    installClient('codex', opts(dir));
+    // a hook of someone else in front of ours moves ours to the second group
+    const hf = path.join(dir, '.codex/hooks.json');
+    const j = read(dir, '.codex/hooks.json'); j.hooks.UserPromptSubmit.unshift({ hooks: [{ type: 'command', command: 'other' }] });
+    fs.writeFileSync(hf, JSON.stringify(j));
+    trustCodex(dir); trustCodex(dir); // idempotent
+    const toml = fs.readFileSync(cfg, 'utf8');
+    assert.ok(toml.startsWith(before.trimEnd()));
+    assert.equal(toml.split(`[projects.${JSON.stringify(dir)}]\ntrust_level = "trusted"`).length, 2);
+    const ours = j.hooks.UserPromptSubmit[1].hooks[0];
+    assert.equal(toml.split(`[hooks.state.${JSON.stringify(hf + ':user_prompt_submit:1:0')}]\ntrusted_hash = "${codexHookHash('user_prompt_submit', ours)}"`).length, 2);
+    assert.ok(toml.includes(':post_tool_use:0:0"]'));
+    assert.ok(!toml.includes(':user_prompt_submit:0:0"]'));
+
+    uninstallClients(dir);
+    const left = fs.readFileSync(cfg, 'utf8');
+    assert.ok(!left.includes('hooks.state') && left.includes('[projects."/elsewhere"]'));
+  } finally { if (old === undefined) delete process.env.CODEX_HOME; else process.env.CODEX_HOME = old; }
+});
+
 test('install writes each client\'s config and keeps what was there', () => {
   const dir = repo();
   fs.mkdirSync(path.join(dir, '.gemini'));
@@ -51,6 +83,8 @@ test('install writes each client\'s config and keeps what was there', () => {
   assert.ok(toml.startsWith('model = "gpt-5"'));
   assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1);
   assert.ok(toml.includes(`THINKER_REPO = ${JSON.stringify(dir)}`));
+  // without it Codex asks before each tool call, and codex exec refuses the call
+  assert.equal(toml.match(/^default_tools_approval_mode = "approve"$/gm).length, 1);
 
   const gem = read(dir, '.gemini/settings.json');
   assert.equal(gem.telemetry.enabled, true);

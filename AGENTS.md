@@ -214,9 +214,18 @@ of relevance), `THINKER_RERANK=haiku`.
 - Cursor's prompt hook can allow or block a prompt but cannot add context, so
   thinker computes the notes at prompt time and hands them over with the first
   tool result. An always-applied rule also tells the agent to call `orient`.
-- Codex runs project hooks only after you trust the project and review the
-  hook. Cursor loads an MCP server only once it is approved; `setup` and
-  `init` do that through Cursor's CLI when it is installed.
+- Codex reads a project's `.codex/` only once the project is trusted, runs a
+  hook only once it is reviewed, and asks before each MCP tool call. `setup`
+  and `init` take care of all three: the MCP server is registered with
+  `default_tools_approval_mode = "approve"`, and the project and thinker's
+  hooks are marked as trusted in Codex's own `config.toml` (`CODEX_HOME`,
+  `~/.codex`). In a terminal they ask first; `--yes` skips the question,
+  `--no-trust` leaves it to you, and without a terminal nothing is marked
+  unless `--yes` is given. The hook entry is the hash Codex 0.157 stores
+  (`clients.js:codexHookHash`); if a later Codex changes it, Codex asks for
+  the review as before. `uninstall` takes the hook entries out again.
+- Cursor loads an MCP server only once it is approved; `setup` and `init`
+  do that through Cursor's CLI when it is installed.
 - Gemini CLI also drives agent mode in Gemini Code Assist, which reads the
   same MCP configuration. Google AI Studio is a web app and cannot run local
   hooks or MCP servers, so it is not supported.
@@ -265,8 +274,11 @@ Gemini support follows its documentation and is covered by unit tests on
 constructed input only. Seen in the live runs:
 
 - Codex did not run hooks from a project's `.codex/hooks.json` in
-  `codex exec`, even with the project marked trusted, but ran the same hooks
-  from the user-level `hooks.json`.
+  `codex exec` with only the project marked trusted, but ran the same hooks
+  from the user-level `hooks.json`. With the hooks marked as reviewed too
+  (what `setup` and `init` now write), `codex exec` 0.157.1 loaded the
+  project's MCP server, called `orient` without asking and ran the project's
+  hooks.
 - Cursor's CLI (`agent -p`) fires `sessionStart`, `postToolUse`,
   `afterShellExecution` and `sessionEnd`, but not `beforeSubmitPrompt` or
   `stop`, and `postToolUse` carries a summary of the tool's output, not the
