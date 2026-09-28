@@ -190,6 +190,7 @@ button { cursor: pointer; }
 
 .workspace-topline {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   padding-bottom: 22px;
   border-bottom: 1px solid var(--line);
@@ -217,6 +218,43 @@ button { cursor: pointer; }
 [hidden] { display: none !important; }
 
 .estimate { color: #555a63; }
+.topline-actions { display: flex; align-items: center; gap: 16px; }
+.cli-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: #454a52;
+  font-family: "Manrope", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+.cli-toggle:hover { border-color: #bcc0c7; background: var(--soft); }
+.cli-toggle span { color: var(--blue); font-family: "DM Mono", monospace; }
+.cli-toggle:focus-visible, .back-button:focus-visible, .cli-panel button:focus-visible { outline: 3px solid rgba(78,111,255,.25); outline-offset: 2px; }
+
+.cli-panel {
+  width: min(760px, 100%);
+  margin: 22px auto -14px;
+  overflow: hidden;
+  border: 1px solid #2e3238;
+  border-radius: 13px;
+  background: var(--dark);
+  color: white;
+  box-shadow: 0 12px 30px rgba(20, 22, 25, .12);
+  animation: panel-in .25s ease both;
+}
+.cli-panel-top { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid #30343a; }
+.cli-panel-top > div { display: flex; align-items: center; gap: 8px; }
+.cli-panel-top strong { color: #b8bcc4; font-family: "DM Mono", monospace; font-size: 10px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+.terminal-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acid); box-shadow: 0 0 0 3px rgba(216, 255, 86, .12); }
+.cli-panel button { border: 0; background: transparent; color: var(--acid); font-size: 11px; font-weight: 700; }
+.cli-command { display: flex; gap: 11px; align-items: flex-start; padding: 15px 16px 7px; color: var(--acid); font-family: "DM Mono", monospace; font-size: 12px; line-height: 1.65; }
+.cli-command code { overflow-wrap: anywhere; color: #f4f5f6; font: inherit; }
+.cli-panel > p { margin: 0; padding: 0 16px 14px 38px; color: #81868e; font-size: 11px; }
 
 .panel {
   display: none;
@@ -429,6 +467,9 @@ button { cursor: pointer; }
   .step.active > span, .step.complete > span { background: var(--acid-deep); }
   .step div { display: none; }
   .workspace { min-height: calc(100vh - 173px); padding: 18px 20px 38px; }
+  .topline-actions { gap: 9px; }
+  .estimate { display: none; }
+  .cli-panel { margin-top: 16px; }
   .panel { padding-top: 34px; }
   .permission-grid { grid-template-columns: 1fr; }
   .scope-summary { grid-template-columns: 1fr; gap: 12px; }
