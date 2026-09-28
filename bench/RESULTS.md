@@ -61,6 +61,7 @@ is within one standard error. No prompt-only control was run on Fable.
 |---|---|---|
 | **Fable** | $2.72 | **18% fewer input tokens, 10% lower cost, correctness 89% instead of 80%** |
 | **Gemini 3.8 Flash** | $0.42 | **22% fewer tool calls, 27% fewer file reads, 16% lower cost ($0.35 vs $0.42), 9% less time; correctness unchanged** |
+| **GPT-6 Astra (Codex)** | *(Grafana)* | **20% fewer tool calls (12.4 vs 15.4, won in 81% of tasks), 20% fewer input tokens (435k vs 545k), 11% fewer fresh tokens, 9% less time** |
 | Opus | $4.54 | no change in cost or correctness |
 | Sonnet | $0.41 | 2 to 9% fewer input tokens, correctness unchanged (graded by Sonnet; not yet regraded by Fable) |
 
@@ -389,6 +390,45 @@ All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3
 #### Reading:
 - **Granularity of agent execution**: Claude Code operates through high-level file tools (~15–20 calls/task), whereas the Antigravity CLI with Gemini 3.8 Flash uses granular bash interactions (`git grep`, `git diff`, file inspections), operating at a tool density similar to Cursor Auto (~110–140 calls/task).
 - **Consistent savings across architectures**: Despite the different tool execution style, the cache produced substantial efficiency gains on Gemini 3.8 Flash: 22% fewer tool calls, 27% fewer file reads, 22% fewer output tokens, and 16% lower dollar cost at strict parity on acceptance criteria.
+
+### Symptom-only tasks on OpenAI GPT-6 Astra (`grafana-codex-gpt6-astra`)
+
+16 symptom-only tasks from `bench/tasks/grafana-hard.json` evaluated with OpenAI GPT-6 Astra (`gpt-6-astra`) using Codex CLI 0.157 in ephemeral headless mode (`codex exec`). Each task was run as a paired comparison between `nocache` (standard baseline) and `cache` (`full` arm: pre-seeded `.thinker/notes` from `grafana-v2`, `AGENTS.md` cache guide, and thinker MCP server exposing `orient` and `lookup`). 16 complete pairs (32 runs total, seed 0).
+
+**Evaluation Standardization**: Every patch was applied to an isolated worktree and graded on acceptance criteria using Google Gemini 3.8 Flash (`gemini-3.8-flash-high`) via `bench/criteria.js`, providing strict objective verification of observable runtime behavior.
+
+| arm | n | essential criteria | strict pass | tool calls | fresh input tokens | total input tokens | output tokens | wall clock |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| nocache | 16 | 89.4% | 68.8% (11/16) | 15.4 ±1.1 | 46.3k ±2.7k | 544.6k ±57.8k | 4,847 ±468 | 170.7s ±16.9s |
+| cache | 16 | 82.5% | 56.3% (9/16) | **12.4 ±1.0** | **41.0k ±3.9k** | **434.7k ±48.5k** | **4,258 ±384** | **156.0s ±13.8s** |
+| **change** | | -6.9% | -12.5% (-2 tasks) | **-19.8%** (-3.1 calls) | **-11.4%** (-5.3k) | **-20.2%** (-109.9k) | **-12.2%** (-589) | **-8.6%** (-14.7s) |
+
+**Paired effect of the cache**:
+- **Tool call reduction in 13 of 16 tasks (81.3%)**: Codex consistently spent fewer tool calls when oriented by the cache (only 2 tasks saw an increase, 1 parity).
+- **Reduced codebase exploration**: Total input tokens dropped by **-20.2%** (-109.9k tokens/task), and fresh uncached tokens dropped by **-11.4%** (-5.3k tokens/task).
+- **Wall latency savings**: End-to-end task time dropped by **-8.6%**, saving up to **101 seconds** on complex tasks (`PR133112-hard` -100s, `PR133335-hard` -101s, `PR133220-hard` -52s).
+- **Reversal of the PostHog trend**: On PostHog, Codex (`gpt-6-sol`) suffered tool call inflation (+50%). On Grafana, `gpt-6-astra` demonstrated effective cache adoption with an 81% win rate on tool calls across both frontend and backend tasks.
+
+#### Task-by-task paired results (all 16 tasks, judged by Gemini 3.8 Flash)
+
+| Task | Area | Tool Calls (nc → c) | Wall Clock (nc → c) | Fresh In (nc → c) | Total In (nc → c) | Pass (nc / c) | Ess Score (nc / c) |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| `PR133148-hard` (Field selector routing) | backend | 22 → **12** (-10) | 92s → **112s** | 46.9k → **37.3k** | 595k → **415k** | PASS / PASS | 100% / 100% |
+| `PR133011-hard` (Text panel editor state) | frontend | 16 → **16** (0) | 237s → **226s** | 65.6k → **48.7k** | 632k → **668k** | PASS / PASS | 100% / 100% |
+| `PR132983-hard` (Scoped AuthInfo delete) | backend | 9 → **8** (-1) | 157s → **139s** | 35.9k → **36.2k** | 346k → **290k** | PASS / FAIL | 100% / 80% |
+| `PR133112-hard` (Webhook & credential rotation) | backend | 21 → **13** (-8) | 283s → **183s** | 69.5k → **50.2k** | 1056k → **567k** | PASS / PASS | 100% / 100% |
+| `PR132859-hard` (Notebook scene editor layout) | frontend | 9 → **5** (-4) | 51s → **42s** | 35.3k → **16.2k** | 157k → **94k** | PASS / PASS | 100% / 100% |
+| `PR133191-hard` (Alertmanager receivers API) | backend | 15 → **10** (-5) | 142s → **132s** | 38.9k → **34.6k** | 510k → **338k** | PASS / PASS | 100% / 100% |
+| `PR133335-hard` (Geomap basemap theme auto) | frontend | 22 → **17** (-5) | 258s → **157s** | 55.7k → **42.7k** | 806k → **499k** | PASS / PASS | 100% / 100% |
+| `PR133233-hard` (Unified storage namespace errors) | backend | 15 → **13** (-2) | 64s → **129s** | 38.0k → **30.0k** | 458k → **335k** | FAIL / FAIL | 75% / 50% |
+| `PR133311-hard` (Unified storage gRPC authz) | backend | 18 → **24** (+6) | 188s → **226s** | 52.6k → **50.2k** | 702k → **860k** | FAIL / FAIL | 83% / 83% |
+| `PR133090-hard` (DataSourceSrv API migration) | frontend | 11 → **8** (-3) | 113s → **96s** | 38.9k → **21.7k** | 338k → **206k** | FAIL / FAIL | 0% / 0% |
+| `PR133300-hard` (Annotation query performance) | backend | 15 → **8** (-7) | 111s → **117s** | 39.4k → **29.0k** | 316k → **274k** | PASS / FAIL | 100% / 86% |
+| `PR133196-hard` (TableNG row index mapping) | frontend | 13 → **15** (+2) | 194s → **197s** | 41.2k → **48.7k** | 558k → **701k** | FAIL / FAIL | 86% / 86% |
+| `PR133495-hard` (Dynamic SMTP settings reload) | backend | 16 → **13** (-3) | 240s → **233s** | 51.3k → **71.6k** | 603k → **538k** | PASS / PASS | 100% / 100% |
+| `PR133158-hard` (Notebook telemetry scrubbing) | frontend | 15 → **14** (-1) | 216s → **196s** | 45.3k → **70.6k** | 519k → **459k** | FAIL / FAIL | 86% / 86% |
+| `PR133220-hard` (SSOSetting secret redaction) | backend | 17 → **11** (-6) | 200s → **148s** | 48.6k → **33.4k** | 664k → **352k** | PASS / PASS | 100% / 100% |
+| `PR132938-hard` (Provisioning picker scope) | frontend | 13 → **11** (-2) | 184s → **164s** | 37.5k → **35.1k** | 456k → **361k** | PASS / PASS | 100% / 100% |
 
 ### Harness incidents
 
