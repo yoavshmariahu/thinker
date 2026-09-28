@@ -1,0 +1,569 @@
+diff --git a/public/app/features/explore/SignalExplorer/MetricsList.test.tsx b/public/app/features/explore/SignalExplorer/MetricsList.test.tsx
+index af588cf96..3b869a04f 100644
+--- a/public/app/features/explore/SignalExplorer/MetricsList.test.tsx
++++ b/public/app/features/explore/SignalExplorer/MetricsList.test.tsx
+@@ -1,8 +1,9 @@
+-import { render, screen, within } from '@testing-library/react';
++import { act, render, screen, within } from '@testing-library/react';
+ import userEvent from '@testing-library/user-event';
+ import { type ComponentProps } from 'react';
+ 
+ import { type TimeRange } from '@grafana/data';
++import { reportInteraction } from '@grafana/runtime';
+ 
+ import { MetricsList } from './MetricsList';
+ import { useLabelValues } from './data/useLabelValues';
+@@ -16,9 +17,15 @@ jest.mock('./data/useMetricCatalog');
+ jest.mock('./data/useMetricDetail');
+ jest.mock('./data/useLabelValues');
+ 
++jest.mock('@grafana/runtime', () => ({
++  ...jest.requireActual('@grafana/runtime'),
++  reportInteraction: jest.fn(),
++}));
++
+ const useMetricCatalogMock = jest.mocked(useMetricCatalog);
+ const useMetricDetailMock = jest.mocked(useMetricDetail);
+ const useLabelValuesMock = jest.mocked(useLabelValues);
++const reportInteractionMock = jest.mocked(reportInteraction);
+ 
+ const timeRange = { raw: { from: 'now-1h', to: 'now' }, from: {}, to: {} } as unknown as TimeRange;
+ const otherTimeRange = { raw: { from: 'now-6h', to: 'now' }, from: {}, to: {} } as unknown as TimeRange;
+@@ -36,6 +43,7 @@ const list = (props: Partial<ComponentProps<typeof MetricsList>> = {}) => (
+     refId="A"
+     dsUid="prom-uid"
+     dsType="prometheus"
++    stackedQueriesCount={1}
+     timeRange={timeRange}
+     onSelectMetric={onSelectMetric}
+     {...props}
+@@ -62,6 +70,7 @@ describe('<MetricsList />', () => {
+     useMetricCatalogMock.mockReset();
+     useMetricDetailMock.mockReset().mockReturnValue({ labelKeys: [], loading: false });
+     useLabelValuesMock.mockReset().mockReturnValue({ values: [], loading: false });
++    reportInteractionMock.mockReset();
+   });
+ 
+   it('renders the search input', () => {
+@@ -474,4 +483,191 @@ describe('<MetricsList />', () => {
+       expect(screen.getByRole('button', { name: 'Show values for job' })).toBeInTheDocument();
+     });
+   });
++
++  describe('analytics', () => {
++    const selectMetric = (name: string) =>
++      userEvent.click(screen.getByRole('button', { name: `Show details for ${name}` }));
++
++    it('reports an expanded metric with its datasource and how many queries are stacked', async () => {
++      setCatalog([row('up')]);
++      renderList({ dsType: 'grafana-amazonprometheus-datasource', stackedQueriesCount: 3 });
++
++      await expandMetric('up');
++
++      expect(reportInteractionMock).toHaveBeenCalledWith('signal_explorer_metric_expanded', {
++        data_source_type: 'grafana-amazonprometheus-datasource',
++        stacked_queries_count: 3,
++      });
++    });
++
++    // Collapsing is not a metric being explored, and counting it would double every expansion.
++    it('reports nothing when the metric row collapses again', async () => {
++      setCatalog([row('up')]);
++      renderList();
++      await expandMetric('up');
++      reportInteractionMock.mockClear();
++
++      await userEvent.click(screen.getByRole('button', { name: 'Collapse up' }));
++
++      expect(reportInteractionMock).not.toHaveBeenCalled();
++    });
++
++    it('reports a metric selected for its metadata', async () => {
++      setCatalog([row('up')]);
++      renderList({ stackedQueriesCount: 2 });
++
++      await selectMetric('up');
++
++      expect(reportInteractionMock).toHaveBeenCalledWith('signal_explorer_metrics_metadata_viewed', {
++        data_source_type: 'prometheus',
++        stacked_queries_count: 2,
++      });
++    });
++
++    // Re-picking the open metric closes the detail panel, which is nobody viewing metadata.
++    it('reports nothing when the open metric is picked again to close the panel', async () => {
++      setCatalog([row('up')]);
++      renderList({ selectedMetric: 'up' });
++
++      await selectMetric('up');
++
++      expect(onSelectMetric).toHaveBeenCalled();
++      expect(reportInteractionMock).not.toHaveBeenCalled();
++    });
++
++    describe('search', () => {
++      beforeEach(() => {
++        jest.useFakeTimers();
++      });
++
++      afterEach(() => {
++        jest.useRealTimers();
++      });
++
++      const searchInput = () => screen.getByPlaceholderText('Search metrics');
++
++      const fakeTimerUser = () => userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
++
++      const settle = async () => {
++        await act(async () => {
++          jest.advanceTimersByTime(300);
++        });
++      };
++
++      it('reports one search per settled term rather than one per keystroke', async () => {
++        setCatalog([row('node_cpu_seconds_total'), row('node_load1')]);
++        renderList({ stackedQueriesCount: 2 });
++
++        await fakeTimerUser().type(searchInput(), 'node');
++        expect(reportInteractionMock).not.toHaveBeenCalled();
++
++        await settle();
++
++        expect(reportInteractionMock).toHaveBeenCalledTimes(1);
++        expect(reportInteractionMock).toHaveBeenCalledWith('signal_explorer_search_performed', {
++          data_source_type: 'prometheus',
++          stacked_queries_count: 2,
++          search_term_length: 4,
++          result_count: 2,
++        });
++      });
++
++      // The term can echo back label values from the user's own data, so only its length travels.
++      it('never sends the term itself', async () => {
++        setCatalog([row('up')]);
++        renderList();
++
++        await fakeTimerUser().type(searchInput(), 'secret_customer_id');
++        await settle();
++
++        expect(reportInteractionMock).toHaveBeenCalledTimes(1);
++        const [, properties] = reportInteractionMock.mock.calls[0];
++        expect(JSON.stringify(properties)).not.toContain('secret_customer_id');
++        expect(properties).toEqual(expect.objectContaining({ search_term_length: 18 }));
++      });
++
++      // The searches that find nothing are the interesting ones, and the guard against counting a
++      // catalog mid-fetch sits right next to the count.
++      it('reports a search that matched nothing', async () => {
++        setCatalog([]);
++        renderList();
++
++        await fakeTimerUser().type(searchInput(), 'no_such_metric');
++        await settle();
++
++        expect(reportInteractionMock).toHaveBeenCalledWith(
++          'signal_explorer_search_performed',
++          expect.objectContaining({ search_term_length: 14, result_count: 0 })
++        );
++      });
++
++      it('reports nothing when the box is cleared', async () => {
++        setCatalog([row('up')]);
++        renderList();
++        await fakeTimerUser().type(searchInput(), 'up');
++        await settle();
++        reportInteractionMock.mockClear();
++
++        await fakeTimerUser().clear(searchInput());
++        await settle();
++
++        expect(reportInteractionMock).not.toHaveBeenCalled();
++      });
++
++      // Otherwise every search typed against a slow datasource reports zero matches.
++      it('waits for the catalog instead of reporting a count taken mid-fetch', async () => {
++        setCatalog([], { loading: true });
++        const { rerender } = renderList();
++
++        await fakeTimerUser().type(searchInput(), 'up');
++        await settle();
++        expect(reportInteractionMock).not.toHaveBeenCalled();
++
++        // A refresh tick, which rebuilds the range object without changing the range. This component
++        // is memoized and the catalog hook is mocked, so something has to move for the arrived
++        // catalog to reach it the way a settling fetch would.
++        setCatalog([row('up'), row('uptime')]);
++        rerender(list({ timeRange: { ...timeRange } }));
++        await settle();
++
++        expect(reportInteractionMock).toHaveBeenCalledWith(
++          'signal_explorer_search_performed',
++          expect.objectContaining({ search_term_length: 2, result_count: 2 })
++        );
++      });
++
++      // Changing the range refetches the catalog, which raises `loading` again under a term the
++      // user never retyped. Reporting that would count a range change as a search.
++      it('reports nothing more when the catalog refetches under an unchanged term', async () => {
++        setCatalog([row('up'), row('uptime')]);
++        const { rerender } = renderList();
++        await fakeTimerUser().type(searchInput(), 'up');
++        await settle();
++        expect(reportInteractionMock).toHaveBeenCalledTimes(1);
++
++        setCatalog([], { loading: true });
++        rerender(list({ timeRange: { ...timeRange } }));
++        await settle();
++        setCatalog([row('up'), row('uptime')]);
++        rerender(list({ timeRange: { ...timeRange } }));
++        await settle();
++
++        expect(reportInteractionMock).toHaveBeenCalledTimes(1);
++      });
++
++      it('reports the same term again once it has been cleared and retyped', async () => {
++        setCatalog([row('up')]);
++        renderList();
++        await fakeTimerUser().type(searchInput(), 'up');
++        await settle();
++        await fakeTimerUser().clear(searchInput());
++        await settle();
++
++        await fakeTimerUser().type(searchInput(), 'up');
++        await settle();
++
++        expect(reportInteractionMock).toHaveBeenCalledTimes(2);
++      });
++    });
++  });
+ });
+diff --git a/public/app/features/explore/SignalExplorer/MetricsList.tsx b/public/app/features/explore/SignalExplorer/MetricsList.tsx
+index 1b34e2add..8e7f1bdc4 100644
+--- a/public/app/features/explore/SignalExplorer/MetricsList.tsx
++++ b/public/app/features/explore/SignalExplorer/MetricsList.tsx
+@@ -1,5 +1,6 @@
+ import { css } from '@emotion/css';
+ import { memo, useCallback, useId, useMemo, useRef, useState } from 'react';
++import { useDebounce } from 'react-use';
+ 
+ import { type DataSourceRef, type GrafanaTheme2, type TimeRange } from '@grafana/data';
+ import { t } from '@grafana/i18n';
+@@ -11,6 +12,11 @@ import { blockId } from './blockId';
+ import { dsKey, rangeKey } from './data/metricResourceClient';
+ import { useMetricCatalog } from './data/useMetricCatalog';
+ import { useVisibleBatch } from './hooks/useVisibleBatch';
++import {
++  trackSignalExplorerMetricExpanded,
++  trackSignalExplorerMetricsMetadataViewed,
++  trackSignalExplorerSearchPerformed,
++} from './tracking';
+ import { type MetricSelection } from './types';
+ 
+ interface Props {
+@@ -24,6 +30,8 @@ interface Props {
+    */
+   dsUid?: string;
+   dsType?: string;
++  /** Cards on screen, reported with this list's events so stacking can be correlated with engagement. */
++  stackedQueriesCount: number;
+   timeRange: TimeRange;
+   /** Name of the metric the detail panel is showing, if it belongs to this list. */
+   selectedMetric?: string;
+@@ -50,6 +58,7 @@ export const MetricsList = memo(function MetricsList({
+   refId,
+   dsUid,
+   dsType,
++  stackedQueriesCount,
+   timeRange,
+   selectedMetric,
+   onSelectMetric,
+@@ -67,12 +76,31 @@ export const MetricsList = memo(function MetricsList({
+   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
+   const [expandedLabel, setExpandedLabel] = useState<string | null>(null);
+ 
+-  const toggleMetric = useCallback((name: string) => {
+-    setExpandedMetric((current) => (current === name ? null : name));
+-    // Forget the open label too: re-expanding a metric should open collapsed rather than restore a
+-    // label the user closed the row on.
+-    setExpandedLabel(null);
+-  }, []);
++  // Through refs, like `metricsRef` below: both callbacks consult the current value only to tell an
++  // opening from a closing, and taking them as dependencies would rebuild the callbacks on every
++  // expand and every selection, undoing `MetricRow`'s `memo()` for every row that did not move.
++  const expandedMetricRef = useRef(expandedMetric);
++  expandedMetricRef.current = expandedMetric;
++  const selectedMetricRef = useRef(selectedMetric);
++  selectedMetricRef.current = selectedMetric;
++
++  const toggleMetric = useCallback(
++    (name: string) => {
++      // Only the opening half is an event: collapsing a row is not a metric being explored.
++      if (expandedMetricRef.current !== name) {
++        trackSignalExplorerMetricExpanded({
++          data_source_type: dsType,
++          stacked_queries_count: stackedQueriesCount,
++        });
++      }
++
++      setExpandedMetric((current) => (current === name ? null : name));
++      // Forget the open label too: re-expanding a metric should open collapsed rather than restore a
++      // label the user closed the row on.
++      setExpandedLabel(null);
++    },
++    [dsType, stackedQueriesCount]
++  );
+ 
+   const toggleLabel = useCallback((labelKey: string) => {
+     setExpandedLabel((current) => (current === labelKey ? null : labelKey));
+@@ -83,6 +111,39 @@ export const MetricsList = memo(function MetricsList({
+   const dsRef = useMemo<DataSourceRef>(() => ({ uid: dsUid, type: dsType }), [dsUid, dsType]);
+   const { metrics, loading, error } = useMetricCatalog(dsRef, timeRange, { searchText: searchTerm });
+ 
++  // The last term reported. `loading` is a dependency below and rises again on every refetch — a
++  // range change, a card switching datasource, an invalidation — and none of those are a search.
++  const reportedTermRef = useRef<string | null>(null);
++
++  // `FilterInput` fires per keystroke, so a term only becomes an event once the user stops typing.
++  // Filtering is synchronous, so `metrics` already matches `searchTerm` by the time this runs.
++  useDebounce(
++    () => {
++      if (!searchTerm) {
++        // An empty box is not a search, but it does arm the next one: clearing and retyping the
++        // same term is a second search.
++        reportedTermRef.current = null;
++        return;
++      }
++
++      // A count taken mid-fetch would report zero results for a catalog that simply has not
++      // arrived; `loading` is a dependency, so the term is reported once it does.
++      if (loading || reportedTermRef.current === searchTerm) {
++        return;
++      }
++
++      reportedTermRef.current = searchTerm;
++      trackSignalExplorerSearchPerformed({
++        data_source_type: dsType,
++        stacked_queries_count: stackedQueriesCount,
++        search_term_length: searchTerm.length,
++        result_count: metrics.length,
++      });
++    },
++    300,
++    [searchTerm, loading]
++  );
++
+   // Rows are handed a name, so the entry is looked up here. Through a ref, not a dependency:
+   // `metrics` is a fresh array on every keystroke, which would undo `MetricRow`'s `memo()`.
+   const metricsRef = useRef(metrics);
+@@ -92,10 +153,18 @@ export const MetricsList = memo(function MetricsList({
+     (name: string) => {
+       const metric = metricsRef.current.find((candidate) => candidate.name === name);
+       if (metric) {
++        // Re-picking the open metric closes the detail panel, which is nobody viewing metadata.
++        if (selectedMetricRef.current !== name) {
++          trackSignalExplorerMetricsMetadataViewed({
++            data_source_type: dsType,
++            stacked_queries_count: stackedQueriesCount,
++          });
++        }
++
+         onSelectMetric({ refId, dsKey: dsKey(dsRef), metric });
+       }
+     },
+-    [onSelectMetric, refId, dsRef]
++    [onSelectMetric, refId, dsRef, dsType, stackedQueriesCount]
+   );
+ 
+   // Paging resets on anything that swaps the catalog out for a different one — the search, but also
+diff --git a/public/app/features/explore/SignalExplorer/SignalExplorer.test.tsx b/public/app/features/explore/SignalExplorer/SignalExplorer.test.tsx
+index 828d1a6f1..1c9078db2 100644
+--- a/public/app/features/explore/SignalExplorer/SignalExplorer.test.tsx
++++ b/public/app/features/explore/SignalExplorer/SignalExplorer.test.tsx
+@@ -7,6 +7,7 @@ import {
+   type DataSourcePluginMeta,
+   type TimeRange,
+ } from '@grafana/data';
++import { reportInteraction } from '@grafana/runtime';
+ import { setDataSourceInstanceSettings, setDatasourcePluginMetas } from '@grafana/runtime/internal';
+ import { type DataQuery } from '@grafana/schema';
+ 
+@@ -22,7 +23,13 @@ jest.mock('../ContentOutline/ContentOutlineContext', () => ({
+ // Mocked so an expanded card's metric list needs no Prometheus behind it.
+ jest.mock('./data/useMetricCatalog');
+ 
++jest.mock('@grafana/runtime', () => ({
++  ...jest.requireActual('@grafana/runtime'),
++  reportInteraction: jest.fn(),
++}));
++
+ const useMetricCatalogMock = jest.mocked(useMetricCatalog);
++const reportInteractionMock = jest.mocked(reportInteraction);
+ 
+ const makeMeta = (id: string) =>
+   ({
+@@ -124,6 +131,7 @@ const setup = async (queries: DataQuery[], paneDatasource?: DataSourceApi) => {
+ describe('<SignalExplorer />', () => {
+   beforeEach(() => {
+     useMetricCatalogMock.mockReset().mockReturnValue({ metrics: [], loading: false });
++    reportInteractionMock.mockReset();
+   });
+ 
+   it('renders the header with the injected toggle button', async () => {
+@@ -461,4 +469,68 @@ describe('<SignalExplorer />', () => {
+       expect(screen.getByTestId('metric-detail-panel')).toBeInTheDocument();
+     });
+   });
++
++  describe('analytics', () => {
++    const promPane = { uid: 'prom-uid', type: 'prometheus', meta: makeMeta('prometheus') } as unknown as DataSourceApi;
++    const mixedPane = {
++      uid: '-- Mixed --',
++      type: 'datasource',
++      meta: { ...makeMeta('mixed'), mixed: true },
++    } as unknown as DataSourceApi;
++
++    it('reports the panel opening once, with the queries stacked in it', async () => {
++      await setup([promQuery('A'), promQuery('B')], promPane);
++
++      expect(reportInteractionMock).toHaveBeenCalledTimes(1);
++      expect(reportInteractionMock).toHaveBeenCalledWith('signal_explorer_panel_opened', {
++        data_source_type: 'prometheus',
++        stacked_queries_count: 2,
++      });
++    });
++
++    // A Mixed pane's own type is the unhelpful `datasource`, and no one card speaks for the pane.
++    it('reports a Mixed pane as mixed rather than by its own type', async () => {
++      await setup([promQuery('A'), { refId: 'B', datasource: { uid: 'loki-uid', type: 'loki' } }], mixedPane);
++
++      expect(reportInteractionMock).toHaveBeenCalledWith(
++        'signal_explorer_panel_opened',
++        expect.objectContaining({ data_source_type: 'mixed' })
++      );
++    });
++
++    // The count reaching a card's own events is this component's to supply, and the two kinds of
++    // event deliberately disagree about the datasource: the card names its query's, the panel names
++    // the pane's.
++    it('reports the card’s own datasource on a card event, and the stacked query count with it', async () => {
++      useMetricCatalogMock.mockReturnValue({ metrics: [{ name: 'up', type: 'gauge' }], loading: false });
++      const { user } = await setup(
++        [promQuery('A'), { refId: 'B', datasource: { uid: 'loki-uid', type: 'loki' } }],
++        mixedPane
++      );
++
++      await user.click(screen.getByRole('button', { name: 'Expand datasource explorer for query A' }));
++      await user.click(within(screen.getByTestId('signal-card-A')).getByRole('button', { name: 'Expand up' }));
++
++      expect(reportInteractionMock).toHaveBeenCalledWith('signal_explorer_metric_expanded', {
++        data_source_type: 'prometheus',
++        stacked_queries_count: 2,
++      });
++      expect(reportInteractionMock).toHaveBeenCalledWith(
++        'signal_explorer_panel_opened',
++        expect.objectContaining({ data_source_type: 'mixed' })
++      );
++    });
++
++    // Explore hands over a fresh queries array on every keystroke in a query editor, and the sidebar
++    // was opened once regardless.
++    it('does not report the panel opening again while a query is being edited', async () => {
++      const { rerender } = await setup([promQuery('A')], promPane);
++      reportInteractionMock.mockClear();
++
++      rerender(explorer([promQuery('A', 'u')], promPane));
++      rerender(explorer([promQuery('A', 'up'), promQuery('B')], promPane));
++
++      expect(reportInteractionMock).not.toHaveBeenCalled();
++    });
++  });
+ });
+diff --git a/public/app/features/explore/SignalExplorer/SignalExplorer.tsx b/public/app/features/explore/SignalExplorer/SignalExplorer.tsx
+index 7290b6f50..773e8e84e 100644
+--- a/public/app/features/explore/SignalExplorer/SignalExplorer.tsx
++++ b/public/app/features/explore/SignalExplorer/SignalExplorer.tsx
+@@ -17,6 +17,7 @@ import { MetricDetailPanel } from './MetricDetailPanel';
+ import { MetricsList } from './MetricsList';
+ import { SignalCard } from './SignalCard';
+ import { dsKey, rangeKey } from './data/metricResourceClient';
++import { trackSignalExplorerPanelOpened } from './tracking';
+ import { type MetricSelection } from './types';
+ 
+ interface CardDescriptor {
+@@ -106,6 +107,18 @@ export function SignalExplorer({ queries, paneDatasource, timeRange, scroller, t
+     });
+   }, [queries, paneDatasource, dataSourceItems, logosByType]);
+ 
++  useEffect(() => {
++    trackSignalExplorerPanelOpened({
++      // A Mixed pane's own type is the unhelpful `datasource`, and no one card speaks for the pane;
++      // the per-card type reaches the other three events instead.
++      data_source_type: paneDatasource?.meta?.mixed ? 'mixed' : paneDatasource?.type,
++      stacked_queries_count: cards.length,
++    });
++    // Mount only: ContentOutline renders this component only while the sidebar is visible, so
++    // mounting is the opening the event describes. Both values above are read as they were then.
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, []);
++
+   // A card's expanded state has to go away with the card's ability to expand:
+   // - a deleted query, because Explore hands out the lowest unused refId when a query is
+   //   added, so the next query in that slot would render already expanded;
+@@ -223,6 +236,7 @@ export function SignalExplorer({ queries, paneDatasource, timeRange, scroller, t
+                   refId={card.refId}
+                   dsUid={card.dsUid}
+                   dsType={card.dsType}
++                  stackedQueriesCount={cards.length}
+                   timeRange={timeRange}
+                   selectedMetric={selectedMetric?.refId === card.refId ? selectedMetric.metric.name : undefined}
+                   onSelectMetric={selectMetric}
+diff --git a/public/app/features/explore/SignalExplorer/tracking.ts b/public/app/features/explore/SignalExplorer/tracking.ts
+new file mode 100644
+index 000000000..b8d3f98ef
+--- /dev/null
++++ b/public/app/features/explore/SignalExplorer/tracking.ts
+@@ -0,0 +1,44 @@
++import { reportInteraction } from '@grafana/runtime';
++
++/**
++ * Properties are snake_case, unlike Explore's older events, because these names are what Analytics
++ * signed off on and built their dashboards against.
++ *
++ * No `user_id`: the RudderStack backend calls `identify()` once at init and forwards only these
++ * properties to `track()`, so identity is already attached on their side.
++ */
++// A type rather than an interface, because `reportInteraction` takes a `Record<string, unknown>`
++// and an interface has no implicit index signature to satisfy it with.
++type SidebarContext = {
++  /**
++   * Which datasource the event belongs to, and it is not the same thing on every event: the three
++   * card-level events report the card's own query datasource, always a concrete Prometheus flavor,
++   * while `panel_opened` reports the pane's and so is the only one that can read `mixed`. Grouping
++   * all four by this property in one query will not join up.
++   */
++  data_source_type?: string;
++  /** One card per query, so stacking two queries on one datasource counts as two. */
++  stacked_queries_count: number;
++};
++
++export function trackSignalExplorerPanelOpened(props: SidebarContext) {
++  reportInteraction('signal_explorer_panel_opened', props);
++}
++
++export function trackSignalExplorerMetricExpanded(props: SidebarContext) {
++  reportInteraction('signal_explorer_metric_expanded', props);
++}
++
++/**
++ * The search term itself is deliberately absent: it can echo back label values from the user's own
++ * data. Only its length and what it matched are reported.
++ */
++export function trackSignalExplorerSearchPerformed(
++  props: SidebarContext & { search_term_length: number; result_count: number }
++) {
++  reportInteraction('signal_explorer_search_performed', props);
++}
++
++export function trackSignalExplorerMetricsMetadataViewed(props: SidebarContext) {
++  reportInteraction('signal_explorer_metrics_metadata_viewed', props);
++}

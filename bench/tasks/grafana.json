@@ -1,0 +1,745 @@
+{
+ "repo": "grafana",
+ "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+ "tasks": [
+  {
+   "id": "PR133495",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: feat(notifications): read SMTP settings live from the config provider\n\n**What is this feature?**\n\nEmails sent through the notification service now read SMTP settings from `ConfigProvider.GetSections` on each build and send, instead of from the startup `cfg.Smtp`.\n\n- Remote setting overrides for SMTP take effect without a restart.\n- Settings that decide the message content (enabled, sender, content types, welcome email) are resolved when the message is built. Queued messages carry their content types, so the body always matches its MIME parts.\n- Delivery settings (host, credentials, TLS, static headers, EHLO) are resolved when the message is sent, so a queued message uses the current transport.\n- Emails that fail before the first delivery attempt now count in `emails_sent_failed` and `emails_sent_total`, so configuration errors appear in the failure metric.\n\n**Which issue(s) does this PR fix?**:\n\nPart of:\n- https://github.com/grafana/hosted-grafana/issues/8361\n\n**Special notes for your reviewer:**\n\nalerting's SMTP sender is not part of this PR. `templates_pattern` still needs a restart, and `cfg.Smtp.FromAddress` is still checked at startup.",
+   "goldFiles": [
+    "pkg/services/notifications/email.go",
+    "pkg/services/notifications/mailer.go",
+    "pkg/services/notifications/models.go",
+    "pkg/services/notifications/notifications.go",
+    "pkg/services/notifications/smtp.go",
+    "pkg/setting/setting_smtp.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133495.diff",
+   "goldTitle": "feat(notifications): read SMTP settings live from the config provider",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "23c862402a673db40b1643ff5239727f9ed852bf",
+   "mergedAt": "2026-09-25T14:25:06Z",
+   "testFiles": [
+    "pkg/services/ngalert/notifier/email_test.go",
+    "pkg/services/notifications/notifications_test.go",
+    "pkg/services/notifications/send_email_integration_test.go",
+    "pkg/services/notifications/smtp_test.go",
+    "pkg/setting/setting_smtp_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/services/ngalert/notifier/",
+    "./pkg/services/notifications/",
+    "./pkg/setting/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133364",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Storage: add generic dual-write backend selector\n\nAdds a generic selector that chooses legacy or unified backends using caller-defined interfaces, without requiring legacy implementations to implement `ResourceIndexClient`.\n\nUses the selector in the existing search wrapper and documents the preferred pattern for new callers. Existing IAM and alerting adapters remain unchanged.\n\nTested with the full dual-write test suite and targeted selector/search race tests.\n\nPart of https://github.com/grafana/search-and-storage-team/issues/1018\n\nCompatibility: this is a client-side refactor with no RPC or server behavior changes. The `no-check-unified-storage-compatibility` label is needed because the changes span both checked directory groups.",
+   "goldFiles": [
+    "pkg/storage/legacysql/dualwrite/selector.go",
+    "pkg/storage/unified/resource/search_client.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133364.diff",
+   "goldTitle": "Storage: add generic dual-write backend selector",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "4eebdd26a257e7fbf9a306204511c7c538c3af2d",
+   "mergedAt": "2026-09-23T15:32:53Z",
+   "testFiles": [
+    "pkg/storage/legacysql/dualwrite/selector_test.go",
+    "pkg/storage/unified/resource/search_client_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/storage/legacysql/dualwrite/",
+    "./pkg/storage/unified/resource/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133335",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Geomap: Re-init on theme change\n\n## What is this feature?\nGeomap layers resolve the theme once, when they are constructed, so toggling the\nGrafana theme left the basemap (and any layer using theme colors) on its old style\nuntil the panel remounted. The panel now takes the theme from React context via\n`withTheme2` and rebuilds its layers when that theme changes, keeping the map and\nview so the switch doesn't move what the user is looking at.\n\n- `initLayer` passes `panel.props.theme` instead of reading `config.theme2`\n- New `reinitLayers` re-creates each layer in place and disposes the old handlers\n- Global OpenLayers control styles (zoom, scale, attribution) also follow the theme,\n  instead of being captured once at construction\n\nUsing context rather than `ThemeChangedEvent` also covers the OS-level\n`prefers-color-scheme` switch, which `ThemeProvider` handles without publishing an event.\n\n## Why do we need this feature?\n\nWith basemap Theme set to `Auto`, `c+t` switched the rest of the UI but not the map.\n\n## Which issue(s) does this PR fix?\n\nFixes #132102\n\nBefore:\n<img width=\"906\" height=\"618\" alt=\"Sep-23-2026 01-57-37\" src=\"https://github.com/user-attachments/assets/b88a27f2-4f18-4c91-b542-4f389e95b927\" />\n\nAfter:\n<img width=\"906\" height=\"618\" alt=\"Sep-23-2026 01-54-58\" src=\"https://github.com/user-attachments/assets/3e5ad57e-27d7-45f3-b9ff-19c9f0477b45\" />\n\nFixes https://github.com/grafana/grafana/issues/132102",
+   "goldFiles": [
+    "public/app/plugins/panel/geomap/GeomapPanel.tsx",
+    "public/app/plugins/panel/geomap/module.tsx",
+    "public/app/plugins/panel/geomap/utils/layers.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133335.diff",
+   "goldTitle": "Geomap: Re-init on theme change",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "0b8a5b12c7de81ead409ddb0f46e83a6b72c222f",
+   "mergedAt": "2026-09-25T16:09:35Z"
+  },
+  {
+   "id": "PR133311",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Router: Use obo exchange with remote storage client\n\nWhen the router uses `storage_type = unified-grpc`, storage and search calls now exchange the configured service token on behalf of the caller. The exchange includes the caller's access token and namespace and requests the `resourceStore` audience, preserving caller identity even when no ID token is available. Requests without a requester or access token fail instead of falling back to service identity.\n\nThe router uses the existing `[grpc_client_authentication]` settings and retains the configured storage/search connections, keepalive, retries, and metrics. Local storage is unchanged. The development-only certificate-verification override retains connection pooling and timeouts and requires TLS 1.3; production continues to verify certificates.\n\nReal requester authentication remains a follow-up: the plugin deployment path still uses a dummy authenticator. This change does not replace it, and its missing access token is rejected by the OBO exchanger.\n\nValidation:\n- Targeted router, unified-storage, and server tests passed.\n- Coverage includes shared and separate search connections, caller-identity enforcement without an ID token, missing credentials, storage-type gating, production certificate validation, and rejection of TLS 1.2 in development.",
+   "goldFiles": [
+    "pkg/router/obo_exchanger.go",
+    "pkg/router/storage.go",
+    "pkg/server/routes_loader.go",
+    "pkg/storage/unified/client.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133311.diff",
+   "goldTitle": "Router: Use obo exchange with remote storage client",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "94e8edf8d19fde443c5fce57c5b92cf27aa360a4",
+   "mergedAt": "2026-09-23T03:44:33Z",
+   "testFiles": [
+    "pkg/router/cloud_router_test.go",
+    "pkg/router/obo_exchanger_test.go",
+    "pkg/router/storage_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/router/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133300",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Annotations: backfill time_end = time and add NOT NULL constraint\n\n**What is this feature?**\n\nFollow-up to https://github.com/grafana/grafana/pull/132713, which stopped writing `NULL` `time_end` values for point annotations. This PR:\n\n- Backfills existing point annotations with a `NULL` `time_end` to `time`, and adds a `NOT NULL` constraint so _all_ annotations have a `time_end`\n- Replaces the points/ranges `UNION` in `List` with a single query ordered by `time_end DESC, time DESC, name`\n- Replaces the existing list indexes with new ones matching the above ordering, replacing the namespace+dashboard+panel index with just a namespace+dashboard index as that is the primary query path from the UI.\n- Makes `Get` deterministic with `ORDER BY time DESC`\n\n**Why do we need this feature?**\n\nThe `UNION` made every List query plan each partition twice. This ends up being the bulk of List query latency when under load. With `time_end` always set, a single query can leverage the new indexes to more efficiently filter to the ordered data.\n\nThis also sets up https://github.com/grafana/grafana/pull/133408, which partitions on `time_end` so old partitions can be pruned entirely, which was the primary goal of a partitioned table in the first place.\n\n**Which issue(s) does this PR fix?**:\n\n\n\nRelated to https://github.com/grafana/grafana-org/issues/1006\n\n**Special notes for your reviewer:**\n\nPlease check that:\n- [ ] It works as expected from a user's perspective.\n- [ ] If this is a pre-GA feature, it is behind a feature toggle.\n- [ ] The docs are updated, and if this is a [notable improvement](https://grafana.com/docs/writers-toolkit/contribute/release-notes/#how-to-determine-if-content-belongs-in-whats-new), it's added to our [What's New](https://grafana.com/docs/writers-toolkit/contribute/release-notes/) doc.",
+   "goldFiles": [
+    "pkg/registry/apps/annotation/postgres_backfill.go",
+    "pkg/registry/apps/annotation/postgres_partitioned.go",
+    "pkg/registry/apps/annotation/postgres_schema.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133300.diff",
+   "goldTitle": "Annotations: backfill time_end = time and add NOT NULL constraint",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "e88ff46d5c7f5e53a5960f8c8e8123991e0c7df4",
+   "mergedAt": "2026-09-25T14:36:46Z",
+   "testFiles": [
+    "pkg/registry/apps/annotation/migration_test.go",
+    "pkg/registry/apps/annotation/postgres_backfill_integration_test.go",
+    "pkg/registry/apps/annotation/postgres_backfill_unit_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apps/annotation/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133290",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Playlist: Polish card actions design\n\n* Use accent variant for start \n* Remove superfluous \"playlist\" word in buttons\n* Make delete button secondary (does not need to be destructive as there is a confirm modal with a destructive button for this action)\n* Reduce button size from md to sm \n\nBefore:  \n<img width=\"1512\" height=\"861\" alt=\"Screenshot 2026-09-22 at 12 41 52\" src=\"https://github.com/user-attachments/assets/717705fc-2df7-4762-b859-60392c89ed1d\" />\n\n\nAfter: \n<img width=\"1512\" height=\"862\" alt=\"Screenshot 2026-09-22 at 12 39 08\" src=\"https://github.com/user-attachments/assets/0266ccf2-7df8-495d-8413-c51beb821e5f\" />",
+   "goldFiles": [
+    "public/app/features/dashboard/components/DashNav/DashNavButton.tsx",
+    "public/app/features/playlist/PlaylistCard.tsx"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133290.diff",
+   "goldTitle": "Playlist: Polish card actions design",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "1614865a1b27ca81c04a3468b9728df877660e8c",
+   "mergedAt": "2026-09-23T17:02:05Z"
+  },
+  {
+   "id": "PR133258",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Heatmap: Fix exemplar position rendering for non-ordinal buckets\n\nalso fixes a crash when switching to Auto scale with this dataset. we expect exemplars to have a string `le` or `ge` field that matches the bucket field labels, but this dataset's exemplars are missing both.\n\nbefore:\n\n<img width=\"2322\" height=\"754\" alt=\"Screenshot_20260922_101042\" src=\"https://github.com/user-attachments/assets/be100bba-fd3e-4339-a743-7693a484b96c\" />\n\n---\nafter:\n\n<img width=\"2322\" height=\"1032\" alt=\"image\" src=\"https://github.com/user-attachments/assets/947ae3ab-e45a-4ca7-8549-313381fa0a4a\" />",
+   "goldFiles": [
+    "public/app/plugins/panel/heatmap/HeatmapPanel.tsx",
+    "public/app/plugins/panel/heatmap/fields.ts",
+    "public/app/plugins/panel/heatmap/utils.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133258.diff",
+   "goldTitle": "Heatmap: Fix exemplar position rendering for non-ordinal buckets",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "ca11878b3425335de9e12adfddac0061bf06fc91",
+   "mergedAt": "2026-09-22T19:47:36Z"
+  },
+  {
+   "id": "PR133253",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Plugins: unload nested child plugins before uninstalling the parent\n\n## Summary\n- Uninstall nested/child plugins first (deepest-first) so backend processes release their files before the parent directory is deleted.\n- This is the NFS Zabbix failure: parent unload left child datasources running with files open.\n\nFixes https://github.com/grafana/grafana/issues/131858\n\n## Test plan\n- [ ] Install a plugin with a nested backend child (Zabbix-style) and uninstall from the catalog; both plugins should unload and the parent dir should be gone.\n- [ ] Uninstall a normal plugin with no children; behavior should be unchanged.",
+   "goldFiles": [
+    "pkg/plugins/manager/installer.go",
+    "pkg/plugins/manager/pluginfakes/fakes.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133253.diff",
+   "goldTitle": "Plugins: unload nested child plugins before uninstalling the parent",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "d1cbc09f62de118acb770e5bd96b7d9a30796054",
+   "mergedAt": "2026-09-25T11:39:34Z",
+   "testFiles": [
+    "pkg/plugins/manager/installer_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/plugins/manager/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133251",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: handle auth issues as downstream instead of plugin errors\n\n**What is this feature?**\n\nMatches the changes in the externalized repo. Correctly sets 401 errors as downstream so we have more accurate alerting on issues",
+   "goldFiles": [
+    "pkg/tsdb/graphite/http_status_error.go",
+    "pkg/tsdb/graphite/query.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133251.diff",
+   "goldTitle": "handle auth issues as downstream instead of plugin errors",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "a8cd63a1d87c48f4d175f0ffd2838a69b02329ce",
+   "mergedAt": "2026-09-23T11:17:55Z",
+   "testFiles": [
+    "pkg/tsdb/graphite/query_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/tsdb/graphite/"
+   ],
+   "testNeedsGoldSymbols": false
+  },
+  {
+   "id": "PR133238",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Unified storage: let compiled-in apps outside apps/ register a manifest\n\nStorage and search pods decide which label selectors they can answer from the search index. Until now that decision used the list of apps built into the Grafana binary. With this change they read the list from the app-platform API server instead, so a newly installed app is picked up without a Grafana release. The code side landed in grafana/grafana#133148 but has been inert, because the deployments were not configured for it.\n\nEnabled in dev only, through `rollout-config/dev.jsonnet`. Later waves pick it up through the normal rollout copy.\n\nBoth storage-api and search-api are configured. Each points at the app-platform CA where its own pod mounts it: storage-api has it at `/etc/cloud-app-platform-ca/ca.crt` already (the tenant watcher uses it), search-api gets it projected into `/etc/kubernetes-secrets/cloud-app-platform-ca.crt`. The poll interval is left at the default of one hour. Token and token exchange URL were already configured for other clients, so nothing was added there.\n\nEnabling this also grants the storage service identity read access to appmanifests, cluster-wide, on the shared access policy token.\n\nOne dev cell (`dev-us-central-0.unified-storage-dev-002`) already ran this on search pods, so its per-cell override is removed as redundant. That cell shows only the storage-api half of the diff. ops and prod cells render unchanged.\n\nI could not run `tk diff` (no cluster access from here), so this was checked with before/after `tk show` on dev-us-east-0.unified-storage-dev-001, dev-us-central-0.unified-storage-dev-002 and ops-eu-south-0.unified-storage-ops-002.\n\nRollout restarts both storage-api and search-api pods in dev, through the config hash.\n\nHow we will know it worked:\n\n- `search_manifest_watcher_polls_total{result=\"success\"}` climbing and `result=\"error\"` flat — errors here would mean the appmanifests grant is not effective\n- `search_manifest_watcher_manifests` above the count of apps built into the binary\n- `search_manifest_watcher_reloads_total` incrementing when an app manifest changes\n\n`Replace` now warns when a swap removes a kind that currently has search fields. Losing them is otherwise silent — searches on those fields still succeed and match nothing, and the field-set hash lives in the index metadata, so recovery needs an index rebuild rather than a restart.\n\nRollout note: this PR on its own changes no hashes, since nothing in OSS registers a manifest. Once a distribution registers one, only the newly declared kind rebuilds its index — the field-set hash is stored and compared per kind, so kinds that already had search fields keep their hash, and kinds without search fields have no hash to compare and are untouched.",
+   "goldFiles": [
+    "pkg/storage/unified/resource/app_manifests.go",
+    "pkg/storage/unified/resource/app_manifests_register.go",
+    "pkg/storage/unified/resource/search_field.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133238.diff",
+   "goldTitle": "Unified storage: let compiled-in apps outside apps/ register a manifest",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "423f85091b0a63a21fb571122a933133da1652cd",
+   "mergedAt": "2026-09-22T14:15:47Z",
+   "testFiles": [
+    "pkg/storage/unified/resource/app_manifests_register_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/storage/unified/resource/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133233",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: error handling for keeping status errors over transport errors\n\nThis is the first of multiple PRs for handling https://github.com/grafana/pir-actions/issues/595.\n\nIn this PR `StatusErrorFromResponse` is added to support converting grpc based errors to status errors, including transport errors. Currently transport errors are passed through when using `ErrorFromResponse` which has side effects like a `500` being reported although the attached `ErrorResult` would be a `4xx`. \n\nFollow up PRs will handle how error handling is done in consumers, e.g. \n\nchange from \n```go\n\tresp, err := h.clientFor(primary).Search(ctx, searchReq)\n\tif err != nil {\n\t\treturn nil, \"\", err\n\t}\n\tif resp.Error != nil {\n\t\treturn nil, \"\", resource.GetError(resp.Error)\n\t}\n``` \nto\n```go\nresp, err := h.clientFor(primary).Search(ctx, searchReq)\nif err := resource.StatusErrorFromResponse(resp.GetError(), err); err != nil {\n\treturn nil, \"\", err\n}\n```\n\nThis PR includes a change in `errhttp.Write` (`pkg/util`) which is used in many different places and owned by @grafana/grafana-backend-services-squad",
+   "goldFiles": [
+    "pkg/storage/unified/resource/errors.go",
+    "pkg/util/errhttp/writer.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133233.diff",
+   "goldTitle": "error handling for keeping status errors over transport errors",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "a6d61b2513266671df911c055891987d5e6576e7",
+   "mergedAt": "2026-09-22T13:58:34Z",
+   "testFiles": [
+    "pkg/storage/unified/resource/errors_test.go",
+    "pkg/util/errhttp/writer_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/storage/unified/resource/",
+    "./pkg/util/errhttp/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133220",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: SSOSettings: add read-only SSOSetting support to standalone apiserver\n\n## What\n\nThe always-on `iam.grafana.app` apiserver (`NewAPIService`) never wired a store for the `SSOSetting` kind, so it did not serve the kind even with `kubernetesSsoSettingsApi` enabled (only the in-process `RegisterAPIService` path did). This adds a lean read-only ssosettings service, backed by the per-request legacy `sso_setting` table, and wires it into `NewAPIService`.\n\nThe standalone apiserver now serves the `SSOSetting` kind read-only under the same flag, so the frontend and edge-auth (MTEA) services can read a stack's SSO configuration through `iam.grafana.app` without depending on the in-process monolith.\n\n## How\n\n- New `ProvideReadOnlyDBService` reads and redacts secrets by field name (no decrypt, so it needs no secrets/config service); writes return an error.\n- Reuses the existing `sso.NewLegacyStore` wrapper — no new `NewAPIService` parameters, no enterprise wiring change.\n- No behavior change to the in-process (`RegisterAPIService`) path.\n\n## Notes\n\n- Reads only; secrets are always redacted.\n- Authorization for these reads is handled separately (RBAC).\n- Pairs with the dev-cell flag enablement in grafana/deployment_tools#728400.\n\nPart of grafana/identity-access-team#2178",
+   "goldFiles": [
+    "pkg/registry/apis/iam/register.go",
+    "pkg/services/ssosettings/ssosettingsimpl/readonly.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133220.diff",
+   "goldTitle": "SSOSettings: add read-only SSOSetting support to standalone apiserver",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "b9ba3a271cbb22bf474da1bd681b005310d0b9eb",
+   "mergedAt": "2026-09-22T15:38:16Z",
+   "testFiles": [
+    "pkg/registry/apis/iam/register_test.go",
+    "pkg/services/ssosettings/ssosettingsimpl/readonly_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apis/iam/",
+    "./pkg/services/ssosettings/ssosettingsimpl/"
+   ],
+   "testNeedsGoldSymbols": false
+  },
+  {
+   "id": "PR133206",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: grafana-router: fix the issue where router mistakenly signed for some proxied requests\n\n**What is this feature?**\n\nFor aggregate apiservers, router should propagate incoming headers like any reverse proxy does. It previously mistakenly used the transport used for its own internal discovery.\n\n**Why do we need this feature?**\n\nTo succeed in getting proxied requests answered.\n\n**Who is this feature for?**\n\nGrafana App Platform\n\n**Which issue(s) does this PR fix?**:\n\n\n\nFixes #\n\n**Special notes for your reviewer:**\n\nPlease check that:\n- [ ] It works as expected from a user's perspective.\n- [ ] If this is a pre-GA feature, it is behind a feature toggle.\n- [ ] The docs are updated, and if this is a [notable improvement](https://grafana.com/docs/writers-toolkit/contribute/release-notes/#how-to-determine-if-content-belongs-in-whats-new), it's added to our [What's New](https://grafana.com/docs/writers-toolkit/contribute/release-notes/) doc.",
+   "goldFiles": [
+    "pkg/router/aggregate_poller.go",
+    "pkg/router/cloud_router.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133206.diff",
+   "goldTitle": "grafana-router: fix the issue where router mistakenly signed for some proxied requests",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "a9b741f501b53b2a046711122c429c20d57d7c4a",
+   "mergedAt": "2026-09-22T04:13:02Z",
+   "testFiles": [
+    "pkg/router/aggregate_poller_test.go",
+    "pkg/router/aggregate_router_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/router/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133196",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: feat(alerting): show rule counts in folder bulk-action confirmation banners\n\n## Overview\nUpdate the Pause/Resume/Delete all rules on a folder confirmation banner to now report how many rules were actually affected vs. skipped because they're provisioned, e.g. *\"Rules evaluation successfully paused for folder. Paused 3 rules. Skipped 2 provisioned rules.\"\n\n<img width=\"1170\" height=\"175\" alt=\"br-banner\" src=\"https://github.com/user-attachments/assets/dd48342a-c377-4b93-9d0a-fec70d5ce713\" />\n\nThis is one half of a split change; paired with the backend PR #133195 which adds the `updated`/`skipped`/`deleted` fields this reads.\n\n## Implementation\n- `alertingFolderActionsApi.ts`'s three mutations no longer set a static `successMessage` (which suppressed backendSrv's generic auto-toast); they now explicitly set `showSuccessAlert: false` (applied after spreading caller-supplied `notificationOptions`, so it can't be silently overridden) and expose the response's `updated`/`skipped`/`deleted` counts to the caller.\n- New `getFolderActionResultMessage()` builds the localized toast text from those counts.\n- `FolderActionsButton.tsx` emits exactly one success toast per action, built from the mutation's own response.\n- Message is built on client to enable localization\n\n**Deploy compatibility:** if the counts are absent (an older backend that doesn't return them yet — frontend and backend deploy independently), `getFolderActionResultMessage()` falls back to the original count-less message instead of treating the missing fields as zero, which would otherwise incorrectly claim nothing was affected. Safe to deploy before or after #133195.\n\n## Tests\n- New `folderActionMessages.test.ts` (pause/resume/delete × affected/skipped/no-op-skip/no-counts-fallback) — all pass.\n- New `FolderActionsButton.test.tsx` asserting exactly one toast fires with the correctly composed message, including the no-counts fallback case — all pass.\n- `yarn eslint` and `yarn tsc --noEmit` clean on touched files.",
+   "goldFiles": [
+    "public/app/features/alerting/unified/api/alertingFolderActionsApi.ts",
+    "public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.tsx",
+    "public/app/features/alerting/unified/utils/folderActionMessages.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133196.diff",
+   "goldTitle": "feat(alerting): show rule counts in folder bulk-action confirmation banners",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "80d1ea56a8c106eb669774a27c41b24c653f3e67",
+   "mergedAt": "2026-09-22T13:16:32Z"
+  },
+  {
+   "id": "PR133191",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Alerting: Fix RouteGetReceivers UID resolution and move status retrieval into ReceiverService\n\n## Context\n\n`RouteGetReceivers` (`GET /api/alertmanager/grafana/config/api/v1/receivers`) returns receiver status (active state, per-integration health) sourced from the org's running Alertmanager, which only knows receivers by **Name**. To satisfy authorization, which is keyed by UID, the handler needed a UID for each AM-reported receiver. Since no receiver UID is persisted independently today, the handler got one the only way available: hashing the name (`legacy_storage.NameToUid`). This is consistent with how every other part of ngalert computes a receiver's UID right now, but only because nothing has decoupled UID from Name yet.\n\nOnce that lands, the name will not be sufficient to determine permissions and this handler does not have easy access to the real receivers as written. This PR removes that landmine by making `ReceiverService` the single source of truth for fetching AM-reported statuses.\n\n- Fetching and filtering receiver status is now owned entirely by `ReceiverService`, via a new `amStatusFetcher` dependency (`MultiOrgAlertmanager.GetReceiverStatuses`.\n- `ReceiverService.StatusMetadata` fetches AM status and maps the given receivers to their live AM status by Name.\n- `ReceiverService.GetReceiverStatuses` is the permission-aware, org-wide wrapper on top of `StatusMetadata`. It handles fetching the stored receivers and filtering to only what the caller can read. \n- The reason the above two methods are split is to follow existing metadata function patterns, so that we might eventually move these statuses directly to the receiver API resource responses. If done, `GetReceiverStatuses` will no longer be necessary.\n- `RouteGetReceivers` is now a thin call to `receiverService.GetReceiverStatuses`.\n\nNote: This adds an extra DB hit to the API call (previously it only hit for the permissions check), but this is hard to get around without making our AM implementations UID-aware.\n\nPart of grafana/alerting-squad#1730.",
+   "goldFiles": [
+    "pkg/services/ngalert/api/api.go",
+    "pkg/services/ngalert/api/api_alertmanager.go",
+    "pkg/services/ngalert/ngalert.go",
+    "pkg/services/ngalert/notifier/multiorg_alertmanager.go",
+    "pkg/services/ngalert/notifier/receiver_svc.go",
+    "pkg/services/provisioning/provisioning.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133191.diff",
+   "goldTitle": "Alerting: Fix RouteGetReceivers UID resolution and move status retrieval into ReceiverService",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "0bfc9d1afefc105db1871951a901ad2bfc828be8",
+   "mergedAt": "2026-09-22T17:15:39Z",
+   "testFiles": [
+    "pkg/services/ngalert/api/api_alertmanager_test.go",
+    "pkg/services/ngalert/api/api_provisioning_test.go",
+    "pkg/services/ngalert/notifier/receiver_svc_test.go",
+    "pkg/services/ngalert/provisioning/contactpoints_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/services/ngalert/api/",
+    "./pkg/services/ngalert/notifier/",
+    "./pkg/services/ngalert/provisioning/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133175",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Annotations: cache dashboard folder resolution\n\n**What is this feature?**\n\nThis PR adds caching for dashboard folder resolution to the new annotation API. In order to authorize access to an annotation, we have to check the user's permissions to the dashboard (and parent folder) that it's associated with. This can become a bottleneck when listing annotations as it results in many calls to the dashboard service. Generally, annotations are listed for a single dashboard, so repeated attempts are made to resolve the parent folder for the same dashboard, with successive calls getting backed up under heavy load. Adding a 30s TTL cache greatly improves performance and reduces overall traffic to the dashboard service.\n\nBefore (when bottlenecked by repeated calls to dashboard service):\n<img width=\"779\" height=\"290\" alt=\"Screenshot 2026-09-21 at 3 42 26 PM\" src=\"https://github.com/user-attachments/assets/8924217e-a77a-4ce7-bc07-a02990c8b07c\" />\n\n\nAfter (with caching):\n<img width=\"781\" height=\"322\" alt=\"Screenshot 2026-09-21 at 3 43 02 PM\" src=\"https://github.com/user-attachments/assets/14e71409-f1cb-4131-81ef-ffadba5ebcd9\" />\n\n\n**Why do we need this feature?**\n\nTo improve read path performance of the new annotation service when under load.\n\n**Who is this feature for?**\n\n\n**Which issue(s) does this PR fix?**:\n\n\n\nFixes #\n\n**Special notes for your reviewer:**\n\nPlease check that:\n- [ ] It works as expected from a user's perspective.\n- [ ] If this is a pre-GA feature, it is behind a feature toggle.\n- [ ] The docs are updated, and if this is a [notable improvement](https://grafana.com/docs/writers-toolkit/contribute/release-notes/#how-to-determine-if-content-belongs-in-whats-new), it's added to our [What's New](https://grafana.com/docs/writers-toolkit/contribute/release-notes/) doc.",
+   "goldFiles": [
+    "pkg/registry/apps/annotation/authz.go",
+    "pkg/registry/apps/annotation/config.go",
+    "pkg/registry/apps/annotation/dashboard_folder_lookup.go",
+    "pkg/registry/apps/annotation/metrics.go",
+    "pkg/registry/apps/annotation/register.go",
+    "pkg/setting/setting_annotations.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133175.diff",
+   "goldTitle": "Annotations: cache dashboard folder resolution",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "f000b1d0f74a4e3115919fd067c276d39fd7ccaa",
+   "mergedAt": "2026-09-22T18:05:28Z",
+   "testFiles": [
+    "pkg/registry/apps/annotation/dashboard_folder_lookup_test.go",
+    "pkg/setting/setting_annotations_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apps/annotation/",
+    "./pkg/setting/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133167",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Transformations: Add copy actions to debug data\n\n**What is this feature?**\n\nAdds copy-to-clipboard actions for input and output data in both transformation debug views. Copied payloads are formatted JSON produced by the existing circular-safe serializer.\n\n**Why do we need this feature?**\n\nLarge transformation payloads are difficult to inspect in the in-app JSON viewer. Copying them lets dashboard authors use tools such as `jq` or custom scripts without manually selecting the rendered data.\n\n**Who is this feature for?**\n\nDashboard authors who debug transformation pipelines.\n\n**Which issue(s) does this PR fix?**:\n\nFixes #115711\n\n**Special notes for your reviewer:**\n\n- Uses `getPrettyJSON` so circular `__dataContext` and `__sceneObject` state cannot break the copy action.\n- Gives input and output controls distinct localized accessible names and tooltips.\n- Covers the scene-based editor with a clipboard interaction test containing a genuinely circular DataFrame.\n\n**Verification**\n\n- `yarn jest --no-watch --runInBand public/app/features/dashboard/components/TransformationsEditor/TransformationsEditor.test.tsx public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.test.tsx`\n- Targeted ESLint\n- Targeted Prettier check\n- `yarn typecheck`\n- i18n extraction and diff validation\n\nPlease check that:\n- [x] It works as expected from a user perspective.\n- [x] This is not a pre-GA feature requiring a feature toggle.\n- [x] No documentation update is required for this focused UI affordance.",
+   "goldFiles": [
+    "public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.tsx",
+    "public/app/features/dashboard/components/TransformationsEditor/TransformationEditor.tsx"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133167.diff",
+   "goldTitle": "Transformations: Add copy actions to debug data",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "bf1e4e6905eb260445a7350971a1245daefd3440",
+   "mergedAt": "2026-09-22T20:37:28Z"
+  },
+  {
+   "id": "PR133158",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Explore: Add RudderStack events for the metrics sidebar\n\n## Description\n\n\nAdds the four RudderStack events Analytics signed off on for the Signal Explorer metrics sidebar, so the A/B test has behavioural data to read. The sidebar had no instrumentation at all before this; the feature stays behind the existing `grafana.exploreMetricsSidebar` toggle, so nothing is emitted with the flag off.\n\n## Changes\n\n* New `SignalExplorer/tracking.ts` holding typed wrappers for `signal_explorer_panel_opened`, `signal_explorer_metric_expanded`, `signal_explorer_search_performed` and `signal_explorer_metrics_metadata_viewed`, so the event names and property keys live in one place.\n* `panel_opened` fires once per sidebar mount, which is exactly when the sidebar becomes visible, and reports the pane's datasource — `mixed` for a Mixed pane.\n* The three card-level events fire from `MetricsList` and report the card's own query datasource. Expanding a metric and selecting one for its metadata are both toggles, so each reports only its opening half.\n* Search is debounced at 300ms and reports the term's length and how many metrics it matched, never the term itself, which can echo back label values from the user's own data. It skips a catalog that has not arrived and will not re-report a term the user did not retype.\n* `user_id` from the spec is omitted, since the RudderStack backend already calls `identify()` at init and attaches identity server-side. `stacked_data_source_count` is named `stacked_queries_count`, because the sidebar renders one card per query and two queries can share a datasource.\n\n## Risks\n\n\nLow. The only behavioural change outside the tracking calls is that `MetricsList` now takes a `stackedQueriesCount` prop and keeps two extra refs, neither of which affects rendering. `data_source_type` deliberately means the pane's datasource on `panel_opened` and the card's query datasource on the other three, so grouping all four by that property in one query will not join up — this is documented on the shared type and pinned by a test.\n\n## Demo\n\n\nN/A\n\n## Testing Instructions\n\n* Enable `grafana.exploreMetricsSidebar` and open Explore with a Prometheus datasource; the \"Datasource explorer\" sidebar appears and `signal_explorer_panel_opened` is sent.\n* Expand a card, then expand a metric row and click a metric name; `signal_explorer_metric_expanded` and `signal_explorer_metrics_metadata_viewed` are sent, and collapsing or deselecting sends nothing.\n* Type into the metric search box; one `signal_explorer_search_performed` is sent after you stop typing, carrying only `search_term_length` and `result_count`. Changing the time range afterwards sends nothing further.\n* Turn the flag off and confirm Explore emits none of these events.\n\n## Reviewer Checklist\n\n- [ ] Tests are added where applicable\n- [ ] Issue is linked to PR\n- [ ] Code pulled and tested\n- [ ] Code is meaningfully improved if applicable",
+   "goldFiles": [
+    "public/app/features/explore/SignalExplorer/MetricsList.tsx",
+    "public/app/features/explore/SignalExplorer/SignalExplorer.tsx",
+    "public/app/features/explore/SignalExplorer/tracking.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133158.diff",
+   "goldTitle": "Explore: Add RudderStack events for the metrics sidebar",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "1d6edf929f5f5308e51ea482e08da15d72a2a370",
+   "mergedAt": "2026-09-22T09:21:54Z"
+  },
+  {
+   "id": "PR133148",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Unified storage: decide selector push-down from the manifests, not the build\n\nA LIST with a field selector only went through search when the group appeared in the manifest list compiled into the binary. A kind from an app this binary does not know about was left on the store scan, which pages over the whole collection and filters afterwards, so early pages come back empty with just a continue token.\n\nThe decision now reads the kind declarations the index mapping is built from, which the manifest watcher keeps up to date. So an app kind gets its selectors pushed down once its manifest is known, without waiting for a Grafana release.\n\nIt is also stricter: every field the request filters on must be declared. Before, any group in the compiled-in list passed, including for a field its kind never declared, and that query reached the index and found nothing.\n\nThe registry is now built whether or not the process runs search, because a storage server that delegates search still has to make this decision.\n\nIf the declarations are ahead of the index, the search side refuses the filter and the LIST falls back to the store scan (#133102).\n\nAlso removes `AppManifestsWithKinds` — no callers left in grafana or grafana-enterprise.\n\nRelated: https://github.com/grafana/search-and-storage-team/issues/994 (point 3)",
+   "goldFiles": [
+    "pkg/storage/unified/resource/list_with_selectors.go",
+    "pkg/storage/unified/resource/selectable_fields.go",
+    "pkg/storage/unified/resource/server.go",
+    "pkg/storage/unified/search/options.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133148.diff",
+   "goldTitle": "Unified storage: decide selector push-down from the manifests, not the build",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "384465ac34f520764ec9519d883fbcb61ce1b8cd",
+   "mergedAt": "2026-09-22T13:03:18Z",
+   "testFiles": [
+    "pkg/storage/unified/resource/list_with_selectors_test.go",
+    "pkg/storage/unified/resource/selectable_fields_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/storage/unified/resource/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133146",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Alerting: Expose rule status in per-kind search results\n\n**What is this feature?**\n\nThis PR adds the status metadata from #130494 to the per-kind rule search endpoints. Clients can request health and evaluation metadata through `fields`, along with state and state reason for alert rules.\n\nBoth legacy storage and unified search return persisted status rather than reading live evaluation state. Fields are omitted when status is unavailable.\n\n**Why do we need this feature?**\n\nThe per-kind search endpoints currently return only spec metadata, so callers cannot retrieve a rule’s evaluation status alongside its search result.\n\n**Who is this feature for?**\n\nConsumers of the experimental alerting rules search API.\n\n**Which issue(s) does this PR fix?**:\n\nN/A. Extends the per-kind search endpoints introduced in #130961 and #132210.\n\n**Special notes for your reviewer:**\n\nPlease check that:\n- [ ] It works as expected from a user’s perspective.\n- [ ] If this is a pre-GA feature, it is behind a feature toggle.\n- [ ] The docs are updated, and if this is a [notable improvement](https://grafana.com/docs/writers-toolkit/contribute/release-notes/#how-to-determine-if-content-belongs-in-whats-new), it’s added to our [What’s New](https://grafana.com/docs/writers-toolkit/contribute/release-notes/) doc.",
+   "goldFiles": [
+    "apps/alerting/rules/pkg/apis/manifestdata/alerting_manifest.go",
+    "pkg/registry/apps/alerting/rules/search/fields.go",
+    "pkg/registry/apps/alerting/rules/search/legacy_search.go",
+    "pkg/registry/apps/alerting/rules/search/per_kind_legacy.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133146.diff",
+   "goldTitle": "Alerting: Expose rule status in per-kind search results",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "069b5c9332be98d3c018f9a380d06806d9a1c23c",
+   "mergedAt": "2026-09-22T15:39:38Z",
+   "testFiles": [
+    "pkg/registry/apps/alerting/rules/search/per_kind_search_test.go",
+    "pkg/registry/apps/alerting/rules/search/per_kind_status_test.go",
+    "pkg/registry/apps/alerting/rules/search/query_test.go",
+    "pkg/storage/unified/search/builders/alertingrules_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apps/alerting/rules/search/",
+    "./pkg/storage/unified/search/builders/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133113",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Provisioning: Force-delete a wedged repository from the deletion-error banner\n\n## What\nReworks the repository delete UX around the backend's ground-truth deletion\nstatus instead of the frontend trying to predict when a delete will wedge.\n\n- Deleting a repository is always a plain delete (the dropdown's remove/keep\n  resources options are unchanged).\n- When a deletion wedges — e.g. the `cleanup` finalizer can't remove a webhook\n  because the repository is no longer reachable — the backend reports it in the\n  structured `status.deletion` field. The repository Overview then shows a\n  **Repository deletion error** banner with a **Delete anyway** button.\n- **Delete anyway** force-removes *exactly* the finalizer the backend names as\n  blocking (`status.deletion.finalizer`), letting the in-progress deletion\n  finish. A confirm modal warns that provider-side resources (e.g. the webhook)\n  are left in place.\n\nThe banner also renders `status.fieldErrors` (spec validation errors), which do\n**not** get the force-delete button — they are not a wedged deletion.\n\n<img width=\"1892\" height=\"194\" alt=\"Screenshot 2026-09-23 at 11 03 27 AM\" src=\"https://github.com/user-attachments/assets/fb303ed2-2823-47e6-aab8-d1e75372cb39\" />\n\n<img width=\"1870\" height=\"775\" alt=\"Screenshot 2026-09-23 at 11 03 49 AM\" src=\"https://github.com/user-attachments/assets/d493d2ee-b809-4206-a7bb-fdf74f4f195f\" />\n\n<img width=\"620\" height=\"331\" alt=\"Screenshot 2026-09-23 at 11 04 06 AM\" src=\"https://github.com/user-attachments/assets/bfd4ca85-cdf5-4324-af50-c3b6c04d1bc4\" />\n\n## Why\n\nPreviously the frontend inspected the `Ready` condition for\n`AuthenticationFailed` to decide whether to force-delete. That reason is a single\nslot that quota/hook overrides clobber, so force-delete silently stopped being\noffered exactly when several failures coincided. Rather than derive deletion\nstate on the client, the UI now renders backend status directly and force-removes\nthe finalizer the backend identifies as the holdup.\n\nDepends on (merged) #133241, which adds `status.deletion { state, finalizer,\nmessage }` and deprecates the free-text `status.deleteError`.\n\n## Notes for reviewers\n\n- `hasRepositoryCredentialFailure` and the auth-warning modal text are removed;\n  `DeleteRepositoryButton` no longer reads any condition.\n- `RepositoryStatusAlert` overlaps with the still-open #132412 (\"show repository\n  status errors\"), which introduces the same component. Whichever merges second\n  needs a trivial conflict resolution — this version is a superset (adds the\n  Delete anyway action and reads `status.deletion`).\n- Unit tests cover healthy (no banner), field-error (banner, no button),\n  blocked-deletion (banner + button), and the force-remove PUT dropping only the\n  named finalizer.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+   "goldFiles": [
+    "public/app/features/provisioning/Repository/DeleteRepositoryButton.tsx",
+    "public/app/features/provisioning/Repository/RepositoryOverview.tsx",
+    "public/app/features/provisioning/Repository/RepositoryStatusAlert.tsx",
+    "public/app/features/provisioning/Repository/RepositoryStatusPage.tsx"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133113.diff",
+   "goldTitle": "Provisioning: Force-delete a wedged repository from the deletion-error banner",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "29d7b0293bec37bb742e02f1809d836338e88e77",
+   "mergedAt": "2026-09-23T16:24:27Z"
+  },
+  {
+   "id": "PR133112",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Provisioning: Build repository on delete only for the cleanup finalizer\n\n## What\nLets a provisioning repository be deleted even when it is unhealthy (e.g. its credentials have expired), instead of the delete getting permanently stuck — by removing the `cleanup` finalizer.\n\n## Why\nIn production, repositories got wedged in `Terminating` forever, re-entering the reconcile every resync:\n\n- `error=\"create repository from configuration: create gitlab client: authentication token has expired: authentication failed\"` — deleting builds the repository (decrypt secrets + construct the provider client), which fails on expired credentials.\n- `error=\"process finalizers: execute deletion hooks: delete webhook: permission denied\"` — the webhook DELETE the `cleanup` finalizer performs was rejected.\n\nOf the four finalizers, only `cleanup` (webhook removal) needs a working provider client; the others operate on Grafana-side state from the configuration alone.\n\nRef: grafana/git-ui-sync-project#1374\n\n## How\n- **The cleanup finalizer owns the build + webhook deletion, inside `finalizer.process`.** The finalizer is given the repository factory and builds the repository only when the `cleanup` finalizer is present (the one provider-dependent step), then deletes the webhook. The other finalizers run from the configuration alone. `handleDelete` just calls `process`.\n- **A build or webhook-delete failure fails the finalizer and blocks deletion** (recorded on status). It is not tolerated — forcing deletion is done by *removing the `cleanup` finalizer*, so the build never happens and expired credentials can't block deletion.\n- Dropped the now-redundant `build` deletion-metrics stage; a build failure during the cleanup finalizer is metered under the finalizers stage.\n\n\"Force delete\" is therefore *removing the `cleanup` finalizer* — a client (the frontend, `kubectl`, Terraform) drops it and deletion proceeds without touching the provider. No new annotation/API surface. Chosen over a DELETE-rejecting admission validator, which would make `terraform destroy` of an expired-credential repo hard-fail with no in-band remedy.\n\n### Error classification (user vs system)\n`finalizer.process` only *wraps* a build/webhook failure (`create repository from configuration: %w` / `execute deletion hooks: %w`), preserving the typed sentinel. The controller's delete branch classifies the returned error via `errors.Is`, exactly as it does for health-check failures:\n\n- `ErrUnauthorized` / `ErrPermissionDenied` (expired/revoked credentials) → Ready reason `AuthenticationFailed`, treated as **user-caused**: surfaced on `status.health` and swallowed (returns nil) so it isn't re-logged at ERROR every resync.\n- `ErrSecretDecryptFailed` / `ErrServerUnavailable` (transient infra) → `ServiceUnavailable`, treated as **system**: returned to the workqueue for fast retry.\n- SLO metrics are labelled user vs system the same way.\n\nThis is unchanged by moving the build into `process` — the sentinel still survives the wraps.\n\n## Testing\n- `go test ./pkg/registry/apis/provisioning/controller/ ./apps/provisioning/pkg/repository/` — process builds+deletes the webhook only for the cleanup finalizer; build failure and webhook-delete failure each block deletion; process ignores cleanup gracefully when the repo has no webhook client; config-only finalizers run without a build; delete-path classification (auth → AuthenticationFailed, surfaced on health) still holds.\n- Integration test in `pkg/tests/apis/provisioning/git/webhook` for the escape hatch: removing the cleanup finalizer lets the repo delete with the webhook DELETE never attempted (requires Docker to run).\n- `go vet`, `gofmt`, wider `go build` clean.\n\n## Frontend\nThe user-facing warning + dropping the cleanup finalizer ships as a separate frontend PR (#133113).\n\n## Checklist\n- [x] Tests added/updated\n- [x] No breaking changes\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
+   "goldFiles": [
+    "pkg/registry/apis/provisioning/controller/deletion_metrics.go",
+    "pkg/registry/apis/provisioning/controller/finalizer_mock.go",
+    "pkg/registry/apis/provisioning/controller/finalizers.go",
+    "pkg/registry/apis/provisioning/controller/repository.go",
+    "pkg/registry/apis/provisioning/controller/webhook.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133112.diff",
+   "goldTitle": "Provisioning: Build repository on delete only for the cleanup finalizer",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "e737256750446b90aa525e91bea26371050f7cef",
+   "mergedAt": "2026-09-22T08:30:43Z",
+   "testFiles": [
+    "pkg/registry/apis/provisioning/controller/finalizers_test.go",
+    "pkg/registry/apis/provisioning/controller/repository_test.go",
+    "pkg/registry/apis/provisioning/controller/webhook_test.go",
+    "pkg/tests/apis/provisioning/git/webhook/webhook_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apis/provisioning/controller/"
+   ],
+   "testNeedsGoldSymbols": true
+  },
+  {
+   "id": "PR133090",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Datasources: Add utility for getting the default datasource\n\nFixes https://github.com/grafana/grafana/issues/132269\n\n### What changed?\nThis PR is removing the unstable API `useDefaultDataSourceInstanceListItem()` and updates the utility `getDefaultDataSourceInstanceListItem()` to work on a list of datasource instances and always return the sane default for that given list:\n\n```ts\n// USAGE - [FUNCTION]\n// ---------------------------------------------------\nconst allItems = await getDataSourceInstanceList();\nconst promItems = await getDataSourceInstanceList({ type: 'prometheus' });\n\n// Org level default\nconst orgDefault = await getDefaultListItem(allItems);\n\n// Default prometheus ds instance\nconst promDefault = await getDefaultListItem(promItems);\n\n\n// USAGE - [HOOK]\n// ---------------------------------------------------\nconst { isLoading, error, items } = useDataSourceInstanceList();\nconst { \n  isLoading: defaultIsLoading, \n  error: defaultError, \n  item: defaultItem\n} = useDefaultDataSourceInstanceListItem(items);\n```",
+   "goldFiles": [
+    "packages/grafana-data/src/types/datasource.ts",
+    "packages/grafana-plugin-compat/src/datasources.ts",
+    "packages/grafana-plugin-compat/src/datasources/getDefaultDataSourceInstanceListItem.ts",
+    "packages/grafana-plugin-compat/src/datasources/useDefaultDataSourceInstanceListItem.ts",
+    "packages/grafana-plugin-compat/src/utils/mocks.ts",
+    "packages/grafana-runtime/src/services/dataSource/hooks.ts",
+    "packages/grafana-runtime/src/services/dataSource/settings.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133090.diff",
+   "goldTitle": "Datasources: Add utility for getting the default datasource",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "f1de62bce67a0f045868fb0d01afb1ea9908531c",
+   "mergedAt": "2026-09-22T06:24:53Z"
+  },
+  {
+   "id": "PR133011",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Text panel: Keep editor view mode stable across remounts\n\nIn edit mode the default editor mode should be `Split`; the editor should keep selection while still in panel edit (+toggling the table view).\n\nBefore\n\nhttps://github.com/user-attachments/assets/149bdf82-e810-4519-bff6-1209c704e3da\n\n\nAfter\n\nhttps://github.com/user-attachments/assets/e9669698-443c-40f4-95e5-5579796b12bf\n\n\nFixes #\n\n**Special notes for your reviewer:**\n\nPlease check that:\n- [ ] It works as expected from a user's perspective.\n- [ ] If this is a pre-GA feature, it is behind a feature toggle.\n- [ ] The docs are updated, and if this is a [notable improvement](https://grafana.com/docs/writers-toolkit/contribute/release-notes/#how-to-determine-if-content-belongs-in-whats-new), it's added to our [What's New](https://grafana.com/docs/writers-toolkit/contribute/release-notes/) doc.",
+   "goldFiles": [
+    "public/app/plugins/panel/text/v2/TextNGPanel.tsx",
+    "public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx",
+    "public/app/plugins/panel/text/v2/editor/viewMode.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133011.diff",
+   "goldTitle": "Text panel: Keep editor view mode stable across remounts",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "15e3ba91f323901e9ecd2735a19d26eaa23e1067",
+   "mergedAt": "2026-09-24T20:20:42Z"
+  },
+  {
+   "id": "PR132983",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: IAM: Implement AuthInfo delete for legacy storage\n\n**What is this feature?**\n\nThis PR adds a targeted single row delete for the `user_auth` legacy table.\n\nImplements delete support for the `AuthInfo` resource's legacy-storage REST adapter, which previously always returned 405 Method Not Supported. Adds a single-row delete path (by user + auth module) through `login.Store`, wires it into both the legacy SQL and k8s-client implementations and updates the REST handler to use it instead of rejecting the request.\n\n**Why do we need this feature?**\n\nAny deletion of a single `AuthInfo` object returned 405 whenever the `AuthInfo` resource is under dual-write mode 0–3. Mode 4-5 were unaffected since they bypass `LegacyStore` entirely and go straight to unified storage, which already had a working generic delete. This fix makes auth-method removal actually work end-to-end in the modes that route through legacy storage.\n\n**Who is this feature for?**\n\nall users\n\n**Which issue(s) does this PR fix?**:\n\n\n\nPart of https://github.com/grafana/identity-access-team/issues/2331.\n\n**Special notes for your reviewer:**\n\nPlease check that:\n- [ ] It works as expected from a user's perspective.\n- [ ] If this is a pre-GA feature, it is behind a feature toggle.\n- [ ] The docs are updated, and if this is a [notable improvement](https://grafana.com/docs/writers-toolkit/contribute/release-notes/#how-to-determine-if-content-belongs-in-whats-new), it's added to our [What's New](https://grafana.com/docs/writers-toolkit/contribute/release-notes/) doc.",
+   "goldFiles": [
+    "pkg/registry/apis/iam/authinfo/store.go",
+    "pkg/services/login/authinfo.go",
+    "pkg/services/login/authinfoimpl/store.go",
+    "pkg/services/login/authinfoimpl/templates.go",
+    "pkg/services/login/authinfok8s/authinfo.go",
+    "pkg/services/login/authinfotest/auth_info_store_mock.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/132983.diff",
+   "goldTitle": "IAM: Implement AuthInfo delete for legacy storage",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "3151026ab26f7b9d83659b99cbe6480029bb7b9e",
+   "mergedAt": "2026-09-22T07:42:32Z",
+   "testFiles": [
+    "pkg/registry/apis/iam/authinfo/store_test.go",
+    "pkg/services/login/authinfoimpl/store_test.go",
+    "pkg/services/login/authinfoimpl/testdata/mysql--delete_auth_info-delete_auth_info.sql",
+    "pkg/services/login/authinfoimpl/testdata/postgres--delete_auth_info-delete_auth_info.sql",
+    "pkg/services/login/authinfoimpl/testdata/sqlite--delete_auth_info-delete_auth_info.sql",
+    "pkg/services/login/authinfok8s/authinfo_test.go",
+    "pkg/tests/apis/iam/authinfo/authinfo_integration_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apis/iam/authinfo/",
+    "./pkg/services/login/authinfoimpl/",
+    "./pkg/services/login/authinfok8s/"
+   ],
+   "testNeedsGoldSymbols": false
+  },
+  {
+   "id": "PR132938",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: CodeMirror: Add shared language registry and lazy INI support\n\n## Related Issue\nPart of [DPRO-398](https://linear.app/grafana/issue/DPRO-398) and #132935.\n\n## Description\nAdd lazily loaded INI support and a shared language registry. The notebook previously required a label update whenever the shared editor gained a language. It now reads the shared registry, so new supported languages automatically appear in its picker without notebook changes.\n\nThe provisioning viewer migration is separate in #132939.\n\n## Changes\n* Export `CODE_MIRROR_LANGUAGES` from `@grafana/ui/unstable` and derive `CodeMirrorEditorLanguage` from its keys.\n* Use the registry for notebook highlighting/labels/options and Storybook choices; update the language-authoring guide.\n* Load only the properties/INI parser from `@codemirror/legacy-modes` on demand through the existing loader.\n* Extend existing loader and notebook integration coverage.\n\n## Risks\nThe notebook now automatically offers INI and future registered languages. Language metadata has no parser imports; optional language code stays lazy. INI uses CodeMirror 6's stream-language adapter, whose token colors can differ from Monaco. Shared editor changes need Frontend Platform review, and notebook integration needs its owners' review.\n\n## Reviewer Checklist\n- [ ] Tests are added where applicable\n- [ ] Issue is linked to PR\n- [ ] Code pulled and tested\n- [ ] Code is meaningfully improved if applicable",
+   "goldFiles": [
+    "packages/grafana-ui/src/components/CodeMirror/CodeEditor.story.tsx",
+    "packages/grafana-ui/src/components/CodeMirror/languageLoader.ts",
+    "packages/grafana-ui/src/components/CodeMirror/languages.ts",
+    "packages/grafana-ui/src/components/CodeMirror/types.ts",
+    "packages/grafana-ui/src/unstable.ts",
+    "public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/132938.diff",
+   "goldTitle": "CodeMirror: Add shared language registry and lazy INI support",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "6fcd7ce70eb51c74ffa5b1deb8f0fadfbedccb73",
+   "mergedAt": "2026-09-24T14:51:17Z"
+  },
+  {
+   "id": "PR132859",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Notebooks: Fix duplicate cell controls and the clipped collapsed query row\n\nFixes styling issues in the notebook editor.\n\n- **Two sets of cell controls at once**\n   - A cell keeps its controls (drag handle, add button, actions bar) while the caret is in it. Hover another cell and that cell shows its own. So two cells offered a menu at once.\n\n   - The frame reveals its controls on `:hover` or on `:focus-within`. Now the pointer wins: a rule on the cell list hides them on every cell the pointer is not over. A control that holds focus stays visible, because the drag handle is a tab stop.\n\n- **The datasource icon cut in half**\n\n  - Collapse a query row and the datasource logo shows as a sliver, with the query name gone.\n  - In `QueryEditorRowHeader` the query name, the datasource picker and the query text sit in one flex row, and all three shrink. A long query took width from the picker, and `overflow: hidden` cut it. `flex-shrink: 0` now makes the text give up its width first, since it already ellipsizes.\n   - Dashboard panel editing, Explore and alerting use the same component. I checked the dashboard query editor at 1600px and 900px.\n\nThe third commit renames `notebook-cell-affordances` to `notebook-cell-controls`, to match `dashboard-canvas-controls`.\n\nFixes https://github.com/grafana/grafana-enterprise/issues/13551\n\n\nhttps://github.com/user-attachments/assets/9568ee29-8c51-409e-8146-f2aef34287bc\n\n**Note:** In the video there is an styling issue in the query editor (it does not wrap), that's a pre-existent, I open the [PR](https://github.com/grafana/grafana/pull/132861) for the dashboard team :) \n\n### How to test\n- Open a notebook in edit mode with two or more cells.\n- Click into a markdown cell, then hover a different one. Only the hovered cell shows its controls.\n- Tab to a drag handle, then hover another cell. The handle stays visible.\n- Collapse a query row on a panel cell with a long query. The name and picker stay whole, and the text ends in an ellipsis.",
+   "goldFiles": [
+    "public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellActions.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/cellClassNames.ts",
+    "public/app/features/query/components/QueryEditorRowHeader.tsx"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/132859.diff",
+   "goldTitle": "Notebooks: Fix duplicate cell controls and the clipped collapsed query row",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "73238948482bf27fb01d3a57520e8570065d7c49",
+   "mergedAt": "2026-09-22T12:58:22Z"
+  },
+  {
+   "id": "PR132843",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nTitle: Text: Track feature usage on dashboard load\n\nAdds a `dashboards_text_panel_usage` interaction, reported once per dashboard load for dashboards containing at least one text panel, on instances running text v2 with its new features.  \n\n  | Prop | Meaning |\n  | --- | --- |\n  | `mermaid_count` | text panels whose content has a mermaid block (either fence style, or a `mermaid`-classed element in HTML) |\n  | `handlebars_count` | text panels whose content has a `{{ }}` expression |\n  | `data_macro_count` | text panels whose content has a `${__value}` / `${__field}` / `${__data}` / `${__series}` macro |\n  | `per_row_count` | text panels with `renderMode: perRow` |\n  | `dashboard_uid` | the dashboard, for joining against `init_dashboard_completed` |\n\n\n\nFixes https://github.com/grafana/grafana/issues/132584\n\n**Special notes for your reviewer:**\n\nPlease check that:\n- [ ] It works as expected from a user's perspective.\n- [ ] If this is a pre-GA feature, it is behind a feature toggle.\n- [ ] The docs are updated, and if this is a [notable improvement](https://grafana.com/docs/writers-toolkit/contribute/release-notes/#how-to-determine-if-content-belongs-in-whats-new), it's added to our [What's New](https://grafana.com/docs/writers-toolkit/contribute/release-notes/) doc.",
+   "goldFiles": [
+    "public/app/features/dashboard-scene/utils/interactions.ts",
+    "public/app/features/dashboard-scene/utils/tracking.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/132843.diff",
+   "goldTitle": "Text: Track feature usage on dashboard load",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "47e590153a2845d4864fe7152abc481d869499ce",
+   "mergedAt": "2026-09-22T18:43:02Z"
+  }
+ ]
+}

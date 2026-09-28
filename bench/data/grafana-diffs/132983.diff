@@ -1,0 +1,495 @@
+diff --git a/pkg/registry/apis/iam/authinfo/store.go b/pkg/registry/apis/iam/authinfo/store.go
+index 1a9c8b7cd..52245781f 100644
+--- a/pkg/registry/apis/iam/authinfo/store.go
++++ b/pkg/registry/apis/iam/authinfo/store.go
+@@ -324,7 +324,37 @@ func (l *LegacyStore) Update(ctx context.Context, name string, objInfo rest.Upda
+ 
+ // Delete implements rest.GracefulDeleter.
+ func (l *LegacyStore) Delete(ctx context.Context, name string, deleteValidation rest.ValidateObjectFunc, options *metav1.DeleteOptions) (runtime.Object, bool, error) {
+-	return nil, false, apierrors.NewMethodNotSupported(resourceInfo.GroupResource(), "delete")
++	ctx, span := l.tracer.Start(ctx, "authinfo.delete")
++	defer span.End()
++
++	oldObj, err := l.Get(ctx, name, nil)
++	if err != nil {
++		return nil, false, err
++	}
++
++	if deleteValidation != nil {
++		if err := deleteValidation(ctx, oldObj); err != nil {
++			return nil, false, err
++		}
++	}
++
++	ns, err := request.NamespaceInfoFrom(ctx, true)
++	if err != nil {
++		return nil, false, err
++	}
++
++	userID, _, authModule, err := l.resolveName(ctx, ns, name)
++	if err != nil {
++		return nil, false, err
++	}
++
++	if err := l.authInfoStore.DeleteAuthInfo(ctx, &login.DeleteAuthInfoCommand{
++		UserAuth: &login.UserAuth{UserId: userID, AuthModule: authModule},
++	}); err != nil {
++		return nil, false, err
++	}
++
++	return oldObj, true, nil
+ }
+ 
+ // DeleteCollection implements rest.CollectionDeleter.
+diff --git a/pkg/registry/apis/iam/authinfo/store_test.go b/pkg/registry/apis/iam/authinfo/store_test.go
+index 8926c412e..8efe8dd6d 100644
+--- a/pkg/registry/apis/iam/authinfo/store_test.go
++++ b/pkg/registry/apis/iam/authinfo/store_test.go
+@@ -12,6 +12,7 @@ import (
+ 	"k8s.io/apimachinery/pkg/apis/meta/internalversion"
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 	"k8s.io/apimachinery/pkg/fields"
++	"k8s.io/apimachinery/pkg/runtime"
+ 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
+ 	"k8s.io/apiserver/pkg/registry/rest"
+ 
+@@ -274,3 +275,61 @@ func TestLegacyStore_List(t *testing.T) {
+ 		require.Empty(t, list.Items)
+ 	})
+ }
++
++func TestLegacyStore_Delete(t *testing.T) {
++	identities := &identitiesFake{users: map[string]int64{"user-uid": 1}}
++	created := time.Unix(1000, 0).UTC()
++
++	t.Run("deletes the named module", func(t *testing.T) {
++		authInfoStore := authinfotest.NewMockAuthInfoStore(t)
++		authInfoStore.On("GetAuthInfo", mock.Anything, &login.GetAuthInfoQuery{UserId: 1, AuthModule: "oauth_github"}).
++			Return(&login.UserAuth{UserId: 1, UserUID: "user-uid", AuthModule: "oauth_github", AuthId: "gh-123", Created: created}, nil)
++		authInfoStore.On("DeleteAuthInfo", mock.Anything, &login.DeleteAuthInfoCommand{
++			UserAuth: &login.UserAuth{UserId: 1, AuthModule: "oauth_github"},
++		}).Return(nil)
++
++		store := NewLegacyStore(identities, authInfoStore, noop.NewTracerProvider().Tracer("test"))
++
++		obj, immediate, err := store.Delete(testCtx(), "user-uid.oauth-github", nil, &metav1.DeleteOptions{})
++		require.NoError(t, err)
++		require.True(t, immediate)
++
++		authInfo, ok := obj.(*iamv0alpha1.AuthInfo)
++		require.True(t, ok)
++		require.Equal(t, "user-uid.oauth-github", authInfo.Name)
++	})
++
++	t.Run("not found when the user doesn't exist", func(t *testing.T) {
++		authInfoStore := authinfotest.NewMockAuthInfoStore(t)
++		store := NewLegacyStore(identities, authInfoStore, noop.NewTracerProvider().Tracer("test"))
++
++		_, _, err := store.Delete(testCtx(), "no-such-user.ldap", nil, &metav1.DeleteOptions{})
++		require.Error(t, err)
++		require.True(t, apierrors.IsNotFound(err))
++	})
++
++	t.Run("not found when the user has no such module", func(t *testing.T) {
++		authInfoStore := authinfotest.NewMockAuthInfoStore(t)
++		authInfoStore.On("GetAuthInfo", mock.Anything, &login.GetAuthInfoQuery{UserId: 1, AuthModule: "oauth_github"}).
++			Return(nil, user.ErrUserNotFound)
++		store := NewLegacyStore(identities, authInfoStore, noop.NewTracerProvider().Tracer("test"))
++
++		_, _, err := store.Delete(testCtx(), "user-uid.oauth-github", nil, &metav1.DeleteOptions{})
++		require.Error(t, err)
++		require.True(t, apierrors.IsNotFound(err))
++	})
++
++	t.Run("propagates a deleteValidation rejection without deleting", func(t *testing.T) {
++		authInfoStore := authinfotest.NewMockAuthInfoStore(t)
++		authInfoStore.On("GetAuthInfo", mock.Anything, &login.GetAuthInfoQuery{UserId: 1, AuthModule: "oauth_github"}).
++			Return(&login.UserAuth{UserId: 1, UserUID: "user-uid", AuthModule: "oauth_github", AuthId: "gh-123", Created: created}, nil)
++
++		store := NewLegacyStore(identities, authInfoStore, noop.NewTracerProvider().Tracer("test"))
++
++		wantErr := apierrors.NewBadRequest("rejected")
++		_, _, err := store.Delete(testCtx(), "user-uid.oauth-github", func(context.Context, runtime.Object) error {
++			return wantErr
++		}, &metav1.DeleteOptions{})
++		require.ErrorIs(t, err, wantErr)
++	})
++}
+diff --git a/pkg/services/login/authinfo.go b/pkg/services/login/authinfo.go
+index 9d9496284..58b5321ee 100644
+--- a/pkg/services/login/authinfo.go
++++ b/pkg/services/login/authinfo.go
+@@ -23,6 +23,7 @@ type Store interface {
+ 	SetAuthInfo(ctx context.Context, cmd *SetAuthInfoCommand) error
+ 	UpdateAuthInfo(ctx context.Context, cmd *UpdateAuthInfoCommand) error
+ 	DeleteUserAuthInfo(ctx context.Context, userID int64) error
++	DeleteAuthInfo(ctx context.Context, cmd *DeleteAuthInfoCommand) error
+ }
+ 
+ const (
+diff --git a/pkg/services/login/authinfoimpl/queries/delete_auth_info.sql b/pkg/services/login/authinfoimpl/queries/delete_auth_info.sql
+new file mode 100644
+index 000000000..f7e26fa66
+--- /dev/null
++++ b/pkg/services/login/authinfoimpl/queries/delete_auth_info.sql
+@@ -0,0 +1,3 @@
++DELETE FROM {{ .Ident .UserAuthTable }}
++WHERE user_id = {{ .Arg .UserID }}
++  AND auth_module = {{ .Arg .AuthModule }}
+diff --git a/pkg/services/login/authinfoimpl/store.go b/pkg/services/login/authinfoimpl/store.go
+index e8ed091d9..d016c5dd5 100644
+--- a/pkg/services/login/authinfoimpl/store.go
++++ b/pkg/services/login/authinfoimpl/store.go
+@@ -348,6 +348,38 @@ func (s *Store) DeleteUserAuthInfo(ctx context.Context, userID int64) error {
+ 	})
+ }
+ 
++type deleteAuthInfoQuery struct {
++	sqltemplate.SQLTemplate
++	UserAuthTable string
++	UserID        int64
++	AuthModule    string
++}
++
++func (q deleteAuthInfoQuery) Validate() error { return nil }
++
++func (s *Store) DeleteAuthInfo(ctx context.Context, cmd *login.DeleteAuthInfoCommand) error {
++	dbHelper, err := s.sql(ctx)
++	if err != nil {
++		return fmt.Errorf("get legacy DB: %w", err)
++	}
++
++	return dbHelper.DB.WithDbSession(ctx, func(sess *db.Session) error {
++		query := deleteAuthInfoQuery{
++			SQLTemplate:   sqltemplate.New(dbHelper.DialectForDriver()),
++			UserAuthTable: dbHelper.Table("user_auth"),
++			UserID:        cmd.UserAuth.UserId,
++			AuthModule:    cmd.UserAuth.AuthModule,
++		}
++		querySQL, err := sqltemplate.Execute(deleteAuthInfoTemplate, query)
++		if err != nil {
++			return err
++		}
++
++		_, err = sess.Exec(append([]any{querySQL}, query.GetArgs()...)...)
++		return err
++	})
++}
++
+ // decodeAndDecrypt will decode the string with the standard base64 decoder and then decrypt it
+ func (s *Store) decodeAndDecrypt(str string) (string, error) {
+ 	// Bail out if empty string since it'll cause a segfault in Decrypt
+diff --git a/pkg/services/login/authinfoimpl/store_test.go b/pkg/services/login/authinfoimpl/store_test.go
+index f6684fdc1..f5ab8f31a 100644
+--- a/pkg/services/login/authinfoimpl/store_test.go
++++ b/pkg/services/login/authinfoimpl/store_test.go
+@@ -114,6 +114,29 @@ func TestIntegrationAuthInfoStore(t *testing.T) {
+ 		require.Nil(t, info)
+ 	})
+ 
++	t.Run("should delete only the targeted auth module", func(t *testing.T) {
++		ctx := context.Background()
++		require.NoError(t, store.SetAuthInfo(ctx, &login.SetAuthInfoCommand{
++			AuthModule: login.LDAPAuthModule,
++			AuthId:     "20",
++			UserId:     20,
++			UserUID:    "20",
++		}))
++		require.NoError(t, store.SetAuthInfo(ctx, &login.SetAuthInfoCommand{
++			AuthModule: login.AzureADAuthModule,
++			AuthId:     "20",
++			UserId:     20,
++			UserUID:    "20",
++		}))
++
++		require.NoError(t, store.DeleteAuthInfo(ctx, &login.DeleteAuthInfoCommand{
++			UserAuth: &login.UserAuth{UserId: 20, AuthModule: login.LDAPAuthModule},
++		}))
++
++		require.Equal(t, 0, countEntries(t, sql, login.LDAPAuthModule, "20", 20))
++		require.Equal(t, 1, countEntries(t, sql, login.AzureADAuthModule, "20", 20))
++	})
++
+ 	t.Run("should remove duplicates on update", func(t *testing.T) {
+ 		ctx := context.Background()
+ 		setCmd := &login.SetAuthInfoCommand{
+@@ -297,6 +320,17 @@ func TestTemplates(t *testing.T) {
+ 					},
+ 				},
+ 			},
++			deleteAuthInfoTemplate: {
++				{
++					Name: "delete_auth_info",
++					Data: deleteAuthInfoQuery{
++						SQLTemplate:   queryTemplate(),
++						UserAuthTable: userAuthTable,
++						UserID:        42,
++						AuthModule:    "ldap",
++					},
++				},
++			},
+ 			userAuthUIDMigrationTemplate: {
+ 				{
+ 					Name: "migrate_user_uid",
+diff --git a/pkg/services/login/authinfoimpl/templates.go b/pkg/services/login/authinfoimpl/templates.go
+index ece26432e..4ec4e21d1 100644
+--- a/pkg/services/login/authinfoimpl/templates.go
++++ b/pkg/services/login/authinfoimpl/templates.go
+@@ -22,5 +22,6 @@ var (
+ 	lookupDuplicateUserAuthTemplate = mustTemplate("lookup_duplicate_user_auth.sql")
+ 	deleteDuplicateUserAuthTemplate = mustTemplate("delete_duplicate_user_auth.sql")
+ 	deleteUserAuthTemplate          = mustTemplate("delete_user_auth.sql")
++	deleteAuthInfoTemplate          = mustTemplate("delete_auth_info.sql")
+ 	userAuthUIDMigrationTemplate    = mustTemplate("user_auth_uid_migration.sql")
+ )
+diff --git a/pkg/services/login/authinfoimpl/testdata/mysql--delete_auth_info-delete_auth_info.sql b/pkg/services/login/authinfoimpl/testdata/mysql--delete_auth_info-delete_auth_info.sql
+new file mode 100755
+index 000000000..bc77fb947
+--- /dev/null
++++ b/pkg/services/login/authinfoimpl/testdata/mysql--delete_auth_info-delete_auth_info.sql
+@@ -0,0 +1,3 @@
++DELETE FROM `test_schema`.`user_auth`
++WHERE user_id = 42
++  AND auth_module = 'ldap'
+diff --git a/pkg/services/login/authinfoimpl/testdata/postgres--delete_auth_info-delete_auth_info.sql b/pkg/services/login/authinfoimpl/testdata/postgres--delete_auth_info-delete_auth_info.sql
+new file mode 100755
+index 000000000..83a88a238
+--- /dev/null
++++ b/pkg/services/login/authinfoimpl/testdata/postgres--delete_auth_info-delete_auth_info.sql
+@@ -0,0 +1,3 @@
++DELETE FROM "test_schema"."user_auth"
++WHERE user_id = 42
++  AND auth_module = 'ldap'
+diff --git a/pkg/services/login/authinfoimpl/testdata/sqlite--delete_auth_info-delete_auth_info.sql b/pkg/services/login/authinfoimpl/testdata/sqlite--delete_auth_info-delete_auth_info.sql
+new file mode 100755
+index 000000000..83a88a238
+--- /dev/null
++++ b/pkg/services/login/authinfoimpl/testdata/sqlite--delete_auth_info-delete_auth_info.sql
+@@ -0,0 +1,3 @@
++DELETE FROM "test_schema"."user_auth"
++WHERE user_id = 42
++  AND auth_module = 'ldap'
+diff --git a/pkg/services/login/authinfok8s/authinfo.go b/pkg/services/login/authinfok8s/authinfo.go
+index d881cd59a..13552455a 100644
+--- a/pkg/services/login/authinfok8s/authinfo.go
++++ b/pkg/services/login/authinfok8s/authinfo.go
+@@ -275,6 +275,31 @@ func (s *Store) DeleteUserAuthInfo(ctx context.Context, userID int64) error {
+ 	return nil
+ }
+ 
++// DeleteAuthInfo implements login.Store.
++func (s *Store) DeleteAuthInfo(ctx context.Context, cmd *login.DeleteAuthInfoCommand) error {
++	ctx, span := s.tracer.Start(ctx, "authinfo.k8s.DeleteAuthInfo")
++	defer span.End()
++
++	authClient, userClient, namespace, err := s.clients(ctx)
++	if err != nil {
++		return err
++	}
++
++	userUID, err := s.userUID(ctx, userClient, namespace, cmd.UserAuth.UserId)
++	if err != nil {
++		if errors.Is(err, user.ErrUserNotFound) {
++			return nil
++		}
++		return err
++	}
++
++	name := iamv0alpha1.EncodeName(userUID, cmd.UserAuth.AuthModule)
++	if err := authClient.Delete(ctx, resource.Identifier{Namespace: namespace, Name: name}, resource.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
++		return err
++	}
++	return nil
++}
++
+ // hasTokenValue reports whether t actually carries token data worth
+ // persisting, as opposed to an empty token used only to clear one.
+ func hasTokenValue(t *oauth2.Token) bool {
+diff --git a/pkg/services/login/authinfok8s/authinfo_test.go b/pkg/services/login/authinfok8s/authinfo_test.go
+index 7d8c339d2..d40f12a66 100644
+--- a/pkg/services/login/authinfok8s/authinfo_test.go
++++ b/pkg/services/login/authinfok8s/authinfo_test.go
+@@ -657,3 +657,77 @@ func TestStore_DeleteUserAuthInfo(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestStore_DeleteAuthInfo(t *testing.T) {
++	type testCase struct {
++		name    string
++		cmd     *login.DeleteAuthInfoCommand
++		handler http.HandlerFunc
++		wantErr bool
++		check   func(t *testing.T)
++	}
++
++	cases := []testCase{
++		func() testCase {
++			var deleted string
++			return testCase{
++				name: "deletes only the named module",
++				cmd:  &login.DeleteAuthInfoCommand{UserAuth: &login.UserAuth{UserId: 42, AuthModule: "oauth_github"}},
++				handler: func(w http.ResponseWriter, r *http.Request) {
++					switch {
++					case strings.Contains(r.URL.Path, "/users"):
++						usersResponse(t, w, "user-uid")
++					case r.Method == http.MethodDelete:
++						deleted = r.URL.Path
++						w.WriteHeader(http.StatusOK)
++					default:
++						t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
++					}
++				},
++				check: func(t *testing.T) {
++					assert.Equal(t, "/apis/iam.grafana.app/v0alpha1/namespaces/org-7/authinfos/user-uid.oauth-github", deleted)
++				},
++			}
++		}(),
++		{
++			name: "user not found is a no-op",
++			cmd:  &login.DeleteAuthInfoCommand{UserAuth: &login.UserAuth{UserId: 42, AuthModule: "oauth_github"}},
++			handler: func(w http.ResponseWriter, r *http.Request) {
++				if strings.Contains(r.URL.Path, "/users") {
++					noUsersResponse(t, w)
++					return
++				}
++				t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
++			},
++		},
++		{
++			name: "object not found is a no-op",
++			cmd:  &login.DeleteAuthInfoCommand{UserAuth: &login.UserAuth{UserId: 42, AuthModule: "oauth_github"}},
++			handler: func(w http.ResponseWriter, r *http.Request) {
++				switch {
++				case strings.Contains(r.URL.Path, "/users"):
++					usersResponse(t, w, "user-uid")
++				case r.Method == http.MethodDelete:
++					writeStatus(w, http.StatusNotFound, metav1.StatusReasonNotFound)
++				default:
++					t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
++				}
++			},
++		},
++	}
++
++	for _, tc := range cases {
++		t.Run(tc.name, func(t *testing.T) {
++			store := newTestStore(t, tc.handler)
++			err := store.DeleteAuthInfo(contextWithReqContext(7), tc.cmd)
++			if tc.wantErr {
++				require.Error(t, err)
++				return
++			}
++			require.NoError(t, err)
++			if tc.check != nil {
++				tc.check(t)
++			}
++		})
++	}
++}
+diff --git a/pkg/services/login/authinfotest/auth_info_store_mock.go b/pkg/services/login/authinfotest/auth_info_store_mock.go
+index 676985404..e70982c07 100644
+--- a/pkg/services/login/authinfotest/auth_info_store_mock.go
++++ b/pkg/services/login/authinfotest/auth_info_store_mock.go
+@@ -14,6 +14,24 @@ type MockAuthInfoStore struct {
+ 	mock.Mock
+ }
+ 
++// DeleteAuthInfo provides a mock function with given fields: ctx, cmd
++func (_m *MockAuthInfoStore) DeleteAuthInfo(ctx context.Context, cmd *login.DeleteAuthInfoCommand) error {
++	ret := _m.Called(ctx, cmd)
++
++	if len(ret) == 0 {
++		panic("no return value specified for DeleteAuthInfo")
++	}
++
++	var r0 error
++	if rf, ok := ret.Get(0).(func(context.Context, *login.DeleteAuthInfoCommand) error); ok {
++		r0 = rf(ctx, cmd)
++	} else {
++		r0 = ret.Error(0)
++	}
++
++	return r0
++}
++
+ // DeleteUserAuthInfo provides a mock function with given fields: ctx, userID
+ func (_m *MockAuthInfoStore) DeleteUserAuthInfo(ctx context.Context, userID int64) error {
+ 	ret := _m.Called(ctx, userID)
+diff --git a/pkg/tests/apis/iam/authinfo/authinfo_integration_test.go b/pkg/tests/apis/iam/authinfo/authinfo_integration_test.go
+index 0bfc9c800..19553bd75 100644
+--- a/pkg/tests/apis/iam/authinfo/authinfo_integration_test.go
++++ b/pkg/tests/apis/iam/authinfo/authinfo_integration_test.go
+@@ -52,7 +52,7 @@ func TestIntegrationAuthInfo(t *testing.T) {
+ 			doAuthInfoCRUDTestsUsingTheNewAPIs(t, helper)
+ 			doAuthInfoAuthzTests(t, helper)
+ 			doAuthInfoListRequiresFieldSelectorTest(t, helper)
+-			doAuthInfoDeleteUnsupportedTests(t, helper)
++			doAuthInfoDeleteTests(t, helper)
+ 			doAuthInfoUserDeleteCascadeTest(t, helper)
+ 		})
+ 	}
+@@ -206,27 +206,58 @@ func doAuthInfoListRequiresFieldSelectorTest(t *testing.T, helper *apis.K8sTestH
+ 	})
+ }
+ 
+-// doAuthInfoDeleteUnsupportedTests: deleting a single auth link isn't wired
+-// up yet, so Delete/DeleteCollection deliberately return 405.
+-func doAuthInfoDeleteUnsupportedTests(t *testing.T, helper *apis.K8sTestHelper) {
+-	t.Run("delete and deleteCollection are not supported", func(t *testing.T) {
++func doAuthInfoDeleteTests(t *testing.T, helper *apis.K8sTestHelper) {
++	t.Run("delete removes the object and its user_auth row", func(t *testing.T) {
+ 		ctx := context.Background()
+ 		userUID := createTestUser(t, helper, "authinfo-delete-user", "authinfo-delete-user@example.com")
+ 		authInfoClient := authInfoResourceClient(helper, helper.Org1.Admin)
+ 
++		authID := "delete-test-" + userUID
++		created, err := authInfoClient.Resource.Create(ctx, createAuthInfoObject(helper, userUID, "ldap", authID), metav1.CreateOptions{})
++		require.NoError(t, err)
++		require.Equal(t, int64(1), countUserAuthRowsByAuthID(t, helper, authID), "sanity check: the row should exist right after creation")
++
++		err = authInfoClient.Resource.Delete(ctx, created.GetName(), metav1.DeleteOptions{})
++		require.NoError(t, err)
++
++		_, err = authInfoClient.Resource.Get(ctx, created.GetName(), metav1.GetOptions{})
++		require.Error(t, err)
++		var statusErr *errors.StatusError
++		require.ErrorAs(t, err, &statusErr)
++		require.Equal(t, int32(404), statusErr.ErrStatus.Code)
++
++		require.Equal(t, int64(0), countUserAuthRowsByAuthID(t, helper, authID), "user_auth row should be gone once the object is deleted")
++	})
++
++	t.Run("delete of an already-deleted object is a not-found", func(t *testing.T) {
++		ctx := context.Background()
++		userUID := createTestUser(t, helper, "authinfo-delete-missing-user", "authinfo-delete-missing-user@example.com")
++		authInfoClient := authInfoResourceClient(helper, helper.Org1.Admin)
++
+ 		created, err := authInfoClient.Resource.Create(ctx, createAuthInfoObject(helper, userUID, "ldap", "cn=test,dc=example,dc=com"), metav1.CreateOptions{})
+ 		require.NoError(t, err)
++		require.NoError(t, authInfoClient.Resource.Delete(ctx, created.GetName(), metav1.DeleteOptions{}))
+ 
+ 		err = authInfoClient.Resource.Delete(ctx, created.GetName(), metav1.DeleteOptions{})
+ 		require.Error(t, err)
+ 		var statusErr *errors.StatusError
+ 		require.ErrorAs(t, err, &statusErr)
+-		require.Equal(t, int32(405), statusErr.ErrStatus.Code)
++		require.Equal(t, int32(404), statusErr.ErrStatus.Code)
++	})
++
++	t.Run("deleteCollection is not supported", func(t *testing.T) {
++		ctx := context.Background()
++		userUID := createTestUser(t, helper, "authinfo-delete-collection-user", "authinfo-delete-collection-user@example.com")
++		authInfoClient := authInfoResourceClient(helper, helper.Org1.Admin)
++
++		_, err := authInfoClient.Resource.Create(ctx, createAuthInfoObject(helper, userUID, "ldap", "cn=test,dc=example,dc=com"), metav1.CreateOptions{})
++		require.NoError(t, err)
+ 
+ 		err = authInfoClient.Resource.DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+ 			FieldSelector: fmt.Sprintf("spec.userRef.name=%s", userUID),
+ 		})
+ 		require.Error(t, err)
++		var statusErr *errors.StatusError
+ 		require.ErrorAs(t, err, &statusErr)
+ 		require.Equal(t, int32(405), statusErr.ErrStatus.Code)
+ 	})

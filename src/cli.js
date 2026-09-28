@@ -395,7 +395,7 @@ async function setup() {
     if (/^n/i.test(a.trim())) { out('stopped before building; nothing was changed'); return; }
   }
   await init({ clients, hooks: true, learn: learnOn(), late: !!flags.late, shared: !!flags.shared, mcp: true, gitHook: !!flags['git-hook'] });
-  if (canMine && canBuild) await minePrs(slug, { limit: prs, model: flags.model });
+  if (canMine && canBuild) await minePrs(slug, { limit: prs, model: flags.model, before: typeof flags.before === 'string' ? flags.before : undefined });
   if (areas && canSeed) await seed({ areas, model: flags.model, agent });
   const notes = store.list();
   for (const n of notes) linkNotes(store, n, notes);

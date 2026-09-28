@@ -179,7 +179,8 @@ the environment, which also silences hooks that are already installed.
 Controls for experiments: `THINKER_NO_LINKS=1`, `THINKER_NO_COCHANGE=1`,
 `THINKER_MCP=off` (the MCP server offers no tools),
 `THINKER_NAIVE=1` (no invalidation), `THINKER_FORCE=1` (inject regardless
-of relevance), `THINKER_RERANK=haiku`.
+of relevance), `THINKER_RERANK=haiku`, `THINKER_MIN_COVER=body,question`
+(the coverage floors below; `0,0` turns them off).
 
 ## Serving
 
@@ -198,6 +199,12 @@ of relevance), `THINKER_RERANK=haiku`.
   plus path affinity to the current file, kind priors for orientation,
   confidence, and a stale penalty; greedy packing into the token budget
   (full note, else a one-line stub).
+- Coverage floors: relevance is relative to the best note, so the best of a
+  poor lot scores near 1. A note is served only if it also covers a share of
+  the request's term weight: 0.15 with its body and pointers, 0.05 with its
+  title, answers and tags (`rank.js:MIN_COVER`). This holds for the prompt
+  hook, `orient`, `lookup` and late notes; a note on the current file is
+  exempt. When nothing passes, nothing is served.
 - Team mode: notes are plain JSON under `.thinker/notes/`; commit them.
 - Benchmark arm `live` runs the whole loop: the cache grows and
   self-corrects between tasks (`bench/RESULTS.md`, "Live loop").

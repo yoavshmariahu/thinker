@@ -1,0 +1,612 @@
+diff --git a/pkg/services/ngalert/api/api.go b/pkg/services/ngalert/api/api.go
+index be6e2ae3c..5141bb413 100644
+--- a/pkg/services/ngalert/api/api.go
++++ b/pkg/services/ngalert/api/api.go
+@@ -132,7 +132,7 @@ func (api *API) RegisterAPIEndpoints(m *metrics.API) {
+ 			ruleAuthzService,
+ 			api.SilenceLimitsProvider,
+ 		),
+-		receiverAuthz: accesscontrol.NewReceiverAccess[ReceiverStatus](api.AccessControl, false),
++		receiverService: api.ReceiverService,
+ 	}), m)
+ 	// Register endpoints for proxying to Prometheus-compatible backends.
+ 	api.RegisterPrometheusApiEndpoints(NewForkingProm(
+diff --git a/pkg/services/ngalert/api/api_alertmanager.go b/pkg/services/ngalert/api/api_alertmanager.go
+index f8c475f05..85c156aaa 100644
+--- a/pkg/services/ngalert/api/api_alertmanager.go
++++ b/pkg/services/ngalert/api/api_alertmanager.go
+@@ -11,8 +11,6 @@ import (
+ 
+ 	alertingmodels "github.com/grafana/alerting/models"
+ 	alertingNotify "github.com/grafana/alerting/notify"
+-	v1 "github.com/grafana/grafana/pkg/services/ngalert/notifier/legacy_storage/v1"
+-
+ 	"github.com/grafana/grafana/pkg/api/response"
+ 	"github.com/grafana/grafana/pkg/apimachinery/identity"
+ 	"github.com/grafana/grafana/pkg/infra/log"
+@@ -26,18 +24,20 @@ import (
+ 	"github.com/grafana/grafana/pkg/util"
+ )
+ 
+-type receiversAuthz interface {
+-	FilterRead(ctx context.Context, user identity.Requester, receivers ...ReceiverStatus) ([]ReceiverStatus, error)
++// receiverStatusMetadataGetter retrieves the AM-reported receiver statuses for an org, filtered to
++// receivers the requesting user has permission to read.
++type receiverStatusMetadataGetter interface {
++	GetReceiverStatuses(ctx context.Context, orgID int64, user identity.Requester) ([]alertingmodels.ReceiverStatus, error)
+ }
+ 
+ type AlertmanagerSrv struct {
+-	log            log.Logger
+-	ac             accesscontrol.AccessControl
+-	mam            *notifier.MultiOrgAlertmanager
+-	crypto         notifier.Crypto
+-	silenceSvc     SilenceService
+-	featureManager featuremgmt.FeatureToggles
+-	receiverAuthz  receiversAuthz
++	log             log.Logger
++	ac              accesscontrol.AccessControl
++	mam             *notifier.MultiOrgAlertmanager
++	crypto          notifier.Crypto
++	silenceSvc      SilenceService
++	featureManager  featuremgmt.FeatureToggles
++	receiverService receiverStatusMetadataGetter
+ }
+ 
+ type UnknownReceiverError struct {
+@@ -171,23 +171,11 @@ func (srv AlertmanagerSrv) RoutePostGrafanaAlertingConfigHistoryActivate(c *cont
+ }
+ 
+ func (srv AlertmanagerSrv) RouteGetReceivers(c *contextmodel.ReqContext) response.Response {
+-	am, errResp := srv.AlertmanagerFor(c.GetOrgID())
+-	if errResp != nil {
+-		return errResp
+-	}
+-
+-	rcvs, err := am.GetReceivers(c.Req.Context())
++	statuses, err := srv.receiverService.GetReceiverStatuses(c.Req.Context(), c.GetOrgID(), c.SignedInUser)
+ 	if err != nil {
+-		return ErrResp(http.StatusInternalServerError, err, "failed to retrieve receivers")
+-	}
+-	statuses := make([]ReceiverStatus, 0, len(rcvs))
+-	for _, rcv := range rcvs { // TODO this is temporary so we can use authz filter logic.
+-		statuses = append(statuses, ReceiverStatus(rcv))
+-	}
+-	statuses, err = srv.receiverAuthz.FilterRead(c.Req.Context(), c.SignedInUser, statuses...)
+-	if err != nil {
+-		return response.ErrOrFallback(http.StatusInternalServerError, "failed to apply permissions to the receivers", err)
++		return response.ErrOrFallback(http.StatusInternalServerError, "failed to retrieve receivers", err)
+ 	}
++
+ 	return response.JSON(http.StatusOK, statuses)
+ }
+ 
+@@ -271,9 +259,3 @@ func (srv AlertmanagerSrv) AlertmanagerFor(orgID int64) (notifier.Alertmanager,
+ 	srv.log.Error("Unable to obtain the org's Alertmanager", "error", err)
+ 	return nil, response.Error(http.StatusInternalServerError, "unable to obtain org's Alertmanager", err)
+ }
+-
+-type ReceiverStatus alertingmodels.ReceiverStatus
+-
+-func (rs ReceiverStatus) GetUID() string {
+-	return string(v1.ReceiverUID(rs.Name)) // TODO: This won't work with static UIDs.
+-}
+diff --git a/pkg/services/ngalert/api/api_alertmanager_test.go b/pkg/services/ngalert/api/api_alertmanager_test.go
+index c0caf6001..0e068b1d3 100644
+--- a/pkg/services/ngalert/api/api_alertmanager_test.go
++++ b/pkg/services/ngalert/api/api_alertmanager_test.go
+@@ -9,6 +9,7 @@ import (
+ 
+ 	"github.com/google/go-cmp/cmp"
+ 	"github.com/google/go-cmp/cmp/cmpopts"
++	alertingmodels "github.com/grafana/alerting/models"
+ 	"github.com/prometheus/alertmanager/pkg/labels"
+ 	"github.com/stretchr/testify/require"
+ 
+@@ -17,15 +18,21 @@ import (
+ 
+ 	"github.com/grafana/grafana/pkg/api/response"
+ 	"github.com/grafana/grafana/pkg/infra/log"
++	"github.com/grafana/grafana/pkg/infra/tracing"
++	ac "github.com/grafana/grafana/pkg/services/accesscontrol"
+ 	"github.com/grafana/grafana/pkg/services/accesscontrol/acimpl"
+ 	contextmodel "github.com/grafana/grafana/pkg/services/contexthandler/model"
+ 	"github.com/grafana/grafana/pkg/services/featuremgmt"
+ 	apimodels "github.com/grafana/grafana/pkg/services/ngalert/api/tooling/definitions"
+ 	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
+ 	"github.com/grafana/grafana/pkg/services/ngalert/notifier"
++	"github.com/grafana/grafana/pkg/services/ngalert/notifier/legacy_storage"
++	"github.com/grafana/grafana/pkg/services/ngalert/notifier/routes"
+ 	"github.com/grafana/grafana/pkg/services/ngalert/provisioning"
++	"github.com/grafana/grafana/pkg/services/ngalert/provisioning/validation"
+ 	ngfakes "github.com/grafana/grafana/pkg/services/ngalert/tests/fakes"
+ 	"github.com/grafana/grafana/pkg/services/org"
++	fake_secrets "github.com/grafana/grafana/pkg/services/secrets/fakes"
+ 	"github.com/grafana/grafana/pkg/services/user"
+ 	"github.com/grafana/grafana/pkg/web"
+ )
+@@ -421,6 +428,124 @@ func TestRoutePostTestTemplates(t *testing.T) {
+ 	})
+ }
+ 
++func TestRouteGetReceivers_FiltersByReceiverReadPermission(t *testing.T) {
++	const orgID int64 = 1
++
++	const twoReceiverAMConfig = `{
++	"alertmanager_config": {
++		"route": {
++			"receiver": "grafana-default-email"
++		},
++		"receivers": [{"name": "grafana-default-email"},{"name": "second-receiver"}]
++	}
++}`
++
++	sut := createSut(t)
++	sut.mam = notifier.NewTestMultiOrgAlertmanager(t,
++		notifier.WithOrgs([]int64{orgID}),
++		notifier.WithConfigs(map[int64]*ngmodels.AlertConfiguration{
++			orgID: {AlertmanagerConfiguration: twoReceiverAMConfig, OrgID: orgID},
++		}),
++	)
++	sut.receiverService = createTestReceiverService(t, twoReceiverAMConfig, sut.mam)
++
++	t.Run("user with access to all receivers sees both", func(tt *testing.T) {
++		rc := createRequestCtxInOrg(orgID)
++		rc.Permissions = map[int64]map[string][]string{
++			orgID: {ac.ActionAlertingReceiversRead: {ngmodels.ScopeReceiversAll}},
++		}
++
++		resp := sut.RouteGetReceivers(rc)
++		require.Equal(tt, 200, resp.Status())
++
++		var statuses []alertingmodels.ReceiverStatus
++		require.NoError(tt, json.Unmarshal(resp.Body(), &statuses))
++		require.Len(tt, statuses, 2)
++		require.ElementsMatch(tt, statuses, []alertingmodels.ReceiverStatus{
++			{
++				Name:         "grafana-default-email",
++				Active:       true,
++				Integrations: make([]alertingmodels.IntegrationStatus, 0),
++			},
++			{
++				Name:         "second-receiver",
++				Active:       true,
++				Integrations: make([]alertingmodels.IntegrationStatus, 0),
++			},
++		})
++	})
++
++	t.Run("user with access to only one receiver has the other filtered out", func(tt *testing.T) {
++		rc := createRequestCtxInOrg(orgID)
++		rc.Permissions = map[int64]map[string][]string{
++			orgID: {
++				ac.ActionAlertingReceiversRead: {
++					ngmodels.ScopeReceiversProvider.GetResourceScopeUID(string(v1.ReceiverUID("grafana-default-email"))),
++				},
++			},
++		}
++
++		resp := sut.RouteGetReceivers(rc)
++		require.Equal(tt, 200, resp.Status())
++
++		var statuses []alertingmodels.ReceiverStatus
++		require.NoError(tt, json.Unmarshal(resp.Body(), &statuses))
++		require.Len(tt, statuses, 1)
++		require.ElementsMatch(tt, statuses, []alertingmodels.ReceiverStatus{
++			{
++				Name:         "grafana-default-email",
++				Active:       true,
++				Integrations: make([]alertingmodels.IntegrationStatus, 0),
++			},
++		})
++	})
++}
++
++// noopAlertRuleNotificationStore is a minimal stand-in for ReceiverService's
++// notification-settings store dependency; StatusMetadata never touches it.
++type noopAlertRuleNotificationStore struct{}
++
++func (noopAlertRuleNotificationStore) RenameReceiverInNotificationSettings(_ context.Context, _ int64, _, _ string, _ func(ngmodels.Provenance) bool, _ bool) ([]ngmodels.AlertRuleKey, []ngmodels.AlertRuleKey, error) {
++	return nil, nil, nil
++}
++
++func (noopAlertRuleNotificationStore) ListContactPointRoutings(_ context.Context, _ ngmodels.ListContactPointRoutingsQuery) (map[ngmodels.AlertRuleKey]ngmodels.ContactPointRouting, error) {
++	return nil, nil
++}
++
++// createTestReceiverService builds a real *notifier.ReceiverService backed by an in-memory
++// Alertmanager config and fake storage/provisioning dependencies, wired to the real
++// accesscontrol evaluator, so RouteGetReceivers's own permission filtering can be
++// exercised end-to-end without a full Grafana server. amStatusFetcher should be the same
++// *notifier.MultiOrgAlertmanager instance backing the test's AlertmanagerSrv.mam, built from
++// the same amConfig, so StatusMetadata's AM-reported names line up with the canonical
++// receivers this service resolves against.
++func createTestReceiverService(t *testing.T, amConfig string, amStatusFetcher *notifier.MultiOrgAlertmanager) *notifier.ReceiverService {
++	t.Helper()
++
++	secretsService := fake_secrets.NewFakeSecretsService()
++	store := ngfakes.NewFakeAlertmanagerConfigStore(amConfig)
++	cfgStore := legacy_storage.NewAlertmanagerConfigStore(store, notifier.NewExtraConfigsCrypto(secretsService), featuremgmt.WithFeatures())
++
++	return notifier.NewReceiverService(
++		accesscontrol.NewReceiverAccess[*ngmodels.Receiver](acimpl.ProvideAccessControl(featuremgmt.WithFeatures()), false),
++		cfgStore,
++		ngfakes.NewFakeProvisioningStore(),
++		noopAlertRuleNotificationStore{},
++		routes.NewFakeService(legacy_storage.ConfigRevision{}),
++		secretsService,
++		&provisioning.NopTransactionManager{},
++		log.NewNopLogger(),
++		ngfakes.NewFakeReceiverPermissionsService(),
++		tracing.InitializeTracerForTest(),
++		validation.ValidateProvenanceRelaxed,
++		false,
++		nil,
++		&notifier.NoopOrgEmailValidator{},
++		amStatusFetcher,
++	)
++}
++
+ func createSut(t *testing.T) AlertmanagerSrv {
+ 	t.Helper()
+ 
+diff --git a/pkg/services/ngalert/api/api_provisioning_test.go b/pkg/services/ngalert/api/api_provisioning_test.go
+index f99681a9d..459bf002b 100644
+--- a/pkg/services/ngalert/api/api_provisioning_test.go
++++ b/pkg/services/ngalert/api/api_provisioning_test.go
+@@ -2449,6 +2449,7 @@ func createProvisioningSrvSutFromEnv(t *testing.T, env *testEnvironment) Provisi
+ 		false,
+ 		nil,
+ 		&notifier.NoopOrgEmailValidator{},
++		notifier.NoopReceiverStatusFetcher{},
+ 	)
+ 	provisionRouteService := routes.NewService(
+ 		configStore,
+diff --git a/pkg/services/ngalert/ngalert.go b/pkg/services/ngalert/ngalert.go
+index 607e911f8..6a24308bc 100644
+--- a/pkg/services/ngalert/ngalert.go
++++ b/pkg/services/ngalert/ngalert.go
+@@ -528,6 +528,7 @@ func (ng *AlertNG) init() error {
+ 		ng.FeatureToggles.IsEnabledGlobally(featuremgmt.FlagAlertingImportAlertmanagerAPI),
+ 		ng.Cfg.UnifiedAlerting.AllowedIntegrations,
+ 		emailValidator,
++		ng.MultiOrgAlertmanager,
+ 	)
+ 	receiverTestService := notifier.NewReceiverTestingService(
+ 		receiverService,
+@@ -554,6 +555,7 @@ func (ng *AlertNG) init() error {
+ 		false, // imported resources are not exposed via provisioning APIs
+ 		ng.Cfg.UnifiedAlerting.AllowedIntegrations,
+ 		emailValidator,
++		ng.MultiOrgAlertmanager,
+ 	)
+ 
+ 	// Create limits provider based on alertmanager mode.
+diff --git a/pkg/services/ngalert/notifier/multiorg_alertmanager.go b/pkg/services/ngalert/notifier/multiorg_alertmanager.go
+index 9e7104a82..313010a3f 100644
+--- a/pkg/services/ngalert/notifier/multiorg_alertmanager.go
++++ b/pkg/services/ngalert/notifier/multiorg_alertmanager.go
+@@ -50,6 +50,8 @@ var (
+ 	ErrSilenceInternal      = errutil.Internal("alerting.notifications.silences.internal")
+ 	ErrSilenceLimitExceeded = errutil.TooManyRequests("alerting.notifications.silences.limitExceeded", errutil.WithPublicMessage("Maximum number of silences has been reached. Delete some silences before creating new ones."))
+ 	ErrSilenceSizeExceeded  = errutil.BadRequest("alerting.notifications.silences.sizeExceeded", errutil.WithPublicMessage("Silence size exceeds the maximum allowed size."))
++
++	ErrReceiverStatusesInternal = errutil.Internal("alerting.notifications.receivers.internal")
+ )
+ 
+ //go:generate mockery --name Alertmanager --structname AlertmanagerMock --with-expecter --output alertmanager_mock --outpkg alertmanager_mock
+@@ -687,6 +689,24 @@ func (moa *MultiOrgAlertmanager) GetSilence(ctx context.Context, orgID int64, id
+ 	return GettableSilenceToSilence(s), nil
+ }
+ 
++// GetReceiverStatuses returns the receiver statuses (active state and per-integration notification
++// info) for the org provided. Currently, this is a pass-through to the Alertmanager.
++func (moa *MultiOrgAlertmanager) GetReceiverStatuses(ctx context.Context, orgID int64) ([]alertingModels.ReceiverStatus, error) {
++	moa.alertmanagersMtx.RLock()
++	defer moa.alertmanagersMtx.RUnlock()
++
++	orgAM, err := moa.alertmanagerForOrg(orgID)
++	if err != nil {
++		return nil, err
++	}
++
++	statuses, err := orgAM.GetReceivers(ctx)
++	if err != nil {
++		return nil, WithPublicError(ErrReceiverStatusesInternal.Errorf("failed to get receiver statuses: %w", err))
++	}
++	return statuses, nil
++}
++
+ // CreateSilence creates a silence in the Alertmanager for the organization provided, returning the silence ID. It will
+ // also persist the silence state to the kvstore immediately after creating the silence.
+ func (moa *MultiOrgAlertmanager) CreateSilence(ctx context.Context, orgID int64, ps models.Silence) (string, error) {
+diff --git a/pkg/services/ngalert/notifier/receiver_svc.go b/pkg/services/ngalert/notifier/receiver_svc.go
+index db18948ad..4afdad2bd 100644
+--- a/pkg/services/ngalert/notifier/receiver_svc.go
++++ b/pkg/services/ngalert/notifier/receiver_svc.go
+@@ -8,6 +8,7 @@ import (
+ 	"slices"
+ 	"strings"
+ 
++	alertingModels "github.com/grafana/alerting/models"
+ 	"github.com/grafana/alerting/receivers/schema"
+ 
+ 	"go.opentelemetry.io/otel/attribute"
+@@ -41,6 +42,7 @@ type ReceiverService struct {
+ 	includeImported        bool
+ 	allowedIntegrations    map[schema.IntegrationType]struct{}
+ 	emailValidator         EmailIntegrationValidator
++	amStatusFetcher        amReceiverStatusFetcher
+ }
+ 
+ type routeService interface {
+@@ -59,6 +61,22 @@ type secretService interface {
+ 	Decrypt(ctx context.Context, payload []byte) ([]byte, error)
+ }
+ 
++// amReceiverStatusFetcher retrieves the current receiver statuses (active state and per-integration
++// notification results) from the org's running Alertmanager instance.
++type amReceiverStatusFetcher interface {
++	GetReceiverStatuses(ctx context.Context, orgID int64) ([]alertingModels.ReceiverStatus, error)
++}
++
++// NoopReceiverStatusFetcher is an amReceiverStatusFetcher that reports no receiver statuses. Use it for
++// ReceiverService instances that never need to serve AM-derived receiver status, e.g. file-based provisioning.
++type NoopReceiverStatusFetcher struct{}
++
++var _ amReceiverStatusFetcher = &NoopReceiverStatusFetcher{}
++
++func (NoopReceiverStatusFetcher) GetReceiverStatuses(_ context.Context, _ int64) ([]alertingModels.ReceiverStatus, error) {
++	return nil, nil
++}
++
+ // receiverAccessControlService provides access control for receivers.
+ type receiverAccessControlService interface {
+ 	FilterRead(context.Context, identity.Requester, ...*models.Receiver) ([]*models.Receiver, error)
+@@ -108,6 +126,7 @@ func NewReceiverService(
+ 	includeStaged bool,
+ 	allowedIntegrations map[schema.IntegrationType]struct{},
+ 	emailValidator EmailIntegrationValidator,
++	amStatusFetcher amReceiverStatusFetcher,
+ ) *ReceiverService {
+ 	return &ReceiverService{
+ 		authz:                  authz,
+@@ -124,6 +143,7 @@ func NewReceiverService(
+ 		includeImported:        includeStaged,
+ 		allowedIntegrations:    allowedIntegrations,
+ 		emailValidator:         emailValidator,
++		amStatusFetcher:        amStatusFetcher,
+ 	}
+ }
+ 
+@@ -675,6 +695,83 @@ func (rs *ReceiverService) InUseMetadata(ctx context.Context, orgID int64, recei
+ 	return results, nil
+ }
+ 
++// StatusMetadata returns the receiver statuses currently reported by the org's Alertmanager for the given Receivers.
++func (rs *ReceiverService) StatusMetadata(ctx context.Context, orgID int64, receivers ...*models.Receiver) (map[v1.ResourceUID]alertingModels.ReceiverStatus, error) {
++	ctx, span := rs.tracer.Start(ctx, "alerting.receivers.statusMetadata", trace.WithAttributes(
++		attribute.Int("count", len(receivers)),
++	))
++	defer span.End()
++
++	statuses, err := rs.amStatusFetcher.GetReceiverStatuses(ctx, orgID)
++	if err != nil {
++		return nil, err
++	}
++	if len(statuses) == 0 {
++		return nil, nil
++	}
++
++	statusesByName := make(map[string]alertingModels.ReceiverStatus, len(statuses))
++	for _, s := range statuses {
++		statusesByName[s.Name] = s
++	}
++	result := make(map[v1.ResourceUID]alertingModels.ReceiverStatus, len(receivers))
++	for _, r := range receivers {
++		// Lookups done by name since that is all the AM receiver status has access to.
++		if s, ok := statusesByName[r.Name]; ok {
++			result[v1.ResourceUID(r.UID)] = s
++		}
++	}
++
++	return result, nil
++}
++
++// GetReceiverStatuses wrapper around StatusMetadata that returns the receiver statuses for all Receivers that the user
++// has read permissions on.
++// Eventually, if we move these statuses directly to the receiver API resource responses, instead of through a separate
++// API call, this method won't be necessary anymore.
++func (rs *ReceiverService) GetReceiverStatuses(ctx context.Context, orgID int64, user identity.Requester) ([]alertingModels.ReceiverStatus, error) {
++	ctx, span := rs.tracer.Start(ctx, "alerting.receivers.statusMetadata", trace.WithAttributes(
++		attribute.Int64("query_org_id", orgID),
++	))
++	defer span.End()
++
++	revision, err := rs.cfgStore.Get(ctx, orgID)
++	if err != nil {
++		return nil, err
++	}
++	// No need for provenance here, so we skip the DB call.
++
++	receivers, err := revision.GetReceivers(nil)
++	if err != nil {
++		return nil, err
++	}
++
++	if rs.includeImported {
++		imported := rs.getImportedReceivers(ctx, span, nil, revision)
++		receivers = append(receivers, imported...)
++	}
++
++	filtered, err := rs.authz.FilterRead(ctx, user, receivers...)
++	if err != nil {
++		return nil, err
++	}
++	// No need to encrypt/decrypt since we just need the Name.
++
++	statuses, err := rs.StatusMetadata(ctx, orgID, filtered...)
++	if err != nil {
++		return nil, err
++	}
++
++	result := make([]alertingModels.ReceiverStatus, 0, len(statuses))
++	for _, r := range receivers {
++		if s, ok := statuses[v1.ResourceUID(r.UID)]; ok {
++			result = append(result, s)
++		}
++	}
++
++	return result, nil
++}
++
+ func removedIntegrations(old, new *models.Receiver) []*models.Integration {
+ 	updatedUIDs := make(map[string]struct{}, len(new.Integrations))
+ 	for _, integration := range new.Integrations {
+diff --git a/pkg/services/ngalert/notifier/receiver_svc_test.go b/pkg/services/ngalert/notifier/receiver_svc_test.go
+index ca5a3b1ac..7bd2da060 100644
+--- a/pkg/services/ngalert/notifier/receiver_svc_test.go
++++ b/pkg/services/ngalert/notifier/receiver_svc_test.go
+@@ -2,6 +2,7 @@ package notifier
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"fmt"
+ 	"strings"
+ 	"testing"
+@@ -9,6 +10,7 @@ import (
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
+ 
++	alertingModels "github.com/grafana/alerting/models"
+ 	"github.com/grafana/alerting/receivers/line"
+ 	"github.com/grafana/alerting/receivers/schema"
+ 
+@@ -142,6 +144,71 @@ func TestIntegrationReceiverService_GetReceivers(t *testing.T) {
+ 	})
+ }
+ 
++func TestReceiverService_GetReceiverStatuses(t *testing.T) {
++	var orgId int64 = 1
++	secretsService := fake_secrets.NewFakeSecretsService()
++
++	redactedUser := &user.SignedInUser{OrgID: orgId, Permissions: map[int64]map[string][]string{
++		orgId: {
++			accesscontrol.ActionAlertingNotificationsRead: nil,
++		},
++	}}
++
++	allAMStatuses := []alertingModels.ReceiverStatus{
++		{Name: "grafana-default-email", Active: true},
++		{Name: "slack receiver", Active: true},
++		{Name: "does not exist", Active: true},
++	}
++
++	t.Run("returns statuses for readable receivers, omitting names that don't exist", func(t *testing.T) {
++		sut := createReceiverServiceSut(t, &secretsService, withAMReceiverStatuses(allAMStatuses...))
++
++		result, err := sut.GetReceiverStatuses(context.Background(), orgId, redactedUser)
++		require.NoError(t, err)
++		require.ElementsMatch(t, []alertingModels.ReceiverStatus{
++			{Name: "grafana-default-email", Active: true},
++			{Name: "slack receiver", Active: true},
++		}, result)
++	})
++
++	t.Run("omits statuses for names the user does not have permission to read", func(t *testing.T) {
++		sut := createReceiverServiceSut(t, &secretsService, withAMReceiverStatuses(
++			alertingModels.ReceiverStatus{Name: "grafana-default-email", Active: true},
++			alertingModels.ReceiverStatus{Name: "slack receiver", Active: true},
++		))
++
++		limitedUser := &user.SignedInUser{OrgID: orgId, Permissions: map[int64]map[string][]string{
++			orgId: {
++				accesscontrol.ActionAlertingReceiversRead: {
++					models.ScopeReceiversProvider.GetResourceScopeUID(string(v1.ReceiverUID("grafana-default-email"))),
++				},
++			},
++		}}
++
++		result, err := sut.GetReceiverStatuses(context.Background(), orgId, limitedUser)
++		require.NoError(t, err)
++		require.ElementsMatch(t, []alertingModels.ReceiverStatus{
++			{Name: "grafana-default-email", Active: true},
++		}, result)
++	})
++
++	t.Run("returns an empty slice when the Alertmanager reports no receivers", func(t *testing.T) {
++		sut := createReceiverServiceSut(t, &secretsService, withAMReceiverStatuses())
++
++		result, err := sut.GetReceiverStatuses(context.Background(), orgId, redactedUser)
++		require.NoError(t, err)
++		require.Empty(t, result)
++	})
++
++	t.Run("propagates errors from the Alertmanager status fetch", func(t *testing.T) {
++		sut := createReceiverServiceSut(t, &secretsService)
++		sut.amStatusFetcher = &fakeAMStatusFetcher{err: errors.New("boom")}
++
++		_, err := sut.GetReceiverStatuses(context.Background(), orgId, redactedUser)
++		require.ErrorContains(t, err, "boom")
++	})
++}
++
+ func TestIntegrationReceiverService_DecryptRedact(t *testing.T) {
+ 	testutil.SkipIntegrationTestInShortMode(t)
+ 
+@@ -1982,6 +2049,22 @@ func withEmailValidator(emailValidator EmailIntegrationValidator) createReceiver
+ 	}
+ }
+ 
++// fakeAMStatusFetcher is a test double for amReceiverStatusFetcher.
++type fakeAMStatusFetcher struct {
++	statuses []alertingModels.ReceiverStatus
++	err      error
++}
++
++func (f *fakeAMStatusFetcher) GetReceiverStatuses(_ context.Context, _ int64) ([]alertingModels.ReceiverStatus, error) {
++	return f.statuses, f.err
++}
++
++func withAMReceiverStatuses(statuses ...alertingModels.ReceiverStatus) createReceiverServiceSutOpt {
++	return func(_ *testing.T, sut *ReceiverService) {
++		sut.amStatusFetcher = &fakeAMStatusFetcher{statuses: statuses}
++	}
++}
++
+ func createReceiverServiceSut(t *testing.T, encryptSvc secretService, opts ...createReceiverServiceSutOpt) *ReceiverService {
+ 	cfg := createEncryptedConfig(t, encryptSvc, getExtraConfig())
+ 	store := fakes.NewFakeAlertmanagerConfigStore(cfg)
+@@ -2003,6 +2086,7 @@ func createReceiverServiceSut(t *testing.T, encryptSvc secretService, opts ...cr
+ 		false,
+ 		nil,
+ 		&NoopOrgEmailValidator{},
++		&fakeAMStatusFetcher{},
+ 	)
+ 	for _, opt := range opts {
+ 		opt(t, sut)
+diff --git a/pkg/services/ngalert/provisioning/contactpoints_test.go b/pkg/services/ngalert/provisioning/contactpoints_test.go
+index 28ec08a8f..513154e09 100644
+--- a/pkg/services/ngalert/provisioning/contactpoints_test.go
++++ b/pkg/services/ngalert/provisioning/contactpoints_test.go
+@@ -1059,6 +1059,7 @@ func createContactPointServiceSutWithConfigStore(t *testing.T,
+ 		false,
+ 		nil,
+ 		&notifier.NoopOrgEmailValidator{},
++		notifier.NoopReceiverStatusFetcher{},
+ 	)
+ 
+ 	return NewContactPointService(
+diff --git a/pkg/services/provisioning/provisioning.go b/pkg/services/provisioning/provisioning.go
+index a03faa6c6..0e0e9564a 100644
+--- a/pkg/services/provisioning/provisioning.go
++++ b/pkg/services/provisioning/provisioning.go
+@@ -449,6 +449,7 @@ func (ps *ProvisioningServiceImpl) ProvisionAlerting(ctx context.Context) error
+ 		false,
+ 		ps.Cfg.UnifiedAlerting.AllowedIntegrations,
+ 		emailValidator,
++		notifier.NoopReceiverStatusFetcher{},
+ 	)
+ 	contactPointService := provisioning.NewContactPointService(receiverAuthz, configStore, ps.secretService,
+ 		ps.alertingStore, ps.SQLStore, receiverSvc, ps.log, ps.alertingStore, ps.resourcePermissions, ps.Cfg.UnifiedAlerting.AllowedIntegrations, emailValidator)

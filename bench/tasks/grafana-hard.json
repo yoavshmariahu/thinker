@@ -1,0 +1,2109 @@
+{
+ "repo": "grafana",
+ "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+ "tasks": [
+  {
+   "id": "PR133495-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nRight now, once the notification/email service starts up, it locks in the SMTP settings it was given at boot. If an admin changes SMTP settings remotely (server address, credentials, TLS, sender address, static headers, whether email is enabled, content type, welcome email, etc.), those changes have no effect until the whole service is restarted — outgoing email keeps using the stale configuration.\n\nWe need email sending to always use the current settings instead. When a message is composed, it should use the latest settings that affect its content (whether notifications are enabled, sender, content types, welcome email), and the content-type choice made at compose time needs to stick with that message through the send queue so the body always matches what the message declares in its headers. When a message is actually delivered, it should use the latest delivery-related settings (host, credentials, TLS, static headers, EHLO name) rather than whatever was configured at startup.\n\nSeparately, there's a metrics gap: if a message fails before any delivery attempt is even made (e.g. due to a config problem), it currently isn't counted anywhere, so operators can't see it in the failure/total send metrics. Failures at this stage should be counted the same as delivery failures.\n\nOut of scope for this change: the alerting system's own SMTP sender, the template pattern setting (which can stay restart-required), and the startup-time check of the \"from\" address.",
+   "goldFiles": [
+    "pkg/services/notifications/email.go",
+    "pkg/services/notifications/mailer.go",
+    "pkg/services/notifications/models.go",
+    "pkg/services/notifications/notifications.go",
+    "pkg/services/notifications/smtp.go",
+    "pkg/setting/setting_smtp.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133495.diff",
+   "goldTitle": "feat(notifications): read SMTP settings live from the config provider",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "23c862402a673db40b1643ff5239727f9ed852bf",
+   "mergedAt": "2026-09-25T14:25:06Z",
+   "testFiles": [
+    "pkg/services/ngalert/notifier/email_test.go",
+    "pkg/services/notifications/notifications_test.go",
+    "pkg/services/notifications/send_email_integration_test.go",
+    "pkg/services/notifications/smtp_test.go",
+    "pkg/setting/setting_smtp_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/services/ngalert/notifier/",
+    "./pkg/services/notifications/",
+    "./pkg/setting/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "Whether email sending is enabled is evaluated each time a message is composed, not once at startup: if the setting is switched off after startup, a subsequent send request is rejected with the \"SMTP not enabled\" error and nothing is handed to delivery; if it is switched on after startup, a subsequent send request succeeds without restarting the service.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The sender address and display name on an outgoing message reflect the values current at the moment the message is composed, so a remote change to them is visible on the very next message without a restart.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The set of body content types rendered for a message is taken from the settings current at compose time, and that chosen list travels with the message through the send queue so that delivery renders exactly those parts (and no others) in the same preference order, keeping the body consistent with the content-type headers the message declares.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Delivery-related settings — server host/port, username and password, TLS options (skip-verify, client certificate/key, StartTLS policy), static headers, tracing-header injection, and the EHLO/local name — are resolved at each delivery attempt, so values changed after startup take effect on the next send without a restart (e.g. two consecutive sends with a static header changed in between produce two messages carrying the respective header values).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Whether a welcome email is sent on sign-up completion is decided from the setting current when the sign-up event is handled: enabling it after startup causes a welcome message to be produced for the new user's address, and disabling it after startup stops welcome messages, both without a restart.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "When a send fails before any per-message delivery attempt is made (for example settings cannot be resolved or the connection/dialer cannot be constructed), each affected message is counted in both the total-sent and failed-send metrics, and the reported count of successfully sent messages stays zero.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "If the current settings cannot be read, or the current sender address is not a valid email address, composing a message fails with a descriptive error and no message is delivered; in the sign-up welcome-email path an inability to read the settings is instead treated as best effort — the welcome email is skipped, a warning is recorded, and sign-up itself does not fail.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "A message already queued for delivery is not sent if email sending has been disabled by the time delivery is attempted; the attempt reports the \"SMTP not enabled\" error and zero messages sent.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133364-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen a feature needs to run in \"dual-write\" mode—supporting both the legacy storage backend and the new unified storage backend side by side—there's currently no generic, reusable way to pick which backend to use at runtime. The only existing mechanism for choosing between backends requires the legacy backend's implementation to conform to a specific, fairly rigid interface, which isn't practical for every legacy backend and blocks teams from adopting dual-write in new areas without extra rework. The search feature currently has its own one-off logic for this decision, which is duplicative and not something other features can reuse or follow as an example. We need a general-purpose way to select between the legacy and unified backends that lets each caller define its own interface for the two implementations, rather than forcing everything through one fixed interface. This should be applied to the search feature's existing backend-selection logic so it no longer needs its own custom approach, and the pattern should be documented so future features adopting dual-write have a clear, preferred way to do it. No externally observable behavior, request/response format, or server-side behavior should change—this is purely about how the backend is chosen internally. The change needs to be validated against the full dual-write test suite plus additional tests covering selection behavior under concurrent/racy conditions.",
+   "goldFiles": [
+    "pkg/storage/legacysql/dualwrite/selector.go",
+    "pkg/storage/unified/resource/search_client.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133364.diff",
+   "goldTitle": "Storage: add generic dual-write backend selector",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "4eebdd26a257e7fbf9a306204511c7c538c3af2d",
+   "mergedAt": "2026-09-23T15:32:53Z",
+   "testFiles": [
+    "pkg/storage/legacysql/dualwrite/selector_test.go",
+    "pkg/storage/unified/resource/search_client_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/storage/legacysql/dualwrite/",
+    "./pkg/storage/unified/resource/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "A reusable backend-selection mechanism exists that is parameterised over a caller-supplied type: a caller can construct it with a legacy value and a unified value of any type they choose (e.g. their own narrow interface, a struct pointer, or even a plain string) and get back a value of that same type. Nothing in the mechanism requires either backend to satisfy the unified-storage RPC/index client interface.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The read-mode decision is queried on every resolution call and never captured once at construction time: constructing the selector performs no mode lookup, and consecutive resolutions against a mode that flips (legacy -> unified -> legacy) return the correspondingly different backend each time, with exactly one mode lookup per resolution.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When the read mode for the configured group/resource indicates reading from unified storage, the unified backend is returned; otherwise the legacy backend is returned. The resolution passes through the caller's context and the group/resource the selector was configured with to the mode lookup.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "If the read-mode lookup fails (including a failure caused by a cancelled context), the resolution propagates that error and returns the zero value for the caller's type — neither the legacy nor the unified backend is returned as a fallback, regardless of the boolean value accompanying the error.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The search feature's legacy-vs-unified choice is made by the shared selection mechanism instead of its own inline mode check, while keeping identical observable behaviour: on a successful mode lookup exactly one of the two search backends is invoked with the unchanged request and options and its response/error is returned verbatim; on a mode-lookup failure the error is returned and neither backend is invoked; a failure from the chosen backend is returned without retrying or falling back to the other backend.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "All other externally visible behaviour is unchanged: the remaining operations of the search client (stats, hybrid search, and the rest) keep their existing routing and responses, the search client's public construction signature and returned interface stay the same, and no request/response format or server-side behaviour is altered.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c7",
+     "behavior": "Concurrent resolutions on the same selector are safe and each returns the backend matching the mode observed by that call, with no shared mutable state that lets one in-flight resolution change the backend another resolution returns.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133335-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen the \"Auto\" basemap theme option is selected on the Geo map panel, switching the overall Grafana theme (whether via the keyboard shortcut or by the OS-level light/dark mode preference changing) does not update the map's appearance. The basemap and any other map layers that use theme-based colors keep displaying in the old theme, while the rest of the UI switches correctly. The only way to get the map to reflect the new theme is to remount the panel (e.g. by reloading or re-adding it).\n\nWe need the map to detect a theme change while it's open and immediately re-render its basemap and layers (along with the built-in map controls like zoom, scale, and attribution) in the new theme's colors, without losing the user's current pan/zoom position — the view should stay exactly where they left it, only the styling should update. This should work for both manual theme switches and automatic OS-level scheme changes.",
+   "goldFiles": [
+    "public/app/plugins/panel/geomap/GeomapPanel.tsx",
+    "public/app/plugins/panel/geomap/module.tsx",
+    "public/app/plugins/panel/geomap/utils/layers.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133335.diff",
+   "goldTitle": "Geomap: Re-init on theme change",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "0b8a5b12c7de81ead409ddb0f46e83a6b72c222f",
+   "mergedAt": "2026-09-25T16:09:35Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "While the map panel stays mounted, a change of the overall application theme (manual switch or OS-level light/dark preference change) causes the basemap and every other map layer to be re-created and displayed with the new theme's colors, without requiring a remount; layers are built from the theme currently active rather than a value captured when the panel first mounted.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "After a theme switch the map keeps the user's current center, zoom and rotation exactly as they were; only styling changes, the viewport is not reset, refitted or recentred.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The built-in map controls (zoom buttons, scale, attribution) are restyled to the new theme's colors at the same time as the layers, without a remount.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Panel updates that do not change the theme (e.g. new data, option or time-range updates) do not trigger a layer rebuild.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "When a layer is replaced during a theme-driven rebuild, its predecessor is torn down/cleaned up and removed from the map, so no stale or duplicated layer instances remain rendering or subscribed after the switch.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Rebuilt layers are placed back at the exact stacking position they occupied on the map, so layers the panel does not manage (such as a measure/draw overlay) keep their relative order and are neither replaced nor covered up.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Two theme changes in quick succession do not interleave: the end state has exactly one set of layers, all built with the final theme, with the intermediate set discarded rather than both sets replacing the originals.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "A theme change occurring before the map has been initialised, or a failure while rebuilding one layer, does not throw or leave the panel broken — remaining layers are still processed and the panel continues to function.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133311-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen the router is configured to use the unified gRPC storage backend, storage and search requests currently go out using the service's own identity rather than the identity of the person or client who made the request. This means we lose the caller's identity on the way to storage/search, which is a problem for auditing and enforcing per-caller access — a request can succeed using generic service credentials even when we don't actually know who the caller is or whether they're authorized.\n\nWe need storage and search calls made through this backend to exchange the service's configured credentials \"on behalf of\" the original caller, forwarding the caller's access token and namespace, and requesting access scoped to the resource store. This should work correctly even in cases where no ID token is present for the caller — identity should still be preserved using what we do have. If a request arrives with no identified caller or no access token at all, it should be rejected outright rather than quietly falling back to using the service's own identity.\n\nThis change should only affect the unified gRPC storage path — local storage behavior must stay exactly as it is today. Existing connection behavior needs to keep working as before: shared or separate connections for storage vs. search, keepalive, retry behavior, and metrics should all be unaffected. There's also a development-only option to skip certificate verification for easier local testing; that option should still enforce the newest TLS version and keep the existing connection pooling/timeout behavior, and it must never be usable in production, where certificate verification always stays on.\n\nOne known gap: the deployment path currently used for testing still relies on a placeholder/dummy authenticator that doesn't supply a real caller access token. That's a separate, pre-existing issue and is not being fixed here — with this change in place, that placeholder path will now fail the new check because it has no real access token to forward, and fixing that authenticator is planned as follow-up work, not part of this request.",
+   "goldFiles": [
+    "pkg/router/obo_exchanger.go",
+    "pkg/router/storage.go",
+    "pkg/server/routes_loader.go",
+    "pkg/storage/unified/client.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133311.diff",
+   "goldTitle": "Router: Use obo exchange with remote storage client",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "94e8edf8d19fde443c5fce57c5b92cf27aa360a4",
+   "mergedAt": "2026-09-23T03:44:33Z",
+   "testFiles": [
+    "pkg/router/cloud_router_test.go",
+    "pkg/router/obo_exchanger_test.go",
+    "pkg/router/storage_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/router/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When the router is configured for the remote/unified gRPC storage backend, every storage and search call sent to the backend carries a credential obtained by exchanging the service's configured credentials on behalf of the caller: the caller's access token is supplied as the subject of the exchange and the exchanged token (not the plain service token) is what the storage/search server receives.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The credential exchange performed for these storage/search calls requests access scoped to the resource store audience.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The caller's namespace is forwarded in the exchange when the caller has a concrete namespace; when the caller's namespace is empty or a wildcard, the namespace configured for the service is left in place instead of being overwritten.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "A request with no identified caller in context, or with an identified caller that has no access token, is rejected with an error and the storage/search call is not performed; it must not fall back to succeeding under the service's own identity.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Callers that have an access token but no ID token are still able to make storage/search calls, with their identity preserved through the exchange (presence of an ID token is not required).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Existing remote connection behaviour is preserved on this path: a single shared connection when only a storage address is configured and a distinct second connection when a separate search address is configured, plus unchanged keepalive, retry and metrics/instrumentation behaviour; and the local storage path behaves exactly as before with no on-behalf-of exchange applied.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c7",
+     "behavior": "Certificate verification for the credential exchange may only be skipped when running in development mode, and even then the connection still requires the newest TLS version and retains the existing client timeout and connection-pooling behaviour; in production, certificate verification is always enforced and an untrusted exchange endpoint causes the call to fail.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "Requests that are denied for missing caller identity or missing access token, and connections rejected by TLS verification, do not result in the service's credentials being sent to the exchange endpoint.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133300-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen loading the list of annotations shown on dashboards and panels, requests are slower than they should be, especially under heavy load. Annotations are stored as either single points in time or ranges (with a start and end time), and some existing point-in-time annotations have no end time recorded at all — only a start time. Because of this missing end time, listing annotations currently requires combining two separate lookups (one for points, one for ranges) and merging their results, which forces the database to plan and scan each type of annotation twice for every list request, making this the dominant source of latency when listing annotations. Additionally, when fetching a single annotation or listing annotations, the order in which results come back isn't guaranteed to be consistent across repeated requests.\n\nWe want every annotation, including point-in-time ones, to always have an end time recorded (for a point annotation, the end time should simply equal its start time). Existing point annotations that are missing an end time should be automatically backfilled so their end time matches their start time, and going forward the system should require every annotation to have an end time. Annotation listing should return results in a single, efficient pass rather than combining two separate queries, ordered consistently by end time (descending), then start time (descending), then name. Fetching a single annotation should also return results in a deterministic, consistent order (by start time, descending). Finally, since dashboard and panel are almost always looked up together as the primary way annotations are queried from the UI, the underlying lookup structures should be optimized for that specific access pattern, matching the new ordering, rather than treating panel as a separate dimension.",
+   "goldFiles": [
+    "pkg/registry/apps/annotation/postgres_backfill.go",
+    "pkg/registry/apps/annotation/postgres_partitioned.go",
+    "pkg/registry/apps/annotation/postgres_schema.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133300.diff",
+   "goldTitle": "Annotations: backfill time_end = time and add NOT NULL constraint",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "e88ff46d5c7f5e53a5960f8c8e8123991e0c7df4",
+   "mergedAt": "2026-09-25T14:36:46Z",
+   "testFiles": [
+    "pkg/registry/apps/annotation/migration_test.go",
+    "pkg/registry/apps/annotation/postgres_backfill_integration_test.go",
+    "pkg/registry/apps/annotation/postgres_backfill_unit_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apps/annotation/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "Existing stored annotations that have no end time recorded are automatically updated during startup/schema upgrade so their end time equals their own start time, while annotations that already have an end time keep it unchanged.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "After the upgrade, the persistence layer rejects/forbids storing an annotation without an end time (end time is a mandatory value), and this constraint is applied only after the missing values have been backfilled so the upgrade succeeds on pre-existing data.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Any write path that persists an annotation whose end time is unspecified (point-in-time annotation, including one created fresh and one imported/migrated from legacy storage) stores an end time equal to that annotation's start time rather than an absent/null value.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Listing annotations is satisfied by a single retrieval over the annotation data rather than two separate retrievals (one for points, one for ranges) whose results are merged/unioned, and it no longer needs the extra inflated per-branch row limits that such merging required; a single page request still fetches one row beyond the page size so the presence of a next page can be detected.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Listed annotations come back ordered by end time descending, then start time descending, then name, producing a stable order for repeated identical requests.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Filtering a listing by a lower time bound compares that bound against each annotation's end time uniformly, with no separate branch for annotations lacking an end time, and point annotations whose start (and hence end) time falls inside the requested window are still returned.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Fetching a single annotation by namespace and name returns a deterministic result when more than one matching row exists, selecting the one with the greatest start time, so repeated fetches return the same annotation.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "The database lookup structures supporting annotation queries are replaced so that they are keyed on namespace plus dashboard identifier (and namespace alone) in the new result order (end time descending, start time descending, name), with the panel identifier no longer used as a separate key dimension, and the superseded structures are removed; the schema change is reversible back to the previous structures and nullable end time.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133290-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nThe action buttons on the playlist card look visually inconsistent and don't match our overall design polish. Specifically: the \"Start\" button uses a generic style instead of the accent color it deserves as the primary action; the button labels redundantly repeat the word \"playlist\" (e.g. \"Start playlist\", \"Edit playlist\", \"Delete playlist\") even though it's already clear from context that these actions apply to a playlist; the \"Delete\" button is styled as destructive (red), which feels overly alarming given that clicking it only opens a confirmation modal where the actual destructive action is confirmed — the card button itself doesn't need to carry that same visual weight; and the buttons are sized larger (medium) than they need to be, making the action row feel bulkier than the rest of the UI. We'd like the card actions redesigned so the \"Start\" action stands out with an accent style, labels are shortened by dropping the redundant \"playlist\" word, the delete action uses a secondary (non-destructive) style since the real confirmation happens in the modal, and all buttons are reduced to a smaller size to feel more compact and consistent with the rest of the interface.",
+   "goldFiles": [
+    "public/app/features/dashboard/components/DashNav/DashNavButton.tsx",
+    "public/app/features/playlist/PlaylistCard.tsx"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133290.diff",
+   "goldTitle": "Playlist: Polish card actions design",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "1614865a1b27ca81c04a3468b9728df877660e8c",
+   "mergedAt": "2026-09-23T17:02:05Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "The start action on a playlist card is rendered with the accent/primary-emphasis styling rather than the generic secondary styling it previously had, so it visually stands out as the primary action in the card's action row.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The visible text of the card's action buttons reads \"Start\", \"Edit\", and \"Delete\" — the redundant trailing word \"playlist\" is removed from each visible label, and the corresponding user-facing translation strings are updated to the shortened text so no stale \"Start playlist\"/\"Edit playlist\"/\"Delete playlist\" label text remains for these controls.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The delete action on the card is rendered with a non-destructive (secondary) style instead of the destructive/red style, while still opening the delete confirmation flow when clicked rather than deleting immediately.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Every action control in the playlist card's action row (start, edit, delete, and any other action rendered alongside them) is rendered at the small size rather than the default/medium size.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Existing card behaviour is unchanged by the restyle: the start action still triggers starting that playlist, the edit action is still a link navigating to that playlist's edit route, and the edit and delete actions are still shown only when the user has write permission (and hidden otherwise).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Each shortened card action exposes an accessible name that still identifies the specific playlist it acts on (i.e. includes the playlist's title), so the actions remain distinguishable to assistive technology across multiple cards despite the shortened visible labels.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The share action is presented consistently with the other card actions — as a labelled, small, secondary-styled button in the same action row rather than an icon-only control in a separate secondary row — and still opens the share modal, which closes on dismissal.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133258-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nOn the heatmap panel, exemplar markers are drawn in the wrong position when the bucket boundaries aren't ordinal (evenly-spaced) values — they end up overlapping or misaligned with the buckets they belong to, as shown in the \"before\" screenshot where the layout looks compressed and incorrect. Additionally, switching this panel's scale setting to \"Auto\" causes the panel to crash outright for datasets where the exemplar data points don't include the expected bucket-boundary information (a string \"less than\" or \"greater than\" value matching the bucket labels) — some data sources return exemplars without either of these fields. Instead of crashing, the panel should handle this missing data gracefully and still render the heatmap and exemplars correctly, positioning each exemplar against the right bucket even when it lacks that boundary metadata. The desired outcome (per the \"after\" screenshot) is a heatmap that renders exemplars in their correct positions relative to the buckets, with no crash when Auto scale is selected, regardless of whether the exemplar records include the boundary fields.",
+   "goldFiles": [
+    "public/app/plugins/panel/heatmap/HeatmapPanel.tsx",
+    "public/app/plugins/panel/heatmap/fields.ts",
+    "public/app/plugins/panel/heatmap/utils.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133258.diff",
+   "goldTitle": "Heatmap: Fix exemplar position rendering for non-ordinal buckets",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "ca11878b3425335de9e12adfddac0061bf06fc91",
+   "mergedAt": "2026-09-22T19:47:36Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When the heatmap's y axis is not ordinal (buckets described by raw numeric boundaries rather than evenly-spaced ordinal labels), exemplar markers are drawn centred on their actual numeric y value with no bucket-index/half-bucket offset applied, so they line up with the bucket that contains that value instead of appearing compressed or shifted. Exemplars on an ordinal y axis keep the existing bucket-relative offset behaviour (placed within the bucket according to whether the bucket labels denote upper or lower bounds).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "Selecting the \"Auto\" scale setting for a dataset whose exemplar records contain neither a \"less than\" nor a \"greater than\" bucket-boundary field no longer throws; the panel renders the heatmap and its exemplars normally.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "For an ordinal/labelled heatmap whose bucket labels are numeric boundaries, an exemplar that lacks the boundary field is assigned to the bucket that contains its numeric value, respecting the boundary semantics: with upper-bound (\"less than\") labels it lands in the lowest bucket whose bound is greater than or equal to the value, and with lower-bound (\"greater than\") labels in the highest bucket whose bound is less than or equal to the value.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "When an exemplar record does carry the boundary field matching the bucket labels, it is still placed in the bucket whose label equals that value — taking precedence over any numeric-value-based placement — and this works for non-numeric/categorical bucket labels as well as numeric ones.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "An exemplar whose numeric value falls outside the range covered by the bucket boundaries (below the lowest lower-bound, or above the highest upper-bound) is omitted rather than being snapped onto an edge bucket.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "When the highest bucket boundary is an unbounded/infinite upper bound, exemplar values above the last finite bound are placed in that top bucket rather than omitted.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Exemplars are omitted (not drawn, and no error raised) when their value is null/missing, when the heatmap provides no bucket labels at all, or when bucket labels are non-numeric and the exemplar lacks the matching label field.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "If the same bucket label appears more than once, label-matched exemplars resolve to the first such bucket; an exemplar label that matches no bucket does not land on a valid bucket position.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133253-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen uninstalling a plugin from the catalog that has nested child plugins bundled inside it (for example, a data source plugin that ships an additional backend plugin inside its own folder, as with the Zabbix plugin), only the parent plugin is unloaded before its files are deleted. The child plugin's backend process is left running and keeps its files open, particularly on network filesystems like NFS, which causes the deletion of the parent's directory to fail or leave stale processes behind. Uninstalling should shut down every nested child plugin first, starting with the most deeply nested ones, before the parent plugin's own files are removed, so that no process still holds files open when the directory is deleted. Uninstalling a plugin that has no children should continue to work exactly as it does today, with no change in behavior.",
+   "goldFiles": [
+    "pkg/plugins/manager/installer.go",
+    "pkg/plugins/manager/pluginfakes/fakes.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133253.diff",
+   "goldTitle": "Plugins: unload nested child plugins before uninstalling the parent",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "d1cbc09f62de118acb770e5bd96b7d9a30796054",
+   "mergedAt": "2026-09-25T11:39:34Z",
+   "testFiles": [
+    "pkg/plugins/manager/installer_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/plugins/manager/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "Uninstalling a catalog plugin that has nested child plugins bundled inside it shuts down (unloads, stopping any backend process) every nested child before the parent plugin itself is unloaded and before any of the parent's files are removed from disk; where children are themselves nested, the more deeply nested ones are shut down first.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c2",
+     "behavior": "The child plugins' files/directories are not deleted individually; the on-disk removal still happens exactly once, as the deletion of the parent plugin's directory tree.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c3",
+     "behavior": "If shutting down a nested child fails, the uninstall stops and reports that error, leaving the parent still loaded and its files on disk (no partial deletion).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Uninstalling a plugin with no nested children behaves exactly as before: a single unload of that plugin, removal of its files, and the same subsequent cleanup limited to that plugin's identifier; core plugins are still refused as before.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c5",
+     "behavior": "Nested child entries that cannot be confirmed as the currently registered instance for that child (for example a missing/empty entry, or a different plugin that merely shares the child's identifier at another version) are skipped without error and without shutting down that unrelated plugin.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "After removal, cleanup of stored access-control/permission data is performed for the successfully shut-down children's identifiers in addition to the parent's, and a failure of that cleanup is logged without failing the uninstall.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Registered external service credentials for each successfully shut-down child are also removed alongside the parent's; a failure removing a child's registration is logged and does not prevent the remaining children's or the parent's cleanup from completing.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133251-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen the data source returns an authentication error (HTTP 401), the system currently misclassifies it as an internal plugin error rather than an issue originating from the downstream data source. This causes our alerting and monitoring to be inaccurate, since these failures get attributed to the wrong source and can trigger false alarms about the plugin itself being broken, when in fact the problem lies with the external service or its credentials. We need 401 responses to be correctly categorized as downstream errors so that alerting reflects the true origin of the failure. This should match how the same scenario is already handled in the equivalent externalized version of this integration, so behavior is consistent across both. The fix should only change how the error is categorized/reported, not the actual error message or behavior seen by the end user querying the data.",
+   "goldFiles": [
+    "pkg/tsdb/graphite/http_status_error.go",
+    "pkg/tsdb/graphite/query.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133251.diff",
+   "goldTitle": "handle auth issues as downstream instead of plugin errors",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "a8cd63a1d87c48f4d175f0ffd2838a69b02329ce",
+   "mergedAt": "2026-09-23T11:17:55Z",
+   "testFiles": [
+    "pkg/tsdb/graphite/query_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/tsdb/graphite/"
+   ],
+   "testNeedsGoldSymbols": false,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When the Graphite data source responds to a query with HTTP 401, the resulting query response is attributed to the downstream/data-source error source rather than the plugin error source.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The error text surfaced to the user for a 401 (and for other failing HTTP statuses) is unchanged from before: it still contains the \"request failed with error\" prefix followed by the parsed Graphite error extracted from the response body (including the HTML-parsing case, which still yields the extracted meaningful line).",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c3",
+     "behavior": "Classification for non-401 failing HTTP statuses is unchanged: statuses that the standard HTTP-status-to-error-source mapping treats as plugin-originated (e.g. 501) still report a plugin error source, and statuses it treats as downstream (e.g. 500 / error-body responses) still report a downstream error source.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c4",
+     "behavior": "A failing HTTP response still produces a failed response for the specific query/refID (query still errors, no panic, no silently successful/empty frames), and the overall data request itself does not return a transport-level error.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c5",
+     "behavior": "Errors that do not originate from an HTTP status — e.g. an unparseable/malformed response body from the data source, or a query payload that cannot be decoded — continue to be reported as plugin-sourced errors with their existing messages.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c6",
+     "behavior": "The HTTP status returned by the data source is propagated into the query response status (e.g. a 401 yields an unauthorized status and a 501 yields a not-implemented status) instead of every failure being collapsed to a generic internal status.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133238-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nStorage/search only recognizes apps compiled into the Grafana binary, so newly installed apps outside that build aren't searchable until a full release; also, removing a searchable field from an app fails silently (searches succeed but match nothing) with no warning that an index rebuild is needed.",
+   "goldFiles": [
+    "pkg/storage/unified/resource/app_manifests.go",
+    "pkg/storage/unified/resource/app_manifests_register.go",
+    "pkg/storage/unified/resource/search_field.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133238.diff",
+   "goldTitle": "Unified storage: let compiled-in apps outside apps/ register a manifest",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "423f85091b0a63a21fb571122a933133da1652cd",
+   "mergedAt": "2026-09-22T14:15:47Z",
+   "testFiles": [
+    "pkg/storage/unified/resource/app_manifests_register_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/storage/unified/resource/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "An app manifest that is not part of the repository's generated/compiled-in list can be contributed at runtime through a public registration entry point in the storage/search layer, without editing the generated list.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The manifest set exposed to all consumers of app manifests (and therefore to search-field setup) contains both the generated manifests and every externally contributed one; existing consumers keep getting the generated manifests unchanged when nothing extra was contributed.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When the search-fields configuration is swapped/replaced, any group+resource that had search fields before the swap but has none after is reported in a warning log that identifies the affected kinds and states that searches on those fields will match nothing until the manifests are restored and the index is rebuilt.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "The swap of search-fields configuration still takes effect exactly as before when kinds are dropped (the warning is purely informational), and no warning is emitted when no kind loses its search fields.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Attempting to contribute a missing manifest or one without a group identifier fails loudly with a clear error rather than being silently accepted or stored.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Attempting to contribute a manifest whose group is already claimed — either by another contributed manifest or by one in the generated list — fails loudly with a clear error naming the conflicting group, so two manifests can never compete for the same group.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Attempting to contribute a manifest after the combined manifest set has already been read fails loudly with a message indicating registration must happen during startup/initialization, since anything already built from the earlier result would be missing it.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "Contributing manifests and reading the combined set are safe to perform from multiple goroutines without data races.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133233-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen a backend call returns both a specific error result (like a \"not found\" or \"bad request\") and a general communication/transport-level failure, the system currently reports the generic transport failure instead of the more specific error that was actually returned. This causes misleading behavior: for example, a request that should be reported as a client error (4xx) instead gets reported as a server error (500), because the transport-level failure takes precedence over the more meaningful, specific error attached to the response.\n\nWe need error handling that prioritizes the specific, structured error information over the generic transport error when both are present, so that the error ultimately surfaced (and the status code reported to callers) accurately reflects the real cause of the failure rather than defaulting to a generic server error.\n\nThis is the first step toward fixing this more broadly — later work will update the various places in the codebase that currently handle these errors so they use the corrected precedence, but this step should first introduce the ability to convert a response into the correct, prioritized error object without yet changing how every caller consumes it. Additionally, the shared error-writing utility (used broadly across the system to translate errors into HTTP responses) needs a related adjustment to support this correct behavior.",
+   "goldFiles": [
+    "pkg/storage/unified/resource/errors.go",
+    "pkg/util/errhttp/writer.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133233.diff",
+   "goldTitle": "error handling for keeping status errors over transport errors",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "a6d61b2513266671df911c055891987d5e6576e7",
+   "mergedAt": "2026-09-22T13:58:34Z",
+   "testFiles": [
+    "pkg/storage/unified/resource/errors_test.go",
+    "pkg/util/errhttp/writer_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/storage/unified/resource/",
+    "./pkg/util/errhttp/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "A new conversion capability exists that takes both a response's structured error result and a transport-level error and yields a single error suitable for API callers; when neither a structured error result nor a transport error is present, it yields no error at all.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "When only a structured error result is present (no transport error), the produced error exposes a Kubernetes-style status whose HTTP code, reason, message and details (including group, kind, name, uid and field-level causes) faithfully reflect the values carried by that structured result.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When a transport error carries structured error information inside it, the produced error reflects that specific information (its code, reason, message and details) rather than the generic transport status — e.g. an internal/unknown transport failure carrying an embedded \"too many requests\" result surfaces 429, not 500. This holds when the transport error is wrapped one or more levels deep.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "When both a structured response error result and a transport error are present, the outcome is deterministic and derived from the transport error chain (which is where the specific structured detail is carried), rather than silently mixing the two.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Transport errors without embedded structured detail map to the corresponding HTTP status: not-found→404, aborted→409, resource-exhausted→429, unavailable→503, canceled→499, deadline-exceeded→504; an unrecognized error falls back to 500 while preserving its original message.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Cancellation and deadline-exceeded conditions arriving as plain context errors (including when wrapped in other errors) map to 499 and 504 respectively instead of a generic 500.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The shared error-to-HTTP writing utility recognizes a Kubernetes-style status error located anywhere in the error's wrap chain (not only as the outermost error) and responds with that status's code, a JSON content type, the serialized status as the body, and returns that same code to its caller.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "Existing error-conversion behavior and the responses produced by current call sites are unchanged by this step: the new prioritized conversion is additive and no existing consumer is switched over to it yet.",
+     "essential": true,
+     "calibrated": false
+    }
+   ]
+  },
+  {
+   "id": "PR133220-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen the standalone identity/access API server is run on its own (not embedded in the main monolith), stack administrators, the frontend, and edge-auth services cannot retrieve a stack's SSO configuration through it — even when the setting that's supposed to enable SSO configuration access on this API server is turned on. Only the in-process/monolith deployment path currently exposes this data; the standalone deployment silently omits it.\n\nWe need the standalone API server to also expose SSO configuration, at least for reading, under the same enablement setting, so that the frontend and edge-auth (MTEA) services can look up a stack's SSO configuration without requiring the full monolith to be running. This read path should pull the data using the same underlying storage/table the existing monolith path uses, so results stay consistent between the two.\n\nBecause this new path is read-only, any attempt to create, update, or delete SSO configuration through it should fail with an error rather than silently succeeding or corrupting data. For security, any secret values in the SSO configuration must always be masked/redacted in the response — never returned in decrypted or plaintext form, and this redaction must work without depending on the secrets-decryption service being available (since the standalone server doesn't have one).\n\nWho is allowed to read this data should still be governed by the normal permissions/authorization system — this change only concerns whether the data is retrievable at all, not who can retrieve it. The existing in-process/monolith behavior must remain completely unchanged.",
+   "goldFiles": [
+    "pkg/registry/apis/iam/register.go",
+    "pkg/services/ssosettings/ssosettingsimpl/readonly.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133220.diff",
+   "goldTitle": "SSOSettings: add read-only SSOSetting support to standalone apiserver",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "b9ba3a271cbb22bf474da1bd681b005310d0b9eb",
+   "mergedAt": "2026-09-22T15:38:16Z",
+   "testFiles": [
+    "pkg/registry/apis/iam/register_test.go",
+    "pkg/services/ssosettings/ssosettingsimpl/readonly_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apis/iam/",
+    "./pkg/services/ssosettings/ssosettingsimpl/"
+   ],
+   "testNeedsGoldSymbols": false,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When the identity/access API server runs standalone, a stack's SSO configuration becomes retrievable through it (single-provider get and list) under the same existing enablement setting that gates SSO configuration access, rather than being absent as before.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The standalone read path returns SSO configuration sourced from the same persistent storage/table that the in-process deployment reads, so the same stack data is returned by both deployments.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Secret-valued fields in returned SSO configuration are always replaced with a redaction placeholder — for both single-item and list reads — and non-secret fields are returned intact; no read through this path returns decrypted or plaintext secrets.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Redaction succeeds when no secrets-decryption/config service is available, i.e. retrieving SSO configuration in the standalone deployment does not fail or error out due to a missing decryption dependency.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Attempts to create, update, partially modify, or delete SSO configuration through the standalone path return an error and do not modify stored data.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Retrieval of SSO configuration through the standalone server remains subject to the authorization system: unauthenticated/anonymous callers are denied, while authorized authenticated callers are permitted.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The existing in-process/monolith SSO configuration behaviour (including its write support and its decrypting read behaviour) is unchanged by this addition.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c8",
+     "behavior": "Errors from the underlying storage on a read — such as a provider's configuration not existing — are surfaced to the caller as-is rather than being swallowed or converted into an empty/successful result.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c9",
+     "behavior": "Rejected write attempts surface as a client-facing \"operation not supported/method not allowed\" style error rather than a generic internal server error.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133206-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen forwarding requests to aggregate apiservers (external app backends), the router is not behaving like a proper reverse proxy: it fails to carry through the incoming request's original headers, and instead ends up reusing the connection/transport that it uses internally for its own service discovery process. As a result, some proxied requests to these apiservers don't get answered correctly — they either fail or don't reach their destination with the right request context, because the wrong transport is being used to route them.\n\nWe need the router to pass along incoming headers on proxied requests just like any standard reverse proxy would, and to use a transport dedicated to actually delivering the proxied request rather than the one reserved for internal discovery. This is needed to support the Grafana App Platform, which relies on proxied requests to aggregate apiservers succeeding reliably. The fix should ensure that from a user's perspective, requests routed through the aggregate apiserver path behave correctly and consistently succeed, without any change needed to feature toggles.",
+   "goldFiles": [
+    "pkg/router/aggregate_poller.go",
+    "pkg/router/cloud_router.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133206.diff",
+   "goldTitle": "grafana-router: fix the issue where router mistakenly signed for some proxied requests",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "a9b741f501b53b2a046711122c429c20d57d7c4a",
+   "mergedAt": "2026-09-22T04:13:02Z",
+   "testFiles": [
+    "pkg/router/aggregate_poller_test.go",
+    "pkg/router/aggregate_router_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/router/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "A request proxied to an aggregate apiserver target arrives upstream carrying the headers of the incoming client request, rather than being sent with a header set that omits them.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c2",
+     "behavior": "Traffic proxied to an aggregate apiserver target is delivered over a connection/transport dedicated to proxying, distinct (non-identical) from the one the router uses for its own internal group-discovery polling of that same target; the discovery connection is never the one that carries proxied caller traffic.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Proxied caller requests are sent without the router's own machine-to-machine credential/token exchange being applied to them, so the caller's own authorization context reaches the upstream instead of being replaced by the router's identity.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "The router's internal discovery polling of an aggregate target continues to be performed with the router's own exchanged credentials, i.e. the change does not strip authentication from the discovery calls.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The per-target TLS configuration continues to be honoured on the path that delivers proxied requests, so proxying to a target configured with custom TLS settings still connects successfully.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "The corrected aggregate-apiserver proxying behaviour is in effect for existing configurations with no new feature toggle, setting, or per-target configuration key required to enable it.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Each aggregate target's proxying path owns its own connection pool rather than sharing the process-global default pool with unrelated callers, and one target's pool is not shared with another target's.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "Targets configured with a non-absolute or unparseable URL are still rejected at setup time with an error instead of being constructed and failing later during proxying.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133196-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen a user pauses, resumes, or deletes all alert rules in a folder, the confirmation banner that appears afterward just says the action succeeded for the folder, with no indication of how many rules were actually affected. This is misleading in folders that contain provisioned rules, since those rules are skipped by the bulk action but the banner doesn't say so, leaving the user unsure whether the action really covered all the rules they expected.\n\nWe want the confirmation banner to report actual outcomes: how many rules were paused/resumed/deleted, and how many were skipped because they are provisioned (e.g. \"Rules evaluation successfully paused for folder. Paused 3 rules. Skipped 2 provisioned rules.\"). Only one banner should be shown per action, and its wording should adapt to whichever combination of affected/skipped counts applies (including the case where everything was skipped). The message text needs to be composed in a way that supports localization.\n\nThis depends on the backend also returning counts of how many rules were updated/skipped/deleted for these bulk actions; since frontend and backend can deploy independently, if those counts aren't present (e.g. an older backend that hasn't been updated yet), the banner should fall back to the original generic success message rather than incorrectly implying that zero rules were affected.",
+   "goldFiles": [
+    "public/app/features/alerting/unified/api/alertingFolderActionsApi.ts",
+    "public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.tsx",
+    "public/app/features/alerting/unified/utils/folderActionMessages.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133196.diff",
+   "goldTitle": "feat(alerting): show rule counts in folder bulk-action confirmation banners",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "80d1ea56a8c106eb669774a27c41b24c653f3e67",
+   "mergedAt": "2026-09-22T13:16:32Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "After a successful pause-all, resume-all, or delete-all action on a folder, the confirmation banner text includes the number of rules actually paused/resumed/deleted, taken from the counts returned by the bulk-action response (e.g. \"Rules evaluation successfully paused for folder. Paused 3 rules.\").",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "When the response reports a non-zero count of rules skipped because they are provisioned, the banner additionally states how many provisioned rules were skipped; when the skipped count is zero or absent, no skipped sentence appears.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When the affected count is zero, the banner does not claim the action succeeded on rules; it states that no rules were paused/resumed/deleted for the folder, still followed by the skipped-provisioned sentence when applicable (the everything-was-skipped case).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "When the response omits the affected count (e.g. an older backend), the banner shows the original generic success message for that action and reports no numbers, rather than treating the missing count as zero.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Exactly one success banner is shown per bulk action: the generic/automatic success notification that would otherwise be raised by the request layer for these three actions is suppressed, so the count-bearing banner does not appear alongside a second banner or the raw server message.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "All three folder bulk actions (pause all, resume all, delete all) produce count-reporting banners with wording appropriate to that action, not just one of them.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The banner text is assembled from individually translatable message fragments with the counts supplied as interpolated values (and the corresponding entries added to the English localization resources), rather than hardcoded English sentences or numbers concatenated into untranslatable text.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "A caller passing its own notification options to these bulk actions cannot re-enable the suppressed automatic success notification, so duplicate banners remain impossible.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133191-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nThe list-receivers endpoint (GET /api/alertmanager/grafana/config/api/v1/receivers) returns each receiver's live status — whether it's active and the health of its individual integrations — pulled from the running alerting engine, which only recognizes receivers by name. But access control for this endpoint is based on each receiver's unique ID, not its name. To bridge that gap, the endpoint currently derives an ID by hashing the receiver's name, which happens to work today only because name and ID are still tied together everywhere in the system. Once receiver identity is allowed to diverge from its name (a planned change), this hashing trick will stop matching real receivers, meaning users could be shown status for receivers they don't have permission to view, or the mapping could simply fail. The logic that fetches live status, matches it to receivers, and filters results to what the requesting user is actually allowed to see needs to live in a single, reusable place rather than inline in this endpoint, so it keeps working correctly once receiver identity is decoupled from name. The endpoint itself should simply request the already-filtered, already-matched status list and return it as-is. It's acceptable that this adds one additional data lookup per request compared to the current behavior.",
+   "goldFiles": [
+    "pkg/services/ngalert/api/api.go",
+    "pkg/services/ngalert/api/api_alertmanager.go",
+    "pkg/services/ngalert/ngalert.go",
+    "pkg/services/ngalert/notifier/multiorg_alertmanager.go",
+    "pkg/services/ngalert/notifier/receiver_svc.go",
+    "pkg/services/provisioning/provisioning.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133191.diff",
+   "goldTitle": "Alerting: Fix RouteGetReceivers UID resolution and move status retrieval into ReceiverService",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "0bfc9d1afefc105db1871951a901ad2bfc828be8",
+   "mergedAt": "2026-09-22T17:15:39Z",
+   "testFiles": [
+    "pkg/services/ngalert/api/api_alertmanager_test.go",
+    "pkg/services/ngalert/api/api_provisioning_test.go",
+    "pkg/services/ngalert/notifier/receiver_svc_test.go",
+    "pkg/services/ngalert/provisioning/contactpoints_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/services/ngalert/api/",
+    "./pkg/services/ngalert/notifier/",
+    "./pkg/services/ngalert/provisioning/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "The list-receivers endpoint still responds with HTTP 200 and a JSON array of receiver status entries, each carrying the receiver's name, whether it is active, and the health/notification info of its individual integrations, exactly as reported by the running alerting engine (no added or renamed fields, no re-derived identifier field in the payload).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "Receiver identity used for the access-control decision is the receiver's own stored unique identifier as recorded in the org's configuration, not a value computed/derived from the receiver's name; nothing in the request path synthesises an ID from a name.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "A receiver the requesting user does not have read permission for is absent from the response, while receivers it may read are present — verified per-receiver in the user's org (e.g. a user scoped to one receiver sees only that one; a user with all-receivers scope sees all of them).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Live status entries reported by the alerting engine whose receiver name does not correspond to any configured receiver in the org are omitted from the response, rather than being returned unmatched or causing an error.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Configured receivers for which the alerting engine reports no live status are omitted from the response rather than being returned with a fabricated/zero-valued status entry.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "The combined work of fetching live status, matching it to the org's configured receivers, and filtering to what the user may read is performed by a single reusable operation that takes the org and the requesting user and returns the final list; the HTTP endpoint performs no matching or filtering of its own and returns that list unmodified.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "If retrieving live status from the alerting engine or loading the org's receiver configuration fails, the endpoint responds with a server error (HTTP 500) and a failure message instead of partial or empty results, and the underlying error information is propagated rather than swallowed.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "When the alerting engine reports no receiver statuses for the org, the endpoint succeeds with an empty list rather than erroring.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c9",
+     "behavior": "Receiver-management paths that never serve live status (such as file-based provisioning and the provisioning APIs) continue to operate without depending on a running alerting engine, behaving as if no live statuses exist.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133175-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen listing annotations for a dashboard, the system checks the viewing user's permissions against that dashboard (and its parent folder) for every single annotation returned, which means the same dashboard-to-folder lookup gets repeated over and over in a short window. Under heavy load, this floods the dashboard service with redundant permission-resolution calls for the same dashboard, and those calls back up and slow down as traffic increases, making annotation listing noticeably slower the more annotations or concurrent requests there are. Since annotations are almost always listed for one dashboard at a time, nearly all of these repeated lookups are asking for information that hasn't changed in the last few seconds. We need the authorization check to reuse a recently-resolved dashboard/folder result for a short period (on the order of 30 seconds) instead of re-querying the dashboard service every time, so that listing performance stays fast and stable under load and the dashboard service isn't overwhelmed with duplicate requests. The permission outcome must still be correct and should naturally become stale-refreshed after the short window so that folder moves or permission changes are picked up promptly.",
+   "goldFiles": [
+    "pkg/registry/apps/annotation/authz.go",
+    "pkg/registry/apps/annotation/config.go",
+    "pkg/registry/apps/annotation/dashboard_folder_lookup.go",
+    "pkg/registry/apps/annotation/metrics.go",
+    "pkg/registry/apps/annotation/register.go",
+    "pkg/setting/setting_annotations.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133175.diff",
+   "goldTitle": "Annotations: cache dashboard folder resolution",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "f000b1d0f74a4e3115919fd067c276d39fd7ccaa",
+   "mergedAt": "2026-09-22T18:05:28Z",
+   "testFiles": [
+    "pkg/registry/apps/annotation/dashboard_folder_lookup_test.go",
+    "pkg/setting/setting_annotations_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apps/annotation/",
+    "./pkg/setting/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "A dashboard's parent-folder resolution performed during an annotation authorization check reuses a recently obtained result: after the first resolution for a given dashboard, subsequent resolutions for that same dashboard within the short caching window return the same folder without issuing another request to the dashboard service.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "Cached folder results are only reused for a bounded, short period (defaulting to about 30 seconds) after which the next resolution goes back to the dashboard service, so folder moves and permission changes are picked up shortly afterwards rather than being cached indefinitely.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The caching behaviour and its expiry duration are configurable via application settings (and the equivalent command-line flags), with caching on by default and the default expiry around 30 seconds; when caching is turned off, every folder resolution queries the dashboard service as before.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Reuse is scoped so that a cached result is only returned for the same namespace/tenant and the same dashboard identifier; different dashboards, or the same dashboard identifier in a different namespace, each resolve their own folder rather than sharing a result.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The resolved folder and resulting permission outcome are unchanged from before: a dashboard that exists resolves to its parent folder (empty when it has none), a dashboard that cannot be found yields an empty folder without an error, and other lookup failures (including an unparseable namespace) still surface as errors rather than being silently treated as \"no folder\".",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c6",
+     "behavior": "Concurrent resolutions for the same dashboard that all miss the cache are collapsed into a single request to the dashboard service, with every waiting caller receiving the same resolved folder and no error.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "A shared in-flight lookup is insulated from individual callers: if one caller's request is cancelled, other callers waiting on the same lookup still receive a successful result, and the shared lookup is bounded by its own timeout so a hung dashboard-service call returns an error instead of blocking callers indefinitely.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "Cache hits and misses for folder resolution are individually observable through exported counters, and a resolution served from cache is distinguishable from one that queried the dashboard service.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133167-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nUsers debugging transformations cannot copy input/output debug data to the clipboard; they must manually select rendered JSON in the in-app viewer, which is impractical for large or circular-reference-containing payloads when trying to use external tools like jq.",
+   "goldFiles": [
+    "public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.tsx",
+    "public/app/features/dashboard/components/TransformationsEditor/TransformationEditor.tsx"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133167.diff",
+   "goldTitle": "Transformations: Add copy actions to debug data",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "bf1e4e6905eb260445a7350971a1245daefd3440",
+   "mergedAt": "2026-09-22T20:37:28Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "In each transformation debug view that shows input and output data (both the existing dashboard transformations debugger and the newer panel-edit query editor debug drawer), there is a user-activatable copy control for the input data and a separate one for the output data, so a user can copy either payload without manually selecting rendered text.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "Activating a copy control places the corresponding debug payload (input for the input control, output for the output control) onto the system clipboard; the two controls copy different content and neither copies the other section's data.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The copied clipboard content is the debug payload serialized as indented, human-readable JSON text suitable for piping into external tools, not a collapsed object description or the DOM text of the viewer.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Copying succeeds for payloads containing circular references (e.g. frames whose fields reference their parent frame/data through attached context): no error is thrown and no empty/partial result is produced; the circular portion is replaced with a placeholder marker while the rest of the payload is serialized normally.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The input and output copy controls each expose a distinct accessible name that identifies which section it copies (e.g. input vs output), so they are individually addressable by assistive technology.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Each copy control conveys its purpose on hover/focus via descriptive help text in addition to its icon.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The user-visible/assistive text for both copy controls goes through the application's translation mechanism with corresponding English source strings available, rather than being hardcoded untranslated literals.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "The copy controls are present and do not error when a section has no data yet (e.g. output not produced), rather than crashing or disappearing.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133158-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWe have no way to measure how people actually use the new metrics sidebar in Explore's Signal Explorer, and Analytics needs behavioral data to evaluate the A/B test. Please add tracking for: when the sidebar becomes visible (record which datasource the pane is using, or \"mixed\" if it's a mixed datasource pane); when someone expands a metric card; and when someone selects a metric to view its metadata. Also track search usage in the metric search box — but for privacy, never log the actual search term the user typed (it could contain sensitive data from their own labels), only the length of the term and how many results it matched. Search tracking should wait until the user stops typing (debounce around 300ms) and should not double-fire if the time range or other unrelated state changes without the search term itself changing. Expand/select events should only fire on the \"opening\" action (expanding, selecting) not on collapsing or deselecting. All of this should only apply when the sidebar's feature toggle is on — with it off, none of these events should fire. Since our identity system already attaches user identity automatically, there's no need to manually include a user ID in these events. Also, please make clear in the data (e.g. via documentation or a test) that \"datasource\" means the whole pane's datasource for the sidebar-visible event, but means each individual card's own query datasource for the other three events — so aggregating by datasource across all four events won't line up cleanly unless that's accounted for.",
+   "goldFiles": [
+    "public/app/features/explore/SignalExplorer/MetricsList.tsx",
+    "public/app/features/explore/SignalExplorer/SignalExplorer.tsx",
+    "public/app/features/explore/SignalExplorer/tracking.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133158.diff",
+   "goldTitle": "Explore: Add RudderStack events for the metrics sidebar",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "1d6edf929f5f5308e51ea482e08da15d72a2a370",
+   "mergedAt": "2026-09-22T09:21:54Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When the metrics sidebar becomes visible, a single distinct \"sidebar/panel became visible\" analytics event is recorded, carrying the datasource type of the whole pane the sidebar belongs to, and the literal value \"mixed\" when that pane is a mixed-datasource pane (rather than the pane's own generic type). It is recorded once for a given sidebar appearance, not repeatedly as pane state is updated.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "Expanding a metric card records a distinct \"metric expanded\" analytics event whose reported datasource is that individual card's own query datasource (not the pane's), and collapsing an already-expanded card records no event.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Selecting a metric to view its metadata records a distinct \"metric metadata viewed\" analytics event whose reported datasource is that individual card's own query datasource, and re-picking the currently selected metric (i.e. deselecting/closing the detail view) records no event.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Typing in the metric search box records a distinct \"search performed\" analytics event only after the user stops typing for roughly 300ms — one event per settled term rather than one per keystroke — and the recorded data contains only the length of the typed term and the number of matching results (plus the contextual datasource/count info), never the typed text itself and no manually supplied user identifier.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "No additional search event is recorded when the search term has not changed but surrounding state has (for example a time range change causing the catalog to reload), and an empty/cleared search box records no search event.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "None of these four events are recorded when the sidebar's feature toggle is off (the sidebar is not present), so no tracking occurs in that configuration.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The differing meaning of the reported datasource is made explicit in the delivered change — that it denotes the pane's datasource for the sidebar-visible event but each card's own query datasource for the expand, metadata-viewed and search events, so the four events cannot simply be aggregated together by datasource.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "A search event is withheld while the metric results for that term are still being fetched, and is recorded with the true match count once the results arrive, instead of reporting zero matches for a list that had merely not loaded yet; clearing the box and retyping the same term counts as a new search.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133148-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen a user filters a list by a field selector, results should come back correctly as long as that kind of resource has declared that field as filterable — regardless of whether this particular type of app is one that this version of Grafana happens to ship with built-in knowledge of. Today, filtering only works for a fixed, hardcoded set of app types baked into the release; anything outside that set silently falls back to scanning every single item in storage and filtering afterward, which means the first pages of results can come back empty (just a \"keep paging\" token) even though matching items exist further in the collection. This forces users to wait for a new Grafana release just to get filtering to work for their app's data. Additionally, the current check is too loose: it only verifies that the app type is on the known list, not that the specific field being filtered on was actually declared as searchable — so a filter on an undeclared field can be sent to the search index, which finds nothing and returns an empty result instead of correctly falling back to scanning storage. We need the filtering decision to be based on live, up-to-date information about what fields each app's resources actually declare as searchable (which updates as apps are installed/updated, without needing a new release), and it must check every single field in the filter, not just the app type. If the filter includes a field that isn't yet known to be indexed, the system should safely fall back to the full scan rather than returning an incorrect empty result. This decision also needs to be made consistently in every deployment mode, including setups where the search functionality itself is handled by a separate delegated service.",
+   "goldFiles": [
+    "pkg/storage/unified/resource/list_with_selectors.go",
+    "pkg/storage/unified/resource/selectable_fields.go",
+    "pkg/storage/unified/resource/server.go",
+    "pkg/storage/unified/search/options.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133148.diff",
+   "goldTitle": "Unified storage: decide selector push-down from the manifests, not the build",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "384465ac34f520764ec9519d883fbcb61ce1b8cd",
+   "mergedAt": "2026-09-22T13:03:18Z",
+   "testFiles": [
+    "pkg/storage/unified/resource/list_with_selectors_test.go",
+    "pkg/storage/unified/resource/selectable_fields_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/storage/unified/resource/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "A list request with a field selector is answered from the search index whenever the resource kind being listed has declared that field as searchable, even when the kind belongs to an app that this build has no compiled-in knowledge of. The decision must come from the runtime set of declarations (the same source the index field mapping is derived from, which is refreshed as apps are installed/updated), not from a fixed list of app groups baked into the binary.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The eligibility check is made for the specific kind being listed (group together with resource), so a field selector on a kind that has not declared that field is not pushed to the index even if another kind in the same group declared it.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Every field in the selector is checked, not just one: if any single field of a multi-field selector is not declared as searchable for that kind, the request falls back to scanning storage and filtering afterward instead of querying the index.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "A selector on a field that is not declared searchable results in the storage-scan fallback path rather than an index query that would yield an empty result set.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "When no declaration information is available at all (the registry of searchable fields is absent/unset), any request with a field selector falls back to the storage scan rather than being sent to the index.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "A request with no field selectors (for example filtered only by labels) is still eligible for the search-index path regardless of the kind and regardless of any field declarations, preserving the existing behaviour.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c7",
+     "behavior": "The searchable-field declarations used for this decision are populated in every deployment mode, including deployments where search is handled by a separate delegated service and no local index is built, so the pushdown decision is identical across modes rather than defaulting to fallback when local search is not enabled.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "When index field mappings cannot be constructed (e.g. no document supplier is configured), the searchable-field declarations are still available for the pushdown decision, with only the mapping/hash information omitted.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133146-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen searching for alerting rules by kind, the results only include the rule's basic definition (spec metadata) — there's no way to see whether a rule is healthy, its current evaluation state, or the reason for that state. Anyone consuming the rule search results (for example, to build a dashboard or status view over many rules) has to make a separate call per rule to find out its health/status, which is slow and cumbersome when you already have a list of rules from search.\n\nWe need the search results to optionally include each rule's status information — its health, evaluation state, and (for alert rules specifically) the state reason — when the caller asks for those fields. This should work the same way regardless of whether the rule is being read from the older storage system or the newer unified search, and it should reflect the last known/persisted status rather than triggering a live evaluation. If a rule doesn't have status information available yet (e.g., it has never been evaluated), those fields should simply be left out of the result rather than showing placeholder or error values.",
+   "goldFiles": [
+    "apps/alerting/rules/pkg/apis/manifestdata/alerting_manifest.go",
+    "pkg/registry/apps/alerting/rules/search/fields.go",
+    "pkg/registry/apps/alerting/rules/search/legacy_search.go",
+    "pkg/registry/apps/alerting/rules/search/per_kind_legacy.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133146.diff",
+   "goldTitle": "Alerting: Expose rule status in per-kind search results",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "069b5c9332be98d3c018f9a380d06806d9a1c23c",
+   "mergedAt": "2026-09-22T15:39:38Z",
+   "testFiles": [
+    "pkg/registry/apps/alerting/rules/search/per_kind_search_test.go",
+    "pkg/registry/apps/alerting/rules/search/per_kind_status_test.go",
+    "pkg/registry/apps/alerting/rules/search/query_test.go",
+    "pkg/storage/unified/search/builders/alertingrules_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apps/alerting/rules/search/",
+    "./pkg/storage/unified/search/builders/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When a per-kind rule search request asks for status-related fields, the returned results include those values for each matching rule: health, time of last evaluation, duration of last evaluation, last error, and — for alert rules — the current evaluation state and its reason.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The same status fields are populated with equivalent values whether the rules are served from the older/legacy rule storage path or from the newer unified search index; neither path silently returns status-free results when status fields were requested.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Evaluation state and state reason are only exposed for alert rules. For recording rules these two fields are never returned, even if the stored status happens to contain them.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "When a rule has no status information (e.g. never evaluated, empty or absent status), the requested status fields are omitted entirely from that rule's result rather than being returned as empty strings, zeros, nulls, or error markers; the rule still appears in the results with its other requested fields.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Status values reflect the last known/persisted status of the rule; producing search results does not trigger a fresh rule evaluation or a per-rule live status lookup.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Status fields are retrievable only: a search request that attempts to filter on or sort by any of them (or to request an alert-only state field for recording rules) is rejected with a client error identifying the offending field, and no search is executed.",
+     "essential": false,
+     "calibrated": false
+    },
+    {
+     "id": "c7",
+     "behavior": "If a rule's persisted status cannot be interpreted (unparseable, wrong shape, or a field holding an unexpected value type), all status fields are omitted for that rule rather than partially populated, the rest of the result and the overall search still succeed, and the problem is surfaced in server logs identifying the rule.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "Only the declared status fields are exposed: unrecognised or internal keys present in the stored status are never returned in search results, and legitimate zero/empty values (such as an evaluation duration of zero) are returned rather than dropped. Cross-kind rule searches continue to return exactly the same results as before, without status fields.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133113-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nSometimes when a user deletes a provisioned repository, the deletion gets stuck (\"wedged\") because a required cleanup step can't finish — for example, it can't remove a webhook because the repository is no longer reachable. Right now the delete UI tries to predict ahead of time whether a delete will get stuck by checking a single \"authentication failed\" indicator on the repository, but that indicator gets overwritten whenever another unrelated problem (like a quota issue) happens at the same time. As a result, the option to force past a stuck deletion silently disappears in exactly the situations where multiple things are wrong at once and it's needed most.\n\nWe want the repository's Overview page to reliably show an error banner whenever the backend reports that its deletion is blocked, along with a \"Delete anyway\" button that forces past specifically the step that's blocking it so the deletion can finish. Before forcing it through, the user should see a confirmation warning explaining that any provider-side resource involved in that step (e.g. a webhook) will be left behind. The normal delete action (triggered from the delete dropdown/menu) should stay a simple, unconditional delete — the frontend shouldn't try to guess in advance whether it will get stuck. Separately, if a repository simply has configuration/validation errors (not a stuck deletion), the same banner area should show those errors too, but without offering the \"Delete anyway\" option, since there's nothing to force through in that case.",
+   "goldFiles": [
+    "public/app/features/provisioning/Repository/DeleteRepositoryButton.tsx",
+    "public/app/features/provisioning/Repository/RepositoryOverview.tsx",
+    "public/app/features/provisioning/Repository/RepositoryStatusAlert.tsx",
+    "public/app/features/provisioning/Repository/RepositoryStatusPage.tsx"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133113.diff",
+   "goldTitle": "Provisioning: Force-delete a wedged repository from the deletion-error banner",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "29d7b0293bec37bb742e02f1809d836338e88e77",
+   "mergedAt": "2026-09-23T16:24:27Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When the backend reports that a repository's deletion is blocked, the repository's Overview page renders an error-severity banner whose heading identifies it as a deletion error and whose body shows the backend-supplied explanation of why the deletion is stuck (multi-line messages keep their line breaks).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The banner offers a \"Delete anyway\" action whenever the backend has named the step that is blocking deletion, and does not offer it when the banner is only reporting configuration/validation errors.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Activating \"Delete anyway\" does not immediately change anything; it first presents a destructive-styled confirmation with a warning that the blocking step will be skipped and that any provider-side resource it manages (for example a webhook) will be left behind, plus a way to cancel. Nothing is sent unless the user confirms.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "On confirmation, the repository is updated so that only the specific blocking step named by the backend is dropped; every other pending cleanup step on the repository is preserved, so the in-progress deletion still performs its remaining resource cleanup.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The delete action reached from the delete dropdown/menu performs a plain delete with no frontend pre-check that predicts whether the delete will get stuck; it is not gated on, and does not consult, any single authentication-failure indicator on the repository, and it does not offer or perform a force/skip-step variant.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Repository configuration/validation error details are surfaced in the same banner area under a generic repository-error heading, and when the repository has neither a blocked deletion nor any such errors, no banner is rendered at all.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "After a successful forced delete the user is taken away from the repository page back to the provisioning/repositories listing, and while the request is in flight the force action cannot be triggered again; if the request fails the user is kept on the page with the banner still shown rather than being navigated away.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "For the menu delete variant that must first change the repository's cleanup steps (keep-resources), a failure of that preparatory update aborts the operation so no delete is issued with the wrong cleanup configuration.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR133112-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen a provisioning repository's credentials have expired or become invalid (e.g. an expired GitLab token), deleting that repository gets permanently stuck: the delete action re-triggers on every resync, keeps trying to reconnect to the provider (which fails with an authentication/permission error), and the repository stays stuck in a \"Terminating\" state forever with no way out for the user.\n\nThe problem is that deleting a repository currently requires successfully rebuilding a connection to the external provider and using it to clean up remote state (like removing a webhook), even though most of the deletion cleanup only touches Grafana-side data and doesn't need that connection at all. If the provider connection can't be established, none of the cleanup can proceed, even the parts that don't need it.\n\nDesired behavior: only the specific cleanup step that actually needs to talk to the provider (removing the webhook) should require a working connection; all other cleanup steps should be able to complete using just the stored configuration, independent of provider connectivity. If the provider-dependent step fails, deletion should still be blocked and the failure should be visible in the repository's status — but the user needs an escape hatch to force the repository to finish deleting without touching the provider at all (rather than deletion silently failing forever with no remedy). This escape hatch should not require any new setting or API — it should work by removing the specific marker responsible for webhook cleanup, at which point deletion proceeds without attempting to reach the provider.\n\nAdditionally, when a deletion fails specifically because of bad or expired credentials, this should be treated as a user-caused problem: it should be reflected in the repository's health status, and it should not spam the logs with an error on every retry. In contrast, failures caused by transient infrastructure issues (e.g. the provider being temporarily unavailable, or a failure decrypting stored secrets) should be treated as system issues and retried quickly, as they already are for health checks today.",
+   "goldFiles": [
+    "pkg/registry/apis/provisioning/controller/deletion_metrics.go",
+    "pkg/registry/apis/provisioning/controller/finalizer_mock.go",
+    "pkg/registry/apis/provisioning/controller/finalizers.go",
+    "pkg/registry/apis/provisioning/controller/repository.go",
+    "pkg/registry/apis/provisioning/controller/webhook.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133112.diff",
+   "goldTitle": "Provisioning: Build repository on delete only for the cleanup finalizer",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "e737256750446b90aa525e91bea26371050f7cef",
+   "mergedAt": "2026-09-22T08:30:43Z",
+   "testFiles": [
+    "pkg/registry/apis/provisioning/controller/finalizers_test.go",
+    "pkg/registry/apis/provisioning/controller/repository_test.go",
+    "pkg/registry/apis/provisioning/controller/webhook_test.go",
+    "pkg/tests/apis/provisioning/git/webhook/webhook_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apis/provisioning/controller/"
+   ],
+   "testNeedsGoldSymbols": true,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "Cleanup steps that only touch Grafana-side state (clearing the pending job queue, releasing orphan resources, removing orphan resources) run and complete for a terminating repository using only its stored configuration, with no attempt to establish a connection to the external provider. A terminating repository whose remaining cleanup markers are only these completes deletion (its markers are removed) even when credentials are expired/invalid so a provider connection could never be built.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The provider connection is established only while performing the remote webhook-removal cleanup step, and only when that step is actually requested for the repository; a delete attempt no longer aborts up-front, before any cleanup has run, because the connection could not be built.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "If the connection cannot be established (or the remote webhook removal otherwise fails) during the webhook-removal step, deletion is blocked — the repository's cleanup markers are not removed and it remains terminating — and the failure is recorded on the repository's status as a deletion failure with a message identifying that the repository could not be built from its configuration.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Removing the webhook-cleanup marker from a stuck terminating repository is sufficient to let deletion finish: on the next attempt, the remaining cleanup runs, no provider connection is attempted, and the repository's remaining markers are removed. No new configuration setting, spec/annotation field, or API endpoint is introduced to enable this.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "A deletion failure caused by bad, revoked, or expired credentials (authentication/permission denial) is reported through the repository's health status rather than being returned as a controller error, and it is not logged at error level nor re-queued for repeated fast retries on each attempt.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "A deletion failure caused by a transient infrastructure problem — the provider being temporarily unavailable, or a failure to decrypt stored secrets — is returned as a retryable controller error and re-queued for fast, rate-limited retries up to the usual attempt cap, instead of being dropped until the next informer resync. Both kinds of transient failure are treated identically on the delete path and by the worker's retry decision.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "The webhook-removal step is a successful no-op when the connection is built but the resulting repository has no webhook capability, and a webhook that no longer exists on the provider is not treated as a failure; an authorization rejection while removing the remote webhook is reported as a failure rather than silently treated as success.",
+     "essential": false,
+     "calibrated": false
+    }
+   ]
+  },
+  {
+   "id": "PR133090-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen building a data source picker or any UI that needs to know which data source should be pre-selected, there's currently no reliable way to compute a \"default\" data source for an arbitrary set of data sources. The only option is an experimental hook that automatically loads the full list of data sources and returns the organization-wide default — it can't be scoped to a subset, such as \"the default among only Prometheus data sources.\" Because that hook is marked unstable, teams are hesitant to depend on it, and it can only be used inside React components, not in plain logic or utility code.\n\nWe need a way to take any list of data source instances (the full list, or a filtered list like \"only Prometheus type\") and determine the appropriate default from within that specific list — returning the organization default when given all data sources, or the best default within the subset when given a filtered list. This logic should be available as a plain, non-hook function so it can be called outside of React rendering, in addition to still being usable as a hook for components that already have a list of data sources loaded. The end result should be a stable, documented utility that replaces the experimental hook, so consumers aren't stuck depending on something marked as unstable.",
+   "goldFiles": [
+    "packages/grafana-data/src/types/datasource.ts",
+    "packages/grafana-plugin-compat/src/datasources.ts",
+    "packages/grafana-plugin-compat/src/datasources/getDefaultDataSourceInstanceListItem.ts",
+    "packages/grafana-plugin-compat/src/datasources/useDefaultDataSourceInstanceListItem.ts",
+    "packages/grafana-plugin-compat/src/utils/mocks.ts",
+    "packages/grafana-runtime/src/services/dataSource/hooks.ts",
+    "packages/grafana-runtime/src/services/dataSource/settings.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133090.diff",
+   "goldTitle": "Datasources: Add utility for getting the default datasource",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "f1de62bce67a0f045868fb0d01afb1ea9908531c",
+   "mergedAt": "2026-09-22T06:24:53Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "A non-React, promise-returning utility is exposed that accepts an arbitrary array of data source list entries (the full set or any filtered subset) and resolves to the entry within that array that is marked as the organization default. It can be called from ordinary logic outside of component rendering.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "When the supplied array contains no entry marked as the organization default — including the case of an empty array, or a filtered subset from which the org default was excluded — the resolution is undefined. There is no fallback to the first entry of the array or to any other arbitrary entry.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Built-in pseudo data sources (such as the mixed, dashboard, or Grafana entries) are never returned as the default, even when they are the only entries in the supplied array.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c4",
+     "behavior": "A React hook variant accepts the same array of already-loaded data source entries and returns an object exposing a loading indicator that starts true and becomes false once settled, the resolved entry (or undefined when there is none), and an error value that is undefined on success.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The prior capability of asking for a default by data source type identifier, with the list being loaded internally, is no longer offered; callers supply the candidate entries themselves, and the resulting default-resolution capability is presented as a stable, documented part of the public surface rather than an experimental/unstable one.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c6",
+     "behavior": "Re-rendering the hook with a newly constructed but content-equivalent array does not trigger another resolution, while changing which entry carries the default flag (or changing the identities of the entries) does trigger a fresh resolution and updates the returned entry.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "If resolution rejects, the hook settles with the failure exposed as an error value and no resolved entry, rather than throwing during render or remaining perpetually in the loading state.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "The plugin-compatibility surface offers the same default-resolution capability: it delegates to the host application's implementation and returns the host's answer verbatim when that implementation is present, otherwise computes the result locally; and either path skips nullish entries in the supplied array instead of throwing. Resolving more than one entry marked default yields the first such entry.",
+     "essential": false,
+     "calibrated": false
+    }
+   ]
+  },
+  {
+   "id": "PR133011-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen editing a Text panel, the editor's view mode doesn't behave consistently. When entering edit mode, the editor should default to showing a split view (both the raw text/markup and the rendered preview side by side), rather than defaulting to some other mode. Currently, while a user is working within panel edit mode, if the editor remounts or re-renders (for example, when toggling the \"table view\" option or other panel updates occur), it loses track of the previously selected view mode and/or the user's text selection/cursor position — resetting to a different mode or losing selection unexpectedly. The desired behavior is: default to Split mode when entering edit, and once the user is in panel edit, the chosen editor view mode and the current text selection should remain stable and not get reset or lost across these remounts/toggles, so users don't have to keep re-selecting the view mode or losing their place while editing. This should apply consistently whenever the panel editor re-renders due to related interactions like switching the table view toggle.",
+   "goldFiles": [
+    "public/app/plugins/panel/text/v2/TextNGPanel.tsx",
+    "public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx",
+    "public/app/plugins/panel/text/v2/editor/viewMode.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/133011.diff",
+   "goldTitle": "Text panel: Keep editor view mode stable across remounts",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "15e3ba91f323901e9ecd2735a19d26eaa23e1067",
+   "mergedAt": "2026-09-24T20:20:42Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When the text panel is first shown in panel edit mode, the editor opens with the split view (raw text and rendered preview side by side) selected, rather than write-only or preview-only.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "If the user selects a different editor view mode (e.g. write-only or preview-only) and the panel is then unmounted and remounted while the user is still in panel edit — such as when toggling the table view option or other panel updates cause a re-render — the previously selected view mode is still the active one after the remount; the user does not have to re-select it.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "Once the panel has been rendered outside of panel edit mode (normal dashboard/view rendering), the remembered view mode is discarded: the next time the panel is opened in edit mode it starts again in split view rather than the mode chosen in the previous editing session.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "A view mode chosen while editing one panel does not carry over to a different panel instance, even when both panels share the same panel id (ids are only unique within a dashboard); the other panel still opens in split view.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The chosen editor view mode is not written into the panel's saved options/configuration — switching view modes does not alter the panel's persisted settings or trigger an options change as if the panel content/config had been edited.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "While remaining in panel edit, the user's current text selection / cursor position in the editor is not cleared or reset when the panel re-renders or remounts due to related interactions such as toggling the table view.",
+     "essential": false,
+     "calibrated": false
+    }
+   ]
+  },
+  {
+   "id": "PR132983-hard",
+   "area": "backend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWhen admins try to delete a single authentication method (AuthInfo) entry for a user, the request fails with a \"Method Not Supported\" error instead of actually removing it. This happens whenever the underlying storage mode is still routing through the older legacy storage path (the modes that haven't fully switched over to the new unified storage yet); those configurations were never given the ability to process single-item deletes and simply reject the request outright. Newer storage configurations that bypass legacy storage entirely already support deleting a single entry correctly, so the problem only affects the legacy-routed setups. We need users to be able to remove one specific auth method for one specific user (identified by the user and the auth method/module in question) without deleting anything else, and the delete request should succeed and actually remove that row instead of returning an error. The desired behavior is that all storage modes behave consistently: attempting to delete a single AuthInfo entry should work end-to-end regardless of which storage path is currently active, giving users a reliable way to remove an auth method association.",
+   "goldFiles": [
+    "pkg/registry/apis/iam/authinfo/store.go",
+    "pkg/services/login/authinfo.go",
+    "pkg/services/login/authinfoimpl/store.go",
+    "pkg/services/login/authinfoimpl/templates.go",
+    "pkg/services/login/authinfok8s/authinfo.go",
+    "pkg/services/login/authinfotest/auth_info_store_mock.go"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/132983.diff",
+   "goldTitle": "IAM: Implement AuthInfo delete for legacy storage",
+   "layers": [
+    "go"
+   ],
+   "mergeCommit": "3151026ab26f7b9d83659b99cbe6480029bb7b9e",
+   "mergedAt": "2026-09-22T07:42:32Z",
+   "testFiles": [
+    "pkg/registry/apis/iam/authinfo/store_test.go",
+    "pkg/services/login/authinfoimpl/store_test.go",
+    "pkg/services/login/authinfoimpl/testdata/mysql--delete_auth_info-delete_auth_info.sql",
+    "pkg/services/login/authinfoimpl/testdata/postgres--delete_auth_info-delete_auth_info.sql",
+    "pkg/services/login/authinfoimpl/testdata/sqlite--delete_auth_info-delete_auth_info.sql",
+    "pkg/services/login/authinfok8s/authinfo_test.go",
+    "pkg/tests/apis/iam/authinfo/authinfo_integration_test.go"
+   ],
+   "testCmd": [
+    "go",
+    "test",
+    "-short",
+    "-count=1",
+    "./pkg/registry/apis/iam/authinfo/",
+    "./pkg/services/login/authinfoimpl/",
+    "./pkg/services/login/authinfok8s/"
+   ],
+   "testNeedsGoldSymbols": false,
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "Requesting deletion of one AuthInfo entry (identified by the user plus the auth method/module) while the storage mode routes through the legacy path now succeeds rather than failing with a \"method not supported\" error, and the underlying auth-method row for that user and module is actually removed from storage.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "A single-entry delete removes only the targeted user/module association: other auth methods belonging to the same user, and auth-method entries belonging to other users, are left in place.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "After a successful single-entry delete, a subsequent read of that same entry reports not-found.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "A successful single-entry delete responds with the representation of the entry that was removed (matching the requested entry identity) and signals that the removal was immediate rather than deferred/graceful.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "Attempting to delete an entry that does not exist yields a not-found error rather than a success or an unrelated error — covering both the case where the referenced user does not exist and the case where the user exists but has no association for the requested auth method (including a repeat delete of an already-deleted entry).",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "When a delete-validation callback is supplied and rejects the operation, that rejection is returned to the caller and no auth-method row is removed.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Deleting a whole collection of AuthInfo entries continues to be rejected as an unsupported operation, so enabling single-entry deletes does not broaden into bulk deletes.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "On the newer unified storage path, a single-entry delete request for a user that cannot be found, or for an entry that is already absent, completes without error (treated as a no-op) instead of surfacing a failure.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR132938-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nThe code editor supports several languages for syntax highlighting, but the list of supported languages and their display labels is duplicated in multiple places across the product (for example, the shared code editor's own options and the notebook feature's language picker). Whenever a new language is added to the code editor, someone has to remember to manually update the notebook's language picker and labels too, otherwise the notebook won't offer the new language even though the editor itself supports it. This is error-prone and creates ongoing maintenance work.\n\nWe want a single, shared source of truth for supported languages (with their labels and highlighting behavior) that all features using the code editor can read from, so the notebook's language picker automatically shows any newly supported language without needing separate changes.\n\nAdditionally, we want to add support for editing INI/properties-style configuration files in the code editor. Since this is a less common use case, the parsing logic for it should not be loaded up front for every user of the editor — it should only be fetched and loaded when someone actually selects or needs INI syntax highlighting, consistent with how other less-common languages are already loaded on demand.\n\nNote that INI highlighting may use a different syntax-highlighting engine than some of the editor's other languages, so token colors for INI may look slightly different from other languages in the editor — that's an acceptable tradeoff for now. This change only affects the shared editor component's language list and the notebook's language picker; it does not affect the separate provisioning viewer, which is being handled independently.",
+   "goldFiles": [
+    "packages/grafana-ui/src/components/CodeMirror/CodeEditor.story.tsx",
+    "packages/grafana-ui/src/components/CodeMirror/languageLoader.ts",
+    "packages/grafana-ui/src/components/CodeMirror/languages.ts",
+    "packages/grafana-ui/src/components/CodeMirror/types.ts",
+    "packages/grafana-ui/src/unstable.ts",
+    "public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/132938.diff",
+   "goldTitle": "CodeMirror: Add shared language registry and lazy INI support",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "6fcd7ce70eb51c74ffa5b1deb8f0fadfbedccb73",
+   "mergedAt": "2026-09-24T14:51:17Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "A single shared registry maps each supported editor language ID to its human-readable display label, and it is exported from the shared UI package's public surface so other features can read language metadata without redefining it.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The type/set of languages accepted by the code editor is derived from that shared registry, so adding an entry to the registry is sufficient to make the language accepted by the editor with no second list to update.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The notebook's language picker builds its highlighted-language options and their display labels from the shared registry rather than from a local duplicate list, so a language newly added to the registry appears in the picker (with its shared label) without further changes to the notebook code.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "INI/properties-style configuration is a supported editor language: selecting it is accepted by the editor and produces a working syntax-highlighting configuration (a language is actually active in the editor state), and it appears in the notebook picker labelled \"INI\".",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "The INI parsing/highlighting code is not imported eagerly by the editor module graph; it is fetched only when INI highlighting is actually requested, matching the on-demand loading used for the editor's other languages.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "Reading the shared language registry does not pull in any language parser or highlighting code, so consumers such as the picker get labels and IDs without loading editor language implementations.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "Repeated requests for INI highlighting reuse the previously loaded highlighting configuration instead of re-fetching or rebuilding it.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "Languages the editor cannot highlight continue to behave as before: plain text and the deliberately unhighlighted offered languages still appear in the picker with their own labels, and an arbitrary stored language value is preserved and rendered unhighlighted rather than coerced or dropped.",
+     "essential": false,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR132859-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nIn the notebook editor, when you click into a cell and then hover over a different cell, both cells show their controls (drag handle, add button, actions bar) at the same time instead of only the one being interacted with. This makes it look like two cells are offering the same menu simultaneously, which is confusing. The controls should only appear for the cell the pointer is currently over, except that if a control (like the drag handle) has keyboard focus, it should stay visible even when the pointer moves away.\n\nSeparately, when collapsing a query row on a panel cell that has a long query, the datasource icon gets clipped and shows as only a sliver, and the query name disappears entirely. The query name, the datasource picker, and the query text are all fighting for the same limited space; when the query text is long, it pushes the picker and name out of view instead of truncating itself. Since the query text already supports being cut off with an ellipsis, it should be the one to shrink and give up space first, so the query name and datasource picker always stay fully visible and readable. This affects the query row header wherever it is shown, including dashboard panel editing, Explore, and alerting.",
+   "goldFiles": [
+    "public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellActions.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/cellClassNames.ts",
+    "public/app/features/query/components/QueryEditorRowHeader.tsx"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/132859.diff",
+   "goldTitle": "Notebooks: Fix duplicate cell controls and the clipped collapsed query row",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "73238948482bf27fb01d3a57520e8570065d7c49",
+   "mergedAt": "2026-09-22T12:58:22Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "In the notebook's edit mode, when the pointer is over one cell, only that cell shows its controls (drag handle, add button, actions bar). A different cell that is being typed in or otherwise holds focus no longer shows its controls at the same time.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "A cell control that itself holds keyboard focus remains visible (and reachable) even while the pointer is over a different cell, so a focused control is never left invisible.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "When the pointer is not over any cell, the pre-existing reveal behaviour is unchanged: a cell shows its controls while hovered or while focus is inside it, and no controls are shown outside edit mode.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c4",
+     "behavior": "Controls suppressed because the pointer is on another cell are also non-interactive, so they cannot be hovered or clicked while invisible.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "A cell control whose menu is currently open stays visible while the pointer moves to another cell, so the open menu keeps its anchor and does not vanish mid-interaction.",
+     "essential": false,
+     "calibrated": true
+    },
+    {
+     "id": "c6",
+     "behavior": "In a collapsed query row with a long query, the query text shrinks and is cut off with an ellipsis instead of pushing the other elements out of the row.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c7",
+     "behavior": "In a collapsed query row, the query name stays fully visible at its natural width and the datasource picker stays fully visible and legible (not clipped to a sliver), regardless of how long the query text is.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "The collapsed-row layout behaviour is the same everywhere the query row header appears — dashboard panel editing, Explore, and alerting — rather than being fixed only in one of them.",
+     "essential": true,
+     "calibrated": true
+    }
+   ]
+  },
+  {
+   "id": "PR132843-hard",
+   "area": "frontend",
+   "type": "change",
+   "prompt": "Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.\n\nWe currently have no visibility into how many dashboards use the newer text panel capabilities (mermaid diagrams, handlebars templating, data macros, per-row rendering), which makes it hard to justify further investment in these features. When a dashboard loads, if it contains at least one text panel and the instance has the newer text panel features enabled, we need a single usage event recorded for that dashboard load. The event should report, aggregated across all text panels on the dashboard: how many panels' content contains a mermaid diagram (either as a code fence or as an HTML element classed \"mermaid\"), how many contain a handlebars-style `{{ }}` expression, how many contain a data-linking macro like `${__value}`, `${__field}`, `${__data}`, or `${__series}`, and how many are configured with the \"per row\" rendering mode. The event must also include the dashboard's identifier so this usage data can later be joined against existing dashboard-load tracking to measure adoption relative to total dashboard views. This should fire exactly once per dashboard load regardless of how many text panels are present, not once per panel.",
+   "goldFiles": [
+    "public/app/features/dashboard-scene/utils/interactions.ts",
+    "public/app/features/dashboard-scene/utils/tracking.ts"
+   ],
+   "goldDiff": "bench/data/grafana-diffs/132843.diff",
+   "goldTitle": "Text: Track feature usage on dashboard load",
+   "layers": [
+    "ts"
+   ],
+   "mergeCommit": "47e590153a2845d4864fe7152abc481d869499ce",
+   "mergedAt": "2026-09-22T18:43:02Z",
+   "criteria": [
+    {
+     "id": "c1",
+     "behavior": "When a dashboard finishes loading and it contains at least one text panel (with the newer text panel capabilities enabled on the instance), exactly one usage event is recorded for that dashboard load — a single aggregated event regardless of whether the dashboard has one or many text panels, not one event per panel.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c2",
+     "behavior": "The recorded event reports four counts aggregated over all text panels on the dashboard: the number of panels whose content contains a mermaid diagram, the number containing a handlebars-style `{{ ... }}` expression, the number containing a data-linking macro, and the number configured with the per-row rendering mode. Each count increments at most once per panel even if a feature appears multiple times in that panel's content.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c3",
+     "behavior": "The recorded event includes the dashboard's unique identifier so the usage data can be joined against existing dashboard-load tracking.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c4",
+     "behavior": "Mermaid content is detected both when written as a fenced code block labelled mermaid and when written as an HTML element carrying the class \"mermaid\".",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c5",
+     "behavior": "No usage event is recorded when the loaded dashboard contains no text panels.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c6",
+     "behavior": "No usage event is recorded when the newer text panel capabilities are not enabled, including when only one of the two required feature toggles is on and when neither is on.",
+     "essential": true,
+     "calibrated": false
+    },
+    {
+     "id": "c7",
+     "behavior": "The data-macro count recognises each of the `${__value}`, `${__field}`, `${__data}` and `${__series}` macros, including when they are used with a suffix such as `${__value.text}`.",
+     "essential": true,
+     "calibrated": true
+    },
+    {
+     "id": "c8",
+     "behavior": "For a text panel set to code display mode — where diagrams and templates are shown verbatim rather than rendered — mermaid and handlebars occurrences in its content are not counted.",
+     "essential": false,
+     "calibrated": false
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,337 @@
+diff --git a/pkg/registry/apps/annotation/migration_test.go b/pkg/registry/apps/annotation/migration_test.go
+new file mode 100644
+index 000000000..2721c8aef
+--- /dev/null
++++ b/pkg/registry/apps/annotation/migration_test.go
+@@ -0,0 +1,79 @@
++package annotation
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/jackc/pgx/v5/pgxpool"
++	"github.com/pressly/goose/v3"
++	"github.com/stretchr/testify/require"
++
++	"github.com/grafana/grafana/pkg/util/testutil/pgtest"
++)
++
++func newMigrationTestPool(t *testing.T) *pgxpool.Pool {
++	t.Helper()
++	dsn := pgtest.NewDatabase(t)
++
++	pool, err := pgxpool.New(t.Context(), dsn)
++	require.NoError(t, err, "connect to test database")
++	t.Cleanup(pool.Close)
++
++	return pool
++}
++
++func runMigrationsUpTo(t *testing.T, ctx context.Context, pool *pgxpool.Pool, version int64) {
++	t.Helper()
++	provider, db, err := newMigrationProvider(pool)
++	require.NoError(t, err)
++	defer func() { require.NoError(t, db.Close()) }()
++
++	_, err = provider.UpTo(ctx, version)
++	require.NoError(t, err, "run migrations up to version %d", version)
++}
++
++func TestIntegrationMigrations(t *testing.T) {
++	t.Run("00009_backfill_time_end", func(t *testing.T) {
++		pool := newMigrationTestPool(t)
++		ctx := t.Context()
++
++		// Run up to 00008, which creates the annotations table with time_end NULLable.
++		runMigrationsUpTo(t, ctx, pool, 8)
++
++		const namespace = "stacks-migration-test"
++		seedRow := func(name string, ts int64, timeEnd any) {
++			require.NoError(t, ensurePartition(ctx, pool, ts))
++			_, err := pool.Exec(ctx,
++				`INSERT INTO annotations (namespace, name, time, time_end, text, created_at)
++				 VALUES ($1, $2, $3, $4, 'seed', $5)`,
++				namespace, name, ts, timeEnd, time.UnixMilli(ts).UTC())
++			require.NoError(t, err, "seed row %q", name)
++		}
++
++		// A point annotation predating the NOT NULL constraint
++		seedRow("legacy-point", 1_000, nil)
++		// A range annotation with an existing time_end
++		seedRow("legacy-range", 2_000, int64(2_500))
++
++		// Run the 00009 backfill migration
++		runMigrationsUpTo(t, ctx, pool, 9)
++
++		var remainingNulls int
++		require.NoError(t, pool.QueryRow(ctx,
++			`SELECT count(*) FROM annotations WHERE time_end IS NULL`).Scan(&remainingNulls))
++		require.Zero(t, remainingNulls, "00009 must backfill every NULL time_end")
++
++		var pointTimeEnd, rangeTimeEnd int64
++		require.NoError(t, pool.QueryRow(ctx,
++			`SELECT time_end FROM annotations WHERE namespace = $1 AND name = 'legacy-point'`, namespace).Scan(&pointTimeEnd))
++		require.Equal(t, int64(1_000), pointTimeEnd, "a point's time_end is backfilled to its own time")
++
++		require.NoError(t, pool.QueryRow(ctx,
++			`SELECT time_end FROM annotations WHERE namespace = $1 AND name = 'legacy-range'`, namespace).Scan(&rangeTimeEnd))
++		require.Equal(t, int64(2_500), rangeTimeEnd, "a range's existing time_end is left untouched")
++
++		// Validate that the remaining migrations apply cleanly on top of the backfilled data
++		runMigrationsUpTo(t, ctx, pool, goose.MaxVersion)
++	})
++}
+diff --git a/pkg/registry/apps/annotation/migrations/00009_backfill_time_end.sql b/pkg/registry/apps/annotation/migrations/00009_backfill_time_end.sql
+new file mode 100644
+index 000000000..7d8a1c061
+--- /dev/null
++++ b/pkg/registry/apps/annotation/migrations/00009_backfill_time_end.sql
+@@ -0,0 +1,6 @@
++-- +goose Up
++UPDATE annotations SET time_end = time WHERE time_end IS NULL;
++
++-- +goose Down
++-- This migration is not safely reversible as it is not possible to know which rows had NULL time_end before the update.
++-- Leaving time_end = time is acceptable since the annotations will still be interpreted as point annotations.
+diff --git a/pkg/registry/apps/annotation/migrations/00010_time_end_not_null.sql b/pkg/registry/apps/annotation/migrations/00010_time_end_not_null.sql
+new file mode 100644
+index 000000000..1e3baef10
+--- /dev/null
++++ b/pkg/registry/apps/annotation/migrations/00010_time_end_not_null.sql
+@@ -0,0 +1,17 @@
++-- +goose Up
++ALTER TABLE annotations ALTER COLUMN time_end SET NOT NULL;
++DROP INDEX IF EXISTS idx_time;
++DROP INDEX IF EXISTS idx_ns_time;
++DROP INDEX IF EXISTS idx_time_end;
++DROP INDEX IF EXISTS idx_dashboard;
++CREATE INDEX idx_ns_time_end ON annotations (namespace, time_end DESC, time DESC, name);
++CREATE INDEX idx_dashboard_time_end ON annotations (namespace, dashboard_uid, time_end DESC, time DESC, name);
++
++-- +goose Down
++DROP INDEX IF EXISTS idx_dashboard_time_end;
++DROP INDEX IF EXISTS idx_ns_time_end;
++CREATE INDEX idx_time ON annotations USING BRIN (time);
++CREATE INDEX idx_ns_time ON annotations (namespace, time);
++CREATE INDEX idx_dashboard ON annotations (namespace, dashboard_uid, panel_id, time);
++CREATE INDEX idx_time_end ON annotations (namespace, time_end) WHERE time_end IS NOT NULL;
++ALTER TABLE annotations ALTER COLUMN time_end DROP NOT NULL;
+diff --git a/pkg/registry/apps/annotation/postgres_backfill.go b/pkg/registry/apps/annotation/postgres_backfill.go
+index 210c252f0..003d23456 100644
+--- a/pkg/registry/apps/annotation/postgres_backfill.go
++++ b/pkg/registry/apps/annotation/postgres_backfill.go
+@@ -134,11 +134,15 @@ func annotationArgs(rec migrator.BackfillRecord) pgx.NamedArgs {
+ 	if rec.LegacyID > 0 {
+ 		legacyID = &rec.LegacyID
+ 	}
++	timeEnd := rec.Time
++	if rec.TimeEnd != nil {
++		timeEnd = *rec.TimeEnd
++	}
+ 	return pgx.NamedArgs{
+ 		"namespace":     rec.Namespace,
+ 		"name":          rec.Name,
+ 		"time":          rec.Time,
+-		"time_end":      rec.TimeEnd,
++		"time_end":      timeEnd,
+ 		"dashboard_uid": rec.DashboardUID,
+ 		"panel_id":      rec.PanelID,
+ 		"text":          rec.Text,
+diff --git a/pkg/registry/apps/annotation/postgres_backfill_integration_test.go b/pkg/registry/apps/annotation/postgres_backfill_integration_test.go
+index 5a305cf0b..164a19841 100644
+--- a/pkg/registry/apps/annotation/postgres_backfill_integration_test.go
++++ b/pkg/registry/apps/annotation/postgres_backfill_integration_test.go
+@@ -58,8 +58,8 @@ func xminOf(t *testing.T, store *PostgreSQLStore, ns, name string) int64 {
+ func insertNativeRow(t *testing.T, store *PostgreSQLStore, ns, name string, at int64, text string, legacyID int64) {
+ 	t.Helper()
+ 	_, err := store.pool.Exec(t.Context(),
+-		`INSERT INTO annotations (namespace, name, time, text, created_at, legacy_id)
+-		 VALUES ($1, $2, $3, $4, $5, $6)`,
++		`INSERT INTO annotations (namespace, name, time, time_end, text, created_at, legacy_id)
++		 VALUES ($1, $2, $3, $3, $4, $5, $6)`,
+ 		ns, name, at, text, time.UnixMilli(week(0)).UTC(), legacyID)
+ 	require.NoError(t, err)
+ }
+@@ -142,7 +142,8 @@ func TestIntegrationBackfill(t *testing.T) {
+ 		require.NoError(t, err)
+ 		require.Equal(t, moved, got.Spec.Time, "time moved to the edited value")
+ 		require.Equal(t, "deploy-edited", got.Spec.Text)
+-		require.Nil(t, got.Spec.TimeEnd, "edit cleared the region end")
++		require.NotNil(t, got.Spec.TimeEnd)
++		require.Equal(t, moved, *got.Spec.TimeEnd, "edit cleared the region end, back to a point (time_end = time)")
+ 		require.Equal(t, int64(1), rowsNamed(t, store, ns, "legacy-1"), "the move must not leave a copy")
+ 	})
+ 
+@@ -163,7 +164,7 @@ func TestIntegrationBackfill(t *testing.T) {
+ 		for range 5 {
+ 			got, err := store.Get(ctx, ns, "legacy-1")
+ 			require.NoError(t, err)
+-			require.Equal(t, stale, got.Spec.Time, "Get must be deterministic under a duplicate")
++			require.Equal(t, current, got.Spec.Time, "Get must be deterministic under a duplicate")
+ 		}
+ 
+ 		// The resync would have to collapse both onto one time. It fails instead.
+diff --git a/pkg/registry/apps/annotation/postgres_backfill_unit_test.go b/pkg/registry/apps/annotation/postgres_backfill_unit_test.go
+index 04c7ed055..c236db355 100644
+--- a/pkg/registry/apps/annotation/postgres_backfill_unit_test.go
++++ b/pkg/registry/apps/annotation/postgres_backfill_unit_test.go
+@@ -35,6 +35,11 @@ func TestAnnotationArgs_EmptyToNull(t *testing.T) {
+ 	require.Nil(t, args["legacy_id"], "zero LegacyID must bind NULL")
+ }
+ 
++func TestAnnotationArgs_PointTimeEndDefaultsToTime(t *testing.T) {
++	args := annotationArgs(migrator.BackfillRecord{Namespace: "ns", Name: "n", Time: 100})
++	require.Equal(t, int64(100), args["time_end"], "a point must bind time_end = time")
++}
++
+ func TestUpdateMigratedSQL(t *testing.T) {
+ 	setClause, whereClause, found := strings.Cut(updateMigratedSQL, " WHERE ")
+ 	require.True(t, found, "update must have a WHERE clause")
+diff --git a/pkg/registry/apps/annotation/postgres_partitioned.go b/pkg/registry/apps/annotation/postgres_partitioned.go
+index e57d3e348..70671d41c 100644
+--- a/pkg/registry/apps/annotation/postgres_partitioned.go
++++ b/pkg/registry/apps/annotation/postgres_partitioned.go
+@@ -156,6 +156,7 @@ func (s *PostgreSQLStore) Get(ctx context.Context, namespace, name string) (*ann
+ 		       text, tags, scopes, created_by, created_at, legacy_id, legacy_data, deleted_at
+ 		FROM annotations
+ 		WHERE namespace = $1 AND name = $2
++		ORDER BY time DESC
+ 		LIMIT 1
+ 	`
+ 
+@@ -197,7 +198,10 @@ func (s *PostgreSQLStore) Create(ctx context.Context, anno *annotationV0.Annotat
+ 	namespace := anno.Namespace
+ 	name := anno.Name
+ 	timeMs := anno.Spec.Time
+-	timeEnd := anno.Spec.TimeEnd
++	timeEnd := timeMs
++	if anno.Spec.TimeEnd != nil {
++		timeEnd = *anno.Spec.TimeEnd
++	}
+ 	dashboardUID := anno.Spec.DashboardUID
+ 	panelID := anno.Spec.PanelID
+ 	text := anno.Spec.Text
+@@ -386,8 +390,7 @@ func buildListQuery(namespace string, opts ListOptions, offset, limit int64) (st
+ 	}
+ 
+ 	if opts.From > 0 {
+-		// Check against time for point annotations and time_end for range annotations
+-		conditions = append(conditions, fmt.Sprintf("((time_end IS NULL AND time >= $%d) OR (time_end IS NOT NULL AND time_end >= $%d))", argNum, argNum))
++		conditions = append(conditions, fmt.Sprintf("time_end >= $%d", argNum))
+ 		args = append(args, opts.From)
+ 		argNum++
+ 	}
+@@ -444,29 +447,18 @@ func buildListQuery(namespace string, opts ListOptions, offset, limit int64) (st
+ 		argNum++
+ 	}
+ 
+-	// Points and ranges are fetched separately so each is able to leverage its own index (time vs time_end)
+-	// with results unioned. Either subquery could supply the entire page on its own, so each must return enough
+-	// to cover the outer query's offset+limit, plus one extra row to detect whether a next page exists.
+ 	cols := `namespace, name, time, time_end, dashboard_uid, panel_id,
+ 	         text, tags, scopes, created_by, created_at, legacy_id, legacy_data, deleted_at`
+ 	where := strings.Join(conditions, " AND ")
+ 
+-	innerLimit := offset + limit + 1
+ 	query := fmt.Sprintf(`
+-		SELECT * FROM (
+-			(SELECT %[1]s FROM annotations
+-			 WHERE %[2]s AND time_end IS NULL
+-			 ORDER BY time DESC, name LIMIT $%[3]d)
+-			UNION ALL
+-			(SELECT %[1]s FROM annotations
+-			 WHERE %[2]s AND time_end IS NOT NULL
+-			 ORDER BY time_end DESC, time DESC, name LIMIT $%[3]d)
+-		) merged
+-		ORDER BY COALESCE(time_end, time) DESC, time DESC, name
+-		LIMIT $%[4]d OFFSET $%[5]d
+-	`, cols, where, argNum, argNum+1, argNum+2)
+-
+-	args = append(args, innerLimit, limit+1, offset)
++		SELECT %[1]s FROM annotations
++		WHERE %[2]s
++		ORDER BY time_end DESC, time DESC, name
++		LIMIT $%[3]d OFFSET $%[4]d
++	`, cols, where, argNum, argNum+1)
++
++	args = append(args, limit+1, offset)
+ 
+ 	return query, args
+ }
+diff --git a/pkg/registry/apps/annotation/postgres_schema.go b/pkg/registry/apps/annotation/postgres_schema.go
+index 55342e63c..cf6b8467e 100644
+--- a/pkg/registry/apps/annotation/postgres_schema.go
++++ b/pkg/registry/apps/annotation/postgres_schema.go
+@@ -2,6 +2,7 @@ package annotation
+ 
+ import (
+ 	"context"
++	"database/sql"
+ 	"embed"
+ 	"errors"
+ 	"fmt"
+@@ -113,26 +114,25 @@ func listPartitions(ctx context.Context, pool *pgxpool.Pool) ([]PartitionInfo, e
+ 	return partitions, nil
+ }
+ 
+-// runMigrations executes database migrations using goose
+-func runMigrations(ctx context.Context, pool *pgxpool.Pool, logger log.Logger) error {
++// newMigrationProvider builds the goose migration provider.
++// It returns the goose provider, the underlying *sql.DB, and any error encountered.
++// The caller is responsible for closing the *sql.DB when done.
++func newMigrationProvider(pool *pgxpool.Pool) (*goose.Provider, *sql.DB, error) {
+ 	// goose operates on *sql.DB, so we need to create one from our pgxpool
+ 	db := stdlib.OpenDBFromPool(pool)
+-	defer func() {
+-		if err := db.Close(); err != nil {
+-			logger.Error("failed to close database connection", "error", err)
+-		}
+-	}()
+ 
+ 	// The provider reads from the root of the fs, so re-root onto the migrations dir.
+ 	migrationsFS, err := fs.Sub(embedMigrations, "migrations")
+ 	if err != nil {
+-		return fmt.Errorf("failed to sub migrations fs: %w", err)
++		_ = db.Close()
++		return nil, nil, fmt.Errorf("failed to sub migrations fs: %w", err)
+ 	}
+ 
+ 	// Use Postgres advisory locks to prevent multiple instances from running migrations concurrently
+ 	locker, err := lock.NewPostgresSessionLocker()
+ 	if err != nil {
+-		return fmt.Errorf("failed to create session locker: %w", err)
++		_ = db.Close()
++		return nil, nil, fmt.Errorf("failed to create session locker: %w", err)
+ 	}
+ 
+ 	provider, err := goose.NewProvider(
+@@ -142,10 +142,25 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool, logger log.Logger) e
+ 		goose.WithSessionLocker(locker),
+ 	)
+ 	if err != nil {
+-		return fmt.Errorf("failed to create goose provider: %w", err)
++		_ = db.Close()
++		return nil, nil, fmt.Errorf("failed to create goose provider: %w", err)
+ 	}
+ 
+-	// Run all pending migrations
++	return provider, db, nil
++}
++
++// runMigrations executes pending database migrations.
++func runMigrations(ctx context.Context, pool *pgxpool.Pool, logger log.Logger) error {
++	provider, db, err := newMigrationProvider(pool)
++	if err != nil {
++		return err
++	}
++	defer func() {
++		if err := db.Close(); err != nil {
++			logger.Error("failed to close database connection", "error", err)
++		}
++	}()
++
+ 	results, err := provider.Up(ctx)
+ 	if err != nil {
+ 		return fmt.Errorf("failed to run migrations: %w", err)

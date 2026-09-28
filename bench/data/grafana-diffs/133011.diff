@@ -1,0 +1,171 @@
+diff --git a/public/app/plugins/panel/text/v2/TextNGPanel.test.tsx b/public/app/plugins/panel/text/v2/TextNGPanel.test.tsx
+index 88742698a..df36d3ab2 100644
+--- a/public/app/plugins/panel/text/v2/TextNGPanel.test.tsx
++++ b/public/app/plugins/panel/text/v2/TextNGPanel.test.tsx
+@@ -274,6 +274,47 @@ describe('TextNGPanel', () => {
+       expect(screen.getByTestId(PREVIEW_TEST_ID).innerHTML).toContain('<h1');
+     });
+ 
++    describe('view mode', () => {
++      const switchToWrite = async (props: Props) => {
++        replaceVariablesMock.mockImplementation((str: string) => str);
++        const { unmount } = renderPanel(props, CoreApp.PanelEditor);
++        await userEvent.click(await screen.findByRole('radio', { name: 'Write' }));
++        expect(screen.getByRole('radio', { name: 'Write' })).toBeChecked();
++        unmount();
++      };
++
++      // Table view swaps in a different VizPanel, which unmounts and remounts this
++      // component even though the user never actually left panel edit.
++      it('keeps the view mode across a remount that happens while still editing (e.g. table view)', async () => {
++        const props = createProps(replaceVariablesMock, { options: { content: 'hello', mode: TextMode.Markdown } });
++
++        await switchToWrite(props);
++
++        renderPanel(props, CoreApp.PanelEditor);
++        expect(await screen.findByRole('radio', { name: 'Write' })).toBeChecked();
++      });
++
++      it('resets to the split view once the panel is actually shown outside edit mode', async () => {
++        const props = createProps(replaceVariablesMock, { options: { content: 'hello', mode: TextMode.Markdown } });
++
++        await switchToWrite(props);
++        renderPanel(props, CoreApp.Dashboard).unmount();
++
++        renderPanel(props, CoreApp.PanelEditor);
++        expect(await screen.findByRole('radio', { name: 'Split' })).toBeChecked();
++      });
++
++      // Both panels carry the same id, as ids only ever have to be unique within a dashboard.
++      it('does not carry the view mode over to another panel', async () => {
++        const options = { content: 'hello', mode: TextMode.Markdown };
++
++        await switchToWrite(createProps(replaceVariablesMock, { options }));
++
++        renderPanel(createProps(replaceVariablesMock, { options }), CoreApp.PanelEditor);
++        expect(await screen.findByRole('radio', { name: 'Split' })).toBeChecked();
++      });
++    });
++
+     it('merges a language change made in the editor into the existing code options', async () => {
+       replaceVariablesMock.mockImplementation((str: string) => str);
+       const onOptionsChange = jest.fn();
+diff --git a/public/app/plugins/panel/text/v2/TextNGPanel.tsx b/public/app/plugins/panel/text/v2/TextNGPanel.tsx
+index ba03aa59a..1588b706e 100644
+--- a/public/app/plugins/panel/text/v2/TextNGPanel.tsx
++++ b/public/app/plugins/panel/text/v2/TextNGPanel.tsx
+@@ -1,11 +1,12 @@
+ import { css, cx } from '@emotion/css';
+-import { lazy, Suspense, useMemo, useState, type Ref } from 'react';
++import { lazy, Suspense, useEffect, useMemo, useState, type Ref } from 'react';
+ import { useDebounce } from 'react-use';
+ 
+ import {
+   CoreApp,
+   getFrameDisplayName,
+   type DataFrame,
++  type EventBus,
+   type GrafanaTheme2,
+   type PanelProps,
+   type InterpolateFunction,
+@@ -38,20 +39,39 @@ import {
+ import { TextNGCodeView } from './TextNGCodeView';
+ import { TextNGFooter } from './TextNGFooter';
+ import { TextNGHtmlView } from './TextNGHtmlView';
+-import { type TextNGEditorChange, type ViewMode } from './editor/TextNGEditor';
++import { type TextNGEditorChange } from './editor/TextNGEditor';
+ import { getEditorLayoutStyles } from './editor/editorLayout';
++import { DEFAULT_VIEW_MODE, type ViewMode } from './editor/viewMode';
+ import { usePagination } from './pagination';
+ import { catchTemplateError, renderContent, type RenderedContent, type RowWindow } from './renderContent';
+ import { EMPTY_CONTENT, getCurrentFrameIndex, getInterpolateFormat, isTextNewFeaturesEnabled } from './utils';
+ 
+ const TextNGEditor = lazy(() => import('./editor/TextNGEditor').then((m) => ({ default: m.TextNGEditor })));
+ 
++// The view mode has to outlive the component, since the panel remounts while panel edit stays open
++// (toggling the table view is one way), but it must not be saved into the panel's options.
++// PanelContext.instanceState is meant for this, but writing it makes scenes spread the context,
++// which flattens the `app` getter the dashboard installs and leaves Text stuck in edit mode.
++// So keep it here until that is fixed in scenes, keyed on the event bus: the only handle in
++// PanelProps unique to a panel instance, as ids repeat across dashboards.
++const viewModeByPanel = new WeakMap<EventBus, ViewMode>();
++
+ export interface Props extends PanelProps<Options> {}
+ 
+ export function TextNGPanel(props: Props) {
+   const { app } = usePanelContext();
+-  const { options, onOptionsChange, replaceVariables, data, renderCounter, fitContent, transparent, height, width } =
+-    props;
++  const {
++    eventBus,
++    options,
++    onOptionsChange,
++    replaceVariables,
++    data,
++    renderCounter,
++    fitContent,
++    transparent,
++    height,
++    width,
++  } = props;
+   const styles = useStyles2(getStyles);
+   const isEditing = app === CoreApp.PanelEditor;
+   // Fit-content only applies to the rendered view: the inline editor keeps its
+@@ -78,7 +98,17 @@ export function TextNGPanel(props: Props) {
+     [isEditing, series]
+   );
+ 
+-  const [view, setView] = useState<ViewMode>('split');
++  const [view, setViewState] = useState<ViewMode>(() => viewModeByPanel.get(eventBus) ?? DEFAULT_VIEW_MODE);
++  const setView = (next: ViewMode) => {
++    setViewState(next);
++    viewModeByPanel.set(eventBus, next);
++  };
++
++  useEffect(() => {
++    if (!isEditing) {
++      viewModeByPanel.delete(eventBus);
++    }
++  }, [isEditing, eventBus]);
+ 
+   const { active, page, numPages, rangeStart, rangeEnd, rowCount, rowWindow, smallVersion, setPage, contentRef } =
+     usePagination({
+diff --git a/public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx b/public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx
+index cdfa9238b..f255100d6 100644
+--- a/public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx
++++ b/public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx
+@@ -10,8 +10,9 @@ import config from 'app/core/config';
+ import { CodeLanguage, RenderMode, TextMode } from '../../panelcfg.gen';
+ import { FOOTER_TEST_ID } from '../TextNGFooter';
+ 
+-import { PREVIEW_TEST_ID, TextNGEditor, type TextNGEditorChange, type ViewMode } from './TextNGEditor';
++import { PREVIEW_TEST_ID, TextNGEditor, type TextNGEditorChange } from './TextNGEditor';
+ import { FORMAT_TOOLBAR_TEST_ID } from './TextNGFormatToolbar';
++import { type ViewMode } from './viewMode';
+ 
+ beforeAll(() => {
+   setTestFlags({ [FlagKeys.TextNewFeatures]: true });
+diff --git a/public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx b/public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx
+index a59a8dab2..994f1ca7e 100644
+--- a/public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx
++++ b/public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx
+@@ -18,8 +18,7 @@ import { TextNGEditorFooter } from './TextNGEditorFooter';
+ import { TextNGFormatToolbar } from './TextNGFormatToolbar';
+ import { getEditorLayoutStyles } from './editorLayout';
+ import { variableCompletion } from './variableCompletion';
+-
+-export type ViewMode = 'write' | 'split' | 'preview';
++import { type ViewMode } from './viewMode';
+ 
+ export const PREVIEW_TEST_ID = 'TextNGEditor-preview';
+ 
+diff --git a/public/app/plugins/panel/text/v2/editor/viewMode.ts b/public/app/plugins/panel/text/v2/editor/viewMode.ts
+new file mode 100644
+index 000000000..49798da07
+--- /dev/null
++++ b/public/app/plugins/panel/text/v2/editor/viewMode.ts
+@@ -0,0 +1,4 @@
++export type ViewMode = 'write' | 'split' | 'preview';
++
++// Kept out of TextNGEditor so reading the default does not pull its lazy chunk into the eager bundle.
++export const DEFAULT_VIEW_MODE: ViewMode = 'split';

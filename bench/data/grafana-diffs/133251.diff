@@ -1,0 +1,180 @@
+diff --git a/pkg/tsdb/graphite/http_status_error.go b/pkg/tsdb/graphite/http_status_error.go
+new file mode 100644
+index 000000000..55a606c41
+--- /dev/null
++++ b/pkg/tsdb/graphite/http_status_error.go
+@@ -0,0 +1,29 @@
++package graphite
++
++import (
++	"errors"
++
++	"github.com/grafana/grafana-plugin-sdk-go/backend"
++)
++
++type httpStatusError struct {
++	status backend.Status
++	source backend.ErrorSource
++	err    error
++}
++
++func newHTTPStatusError(statusCode int, source backend.ErrorSource, err error) error {
++	return &httpStatusError{status: backend.Status(statusCode), source: source, err: err}
++}
++
++func (e *httpStatusError) Error() string { return e.err.Error() }
++
++func (e *httpStatusError) Unwrap() error { return e.err }
++
++func dataResponseFromError(err error) backend.DataResponse {
++	var statusErr *httpStatusError
++	if errors.As(err, &statusErr) {
++		return backend.ErrDataResponseWithSource(statusErr.status, statusErr.source, statusErr.err.Error())
++	}
++	return backend.ErrorResponseWithErrorSource(err)
++}
+diff --git a/pkg/tsdb/graphite/query.go b/pkg/tsdb/graphite/query.go
+index 7c01fc598..b5ec7672a 100644
+--- a/pkg/tsdb/graphite/query.go
++++ b/pkg/tsdb/graphite/query.go
+@@ -104,7 +104,7 @@ func (s *Service) RunQuery(ctx context.Context, req *backend.QueryDataRequest, d
+ 			span.RecordError(err)
+ 			span.SetStatus(codes.Error, err.Error())
+ 			span.End()
+-			result.Responses[refId] = backend.ErrorResponseWithErrorSource(err)
++			result.Responses[refId] = dataResponseFromError(err)
+ 			return result, nil
+ 		}
+ 
+@@ -273,10 +273,7 @@ func (s *Service) parseResponse(res *http.Response) ([]TargetResponseDTO, error)
+ 		graphiteError := parseGraphiteError(res.StatusCode, string(body))
+ 		s.logger.Info("Request failed", "status", res.Status, "error", graphiteError, "body", string(body))
+ 		err := fmt.Errorf("request failed with error: %s", graphiteError)
+-		if backend.ErrorSourceFromHTTPStatus(res.StatusCode) == backend.ErrorSourceDownstream {
+-			return nil, backend.DownstreamError(err)
+-		}
+-		return nil, backend.PluginError(err)
++		return nil, newHTTPStatusError(res.StatusCode, backend.ErrorSourceFromHTTPStatus(res.StatusCode), err)
+ 	}
+ 
+ 	var data []TargetResponseDTO
+diff --git a/pkg/tsdb/graphite/query_test.go b/pkg/tsdb/graphite/query_test.go
+index d78fab023..a948e5c2d 100644
+--- a/pkg/tsdb/graphite/query_test.go
++++ b/pkg/tsdb/graphite/query_test.go
+@@ -122,7 +122,7 @@ func TestProcessQuery(t *testing.T) {
+ 					"target": "target A",
+ 					"tags": { "fooTag": "fooValue", "barTag": "barValue", "int": 100, "float": 3.14 },
+ 					"datapoints": [[50, 1], [null, 2], [100, 3]]
+-				}	
++				}
+ 			]`))
+ 			require.NoError(t, err)
+ 		}))
+@@ -376,6 +376,8 @@ func TestRunQueryE2E(t *testing.T) {
+ 		refIdTargetMap  map[string]string
+ 		expectError     bool
+ 		errorContains   string
++		expectStatus    backend.Status
++		expectSource    backend.ErrorSource
+ 		multipleTargets map[string]string
+ 	}{
+ 		{
+@@ -577,6 +579,58 @@ func TestRunQueryE2E(t *testing.T) {
+ 			},
+ 			expectError:   true,
+ 			errorContains: "request failed with error",
++			expectStatus:  backend.StatusInternal,
++			expectSource:  backend.ErrorSourceDownstream,
++		},
++		{
++			name:         "not implemented response",
++			serverStatus: 501,
++			serverResponse: `{
++						"status": "error",
++						"error": "not implemented"
++					}`,
++			queries: []backend.DataQuery{
++				{
++					RefID: "A",
++					TimeRange: backend.TimeRange{
++						From: time.Unix(1609459200, 0),
++						To:   time.Unix(1609459260, 0),
++					},
++					MaxDataPoints: 1000,
++					JSON: []byte(`{
++								"target": "stats.counters.web.hits"
++							}`),
++				},
++			},
++			expectError:   true,
++			errorContains: "request failed with error",
++			expectStatus:  backend.StatusNotImplemented,
++			expectSource:  backend.ErrorSourcePlugin,
++		},
++		{
++			name:         "authentication error response",
++			serverStatus: 401,
++			serverResponse: `{
++						"status": "error",
++						"error": "authentication error: invalid authentication credentials"
++					}`,
++			queries: []backend.DataQuery{
++				{
++					RefID: "A",
++					TimeRange: backend.TimeRange{
++						From: time.Unix(1609459200, 0),
++						To:   time.Unix(1609459260, 0),
++					},
++					MaxDataPoints: 1000,
++					JSON: []byte(`{
++								"target": "stats.counters.web.hits"
++							}`),
++				},
++			},
++			expectError:   true,
++			errorContains: "request failed with error",
++			expectStatus:  backend.StatusUnauthorized,
++			expectSource:  backend.ErrorSourceDownstream,
+ 		},
+ 		{
+ 			name:         "server error response with HTML content",
+@@ -602,6 +656,7 @@ func TestRunQueryE2E(t *testing.T) {
+ 			},
+ 			expectError:   true,
+ 			errorContains: "Error: Target not found", // Should parse HTML and extract the last meaningful line
++			expectSource:  backend.ErrorSourceDownstream,
+ 		},
+ 		{
+ 			name:           "malformed JSON response",
+@@ -620,7 +675,8 @@ func TestRunQueryE2E(t *testing.T) {
+ 							}`),
+ 				},
+ 			},
+-			expectError: true,
++			expectError:  true,
++			expectSource: backend.ErrorSourcePlugin,
+ 		},
+ 		{
+ 			name:           "invalid query JSON",
+@@ -639,6 +695,7 @@ func TestRunQueryE2E(t *testing.T) {
+ 			},
+ 			expectError:   true,
+ 			errorContains: "failed to decode the Graphite query",
++			expectSource:  backend.ErrorSourcePlugin,
+ 		},
+ 		{
+ 			name:         "interval format transformation",
+@@ -730,6 +787,12 @@ func TestRunQueryE2E(t *testing.T) {
+ 							if tt.errorContains != "" {
+ 								assert.Contains(t, resp.Error.Error(), tt.errorContains)
+ 							}
++							if tt.expectStatus != 0 {
++								assert.Equal(t, tt.expectStatus, resp.Status)
++							}
++							if tt.expectSource != "" {
++								assert.Equal(t, tt.expectSource, resp.ErrorSource)
++							}
+ 							break
+ 						}
+ 					}

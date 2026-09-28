@@ -1,0 +1,800 @@
+diff --git a/apps/alerting/rules/definitions/alerting-manifest.yaml b/apps/alerting/rules/definitions/alerting-manifest.yaml
+index 0b5fec5ae..1687bf39f 100644
+--- a/apps/alerting/rules/definitions/alerting-manifest.yaml
++++ b/apps/alerting/rules/definitions/alerting-manifest.yaml
+@@ -298,6 +298,42 @@ spec:
+           type: object
+       scope: Namespaced
+       searchFields:
++      - capabilities:
++        - retrieve
++        description: The health of the rule
++        name: health
++        path: status.health
++        type: string
++      - capabilities:
++        - retrieve
++        description: The time of the last rule evaluation
++        name: lastEvaluationTime
++        path: status.lastEvaluationTime
++        type: string
++      - capabilities:
++        - retrieve
++        description: The duration of the last rule evaluation in seconds
++        name: evaluationDuration
++        path: status.evaluationDuration
++        type: double
++      - capabilities:
++        - retrieve
++        description: The error from the last rule evaluation
++        name: lastError
++        path: status.lastError
++        type: string
++      - capabilities:
++        - retrieve
++        description: The state of the alert rule
++        name: state
++        path: status.state
++        type: string
++      - capabilities:
++        - retrieve
++        description: The reason for the alert rule state
++        name: stateReason
++        path: status.stateReason
++        type: string
+       - capabilities:
+         - filter
+         - retrieve
+@@ -569,6 +605,30 @@ spec:
+           type: object
+       scope: Namespaced
+       searchFields:
++      - capabilities:
++        - retrieve
++        description: The health of the rule
++        name: health
++        path: status.health
++        type: string
++      - capabilities:
++        - retrieve
++        description: The time of the last rule evaluation
++        name: lastEvaluationTime
++        path: status.lastEvaluationTime
++        type: string
++      - capabilities:
++        - retrieve
++        description: The duration of the last rule evaluation in seconds
++        name: evaluationDuration
++        path: status.evaluationDuration
++        type: double
++      - capabilities:
++        - retrieve
++        description: The error from the last rule evaluation
++        name: lastError
++        path: status.lastError
++        type: string
+       - capabilities:
+         - filter
+         - retrieve
+diff --git a/apps/alerting/rules/kinds/alertRule.cue b/apps/alerting/rules/kinds/alertRule.cue
+index ae79fa79b..e90dbd01d 100644
+--- a/apps/alerting/rules/kinds/alertRule.cue
++++ b/apps/alerting/rules/kinds/alertRule.cue
+@@ -54,6 +54,48 @@ alertRulev0alpha1: alertRuleKind & {
+ 	// routingTree for NamedRoutingTree) at the same level, so all three read
+ 	// from spec.notificationSettings.* directly.
+ 	searchFields: [
++		{
++			name: "health"
++			path: "status.health"
++			type: "string"
++			capabilities: ["retrieve"]
++			description: "The health of the rule"
++		},
++		{
++			name: "lastEvaluationTime"
++			path: "status.lastEvaluationTime"
++			type: "string"
++			capabilities: ["retrieve"]
++			description: "The time of the last rule evaluation"
++		},
++		{
++			name: "evaluationDuration"
++			path: "status.evaluationDuration"
++			type: "double"
++			capabilities: ["retrieve"]
++			description: "The duration of the last rule evaluation in seconds"
++		},
++		{
++			name: "lastError"
++			path: "status.lastError"
++			type: "string"
++			capabilities: ["retrieve"]
++			description: "The error from the last rule evaluation"
++		},
++		{
++			name: "state"
++			path: "status.state"
++			type: "string"
++			capabilities: ["retrieve"]
++			description: "The state of the alert rule"
++		},
++		{
++			name: "stateReason"
++			path: "status.stateReason"
++			type: "string"
++			capabilities: ["retrieve"]
++			description: "The reason for the alert rule state"
++		},
+ 		{
+ 			name: "type"
+ 			type: "string"
+diff --git a/apps/alerting/rules/kinds/recordingRule.cue b/apps/alerting/rules/kinds/recordingRule.cue
+index 4fd9a44c5..84dc98359 100644
+--- a/apps/alerting/rules/kinds/recordingRule.cue
++++ b/apps/alerting/rules/kinds/recordingRule.cue
+@@ -40,6 +40,34 @@ recordingRulev0alpha1: recordingRuleKind & {
+ 	// have metric and targetDatasourceUID instead of the alerting-only fields
+ 	// and share the computed type / labels / datasourceUIDs handling.
+ 	searchFields: [
++		{
++			name: "health"
++			path: "status.health"
++			type: "string"
++			capabilities: ["retrieve"]
++			description: "The health of the rule"
++		},
++		{
++			name: "lastEvaluationTime"
++			path: "status.lastEvaluationTime"
++			type: "string"
++			capabilities: ["retrieve"]
++			description: "The time of the last rule evaluation"
++		},
++		{
++			name: "evaluationDuration"
++			path: "status.evaluationDuration"
++			type: "double"
++			capabilities: ["retrieve"]
++			description: "The duration of the last rule evaluation in seconds"
++		},
++		{
++			name: "lastError"
++			path: "status.lastError"
++			type: "string"
++			capabilities: ["retrieve"]
++			description: "The error from the last rule evaluation"
++		},
+ 		{
+ 			name: "type"
+ 			type: "string"
+diff --git a/apps/alerting/rules/pkg/apis/manifestdata/alerting_manifest.go b/apps/alerting/rules/pkg/apis/manifestdata/alerting_manifest.go
+index 34578fe41..48da4a83c 100644
+--- a/apps/alerting/rules/pkg/apis/manifestdata/alerting_manifest.go
++++ b/apps/alerting/rules/pkg/apis/manifestdata/alerting_manifest.go
+@@ -75,6 +75,48 @@ var appManifestData = app.ManifestData{
+ 						"spec.notificationSettings.routingTree",
+ 					},
+ 					SearchFields: []app.ManifestVersionKindSearchField{
++						{
++							Name:         "health",
++							Path:         "status.health",
++							Type:         "string",
++							Capabilities: []string{"retrieve"},
++							Description:  "The health of the rule",
++						},
++						{
++							Name:         "lastEvaluationTime",
++							Path:         "status.lastEvaluationTime",
++							Type:         "string",
++							Capabilities: []string{"retrieve"},
++							Description:  "The time of the last rule evaluation",
++						},
++						{
++							Name:         "evaluationDuration",
++							Path:         "status.evaluationDuration",
++							Type:         "double",
++							Capabilities: []string{"retrieve"},
++							Description:  "The duration of the last rule evaluation in seconds",
++						},
++						{
++							Name:         "lastError",
++							Path:         "status.lastError",
++							Type:         "string",
++							Capabilities: []string{"retrieve"},
++							Description:  "The error from the last rule evaluation",
++						},
++						{
++							Name:         "state",
++							Path:         "status.state",
++							Type:         "string",
++							Capabilities: []string{"retrieve"},
++							Description:  "The state of the alert rule",
++						},
++						{
++							Name:         "stateReason",
++							Path:         "status.stateReason",
++							Type:         "string",
++							Capabilities: []string{"retrieve"},
++							Description:  "The reason for the alert rule state",
++						},
+ 						{
+ 							Name:         "type",
+ 							Type:         "string",
+@@ -195,6 +237,34 @@ var appManifestData = app.ManifestData{
+ 						"spec.targetDatasourceUID",
+ 					},
+ 					SearchFields: []app.ManifestVersionKindSearchField{
++						{
++							Name:         "health",
++							Path:         "status.health",
++							Type:         "string",
++							Capabilities: []string{"retrieve"},
++							Description:  "The health of the rule",
++						},
++						{
++							Name:         "lastEvaluationTime",
++							Path:         "status.lastEvaluationTime",
++							Type:         "string",
++							Capabilities: []string{"retrieve"},
++							Description:  "The time of the last rule evaluation",
++						},
++						{
++							Name:         "evaluationDuration",
++							Path:         "status.evaluationDuration",
++							Type:         "double",
++							Capabilities: []string{"retrieve"},
++							Description:  "The duration of the last rule evaluation in seconds",
++						},
++						{
++							Name:         "lastError",
++							Path:         "status.lastError",
++							Type:         "string",
++							Capabilities: []string{"retrieve"},
++							Description:  "The error from the last rule evaluation",
++						},
+ 						{
+ 							Name:         "type",
+ 							Type:         "string",
+diff --git a/pkg/registry/apps/alerting/rules/search/fields.go b/pkg/registry/apps/alerting/rules/search/fields.go
+index 43713a200..75df1a5a8 100644
+--- a/pkg/registry/apps/alerting/rules/search/fields.go
++++ b/pkg/registry/apps/alerting/rules/search/fields.go
+@@ -35,6 +35,12 @@ const (
+ 	fieldRoutingTree         = "routingTree"
+ 	fieldMetric              = "metric"
+ 	fieldTargetDatasourceUID = "targetDatasourceUID"
++	fieldHealth              = "health"
++	fieldLastEvaluationTime  = "lastEvaluationTime"
++	fieldLastError           = "lastError"
++	fieldEvaluationDuration  = "evaluationDuration"
++	fieldState               = "state"
++	fieldStateReason         = "stateReason"
+ )
+ 
+ // resultColumns are the columns every search result table carries, in order.
+@@ -44,6 +50,7 @@ var resultColumns = []string{
+ 	fieldAnnotations, fieldFor, fieldKeepFiringFor,
+ 	fieldDashboardUID, fieldPanelID, fieldReceiver, fieldNotificationType, fieldRoutingTree,
+ 	fieldMetric, fieldTargetDatasourceUID,
++	fieldHealth, fieldLastEvaluationTime, fieldLastError, fieldEvaluationDuration, fieldState, fieldStateReason,
+ }
+ 
+ // searchColumns is the column definition for every field a rule hit can carry,
+diff --git a/pkg/registry/apps/alerting/rules/search/legacy_search.go b/pkg/registry/apps/alerting/rules/search/legacy_search.go
+index d53b8adce..d42b14444 100644
+--- a/pkg/registry/apps/alerting/rules/search/legacy_search.go
++++ b/pkg/registry/apps/alerting/rules/search/legacy_search.go
+@@ -99,7 +99,11 @@ func (c *legacyClient) Search(ctx context.Context, req *resourcepb.ResourceSearc
+ 
+ 	table := &resourcepb.ResourceTable{Columns: resultColumnDefinitions()}
+ 	for _, r := range page {
+-		cells, err := ruleCells(r)
++		values := ruleColumnValues(r)
++		if perKindSearch {
++			c.addStatusValues(r, values)
++		}
++		cells, err := ruleCells(values)
+ 		if err != nil {
+ 			return nil, err
+ 		}
+@@ -170,12 +174,12 @@ func ruleColumnValues(r *ngmodels.AlertRule) map[string]any {
+ // ruleCells encodes a rule into the result table's cells. Positions come from
+ // the column index rather than the literal order of this function, so adding a
+ // column cannot silently misalign the rest of the row.
+-func ruleCells(r *ngmodels.AlertRule) ([][]byte, error) {
++func ruleCells(values map[string]any) ([][]byte, error) {
+ 	if results.err != nil {
+ 		return nil, results.err
+ 	}
+ 	cells := make([][]byte, len(results.defs))
+-	for name, v := range ruleColumnValues(r) {
++	for name, v := range values {
+ 		i, ok := results.index[name]
+ 		if !ok {
+ 			// skip undefined columns instead of failing
+diff --git a/pkg/registry/apps/alerting/rules/search/per_kind_legacy.go b/pkg/registry/apps/alerting/rules/search/per_kind_legacy.go
+index 5acf6c90d..a2cfb7333 100644
+--- a/pkg/registry/apps/alerting/rules/search/per_kind_legacy.go
++++ b/pkg/registry/apps/alerting/rules/search/per_kind_legacy.go
+@@ -1,6 +1,7 @@
+ package search
+ 
+ import (
++	"encoding/json"
+ 	"strings"
+ 
+ 	"github.com/grafana/grafana/pkg/registry/apps/alerting/rules/recordingrule"
+@@ -8,6 +9,41 @@ import (
+ 	"github.com/grafana/grafana/pkg/storage/unified/resourcepb"
+ )
+ 
++func (c *legacyClient) addStatusValues(r *ngmodels.AlertRule, values map[string]any) {
++	if len(r.K8sStatus) == 0 {
++		return
++	}
++	var status map[string]any
++	if err := json.Unmarshal(r.K8sStatus, &status); err != nil {
++		c.logger.Warn("Failed to decode rule search status; omitting status", "orgID", r.OrgID, "ruleUID", r.UID, "error", err)
++		return
++	}
++	fields := []string{fieldHealth, fieldLastEvaluationTime, fieldLastError, fieldEvaluationDuration}
++	if r.Type() != ngmodels.RuleTypeRecording {
++		fields = append(fields, fieldState, fieldStateReason)
++	}
++	// Validate before copying so malformed status never produces a partial result.
++	for _, name := range fields {
++		value := status[name]
++		if value == nil {
++			continue
++		}
++		_, valid := value.(string)
++		if name == fieldEvaluationDuration {
++			_, valid = value.(float64)
++		}
++		if !valid {
++			c.logger.Warn("Invalid rule search status field type; omitting status", "orgID", r.OrgID, "ruleUID", r.UID, "field", name)
++			return
++		}
++	}
++	for _, name := range fields {
++		if value := status[name]; value != nil {
++			values[name] = value
++		}
++	}
++}
++
+ func ruleTypeForResource(req *resourcepb.ResourceSearchRequest) string {
+ 	if req.Options.GetKey().GetResource() == recordingrule.ResourceInfo.GroupResource().Resource {
+ 		return ruleTypeRecording
+diff --git a/pkg/registry/apps/alerting/rules/search/per_kind_search_test.go b/pkg/registry/apps/alerting/rules/search/per_kind_search_test.go
+index b935e5b86..960ccbe69 100644
+--- a/pkg/registry/apps/alerting/rules/search/per_kind_search_test.go
++++ b/pkg/registry/apps/alerting/rules/search/per_kind_search_test.go
+@@ -53,7 +53,7 @@ func legacyRows(t *testing.T, rules ...*ngmodels.AlertRule) *resourcepb.Resource
+ 	t.Helper()
+ 	table := &resourcepb.ResourceTable{Columns: resultColumnDefinitions()}
+ 	for _, r := range rules {
+-		cells, err := ruleCells(r)
++		cells, err := ruleCells(ruleColumnValues(r))
+ 		require.NoError(t, err)
+ 		table.Rows = append(table.Rows, &resourcepb.ResourceTableRow{Key: ruleKey("default", r), Cells: cells})
+ 	}
+diff --git a/pkg/registry/apps/alerting/rules/search/per_kind_status_test.go b/pkg/registry/apps/alerting/rules/search/per_kind_status_test.go
+new file mode 100644
+index 000000000..b1ad7d33f
+--- /dev/null
++++ b/pkg/registry/apps/alerting/rules/search/per_kind_status_test.go
+@@ -0,0 +1,227 @@
++package search
++
++import (
++	"context"
++	"encoding/json"
++	"net/http"
++	"net/http/httptest"
++	"testing"
++
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++
++	"github.com/grafana/grafana-app-sdk/app"
++	"github.com/grafana/grafana-app-sdk/resource"
++	"github.com/grafana/grafana/pkg/apimachinery/identity"
++	searchv0 "github.com/grafana/grafana/pkg/apis/search/v0alpha1"
++	"github.com/grafana/grafana/pkg/infra/log/logtest"
++	"github.com/grafana/grafana/pkg/services/accesscontrol"
++	ngmodels "github.com/grafana/grafana/pkg/services/ngalert/models"
++	"github.com/grafana/grafana/pkg/services/ngalert/provisioning"
++	"github.com/grafana/grafana/pkg/services/ngalert/tests/fakes"
++	"github.com/grafana/grafana/pkg/storage/unified/resourcepb"
++)
++
++func TestPerKindSearch_olderBackendOmitsStatusColumns(t *testing.T) {
++	fields := []string{fieldTitle, fieldHealth, fieldState, fieldEvaluationDuration}
++	resp := &resourcepb.ResourceSearchResponse{
++		Results: &resourcepb.ResourceTable{
++			Columns: []*resourcepb.ResourceTableColumnDefinition{searchColumns[fieldTitle]},
++			Rows: []*resourcepb.ResourceTableRow{{
++				Key:   ruleKey("default", testAlertRule()),
++				Cells: [][]byte{[]byte("CPU alert")},
++			}},
++		},
++		TotalHits: 1, TotalHitsExact: true,
++	}
++	rec, index := callWithBody(t, projection(fields...), resp)
++	out := decodeResults(t, rec)
++	require.NotNil(t, index.got)
++	assert.Equal(t, fields, index.got.Fields)
++	require.Len(t, out.Items, 1)
++	require.NotNil(t, out.Items[0].Fields)
++	assert.Equal(t, map[string]any{fieldTitle: "CPU alert"}, out.Items[0].Fields.Object)
++}
++
++type statusSearchAccessControl struct {
++	provisioning.RuleAccessControlService
++}
++
++type statusSearchStore struct {
++	provisioning.RuleStore
++	rule *ngmodels.AlertRule
++}
++
++func (s statusSearchStore) ListAlertRulesPaginated(context.Context, *ngmodels.ListAlertRulesExtendedQuery) (ngmodels.RulesGroup, string, error) {
++	return ngmodels.RulesGroup{s.rule}, "", nil
++}
++
++func (statusSearchAccessControl) HasAccess(context.Context, identity.Requester, accesscontrol.Evaluator) (bool, error) {
++	return true, nil
++}
++
++func legacyStatusHandler(t *testing.T, rule *ngmodels.AlertRule) (*Handler, *logtest.Fake, context.Context) {
++	t.Helper()
++	rule.OrgID = 1
++	store := statusSearchStore{rule: rule}
++	logger := &logtest.Fake{}
++	service := provisioning.NewAlertRuleService(store, fakes.NewFakeProvisioningStore(), nil, nil, nil,
++		60, 10, 0, logger, nil, statusSearchAccessControl{}, nil)
++	client := NewLegacyClient(*service)
++	client.logger = logger
++	ctx := identity.WithRequester(context.Background(), &identity.StaticRequester{OrgID: 1, UserID: 1})
++	return NewHandler(client, client), logger, ctx
++}
++
++func TestPerKindSearch_legacyStatusProjection(t *testing.T) {
++	for _, recording := range []bool{false, true} {
++		kind := "alert"
++		if recording {
++			kind = "recording"
++		}
++		t.Run(kind, func(t *testing.T) {
++			for _, tc := range []struct {
++				name   string
++				status string
++				want   map[string]any
++				warn   bool
++			}{
++				{name: "absent"},
++				{name: "empty object", status: `{}`},
++				{name: "null", status: `null`},
++				{name: "null fields", status: `{"health":null,"evaluationDuration":null}`},
++				{name: "partial", status: `{"health":"Paused"}`, want: map[string]any{"health": "Paused"}},
++				{name: "zero duration", status: `{"evaluationDuration":0}`, want: map[string]any{"evaluationDuration": float64(0)}},
++				{
++					name: "complete with unknown and controller fields",
++					status: `{"health":"Error","lastEvaluationTime":"2026-09-17T10:20:30.123Z","lastError":"query failed",` +
++						`"evaluationDuration":0.125,"state":"Firing","stateReason":"Evaluated",` +
++						`"operatorStates":{"controller":{"state":"failed"}},"additionalFields":{"secret":"hidden"},"unknown":"hidden"}`,
++					want: map[string]any{"health": "Error", "lastEvaluationTime": "2026-09-17T10:20:30.123Z", "lastError": "query failed", "evaluationDuration": 0.125},
++				},
++				{name: "malformed JSON", status: `{"health":"OK",`, warn: true},
++				{name: "wrong shape", status: `[]`, warn: true},
++				{name: "wrong string type", status: `{"health":42,"evaluationDuration":0.5}`, warn: true},
++				{name: "wrong duration type", status: `{"health":"OK","evaluationDuration":"0.125"}`, warn: true},
++			} {
++				t.Run(tc.name, func(t *testing.T) {
++					rule := testAlertRule()
++					if recording {
++						rule = testRecordingRule()
++					}
++					rule.K8sStatus = []byte(tc.status)
++					h, logger, ctx := legacyStatusHandler(t, rule)
++					route := h.SearchAlertRules
++					fields := []string{"title", "health", "lastEvaluationTime", "lastError", "evaluationDuration"}
++					if recording {
++						route = h.SearchRecordingRules
++					} else {
++						fields = append(fields, "state", "stateReason")
++					}
++					rec := httptest.NewRecorder()
++					require.NoError(t, route(ctx, rec, &app.CustomRouteRequest{
++						ResourceIdentifier: resource.FullIdentifier{Namespace: "default"}, Body: readCloser(projection(fields...)),
++					}))
++					out := decodeResults(t, rec)
++					require.Len(t, out.Items, 1)
++					require.NotNil(t, out.Items[0].Fields)
++					want := map[string]any{"title": rule.Title}
++					for key, value := range tc.want {
++						want[key] = value
++					}
++					if !recording && tc.name == "complete with unknown and controller fields" {
++						want["state"], want["stateReason"] = "Firing", "Evaluated"
++					}
++					assert.Equal(t, want, out.Items[0].Fields.Object)
++					if tc.warn {
++						require.Equal(t, 1, logger.WarnLogs.Calls)
++						assert.Contains(t, logger.WarnLogs.Message, "omitting status")
++						assert.Equal(t, []any{"orgID", int64(1), "ruleUID", rule.UID}, logger.WarnLogs.Ctx[:4])
++					} else {
++						assert.Zero(t, logger.WarnLogs.Calls)
++					}
++				})
++			}
++		})
++	}
++}
++
++func TestPerKindSearch_statusFieldsRejectFilteringAndSorting(t *testing.T) {
++	for _, recording := range []bool{false, true} {
++		for _, field := range []string{"health", "lastEvaluationTime", "lastError", "evaluationDuration", "state", "stateReason"} {
++			for _, operation := range []string{"filter", "sort", "project alert-only recording field"} {
++				if operation == "project alert-only recording field" && (!recording || (field != "state" && field != "stateReason")) {
++					continue
++				}
++				t.Run(field+"/"+operation+"/"+map[bool]string{false: "alert", true: "recording"}[recording], func(t *testing.T) {
++					index := &fakeIndex{}
++					h := NewHandler(index, index)
++					route := h.SearchAlertRules
++					if recording {
++						route = h.SearchRecordingRules
++					}
++					q := query()
++					switch operation {
++					case "filter":
++						leaf := perKindFilterLeaf(field, perKindFilterOperatorIn, "value")
++						q.Where = &leaf
++					case "sort":
++						q.Sort = []searchv0.SortField{{Field: field}}
++					default:
++						q.Fields = []string{field}
++					}
++					body, err := json.Marshal(q)
++					require.NoError(t, err)
++					rec := httptest.NewRecorder()
++					require.NoError(t, WithAPIStatusErrorResponse(route)(context.Background(), rec, &app.CustomRouteRequest{
++						ResourceIdentifier: resource.FullIdentifier{Namespace: "default"}, Body: readCloser(string(body)),
++					}))
++					assert.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
++					assert.Contains(t, rec.Body.String(), field)
++					assert.Nil(t, index.got)
++				})
++			}
++		}
++	}
++}
++
++func TestSearchRules_legacyStatusDoesNotChangeCrossKindResponse(t *testing.T) {
++	for _, rule := range []*ngmodels.AlertRule{testAlertRule(), testRecordingRule()} {
++		t.Run(ruleType(rule), func(t *testing.T) {
++			h, logger, ctx := legacyStatusHandler(t, rule)
++			search := func() string {
++				rec := httptest.NewRecorder()
++				require.NoError(t, h.SearchRules(ctx, rec, &app.CustomRouteRequest{
++					ResourceIdentifier: resource.FullIdentifier{Namespace: "default"},
++				}))
++				require.Equal(t, http.StatusOK, rec.Code)
++				return rec.Body.String()
++			}
++			withoutStatus := search()
++			for _, status := range []string{`{"health":"OK","state":"Firing","evaluationDuration":0.125}`, `{"health":`} {
++				rule.K8sStatus = []byte(status)
++				assert.JSONEq(t, withoutStatus, search())
++				assert.Zero(t, logger.WarnLogs.Calls, "cross-kind searches must not decode status")
++			}
++		})
++	}
++}
++
++func TestLegacyStatusValues_onlyIncludesKindSearchFields(t *testing.T) {
++	for _, rule := range []*ngmodels.AlertRule{testAlertRule(), testRecordingRule()} {
++		t.Run(ruleType(rule), func(t *testing.T) {
++			rule.K8sStatus = []byte(`{"health":"OK","evaluationDuration":0.125,"state":"Firing","stateReason":"Evaluated",` +
++				`"operatorStates":{"controller":{"state":"failed"}},"additionalFields":{"health":"Error"},"unknown":"hidden"}`)
++			logger := &logtest.Fake{}
++			client := &legacyClient{logger: logger}
++			values := map[string]any{}
++			client.addStatusValues(rule, values)
++			want := map[string]any{fieldHealth: "OK", fieldEvaluationDuration: 0.125}
++			if rule.Type() != ngmodels.RuleTypeRecording {
++				want[fieldState], want[fieldStateReason] = "Firing", "Evaluated"
++			}
++			assert.Equal(t, want, values)
++			assert.Zero(t, logger.WarnLogs.Calls)
++		})
++	}
++}
+diff --git a/pkg/registry/apps/alerting/rules/search/query_test.go b/pkg/registry/apps/alerting/rules/search/query_test.go
+index 56e4864a5..ca2ebcde7 100644
+--- a/pkg/registry/apps/alerting/rules/search/query_test.go
++++ b/pkg/registry/apps/alerting/rules/search/query_test.go
+@@ -417,7 +417,7 @@ func TestBuildSearchRequest_filterLeafValidation(t *testing.T) {
+ // a single rule.
+ func legacyResponse(t *testing.T, rule *ngmodels.AlertRule) *resourcepb.ResourceSearchResponse {
+ 	t.Helper()
+-	cells, err := ruleCells(rule)
++	cells, err := ruleCells(ruleColumnValues(rule))
+ 	require.NoError(t, err)
+ 	return &resourcepb.ResourceSearchResponse{
+ 		TotalHits: 1,
+diff --git a/pkg/storage/unified/search/builders/alertingrules_test.go b/pkg/storage/unified/search/builders/alertingrules_test.go
+index b5a0092da..96ed2780b 100644
+--- a/pkg/storage/unified/search/builders/alertingrules_test.go
++++ b/pkg/storage/unified/search/builders/alertingrules_test.go
+@@ -2,6 +2,7 @@ package builders
+ 
+ import (
+ 	"context"
++	"fmt"
+ 	"testing"
+ 
+ 	"github.com/stretchr/testify/assert"
+@@ -37,6 +38,12 @@ const (
+ 	testFieldRoutingTree         = "routingTree"
+ 	testFieldMetric              = "metric"
+ 	testFieldTargetDatasourceUID = "targetDatasourceUID"
++	testFieldHealth              = "health"
++	testFieldLastEvaluationTime  = "lastEvaluationTime"
++	testFieldEvaluationDuration  = "evaluationDuration"
++	testFieldLastError           = "lastError"
++	testFieldState               = "state"
++	testFieldStateReason         = "stateReason"
+ )
+ 
+ func alertRuleKey(name string) *resourcepb.ResourceKey {
+@@ -290,3 +297,146 @@ func TestRuleSearchFields_hashDiffersPerKind(t *testing.T) {
+ 	// The two kinds declare different fields, so their hashes must differ.
+ 	assert.NotEqual(t, alertHash, recordingHash)
+ }
++
++func TestRuleBuilders_extract_status_fields(t *testing.T) {
++	t.Parallel()
++
++	tests := []struct {
++		name        string
++		build       func(*testing.T, string) *resource.IndexableDocument
++		kind        string
++		duration    float64
++		alertStatus string
++	}{
++		{
++			name:     "alert rule preserves fractional duration",
++			build:    buildAlertRuleDoc,
++			kind:     "AlertRule",
++			duration: 0.125,
++			alertStatus: `,
++				"state": "Alerting",
++				"stateReason": "threshold exceeded"`,
++		},
++		{
++			name:     "recording rule preserves zero duration",
++			build:    buildRecordingRuleDoc,
++			kind:     "RecordingRule",
++			duration: 0,
++		},
++	}
++
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			t.Parallel()
++
++			status := fmt.Sprintf(`{
++				"health": "ok",
++				"lastEvaluationTime": "2026-09-17T12:34:56Z",
++				"evaluationDuration": %v,
++				"lastError": "query timed out"%s
++			}`, tc.duration, tc.alertStatus)
++
++			doc := tc.build(t, fmt.Sprintf(`{
++				"apiVersion": "rules.alerting.grafana.app/v0alpha1",
++				"kind": %q,
++				"metadata": {"name": "r1"},
++				"spec": {"trigger": {"interval": "1m"}, "expressions": {}},
++				"status": %s
++			}`, tc.kind, status))
++
++			assert.Equal(t, "ok", doc.Fields[testFieldHealth])
++			assert.Equal(t, "2026-09-17T12:34:56Z", doc.Fields[testFieldLastEvaluationTime])
++			assert.Equal(t, tc.duration, doc.Fields[testFieldEvaluationDuration])
++			assert.Equal(t, "query timed out", doc.Fields[testFieldLastError])
++			if tc.alertStatus != "" {
++				assert.Equal(t, "Alerting", doc.Fields[testFieldState])
++				assert.Equal(t, "threshold exceeded", doc.Fields[testFieldStateReason])
++			}
++		})
++	}
++}
++
++func TestRuleBuilders_omit_missing_status_fields(t *testing.T) {
++	t.Parallel()
++
++	tests := []struct {
++		name  string
++		build func(*testing.T, string) *resource.IndexableDocument
++		kind  string
++	}{
++		{name: "alert rule", build: buildAlertRuleDoc, kind: "AlertRule"},
++		{name: "recording rule", build: buildRecordingRuleDoc, kind: "RecordingRule"},
++	}
++
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			t.Parallel()
++
++			doc := tc.build(t, fmt.Sprintf(`{
++				"apiVersion": "rules.alerting.grafana.app/v0alpha1",
++				"kind": %q,
++				"metadata": {"name": "r1"},
++				"spec": {"trigger": {"interval": "1m"}, "expressions": {}}
++			}`, tc.kind))
++
++			assert.NotContains(t, doc.Fields, testFieldHealth)
++			assert.NotContains(t, doc.Fields, testFieldLastEvaluationTime)
++			assert.NotContains(t, doc.Fields, testFieldEvaluationDuration)
++			assert.NotContains(t, doc.Fields, testFieldLastError)
++		})
++	}
++}
++
++func TestRecordingRuleBuilder_omits_alert_only_status_fields(t *testing.T) {
++	doc := buildRecordingRuleDoc(t, `{
++		"apiVersion": "rules.alerting.grafana.app/v0alpha1",
++		"kind": "RecordingRule",
++		"metadata": {"name": "r1"},
++		"spec": {"trigger": {"interval": "1m"}, "expressions": {}},
++		"status": {"state": "Alerting", "stateReason": "threshold exceeded"}
++	}`)
++
++	assert.NotContains(t, doc.Fields, testFieldState)
++	assert.NotContains(t, doc.Fields, testFieldStateReason)
++}
++
++func TestRuleSearchFields_status_fields_are_retrieve_only(t *testing.T) {
++	t.Parallel()
++
++	tests := []struct {
++		name string
++		gvr  schema.GroupVersionResource
++	}{
++		{
++			name: "alert rule",
++			gvr:  rulesv0alpha1.AlertRuleKind().GroupVersionResource(),
++		},
++		{
++			name: "recording rule",
++			gvr:  rulesv0alpha1.RecordingRuleKind().GroupVersionResource(),
++		},
++	}
++
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			t.Parallel()
++
++			byName := make(map[string]resource.SearchFieldDefinition)
++			for _, field := range rulesSearchFieldsProvider.Fields(tc.gvr) {
++				byName[field.Name] = field
++			}
++
++			for _, name := range []string{testFieldHealth, testFieldLastEvaluationTime, testFieldLastError} {
++				field, ok := byName[name]
++				require.True(t, ok, "%s should be declared", name)
++				assert.Equal(t, resource.SearchFieldTypeString, field.Type)
++				assert.Equal(t, []resource.SearchCapability{resource.SearchCapabilityRetrieve}, field.Capabilities)
++			}
++
++			duration, ok := byName[testFieldEvaluationDuration]
++			require.True(t, ok, "evaluationDuration should be declared")
++			assert.Equal(t, resource.SearchFieldTypeDouble, duration.Type)
++			assert.Equal(t, []resource.SearchCapability{resource.SearchCapabilityRetrieve}, duration.Capabilities)
++		})
++	}
++}

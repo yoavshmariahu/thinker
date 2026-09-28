@@ -1,0 +1,1409 @@
+{
+ "repo": "grafana",
+ "base": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+ "window": "merged 2026-09-22..2026-09-28",
+ "independent": [
+  133495,
+  133364,
+  133335,
+  133311,
+  133300,
+  133290,
+  133258,
+  133253,
+  133251,
+  133238,
+  133233,
+  133220,
+  133206,
+  133196,
+  133191,
+  133175,
+  133167,
+  133158,
+  133148,
+  133146,
+  133113,
+  133112,
+  133090,
+  133011,
+  132983,
+  132938,
+  132859,
+  132843
+ ],
+ "candidates": [
+  {
+   "number": 133646,
+   "title": "Router: Fix the preferred version, retry failed reconciles, prune OpenAPI docs",
+   "mergedAt": "2026-09-27T02:30:05Z",
+   "add": 114,
+   "src": [
+    "pkg/router/cloud_router.go",
+    "pkg/router/router.go"
+   ],
+   "tests": [
+    "pkg/router/cloud_router_test.go",
+    "pkg/router/router_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 3399,
+   "merge": "3bd23d9455efd3fabd2979e65315aa6e64bb0f52",
+   "nfiles": 5
+  },
+  {
+   "number": 133627,
+   "title": "Router: Bound backend response headers and classify proxy failures",
+   "mergedAt": "2026-09-26T01:36:49Z",
+   "add": 107,
+   "src": [
+    "pkg/router/aggregate_discovery.go",
+    "pkg/router/breaker.go",
+    "pkg/router/cloud_router.go",
+    "pkg/router/forward.go",
+    "pkg/router/proxy_errors.go",
+    "pkg/router/router.go",
+    "pkg/router/st_fallback.go"
+   ],
+   "tests": [
+    "pkg/router/proxy_errors_test.go",
+    "pkg/router/router_test.go",
+    "pkg/tests/apis/appplugin/router_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 4072,
+   "merge": "060eac21ba84addc677f15b502db808b74360874",
+   "nfiles": 11
+  },
+  {
+   "number": 133616,
+   "title": "Router: Keep http.Flusher on writers passed to backends",
+   "mergedAt": "2026-09-25T22:53:57Z",
+   "add": 42,
+   "src": [
+    "pkg/router/breaker.go",
+    "pkg/router/metrics.go",
+    "pkg/router/plugin_tracing.go"
+   ],
+   "tests": [
+    "pkg/router/breaker_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 595,
+   "merge": "bd45efac76e6814ba477e928ae4079ea35609a97",
+   "nfiles": 5
+  },
+  {
+   "number": 133588,
+   "title": "Router: Build aggregated discovery without a request per backend",
+   "mergedAt": "2026-09-26T06:25:23Z",
+   "add": 269,
+   "src": [
+    "pkg/router/aggregate_discovery.go",
+    "pkg/router/aggregate_poller.go",
+    "pkg/router/discovery_cache.go",
+    "pkg/router/discovery_handler.go",
+    "pkg/router/router.go",
+    "pkg/router/st_fallback.go",
+    "pkg/router/types.go"
+   ],
+   "tests": [
+    "pkg/router/discovery_cache_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 3588,
+   "merge": "bc4c90c2ae7c4fed432cf9e1b956d8962eebeeed",
+   "nfiles": 10
+  },
+  {
+   "number": 133578,
+   "title": "Router: Make middleware mode safe for hosting app plugins",
+   "mergedAt": "2026-09-26T00:33:42Z",
+   "add": 104,
+   "src": [
+    "pkg/router/aggregate_discovery.go",
+    "pkg/router/forward.go",
+    "pkg/router/outbound.go",
+    "pkg/router/plugin.go",
+    "pkg/router/restconfig.go",
+    "pkg/router/router.go",
+    "pkg/router/service.go",
+    "pkg/router/st_fallback.go"
+   ],
+   "tests": [
+    "pkg/router/middleware_safety_test.go",
+    "pkg/router/outbound_test.go",
+    "pkg/router/plugin_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 3924,
+   "merge": "4d1903629c858a36e337b96b8bdb953a75561c12",
+   "nfiles": 13
+  },
+  {
+   "number": 133576,
+   "title": "IAM: use startup config for user permissions",
+   "mergedAt": "2026-09-25T19:38:37Z",
+   "add": 44,
+   "src": [
+    "pkg/registry/apis/iam/features.go",
+    "pkg/server/bootstrap/wire/sets.go",
+    "pkg/server/wire_core.go",
+    "pkg/services/accesscontrol/acimpl/service.go",
+    "pkg/services/accesscontrol/ossaccesscontrol/testutil/testutil.go"
+   ],
+   "tests": [
+    "pkg/api/folder_bench_test.go",
+    "pkg/services/accesscontrol/acimpl/basic_role_db_seed_test.go",
+    "pkg/services/accesscontrol/acimpl/service_test.go",
+    "pkg/services/accesscontrol/acimpl/user_permissions_test.go",
+    "pkg/services/accesscontrol/acimpl/zanzana_merge_test.go",
+    "pkg/services/serviceaccounts/extsvcaccounts/service_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 609,
+   "merge": "52f413bde04b09a55eba7a7675f837dd45390720",
+   "nfiles": 12
+  },
+  {
+   "number": 133551,
+   "title": "Router: Read route resources from informer caches",
+   "mergedAt": "2026-09-25T11:12:55Z",
+   "add": 185,
+   "src": [
+    "pkg/router/cloud_router.go",
+    "pkg/router/st_fallback.go"
+   ],
+   "tests": [
+    "pkg/router/cloud_loader_priority_test.go",
+    "pkg/router/service_test.go",
+    "pkg/router/st_fallback_breaker_test.go",
+    "pkg/router/st_fallback_discovery_test.go",
+    "pkg/router/st_fallback_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 3049,
+   "merge": "a7c282519ff93f2ea2c41ae0c9693a795dc7682b",
+   "nfiles": 8
+  },
+  {
+   "number": 133547,
+   "title": "Router: Bound grafana.com lookups in the single-tenant fallback",
+   "mergedAt": "2026-09-25T09:58:27Z",
+   "add": 56,
+   "src": [
+    "pkg/router/cloud_router.go",
+    "pkg/router/st_fallback.go"
+   ],
+   "tests": [
+    "pkg/router/cloud_router_test.go",
+    "pkg/router/st_fallback_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 2074,
+   "merge": "16fb00f0bff66ae00b83ff486834377b08f3cb20",
+   "nfiles": 4
+  },
+  {
+   "number": 133495,
+   "title": "feat(notifications): read SMTP settings live from the config provider",
+   "mergedAt": "2026-09-25T14:25:06Z",
+   "add": 132,
+   "src": [
+    "pkg/services/notifications/email.go",
+    "pkg/services/notifications/mailer.go",
+    "pkg/services/notifications/models.go",
+    "pkg/services/notifications/notifications.go",
+    "pkg/services/notifications/smtp.go",
+    "pkg/setting/setting_smtp.go"
+   ],
+   "tests": [
+    "pkg/services/ngalert/notifier/email_test.go",
+    "pkg/services/notifications/notifications_test.go",
+    "pkg/services/notifications/send_email_integration_test.go",
+    "pkg/services/notifications/smtp_test.go",
+    "pkg/setting/setting_smtp_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1105,
+   "merge": "23c862402a673db40b1643ff5239727f9ed852bf",
+   "nfiles": 12
+  },
+  {
+   "number": 133470,
+   "title": "Notebooks: Use date as part of default name",
+   "mergedAt": "2026-09-25T14:50:41Z",
+   "add": 41,
+   "src": [
+    "pkg/registry/apis/dashboard/mutate.go",
+    "public/app/features/notebook/pages/NotebookPageStateManager.ts"
+   ],
+   "tests": [
+    "pkg/registry/apis/dashboard/notebook_test.go",
+    "public/app/features/notebook/pages/NotebookPageStateManager.test.ts"
+   ],
+   "layers": [
+    "go",
+    "ts"
+   ],
+   "bodyLen": 808,
+   "merge": "afbbdcd6de69035bd985c4269d459ea8797ff938",
+   "nfiles": 5
+  },
+  {
+   "number": 133456,
+   "title": "Search: Index provisioned AppManifest fields in embedded mode",
+   "mergedAt": "2026-09-24T14:17:47Z",
+   "add": 94,
+   "src": [
+    "pkg/services/apiserver/apiextensions.go",
+    "pkg/services/apiserver/service.go",
+    "pkg/storage/unified/client.go",
+    "pkg/storage/unified/embedded_manifests.go"
+   ],
+   "tests": [
+    "pkg/storage/unified/embedded_manifests_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 392,
+   "merge": "9a0bfd0f76c717fc3a3e541329c0bd0cc9d6d48d",
+   "nfiles": 5
+  },
+  {
+   "number": 133451,
+   "title": "Home: centralize fail-soft catches and settle signals once",
+   "mergedAt": "2026-09-24T15:21:28Z",
+   "add": 47,
+   "src": [
+    "public/app/features/home/solutions/solutionState.ts",
+    "public/app/features/home/solutions/telemetryData.ts",
+    "public/app/features/home/solutions/types.ts",
+    "public/app/features/home/useHomepageSolutions.ts"
+   ],
+   "tests": [
+    "public/app/features/home/Recommendations/RecommendationExisting.test.tsx",
+    "public/app/features/home/solutions/solutionState.test.ts",
+    "public/app/features/home/useHomepageSolutions.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 806,
+   "merge": "e3f7d84d787fecfe1dd469bebac8266f70cb499f",
+   "nfiles": 7
+  },
+  {
+   "number": 133436,
+   "title": "Provisioning: add worker-queue lag gauge and per-reconcile queue logs to repo/connection controllers",
+   "mergedAt": "2026-09-24T10:32:03Z",
+   "add": 198,
+   "src": [
+    "pkg/registry/apis/provisioning/controller/connection.go",
+    "pkg/registry/apis/provisioning/controller/queue_lag.go",
+    "pkg/registry/apis/provisioning/controller/repository.go"
+   ],
+   "tests": [
+    "pkg/registry/apis/provisioning/controller/queue_lag_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 4563,
+   "merge": "ddaade227d3d819226892224bc2a56fe6b60be2e",
+   "nfiles": 4
+  },
+  {
+   "number": 133375,
+   "title": "Alerting: don't reopen a remembered external Alertmanager in core",
+   "mergedAt": "2026-09-25T12:52:42Z",
+   "add": 68,
+   "src": [
+    "public/app/features/alerting/unified/plugin-proxy/withRouteProxy.tsx",
+    "public/app/features/alerting/unified/rule-list/filter/RulesFilterSidebar.tsx",
+    "public/app/features/alerting/unified/state/AlertmanagerContext.tsx"
+   ],
+   "tests": [
+    "public/app/features/alerting/unified/state/AlertmanagerContext.test.tsx"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 2212,
+   "merge": "2698cc5dc6c09ecb49ca6fed9c1f67611b551585",
+   "nfiles": 4
+  },
+  {
+   "number": 133364,
+   "title": "Storage: add generic dual-write backend selector",
+   "mergedAt": "2026-09-23T15:32:53Z",
+   "add": 52,
+   "src": [
+    "pkg/storage/legacysql/dualwrite/selector.go",
+    "pkg/storage/unified/resource/search_client.go"
+   ],
+   "tests": [
+    "pkg/storage/legacysql/dualwrite/selector_test.go",
+    "pkg/storage/unified/resource/search_client_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 690,
+   "merge": "4eebdd26a257e7fbf9a306204511c7c538c3af2d",
+   "nfiles": 5
+  },
+  {
+   "number": 133338,
+   "title": "Router: Use local transport to resolve folders in plugins",
+   "mergedAt": "2026-09-23T14:22:01Z",
+   "add": 80,
+   "src": [
+    "pkg/router/loader_factory.go",
+    "pkg/router/plugin.go",
+    "pkg/router/restconfig.go",
+    "pkg/server/routes_loader.go",
+    "pkg/storage/unified/apistore/store.go"
+   ],
+   "tests": [
+    "pkg/router/restconfig_test.go",
+    "pkg/storage/unified/apistore/client_init_test.go",
+    "pkg/tests/apis/appplugin/router_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1439,
+   "merge": "4f508e4569db673423cfd78de1f13c734cb14386",
+   "nfiles": 9
+  },
+  {
+   "number": 133335,
+   "title": "Geomap: Re-init on theme change",
+   "mergedAt": "2026-09-25T16:09:35Z",
+   "add": 60,
+   "src": [
+    "public/app/plugins/panel/geomap/GeomapPanel.tsx",
+    "public/app/plugins/panel/geomap/module.tsx",
+    "public/app/plugins/panel/geomap/utils/layers.ts"
+   ],
+   "tests": [
+    "public/app/plugins/panel/geomap/GeomapPanel.test.tsx",
+    "public/app/plugins/panel/geomap/utils/layers.test.ts",
+    "public/app/plugins/panel/geomap/utils/tooltip.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1431,
+   "merge": "0b8a5b12c7de81ead409ddb0f46e83a6b72c222f",
+   "nfiles": 6
+  },
+  {
+   "number": 133331,
+   "title": "fix: revisit the watch delivery latency metrics",
+   "mergedAt": "2026-09-23T14:05:19Z",
+   "add": 44,
+   "src": [
+    "pkg/storage/unified/resource/metrics.go",
+    "pkg/storage/unified/resource/server.go"
+   ],
+   "tests": [
+    "pkg/storage/unified/resource/server_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1387,
+   "merge": "f90b2a064f1792f195d5e223cbf94c0bea3633c8",
+   "nfiles": 3
+  },
+  {
+   "number": 133319,
+   "title": "feat: add perodical expiry for watch streams using nats",
+   "mergedAt": "2026-09-24T07:48:25Z",
+   "add": 93,
+   "src": [
+    "pkg/setting/setting_nats.go",
+    "pkg/storage/unified/resource/server.go",
+    "pkg/storage/unified/sql/server.go"
+   ],
+   "tests": [
+    "pkg/setting/setting_nats_test.go",
+    "pkg/storage/unified/resource/server_test.go",
+    "pkg/storage/unified/sql/server_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 677,
+   "merge": "74866a5b02af2a8bee397f4005f92f1b6d89ca1b",
+   "nfiles": 7
+  },
+  {
+   "number": 133313,
+   "title": "Router/Authn: Verify JWT access tokens",
+   "mergedAt": "2026-09-23T05:00:28Z",
+   "add": 88,
+   "src": [
+    "pkg/router/cloud_router.go",
+    "pkg/services/authn/token.go"
+   ],
+   "tests": [
+    "pkg/router/cloud_router_test.go",
+    "pkg/router/plugin_manifests_test.go",
+    "pkg/services/authn/token_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 893,
+   "merge": "533b5986711cd2e78c2057e21c0d68dbc5eea9c7",
+   "nfiles": 5
+  },
+  {
+   "number": 133311,
+   "title": "Router: Use obo exchange with remote storage client",
+   "mergedAt": "2026-09-23T03:44:33Z",
+   "add": 122,
+   "src": [
+    "pkg/router/obo_exchanger.go",
+    "pkg/router/storage.go",
+    "pkg/server/routes_loader.go",
+    "pkg/storage/unified/client.go"
+   ],
+   "tests": [
+    "pkg/router/cloud_router_test.go",
+    "pkg/router/obo_exchanger_test.go",
+    "pkg/router/storage_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1265,
+   "merge": "94e8edf8d19fde443c5fce57c5b92cf27aa360a4",
+   "nfiles": 7
+  },
+  {
+   "number": 133300,
+   "title": "Annotations: backfill time_end = time and add NOT NULL constraint",
+   "mergedAt": "2026-09-25T14:36:46Z",
+   "add": 44,
+   "src": [
+    "pkg/registry/apps/annotation/postgres_backfill.go",
+    "pkg/registry/apps/annotation/postgres_partitioned.go",
+    "pkg/registry/apps/annotation/postgres_schema.go"
+   ],
+   "tests": [
+    "pkg/registry/apps/annotation/migration_test.go",
+    "pkg/registry/apps/annotation/postgres_backfill_integration_test.go",
+    "pkg/registry/apps/annotation/postgres_backfill_unit_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 3233,
+   "merge": "e88ff46d5c7f5e53a5960f8c8e8123991e0c7df4",
+   "nfiles": 8
+  },
+  {
+   "number": 133290,
+   "title": "Playlist: Polish card actions design",
+   "mergedAt": "2026-09-23T17:02:05Z",
+   "add": 46,
+   "src": [
+    "public/app/features/dashboard/components/DashNav/DashNavButton.tsx",
+    "public/app/features/playlist/PlaylistCard.tsx"
+   ],
+   "tests": [
+    "public/app/features/playlist/PlaylistPage.test.tsx"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 603,
+   "merge": "1614865a1b27ca81c04a3468b9728df877660e8c",
+   "nfiles": 4
+  },
+  {
+   "number": 133259,
+   "title": "Alerting: use field values for per-kind rule search",
+   "mergedAt": "2026-09-23T09:06:54Z",
+   "add": 77,
+   "src": [
+    "pkg/registry/apps/alerting/rules/search/per_kind_query.go",
+    "pkg/registry/apps/alerting/rules/search/per_kind_search.go"
+   ],
+   "tests": [
+    "pkg/registry/apps/alerting/rules/search/per_kind_query_test.go",
+    "pkg/registry/apps/alerting/rules/search/per_kind_search_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 518,
+   "merge": "eadfc0b7cd622c9e20c90c5f8f62f411d7630595",
+   "nfiles": 4
+  },
+  {
+   "number": 133258,
+   "title": "Heatmap: Fix exemplar position rendering for non-ordinal buckets",
+   "mergedAt": "2026-09-22T19:47:36Z",
+   "add": 49,
+   "src": [
+    "public/app/plugins/panel/heatmap/HeatmapPanel.tsx",
+    "public/app/plugins/panel/heatmap/fields.ts",
+    "public/app/plugins/panel/heatmap/utils.ts"
+   ],
+   "tests": [
+    "public/app/plugins/panel/heatmap/fields.test.ts",
+    "public/app/plugins/panel/heatmap/utils.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 525,
+   "merge": "ca11878b3425335de9e12adfddac0061bf06fc91",
+   "nfiles": 5
+  },
+  {
+   "number": 133253,
+   "title": "Plugins: unload nested child plugins before uninstalling the parent",
+   "mergedAt": "2026-09-25T11:39:34Z",
+   "add": 36,
+   "src": [
+    "pkg/plugins/manager/installer.go",
+    "pkg/plugins/manager/pluginfakes/fakes.go"
+   ],
+   "tests": [
+    "pkg/plugins/manager/installer_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 553,
+   "merge": "d1cbc09f62de118acb770e5bd96b7d9a30796054",
+   "nfiles": 3
+  },
+  {
+   "number": 133252,
+   "title": "Homepage: Track how users scope the Kubernetes card",
+   "mergedAt": "2026-09-22T14:52:28Z",
+   "add": 72,
+   "src": [
+    "public/app/features/home/Overview/KubernetesFilterActions.tsx",
+    "public/app/features/home/analytics/main.ts",
+    "public/app/features/home/analytics/types.ts"
+   ],
+   "tests": [
+    "public/app/features/home/Overview/KubernetesFilterActions.test.tsx"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 564,
+   "merge": "9b45e5e498bb1bd5dba668b31d01b63b0e780051",
+   "nfiles": 4
+  },
+  {
+   "number": 133251,
+   "title": "handle auth issues as downstream instead of plugin errors",
+   "mergedAt": "2026-09-23T11:17:55Z",
+   "add": 31,
+   "src": [
+    "pkg/tsdb/graphite/http_status_error.go",
+    "pkg/tsdb/graphite/query.go"
+   ],
+   "tests": [
+    "pkg/tsdb/graphite/query_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1460,
+   "merge": "a8cd63a1d87c48f4d175f0ffd2838a69b02329ce",
+   "nfiles": 3
+  },
+  {
+   "number": 133249,
+   "title": "IAM: Invalidate AuthInfo cache on legacy store",
+   "mergedAt": "2026-09-23T09:12:00Z",
+   "add": 61,
+   "src": [
+    "pkg/registry/apis/iam/authinfo/store.go",
+    "pkg/registry/apis/iam/register.go",
+    "pkg/services/login/authinfoimpl/service.go"
+   ],
+   "tests": [
+    "pkg/registry/apis/iam/authinfo/store_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 2629,
+   "merge": "d752054790097a51dd24e384b3014383347979a5",
+   "nfiles": 5
+  },
+  {
+   "number": 133241,
+   "title": "Provisioning: Surface the finalizer blocking a stuck repository deletion",
+   "mergedAt": "2026-09-22T15:16:01Z",
+   "add": 185,
+   "src": [
+    "apps/provisioning/pkg/apis/provisioning/v0alpha1/types.go",
+    "apps/provisioning/pkg/generated/applyconfiguration/provisioning/v0alpha1/deletionstatus.go",
+    "apps/provisioning/pkg/generated/applyconfiguration/provisioning/v0alpha1/repositorystatus.go",
+    "apps/provisioning/pkg/generated/applyconfiguration/utils.go",
+    "pkg/registry/apis/provisioning/controller/finalizers.go",
+    "pkg/registry/apis/provisioning/controller/repository.go"
+   ],
+   "tests": [
+    "pkg/registry/apis/provisioning/controller/finalizers_test.go",
+    "pkg/registry/apis/provisioning/controller/repository_test.go",
+    "pkg/tests/apis/provisioning/git/webhook/deletion_status_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 2601,
+   "merge": "f6d70c0de44493ad5a247f6f1bcd5c4648308363",
+   "nfiles": 16
+  },
+  {
+   "number": 133238,
+   "title": "Unified storage: let compiled-in apps outside apps/ register a manifest",
+   "mergedAt": "2026-09-22T14:15:47Z",
+   "add": 91,
+   "src": [
+    "pkg/storage/unified/resource/app_manifests.go",
+    "pkg/storage/unified/resource/app_manifests_register.go",
+    "pkg/storage/unified/resource/search_field.go"
+   ],
+   "tests": [
+    "pkg/storage/unified/resource/app_manifests_register_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 2691,
+   "merge": "423f85091b0a63a21fb571122a933133da1652cd",
+   "nfiles": 5
+  },
+  {
+   "number": 133233,
+   "title": "error handling for keeping status errors over transport errors",
+   "mergedAt": "2026-09-22T13:58:34Z",
+   "add": 33,
+   "src": [
+    "pkg/storage/unified/resource/errors.go",
+    "pkg/util/errhttp/writer.go"
+   ],
+   "tests": [
+    "pkg/storage/unified/resource/errors_test.go",
+    "pkg/util/errhttp/writer_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1034,
+   "merge": "a6d61b2513266671df911c055891987d5e6576e7",
+   "nfiles": 4
+  },
+  {
+   "number": 133224,
+   "title": "Router/Plugins: Add dummy authorizer",
+   "mergedAt": "2026-09-22T11:26:21Z",
+   "add": 133,
+   "src": [
+    "pkg/router/cloud_router.go",
+    "pkg/router/plugin.go",
+    "pkg/router/plugin_manifests.go",
+    "pkg/router/plugin_manifests_ac.go",
+    "pkg/router/st_fallback.go",
+    "pkg/services/authn/token.go"
+   ],
+   "tests": [
+    "pkg/router/plugin_manifests_ac_test.go",
+    "pkg/router/plugin_manifests_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1005,
+   "merge": "aeac2ba390e0d94e83d1cb934f25f0f3eb9111bb",
+   "nfiles": 8
+  },
+  {
+   "number": 133220,
+   "title": "SSOSettings: add read-only SSOSetting support to standalone apiserver",
+   "mergedAt": "2026-09-22T15:38:16Z",
+   "add": 95,
+   "src": [
+    "pkg/registry/apis/iam/register.go",
+    "pkg/services/ssosettings/ssosettingsimpl/readonly.go"
+   ],
+   "tests": [
+    "pkg/registry/apis/iam/register_test.go",
+    "pkg/services/ssosettings/ssosettingsimpl/readonly_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1205,
+   "merge": "b9ba3a271cbb22bf474da1bd681b005310d0b9eb",
+   "nfiles": 4
+  },
+  {
+   "number": 133217,
+   "title": "IAM: Add support for authID lookups for AuthInfo",
+   "mergedAt": "2026-09-23T07:00:55Z",
+   "add": 91,
+   "src": [
+    "pkg/registry/apis/iam/authinfo/store.go",
+    "pkg/services/login/authinfok8s/authinfo.go"
+   ],
+   "tests": [
+    "pkg/registry/apis/iam/authinfo/store_test.go",
+    "pkg/services/login/authinfok8s/authinfo_test.go",
+    "pkg/tests/apis/iam/authinfo/authinfo_integration_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 2643,
+   "merge": "0260e35e6321c422621bff2d3135dbde6bacd422",
+   "nfiles": 5
+  },
+  {
+   "number": 133206,
+   "title": "grafana-router: fix the issue where router mistakenly signed for some proxied requests",
+   "mergedAt": "2026-09-22T04:13:02Z",
+   "add": 33,
+   "src": [
+    "pkg/router/aggregate_poller.go",
+    "pkg/router/cloud_router.go"
+   ],
+   "tests": [
+    "pkg/router/aggregate_poller_test.go",
+    "pkg/router/aggregate_router_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 2332,
+   "merge": "a9b741f501b53b2a046711122c429c20d57d7c4a",
+   "nfiles": 5
+  },
+  {
+   "number": 133196,
+   "title": "feat(alerting): show rule counts in folder bulk-action confirmation banners",
+   "mergedAt": "2026-09-22T13:16:32Z",
+   "add": 124,
+   "src": [
+    "public/app/features/alerting/unified/api/alertingFolderActionsApi.ts",
+    "public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.tsx",
+    "public/app/features/alerting/unified/utils/folderActionMessages.ts"
+   ],
+   "tests": [
+    "public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.test.tsx",
+    "public/app/features/alerting/unified/utils/folderActionMessages.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1939,
+   "merge": "80d1ea56a8c106eb669774a27c41b24c653f3e67",
+   "nfiles": 6
+  },
+  {
+   "number": 133191,
+   "title": "Alerting: Fix RouteGetReceivers UID resolution and move status retrieval into ReceiverService",
+   "mergedAt": "2026-09-22T17:15:39Z",
+   "add": 135,
+   "src": [
+    "pkg/services/ngalert/api/api.go",
+    "pkg/services/ngalert/api/api_alertmanager.go",
+    "pkg/services/ngalert/ngalert.go",
+    "pkg/services/ngalert/notifier/multiorg_alertmanager.go",
+    "pkg/services/ngalert/notifier/receiver_svc.go",
+    "pkg/services/provisioning/provisioning.go"
+   ],
+   "tests": [
+    "pkg/services/ngalert/api/api_alertmanager_test.go",
+    "pkg/services/ngalert/api/api_provisioning_test.go",
+    "pkg/services/ngalert/notifier/receiver_svc_test.go",
+    "pkg/services/ngalert/provisioning/contactpoints_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1964,
+   "merge": "0bfc9d1afefc105db1871951a901ad2bfc828be8",
+   "nfiles": 10
+  },
+  {
+   "number": 133188,
+   "title": "Unified Storage: Batch embeddings across backfill pages",
+   "mergedAt": "2026-09-23T21:25:37Z",
+   "add": 284,
+   "src": [
+    "pkg/setting/setting.go",
+    "pkg/setting/setting_unified_storage.go",
+    "pkg/storage/unified/search/embed/backfill/backfiller.go",
+    "pkg/storage/unified/search/embed/embedder/batch_embedder.go",
+    "pkg/storage/unified/sql/server.go"
+   ],
+   "tests": [
+    "pkg/storage/unified/search/embed/backfill/backfill_test.go",
+    "pkg/storage/unified/search/embed/backfill/fakes_test.go",
+    "pkg/storage/unified/search/embed/backfill/page_batch_test.go",
+    "pkg/storage/unified/search/embed/embedder/batch_embedder_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 789,
+   "merge": "4a20de9a9ed6af3317098ad8785e1e1aa5cc933f",
+   "nfiles": 9
+  },
+  {
+   "number": 133185,
+   "title": "Assistant: Extract shared context attachment helpers",
+   "mergedAt": "2026-09-24T22:01:08Z",
+   "add": 63,
+   "src": [
+    "public/app/core/assistant/assistantSidebarState.ts",
+    "public/app/core/assistant/buildAssistantPanelContext.ts",
+    "public/app/core/assistant/useAddToAssistant.ts",
+    "public/app/core/components/AssistantTooltip/AssistantTooltipButton.tsx",
+    "public/app/core/components/AssistantTooltip/buildAssistantContext.ts",
+    "public/app/features/dashboard-scene/scene/setDashboardPanelContext.ts"
+   ],
+   "tests": [
+    "public/app/core/assistant/buildAssistantPanelContext.test.ts",
+    "public/app/core/assistant/useAddToAssistant.test.tsx",
+    "public/app/core/components/AssistantTooltip/AssistantTooltipButton.test.tsx",
+    "public/app/features/dashboard-scene/scene/setDashboardPanelContext.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1252,
+   "merge": "3bb17a6deb2c999667199e35f975705663451950",
+   "nfiles": 11
+  },
+  {
+   "number": 133175,
+   "title": "Annotations: cache dashboard folder resolution",
+   "mergedAt": "2026-09-22T18:05:28Z",
+   "add": 119,
+   "src": [
+    "pkg/registry/apps/annotation/authz.go",
+    "pkg/registry/apps/annotation/config.go",
+    "pkg/registry/apps/annotation/dashboard_folder_lookup.go",
+    "pkg/registry/apps/annotation/metrics.go",
+    "pkg/registry/apps/annotation/register.go",
+    "pkg/setting/setting_annotations.go"
+   ],
+   "tests": [
+    "pkg/registry/apps/annotation/dashboard_folder_lookup_test.go",
+    "pkg/setting/setting_annotations_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 3231,
+   "merge": "f000b1d0f74a4e3115919fd067c276d39fd7ccaa",
+   "nfiles": 10
+  },
+  {
+   "number": 133174,
+   "title": "Table: Refresh the cell actions menu",
+   "mergedAt": "2026-09-24T23:36:49Z",
+   "add": 120,
+   "src": [
+    "packages/grafana-e2e-selectors/src/selectors/components.ts",
+    "packages/grafana-ui/src/components/Table/TableNG/components/TableCellActions.tsx",
+    "packages/grafana-ui/src/components/Table/TableNG/render-hooks.tsx",
+    "packages/grafana-ui/src/components/Table/TableNG/styles.ts",
+    "packages/grafana-ui/src/components/Table/TableNG/types.ts"
+   ],
+   "tests": [
+    "packages/grafana-ui/src/components/Table/TableNG/TableNG.test.tsx",
+    "packages/grafana-ui/src/components/Table/TableNG/components/TableCellActions.test.tsx",
+    "packages/grafana-ui/src/components/Table/TableNG/styles.test.tsx"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1240,
+   "merge": "85b6d50ef18fc7a3a87494ae2647052b0c1c23f6",
+   "nfiles": 9
+  },
+  {
+   "number": 133167,
+   "title": "Transformations: Add copy actions to debug data",
+   "mergedAt": "2026-09-22T20:37:28Z",
+   "add": 58,
+   "src": [
+    "public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.tsx",
+    "public/app/features/dashboard/components/TransformationsEditor/TransformationEditor.tsx"
+   ],
+   "tests": [
+    "public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.test.tsx",
+    "public/app/features/dashboard/components/TransformationsEditor/TransformationsEditor.test.tsx"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1492,
+   "merge": "bf1e4e6905eb260445a7350971a1245daefd3440",
+   "nfiles": 5
+  },
+  {
+   "number": 133158,
+   "title": "Explore: Add RudderStack events for the metrics sidebar",
+   "mergedAt": "2026-09-22T09:21:54Z",
+   "add": 134,
+   "src": [
+    "public/app/features/explore/SignalExplorer/MetricsList.tsx",
+    "public/app/features/explore/SignalExplorer/SignalExplorer.tsx",
+    "public/app/features/explore/SignalExplorer/tracking.ts"
+   ],
+   "tests": [
+    "public/app/features/explore/SignalExplorer/MetricsList.test.tsx",
+    "public/app/features/explore/SignalExplorer/SignalExplorer.test.tsx"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 3280,
+   "merge": "1d6edf929f5f5308e51ea482e08da15d72a2a370",
+   "nfiles": 5
+  },
+  {
+   "number": 133155,
+   "title": "Storage: make batch resource reads lazy",
+   "mergedAt": "2026-09-23T14:10:24Z",
+   "add": 251,
+   "src": [
+    "pkg/storage/unified/resource/list_with_selectors.go",
+    "pkg/storage/unified/resource/server.go",
+    "pkg/storage/unified/resource/storage_backend.go",
+    "pkg/storage/unified/resource/unimplemented.go",
+    "pkg/storage/unified/sql/backend.go",
+    "pkg/storage/unified/testing/search_backed_list.go"
+   ],
+   "tests": [
+    "pkg/storage/unified/resource/list_with_selectors_test.go",
+    "pkg/storage/unified/resource/storage_backend_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 2455,
+   "merge": "761dafda5e256a5519890d954688c23be2136ebb",
+   "nfiles": 8
+  },
+  {
+   "number": 133148,
+   "title": "Unified storage: decide selector push-down from the manifests, not the build",
+   "mergedAt": "2026-09-22T13:03:18Z",
+   "add": 49,
+   "src": [
+    "pkg/storage/unified/resource/list_with_selectors.go",
+    "pkg/storage/unified/resource/selectable_fields.go",
+    "pkg/storage/unified/resource/server.go",
+    "pkg/storage/unified/search/options.go"
+   ],
+   "tests": [
+    "pkg/storage/unified/resource/list_with_selectors_test.go",
+    "pkg/storage/unified/resource/selectable_fields_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1238,
+   "merge": "384465ac34f520764ec9519d883fbcb61ce1b8cd",
+   "nfiles": 6
+  },
+  {
+   "number": 133146,
+   "title": "Alerting: Expose rule status in per-kind search results",
+   "mergedAt": "2026-09-22T15:39:38Z",
+   "add": 120,
+   "src": [
+    "apps/alerting/rules/pkg/apis/manifestdata/alerting_manifest.go",
+    "pkg/registry/apps/alerting/rules/search/fields.go",
+    "pkg/registry/apps/alerting/rules/search/legacy_search.go",
+    "pkg/registry/apps/alerting/rules/search/per_kind_legacy.go"
+   ],
+   "tests": [
+    "pkg/registry/apps/alerting/rules/search/per_kind_search_test.go",
+    "pkg/registry/apps/alerting/rules/search/per_kind_status_test.go",
+    "pkg/registry/apps/alerting/rules/search/query_test.go",
+    "pkg/storage/unified/search/builders/alertingrules_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 1244,
+   "merge": "069b5c9332be98d3c018f9a380d06806d9a1c23c",
+   "nfiles": 11
+  },
+  {
+   "number": 133127,
+   "title": "Plugins: Identify sync with field manager",
+   "mergedAt": "2026-09-25T17:52:19Z",
+   "add": 91,
+   "src": [
+    "apps/plugins/pkg/app/install/registrar.go",
+    "pkg/extensions/enterprise_imports.go",
+    "pkg/services/pluginsintegration/installsync/clientgenerator.go",
+    "pkg/services/pluginsintegration/installsync/syncer.go",
+    "pkg/services/pluginsintegration/pluginsintegration.go"
+   ],
+   "tests": [
+    "pkg/services/pluginsintegration/installsync/clientgenerator_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 2262,
+   "merge": "be871da7ebb7d2088b797dc55b8118486131ba99",
+   "nfiles": 7
+  },
+  {
+   "number": 133115,
+   "title": "Home: Add IRM to the recommendation matrix",
+   "mergedAt": "2026-09-22T18:24:20Z",
+   "add": 123,
+   "src": [
+    "public/app/features/alerting/unified/api/onCallApi.ts",
+    "public/app/features/home/Recommendations/pluginRecommendations.ts",
+    "public/app/features/home/Recommendations/solutionsMatrix.ts",
+    "public/app/features/home/solutions/irmSignal.ts",
+    "public/app/features/home/solutions/solutionState.ts",
+    "public/app/features/home/useHomepageSolutions.ts"
+   ],
+   "tests": [
+    "public/app/features/home/Recommendations/Recommendations.test.tsx",
+    "public/app/features/home/Recommendations/solutionsMatrix.test.ts",
+    "public/app/features/home/solutions/irmSignal.test.ts",
+    "public/app/features/home/useHomepageSolutions.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 2130,
+   "merge": "20bf93e9e394863ab8b86d39b659cf74688e729a",
+   "nfiles": 11
+  },
+  {
+   "number": 133113,
+   "title": "Provisioning: Force-delete a wedged repository from the deletion-error banner",
+   "mergedAt": "2026-09-23T16:24:27Z",
+   "add": 137,
+   "src": [
+    "public/app/features/provisioning/Repository/DeleteRepositoryButton.tsx",
+    "public/app/features/provisioning/Repository/RepositoryOverview.tsx",
+    "public/app/features/provisioning/Repository/RepositoryStatusAlert.tsx",
+    "public/app/features/provisioning/Repository/RepositoryStatusPage.tsx"
+   ],
+   "tests": [
+    "public/app/features/provisioning/Repository/DeleteRepositoryButton.test.tsx",
+    "public/app/features/provisioning/Repository/RepositoryStatusAlert.test.tsx"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 2798,
+   "merge": "29d7b0293bec37bb742e02f1809d836338e88e77",
+   "nfiles": 7
+  },
+  {
+   "number": 133112,
+   "title": "Provisioning: Build repository on delete only for the cleanup finalizer",
+   "mergedAt": "2026-09-22T08:30:43Z",
+   "add": 66,
+   "src": [
+    "pkg/registry/apis/provisioning/controller/deletion_metrics.go",
+    "pkg/registry/apis/provisioning/controller/finalizer_mock.go",
+    "pkg/registry/apis/provisioning/controller/finalizers.go",
+    "pkg/registry/apis/provisioning/controller/repository.go",
+    "pkg/registry/apis/provisioning/controller/webhook.go"
+   ],
+   "tests": [
+    "pkg/registry/apis/provisioning/controller/finalizers_test.go",
+    "pkg/registry/apis/provisioning/controller/repository_test.go",
+    "pkg/registry/apis/provisioning/controller/webhook_test.go",
+    "pkg/tests/apis/provisioning/git/webhook/webhook_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 3872,
+   "merge": "e737256750446b90aa525e91bea26371050f7cef",
+   "nfiles": 9
+  },
+  {
+   "number": 133104,
+   "title": "fix: add buffer support for nats client on publish",
+   "mergedAt": "2026-09-24T15:44:39Z",
+   "add": 135,
+   "src": [
+    "pkg/infra/nats/connection.go",
+    "pkg/infra/nats/metrics.go",
+    "pkg/infra/nats/publisher.go",
+    "pkg/server/module_server.go"
+   ],
+   "tests": [
+    "pkg/infra/nats/connection_test.go",
+    "pkg/infra/nats/helpers_test.go",
+    "pkg/infra/nats/integration_test.go",
+    "pkg/infra/nats/publisher_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 431,
+   "merge": "d6f36b27cb7b00a951ce1a826f9674234be7ce1f",
+   "nfiles": 8
+  },
+  {
+   "number": 133097,
+   "title": "Datasources: refresh hooks after cache changes",
+   "mergedAt": "2026-09-23T06:45:49Z",
+   "add": 63,
+   "src": [
+    "packages/grafana-runtime/src/services/dataSource/cacheGeneration.ts",
+    "packages/grafana-runtime/src/services/dataSource/dataSource.ts",
+    "packages/grafana-runtime/src/services/dataSource/hooks.ts",
+    "packages/grafana-runtime/src/services/dataSource/settings.ts"
+   ],
+   "tests": [
+    "packages/grafana-runtime/src/services/dataSource/hooks.test.tsx",
+    "packages/grafana-runtime/src/services/dataSource/settings.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1493,
+   "merge": "64f7e01da17457160a3b1b1bd0679964fe1fe7a2",
+   "nfiles": 6
+  },
+  {
+   "number": 133090,
+   "title": "Datasources: Add utility for getting the default datasource",
+   "mergedAt": "2026-09-22T06:24:53Z",
+   "add": 109,
+   "src": [
+    "packages/grafana-data/src/types/datasource.ts",
+    "packages/grafana-plugin-compat/src/datasources.ts",
+    "packages/grafana-plugin-compat/src/datasources/getDefaultDataSourceInstanceListItem.ts",
+    "packages/grafana-plugin-compat/src/datasources/useDefaultDataSourceInstanceListItem.ts",
+    "packages/grafana-plugin-compat/src/utils/mocks.ts",
+    "packages/grafana-runtime/src/services/dataSource/hooks.ts",
+    "packages/grafana-runtime/src/services/dataSource/settings.ts"
+   ],
+   "tests": [
+    "packages/grafana-plugin-compat/src/datasources/getDefaultDataSourceInstanceListItem.compat.test.ts",
+    "packages/grafana-plugin-compat/src/datasources/getDefaultDataSourceInstanceListItem.test.ts",
+    "packages/grafana-plugin-compat/src/datasources/useDefaultDataSourceInstanceListItem.test.ts",
+    "packages/grafana-runtime/src/services/dataSource/hooks.test.tsx",
+    "packages/grafana-runtime/src/services/dataSource/settings.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1000,
+   "merge": "f1de62bce67a0f045868fb0d01afb1ea9908531c",
+   "nfiles": 15
+  },
+  {
+   "number": 133019,
+   "title": "Navigation: Read the nav tree's legacy feature flags via OpenFeature",
+   "mergedAt": "2026-09-24T16:48:04Z",
+   "add": 33,
+   "src": [
+    "packages/grafana-runtime/src/internal/openFeature/openfeature-types.gen.d.ts",
+    "pkg/services/featuremgmt/registry.go",
+    "public/app/core/navtree/sections/admin.navEntry.ts",
+    "public/app/features/alerting/routes.tsx",
+    "public/app/features/alerting/unified/featureToggles.ts",
+    "public/app/features/alerting/unified/utils/pageAccess.ts",
+    "public/app/routes/routes.tsx"
+   ],
+   "tests": [
+    "public/app/core/navtree/buildStaticNavTree.test.ts"
+   ],
+   "layers": [
+    "go",
+    "ts"
+   ],
+   "bodyLen": 1445,
+   "merge": "e248231981f30b8f83cf19c9b5b529e9252bd601",
+   "nfiles": 10
+  },
+  {
+   "number": 133011,
+   "title": "Text panel: Keep editor view mode stable across remounts",
+   "mergedAt": "2026-09-24T20:20:42Z",
+   "add": 40,
+   "src": [
+    "public/app/plugins/panel/text/v2/TextNGPanel.tsx",
+    "public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx",
+    "public/app/plugins/panel/text/v2/editor/viewMode.ts"
+   ],
+   "tests": [
+    "public/app/plugins/panel/text/v2/TextNGPanel.test.tsx",
+    "public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 818,
+   "merge": "15e3ba91f323901e9ecd2735a19d26eaa23e1067",
+   "nfiles": 5
+  },
+  {
+   "number": 132983,
+   "title": "IAM: Implement AuthInfo delete for legacy storage",
+   "mergedAt": "2026-09-22T07:42:32Z",
+   "add": 108,
+   "src": [
+    "pkg/registry/apis/iam/authinfo/store.go",
+    "pkg/services/login/authinfo.go",
+    "pkg/services/login/authinfoimpl/store.go",
+    "pkg/services/login/authinfoimpl/templates.go",
+    "pkg/services/login/authinfok8s/authinfo.go",
+    "pkg/services/login/authinfotest/auth_info_store_mock.go"
+   ],
+   "tests": [
+    "pkg/registry/apis/iam/authinfo/store_test.go",
+    "pkg/services/login/authinfoimpl/store_test.go",
+    "pkg/services/login/authinfok8s/authinfo_test.go",
+    "pkg/tests/apis/iam/authinfo/authinfo_integration_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 2967,
+   "merge": "3151026ab26f7b9d83659b99cbe6480029bb7b9e",
+   "nfiles": 14
+  },
+  {
+   "number": 132956,
+   "title": "Alerting: Refactor WithManagedRoutes & autogen to use definition.Route",
+   "mergedAt": "2026-09-24T15:06:37Z",
+   "add": 60,
+   "src": [
+    "pkg/services/ngalert/notifier/alertmanager_config.go",
+    "pkg/services/ngalert/notifier/autogen_alertmanager.go",
+    "pkg/services/ngalert/notifier/compat.go",
+    "pkg/services/ngalert/notifier/legacy_storage/routes.go",
+    "pkg/services/ngalert/remote/alertmanager.go"
+   ],
+   "tests": [
+    "pkg/services/ngalert/api/api_provisioning_test.go",
+    "pkg/services/ngalert/notifier/autogen_alertmanager_test.go",
+    "pkg/services/ngalert/notifier/legacy_storage/routes_test.go",
+    "pkg/services/ngalert/remote/alertmanager_test.go",
+    "pkg/tests/api/alerting/api_notification_channel_test.go"
+   ],
+   "layers": [
+    "go"
+   ],
+   "bodyLen": 592,
+   "merge": "ec7a103af797e2a2368cc7d0550717ebc488b36a",
+   "nfiles": 10
+  },
+  {
+   "number": 132938,
+   "title": "CodeMirror: Add shared language registry and lazy INI support",
+   "mergedAt": "2026-09-24T14:51:17Z",
+   "add": 35,
+   "src": [
+    "packages/grafana-ui/src/components/CodeMirror/CodeEditor.story.tsx",
+    "packages/grafana-ui/src/components/CodeMirror/languageLoader.ts",
+    "packages/grafana-ui/src/components/CodeMirror/languages.ts",
+    "packages/grafana-ui/src/components/CodeMirror/types.ts",
+    "packages/grafana-ui/src/unstable.ts",
+    "public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.ts"
+   ],
+   "tests": [
+    "packages/grafana-ui/src/components/CodeMirror/languageLoader.test.ts",
+    "public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1408,
+   "merge": "6fcd7ce70eb51c74ffa5b1deb8f0fadfbedccb73",
+   "nfiles": 11
+  },
+  {
+   "number": 132859,
+   "title": "Notebooks: Fix duplicate cell controls and the clipped collapsed query row",
+   "mergedAt": "2026-09-22T12:58:22Z",
+   "add": 56,
+   "src": [
+    "public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellActions.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/cellClassNames.ts",
+    "public/app/features/query/components/QueryEditorRowHeader.tsx"
+   ],
+   "tests": [
+    "public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.test.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.test.tsx",
+    "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.test.tsx"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1946,
+   "merge": "73238948482bf27fb01d3a57520e8570065d7c49",
+   "nfiles": 9
+  },
+  {
+   "number": 132843,
+   "title": "Text: Track feature usage on dashboard load",
+   "mergedAt": "2026-09-22T18:43:02Z",
+   "add": 80,
+   "src": [
+    "public/app/features/dashboard-scene/utils/interactions.ts",
+    "public/app/features/dashboard-scene/utils/tracking.ts"
+   ],
+   "tests": [
+    "public/app/features/dashboard-scene/utils/tracking.test.ts"
+   ],
+   "layers": [
+    "ts"
+   ],
+   "bodyLen": 1251,
+   "merge": "47e590153a2845d4864fe7152abc481d869499ce",
+   "nfiles": 3
+  }
+ ]
+}

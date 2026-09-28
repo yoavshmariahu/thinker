@@ -58,8 +58,17 @@ export function bm25(index, qtoks, k1 = 1.4, b = 0.6) {
     }
     scores.set(d.note.id, s); matched.set(d.note.id, m);
   }
-  return { scores, matched, uniq: uniq.length };
+  // weight of the query's terms that occur in the index at all: what a note could cover of it
+  let mass = 0;
+  for (const q of uniq) { const df = index.df.get(q); if (df) mass += Math.log(1 + (index.N - df + 0.5) / (df + 0.5)); }
+  return { scores, matched, uniq: uniq.length, mass };
 }
+
+// Share of the request's term weight that a note must cover, with its body and pointers
+// and with its question side (title/answers/tags). rel is relative to the best note, so the
+// best of a poor lot scores near 1; these floors are absolute.
+// THINKER_MIN_COVER=body,question changes them; 0,0 turns them off.
+export const MIN_COVER = { body: 0.15, question: 0.05 };
 
 // path affinity: 1 if a dep is the current file, decaying by directory distance
 function pathAffinity(note, file) {
@@ -85,17 +94,19 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
   // absolute gate: the note's question side (title/answers/tags) must share
   // discriminative terms with the query, or the note must sit on the current file.
   const need = Q.uniq <= 3 ? 1 : 2;
+  const [minB = MIN_COVER.body, minQ = MIN_COVER.question] = (process.env.THINKER_MIN_COVER || '').split(',').filter(Boolean).map(Number);
   return notes.map(n => {
     const mq = Q.matched.get(n.id) || 0, mb = B.matched.get(n.id) || 0;
     const aff = pathAffinity(n, file);
-    const passes = loose ? (mq + mb) >= 1 || aff > 0 : (mq >= need || (mq >= 1 && mb >= 3) || aff > 0);
+    const cover = (B.scores.get(n.id) || 0) / Math.max(1e-9, B.mass), coverQ = (Q.scores.get(n.id) || 0) / Math.max(1e-9, Q.mass);
+    const passes = loose ? (mq + mb) >= 1 || aff > 0 : (((mq >= need || (mq >= 1 && mb >= 3)) && cover >= minB && coverQ >= minQ) || aff > 0);
     const rel = passes ? 0.7 * (Q.scores.get(n.id) || 0) / maxQ + 0.3 * (B.scores.get(n.id) || 0) / maxB : 0;
     const prior = mode === 'orient' ? (KIND_PRIOR[n.kind] || 0) * 0.3 : 0;
     const conf = (n.confidence ?? 0.7);
     let score = rel + aff * 0.4 + prior + 0.05 * conf;
     if (n.status === 'stale') score *= 0.6;
     if (n.status === 'invalid') score = -1;
-    return { note: n, score, rel, aff, matched: mq + mb };
+    return { note: n, score, rel, aff, cover, coverQ, matched: mq + mb };
   }).filter(r => process.env.THINKER_FORCE === '1' ? r.note.status !== 'invalid' : (r.score > 0 && (r.rel > 0 || r.aff > 0))).sort((a, b) => b.score - a.score);
 }
 

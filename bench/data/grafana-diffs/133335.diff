@@ -1,0 +1,406 @@
+diff --git a/public/app/plugins/panel/geomap/GeomapPanel.test.tsx b/public/app/plugins/panel/geomap/GeomapPanel.test.tsx
+index ebb267e8b..637fdd3c3 100644
+--- a/public/app/plugins/panel/geomap/GeomapPanel.test.tsx
++++ b/public/app/plugins/panel/geomap/GeomapPanel.test.tsx
+@@ -4,7 +4,7 @@ import Attribution from 'ol/control/Attribution';
+ import { transformExtent } from 'ol/proj';
+ import { type ComponentProps } from 'react';
+ 
+-import { dateTime, EventBusSrv, LoadingState } from '@grafana/data';
++import { createTheme, dateTime, EventBusSrv, LoadingState } from '@grafana/data';
+ import { locationService } from '@grafana/runtime';
+ 
+ import { GeomapPanel } from './GeomapPanel';
+@@ -94,6 +94,7 @@ jest.mock('./utils/layers', () => ({
+     options: {},
+   }),
+   applyLayerFilter: jest.fn(),
++  reinitLayers: jest.fn(),
+ }));
+ 
+ jest.mock('./utils/attribution', () => ({
+@@ -295,6 +296,7 @@ describe('GeomapPanel - View Listener', () => {
+       },
+       onChangeTimeRange: jest.fn(),
+       eventBus: new EventBusSrv(),
++      theme: createTheme({ colors: { mode: 'dark' } }),
+     };
+ 
+     panel = new GeomapPanel(props);
+@@ -528,6 +530,31 @@ describe('GeomapPanel - View Listener', () => {
+     });
+   });
+ 
++  describe('Theme changes', () => {
++    it('should rebuild the layers when the app theme changes', async () => {
++      const div = document.createElement('div');
++      await panel.initMapAsync(div);
++
++      const { reinitLayers } = require('./utils/layers');
++      const prevProps = { ...panel.props };
++      Object.assign(panel.props, { theme: createTheme({ colors: { mode: 'light' } }) });
++
++      panel.componentDidUpdate(prevProps);
++
++      expect(reinitLayers).toHaveBeenCalledWith(panel);
++    });
++
++    it('should leave the layers alone when the theme is unchanged', async () => {
++      const div = document.createElement('div');
++      await panel.initMapAsync(div);
++
++      const { reinitLayers } = require('./utils/layers');
++      panel.componentDidUpdate({ ...panel.props });
++
++      expect(reinitLayers).not.toHaveBeenCalled();
++    });
++  });
++
+   describe('Map initialization edge cases', () => {
+     it('should handle null div in initMapAsync', async () => {
+       await panel.initMapAsync(null);
+diff --git a/public/app/plugins/panel/geomap/GeomapPanel.tsx b/public/app/plugins/panel/geomap/GeomapPanel.tsx
+index 2c12eab81..68ec4f065 100644
+--- a/public/app/plugins/panel/geomap/GeomapPanel.tsx
++++ b/public/app/plugins/panel/geomap/GeomapPanel.tsx
+@@ -1,5 +1,6 @@
+ import { css } from '@emotion/css';
+ import { Global } from '@emotion/react';
++import memoizeOne from 'memoize-one';
+ import type OpenLayersMap from 'ol/Map';
+ import type MapBrowserEvent from 'ol/MapBrowserEvent';
+ import View, { type ViewOptions } from 'ol/View';
+@@ -17,8 +18,8 @@ import { Subscription } from 'rxjs';
+ 
+ import { DataHoverEvent, type PanelData, type PanelProps } from '@grafana/data';
+ import { t } from '@grafana/i18n';
+-import { config, locationService } from '@grafana/runtime';
+-import { type PanelContext, PanelContextRoot } from '@grafana/ui';
++import { locationService } from '@grafana/runtime';
++import { type PanelContext, PanelContextRoot, type Themeable2, withTheme2 } from '@grafana/ui';
+ import { appEvents } from 'app/core/app_events';
+ import { VariablesChanged } from 'app/features/variables/types';
+ import { PanelEditExitedEvent } from 'app/types/events';
+@@ -37,7 +38,7 @@ import { type ControlsOptions, type MapLayerState } from './types';
+ import { getActions } from './utils/actions';
+ import { updateAttributionVisibility } from './utils/attribution';
+ import { getLayersExtent } from './utils/getLayersExtent';
+-import { applyLayerFilter, initLayer } from './utils/layers';
++import { applyLayerFilter, initLayer, reinitLayers } from './utils/layers';
+ import { pointerClickListener, pointerMoveListener, setTooltipListeners } from './utils/tooltip';
+ import {
+   updateMap,
+@@ -51,7 +52,7 @@ import { centerPointRegistry, MapCenterID } from './view';
+ // Allows multiple panels to share the same view instance
+ let sharedView: View | undefined = undefined;
+ 
+-type Props = PanelProps<Options>;
++type Props = PanelProps<Options> & Themeable2;
+ interface State extends OverlayProps {
+   ttip?: GeomapHoverPayload;
+   ttipOpen: boolean;
+@@ -65,7 +66,7 @@ export class GeomapPanel extends Component<Props, State> {
+   panelContext: PanelContext | undefined = undefined;
+   private subs = new Subscription();
+ 
+-  globalCSS = getGlobalStyles(config.theme2);
++  getGlobalCSS = memoizeOne(getGlobalStyles);
+ 
+   mouseWheelZoom?: MouseWheelZoom;
+   hoverPayload: GeomapHoverPayload = { point: {}, pageX: -1, pageY: -1 };
+@@ -173,6 +174,9 @@ export class GeomapPanel extends Component<Props, State> {
+     if (this.props.options !== prevProps.options) {
+       this.optionsChanged(prevProps.options, this.props.options);
+     }
++    if (this.map && this.props.theme !== prevProps.theme) {
++      reinitLayers(this);
++    }
+   }
+ 
+   /** This function will actually update the JSON model */
+@@ -531,7 +535,7 @@ export class GeomapPanel extends Component<Props, State> {
+ 
+     return (
+       <>
+-        <Global styles={this.globalCSS} />
++        <Global styles={this.getGlobalCSS(this.props.theme)} />
+         <div className={styles.wrap} onMouseLeave={this.clearTooltip}>
+           <div
+             role="application"
+@@ -554,6 +558,8 @@ export class GeomapPanel extends Component<Props, State> {
+   }
+ }
+ 
++export const GeomapPanelWithTheme = withTheme2(GeomapPanel);
++
+ const styles = {
+   wrap: css({
+     position: 'relative',
+diff --git a/public/app/plugins/panel/geomap/module.tsx b/public/app/plugins/panel/geomap/module.tsx
+index b929dd7f6..8800a32de 100644
+--- a/public/app/plugins/panel/geomap/module.tsx
++++ b/public/app/plugins/panel/geomap/module.tsx
+@@ -3,7 +3,7 @@ import { t, Trans } from '@grafana/i18n';
+ import { config } from '@grafana/runtime';
+ import { commonOptionsBuilder } from '@grafana/ui';
+ 
+-import { GeomapPanel } from './GeomapPanel';
++import { GeomapPanelWithTheme } from './GeomapPanel';
+ import { LayersEditor } from './editor/LayersEditor';
+ import { MapViewEditor } from './editor/MapViewEditor';
+ import { VariableNameEditor } from './editor/VariableNameEditor';
+@@ -13,7 +13,7 @@ import { defaultMapViewConfig, type Options, TooltipMode } from './panelcfg.gen'
+ import { geomapSuggestionsSupplier } from './suggestions';
+ import { type GeomapInstanceState } from './types';
+ 
+-export const plugin = new PanelPlugin<Options>(GeomapPanel)
++export const plugin = new PanelPlugin<Options>(GeomapPanelWithTheme)
+   .setNoPadding()
+   .setPanelChangeHandler(mapPanelChangedHandler)
+   .setMigrationHandler(mapMigrationHandler)
+diff --git a/public/app/plugins/panel/geomap/utils/layers.test.ts b/public/app/plugins/panel/geomap/utils/layers.test.ts
+index 0fd834065..2b05518a3 100644
+--- a/public/app/plugins/panel/geomap/utils/layers.test.ts
++++ b/public/app/plugins/panel/geomap/utils/layers.test.ts
+@@ -13,6 +13,7 @@ import {
+   type DataFrame,
+   type DataQueryRequest,
+   FieldType,
++  type GrafanaTheme2,
+   LoadingState,
+   type MapLayerHandler,
+   type MapLayerOptions,
+@@ -27,7 +28,7 @@ import { MARKERS_LAYER_ID } from '../layers/data/markersLayer';
+ import { DEFAULT_BASEMAP_CONFIG, geomapLayerRegistry } from '../layers/registry';
+ import { type MapLayerState } from '../types';
+ 
+-import { applyLayerFilter, getMapLayerState, initLayer } from './layers';
++import { applyLayerFilter, getMapLayerState, initLayer, reinitLayers } from './layers';
+ 
+ const getIfExists = jest.spyOn(geomapLayerRegistry, 'getIfExists');
+ 
+@@ -329,6 +330,133 @@ describe('initLayer', () => {
+   });
+ });
+ 
++describe('reinitLayers', () => {
++  const dark = { isDark: true } as GrafanaTheme2;
++  const light = { isDark: false } as GrafanaTheme2;
++
++  const themesSeen: GrafanaTheme2[] = [];
++  const disposed: string[] = [];
++
++  // A panel whose map holds on to the layers it is given, so a swap can be observed
++  const createPanel = (theme: GrafanaTheme2) => {
++    const mapLayers: BaseLayer[] = [];
++    const setAt = jest.fn((index: number, layer: BaseLayer) => {
++      mapLayers[index] = layer;
++    });
++    const panel = {
++      map: { getLayers: () => ({ getArray: () => mapLayers, setAt }) },
++      layers: [],
++      byName: new Map<string, MapLayerState>(),
++      setState: jest.fn(),
++      getLegends: jest.fn().mockReturnValue(['legend']),
++      props: { eventBus: {}, data: {}, theme, options: { controls: {} } },
++    } as unknown as GeomapPanel;
++    return { panel, mapLayers, setAt };
++  };
++
++  const addLayer = async (panel: GeomapPanel, mapLayers: BaseLayer[], options: MapLayerOptions, isBasemap: boolean) => {
++    const state = await initLayer(panel, panel.map!, options, isBasemap);
++    panel.layers = [...panel.layers, state];
++    mapLayers.push(state.layer);
++    return state;
++  };
++
++  beforeEach(() => {
++    themesSeen.length = 0;
++    disposed.length = 0;
++    getIfExists.mockImplementation((type) => ({
++      id: type ?? '',
++      name: type ?? '',
++      create: async (_map, options, _eventBus, theme) => {
++        themesSeen.push(theme);
++        return {
++          init: () => ({ setOpacity: jest.fn() }) as unknown as BaseLayer,
++          dispose: () => disposed.push(options.name!),
++        };
++      },
++    }));
++  });
++
++  it('rebuilds every layer with the theme the panel now has', async () => {
++    const { panel, mapLayers, setAt } = createPanel(dark);
++    const basemap = await addLayer(panel, mapLayers, { type: 'carto', name: 'Basemap' }, true);
++    const markers = await addLayer(panel, mapLayers, { type: 'markers', name: 'Markers' }, false);
++    expect(themesSeen).toEqual([dark, dark]);
++
++    Object.assign(panel.props, { theme: light });
++    await reinitLayers(panel);
++
++    expect(themesSeen).toEqual([dark, dark, light, light]);
++    expect(disposed).toEqual(['Basemap', 'Markers']);
++    expect(panel.layers[0]).not.toBe(basemap);
++    expect(panel.layers[1]).not.toBe(markers);
++    expect(panel.layers[0].isBasemap).toBe(true);
++    expect(panel.layers[1].isBasemap).toBe(false);
++    expect(setAt).toHaveBeenCalledTimes(2);
++    expect(mapLayers).toEqual([panel.layers[0].layer, panel.layers[1].layer]);
++    expect(panel.setState).toHaveBeenCalledWith({ legends: ['legend'] });
++  });
++
++  it('rebuilds a layer at its position in the map, not its position in the panel list', async () => {
++    const { panel, mapLayers } = createPanel(dark);
++    await addLayer(panel, mapLayers, { type: 'carto', name: 'Basemap' }, true);
++    // Turning on measure appends a layer the panel does not track, and a layer added after that
++    // lands behind it, so Markers is second in panel.layers but third in the map
++    const measureLayer = {} as BaseLayer;
++    mapLayers.push(measureLayer);
++    const markers = await addLayer(panel, mapLayers, { type: 'markers', name: 'Markers' }, false);
++
++    await reinitLayers(panel);
++
++    // Going by the panel index would have put the new Markers layer over the measure layer
++    expect(mapLayers[1]).toBe(measureLayer);
++    expect(mapLayers[2]).toBe(panel.layers[1].layer);
++    expect(mapLayers[2]).not.toBe(markers.layer);
++  });
++
++  it('runs one rebuild at a time when the theme changes twice in a row', async () => {
++    // Tag every handler, so a layer disposed by two rebuilds at once can be told apart
++    let created = 0;
++    getIfExists.mockImplementation((type) => ({
++      id: type ?? '',
++      name: type ?? '',
++      create: async (_map, options, _eventBus, theme) => {
++        const tag = `${options.name}#${++created}`;
++        themesSeen.push(theme);
++        return {
++          init: () => ({ setOpacity: jest.fn() }) as unknown as BaseLayer,
++          dispose: () => disposed.push(tag),
++        };
++      },
++    }));
++    const { panel, mapLayers } = createPanel(dark);
++    await addLayer(panel, mapLayers, { type: 'carto', name: 'Basemap' }, true);
++    await addLayer(panel, mapLayers, { type: 'markers', name: 'Markers' }, false);
++
++    Object.assign(panel.props, { theme: light });
++    const first = reinitLayers(panel);
++    Object.assign(panel.props, { theme: dark });
++    const second = reinitLayers(panel);
++    await Promise.all([first, second]);
++
++    // The second rebuild replaces what the first one built, rather than both replacing the originals
++    expect(disposed).toEqual(['Basemap#1', 'Markers#2', 'Basemap#3', 'Markers#4']);
++    expect(panel.layers.map((l) => l.getName())).toEqual(['Basemap', 'Markers']);
++    expect(mapLayers).toEqual([panel.layers[0].layer, panel.layers[1].layer]);
++  });
++
++  it('does nothing before the map exists', async () => {
++    const { panel, mapLayers } = createPanel(dark);
++    await addLayer(panel, mapLayers, { type: 'carto', name: 'Basemap' }, true);
++    Object.assign(panel, { map: undefined });
++
++    await reinitLayers(panel);
++
++    expect(disposed).toEqual([]);
++    expect(panel.setState).not.toHaveBeenCalled();
++  });
++});
++
+ describe('getMapLayerState', () => {
+   it('returns undefined for an undefined layer', () => {
+     expect(getMapLayerState(undefined)).toBeUndefined();
+diff --git a/public/app/plugins/panel/geomap/utils/layers.ts b/public/app/plugins/panel/geomap/utils/layers.ts
+index 8cdf53ca5..81f07c1c0 100644
+--- a/public/app/plugins/panel/geomap/utils/layers.ts
++++ b/public/app/plugins/panel/geomap/utils/layers.ts
+@@ -130,7 +130,7 @@ export async function initLayer(
+     options.config.attribution = textUtil.sanitizeTextPanelContent(options.config.attribution);
+   }
+ 
+-  const handler = await item.create(map, options, panel.props.eventBus, config.theme2);
++  const handler = await item.create(map, options, panel.props.eventBus, panel.props.theme);
+   const layer = handler.init(); // eslint-disable-line
+   if (options.opacity != null) {
+     layer.setOpacity(options.opacity);
+@@ -180,6 +180,51 @@ export async function initLayer(
+   return state;
+ }
+ 
++const pendingRebuilds = new WeakMap<GeomapPanel, Promise<void>>();
++
++/**
++ * Layers resolve the theme when they are created, so a theme switch needs fresh instances.
++ * The map and its view are kept, otherwise switching would move what the user is looking at.
++ */
++export function reinitLayers(panel: GeomapPanel): Promise<void> {
++  // Rebuilds work off the same layer list and layer group, so two of them must never interleave
++  const pending = (pendingRebuilds.get(panel) ?? Promise.resolve()).then(() => rebuildLayers(panel));
++  pendingRebuilds.set(
++    panel,
++    pending.catch(() => undefined)
++  );
++  return pending;
++}
++
++async function rebuildLayers(panel: GeomapPanel): Promise<void> {
++  const map = panel.map;
++  if (!map) {
++    return;
++  }
++
++  const group = map.getLayers();
++  const layers = panel.layers.slice(0);
++  for (let i = 0; i < layers.length; i++) {
++    const current = layers[i];
++    // Layers the panel does not own, such as the measure layer, sit in between
++    const layerIndex = group.getArray().indexOf(current.layer);
++    if (layerIndex < 0) {
++      continue;
++    }
++    try {
++      const info = await initLayer(panel, map, current.options, current.isBasemap);
++      current.handler.dispose?.();
++      layers[i] = info;
++      group.setAt(layerIndex, info.layer);
++    } catch (err) {
++      console.warn('ERROR', err); // eslint-disable-line no-console
++    }
++  }
++
++  panel.layers = layers;
++  panel.setState({ legends: panel.getLegends() });
++}
++
+ export const getMapLayerState = (l: BaseLayer | undefined): MapLayerState | undefined => {
+   return l ? layerStateMap.get(l) : undefined;
+ };
+diff --git a/public/app/plugins/panel/geomap/utils/tooltip.test.ts b/public/app/plugins/panel/geomap/utils/tooltip.test.ts
+index af9db1707..02acf8792 100644
+--- a/public/app/plugins/panel/geomap/utils/tooltip.test.ts
++++ b/public/app/plugins/panel/geomap/utils/tooltip.test.ts
+@@ -4,11 +4,10 @@ import { Point } from 'ol/geom';
+ import WebGLPointsLayer from 'ol/layer/WebGLPoints';
+ import VectorSource from 'ol/source/Vector';
+ 
+-import { DataHoverClearEvent, type DataFrame, type PanelProps } from '@grafana/data';
++import { DataHoverClearEvent, type DataFrame } from '@grafana/data';
+ 
+ import { GeomapPanel } from '../GeomapPanel';
+ import { type GeomapHoverPayload, type GeomapLayerHover } from '../event';
+-import { type Options } from '../panelcfg.gen';
+ 
+ import { pointerMoveListener, setTooltipListeners } from './tooltip';
+ 
+@@ -74,7 +73,7 @@ describe('tooltip utils', () => {
+     jest.clearAllMocks();
+ 
+     // Create mock objects
+-    panel = new GeomapPanel({} as PanelProps<Options>);
++    panel = new GeomapPanel({} as ConstructorParameters<typeof GeomapPanel>[0]);
+ 
+     // Create a proper MouseEvent instance to pass the instanceof check
+     const mouseEvent = new MouseEvent('pointermove');

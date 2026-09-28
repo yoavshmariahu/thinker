@@ -61,6 +61,26 @@ function resetWorktree(wt) {
   } catch {}
 }
 
+// The merged PR's test files are put over the agent's edits and the task's test command is run.
+// `build`: the tests did not compile, which also happens when a correct patch names things differently.
+function runTests(task, cwd) {
+  try {
+    // taken from the stored gold diff: the repository the agent works in holds no commit after the base
+    const files = new Set(task.testFiles || []);
+    const gold = fs.readFileSync(path.join(HERE, '..', task.goldDiff), 'utf8').split(/^(?=diff --git )/m)
+      .filter(c => files.has((c.match(/^diff --git a\/(\S+) /) || [])[1])).join('');
+    for (const f of files) {
+      try { execFileSync('git', ['checkout', '-q', 'HEAD', '--', f], { cwd, stdio: 'ignore' }); } catch { fs.rmSync(path.join(cwd, f), { force: true }); }
+    }
+    if (gold) execFileSync('git', ['apply', '--whitespace=nowarn', '-'], { cwd, input: gold, stdio: ['pipe', 'ignore', 'pipe'] });
+    const t0 = Date.now();
+    let status = 'pass', text = '';
+    try { text = execFileSync(task.testCmd[0], task.testCmd.slice(1), { cwd, encoding: 'utf8', timeout: 900000, maxBuffer: 1 << 28, stdio: ['ignore', 'pipe', 'pipe'] }); }
+    catch (e) { text = String(e.stdout || '') + String(e.stderr || ''); status = /\[build failed\]|\[setup failed\]/.test(text) ? 'build' : e.killed ? 'timeout' : 'fail'; }
+    return { status, secs: Math.round((Date.now() - t0) / 1000), tail: text.split('\n').filter(l => /^(ok|FAIL|--- FAIL|#)|\.go:\d+:\d+:/.test(l)).slice(0, 12) };
+  } catch (e) { return { status: 'error', error: String(e.message).slice(0, 200) }; }
+}
+
 function toolStats(transcriptFile) {
   const stats = { calls: 0, byTool: {}, thinkerCalls: 0, filesRead: 0, edits: 0 };
   if (!fs.existsSync(transcriptFile)) return stats;
@@ -252,6 +272,9 @@ async function main() {
         diff = 'DIFF ERROR: ' + e.message;
       }
 
+      // Run the merged PR's tests against the agent's edits, where the task has them
+      const tests = task.testCmd && !flags['no-tests'] ? runTests(task, cwd) : null;
+
       // Grade patch against calibrated criteria
       let grade = null;
       if (!flags['no-judge']) {
@@ -273,6 +296,7 @@ async function main() {
         cost: estimateCost(r.usage),
         tools,
         grade,
+        tests,
         diff,
         result: r.response
       };

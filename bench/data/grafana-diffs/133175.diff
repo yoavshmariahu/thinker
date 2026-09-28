@@ -1,0 +1,602 @@
+diff --git a/conf/defaults.ini b/conf/defaults.ini
+index 221573356..4fcc186d3 100644
+--- a/conf/defaults.ini
++++ b/conf/defaults.ini
+@@ -1950,6 +1950,12 @@ enable_legacy_id = false
+ # Set to 0 to disallow scopes entirely. Negative values are rejected.
+ max_scope_count = 5
+ 
++# Cache resolved dashboard->folder mappings for annotation authz
++folder_cache_enabled = true
++
++# TTL for cached dashboard->folder mappings (when folder_cache_enabled = true)
++folder_cache_ttl = 30s
++
+ # Legacy API proxy phase. Values: off, proxy-writes, proxy-all.
+ api_migration_phase = off
+ 
+diff --git a/conf/sample.ini b/conf/sample.ini
+index 52315f563..3212c1b75 100644
+--- a/conf/sample.ini
++++ b/conf/sample.ini
+@@ -1774,6 +1774,12 @@ default_datasource_uid =
+ # Set to 0 to disallow scopes entirely. Negative values are rejected.
+ ;max_scope_count = 5
+ 
++# Cache resolved dashboard->folder mappings for annotation authz
++;folder_cache_enabled = true
++
++# TTL for cached dashboard->folder mappings (when folder_cache_enabled = true).
++;folder_cache_ttl = 30s
++
+ # gRPC server address for remote annotation storage (only used when store_backend = "grpc")
+ ;grpc_address = localhost:9090
+ 
+diff --git a/pkg/registry/apps/annotation/authz.go b/pkg/registry/apps/annotation/authz.go
+index 2afa55bd5..4e65c008d 100644
+--- a/pkg/registry/apps/annotation/authz.go
++++ b/pkg/registry/apps/annotation/authz.go
+@@ -112,7 +112,6 @@ func canAccessAnnotations(ctx context.Context, tracer trace.Tracer, accessClient
+ }
+ 
+ // resolveDashboardFolders maps dashboard UID -> parent folder UID for unique dashboards in items.
+-// TODO: cache results (TTL LRU by namespace+UID) and run lookups in parallel. Folder rarely changes.
+ func resolveDashboardFolders(ctx context.Context, tracer trace.Tracer, folderResolver DashboardFolderResolver, namespace string, items []annotationV0.Annotation) (map[string]string, error) {
+ 	ctx, span := tracer.Start(ctx, "annotation.authz.resolveDashboardFolders")
+ 	defer span.End()
+diff --git a/pkg/registry/apps/annotation/config.go b/pkg/registry/apps/annotation/config.go
+index 65e8aa345..06b3aec7e 100644
+--- a/pkg/registry/apps/annotation/config.go
++++ b/pkg/registry/apps/annotation/config.go
+@@ -19,6 +19,8 @@ const (
+ 	// defaultMaxScopeCount caps how many scopes can be attached to a single
+ 	// annotation. 0 means no scopes are allowed.
+ 	defaultMaxScopeCount = 5
++	// defaultFolderCacheTTL is how long a resolved dashboard->folder mapping is cached.
++	defaultFolderCacheTTL = 30 * time.Second
+ )
+ 
+ // Config holds the store backend configuration for the annotation app.
+@@ -51,6 +53,11 @@ type Config struct {
+ 	// rejected by the settings loader.
+ 	MaxScopeCount int
+ 
++	// FolderCacheEnabled controls whether resolved dashboard->folder mappings are cached.
++	FolderCacheEnabled bool
++	// FolderCacheTTL is how long a resolved dashboard->folder mapping is cached.
++	FolderCacheTTL time.Duration
++
+ 	// CleanupSettings configures annotation pruning for the SQL backend's LifecycleManager.
+ 	// Zero value (all limits unset) disables cleanup. Not used by memory or gRPC backends.
+ 	CleanupSettings annotations.CleanupSettings
+@@ -66,6 +73,9 @@ func (c *Config) AddFlags(flags *pflag.FlagSet) {
+ 
+ 	flags.IntVar(&c.MaxScopeCount, "annotation.max-scope-count", defaultMaxScopeCount, "Maximum number of scopes that can be attached to a single annotation")
+ 
++	flags.BoolVar(&c.FolderCacheEnabled, "annotation.folder-cache-enabled", true, "Cache resolved dashboard->folder mappings on the annotation authz read path")
++	flags.DurationVar(&c.FolderCacheTTL, "annotation.folder-cache-ttl", defaultFolderCacheTTL, "TTL for cached dashboard->folder mappings")
++
+ 	// gRPC flags
+ 	flags.StringVar(&c.GRPCAddress, "annotation.grpc-address", "", "gRPC server address for the annotation store")
+ 	flags.BoolVar(&c.GRPCUseTLS, "annotation.grpc-use-tls", false, "Enable TLS for the annotation gRPC connection")
+@@ -88,6 +98,9 @@ func newConfigFromSettings(cfg *setting.Cfg) Config {
+ 		EnableLegacyID: cfg.AnnotationAppPlatform.EnableLegacyID,
+ 		MaxScopeCount:  cfg.AnnotationAppPlatform.MaxScopeCount,
+ 
++		FolderCacheEnabled: cfg.AnnotationAppPlatform.FolderCacheEnabled,
++		FolderCacheTTL:     cfg.AnnotationAppPlatform.FolderCacheTTL,
++
+ 		GRPCAddress:       cfg.AnnotationAppPlatform.GRPCAddress,
+ 		GRPCUseTLS:        cfg.AnnotationAppPlatform.GRPCUseTLS,
+ 		GRPCTLSCAFile:     cfg.AnnotationAppPlatform.GRPCTLSCAFile,
+diff --git a/pkg/registry/apps/annotation/dashboard_folder_lookup.go b/pkg/registry/apps/annotation/dashboard_folder_lookup.go
+index cd01012d3..98e3aa941 100644
+--- a/pkg/registry/apps/annotation/dashboard_folder_lookup.go
++++ b/pkg/registry/apps/annotation/dashboard_folder_lookup.go
+@@ -4,10 +4,12 @@ import (
+ 	"context"
+ 	"fmt"
+ 	"sync"
++	"time"
+ 
+ 	authlib "github.com/grafana/authlib/types"
+ 	"go.opentelemetry.io/otel/attribute"
+ 	"go.opentelemetry.io/otel/trace"
++	"golang.org/x/sync/singleflight"
+ 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+ 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+@@ -18,13 +20,21 @@ import (
+ 	dashboardv1 "github.com/grafana/grafana/apps/dashboard/pkg/apis/dashboard/v1"
+ 	"github.com/grafana/grafana/pkg/apimachinery/identity"
+ 	"github.com/grafana/grafana/pkg/apimachinery/utils"
++	"github.com/grafana/grafana/pkg/infra/localcache"
+ )
+ 
++const defaultFolderFetchTimeout = 10 * time.Second
++
+ // NewDashboardFolderResolver returns a DashboardFolderResolver that fetches the dashboard's
+ // parent folder via dashboard.grafana.app. restConfig is called once (lazily on first request)
+ // to build the underlying client: loopback in ST, remote URL with token exchange in MT.
+-func NewDashboardFolderResolver(restConfig func(context.Context) (*rest.Config, error), tracer trace.Tracer) DashboardFolderResolver {
+-	return &dashboardFolderResolver{client: newDashboardClient(restConfig), tracer: tracer}
++func NewDashboardFolderResolver(restConfig func(context.Context) (*rest.Config, error), tracer trace.Tracer, metrics *Metrics, cacheEnabled bool, cacheTTL time.Duration) DashboardFolderResolver {
++	r := &dashboardFolderResolver{client: newDashboardClient(restConfig), tracer: tracer, metrics: metrics, fetchTimeout: defaultFolderFetchTimeout}
++	if cacheEnabled {
++		r.cache = localcache.New(cacheTTL, 5*time.Minute)
++		r.cacheTTL = cacheTTL
++	}
++	return r
+ }
+ 
+ // NoopDashboardFolderResolver returns an empty folder for every dashboard. Use when authz is
+@@ -35,9 +45,19 @@ func (NoopDashboardFolderResolver) ResolveFolder(_ context.Context, _, _ string)
+ 	return "", nil
+ }
+ 
++// dashboardGetter fetches a single dashboard. Implemented by *dashboardClient; a seam for tests.
++type dashboardGetter interface {
++	Get(ctx context.Context, namespace, name string) (*unstructured.Unstructured, error)
++}
++
+ type dashboardFolderResolver struct {
+-	client *dashboardClient
+-	tracer trace.Tracer
++	client       dashboardGetter
++	tracer       trace.Tracer
++	metrics      *Metrics
++	cache        *localcache.CacheService
++	cacheTTL     time.Duration
++	fetchTimeout time.Duration
++	sf           singleflight.Group
+ }
+ 
+ func (r *dashboardFolderResolver) ResolveFolder(ctx context.Context, namespace, dashboardUID string) (string, error) {
+@@ -46,29 +66,56 @@ func (r *dashboardFolderResolver) ResolveFolder(ctx context.Context, namespace,
+ 	))
+ 	defer span.End()
+ 
+-	nsInfo, err := authlib.ParseNamespace(namespace)
+-	if err != nil {
+-		return "", fmt.Errorf("parse namespace %q: %w", namespace, err)
++	key := namespace + "/" + dashboardUID
++	if r.cache != nil {
++		if v, ok := r.cache.Get(key); ok {
++			span.SetAttributes(attribute.Bool("cache_hit", true))
++			if r.metrics != nil {
++				r.metrics.FolderCacheHits.Inc()
++			}
++			return v.(string), nil
++		}
++		if r.metrics != nil {
++			r.metrics.FolderCacheMisses.Inc()
++		}
+ 	}
+ 
+-	// The downstream apiserver authorizes the fetch against the service identity, not the caller's -
+-	// so a viewer without dashboards:read can still resolve the folder for annotation inheritance checks.
+-	svcCtx := identity.WithServiceIdentityContext(ctx, nsInfo.OrgID)
++	// Group concurrent cache misses for the same dashboard into a single fetch
++	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.fetchTimeout)
++	defer cancel()
++	v, err, _ := r.sf.Do(key, func() (any, error) {
++		nsInfo, err := authlib.ParseNamespace(namespace)
++		if err != nil {
++			return "", fmt.Errorf("parse namespace %q: %w", namespace, err)
++		}
+ 
+-	dash, err := r.client.Get(svcCtx, namespace, dashboardUID)
+-	if err != nil {
+-		if apierrors.IsNotFound(err) {
+-			return "", nil
++		// The downstream apiserver authorizes the fetch against the service identity, not the caller's -
++		// so a viewer without dashboards:read can still resolve the folder for annotation inheritance checks.
++		svcCtx := identity.WithServiceIdentityContext(fetchCtx, nsInfo.OrgID)
++
++		dash, err := r.client.Get(svcCtx, namespace, dashboardUID)
++		if err != nil {
++			if apierrors.IsNotFound(err) {
++				return "", nil
++			}
++			return "", err
+ 		}
+-		return "", err
+-	}
+ 
+-	// GetFolder reads metadata.annotations["grafana.app/folder"].
+-	meta, err := utils.MetaAccessor(dash)
++		// GetFolder reads metadata.annotations["grafana.app/folder"].
++		meta, err := utils.MetaAccessor(dash)
++		if err != nil {
++			return "", fmt.Errorf("meta accessor for dashboard %q: %w", dashboardUID, err)
++		}
++		folder := meta.GetFolder()
++		if r.cache != nil {
++			r.cache.Set(key, folder, r.cacheTTL)
++		}
++		return folder, nil
++	})
+ 	if err != nil {
+-		return "", fmt.Errorf("meta accessor for dashboard %q: %w", dashboardUID, err)
++		return "", err
+ 	}
+-	return meta.GetFolder(), nil
++	return v.(string), nil
+ }
+ 
+ type dashboardClient struct {
+diff --git a/pkg/registry/apps/annotation/dashboard_folder_lookup_test.go b/pkg/registry/apps/annotation/dashboard_folder_lookup_test.go
+new file mode 100644
+index 000000000..f949a1f95
+--- /dev/null
++++ b/pkg/registry/apps/annotation/dashboard_folder_lookup_test.go
+@@ -0,0 +1,196 @@
++package annotation
++
++import (
++	"context"
++	"sync"
++	"sync/atomic"
++	"testing"
++	"time"
++
++	"github.com/prometheus/client_golang/prometheus"
++	"github.com/prometheus/client_golang/prometheus/testutil"
++	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
++	"k8s.io/apimachinery/pkg/runtime"
++	"k8s.io/apimachinery/pkg/runtime/schema"
++	dynamicfake "k8s.io/client-go/dynamic/fake"
++	k8stesting "k8s.io/client-go/testing"
++
++	dashboardv1 "github.com/grafana/grafana/apps/dashboard/pkg/apis/dashboard/v1"
++	"github.com/grafana/grafana/pkg/apimachinery/identity"
++	"github.com/grafana/grafana/pkg/infra/localcache"
++)
++
++func newTestDashboardFolderResolver(cacheEnabled bool, objects ...runtime.Object) (*dashboardFolderResolver, *dynamicfake.FakeDynamicClient) {
++	gvr := dashboardv1.DashboardResourceInfo.GroupVersionResource()
++	scheme := runtime.NewScheme()
++	listKinds := map[schema.GroupVersionResource]string{gvr: "DashboardList"}
++	fakeDyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, listKinds, objects...)
++
++	const testCacheTTL = time.Minute
++	r := &dashboardFolderResolver{
++		client:       &dashboardClient{gvr: gvr, dyn: fakeDyn},
++		tracer:       testTracer,
++		metrics:      ProvideMetrics(prometheus.NewRegistry()),
++		fetchTimeout: defaultFolderFetchTimeout,
++	}
++	if cacheEnabled {
++		r.cache = localcache.New(testCacheTTL, time.Minute)
++		r.cacheTTL = testCacheTTL
++	}
++	return r, fakeDyn
++}
++
++type blockingDashboardGetter struct{}
++
++func (blockingDashboardGetter) Get(ctx context.Context, _, _ string) (*unstructured.Unstructured, error) {
++	<-ctx.Done()
++	return nil, ctx.Err()
++}
++
++func newFakeDashboard(namespace, uid, folder string) *unstructured.Unstructured {
++	dash := &unstructured.Unstructured{}
++	dash.SetAPIVersion(dashboardv1.DashboardResourceInfo.GroupVersionKind().GroupVersion().String())
++	dash.SetKind("Dashboard")
++	dash.SetNamespace(namespace)
++	dash.SetName(uid)
++	if folder != "" {
++		dash.SetAnnotations(map[string]string{"grafana.app/folder": folder})
++	}
++	return dash
++}
++
++func TestDashboardFolderResolver_ResolveFolder(t *testing.T) {
++	const (
++		ns        = "default"
++		dashUID   = "dash-abc"
++		folderUID = "folder-xyz"
++	)
++	ctx := identity.WithServiceIdentityContext(t.Context(), 1)
++
++	countGets := func(fakeDyn *dynamicfake.FakeDynamicClient) int {
++		count := 0
++		for _, a := range fakeDyn.Actions() {
++			if a.GetVerb() == "get" {
++				count++
++			}
++		}
++		return count
++	}
++
++	t.Run("resolves folder and caches result", func(t *testing.T) {
++		resolver, fakeDyn := newTestDashboardFolderResolver(true, newFakeDashboard(ns, dashUID, folderUID))
++
++		folder, err := resolver.ResolveFolder(ctx, ns, dashUID)
++		require.NoError(t, err)
++		assert.Equal(t, folderUID, folder)
++
++		folder, err = resolver.ResolveFolder(ctx, ns, dashUID)
++		require.NoError(t, err)
++		assert.Equal(t, folderUID, folder)
++
++		assert.Equal(t, 1, countGets(fakeDyn), "subsequent ResolveFolder calls should be served from cache, not the apiserver")
++		assert.Equal(t, float64(1), testutil.ToFloat64(resolver.metrics.FolderCacheHits))
++		assert.Equal(t, float64(1), testutil.ToFloat64(resolver.metrics.FolderCacheMisses))
++	})
++
++	t.Run("cache disabled resolves every call from the apiserver", func(t *testing.T) {
++		resolver, fakeDyn := newTestDashboardFolderResolver(false, newFakeDashboard(ns, dashUID, folderUID))
++
++		folder, err := resolver.ResolveFolder(ctx, ns, dashUID)
++		require.NoError(t, err)
++		assert.Equal(t, folderUID, folder)
++
++		folder, err = resolver.ResolveFolder(ctx, ns, dashUID)
++		require.NoError(t, err)
++		assert.Equal(t, folderUID, folder)
++
++		assert.Equal(t, 2, countGets(fakeDyn), "every call should hit the apiserver when caching is disabled")
++	})
++
++	t.Run("missing dashboard returns empty folder", func(t *testing.T) {
++		resolver, _ := newTestDashboardFolderResolver(true)
++
++		folder, err := resolver.ResolveFolder(ctx, ns, "missing-uid")
++		require.NoError(t, err)
++		assert.Equal(t, "", folder)
++	})
++
++	t.Run("concurrent calls for the same dashboard groups into one fetch", func(t *testing.T) {
++		resolver, fakeDyn := newTestDashboardFolderResolver(true, newFakeDashboard(ns, dashUID, folderUID))
++
++		release := make(chan struct{})
++		var hits atomic.Int32
++		fakeDyn.PrependReactor("get", "dashboards", func(k8stesting.Action) (bool, runtime.Object, error) {
++			hits.Add(1)
++			<-release
++			return false, nil, nil
++		})
++
++		const callers = 10
++		var wg sync.WaitGroup
++		results := make([]string, callers)
++		errs := make([]error, callers)
++		for i := range callers {
++			wg.Add(1)
++			go func(idx int) {
++				defer wg.Done()
++				results[idx], errs[idx] = resolver.ResolveFolder(ctx, ns, dashUID)
++			}(i)
++		}
++
++		assert.Eventually(t, func() bool { return hits.Load() > 0 }, time.Second, time.Millisecond)
++		close(release)
++		wg.Wait()
++
++		for i := range callers {
++			require.NoError(t, errs[i])
++			assert.Equal(t, folderUID, results[i])
++		}
++		assert.Equal(t, int32(1), hits.Load(), "concurrent lookups for the same dashboard should share a single apiserver fetch")
++	})
++
++	t.Run("cancelling one caller does not fail others sharing the fetch", func(t *testing.T) {
++		resolver, fakeDyn := newTestDashboardFolderResolver(true, newFakeDashboard(ns, dashUID, folderUID))
++
++		release := make(chan struct{})
++		entered := make(chan struct{})
++		fakeDyn.PrependReactor("get", "dashboards", func(k8stesting.Action) (bool, runtime.Object, error) {
++			close(entered)
++			<-release
++			return false, nil, nil
++		})
++
++		cancelCtx, cancel := context.WithCancel(ctx)
++
++		var wg sync.WaitGroup
++		wg.Go(func() {
++			_, _ = resolver.ResolveFolder(cancelCtx, ns, dashUID)
++		})
++
++		<-entered
++		cancel()
++
++		var waiterFolder string
++		var waiterErr error
++		wg.Go(func() {
++			waiterFolder, waiterErr = resolver.ResolveFolder(ctx, ns, dashUID)
++		})
++
++		close(release)
++		wg.Wait()
++
++		require.NoError(t, waiterErr, "a waiter with a valid context should not fail because another caller's context was cancelled")
++		assert.Equal(t, folderUID, waiterFolder)
++	})
++
++	t.Run("shared fetch times out if the downstream call hangs", func(t *testing.T) {
++		resolver, _ := newTestDashboardFolderResolver(true, newFakeDashboard(ns, dashUID, folderUID))
++		resolver.fetchTimeout = 10 * time.Millisecond
++		resolver.client = blockingDashboardGetter{}
++
++		_, err := resolver.ResolveFolder(ctx, ns, dashUID)
++		require.Error(t, err, "the shared fetch should time out if the downstream call hangs")
++	})
++}
+diff --git a/pkg/registry/apps/annotation/metrics.go b/pkg/registry/apps/annotation/metrics.go
+index 78ac81d08..781ff8ab9 100644
+--- a/pkg/registry/apps/annotation/metrics.go
++++ b/pkg/registry/apps/annotation/metrics.go
+@@ -25,6 +25,9 @@ type Metrics struct {
+ 
+ 	TagCacheHits   prometheus.Counter
+ 	TagCacheMisses prometheus.Counter
++
++	FolderCacheHits   prometheus.Counter
++	FolderCacheMisses prometheus.Counter
+ }
+ 
+ // ProvideMetrics builds and registers the metrics collectors
+@@ -88,6 +91,18 @@ func ProvideMetrics(reg prometheus.Registerer) *Metrics {
+ 			Name:      "tag_cache_misses_total",
+ 			Help:      "Cumulative number of tag cache misses in the postgres backend.",
+ 		}),
++		FolderCacheHits: f.NewCounter(prometheus.CounterOpts{
++			Namespace: metricsNamespace,
++			Subsystem: metricsSubsystem,
++			Name:      "folder_cache_hits_total",
++			Help:      "Cumulative number of dashboard folder resolver cache hits.",
++		}),
++		FolderCacheMisses: f.NewCounter(prometheus.CounterOpts{
++			Namespace: metricsNamespace,
++			Subsystem: metricsSubsystem,
++			Name:      "folder_cache_misses_total",
++			Help:      "Cumulative number of dashboard folder resolver cache misses.",
++		}),
+ 	}
+ }
+ 
+diff --git a/pkg/registry/apps/annotation/register.go b/pkg/registry/apps/annotation/register.go
+index b0f29e8dc..268bb1755 100644
+--- a/pkg/registry/apps/annotation/register.go
++++ b/pkg/registry/apps/annotation/register.go
+@@ -61,7 +61,10 @@ func RegisterAppInstaller(
+ 	reg prometheus.Registerer,
+ 	tracer tracing.Tracer,
+ ) (*AppInstaller, error) {
+-	return NewAppInstaller(newConfigFromSettings(cfg), service, cleaner, accessClient, NewDashboardFolderResolver(restConfigProvider.GetRestConfig, tracer), tracer, reg)
++	config := newConfigFromSettings(cfg)
++	metrics := ProvideMetrics(reg)
++	folderResolver := NewDashboardFolderResolver(restConfigProvider.GetRestConfig, tracer, metrics, config.FolderCacheEnabled, config.FolderCacheTTL)
++	return NewAppInstaller(config, service, cleaner, accessClient, folderResolver, tracer, metrics, reg)
+ }
+ 
+ // NewAppInstaller Layers (from bottom to top):
+@@ -78,13 +81,13 @@ func NewAppInstaller(
+ 	accessClient authtypes.AccessClient,
+ 	folderResolver DashboardFolderResolver,
+ 	tracer trace.Tracer,
++	metrics *Metrics,
+ 	reg prometheus.Registerer,
+ ) (*AppInstaller, error) {
+ 	if folderResolver == nil {
+ 		return nil, fmt.Errorf("annotation service requires folder resolver")
+ 	}
+ 	logger := log.New("annotation.app")
+-	metrics := ProvideMetrics(reg)
+ 	installer := &AppInstaller{
+ 		logger:  logger,
+ 		tracer:  tracer,
+diff --git a/pkg/setting/setting_annotations.go b/pkg/setting/setting_annotations.go
+index 1624770f8..351cee628 100644
+--- a/pkg/setting/setting_annotations.go
++++ b/pkg/setting/setting_annotations.go
+@@ -35,6 +35,11 @@ type AnnotationAppPlatformSettings struct {
+ 	// rejected at load time. Default 5.
+ 	MaxScopeCount int
+ 
++	// FolderCacheEnabled controls whether resolved dashboard->folder mappings are cached.
++	FolderCacheEnabled bool
++	// FolderCacheTTL is how long a resolved dashboard->folder mapping is cached.
++	FolderCacheTTL time.Duration
++
+ 	// APIMigrationPhase controls legacy API proxy behavior.
+ 	// Values: "off" (default), "proxy-writes", "proxy-all".
+ 	APIMigrationPhase string
+@@ -65,14 +70,16 @@ func loadAnnotationAppPlatformSettings(cfg *Cfg) (AnnotationAppPlatformSettings,
+ 	appPlatformSection := cfg.Raw.Section("annotations.app_platform")
+ 
+ 	settings := AnnotationAppPlatformSettings{
+-		Enabled:           appPlatformSection.Key("enabled").MustBool(false),
+-		StoreBackend:      appPlatformSection.Key("store_backend").MustString("legacy-sql"),
+-		RetentionTTL:      appPlatformSection.Key("retention_ttl").MustDuration(0),
+-		EnableLegacyID:    appPlatformSection.Key("enable_legacy_id").MustBool(false),
+-		MaxScopeCount:     appPlatformSection.Key("max_scope_count").MustInt(5),
+-		APIMigrationPhase: appPlatformSection.Key("api_migration_phase").MustString(AnnotationAPIMigrationPhaseOff),
+-		APIServerURL:      appPlatformSection.Key("api_server_url").MustString(""),
+-		TLSClientConfig:   loadTLSClientConfig(cfg),
++		Enabled:            appPlatformSection.Key("enabled").MustBool(false),
++		StoreBackend:       appPlatformSection.Key("store_backend").MustString("legacy-sql"),
++		RetentionTTL:       appPlatformSection.Key("retention_ttl").MustDuration(0),
++		EnableLegacyID:     appPlatformSection.Key("enable_legacy_id").MustBool(false),
++		MaxScopeCount:      appPlatformSection.Key("max_scope_count").MustInt(5),
++		FolderCacheEnabled: appPlatformSection.Key("folder_cache_enabled").MustBool(true),
++		FolderCacheTTL:     appPlatformSection.Key("folder_cache_ttl").MustDuration(30 * time.Second),
++		APIMigrationPhase:  appPlatformSection.Key("api_migration_phase").MustString(AnnotationAPIMigrationPhaseOff),
++		APIServerURL:       appPlatformSection.Key("api_server_url").MustString(""),
++		TLSClientConfig:    loadTLSClientConfig(cfg),
+ 
+ 		GRPCAddress:       appPlatformSection.Key("grpc_address").MustString("localhost:9090"),
+ 		GRPCUseTLS:        appPlatformSection.Key("grpc_use_tls").MustBool(false),
+@@ -92,6 +99,10 @@ func loadAnnotationAppPlatformSettings(cfg *Cfg) (AnnotationAppPlatformSettings,
+ 		return AnnotationAppPlatformSettings{}, fmt.Errorf("[annotations.app_platform.max_scope_count] must not be negative")
+ 	}
+ 
++	if settings.FolderCacheEnabled && settings.FolderCacheTTL <= 0 {
++		return AnnotationAppPlatformSettings{}, fmt.Errorf("[annotations.app_platform.folder_cache_ttl] must be positive when folder_cache_enabled is true")
++	}
++
+ 	if settings.RetentionTTL < 0 {
+ 		return AnnotationAppPlatformSettings{}, fmt.Errorf("[annotations.app_platform.retention_ttl] must not be negative")
+ 	}
+diff --git a/pkg/setting/setting_annotations_test.go b/pkg/setting/setting_annotations_test.go
+index 54de5b0ca..432bf78f9 100644
+--- a/pkg/setting/setting_annotations_test.go
++++ b/pkg/setting/setting_annotations_test.go
+@@ -1,6 +1,7 @@
+ package setting
+ 
+ import (
++	"strconv"
+ 	"testing"
+ 	"time"
+ 
+@@ -83,6 +84,44 @@ func TestLoadAnnotationAppPlatformSettings(t *testing.T) {
+ 		}
+ 	})
+ 
++	t.Run("FolderCacheTTL", func(t *testing.T) {
++		cases := []struct {
++			name        string
++			enabled     bool
++			iniValue    *string
++			expectedTTL time.Duration
++			expectErr   bool
++		}{
++			{name: "default when key absent", enabled: true, expectedTTL: 30 * time.Second},
++			{name: "explicit positive", enabled: true, iniValue: new("1m"), expectedTTL: time.Minute},
++			{name: "zero is rejected when enabled", enabled: true, iniValue: new("0"), expectErr: true},
++			{name: "negative is rejected when enabled", enabled: true, iniValue: new("-1s"), expectErr: true},
++		}
++
++		for _, tc := range cases {
++			t.Run(tc.name, func(t *testing.T) {
++				iniFile := ini.Empty()
++				section, err := iniFile.NewSection("annotations.app_platform")
++				require.NoError(t, err)
++				_, err = section.NewKey("folder_cache_enabled", strconv.FormatBool(tc.enabled))
++				require.NoError(t, err)
++				if tc.iniValue != nil {
++					_, err = section.NewKey("folder_cache_ttl", *tc.iniValue)
++					require.NoError(t, err)
++				}
++
++				settings, err := loadAnnotationAppPlatformSettings(&Cfg{Raw: iniFile})
++				if tc.expectErr {
++					assert.Error(t, err)
++					return
++				}
++
++				require.NoError(t, err)
++				assert.Equal(t, tc.expectedTTL, settings.FolderCacheTTL)
++			})
++		}
++	})
++
+ 	t.Run("TLSClientConfig", func(t *testing.T) {
+ 		t.Run("configured CA bundle sets CAFile", func(t *testing.T) {
+ 			const caPath = "/etc/grafana/ca.crt"

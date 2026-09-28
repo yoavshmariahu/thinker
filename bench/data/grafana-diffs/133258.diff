@@ -1,0 +1,387 @@
+diff --git a/public/app/plugins/panel/heatmap/HeatmapPanel.tsx b/public/app/plugins/panel/heatmap/HeatmapPanel.tsx
+index a5a5c0ed3..2a0777de0 100644
+--- a/public/app/plugins/panel/heatmap/HeatmapPanel.tsx
++++ b/public/app/plugins/panel/heatmap/HeatmapPanel.tsx
+@@ -17,7 +17,6 @@ import {
+ } from '@grafana/ui';
+ import { type FacetedData, type TimeRange2, TooltipHoverMode } from '@grafana/ui/internal';
+ import { ColorScale } from 'app/core/components/ColorScale/ColorScale';
+-import { readHeatmapRowsCustomMeta } from 'app/features/transformers/calculateHeatmap/heatmap';
+ 
+ import { getXAxisConfig } from '../../../core/components/TimeSeries/utils';
+ import { AnnotationsPlugin } from '../timeseries/plugins/AnnotationsPlugin';
+@@ -25,7 +24,7 @@ import { OutsideRangePlugin } from '../timeseries/plugins/OutsideRangePlugin';
+ import { getXAnnotationFrames } from '../timeseries/plugins/utils';
+ 
+ import { HeatmapTooltip } from './HeatmapTooltip';
+-import { type HeatmapData, prepareHeatmapData } from './fields';
++import { getExemplarYValues, type HeatmapData, prepareHeatmapData } from './fields';
+ import { quantizeScheme } from './palettes';
+ import { type Options } from './panelcfg.gen';
+ import { calculateYSizeDivisor, prepConfig } from './utils';
+@@ -104,27 +103,9 @@ const HeatmapPanelViz = ({
+     let exemplarsXFacet: number[] | undefined = []; // "Time" field
+     let exemplarsYFacet: Array<number | undefined> = [];
+ 
+-    const meta = readHeatmapRowsCustomMeta(info.heatmap);
+-
+     if (info.exemplars?.length) {
+-      exemplarsXFacet = info.exemplars?.fields[0].values;
+-
+-      // render by match on ordinal y label
+-      if (meta.yMatchWithLabel) {
+-        // ordinal/labeled heatmap-buckets?
+-        const hasLabeledY = meta.yOrdinalDisplay != null;
+-
+-        if (hasLabeledY) {
+-          let matchExemplarsBy = info.exemplars?.fields.find((field) => field.name === meta.yMatchWithLabel)!.values;
+-          exemplarsYFacet = matchExemplarsBy.map((label) => meta.yOrdinalLabel?.indexOf(label));
+-        } else {
+-          exemplarsYFacet = info.exemplars?.fields[1].values; // "Value" field
+-        }
+-      }
+-      // render by raw value
+-      else {
+-        exemplarsYFacet = info.exemplars?.fields[1].values; // "Value" field
+-      }
++      exemplarsXFacet = info.exemplars.fields[0].values;
++      exemplarsYFacet = getExemplarYValues(info.heatmap, info.exemplars);
+     }
+ 
+     return [null, info.heatmap.fields.map((f) => f.values), [exemplarsXFacet, exemplarsYFacet]];
+diff --git a/public/app/plugins/panel/heatmap/fields.test.ts b/public/app/plugins/panel/heatmap/fields.test.ts
+index f4dd3ecee..28c8a92c4 100644
+--- a/public/app/plugins/panel/heatmap/fields.test.ts
++++ b/public/app/plugins/panel/heatmap/fields.test.ts
+@@ -1,7 +1,8 @@
+ import { createDataFrame, createTheme, DataFrameType, dateTime, FieldType, toDataFrame } from '@grafana/data';
+ import { HeatmapCalculationMode, ScaleDistribution } from '@grafana/schema';
++import { rowsToCellsHeatmap } from 'app/features/transformers/calculateHeatmap/heatmap';
+ 
+-import { prepareHeatmapData } from './fields';
++import { getExemplarYValues, prepareHeatmapData } from './fields';
+ import { type Options } from './panelcfg.gen';
+ 
+ const theme = createTheme();
+@@ -55,6 +56,97 @@ function createSparseHeatmapCellsFrame() {
+   });
+ }
+ 
++describe('getExemplarYValues', () => {
++  function makeFrames(label: string, bounds: string[], values: Array<number | null>, exemplarLabels?: string[]) {
++    const rows = toDataFrame({
++      meta: { type: DataFrameType.HeatmapRows },
++      fields: [
++        { name: 'Time', type: FieldType.time, values: [1000] },
++        ...bounds.map((bound) => ({
++          name: 'Value',
++          type: FieldType.number,
++          labels: { [label]: bound },
++          values: [1],
++        })),
++      ],
++    });
++    const exemplars = toDataFrame({
++      name: 'exemplar',
++      fields: [
++        { name: 'Time', type: FieldType.time, values: values.map(() => 1000) },
++        { name: 'Value', type: FieldType.number, values },
++        ...(exemplarLabels ? [{ name: label, type: FieldType.string, values: exemplarLabels }] : []),
++      ],
++    });
++    return { rows, exemplars };
++  }
++
++  it.each([
++    { label: 'ge', expected: [undefined, 0, 0, 1, 1, 2, 2] },
++    { label: 'le', expected: [0, 0, 1, 1, 2, 2, undefined] },
++  ])('maps raw exemplar values to $label buckets in Auto mode', ({ label, expected }) => {
++    const { rows, exemplars } = makeFrames(
++      label,
++      ['0.01', '0.02', '0.04'],
++      [0.005, 0.01, 0.015, 0.02, 0.032, 0.04, 0.08]
++    );
++    const heatmap = rowsToCellsHeatmap({ frame: rows });
++
++    expect(getExemplarYValues(heatmap, exemplars)).toEqual(expected);
++  });
++
++  it.each(['ge', 'le'])('omits null exemplar values for %s buckets', (label) => {
++    const { rows, exemplars } = makeFrames(label, ['0', '0.01', '0.02'], [null, 0.01]);
++
++    expect(getExemplarYValues(rowsToCellsHeatmap({ frame: rows }), exemplars)).toEqual([undefined, 1]);
++  });
++
++  it('maps numeric exemplars after switching from log scale to Auto without a ge field', () => {
++    const values = [0.524666, 1.223432, 0.471082];
++    const { rows, exemplars } = makeFrames('ge', ['0.4', '0.8', '1.6'], values);
++    const numeric = rowsToCellsHeatmap({ frame: rows, yBucketScale: { type: ScaleDistribution.Log, log: 10 } });
++    const auto = rowsToCellsHeatmap({ frame: rows });
++
++    expect(getExemplarYValues(numeric, exemplars)).toEqual(values);
++    expect(getExemplarYValues(auto, exemplars)).toEqual([0, 1, 0]);
++  });
++
++  it('maps values above the last finite le bound to the +Inf bucket', () => {
++    const { rows, exemplars } = makeFrames('le', ['0.01', '0.02', '+Inf'], [0.032, 10]);
++
++    expect(getExemplarYValues(rowsToCellsHeatmap({ frame: rows }), exemplars)).toEqual([2, 2]);
++  });
++
++  it('prefers explicit exemplar labels over numeric bucket lookup', () => {
++    const { rows, exemplars } = makeFrames('le', ['0.01', '0.02', '0.04'], [0.032], ['0.02']);
++
++    expect(getExemplarYValues(rowsToCellsHeatmap({ frame: rows }), exemplars)).toEqual([1]);
++  });
++
++  it('matches categorical exemplar labels', () => {
++    const { rows, exemplars } = makeFrames('status', ['success', 'failure'], [123], ['failure']);
++
++    expect(getExemplarYValues(rowsToCellsHeatmap({ frame: rows }), exemplars)).toEqual([1]);
++  });
++
++  it('uses the first matching label and preserves -1 for unknown labels', () => {
++    const { rows, exemplars } = makeFrames(
++      'status',
++      ['success', 'failure', 'success'],
++      [123, 456],
++      ['success', 'unknown']
++    );
++
++    expect(getExemplarYValues(rowsToCellsHeatmap({ frame: rows }), exemplars)).toEqual([0, -1]);
++  });
++
++  it('omits exemplars when categorical bucket labels are missing', () => {
++    const { rows, exemplars } = makeFrames('status', ['success', 'failure'], [123]);
++
++    expect(getExemplarYValues(rowsToCellsHeatmap({ frame: rows }), exemplars)).toEqual([undefined]);
++  });
++});
++
+ describe('Heatmap data', () => {
+   const options: Options = { color: {} } as Options;
+ 
+diff --git a/public/app/plugins/panel/heatmap/fields.ts b/public/app/plugins/panel/heatmap/fields.ts
+index 77d951d0e..d122c6dc8 100644
+--- a/public/app/plugins/panel/heatmap/fields.ts
++++ b/public/app/plugins/panel/heatmap/fields.ts
+@@ -1,3 +1,5 @@
++import { sortedIndex, sortedLastIndex } from 'lodash';
++
+ import {
+   cacheFieldDisplayNames,
+   type DataFrame,
+@@ -70,6 +72,49 @@ export interface HeatmapData {
+   warning?: string;
+ }
+ 
++export function getExemplarYValues(heatmap: DataFrame, exemplars: DataFrame): Array<number | undefined> {
++  const values: number[] = exemplars.fields[1].values;
++  const meta = readHeatmapRowsCustomMeta(heatmap);
++
++  if (meta.yOrdinalDisplay == null || !meta.yMatchWithLabel) {
++    return values;
++  }
++
++  const labels = meta.yOrdinalLabel;
++  if (!labels) {
++    return new Array<number | undefined>(values.length).fill(undefined);
++  }
++
++  const labelField = exemplars.fields.find((field) => field.name === meta.yMatchWithLabel);
++  if (labelField) {
++    const labelIndices = new Map<string, number>();
++    for (let i = 0; i < labels.length; i++) {
++      if (!labelIndices.has(labels[i])) {
++        labelIndices.set(labels[i], i);
++      }
++    }
++    return labelField.values.map((label) => labelIndices.get(label) ?? -1);
++  }
++
++  if (meta.yMatchWithLabel !== 'ge' && meta.yMatchWithLabel !== 'le') {
++    return new Array<number | undefined>(values.length).fill(undefined);
++  }
++
++  // Some sources provide raw exemplar values without the histogram's bucket label.
++  const bounds = labels.map((label) => parseSampleValue(label));
++  if (!bounds.length || bounds.some(Number.isNaN)) {
++    return new Array<number | undefined>(values.length).fill(undefined);
++  }
++
++  if (meta.yMatchWithLabel === 'ge') {
++    const min = bounds[0];
++    return values.map((value) => (value != null && value >= min ? sortedLastIndex(bounds, value) - 1 : undefined));
++  }
++
++  const max = bounds[bounds.length - 1];
++  return values.map((value) => (value != null && value <= max ? sortedIndex(bounds, value) : undefined));
++}
++
+ interface PrepareHeatmapDataOptions {
+   frames: DataFrame[];
+   annotations?: DataFrame[];
+diff --git a/public/app/plugins/panel/heatmap/utils.test.ts b/public/app/plugins/panel/heatmap/utils.test.ts
+index b7cf93d88..fdf531fc6 100644
+--- a/public/app/plugins/panel/heatmap/utils.test.ts
++++ b/public/app/plugins/panel/heatmap/utils.test.ts
+@@ -234,6 +234,22 @@ describe('prepConfig', () => {
+     };
+   }
+ 
++  function createSparseHeatmapData(overrides?: Partial<HeatmapData>): HeatmapData {
++    const heatmap = createDataFrame({
++      meta: { type: DataFrameType.HeatmapCells },
++      fields: [
++        { name: 'x', type: FieldType.time, values: [1000, 1000, 2000, 2000] },
++        { name: 'yMin', type: FieldType.number, values: [1, 4, 1, 4] },
++        { name: 'yMax', type: FieldType.number, values: [4, 16, 4, 16] },
++        { name: 'count', type: FieldType.number, values: [5, 10, 15, 20] },
++      ],
++    });
++    return {
++      heatmap,
++      ...overrides,
++    };
++  }
++
+   it('builds a mode-2 config with a bottom x axis, a left y axis and the heatmap + exemplar layers', () => {
+     const dataRef = { current: createMinimalHeatmapData() };
+ 
+@@ -267,6 +283,89 @@ describe('prepConfig', () => {
+     ]);
+   });
+ 
++  it.each([
++    { ordinal: false, layout: HeatmapCellLayout.ge, value: 0.032, expectedY: 32 },
++    { ordinal: false, layout: HeatmapCellLayout.le, value: 0.032, expectedY: 32 },
++    { ordinal: true, layout: HeatmapCellLayout.ge, value: 1, expectedY: 1500 },
++    { ordinal: true, layout: HeatmapCellLayout.le, value: 1, expectedY: 500 },
++  ])('positions exemplars with ordinal=$ordinal and layout=$layout', ({ ordinal, layout, value, expectedY }) => {
++    const data = createMinimalHeatmapData({ yLayout: layout });
++    if (ordinal) {
++      data.heatmap!.meta!.custom = { yOrdinalDisplay: ['0', '1', '2'] };
++    }
++    const config = prepConfig({
++      dataRef: { current: data },
++      theme,
++      timeZone: 'utc',
++      getTimeRange: () => timeRange,
++      exemplarColor: 'magenta',
++      yAxisConfig: { axisPlacement: AxisPlacement.Left },
++    }).getConfig();
++
++    const drawClear = config.hooks?.drawClear?.[0];
++    const exemplarPaths = config.series?.[2]?.paths;
++    if (!drawClear || !exemplarPaths) {
++      throw new Error('Expected drawClear and exemplar paths');
++    }
++    const points: PointsData = [[100], [value]];
++    const rect = jest.fn();
++    const mockU = createMockU(points);
++    Object.assign(mockU, { series: [{}, {}, {}] });
++    const orientSpy = jest
++      .spyOn(uPlot, 'orient')
++      .mockImplementation(createOrientMock(points, { rect, valToPosY: (v) => v * 1000 }));
++    try {
++      drawClear(mockU);
++      exemplarPaths(mockU, 2, 0, 0);
++      expect(rect).toHaveBeenCalledWith(expect.anything(), 96, expectedY - 4, 8, 8);
++    } finally {
++      orientSpy.mockRestore();
++    }
++  });
++
++  it.each([2, 10])('centers sparse le heatmap exemplars at their numeric values on a log-%s scale', (log) => {
++    const builder = prepConfig({
++      dataRef: { current: createSparseHeatmapData({ yLayout: HeatmapCellLayout.le }) },
++      theme,
++      timeZone: 'utc',
++      getTimeRange: () => timeRange,
++      exemplarColor: 'magenta',
++      yAxisConfig: { axisPlacement: AxisPlacement.Left },
++      rowsFrame: { yBucketScale: { type: ScaleDistribution.Log, log } },
++    });
++    const config = builder.getConfig();
++    const { scaleKey } = getYScaleRangeInfo(builder);
++    const scaleY = config.scales?.[scaleKey];
++    expect(scaleY).toMatchObject({ distr: 3, log });
++
++    const drawClear = config.hooks?.drawClear?.[0];
++    const exemplarPaths = config.series?.[2]?.paths;
++    if (!drawClear || !exemplarPaths) {
++      throw new Error('Expected drawClear and exemplar paths');
++    }
++    const points: PointsData = [[1500], [2]];
++    const rect = jest.fn();
++    const valToPosY = jest.fn((v: number) => 100 - 25 * Math.log2(v));
++    const mockU = createMockU(points);
++    Object.assign(mockU, { series: [{}, {}, {}] });
++    const orientSpy = jest.spyOn(uPlot, 'orient').mockImplementation(
++      createOrientMock(points, {
++        rect,
++        scaleY: { ...scaleY, min: 1, max: 16 },
++        valToPosX: (v) => v / 100,
++        valToPosY,
++      })
++    );
++    try {
++      drawClear(mockU);
++      exemplarPaths(mockU, 2, 0, 0);
++      expect(valToPosY).toHaveBeenCalledWith(2, expect.objectContaining({ distr: 3, log }), 100, 0);
++      expect(rect).toHaveBeenCalledWith(expect.anything(), 11, 71, 8, 8);
++    } finally {
++      orientSpy.mockRestore();
++    }
++  });
++
+   it('aborts after the x scale and axis, adding no y scale and no layers, when the heatmap has no y field', () => {
+     const heatmap = createDataFrame({
+       meta: { type: DataFrameType.HeatmapCells },
+@@ -511,25 +610,6 @@ describe('prepConfig', () => {
+   });
+ 
+   describe('y-scale range callback', () => {
+-    /**
+-     * Creates minimal sparse HeatmapData (yMin + yMax fields) for range callback tests.
+-     */
+-    function createSparseHeatmapData(overrides?: Partial<HeatmapData>): HeatmapData {
+-      const heatmap = createDataFrame({
+-        meta: { type: DataFrameType.HeatmapCells },
+-        fields: [
+-          { name: 'x', type: FieldType.time, values: [1000, 1000, 2000, 2000] },
+-          { name: 'yMin', type: FieldType.number, values: [1, 4, 1, 4] },
+-          { name: 'yMax', type: FieldType.number, values: [4, 16, 4, 16] },
+-          { name: 'count', type: FieldType.number, values: [5, 10, 15, 20] },
+-        ],
+-      });
+-      return {
+-        heatmap,
+-        ...overrides,
+-      };
+-    }
+-
+     describe('sparse heatmap', () => {
+       const sparseData: uPlot.AlignedData = [
+         [0, 1, 2],
+@@ -1558,6 +1638,7 @@ describe('heatmapPathsPoints', () => {
+       expect(spy).toHaveBeenNthCalledWith(3, 3.5, expect.anything(), 100, 0);
+     });
+ 
++    // TODO: Remove if the prepConfig sparse exemplar tests supersede this direct path-builder regression test.
+     it('skips yShift when scaleY is sparse heatmap (distr 3, log 2)', () => {
+       const valToPosY = jest.fn((v: number) => v);
+       const { valToPosY: spy } = invokePointsPathBuilder(minimalPointsOpts, 'red', {
+diff --git a/public/app/plugins/panel/heatmap/utils.ts b/public/app/plugins/panel/heatmap/utils.ts
+index ad91417ea..a99e03710 100644
+--- a/public/app/plugins/panel/heatmap/utils.ts
++++ b/public/app/plugins/panel/heatmap/utils.ts
+@@ -532,7 +532,7 @@ export function prepConfig(opts: PrepConfigOpts) {
+         },
+       },
+       exemplarFillColor,
+-      dataRef.current.yLayout
++      isOrdinalY ? dataRef.current.yLayout : undefined
+     ),
+     theme,
+     scaleKey: '', // facets' scales used (above)

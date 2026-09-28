@@ -1,0 +1,248 @@
+diff --git a/public/app/features/dashboard-scene/utils/interactions.ts b/public/app/features/dashboard-scene/utils/interactions.ts
+index 97157a632..f51845ae8 100644
+--- a/public/app/features/dashboard-scene/utils/interactions.ts
++++ b/public/app/features/dashboard-scene/utils/interactions.ts
+@@ -34,6 +34,16 @@ export const DashboardInteractions = {
+     reportDashboardInteraction('init_dashboard_completed', properties);
+   },
+ 
++  textPanelUsage: (properties: {
++    mermaid_count: number;
++    handlebars_count: number;
++    data_macro_count: number;
++    per_row_count: number;
++    dashboard_uid?: string;
++  }) => {
++    reportDashboardInteraction('text_panel_usage', properties);
++  },
++
+   dashboardCopied: (properties: { name: string; url: string; diff_count?: number }) => {
+     reportInteraction('grafana_dashboard_copied', properties);
+   },
+diff --git a/public/app/features/dashboard-scene/utils/tracking.test.ts b/public/app/features/dashboard-scene/utils/tracking.test.ts
+index a8503c238..3b487adfa 100644
+--- a/public/app/features/dashboard-scene/utils/tracking.test.ts
++++ b/public/app/features/dashboard-scene/utils/tracking.test.ts
+@@ -1,6 +1,11 @@
+ import { getPanelPlugin } from '@grafana/data/test';
+ import { locationService, reportInteraction, setPluginImportUtils } from '@grafana/runtime';
+-import { type Spec as DashboardV2Spec } from '@grafana/schema/apis/dashboard.grafana.app/v2';
++import {
++  type Spec as DashboardV2Spec,
++  defaultPanelSpec,
++  defaultVizConfigKind,
++  type GridLayoutItemKind,
++} from '@grafana/schema/apis/dashboard.grafana.app/v2';
+ import { setTestFlags } from '@grafana/test-utils/unstable';
+ 
+ import { CustomDashboardTemplateInteractions } from '../analytics/dashboard-templates/main';
+@@ -47,6 +52,39 @@ export function buildTestScene() {
+   return dashboard;
+ }
+ 
++function buildSceneWithTextPanels(panelOptions: Array<Record<string, unknown>>) {
++  const elements: DashboardV2Spec['elements'] = {};
++  const items: GridLayoutItemKind[] = [];
++
++  panelOptions.forEach((options, index) => {
++    const name = `text-panel-${index}`;
++
++    elements[name] = {
++      kind: 'Panel',
++      spec: {
++        ...defaultPanelSpec(),
++        id: index + 1,
++        title: name,
++        vizConfig: {
++          ...defaultVizConfigKind(),
++          group: 'text',
++          spec: { options, fieldConfig: { defaults: {}, overrides: [] } },
++        },
++      },
++    };
++
++    items.push({
++      kind: 'GridLayoutItem',
++      spec: { x: 0, y: index * 8, width: 12, height: 8, element: { kind: 'ElementReference', name } },
++    });
++  });
++
++  return getTestDashboardSceneFromSaveModel({
++    elements,
++    layout: { kind: 'GridLayout', spec: { items } },
++  });
++}
++
+ describe('dashboard tracking', () => {
+   afterEach(() => {
+     jest.clearAllMocks();
+@@ -247,4 +285,67 @@ describe('dashboard tracking', () => {
+       });
+     });
+   });
++
++  describe('text panel usage tracking', () => {
++    const mermaidMarkdown = '# Diagram\n\n```mermaid\ngraph TD;\nA-->B;\n```';
++
++    beforeEach(() => {
++      setTestFlags({ 'grafana.newTextPanel': true, 'text.newFeatures': true });
++    });
++
++    afterEach(() => {
++      setTestFlags({});
++    });
++
++    it('counts the features used by every text panel on the dashboard', () => {
++      const scene = buildSceneWithTextPanels([
++        { mode: 'markdown', content: mermaidMarkdown },
++        { mode: 'html', content: '<pre class="mermaid">graph TD;A-->B;</pre>' },
++        { mode: 'markdown', content: 'Hello {{ data.0.value }}', renderMode: 'perRow' },
++        { mode: 'markdown', content: 'Last value is ${__value.text}' },
++        { mode: 'markdown', content: '~~~mermaid\ngraph TD;\nA-->B;\n~~~' },
++        { content: mermaidMarkdown },
++      ]);
++
++      trackDashboardSceneLoaded(scene, 42);
++
++      expect(reportInteraction).toHaveBeenCalledWith('dashboards_text_panel_usage', {
++        isDynamicDashboard: true,
++        dashboard_uid: 'dashboard-test',
++        mermaid_count: 4,
++        handlebars_count: 1,
++        data_macro_count: 1,
++        per_row_count: 1,
++      });
++    });
++
++    it('does not count diagrams or templates in code mode, where neither one renders', () => {
++      const scene = buildSceneWithTextPanels([{ mode: 'code', content: `${mermaidMarkdown}\n{{ data.0.value }}` }]);
++
++      trackDashboardSceneLoaded(scene, 42);
++
++      expect(reportInteraction).toHaveBeenCalledWith(
++        'dashboards_text_panel_usage',
++        expect.objectContaining({ mermaid_count: 0, handlebars_count: 0 })
++      );
++    });
++
++    it('does not report for a dashboard without a text panel', () => {
++      trackDashboardSceneLoaded(buildTestScene(), 42);
++
++      expect(reportInteraction).not.toHaveBeenCalledWith('dashboards_text_panel_usage', expect.anything());
++    });
++
++    it.each([
++      ['the v2 panel is off', { 'text.newFeatures': true }],
++      ['the new features are off', { 'grafana.newTextPanel': true }],
++      ['both flags are off', {}],
++    ])('does not report when %s, since none of the features would render', (_, flags) => {
++      setTestFlags(flags);
++
++      trackDashboardSceneLoaded(buildSceneWithTextPanels([{ mode: 'markdown', content: mermaidMarkdown }]), 42);
++
++      expect(reportInteraction).not.toHaveBeenCalledWith('dashboards_text_panel_usage', expect.anything());
++    });
++  });
+ });
+diff --git a/public/app/features/dashboard-scene/utils/tracking.ts b/public/app/features/dashboard-scene/utils/tracking.ts
+index d09cc04ac..b13cc219d 100644
+--- a/public/app/features/dashboard-scene/utils/tracking.ts
++++ b/public/app/features/dashboard-scene/utils/tracking.ts
+@@ -1,13 +1,14 @@
+ import { store } from '@grafana/data';
+ import { config, locationService } from '@grafana/runtime';
+ import { FlagKeys, getFeatureFlagClient } from '@grafana/runtime/internal';
+-import { type SceneGridItemLike } from '@grafana/scenes';
++import { type SceneGridItemLike, type VizPanel } from '@grafana/scenes';
+ import {
+   isTemplateDashboardAssistantEnabled,
+   isSuggestedDashboardAssistantEnabled,
+ } from 'app/features/dashboard/dashgrid/DashboardLibrary/utils/assistantHelpers';
+ import { getDatasourceTypes } from 'app/features/dashboard/dashgrid/DashboardLibrary/utils/dashboardLibraryHelpers';
+ import { DASHBOARD_LIBRARY_ROUTES } from 'app/features/dashboard/dashgrid/types';
++import { type Options, RenderMode, TextMode } from 'app/plugins/panel/text/panelcfg.gen';
+ 
+ import { CustomDashboardTemplateInteractions } from '../analytics/dashboard-templates/main';
+ import { type DashboardScene } from '../scene/DashboardScene';
+@@ -38,6 +39,8 @@ export function trackDashboardSceneLoaded(dashboard: DashboardScene, duration?:
+         }
+       : {}),
+   });
++
++  trackTextPanelUsage(dashboard);
+ }
+ 
+ export const trackDashboardSceneEditButtonClicked = (dashboardUid?: string) => {
+@@ -117,6 +120,72 @@ export function trackDropItemCrossLayout(gridItem: SceneGridItemLike) {
+   }
+ }
+ 
++const TEXT_PANEL_PLUGIN_ID = 'text';
++
++const MERMAID_PATTERN = /(?:```|~~~)[ \t]*mermaid|class=["'][^"']*\bmermaid\b/i;
++const HANDLEBARS_PATTERN = /\{\{[^}]*\}\}/;
++const DATA_MACRO_PATTERN = /\$\{__(value|field|data|series)\b/;
++
++function trackTextPanelUsage(dashboard: DashboardScene) {
++  if (!isTextV2WithNewFeatures()) {
++    return;
++  }
++
++  const usage = getTextPanelUsage(dashboard.state.body.getVizPanels());
++
++  if (usage) {
++    DashboardInteractions.textPanelUsage({ ...usage, dashboard_uid: dashboard.state.uid });
++  }
++}
++
++function isTextV2WithNewFeatures() {
++  const flags = getFeatureFlagClient();
++
++  return (
++    flags.getBooleanValue(FlagKeys.GrafanaNewTextPanel, false) && flags.getBooleanValue(FlagKeys.TextNewFeatures, false)
++  );
++}
++
++function getTextPanelUsage(panels: VizPanel[]) {
++  const textPanels = panels.filter((panel) => panel.state.pluginId === TEXT_PANEL_PLUGIN_ID);
++
++  if (textPanels.length === 0) {
++    return undefined;
++  }
++
++  const usage = {
++    mermaid_count: 0,
++    handlebars_count: 0,
++    data_macro_count: 0,
++    per_row_count: 0,
++  };
++
++  for (const panel of textPanels) {
++    const options: Partial<Options> = panel.state.options;
++    const content = options.content ?? '';
++
++    if (options.mode !== TextMode.Code) {
++      if (MERMAID_PATTERN.test(content)) {
++        usage.mermaid_count++;
++      }
++
++      if (HANDLEBARS_PATTERN.test(content)) {
++        usage.handlebars_count++;
++      }
++    }
++
++    if (DATA_MACRO_PATTERN.test(content)) {
++      usage.data_macro_count++;
++    }
++
++    if (options.renderMode === RenderMode.PerRow) {
++      usage.per_row_count++;
++    }
++  }
++
++  return usage;
++}
++
+ async function getDashboardLibraryTrackingProperties(dashboard: DashboardScene) {
+   const isDashboardLibraryEnabled =
+     config.featureToggles.dashboardLibrary ||

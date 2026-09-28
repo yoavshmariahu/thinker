@@ -91,3 +91,19 @@ test('rank prefers matching notes and path affinity; pack respects budget', () =
   assert.ok(packed.included.length >= 1);
   assert.deepEqual(tokenize('getUserById src/auth/mw.py'), ['get', 'user', 'id', 'src', 'auth', 'mw', 'py']);
 });
+
+test('rank serves nothing when no note covers the request, though one of them is the best', () => {
+  // the other notes hold the request's words one at a time, as a real cache does
+  const words = ['narrow', 'screen', 'duplicate', 'sidebar', 'copy', 'back', 'link', 'transfer', 'project', 'subscriptions', 'modal', 'illustration', 'text', 'wrong'];
+  const filler = words.map((w, i) => ({ id: 'f' + i, title: `Topic${i} handler layout`, kind: 'location', answers: [`where is topic${i} handled`], body: `topic${i} is handled in handler${i}, next to the ${w}`, deps: [{ path: `src/t${i}.py` }], confidence: 0.9, status: 'fresh' }));
+  const notes = [
+    { id: 'order', title: 'Insight list default ordering must use an indexed column', kind: 'invariant', answers: ['how is the insight list page ordered when it opens'], body: 'the list endpoint orders by an indexed column; changing it needs a migration', deps: [{ path: 'api/insight.py' }], confidence: 0.9, status: 'fresh' },
+    { id: 'invite', title: 'Bulk invite partial failure semantics', kind: 'gotcha', answers: ['what happens when some invites fail in a bulk invite'], body: 'a bulk invite sends each email on its own; failed invites are reported per address and the rest are still sent', deps: [{ path: 'api/invite.py' }], confidence: 0.9, status: 'fresh' },
+    ...filler,
+  ];
+  const request = 'On a narrow screen, after I duplicate an insight the sidebar stays open over the copy. The back link on the transfer page opens the wrong project page. The subscriptions modal keeps its illustration beside the text.';
+  assert.deepEqual(rank(notes, { query: request }).map(r => r.note.id), []);
+  const old = process.env.THINKER_MIN_COVER; process.env.THINKER_MIN_COVER = '0,0';
+  try { assert.equal(rank(notes, { query: request })[0]?.note.id, 'order'); } finally { if (old === undefined) delete process.env.THINKER_MIN_COVER; else process.env.THINKER_MIN_COVER = old; }
+  assert.equal(rank(notes, { query: 'When a bulk invite has some addresses that fail, the invites that failed are not reported and the rest are not sent' })[0].note.id, 'invite');
+});

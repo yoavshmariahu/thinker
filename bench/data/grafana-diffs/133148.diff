@@ -1,0 +1,280 @@
+diff --git a/pkg/storage/unified/resource/list_with_selectors.go b/pkg/storage/unified/resource/list_with_selectors.go
+index 52fa40015..ac42fa76e 100644
+--- a/pkg/storage/unified/resource/list_with_selectors.go
++++ b/pkg/storage/unified/resource/list_with_selectors.go
+@@ -8,7 +8,6 @@ import (
+ 	"slices"
+ 
+ 	claims "github.com/grafana/authlib/types"
+-	"github.com/grafana/grafana-app-sdk/app"
+ 	"github.com/grafana/grafana/pkg/storage/unified/resourcepb"
+ 	"go.opentelemetry.io/otel/attribute"
+ 	"go.opentelemetry.io/otel/trace"
+@@ -397,17 +396,32 @@ func (s *server) shouldUseSearchForList(req *resourcepb.ListRequest) bool {
+ 	}
+ 
+ 	// Labels are indexed for every kind, so a list filtered only by labels does not
+-	// need to know the kind. Selectable fields are different: they are mapped into
+-	// the index from the manifests compiled into this binary, so a field selector on
+-	// any other group would ask the index for a field it never indexed and get
+-	// nothing back.
++	// need to know the kind.
+ 	if len(req.Options.Fields) == 0 {
+ 		return true
+ 	}
+ 
+-	// TODO have a way of including enterprise manifests
+-	manifests := AppManifestsWithKinds(AppManifests()...)
+-	return slices.ContainsFunc(manifests, func(m *app.ManifestData) bool {
+-		return m.Group == req.Options.Key.Group
+-	})
++	return s.selectableFieldsDeclared(req.Options.Key.Group, req.Options.Key.Resource, req.Options.Fields)
++}
++
++// selectableFieldsDeclared reports whether the kind declares every field the
++// request filters on. Only a declared field is mapped into the index, and a
++// filter on anything else would find nothing there.
++//
++// The declarations come from the same registry the index mapping is built from,
++// which a manifest watcher keeps up to date, so a kind this binary was not
++// compiled with still gets its selectors pushed down. The index can still be
++// behind the registry, which the search side refuses rather than answers
++// (see IsSelectableFieldNotIndexed).
++func (s *server) selectableFieldsDeclared(group, resource string, fields []*resourcepb.Requirement) bool {
++	if s.manifestSearchFields == nil {
++		return false
++	}
++	declared, _, _ := s.manifestSearchFields.For(NewLowerGroupResource(group, resource))
++	for _, f := range fields {
++		if !slices.Contains(declared, f.Key) {
++			return false
++		}
++	}
++	return true
+ }
+diff --git a/pkg/storage/unified/resource/list_with_selectors_test.go b/pkg/storage/unified/resource/list_with_selectors_test.go
+index d87849c51..22a749c09 100644
+--- a/pkg/storage/unified/resource/list_with_selectors_test.go
++++ b/pkg/storage/unified/resource/list_with_selectors_test.go
+@@ -24,6 +24,7 @@ func TestShouldUseSearchForList(t *testing.T) {
+ 	tests := map[string]struct {
+ 		disableSearch   bool
+ 		allowlist       []string
++		noRegistry      bool
+ 		req             *resourcepb.ListRequest
+ 		expectedAllowed bool
+ 	}{
+@@ -155,7 +156,7 @@ func TestShouldUseSearchForList(t *testing.T) {
+ 			req: &resourcepb.ListRequest{
+ 				Source: resourcepb.ListRequest_STORE,
+ 				Options: &resourcepb.ListOptions{
+-					Key:    &resourcepb.ResourceKey{Namespace: "nsx", Group: "advisor.grafana.app"},
++					Key:    &resourcepb.ResourceKey{Namespace: "nsx", Group: "advisor.grafana.app", Resource: "advisors"},
+ 					Fields: []*resourcepb.Requirement{{Key: "spec.foo"}},
+ 				},
+ 			},
+@@ -236,6 +237,50 @@ func TestShouldUseSearchForList(t *testing.T) {
+ 			},
+ 			expectedAllowed: true,
+ 		},
++		"true when a kind outside the compiled-in manifests declares the field": {
++			req: &resourcepb.ListRequest{
++				Source: resourcepb.ListRequest_STORE,
++				Options: &resourcepb.ListOptions{
++					Key:    &resourcepb.ResourceKey{Namespace: "nsx", Group: "mobile.ext.grafana.app", Resource: "mobileverificationtokens"},
++					Fields: []*resourcepb.Requirement{{Key: "spec.token", Operator: "=", Values: []string{"t1"}}},
++				},
++			},
++			expectedAllowed: true,
++		},
++		"false when the kind declares no such field": {
++			req: &resourcepb.ListRequest{
++				Source: resourcepb.ListRequest_STORE,
++				Options: &resourcepb.ListOptions{
++					Key:    &resourcepb.ResourceKey{Namespace: "nsx", Group: "advisor.grafana.app", Resource: "advisors"},
++					Fields: []*resourcepb.Requirement{{Key: "spec.undeclared", Operator: "=", Values: []string{"x"}}},
++				},
++			},
++			expectedAllowed: false,
++		},
++		"false when one of several fields is undeclared": {
++			req: &resourcepb.ListRequest{
++				Source: resourcepb.ListRequest_STORE,
++				Options: &resourcepb.ListOptions{
++					Key: &resourcepb.ResourceKey{Namespace: "nsx", Group: "advisor.grafana.app", Resource: "advisors"},
++					Fields: []*resourcepb.Requirement{
++						{Key: "spec.foo", Operator: "=", Values: []string{"bar"}},
++						{Key: "spec.undeclared", Operator: "=", Values: []string{"x"}},
++					},
++				},
++			},
++			expectedAllowed: false,
++		},
++		"false when no declarations are available": {
++			noRegistry: true,
++			req: &resourcepb.ListRequest{
++				Source: resourcepb.ListRequest_STORE,
++				Options: &resourcepb.ListOptions{
++					Key:    &resourcepb.ResourceKey{Namespace: "nsx", Group: "advisor.grafana.app", Resource: "advisors"},
++					Fields: []*resourcepb.Requirement{{Key: "spec.foo", Operator: "=", Values: []string{"bar"}}},
++				},
++			},
++			expectedAllowed: false,
++		},
+ 	}
+ 
+ 	for name, tc := range tests {
+@@ -249,6 +294,14 @@ func TestShouldUseSearchForList(t *testing.T) {
+ 				allowed[resource] = true
+ 			}
+ 			s.searchBackedListResources = SearchBackedListConfig{AllowedResources: allowed}
++			if !tc.noRegistry {
++				// Stands in for what a manifest watcher would load, including a kind this
++				// binary was not compiled with.
++				s.manifestSearchFields = NewSearchFieldsRegistry(map[LowerGroupResource][]string{
++					NewLowerGroupResource("advisor.grafana.app", "advisors"):                    {"spec.foo"},
++					NewLowerGroupResource("mobile.ext.grafana.app", "mobileverificationtokens"): {"spec.token"},
++				}, nil, nil)
++			}
+ 
+ 			require.Equal(t, tc.expectedAllowed, s.shouldUseSearchForList(tc.req))
+ 		})
+diff --git a/pkg/storage/unified/resource/selectable_fields.go b/pkg/storage/unified/resource/selectable_fields.go
+index e0105f74c..004caf861 100644
+--- a/pkg/storage/unified/resource/selectable_fields.go
++++ b/pkg/storage/unified/resource/selectable_fields.go
+@@ -13,28 +13,6 @@ func SelectableFields() map[LowerGroupResource][]string {
+ 	return SelectableFieldsForManifests(AppManifests()...)
+ }
+ 
+-// AppManifestsWithKinds keeps only the manifests declaring a kind in some
+-// version.
+-func AppManifestsWithKinds(manifiests ...*app.ManifestData) []*app.ManifestData {
+-	filtered := make([]*app.ManifestData, 0, len(manifiests))
+-	for _, m := range manifiests {
+-		if m == nil {
+-			continue
+-		}
+-		hasKinds := false
+-		for _, v := range m.Versions {
+-			if len(v.Kinds) > 0 {
+-				hasKinds = true
+-				break
+-			}
+-		}
+-		if hasKinds {
+-			filtered = append(filtered, m)
+-		}
+-	}
+-	return filtered
+-}
+-
+ // SelectableFieldsForManifests returns a map keyed by (group, kind) to the list
+ // of selectable fields (across all versions). Each kind is also keyed by
+ // (group, plural), pointing to the same fields.
+diff --git a/pkg/storage/unified/resource/selectable_fields_test.go b/pkg/storage/unified/resource/selectable_fields_test.go
+index ecb313a5d..19d06bace 100644
+--- a/pkg/storage/unified/resource/selectable_fields_test.go
++++ b/pkg/storage/unified/resource/selectable_fields_test.go
+@@ -8,15 +8,6 @@ import (
+ 	"github.com/stretchr/testify/require"
+ )
+ 
+-func TestAppManifestsCanFilterOutManifestsWithNoKinds(t *testing.T) {
+-	all := AppManifests()
+-	for _, m := range AppManifestsWithKinds(all...) {
+-		if m.AppName == "provisioning" {
+-			t.Errorf("should not have a provisioning manifest as it has no kinds defined")
+-		}
+-	}
+-}
+-
+ func TestSelectableFieldsForManifests(t *testing.T) {
+ 	// No selectable fields
+ 	m1 := &app.ManifestData{
+diff --git a/pkg/storage/unified/resource/server.go b/pkg/storage/unified/resource/server.go
+index f24081c8f..7b912fd9e 100644
+--- a/pkg/storage/unified/resource/server.go
++++ b/pkg/storage/unified/resource/server.go
+@@ -615,6 +615,7 @@ func NewUninitializedResourceServer(opts ResourceServerOptions) (*server, error)
+ 		searchClient:                   opts.SearchClient,
+ 		quotasConfig:                   opts.QuotasConfig,
+ 		searchBackedListResources:      opts.SearchBackedListConfig,
++		manifestSearchFields:           opts.Search.SearchFields,
+ 		artificialSuccessfulWriteDelay: opts.Search.IndexMinUpdateInterval,
+ 		bookmarkFrequency:              opts.BookmarkFrequency,
+ 		vectorWriteReconciler:          opts.VectorReconciler,
+@@ -713,6 +714,10 @@ type server struct {
+ 	overridesService          *OverridesService
+ 	quotasConfig              QuotasConfig
+ 	searchBackedListResources SearchBackedListConfig
++	// Kind declarations from the manifests, refreshed by the manifest watcher. List
++	// reads the selectable fields from it before asking an index about a selector.
++	// May be nil.
++	manifestSearchFields *SearchFieldsRegistry
+ 
+ 	// Background watch task -- this has permissions for everything
+ 	ctx         context.Context
+diff --git a/pkg/storage/unified/search/options.go b/pkg/storage/unified/search/options.go
+index ddd9964d4..34b43d8df 100644
+--- a/pkg/storage/unified/search/options.go
++++ b/pkg/storage/unified/search/options.go
+@@ -52,6 +52,25 @@ func NewSearchOptions(
+ 	if cfg.EnableSearch || cfg.VectorIndexingEnabled {
+ 		embeddingConfig = resource.NewEmbeddingConfigRegistry(resource.AppManifests())
+ 	}
++
++	// Built here rather than inside the search branch below, because a server that
++	// delegates search to another process still decides which selectors it can push
++	// into an index, and that decision reads these declarations.
++	manifests := resource.MergeManifestsByKind(resource.AppManifests())
++	selectableFields, searchFieldsHashes, searchFieldsProviders, err := resource.SearchFieldsForManifests(manifests...)
++	if err != nil {
++		return resource.SearchOptions{}, err
++	}
++	// Without a document supplier (some tests) the index has nothing to map, so
++	// leave out the mappings and their hashes; the selectable fields stay.
++	if docs == nil {
++		searchFieldsHashes, searchFieldsProviders = nil, nil
++	}
++	// One registry holds selectable fields, hashes, and providers, shared by the
++	// index backend and the search server so a future live-manifest source can
++	// swap them consistently.
++	searchFields := resource.NewSearchFieldsRegistry(selectableFields, searchFieldsHashes, searchFieldsProviders)
++
+ 	if cfg.EnableSearch {
+ 		root := cfg.IndexPath
+ 		if root == "" {
+@@ -87,24 +106,6 @@ func NewSearchOptions(
+ 			return resource.SearchOptions{}, err
+ 		}
+ 
+-		// Search-field ownership is independent of embedding declarations.
+-		manifests := resource.MergeManifestsByKind(resource.AppManifests())
+-		selectableFields, searchFieldsHashes, searchFieldsProviders, err := resource.SearchFieldsForManifests(manifests...)
+-		if err != nil {
+-			return resource.SearchOptions{}, err
+-		}
+-
+-		// Without a document supplier (some tests) the index has nothing to map, so
+-		// leave out the mappings and their hashes; the selectable fields stay.
+-		if docs == nil {
+-			searchFieldsHashes, searchFieldsProviders = nil, nil
+-		}
+-
+-		// One registry holds selectable fields, hashes, and providers, shared by the
+-		// index backend and the search server so a future live-manifest source can
+-		// swap them consistently.
+-		searchFields := resource.NewSearchFieldsRegistry(selectableFields, searchFieldsHashes, searchFieldsProviders)
+-
+ 		bleve, err := NewBleveBackend(BleveOptions{
+ 			Root:                           root,
+ 			FileThreshold:                  int64(cfg.IndexFileThreshold), // fewer than X items will use a memory index
+@@ -171,6 +172,7 @@ func NewSearchOptions(
+ 	}
+ 	return resource.SearchOptions{
+ 		EmbeddingConfig: embeddingConfig,
++		SearchFields:    searchFields,
+ 		// it is used for search after write and throttles index updates
+ 		IndexMinUpdateInterval:    cfg.IndexMinUpdateInterval,
+ 		IndexModificationCacheTTL: cfg.IndexModificationCacheTTL,

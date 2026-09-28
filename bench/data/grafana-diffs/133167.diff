@@ -1,0 +1,259 @@
+diff --git a/public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.test.tsx b/public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.test.tsx
+new file mode 100644
+index 000000000..77d698d06
+--- /dev/null
++++ b/public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.test.tsx
+@@ -0,0 +1,60 @@
++import { screen } from '@testing-library/react';
++
++import { toDataFrame, type TransformerRegistryItem } from '@grafana/data';
++
++import { TransformationDebugDisplay } from './TransformationDebugDisplay';
++import { useTransformationDebugData } from './hooks/useTransformationDebugData';
++import { renderWithQueryEditorProvider } from './testUtils';
++import { type Transformation } from './types';
++
++jest.mock('./hooks/useTransformationDebugData');
++
++const mockedUseTransformationDebugData = jest.mocked(useTransformationDebugData);
++
++const registryItem: TransformerRegistryItem = {
++  id: 'test-transform',
++  name: 'Test Transform',
++  transformation: () => Promise.resolve({ id: 'test-transform', name: 'Test Transform', operator: jest.fn() }),
++  editor: () => null,
++  imageDark: '',
++  imageLight: '',
++};
++
++const transformation: Transformation = {
++  transformId: 'test-transform-0',
++  transformConfig: { id: 'test-transform', options: {} },
++  registryItem,
++};
++
++describe('TransformationDebugDisplay', () => {
++  beforeEach(() => {
++    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
++  });
++
++  it('copies circular frame data safely and labels both copy actions', async () => {
++    const frame = toDataFrame({ fields: [{ name: 'value', values: [1] }] });
++    const field = frame.fields[0];
++    field.state = {
++      scopedVars: {
++        __dataContext: { value: { data: [frame], frame, field } },
++      },
++    };
++    mockedUseTransformationDebugData.mockReturnValue({ input: [frame], output: [] });
++
++    const { user } = renderWithQueryEditorProvider(<TransformationDebugDisplay />, {
++      transformations: [transformation],
++      selectedTransformation: transformation,
++      uiStateOverrides: {
++        transformToggles: { showDebug: true, toggleDebug: jest.fn(), showHelp: false, toggleHelp: jest.fn() },
++      },
++    });
++
++    const copyInput = screen.getByRole('button', { name: 'Copy input data to clipboard' });
++    expect(screen.getByRole('button', { name: 'Copy output data to clipboard' })).toBeInTheDocument();
++
++    await user.click(copyInput);
++
++    const copiedFrames = JSON.parse(await navigator.clipboard.readText());
++    expect(copiedFrames[0].fields[0].state.scopedVars.__dataContext).toBe('Filtered out in JSON serialization');
++  });
++});
+diff --git a/public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.tsx b/public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.tsx
+index ebf4ca468..616405c28 100644
+--- a/public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.tsx
++++ b/public/app/features/dashboard-scene/panel-edit/PanelEditNext/QueryEditor/TransformationDebugDisplay.tsx
+@@ -1,9 +1,10 @@
+ import { css } from '@emotion/css';
+-import { useMemo } from 'react';
++import { useCallback, useMemo } from 'react';
+ 
+ import { type GrafanaTheme2 } from '@grafana/data';
+ import { t, Trans } from '@grafana/i18n';
+-import { Drawer, Icon, JSONFormatter, Stack, useStyles2 } from '@grafana/ui';
++import { ClipboardButton, Drawer, Icon, JSONFormatter, Stack, useStyles2 } from '@grafana/ui';
++import { getPrettyJSON } from 'app/features/inspector/utils/utils';
+ 
+ import { usePanelContext, useQueryEditorUIContext, useQueryRunnerContext } from './QueryEditorContext';
+ import { useTransformationDebugData } from './hooks/useTransformationDebugData';
+@@ -23,6 +24,16 @@ export function TransformationDebugDisplay() {
+     data: seriesData,
+     isActive: transformToggles.showDebug,
+   });
++  const getInputJson = useCallback(() => getPrettyJSON(input), [input]);
++  const getOutputJson = useCallback(() => getPrettyJSON(output), [output]);
++  const copyInputDataLabel = t(
++    'query-editor-next.transformation-debug.copy-input-data',
++    'Copy input data to clipboard'
++  );
++  const copyOutputDataLabel = t(
++    'query-editor-next.transformation-debug.copy-output-data',
++    'Copy output data to clipboard'
++  );
+ 
+   if (!transformToggles.showDebug || !selectedTransformation) {
+     return null;
+@@ -38,6 +49,14 @@ export function TransformationDebugDisplay() {
+         <div className={styles.debug}>
+           <div className={styles.debugTitle}>
+             <Trans i18nKey="query-editor-next.transformation-debug.input-data">Input data</Trans>
++            <ClipboardButton
++              aria-label={copyInputDataLabel}
++              icon="copy"
++              size="sm"
++              fill="text"
++              getText={getInputJson}
++              tooltip={copyInputDataLabel}
++            />
+           </div>
+           <div className={styles.debugJson}>
+             <JSONFormatter json={input} />
+@@ -49,6 +68,14 @@ export function TransformationDebugDisplay() {
+         <div className={styles.debug}>
+           <div className={styles.debugTitle}>
+             <Trans i18nKey="query-editor-next.transformation-debug.output-data">Output data</Trans>
++            <ClipboardButton
++              aria-label={copyOutputDataLabel}
++              icon="copy"
++              size="sm"
++              fill="text"
++              getText={getOutputJson}
++              tooltip={copyOutputDataLabel}
++            />
+           </div>
+           <div className={styles.debugJson}>
+             <JSONFormatter json={output} />
+@@ -72,6 +99,9 @@ const getStyles = (theme: GrafanaTheme2) => {
+       color: theme.colors.primary.text,
+     }),
+     debugTitle: css({
++      display: 'flex',
++      alignItems: 'center',
++      justifyContent: 'space-between',
+       padding: `${theme.spacing(1)} ${theme.spacing(0.25)}`,
+       ...theme.typography.bodySmall,
+       color: theme.colors.text.primary,
+diff --git a/public/app/features/dashboard/components/TransformationsEditor/TransformationEditor.tsx b/public/app/features/dashboard/components/TransformationsEditor/TransformationEditor.tsx
+index 03096474a..e6744189f 100644
+--- a/public/app/features/dashboard/components/TransformationsEditor/TransformationEditor.tsx
++++ b/public/app/features/dashboard/components/TransformationsEditor/TransformationEditor.tsx
+@@ -1,5 +1,5 @@
+ import { css } from '@emotion/css';
+-import { Suspense, createElement, useMemo } from 'react';
++import { Suspense, createElement, useCallback, useMemo } from 'react';
+ 
+ import {
+   type DataFrame,
+@@ -9,7 +9,8 @@ import {
+ } from '@grafana/data';
+ import { selectors } from '@grafana/e2e-selectors';
+ import { Trans, t } from '@grafana/i18n';
+-import { Icon, JSONFormatter, LoadingPlaceholder, useStyles2, Drawer } from '@grafana/ui';
++import { ClipboardButton, Icon, JSONFormatter, LoadingPlaceholder, useStyles2, Drawer } from '@grafana/ui';
++import { getPrettyJSON } from 'app/features/inspector/utils/utils';
+ 
+ import { type TransformationsEditorTransformation } from './types';
+ 
+@@ -36,6 +37,10 @@ export const TransformationEditor = ({
+ }: TransformationEditorProps) => {
+   const styles = useStyles2(getStyles);
+   const config = useMemo(() => configs[index], [configs, index]);
++  const getInputJson = useCallback(() => getPrettyJSON(input), [input]);
++  const getOutputJson = useCallback(() => getPrettyJSON(output), [output]);
++  const copyInputDataLabel = t('dashboard.transformation-editor.copy-input-data', 'Copy input data to clipboard');
++  const copyOutputDataLabel = t('dashboard.transformation-editor.copy-output-data', 'Copy output data to clipboard');
+ 
+   const editor = useMemo(
+     () =>
+@@ -72,6 +77,14 @@ export const TransformationEditor = ({
+             <div className={styles.debug}>
+               <div className={styles.debugTitle}>
+                 <Trans i18nKey="dashboard.transformation-editor.input-data">Input data</Trans>
++                <ClipboardButton
++                  aria-label={copyInputDataLabel}
++                  icon="copy"
++                  size="sm"
++                  fill="text"
++                  getText={getInputJson}
++                  tooltip={copyInputDataLabel}
++                />
+               </div>
+               <div className={styles.debugJson}>
+                 <JSONFormatter json={input} />
+@@ -83,6 +96,14 @@ export const TransformationEditor = ({
+             <div className={styles.debug}>
+               <div className={styles.debugTitle}>
+                 <Trans i18nKey="dashboard.transformation-editor.output-data">Output data</Trans>
++                <ClipboardButton
++                  aria-label={copyOutputDataLabel}
++                  icon="copy"
++                  size="sm"
++                  fill="text"
++                  getText={getOutputJson}
++                  tooltip={copyOutputDataLabel}
++                />
+               </div>
+               <div className={styles.debugJson}>{output && <JSONFormatter json={output} />}</div>
+             </div>
+@@ -110,6 +131,9 @@ const getStyles = (theme: GrafanaTheme2) => {
+       color: theme.colors.primary.text,
+     }),
+     debugTitle: css({
++      display: 'flex',
++      alignItems: 'center',
++      justifyContent: 'space-between',
+       padding: `${theme.spacing(1)} ${theme.spacing(0.25)}`,
+       fontFamily: theme.typography.fontFamilyMonospace,
+       fontSize: theme.typography.bodySmall.fontSize,
+diff --git a/public/app/features/dashboard/components/TransformationsEditor/TransformationsEditor.test.tsx b/public/app/features/dashboard/components/TransformationsEditor/TransformationsEditor.test.tsx
+index f3814a781..bdfe2703a 100644
+--- a/public/app/features/dashboard/components/TransformationsEditor/TransformationsEditor.test.tsx
++++ b/public/app/features/dashboard/components/TransformationsEditor/TransformationsEditor.test.tsx
+@@ -137,6 +137,20 @@ describe('TransformationsEditor', () => {
+ 
+         expect(screen.getByTestId(debuggerSelector)).toBeInTheDocument();
+       });
++
++      it('offers distinct copy actions for the input and output data', async () => {
++        setup([
++          {
++            id: 'reduce',
++            options: {},
++          },
++        ]);
++
++        await userEvent.click(screen.getByTestId(selectors.components.QueryEditorRow.actionButton('Debug')));
++
++        expect(screen.getByRole('button', { name: 'Copy input data to clipboard' })).toBeInTheDocument();
++        expect(screen.getByRole('button', { name: 'Copy output data to clipboard' })).toBeInTheDocument();
++      });
+     });
+   });
+ });
+diff --git a/public/locales/en-US/grafana.json b/public/locales/en-US/grafana.json
+index 2f3ed06fa..f15d9949c 100644
+--- a/public/locales/en-US/grafana.json
++++ b/public/locales/en-US/grafana.json
+@@ -6744,6 +6744,8 @@
+       "unlink-library-panel-short": "Unlink"
+     },
+     "transformation-editor": {
++      "copy-input-data": "Copy input data to clipboard",
++      "copy-output-data": "Copy output data to clipboard",
+       "input-data": "Input data",
+       "loading": "Loading editor...",
+       "output-data": "Output data",
+@@ -15577,6 +15579,8 @@
+       "transformation": "Transformation"
+     },
+     "transformation-debug": {
++      "copy-input-data": "Copy input data to clipboard",
++      "copy-output-data": "Copy output data to clipboard",
+       "input-data": "Input data",
+       "output-data": "Output data",
+       "title": "Debug transformation"

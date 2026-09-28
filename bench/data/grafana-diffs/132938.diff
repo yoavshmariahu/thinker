@@ -1,0 +1,329 @@
+diff --git a/packages/grafana-ui/package.json b/packages/grafana-ui/package.json
+index e979ae060..cdec8b2df 100644
+--- a/packages/grafana-ui/package.json
++++ b/packages/grafana-ui/package.json
+@@ -73,6 +73,7 @@
+     "@codemirror/lang-xml": "^6.1.0",
+     "@codemirror/lang-yaml": "^6.1.3",
+     "@codemirror/language": "^6.12.3",
++    "@codemirror/legacy-modes": "^6.5.4",
+     "@codemirror/state": "^6.6.0",
+     "@codemirror/view": "^6.41.0",
+     "@emotion/css": "^11.13.5",
+diff --git a/packages/grafana-ui/src/components/CodeMirror/ADDING_LANGUAGES.md b/packages/grafana-ui/src/components/CodeMirror/ADDING_LANGUAGES.md
+index 28b4d6e6c..b9afeb909 100644
+--- a/packages/grafana-ui/src/components/CodeMirror/ADDING_LANGUAGES.md
++++ b/packages/grafana-ui/src/components/CodeMirror/ADDING_LANGUAGES.md
+@@ -14,12 +14,14 @@ The examples below add Python support. Replace all Python references with the la
+ 
+    Commit the resulting changes to `packages/grafana-ui/package.json` and `yarn.lock`.
+ 
+-2. Add the public language name to `CodeMirrorEditorLanguage` in `types.ts`:
++2. Add the public language ID and display name to `CODE_MIRROR_LANGUAGES` in `languages.ts`:
+ 
+    ```ts
+-   export type CodeMirrorEditorLanguage = 'json' | 'python' | 'sql';
++   python: 'Python',
+    ```
+ 
++   `CodeMirrorEditorLanguage` is derived from this registry. Storybook and the notebook picker use it automatically. Keep the registry free of parser imports so consumers can read language metadata without loading language code.
++
+ 3. Add an asynchronous loader in `languageLoader.ts`. Give the import a stable chunk name and return the extension created by the language package:
+ 
+    ```ts
+@@ -36,7 +38,7 @@ The examples below add Python support. Replace all Python references with the la
+ 
+    The cache key must identify the resulting extension. If a language has configuration that changes the extension, include that configuration in the cache key, as the SQL dialect loader does. Thread new configuration through `CodeMirrorEditorProps`, `useLanguageExtension`, and `LoadLanguageOptions` rather than importing the language directly in a consumer.
+ 
+-5. Add the language to `languageOptions` in `CodeEditor.story.tsx` so it can be selected in Storybook, and add focused coverage to `languageLoader.test.ts`.
++5. Add focused loader integration coverage to the existing `languageLoader.test.ts`.
+ 
+ ## Verify the change
+ 
+diff --git a/packages/grafana-ui/src/components/CodeMirror/CodeEditor.story.tsx b/packages/grafana-ui/src/components/CodeMirror/CodeEditor.story.tsx
+index 32903b463..a3cd665a5 100644
+--- a/packages/grafana-ui/src/components/CodeMirror/CodeEditor.story.tsx
++++ b/packages/grafana-ui/src/components/CodeMirror/CodeEditor.story.tsx
+@@ -4,18 +4,8 @@ import { action } from 'storybook/actions';
+ 
+ import { CodeEditor } from './CodeEditor';
+ import mdx from './CodeEditor.mdx';
+-import type { CodeMirrorCompletionSource, CodeMirrorEditorLanguage } from './types';
+-
+-const languageOptions: CodeMirrorEditorLanguage[] = [
+-  'go',
+-  'html',
+-  'json',
+-  'markdown',
+-  'sql',
+-  'typescript',
+-  'xml',
+-  'yaml',
+-];
++import { CODE_MIRROR_LANGUAGES } from './languages';
++import type { CodeMirrorCompletionSource } from './types';
+ 
+ const keywordCompletionSource: CodeMirrorCompletionSource = (context) => {
+   const word = context.matchBefore(/\w*/);
+@@ -59,7 +49,7 @@ const meta: Meta<typeof CodeEditor> = {
+     language: {
+       control: { type: 'select' },
+       description: 'Pass in a language to enable syntax highlighting and language-aware behavior.',
+-      options: languageOptions,
++      options: Object.keys(CODE_MIRROR_LANGUAGES),
+     },
+     completionMode: {
+       control: { type: 'inline-radio' },
+diff --git a/packages/grafana-ui/src/components/CodeMirror/languageLoader.test.ts b/packages/grafana-ui/src/components/CodeMirror/languageLoader.test.ts
+index 8c5008dd1..41156cde8 100644
+--- a/packages/grafana-ui/src/components/CodeMirror/languageLoader.test.ts
++++ b/packages/grafana-ui/src/components/CodeMirror/languageLoader.test.ts
+@@ -1,3 +1,8 @@
++import { CODE_MIRROR_LANGUAGES } from './languages';
++import { type CodeMirrorEditorLanguage } from './types';
++
++const languages = Object.keys(CODE_MIRROR_LANGUAGES) as CodeMirrorEditorLanguage[];
++
+ jest.mock('@codemirror/lang-sql', () => {
+   const actual = jest.requireActual('@codemirror/lang-sql');
+   return {
+@@ -82,21 +87,22 @@ describe('loadLanguageExtension', () => {
+     });
+   });
+ 
+-  it.each(['go', 'html', 'json', 'markdown', 'typescript', 'xml', 'yaml'] as const)(
+-    'loads and memoizes the %s extension',
+-    async (language) => {
+-      await jest.isolateModulesAsync(async () => {
+-        const { loadLanguageExtension } = await import('./languageLoader');
+-        const { Language } = await import('@codemirror/language');
+-
+-        const extension = await loadLanguageExtension(language);
+-        const again = await loadLanguageExtension(language);
++  it.each(languages)('loads and memoizes the %s extension', async (languageId) => {
++    await jest.isolateModulesAsync(async () => {
++      const { loadLanguageExtension } = await import('./languageLoader');
++      const { Language, language } = await import('@codemirror/language');
++      const { EditorState } = await import('@codemirror/state');
+ 
+-        expect(extension).toHaveProperty('language', expect.any(Language));
+-        expect(again).toBe(extension);
++      const extension = await loadLanguageExtension(languageId);
++      const again = await loadLanguageExtension(languageId);
++      const state = EditorState.create({
++        extensions: extension ?? [],
+       });
+-    }
+-  );
++
++      expect(state.facet(language)).toBeInstanceOf(Language);
++      expect(again).toBe(extension);
++    });
++  });
+ 
+   it('configures the typescript loader for TypeScript syntax', async () => {
+     await jest.isolateModulesAsync(async () => {
+diff --git a/packages/grafana-ui/src/components/CodeMirror/languageLoader.ts b/packages/grafana-ui/src/components/CodeMirror/languageLoader.ts
+index 250b6f6d6..75533b676 100644
+--- a/packages/grafana-ui/src/components/CodeMirror/languageLoader.ts
++++ b/packages/grafana-ui/src/components/CodeMirror/languageLoader.ts
+@@ -10,6 +10,14 @@ const loadGo = async (): Promise<CodeMirrorExtension> =>
+ const loadHtml = async (): Promise<CodeMirrorExtension> =>
+   (await import(/* webpackChunkName: "codemirror-lang-html" */ '@codemirror/lang-html')).html();
+ 
++const loadIni = async (): Promise<CodeMirrorExtension> => {
++  const [{ LanguageSupport, StreamLanguage }, { properties }] = await Promise.all([
++    import(/* webpackChunkName: "codemirror-lang-ini" */ '@codemirror/language'),
++    import(/* webpackChunkName: "codemirror-lang-ini" */ '@codemirror/legacy-modes/mode/properties'),
++  ]);
++  return new LanguageSupport(StreamLanguage.define(properties));
++};
++
+ const loadJson = async (): Promise<CodeMirrorExtension> =>
+   (await import(/* webpackChunkName: "codemirror-lang-json" */ '@codemirror/lang-json')).json();
+ 
+@@ -56,6 +64,8 @@ const resolveLoad = (
+       return { cacheKey: 'go', load: loadGo };
+     case 'html':
+       return { cacheKey: 'html', load: loadHtml };
++    case 'ini':
++      return { cacheKey: 'ini', load: loadIni };
+     case 'json':
+       return { cacheKey: 'json', load: loadJson };
+     case 'markdown':
+diff --git a/packages/grafana-ui/src/components/CodeMirror/languages.ts b/packages/grafana-ui/src/components/CodeMirror/languages.ts
+new file mode 100644
+index 000000000..1a1d8158c
+--- /dev/null
++++ b/packages/grafana-ui/src/components/CodeMirror/languages.ts
+@@ -0,0 +1,12 @@
++/** Supported language IDs and display names, shared by editor consumers and pickers. */
++export const CODE_MIRROR_LANGUAGES = {
++  go: 'Go',
++  html: 'HTML',
++  ini: 'INI',
++  json: 'JSON',
++  markdown: 'Markdown',
++  sql: 'SQL',
++  typescript: 'TypeScript',
++  xml: 'XML',
++  yaml: 'YAML',
++} as const;
+diff --git a/packages/grafana-ui/src/components/CodeMirror/types.ts b/packages/grafana-ui/src/components/CodeMirror/types.ts
+index 19dec41a0..9533c2144 100644
+--- a/packages/grafana-ui/src/components/CodeMirror/types.ts
++++ b/packages/grafana-ui/src/components/CodeMirror/types.ts
+@@ -3,6 +3,8 @@ import { type EditorState, type Extension } from '@codemirror/state';
+ import { type BasicSetupOptions } from '@uiw/react-codemirror';
+ import { type ReactNode } from 'react';
+ 
++import { type CODE_MIRROR_LANGUAGES } from './languages';
++
+ export type CodeMirrorCompletion = Completion;
+ export type CodeMirrorCompletionContext = CompletionContext;
+ export type CodeMirrorCompletionResult = CompletionResult;
+@@ -19,7 +21,7 @@ export type CodeMirrorCompletionMode = 'override' | 'merge';
+  */
+ export type CodeMirrorBasicSetup = boolean | BasicSetupOptions;
+ 
+-export type CodeMirrorEditorLanguage = 'go' | 'html' | 'json' | 'markdown' | 'sql' | 'typescript' | 'xml' | 'yaml';
++export type CodeMirrorEditorLanguage = keyof typeof CODE_MIRROR_LANGUAGES;
+ 
+ /**
+  * SQL dialect used for syntax highlighting and keyword completion when
+diff --git a/packages/grafana-ui/src/unstable.ts b/packages/grafana-ui/src/unstable.ts
+index debc2ddd6..c205268af 100644
+--- a/packages/grafana-ui/src/unstable.ts
++++ b/packages/grafana-ui/src/unstable.ts
+@@ -12,6 +12,7 @@
+ export * from './utils/skeleton';
+ 
+ export { CodeMirrorEditor } from './components/CodeMirror/CodeEditorLazy';
++export { CODE_MIRROR_LANGUAGES } from './components/CodeMirror/languages';
+ export { createCodeEditorTheme } from './components/CodeMirror/theme';
+ export { signatureHelp } from './components/CodeMirror/signatureHelp';
+ export type { SignatureHelpOptions } from './components/CodeMirror/signatureHelp';
+diff --git a/public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.test.ts b/public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.test.ts
+index 199fe984d..0c3a8b2f1 100644
+--- a/public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.test.ts
++++ b/public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.test.ts
+@@ -1,4 +1,4 @@
+-import { type CodeMirrorEditorLanguage } from '@grafana/ui/unstable';
++import { CODE_MIRROR_LANGUAGES } from '@grafana/ui/unstable';
+ 
+ import {
+   canonicalLanguage,
+@@ -9,9 +9,7 @@ import {
+   toCodeMirrorLanguage,
+ } from './codeLanguages';
+ 
+-// Every language the editor supports. Adding one to CodeMirrorEditorLanguage without adding it here
+-// leaves this list short, so the exhaustiveness assertion below is what actually keeps them in step.
+-const HIGHLIGHTED: CodeMirrorEditorLanguage[] = ['go', 'html', 'json', 'markdown', 'sql', 'typescript', 'xml', 'yaml'];
++const HIGHLIGHTED = Object.keys(CODE_MIRROR_LANGUAGES);
+ 
+ /** Offered by the picker, but deliberately not highlighted. */
+ const UNHIGHLIGHTED = ['promql', 'logql'];
+@@ -80,6 +78,7 @@ describe('codeLanguageLabel', () => {
+   it('uses a display name for a highlighted language', () => {
+     expect(codeLanguageLabel('sql')).toBe('SQL');
+     expect(codeLanguageLabel('typescript')).toBe('TypeScript');
++    expect(codeLanguageLabel('ini')).toBe('INI');
+   });
+ 
+   it('uses a display name for an offered language that is not highlighted', () => {
+diff --git a/public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.ts b/public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.ts
+index 33c49574d..cd7fc112b 100644
+--- a/public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.ts
++++ b/public/app/features/notebook/scene/layout-notebook/cells/codeLanguages.ts
+@@ -1,25 +1,11 @@
+ import { t } from '@grafana/i18n';
+ import { type ComboboxOption } from '@grafana/ui';
+-import { type CodeMirrorEditorLanguage } from '@grafana/ui/unstable';
++import { CODE_MIRROR_LANGUAGES, type CodeMirrorEditorLanguage } from '@grafana/ui/unstable';
+ 
+ // The spec stores `language` as a free-form string, so it is deliberately NOT narrowed to
+ // CodeMirrorEditorLanguage anywhere: a notebook may legitimately arrive carrying a language the
+ // editor cannot highlight, and that value has to survive a round trip rather than be coerced away.
+ 
+-// A Record rather than an array so adding a ninth language to CodeMirrorEditorLanguage fails to
+-// compile here until it is given a label, instead of silently missing from the picker.
+-// Wording matches the text panel's picker so the two features read the same.
+-const HIGHLIGHTED_LANGUAGES: Record<CodeMirrorEditorLanguage, string> = {
+-  go: 'Go',
+-  html: 'HTML',
+-  json: 'JSON',
+-  markdown: 'Markdown',
+-  sql: 'SQL',
+-  typescript: 'TypeScript',
+-  xml: 'XML',
+-  yaml: 'YAML',
+-};
+-
+ /**
+  * Offered by the picker but rendered unhighlighted, because neither has CodeMirror highlight tags
+  * wired up yet (see the note on toCodeMirrorLanguage).
+@@ -60,14 +46,14 @@ export function normalizeLanguage(language: string): string {
+ // to a language the loader has no branch for, which surfaces as a "syntax highlighting failed to
+ // load" alert, and the label lookup would hand a function to React.
+ function isHighlightable(language: string): language is CodeMirrorEditorLanguage {
+-  return Object.hasOwn(HIGHLIGHTED_LANGUAGES, language);
++  return Object.hasOwn(CODE_MIRROR_LANGUAGES, language);
+ }
+ 
+ /**
+  * The language to highlight with, or undefined to render the code unhighlighted.
+  *
+- * CodeMirror supports eight languages against Monaco's ~80, so anything else falls back to no
+- * highlighting. That includes promql and logql: `@grafana/lezer-logql` is already a root dependency
++ * Languages not supported by the shared editor fall back to no highlighting.
++ * That includes promql and logql: `@grafana/lezer-logql` is already a root dependency
+  * and exports a parser, and promql has an official upstream grammar with its tags applied
+  * (`@prometheus-io/lezer-promql`) — what neither has yet is CodeMirror highlight tags wired up in
+  * `@grafana/ui`. Adding them is a `@grafana/ui` change, per ADDING_LANGUAGES.md.
+@@ -106,7 +92,7 @@ export function codeLanguageLabel(language: string): string {
+   }
+ 
+   if (isHighlightable(canonical)) {
+-    return HIGHLIGHTED_LANGUAGES[canonical];
++    return CODE_MIRROR_LANGUAGES[canonical];
+   }
+ 
+   return Object.hasOwn(UNHIGHLIGHTED_LANGUAGES, canonical) ? UNHIGHLIGHTED_LANGUAGES[canonical] : canonical;
+@@ -120,7 +106,7 @@ export function codeLanguageLabel(language: string): string {
+ export function getCodeLanguageOptions(current: string): Array<ComboboxOption<string>> {
+   const offered: Array<ComboboxOption<string>> = [
+     { value: PLAIN_TEXT_LANGUAGE, label: codeLanguageLabel(PLAIN_TEXT_LANGUAGE) },
+-    ...Object.entries(HIGHLIGHTED_LANGUAGES).map(([value, label]) => ({ value, label })),
++    ...Object.entries(CODE_MIRROR_LANGUAGES).map(([value, label]) => ({ value, label })),
+     ...Object.entries(UNHIGHLIGHTED_LANGUAGES).map(([value, label]) => ({ value, label })),
+   ];
+ 
+diff --git a/yarn.lock b/yarn.lock
+index 00a5c68af..73f61972b 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -885,6 +885,15 @@ __metadata:
+   languageName: node
+   linkType: hard
+ 
++"@codemirror/legacy-modes@npm:^6.5.4":
++  version: 6.5.4
++  resolution: "@codemirror/legacy-modes@npm:6.5.4"
++  dependencies:
++    "@codemirror/language": "npm:^6.0.0"
++  checksum: 10/f39881e5f2d41217a34a6c499e95d1a8e3345572a689366174f7934bc34de734182038d7d38774f4e0c55c38bb394ae93a65749e028aaae91868fc4348fe0887
++  languageName: node
++  linkType: hard
++
+ "@codemirror/lint@npm:^6.0.0":
+   version: 6.9.5
+   resolution: "@codemirror/lint@npm:6.9.5"
+@@ -3205,6 +3214,7 @@ __metadata:
+     "@codemirror/lang-xml": "npm:^6.1.0"
+     "@codemirror/lang-yaml": "npm:^6.1.3"
+     "@codemirror/language": "npm:^6.12.3"
++    "@codemirror/legacy-modes": "npm:^6.5.4"
+     "@codemirror/state": "npm:^6.6.0"
+     "@codemirror/view": "npm:^6.41.0"
+     "@emotion/css": "npm:^11.13.5"

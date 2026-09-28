@@ -1,0 +1,357 @@
+diff --git a/pkg/storage/unified/resource/errors.go b/pkg/storage/unified/resource/errors.go
+index 47e166013..752e4632d 100644
+--- a/pkg/storage/unified/resource/errors.go
++++ b/pkg/storage/unified/resource/errors.go
+@@ -1,6 +1,7 @@
+ package resource
+ 
+ import (
++	"context"
+ 	"errors"
+ 	"fmt"
+ 	"net/http"
+@@ -117,6 +118,27 @@ func ErrorFromResponse(respErr *resourcepb.ErrorResult, err error) error {
+ 	return GetError(respErr)
+ }
+ 
++// StatusErrorFromResponse converts a unified storage failure to a Kubernetes
++// [apierrors.StatusError] for API-facing callers. The transport error takes
++// precedence over respErr; if both are nil, it returns nil. Context cancellation
++// and deadline errors map to HTTP 499 and 504, respectively.
++//
++// Unlike [ErrorFromResponse], this replaces transport errors. Callers that need
++// the original error chain or gRPC retry classification must use that helper instead.
++//
++// Only errors coming from grpc should be passed to this function, other errors will lose
++// their chain through this.
++func StatusErrorFromResponse(respErr *resourcepb.ErrorResult, err error) error {
++	if err == nil {
++		return GetError(respErr)
++	}
++	// In-process calls can return context errors instead of gRPC statuses.
++	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
++		err = grpcstatus.FromContextError(err).Err()
++	}
++	return GetError(AsErrorResult(err))
++}
++
+ func errorResultFromGRPCDetails(err error) *resourcepb.ErrorResult {
+ 	st, ok := grpcstatus.FromError(err)
+ 	if !ok || st == nil {
+diff --git a/pkg/storage/unified/resource/errors_test.go b/pkg/storage/unified/resource/errors_test.go
+index 711b6793c..55ba1af27 100644
+--- a/pkg/storage/unified/resource/errors_test.go
++++ b/pkg/storage/unified/resource/errors_test.go
+@@ -2,6 +2,7 @@ package resource
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"fmt"
+ 	"net/http"
+ 	"testing"
+@@ -252,3 +253,175 @@ func TestIsConflict(t *testing.T) {
+ 		})
+ 	}
+ }
++
++func TestStatusErrorFromResponse_NoErrorsReturnsNil(t *testing.T) {
++	require.NoError(t, StatusErrorFromResponse(nil, nil))
++}
++
++func TestStatusErrorFromResponse_EmbeddedErrorPreservesStatus(t *testing.T) {
++	responseError := &resourcepb.ErrorResult{
++		Code:    http.StatusConflict,
++		Reason:  string(metav1.StatusReasonConflict),
++		Message: "dashboard was modified",
++		Details: &resourcepb.ErrorDetails{
++			Group: "dashboard.grafana.app",
++			Kind:  "dashboards",
++			Name:  "dashboard",
++			Uid:   "uid",
++			Causes: []*resourcepb.ErrorCause{
++				{
++					Reason:  "FieldValueInvalid",
++					Field:   "metadata.resourceVersion",
++					Message: "outdated version",
++				},
++			},
++		},
++	}
++
++	err := StatusErrorFromResponse(responseError, nil)
++
++	var apiStatus apierrors.APIStatus
++	require.ErrorAs(t, err, &apiStatus)
++	require.Equal(t, metav1.Status{
++		Status:  metav1.StatusFailure,
++		Code:    http.StatusConflict,
++		Reason:  metav1.StatusReasonConflict,
++		Message: "dashboard was modified",
++		Details: &metav1.StatusDetails{
++			Group: "dashboard.grafana.app",
++			Kind:  "dashboards",
++			Name:  "dashboard",
++			UID:   "uid",
++			Causes: []metav1.StatusCause{
++				{
++					Type:    metav1.CauseTypeFieldValueInvalid,
++					Field:   "metadata.resourceVersion",
++					Message: "outdated version",
++				},
++			},
++		},
++	}, apiStatus.Status())
++}
++
++func TestStatusErrorFromResponse_GRPCDetailsOverrideTransportStatus(t *testing.T) {
++	grpcStatus, err := status.New(codes.Internal, "transport message").WithDetails(&resourcepb.ErrorResult{
++		Code:    http.StatusTooManyRequests,
++		Reason:  string(metav1.StatusReasonTooManyRequests),
++		Message: "search is busy",
++		Details: &resourcepb.ErrorDetails{RetryAfterSeconds: 12},
++	})
++	require.NoError(t, err)
++	transportError := fmt.Errorf("handler: %w", fmt.Errorf("search: %w", grpcStatus.Err()))
++
++	err = StatusErrorFromResponse(nil, transportError)
++
++	var apiStatus apierrors.APIStatus
++	require.ErrorAs(t, err, &apiStatus)
++	require.Equal(t, metav1.Status{
++		Status:  metav1.StatusFailure,
++		Code:    http.StatusTooManyRequests,
++		Reason:  metav1.StatusReasonTooManyRequests,
++		Message: "search is busy",
++		Details: &metav1.StatusDetails{RetryAfterSeconds: 12},
++	}, apiStatus.Status())
++}
++
++func TestStatusErrorFromResponse_TransportErrorTakesPrecedenceOverResponseError(t *testing.T) {
++	responseError := &resourcepb.ErrorResult{Code: http.StatusNotFound, Message: "missing dashboard"}
++	transportError := status.Error(codes.Unavailable, "storage unavailable")
++
++	err := StatusErrorFromResponse(responseError, transportError)
++
++	var apiStatus apierrors.APIStatus
++	require.ErrorAs(t, err, &apiStatus)
++	require.Equal(t, int32(http.StatusServiceUnavailable), apiStatus.Status().Code)
++	require.Contains(t, apiStatus.Status().Message, "storage unavailable")
++}
++
++func TestStatusErrorFromResponse_UnwrapsKubernetesStatusErrors(t *testing.T) {
++	want := metav1.Status{
++		Status:  metav1.StatusFailure,
++		Code:    http.StatusNotFound,
++		Reason:  metav1.StatusReasonNotFound,
++		Message: "dashboard not found",
++	}
++	wrappedError := fmt.Errorf("search: %w", &apierrors.StatusError{ErrStatus: want})
++
++	err := StatusErrorFromResponse(nil, wrappedError)
++
++	var apiStatus apierrors.APIStatus
++	require.ErrorAs(t, err, &apiStatus)
++	require.Equal(t, want, apiStatus.Status())
++}
++
++func TestStatusErrorFromResponse_MapsGRPCCodesWithoutDetails(t *testing.T) {
++	tests := []struct {
++		grpcCode codes.Code
++		httpCode int32
++	}{
++		{grpcCode: codes.NotFound, httpCode: http.StatusNotFound},
++		{grpcCode: codes.Aborted, httpCode: http.StatusConflict},
++		{grpcCode: codes.ResourceExhausted, httpCode: http.StatusTooManyRequests},
++		{grpcCode: codes.Unavailable, httpCode: http.StatusServiceUnavailable},
++		{grpcCode: codes.Canceled, httpCode: 499},
++		{grpcCode: codes.DeadlineExceeded, httpCode: http.StatusGatewayTimeout},
++	}
++	for _, tc := range tests {
++		t.Run(tc.grpcCode.String(), func(t *testing.T) {
++			transportError := status.Error(tc.grpcCode, "request failed")
++
++			err := StatusErrorFromResponse(nil, transportError)
++
++			var apiStatus apierrors.APIStatus
++			require.ErrorAs(t, err, &apiStatus)
++			require.Equal(t, tc.httpCode, apiStatus.Status().Code)
++		})
++	}
++}
++
++func TestStatusErrorFromResponse_MapsContextErrors(t *testing.T) {
++	tests := []struct {
++		name     string
++		err      error
++		httpCode int32
++	}{
++		{
++			name:     "canceled",
++			err:      context.Canceled,
++			httpCode: 499,
++		},
++		{
++			name:     "wrapped cancellation",
++			err:      fmt.Errorf("search: %w", context.Canceled),
++			httpCode: 499,
++		},
++		{
++			name:     "deadline exceeded",
++			err:      context.DeadlineExceeded,
++			httpCode: http.StatusGatewayTimeout,
++		},
++		{
++			name:     "wrapped deadline",
++			err:      fmt.Errorf("search: %w", context.DeadlineExceeded),
++			httpCode: http.StatusGatewayTimeout,
++		},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			err := StatusErrorFromResponse(nil, tc.err)
++
++			var apiStatus apierrors.APIStatus
++			require.ErrorAs(t, err, &apiStatus)
++			require.Equal(t, tc.httpCode, apiStatus.Status().Code)
++		})
++	}
++}
++
++func TestStatusErrorFromResponse_UnknownErrorBecomesInternalServerError(t *testing.T) {
++	err := StatusErrorFromResponse(nil, errors.New("unexpected failure"))
++
++	var apiStatus apierrors.APIStatus
++	require.ErrorAs(t, err, &apiStatus)
++	require.Equal(t, int32(http.StatusInternalServerError), apiStatus.Status().Code)
++	require.Equal(t, "unexpected failure", apiStatus.Status().Message)
++}
+diff --git a/pkg/util/errhttp/writer.go b/pkg/util/errhttp/writer.go
+index ea607df89..d727b8712 100644
+--- a/pkg/util/errhttp/writer.go
++++ b/pkg/util/errhttp/writer.go
+@@ -23,16 +23,12 @@ type ErrorOptions struct {
+ 	logger   log.Logger
+ }
+ 
+-// Write writes an error to the provided [http.ResponseWriter] with the
+-// appropriate HTTP status and JSON payload from [errutil.Error].
+-// Write also logs the provided error to either the "request-errors"
+-// logger, or the logger provided as a functional option using
+-// [WithLogger].
+-// When passing errors that are not [errors.As] compatible with
+-// [errutil.Error], [ErrNonGrafanaError] will be used to create a
+-// generic 500 Internal Server Error payload by default, this is
+-// overrideable by providing [WithFallback] for a custom fallback
+-// error.
++// Write writes the HTTP status and public JSON payload from an [errutil.Error],
++// or the Kubernetes status from an [apierrors.APIStatus]. Both may be wrapped.
++// Errors that match neither type use [ErrNonGrafanaError] to produce a generic
++// 500 response, unless a custom fallback is provided with [WithFallback].
++// Grafana errors, including fallbacks, are logged using the default logger or
++// the logger supplied with [WithLogger].
+ func Write(ctx context.Context, err error, w http.ResponseWriter, opts ...func(ErrorOptions) ErrorOptions) int {
+ 	opt := ErrorOptions{}
+ 	for _, o := range opts {
+@@ -41,10 +37,9 @@ func Write(ctx context.Context, err error, w http.ResponseWriter, opts ...func(E
+ 
+ 	var gErr errutil.Error
+ 	if !errors.As(err, &gErr) {
+-		// Write k8s response if this is a k8s error
+-		k8s, ok := err.(apierrors.APIStatus)
+-		if ok {
+-			status := k8s.Status()
++		var apiStatus apierrors.APIStatus
++		if errors.As(err, &apiStatus) {
++			status := apiStatus.Status()
+ 			w.Header().Add("Content-Type", "application/json")
+ 			w.WriteHeader(int(status.Code))
+ 			_ = json.NewEncoder(w).Encode(status)
+@@ -77,8 +72,8 @@ func Write(ctx context.Context, err error, w http.ResponseWriter, opts ...func(E
+ 	return pub.StatusCode
+ }
+ 
+-// WithFallback sets the default error returned to the user if the error
+-// sent to [Write] is not an [errutil.Error].
++// WithFallback sets the error returned when [Write] cannot find an
++// [errutil.Error] or [apierrors.APIStatus] in the error chain.
+ func WithFallback(opt ErrorOptions, fallback errutil.Error) ErrorOptions {
+ 	opt.fallback = &fallback
+ 	return opt
+diff --git a/pkg/util/errhttp/writer_test.go b/pkg/util/errhttp/writer_test.go
+index 71d6547dd..52bb67604 100644
+--- a/pkg/util/errhttp/writer_test.go
++++ b/pkg/util/errhttp/writer_test.go
+@@ -2,11 +2,16 @@ package errhttp
+ 
+ import (
+ 	"context"
++	"encoding/json"
++	"fmt"
+ 	"net/http"
+ 	"net/http/httptest"
+ 	"testing"
+ 
+ 	"github.com/stretchr/testify/assert"
++	"github.com/stretchr/testify/require"
++	apierrors "k8s.io/apimachinery/pkg/api/errors"
++	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+ 	"k8s.io/apiserver/pkg/endpoints/request"
+ 
+ 	"github.com/grafana/grafana/pkg/apimachinery/errutil"
+@@ -35,6 +40,55 @@ func TestWrite(t *testing.T) {
+ 	  }`, recorder.Body.String())
+ }
+ 
++func TestWriteAPIStatus(t *testing.T) {
++	want := metav1.Status{
++		Status:  metav1.StatusFailure,
++		Code:    http.StatusTooManyRequests,
++		Reason:  metav1.StatusReasonTooManyRequests,
++		Message: "search is busy",
++		Details: &metav1.StatusDetails{
++			Name:              "dashboard",
++			Group:             "dashboard.grafana.app",
++			Kind:              "dashboards",
++			UID:               "uid",
++			RetryAfterSeconds: 12,
++		},
++	}
++	statusErr := &apierrors.StatusError{ErrStatus: want}
++	tests := []struct {
++		name string
++		err  error
++	}{
++		{
++			name: "direct",
++			err:  statusErr,
++		},
++		{
++			name: "wrapped",
++			err:  fmt.Errorf("search: %w", statusErr),
++		},
++		{
++			name: "multiply wrapped",
++			err:  fmt.Errorf("handler: %w", fmt.Errorf("search: %w", statusErr)),
++		},
++	}
++	for _, tc := range tests {
++		t.Run(tc.name, func(t *testing.T) {
++			recorder := httptest.NewRecorder()
++
++			code := Write(context.Background(), tc.err, recorder)
++
++			require.Equal(t, http.StatusTooManyRequests, code)
++			require.Equal(t, code, recorder.Code)
++			require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
++
++			var got metav1.Status
++			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &got))
++			require.Equal(t, want, got)
++		})
++	}
++}
++
+ func doError(t *testing.T, ctx context.Context) (*httptest.ResponseRecorder, int) {
+ 	t.Helper()
+ 

@@ -1,0 +1,539 @@
+diff --git a/public/app/features/alerting/unified/api/alertingFolderActionsApi.ts b/public/app/features/alerting/unified/api/alertingFolderActionsApi.ts
+index 677eaa2ed..b42b05a07 100644
+--- a/public/app/features/alerting/unified/api/alertingFolderActionsApi.ts
++++ b/public/app/features/alerting/unified/api/alertingFolderActionsApi.ts
+@@ -1,17 +1,23 @@
+-import { t } from '@grafana/i18n';
+-
+ import { type WithNotificationOptions, alertingApi } from './alertingApi';
+ import { GRAFANA_RULER_CONFIG } from './featureDiscoveryApi';
+ import { rulerUrlBuilder } from './ruler';
+ 
++export type FolderPauseActionResponse = {
++  message: string;
++  updated?: number;
++  skipped?: number;
++};
++
++export type FolderDeleteActionResponse = {
++  message: string;
++  deleted?: number;
++  skipped?: number;
++};
++
+ export const alertingFolderActionsApi = alertingApi.injectEndpoints({
+   endpoints: (build) => ({
+-    pauseFolder: build.mutation<void, WithNotificationOptions<{ namespace: string }>>({
++    pauseFolder: build.mutation<FolderPauseActionResponse, WithNotificationOptions<{ namespace: string }>>({
+       query: ({ namespace, notificationOptions }) => {
+-        const successMessage = t(
+-          'alerting.bulk-actions.pause.success',
+-          'Rules evaluation successfully paused for folder'
+-        );
+         const { path, params } = rulerUrlBuilder(GRAFANA_RULER_CONFIG).namespace(namespace);
+ 
+         return {
+@@ -22,18 +28,17 @@ export const alertingFolderActionsApi = alertingApi.injectEndpoints({
+           },
+           method: 'PATCH',
+           notificationOptions: {
+-            successMessage,
+             ...notificationOptions,
++            // The caller builds and shows its own toast from the response's `updated`/`skipped` counts, so
++            // suppress backendSrv's default auto-toast (which would otherwise show the raw `message` field).
++            // Applied last so a caller-supplied `showSuccessAlert` can never override the suppression.
++            showSuccessAlert: false,
+           },
+         };
+       },
+     }),
+-    unpauseFolder: build.mutation<void, WithNotificationOptions<{ namespace: string }>>({
++    unpauseFolder: build.mutation<FolderPauseActionResponse, WithNotificationOptions<{ namespace: string }>>({
+       query: ({ namespace, notificationOptions }) => {
+-        const successMessage = t(
+-          'alerting.bulk-actions.unpause.success',
+-          'Rules successfully unpaused for this folder'
+-        );
+         const { path, params } = rulerUrlBuilder(GRAFANA_RULER_CONFIG).namespace(namespace);
+ 
+         return {
+@@ -44,15 +49,17 @@ export const alertingFolderActionsApi = alertingApi.injectEndpoints({
+           },
+           method: 'PATCH',
+           notificationOptions: {
+-            successMessage,
+             ...notificationOptions,
++            showSuccessAlert: false,
+           },
+         };
+       },
+     }),
+-    deleteGrafanaRulesFromFolder: build.mutation<void, WithNotificationOptions<{ namespace: string }>>({
++    deleteGrafanaRulesFromFolder: build.mutation<
++      FolderDeleteActionResponse,
++      WithNotificationOptions<{ namespace: string }>
++    >({
+       query: ({ namespace, notificationOptions }) => {
+-        const successMessage = t('alerting.bulk-actions.delete.success', 'Rules successfully deleted from folder');
+         const { path, params } = rulerUrlBuilder(GRAFANA_RULER_CONFIG).namespace(namespace);
+ 
+         return {
+@@ -60,8 +67,8 @@ export const alertingFolderActionsApi = alertingApi.injectEndpoints({
+           params,
+           method: 'DELETE',
+           notificationOptions: {
+-            successMessage,
+             ...notificationOptions,
++            showSuccessAlert: false,
+           },
+         };
+       },
+diff --git a/public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.test.tsx b/public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.test.tsx
+new file mode 100644
+index 000000000..3139519cb
+--- /dev/null
++++ b/public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.test.tsx
+@@ -0,0 +1,168 @@
++import { render, screen, testWithFeatureToggles, waitFor } from 'test/test-utils';
++
++import { AppEvents } from '@grafana/data';
++import { selectors } from '@grafana/e2e-selectors';
++import { appEvents } from 'app/core/app_events';
++import { type FolderDTO } from 'app/types/folders';
++
++import { alertingFolderActionsApi } from '../../api/alertingFolderActionsApi';
++import { useFolderBulkActionAbility } from '../../hooks/abilities/otherAbilities';
++import { useGlobalRuleAbility } from '../../hooks/abilities/rules/ruleAbilities';
++import { Granted, NotSupported } from '../../hooks/abilities/types';
++import { useFolder } from '../../hooks/useFolder';
++import { getFolderActionResultMessage } from '../../utils/folderActionMessages';
++
++import { FolderActionsButton } from './FolderActionsButton';
++
++jest.mock('../../hooks/useFolder');
++jest.mock('../../hooks/abilities/otherAbilities');
++jest.mock('../../hooks/abilities/rules/ruleAbilities');
++
++// The redirect-after-action thunks perform real API calls; the toast wiring under test happens
++// before the redirect, so these are stubbed out to no-ops rather than exercised here.
++jest.mock('../../state/actions', () => ({
++  fetchAllPromAndRulerRulesAction: jest.fn(() => () => Promise.resolve()),
++  fetchAllPromRulesAction: jest.fn(() => () => Promise.resolve()),
++  fetchRulerRulesAction: jest.fn(() => () => Promise.resolve()),
++}));
++
++jest.mock('../../api/alertingFolderActionsApi', () => {
++  const actual = jest.requireActual('../../api/alertingFolderActionsApi');
++  return {
++    ...actual,
++    alertingFolderActionsApi: {
++      ...actual.alertingFolderActionsApi,
++      endpoints: {
++        ...actual.alertingFolderActionsApi.endpoints,
++        pauseFolder: { ...actual.alertingFolderActionsApi.endpoints.pauseFolder, useMutation: jest.fn() },
++        unpauseFolder: { ...actual.alertingFolderActionsApi.endpoints.unpauseFolder, useMutation: jest.fn() },
++        deleteGrafanaRulesFromFolder: {
++          ...actual.alertingFolderActionsApi.endpoints.deleteGrafanaRulesFromFolder,
++          useMutation: jest.fn(),
++        },
++      },
++    },
++  };
++});
++
++testWithFeatureToggles({ enable: ['alertingBulkActionsInUI'] });
++
++const mockFolder: FolderDTO = {
++  canAdmin: true,
++  canDelete: true,
++  canEdit: true,
++  canSave: true,
++  created: '',
++  createdBy: '',
++  hasAcl: false,
++  id: 1,
++  title: 'My folder',
++  uid: 'folder-1',
++  updated: '',
++  updatedBy: '',
++  url: '',
++};
++
++function mockMutationHook<T extends () => unknown>(hook: T, trigger: jest.Mock) {
++  jest.mocked(hook).mockReturnValue([trigger, { isLoading: false }] as unknown as ReturnType<T>);
++}
++
++// Mirrors the shape of the object returned by an RTK Query mutation trigger, i.e. `pauseFolder(args)`.
++function resolveTriggerWith(trigger: jest.Mock, result: unknown) {
++  trigger.mockReturnValue({ unwrap: () => Promise.resolve(result) });
++}
++
++async function openMenu() {
++  const { user } = render(<FolderActionsButton folderUID="folder-1" />);
++  await user.click(await screen.findByRole('button', { name: /folder actions/i }));
++  await waitFor(() => {
++    expect(screen.getByRole('menu')).toBeInTheDocument();
++  });
++  return user;
++}
++
++describe('FolderActionsButton', () => {
++  let pauseTrigger: jest.Mock;
++  let unpauseTrigger: jest.Mock;
++  let deleteTrigger: jest.Mock;
++
++  beforeEach(() => {
++    jest.clearAllMocks();
++
++    jest.mocked(useFolder).mockReturnValue({ folder: mockFolder, loading: false });
++    jest.mocked(useFolderBulkActionAbility).mockReturnValue(Granted);
++    jest.mocked(useGlobalRuleAbility).mockReturnValue(NotSupported);
++
++    pauseTrigger = jest.fn();
++    unpauseTrigger = jest.fn();
++    deleteTrigger = jest.fn();
++
++    mockMutationHook(alertingFolderActionsApi.endpoints.pauseFolder.useMutation, pauseTrigger);
++    mockMutationHook(alertingFolderActionsApi.endpoints.unpauseFolder.useMutation, unpauseTrigger);
++    mockMutationHook(alertingFolderActionsApi.endpoints.deleteGrafanaRulesFromFolder.useMutation, deleteTrigger);
++  });
++
++  it('shows exactly one success toast built from the pause response counts', async () => {
++    resolveTriggerWith(pauseTrigger, { message: 'ok', updated: 3, skipped: 2 });
++    const emitSpy = jest.spyOn(appEvents, 'emit');
++
++    const user = await openMenu();
++    await user.click(await screen.findByRole('menuitem', { name: /pause all rules/i }));
++
++    await waitFor(() => {
++      expect(pauseTrigger).toHaveBeenCalledTimes(1);
++    });
++    expect(emitSpy).toHaveBeenCalledTimes(1);
++    expect(emitSpy).toHaveBeenCalledWith(AppEvents.alertSuccess, [
++      getFolderActionResultMessage('pause', { affected: 3, skipped: 2 }),
++    ]);
++  });
++
++  it('falls back to the count-less message when the backend response has no counts (rolling deploy compatibility)', async () => {
++    resolveTriggerWith(pauseTrigger, { message: 'rules updated successfully' });
++    const emitSpy = jest.spyOn(appEvents, 'emit');
++
++    const user = await openMenu();
++    await user.click(await screen.findByRole('menuitem', { name: /pause all rules/i }));
++
++    await waitFor(() => {
++      expect(pauseTrigger).toHaveBeenCalledTimes(1);
++    });
++    expect(emitSpy).toHaveBeenCalledTimes(1);
++    expect(emitSpy).toHaveBeenCalledWith(AppEvents.alertSuccess, [getFolderActionResultMessage('pause')]);
++  });
++
++  it('shows exactly one success toast built from the resume response counts', async () => {
++    resolveTriggerWith(unpauseTrigger, { message: 'ok', updated: 4, skipped: 1 });
++    const emitSpy = jest.spyOn(appEvents, 'emit');
++
++    const user = await openMenu();
++    await user.click(await screen.findByRole('menuitem', { name: /resume all rules/i }));
++
++    await waitFor(() => {
++      expect(unpauseTrigger).toHaveBeenCalledTimes(1);
++    });
++    expect(emitSpy).toHaveBeenCalledTimes(1);
++    expect(emitSpy).toHaveBeenCalledWith(AppEvents.alertSuccess, [
++      getFolderActionResultMessage('resume', { affected: 4, skipped: 1 }),
++    ]);
++  });
++
++  it('shows exactly one success toast built from the delete response counts', async () => {
++    resolveTriggerWith(deleteTrigger, { message: 'ok', deleted: 5, skipped: 0 });
++    const emitSpy = jest.spyOn(appEvents, 'emit');
++
++    const user = await openMenu();
++    await user.click(await screen.findByRole('menuitem', { name: /delete all rules/i }));
++    await user.type(await screen.findByTestId(selectors.pages.ConfirmModal.input), 'Delete');
++    await user.click(screen.getByTestId(selectors.pages.ConfirmModal.delete));
++
++    await waitFor(() => {
++      expect(deleteTrigger).toHaveBeenCalledTimes(1);
++    });
++    expect(emitSpy).toHaveBeenCalledTimes(1);
++    expect(emitSpy).toHaveBeenCalledWith(AppEvents.alertSuccess, [
++      getFolderActionResultMessage('delete', { affected: 5, skipped: 0 }),
++    ]);
++  });
++});
+diff --git a/public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.tsx b/public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.tsx
+index 6b6f9dba5..1663d2a1a 100644
+--- a/public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.tsx
++++ b/public/app/features/alerting/unified/components/folder-actions/FolderActionsButton.tsx
+@@ -1,8 +1,10 @@
+ import { useState } from 'react';
+ 
++import { AppEvents } from '@grafana/data';
+ import { t } from '@grafana/i18n';
+ import { config, locationService } from '@grafana/runtime';
+ import { Dropdown, Menu } from '@grafana/ui';
++import { appEvents } from 'app/core/app_events';
+ import { useDispatch } from 'app/types/store';
+ 
+ import { alertingFolderActionsApi } from '../../api/alertingFolderActionsApi';
+@@ -13,6 +15,7 @@ import { FolderBulkAction, RuleAction } from '../../hooks/abilities/types';
+ import { useFolder } from '../../hooks/useFolder';
+ import { fetchAllPromAndRulerRulesAction, fetchAllPromRulesAction, fetchRulerRulesAction } from '../../state/actions';
+ import { GRAFANA_RULES_SOURCE_NAME } from '../../utils/datasource';
++import { getFolderActionResultMessage } from '../../utils/folderActionMessages';
+ import { createRelativeUrl } from '../../utils/url';
+ import MoreButton from '../MoreButton';
+ import { GrafanaRuleFolderExporter } from '../export/GrafanaRuleFolderExporter';
+@@ -49,7 +52,9 @@ export const FolderActionsButton = ({ folderUID }: Props) => {
+   }
+ 
+   const onConfirmDelete = async () => {
+-    await deleteGrafanaRulesFromFolder({ namespace: folderUID }).unwrap();
++    const result = await deleteGrafanaRulesFromFolder({ namespace: folderUID }).unwrap();
++    const message = getFolderActionResultMessage('delete', { affected: result.deleted, skipped: result.skipped });
++    appEvents.emit(AppEvents.alertSuccess, [message]);
+     await redirectToListView();
+   };
+ 
+@@ -157,7 +162,12 @@ function BulkActions({
+             folderUID={folderUID}
+             action="pause"
+             executeAction={async (folderUID) => {
+-              await pauseFolder({ namespace: folderUID }).unwrap();
++              const result = await pauseFolder({ namespace: folderUID }).unwrap();
++              const message = getFolderActionResultMessage('pause', {
++                affected: result.updated,
++                skipped: result.skipped,
++              });
++              appEvents.emit(AppEvents.alertSuccess, [message]);
+               await redirectToListView();
+             }}
+             isLoading={updateState.isLoading}
+@@ -166,7 +176,12 @@ function BulkActions({
+             folderUID={folderUID}
+             action="unpause"
+             executeAction={async (folderUID) => {
+-              await unpauseFolder({ namespace: folderUID }).unwrap();
++              const result = await unpauseFolder({ namespace: folderUID }).unwrap();
++              const message = getFolderActionResultMessage('resume', {
++                affected: result.updated,
++                skipped: result.skipped,
++              });
++              appEvents.emit(AppEvents.alertSuccess, [message]);
+               await redirectToListView();
+             }}
+             isLoading={unpauseState.isLoading}
+diff --git a/public/app/features/alerting/unified/utils/folderActionMessages.test.ts b/public/app/features/alerting/unified/utils/folderActionMessages.test.ts
+new file mode 100644
+index 000000000..bbee89c42
+--- /dev/null
++++ b/public/app/features/alerting/unified/utils/folderActionMessages.test.ts
+@@ -0,0 +1,93 @@
++import { getFolderActionResultMessage } from './folderActionMessages';
++
++describe('getFolderActionResultMessage', () => {
++  describe('pause', () => {
++    it('reports the affected count when rules were paused and none were skipped', () => {
++      expect(getFolderActionResultMessage('pause', { affected: 10, skipped: 0 })).toBe(
++        'Rules evaluation successfully paused for folder. Paused 10 rules.'
++      );
++    });
++
++    it('reports both the affected and skipped counts when some rules were skipped', () => {
++      expect(getFolderActionResultMessage('pause', { affected: 10, skipped: 10 })).toBe(
++        'Rules evaluation successfully paused for folder. Paused 10 rules. Skipped 10 provisioned rules.'
++      );
++    });
++
++    it('reports a "no rules affected" message combined with the skipped count when everything was skipped', () => {
++      expect(getFolderActionResultMessage('pause', { affected: 0, skipped: 10 })).toBe(
++        'No rules were paused for folder. Skipped 10 provisioned rules.'
++      );
++    });
++
++    it('reports only a "no rules affected" message when nothing was affected or skipped', () => {
++      expect(getFolderActionResultMessage('pause', { affected: 0, skipped: 0 })).toBe(
++        'No rules were paused for folder.'
++      );
++    });
++
++    it('falls back to the count-less message when the backend response has no counts (old backend)', () => {
++      expect(getFolderActionResultMessage('pause')).toBe('Rules evaluation successfully paused for folder.');
++    });
++  });
++
++  describe('resume', () => {
++    it('reports the affected count when rules were resumed and none were skipped', () => {
++      expect(getFolderActionResultMessage('resume', { affected: 10, skipped: 0 })).toBe(
++        'Rules successfully resumed for folder. Resumed 10 rules.'
++      );
++    });
++
++    it('reports both the affected and skipped counts when some rules were skipped', () => {
++      expect(getFolderActionResultMessage('resume', { affected: 10, skipped: 10 })).toBe(
++        'Rules successfully resumed for folder. Resumed 10 rules. Skipped 10 provisioned rules.'
++      );
++    });
++
++    it('reports a "no rules affected" message combined with the skipped count when everything was skipped', () => {
++      expect(getFolderActionResultMessage('resume', { affected: 0, skipped: 10 })).toBe(
++        'No rules were resumed for folder. Skipped 10 provisioned rules.'
++      );
++    });
++
++    it('reports only a "no rules affected" message when nothing was affected or skipped', () => {
++      expect(getFolderActionResultMessage('resume', { affected: 0, skipped: 0 })).toBe(
++        'No rules were resumed for folder.'
++      );
++    });
++
++    it('falls back to the count-less message when the backend response has no counts (old backend)', () => {
++      expect(getFolderActionResultMessage('resume')).toBe('Rules successfully resumed for folder.');
++    });
++  });
++
++  describe('delete', () => {
++    it('reports the affected count when rules were deleted and none were skipped', () => {
++      expect(getFolderActionResultMessage('delete', { affected: 10, skipped: 0 })).toBe(
++        'Rules successfully deleted from folder. Deleted 10 rules.'
++      );
++    });
++
++    it('reports both the affected and skipped counts when some rules were skipped', () => {
++      expect(getFolderActionResultMessage('delete', { affected: 10, skipped: 10 })).toBe(
++        'Rules successfully deleted from folder. Deleted 10 rules. Skipped 10 provisioned rules.'
++      );
++    });
++
++    it('reports a "no rules affected" message combined with the skipped count when everything was skipped', () => {
++      expect(getFolderActionResultMessage('delete', { affected: 0, skipped: 10 })).toBe(
++        'No rules were deleted from folder. Skipped 10 provisioned rules.'
++      );
++    });
++
++    it('reports only a "no rules affected" message when nothing was affected or skipped', () => {
++      expect(getFolderActionResultMessage('delete', { affected: 0, skipped: 0 })).toBe(
++        'No rules were deleted from folder.'
++      );
++    });
++
++    it('falls back to the count-less message when the backend response has no counts (old backend)', () => {
++      expect(getFolderActionResultMessage('delete')).toBe('Rules successfully deleted from folder.');
++    });
++  });
++});
+diff --git a/public/app/features/alerting/unified/utils/folderActionMessages.ts b/public/app/features/alerting/unified/utils/folderActionMessages.ts
+new file mode 100644
+index 000000000..953fb4a7e
+--- /dev/null
++++ b/public/app/features/alerting/unified/utils/folderActionMessages.ts
+@@ -0,0 +1,82 @@
++import { t } from '@grafana/i18n';
++
++export type FolderBulkRuleAction = 'pause' | 'resume' | 'delete';
++
++/**
++ * What a folder-level bulk rule action did.
++ *
++ * `affected` counts the rules the action succeeded on. `skipped` counts the rules it left alone because
++ * they belong to a provisioned rule group — those can't be paused, resumed or deleted this way.
++ *
++ * Both are optional because an older backend may reply with just `{ message }`. The frontend and backend
++ * deploy separately, so a new frontend can briefly be talking to a backend that doesn't send counts yet.
++ * We only have counts to report when the backend sends them.
++ */
++export interface BulkActionResults {
++  affected?: number;
++  skipped?: number;
++}
++
++/**
++ * Builds the toast message shown after a folder-level bulk rule action (pause/resume/delete all rules).
++ *
++ * When the backend didn't send an `affected` count we show the older message that mentions no numbers,
++ * rather than reading the missing count as zero and wrongly claiming nothing happened.
++ */
++export function getFolderActionResultMessage(action: FolderBulkRuleAction, results: BulkActionResults = {}) {
++  const { affected, skipped } = results;
++
++  if (affected === undefined) {
++    switch (action) {
++      case 'pause':
++        return t('alerting.bulk-actions.pause.success', 'Rules evaluation successfully paused for folder') + '.';
++      case 'resume':
++        return t('alerting.bulk-actions.unpause.success', 'Rules successfully resumed for folder') + '.';
++      case 'delete':
++        return t('alerting.bulk-actions.delete.success', 'Rules successfully deleted from folder') + '.';
++    }
++  }
++
++  const sentences: string[] = [];
++
++  switch (action) {
++    case 'pause':
++      sentences.push(
++        affected === 0
++          ? t('alerting.bulk-actions.pause.no-rules-affected', 'No rules were paused for folder')
++          : t('alerting.bulk-actions.pause.success', 'Rules evaluation successfully paused for folder')
++      );
++      if (affected > 0) {
++        sentences.push(t('alerting.bulk-actions.pause.affected-count', 'Paused {{num}} rules', { num: affected }));
++      }
++      break;
++    case 'resume':
++      sentences.push(
++        affected === 0
++          ? t('alerting.bulk-actions.unpause.no-rules-affected', 'No rules were resumed for folder')
++          : t('alerting.bulk-actions.unpause.success', 'Rules successfully resumed for folder')
++      );
++      if (affected > 0) {
++        sentences.push(t('alerting.bulk-actions.unpause.affected-count', 'Resumed {{num}} rules', { num: affected }));
++      }
++      break;
++    case 'delete':
++      sentences.push(
++        affected === 0
++          ? t('alerting.bulk-actions.delete.no-rules-affected', 'No rules were deleted from folder')
++          : t('alerting.bulk-actions.delete.success', 'Rules successfully deleted from folder')
++      );
++      if (affected > 0) {
++        sentences.push(t('alerting.bulk-actions.delete.affected-count', 'Deleted {{num}} rules', { num: affected }));
++      }
++      break;
++  }
++
++  if (skipped) {
++    sentences.push(
++      t('alerting.bulk-actions.skipped-provisioned', 'Skipped {{num}} provisioned rules', { num: skipped })
++    );
++  }
++
++  return sentences.map((sentence) => `${sentence}.`).join(' ');
++}
+diff --git a/public/locales/en-US/grafana.json b/public/locales/en-US/grafana.json
+index 1ce13692d..a8220cf33 100644
+--- a/public/locales/en-US/grafana.json
++++ b/public/locales/en-US/grafana.json
+@@ -745,13 +745,20 @@
+     },
+     "bulk-actions": {
+       "delete": {
++        "affected-count": "Deleted {{num}} rules",
++        "no-rules-affected": "No rules were deleted from folder",
+         "success": "Rules successfully deleted from folder"
+       },
+       "pause": {
++        "affected-count": "Paused {{num}} rules",
++        "no-rules-affected": "No rules were paused for folder",
+         "success": "Rules evaluation successfully paused for folder"
+       },
++      "skipped-provisioned": "Skipped {{num}} provisioned rules",
+       "unpause": {
+-        "success": "Rules successfully unpaused for this folder"
++        "affected-count": "Resumed {{num}} rules",
++        "no-rules-affected": "No rules were resumed for folder",
++        "success": "Rules successfully resumed for folder"
+       }
+     },
+     "central-alert-history": {

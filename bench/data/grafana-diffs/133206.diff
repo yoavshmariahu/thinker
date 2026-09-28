@@ -1,0 +1,255 @@
+diff --git a/pkg/router/AGENTS.md b/pkg/router/AGENTS.md
+index 2b45cc08e..cebccdcb9 100644
+--- a/pkg/router/AGENTS.md
++++ b/pkg/router/AGENTS.md
+@@ -168,12 +168,17 @@ trusted.
+ 
+ Aggregate targets do not go through `transportFor` (they have no `RouteBackend` spec and so no TLS
+ settings to key on), but they follow the same intent: `newAggregateBaseTransport` clones
+-`http.DefaultTransport` **once per target** and hands it to `rest.Config.Transport`, so each target
+-owns its connection pool instead of sharing the process-global default's (`MaxIdleConnsPerHost` 2,
+-shared with every other `DefaultTransport` user in the process). That matters because the same client
+-carries both the target's discovery poll and all user traffic proxied to it. `rest.Config.Transport`
+-is the base round tripper and `WrapTransport` layers on top of it (`rest.TransportFor` →
+-`transport.New` → `HTTPWrappersForConfig`), so the CAP-token exchange wrapper still applies.
++`http.DefaultTransport` **once per target** so each target owns its connection pool instead of
++sharing the process-global default's (`MaxIdleConnsPerHost` 2, shared with every other
++`DefaultTransport` user in the process).
++
++**Two separate transports per target.** `ProvideCloudRoutesLoaderFactory` builds two
++`newAggregateBaseTransport` clones: one becomes `rest.Config.Transport`, wrapped via
++`WrapTransport`/`aggregateTokenWrapper` into the CAP-token-exchanging `httpClient` used only for the
++router's own discovery poll (`discoverGroups`, learning which groups the target serves). The other,
++plain and unwrapped, is `proxyTransport`, passed to `newAggregateTarget` and from there into every
++`aggregateBackend.proxy.Transport` (`aggregate_poller.go`'s `poll`) — it forwards the caller's own
++credentials transparently, same contract as `forwardBackend`'s `transportFor` transport.
+ 
+ ## Path model
+ 
+diff --git a/pkg/router/aggregate_poller.go b/pkg/router/aggregate_poller.go
+index a59e4ce69..ec8832c13 100644
+--- a/pkg/router/aggregate_poller.go
++++ b/pkg/router/aggregate_poller.go
+@@ -44,6 +44,14 @@ type aggregateTarget struct {
+ 	client   *http.Client
+ 	patterns []*regexp.Regexp
+ 
++	// proxyTransport carries real caller traffic proxied to this target's
++	// discovered groups. It is deliberately separate from client's transport:
++	// client is CAP-token-wrapped for the router's own discovery poll, but a
++	// proxied resource request must forward the caller's own credentials
++	// transparently -- same as forwardBackend -- not get re-signed with the
++	// router's m2m identity.
++	proxyTransport http.RoundTripper
++
+ 	// cooldown is the only thing that paces run(): its steady interval is the
+ 	// healthy re-poll cadence and its backoff is the post-failure retry
+ 	// schedule. Written and read solely from run()'s goroutine.
+@@ -53,7 +61,7 @@ type aggregateTarget struct {
+ 	lastKeys atomic.Pointer[map[string]struct{}]
+ }
+ 
+-func newAggregateTarget(cfg aggregateTargetConfig, client *http.Client) (*aggregateTarget, error) {
++func newAggregateTarget(cfg aggregateTargetConfig, client *http.Client, proxyTransport http.RoundTripper) (*aggregateTarget, error) {
+ 	base, err := url.Parse(cfg.URL)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("router: parsing %s url %q: %w", cfg.Name, cfg.URL, err)
+@@ -78,11 +86,12 @@ func newAggregateTarget(cfg aggregateTargetConfig, client *http.Client) (*aggreg
+ 		return nil, err
+ 	}
+ 	t := &aggregateTarget{
+-		name:     cfg.Name,
+-		base:     base,
+-		client:   client,
+-		patterns: patterns,
+-		cooldown: newCooldown(defaultAggregatePollInterval, defaultAggregateMinBackoff, defaultAggregateMaxBackoff),
++		name:           cfg.Name,
++		base:           base,
++		client:         client,
++		proxyTransport: proxyTransport,
++		patterns:       patterns,
++		cooldown:       newCooldown(defaultAggregatePollInterval, defaultAggregateMinBackoff, defaultAggregateMaxBackoff),
+ 	}
+ 	empty := []Backend{}
+ 	t.snapshot.Store(&empty)
+@@ -150,7 +159,7 @@ func (t *aggregateTarget) poll(ctx context.Context, dirty chan<- struct{}) {
+ 		if !matchesAnyPattern(group.Name, t.patterns) {
+ 			continue
+ 		}
+-		backend, err := newAggregateBackend(t.name, group, t.base, t.client.Transport)
++		backend, err := newAggregateBackend(t.name, group, t.base, t.proxyTransport)
+ 		if err != nil {
+ 			slog.Warn("router: skipping unfingerprintable discovered group", "target", t.name, "group", group.Name, "err", err)
+ 			continue
+diff --git a/pkg/router/aggregate_poller_test.go b/pkg/router/aggregate_poller_test.go
+index a37f41b19..19abb3c32 100644
+--- a/pkg/router/aggregate_poller_test.go
++++ b/pkg/router/aggregate_poller_test.go
+@@ -27,7 +27,7 @@ func TestAggregateTarget_DiscoversAndFiltersGroups(t *testing.T) {
+ 		Name:          "baas_apiserver",
+ 		URL:           srv.URL,
+ 		GroupPatterns: []string{"*.grafana.app"},
+-	}, srv.Client())
++	}, srv.Client(), srv.Client().Transport)
+ 	require.NoError(t, err)
+ 
+ 	ctx, cancel := context.WithCancel(t.Context())
+@@ -66,7 +66,7 @@ func TestAggregateTarget_CooldownLimitsRequestsWhileDown(t *testing.T) {
+ 	target, err := newAggregateTarget(aggregateTargetConfig{
+ 		Name: "baas_apiserver",
+ 		URL:  srv.URL,
+-	}, srv.Client())
++	}, srv.Client(), srv.Client().Transport)
+ 	require.NoError(t, err)
+ 	target.cooldown = newCooldown(10*time.Millisecond, 200*time.Millisecond, time.Second)
+ 
+@@ -111,7 +111,7 @@ func TestAggregateTarget_BackoffLadderDrivesRetries(t *testing.T) {
+ 	target, err := newAggregateTarget(aggregateTargetConfig{
+ 		Name: "baas_apiserver",
+ 		URL:  srv.URL,
+-	}, srv.Client())
++	}, srv.Client(), srv.Client().Transport)
+ 	require.NoError(t, err)
+ 	target.cooldown = newCooldown(time.Second, 10*time.Millisecond, 40*time.Millisecond)
+ 
+@@ -145,7 +145,7 @@ func TestAggregateTarget_SignalsDirtyOnlyOnKeySetChange(t *testing.T) {
+ 		Name:          "baas_apiserver",
+ 		URL:           srv.URL,
+ 		GroupPatterns: []string{"*.grafana.app"},
+-	}, srv.Client())
++	}, srv.Client(), srv.Client().Transport)
+ 	require.NoError(t, err)
+ 
+ 	ctx := t.Context()
+@@ -172,6 +172,52 @@ func TestAggregateTarget_SignalsDirtyOnlyOnKeySetChange(t *testing.T) {
+ 	}
+ }
+ 
++// taggedTransport is a distinguishable http.RoundTripper wrapper -- tests use
++// pointer identity on two instances to prove which transport a code path
++// actually used, while both still delegate to a real RoundTripper so requests
++// keep working.
++type taggedTransport struct {
++	http.RoundTripper
++}
++
++// TestAggregateTarget_PollUsesDedicatedProxyTransportNotDiscoveryClient pins
++// the fix for aggregate targets signing real proxied resource requests with
++// the router's own CAP-token-derived credentials: the discovery client's
++// transport (CAP-token-wrapped, used only for the router's own /apis poll)
++// must never end up as the aggregateBackend's proxy transport (which carries
++// real caller traffic and must forward the caller's own credentials
++// transparently, same as forwardBackend).
++func TestAggregateTarget_PollUsesDedicatedProxyTransportNotDiscoveryClient(t *testing.T) {
++	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		list := metav1.APIGroupList{Groups: []metav1.APIGroup{
++			{Name: "dashboard.grafana.app"},
++		}}
++		_ = json.NewEncoder(w).Encode(list)
++	}))
++	defer srv.Close()
++
++	discoveryTransport := &taggedTransport{http.DefaultTransport}
++	proxyTransport := &taggedTransport{http.DefaultTransport}
++	discoveryClient := &http.Client{Transport: discoveryTransport}
++
++	target, err := newAggregateTarget(aggregateTargetConfig{
++		Name: "baas_apiserver",
++		URL:  srv.URL,
++	}, discoveryClient, proxyTransport)
++	require.NoError(t, err)
++
++	target.poll(t.Context(), make(chan struct{}, 1))
++
++	backends := target.Backends()
++	require.Len(t, backends, 1)
++	ab, ok := backends[0].(*aggregateBackend)
++	require.True(t, ok)
++	require.Same(t, proxyTransport, ab.proxy.Transport,
++		"aggregateBackend must proxy real requests through the dedicated proxy transport, not the discovery client's")
++	require.NotSame(t, discoveryTransport, ab.proxy.Transport,
++		"aggregateBackend must not proxy real requests through the CAP-token-wrapped discovery transport")
++}
++
+ // TestNewAggregateTarget_RejectsNonAbsoluteURL pins the construction-time URL
+ // check: url.Parse accepts all of these, so without the explicit scheme/host
+ // rejection a misconfigured target would be built and its breakage would show
+@@ -182,7 +228,7 @@ func TestNewAggregateTarget_RejectsNonAbsoluteURL(t *testing.T) {
+ 			_, err := newAggregateTarget(aggregateTargetConfig{
+ 				Name: "baas_apiserver",
+ 				URL:  badURL,
+-			}, http.DefaultClient)
++			}, http.DefaultClient, http.DefaultTransport)
+ 			require.ErrorContains(t, err, "must be absolute")
+ 		})
+ 	}
+@@ -192,7 +238,7 @@ func TestNewAggregateTarget_NormalizesTrailingSlash(t *testing.T) {
+ 	target, err := newAggregateTarget(aggregateTargetConfig{
+ 		Name: "baas_apiserver",
+ 		URL:  "https://baas.example.invalid/",
+-	}, http.DefaultClient)
++	}, http.DefaultClient, http.DefaultTransport)
+ 	require.NoError(t, err)
+ 	require.Equal(t, "https://baas.example.invalid", target.base.String())
+ }
+diff --git a/pkg/router/aggregate_router_test.go b/pkg/router/aggregate_router_test.go
+index 33d9b6566..87f0b573a 100644
+--- a/pkg/router/aggregate_router_test.go
++++ b/pkg/router/aggregate_router_test.go
+@@ -62,7 +62,7 @@ func TestGrafanaRouter_AggregatedGroupIsServedAndFiltered(t *testing.T) {
+ 		Name:          "baas_apiserver",
+ 		URL:           upstream.URL,
+ 		GroupPatterns: []string{"*.grafana.app"},
+-	}, upstream.Client())
++	}, upstream.Client(), upstream.Client().Transport)
+ 	require.NoError(t, err)
+ 	// The cooldown is the poll loop's only pacing source, so shortening it is
+ 	// what makes this test fast.
+diff --git a/pkg/router/cloud_router.go b/pkg/router/cloud_router.go
+index ba1f6d210..461b6a2d0 100644
+--- a/pkg/router/cloud_router.go
++++ b/pkg/router/cloud_router.go
+@@ -122,18 +122,26 @@ func ProvideCloudRoutesLoaderFactory(cfg *setting.Cfg, deps PluginDependencies)
+ 		if err != nil {
+ 			return nil, fmt.Errorf("%s: %s: %w", cloudRouterSection, targetCfg.Name, err)
+ 		}
++		// proxyTransport carries real caller traffic proxied to this target's
++		// discovered groups (handed straight to aggregateBackend's
++		// ReverseProxy by newAggregateTarget/poll) -- it must forward the
++		// caller's own credentials transparently, same as the forward path's
++		// transportFor, so it is deliberately plain: no WrapTransport, no
++		// CAP-token exchange. The CAP token is for the router's own identity
++		// when it polls this target's /apis for discovery, not for requests
++		// made on a caller's behalf.
++		proxyTransport := newAggregateBaseTransport(tlsCfg)
+ 		restCfg := &rest.Config{
+ 			Host: targetCfg.URL,
+ 			// A fresh clone per target, not the process-global
+ 			// http.DefaultTransport that client-go's transport cache would
+-			// otherwise wrap: this one client carries both the discovery poll
+-			// and every user request proxied to this target (newAggregateTarget
+-			// hands client.Transport to aggregateBackend's ReverseProxy), so it
+-			// must own its connection pool. Same intent as transportFor's
+-			// per-tlsCacheKey clone on the forward path. rest.Config.Transport
+-			// is the base RoundTripper and WrapTransport layers on top of it
+-			// (rest.TransportFor -> transport.New -> HTTPWrappersForConfig), so
+-			// the CAP-token exchange below still applies.
++			// otherwise wrap: this client is used only for the router's own
++			// discovery poll, so it must own its connection pool. Same intent
++			// as transportFor's per-tlsCacheKey clone on the forward path.
++			// rest.Config.Transport is the base RoundTripper and
++			// WrapTransport layers on top of it (rest.TransportFor ->
++			// transport.New -> HTTPWrappersForConfig), so the CAP-token
++			// exchange below still applies -- to this discovery client only.
+ 			//
+ 			// TLS is set directly on this transport (not via
+ 			// rest.Config.TLSClientConfig) because client-go's transport.New
+@@ -147,7 +155,7 @@ func ProvideCloudRoutesLoaderFactory(cfg *setting.Cfg, deps PluginDependencies)
+ 		if err != nil {
+ 			return nil, fmt.Errorf("%s: building http client for %s: %w", cloudRouterSection, targetCfg.Name, err)
+ 		}
+-		target, err := newAggregateTarget(targetCfg, httpClient)
++		target, err := newAggregateTarget(targetCfg, httpClient, proxyTransport)
+ 		if err != nil {
+ 			return nil, fmt.Errorf("%s: %s: %w", cloudRouterSection, targetCfg.Name, err)
+ 		}

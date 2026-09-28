@@ -1,0 +1,490 @@
+diff --git a/public/app/features/provisioning/Repository/DeleteRepositoryButton.test.tsx b/public/app/features/provisioning/Repository/DeleteRepositoryButton.test.tsx
+new file mode 100644
+index 000000000..4351506c6
+--- /dev/null
++++ b/public/app/features/provisioning/Repository/DeleteRepositoryButton.test.tsx
+@@ -0,0 +1,134 @@
++import { HttpResponse, http } from 'msw';
++import { act, render, screen, waitFor } from 'test/test-utils';
++
++import { reportInteraction } from '@grafana/runtime';
++import { PROVISIONING_API_BASE as BASE } from '@grafana/test-utils/handlers';
++import server from '@grafana/test-utils/server';
++import { type Repository } from 'app/api/clients/provisioning/v0alpha1';
++import { appEvents } from 'app/core/app_events';
++import { ShowConfirmModalEvent } from 'app/types/events';
++
++import { setupProvisioningMswServer } from '../mocks/server';
++
++import { DeleteRepositoryButton } from './DeleteRepositoryButton';
++
++jest.mock('@grafana/runtime', () => ({
++  ...jest.requireActual('@grafana/runtime'),
++  reportInteraction: jest.fn(),
++}));
++
++setupProvisioningMswServer();
++
++const createMockRepository = (): Repository => ({
++  metadata: {
++    name: 'test-repo',
++    generation: 1,
++    // The default finalizer set the backend seeds on a repository.
++    finalizers: ['remove-orphan-resources', 'remove-pending-jobs', 'cleanup'],
++  },
++  spec: {
++    title: 'Test Repository',
++    type: 'github',
++    sync: { target: 'folder', enabled: true },
++    workflows: [],
++    github: { url: 'https://github.com/owner/repo', branch: 'main' },
++  },
++  status: {
++    health: { healthy: true, checked: 1 },
++    sync: { state: 'success', message: [] },
++    observedGeneration: 1,
++    webhook: {},
++  },
++});
++
++// Records the delete/replace requests the component makes so tests can assert
++// the finalizer set that was PUT and that the repository was actually deleted.
++// The component always awaits the (optional) replace before the delete, so once
++// a delete is observed any replace that was going to happen already has.
++let captured: { replaceFinalizers?: string[]; deletedName?: string };
++
++beforeEach(() => {
++  jest.clearAllMocks();
++  captured = {};
++  server.use(
++    http.put(`${BASE}/repositories/:name`, async ({ request }) => {
++      const body = (await request.json()) as Repository;
++      captured.replaceFinalizers = body.metadata?.finalizers;
++      return HttpResponse.json(body);
++    }),
++    http.delete(`${BASE}/repositories/:name`, ({ params }) => {
++      captured.deletedName = params.name as string;
++      return HttpResponse.json({});
++    })
++  );
++});
++
++// Opens the dropdown and clicks the named menu item, returning the confirm
++// event that was published so the caller can inspect its text and fire onConfirm.
++async function openMenuAndConfirm(repository: Repository, menuItem: RegExp) {
++  const publishSpy = jest.spyOn(appEvents, 'publish');
++  const { user } = render(<DeleteRepositoryButton name="test-repo" repository={repository} />);
++
++  await user.click(screen.getByRole('button', { name: /delete/i }));
++  await user.click(screen.getByRole('menuitem', { name: menuItem }));
++
++  expect(publishSpy).toHaveBeenCalledWith(expect.any(ShowConfirmModalEvent));
++  return publishSpy.mock.calls[0][0] as ShowConfirmModalEvent;
++}
++
++// Fires the modal's confirm handler, which triggers the real delete/replace
++// mutations. Wrapped in act because those resolve asynchronously and flip the
++// component's loading state.
++async function confirmDelete(event: ShowConfirmModalEvent) {
++  await act(async () => {
++    await event.payload.onConfirm?.();
++  });
++}
++
++describe('DeleteRepositoryButton', () => {
++  it('deletes a repository without editing its finalizers', async () => {
++    const event = await openMenuAndConfirm(createMockRepository(), /remove resources/i);
++
++    await confirmDelete(event);
++
++    await waitFor(() => expect(captured.deletedName).toBe('test-repo'));
++    // remove-resources needs no metadata edit, so no replace request.
++    expect(captured.replaceFinalizers).toBeUndefined();
++    expect(reportInteraction).toHaveBeenCalledWith(
++      'grafana_provisioning_repository_deleted',
++      expect.objectContaining({ deleteAction: 'remove-resources', forceDelete: false })
++    );
++  });
++
++  it('swaps to the release-orphan finalizer for a keep-resources delete', async () => {
++    const event = await openMenuAndConfirm(createMockRepository(), /keep resources/i);
++
++    await confirmDelete(event);
++
++    await waitFor(() => expect(captured.deletedName).toBe('test-repo'));
++    // keep-resources keeps cleanup (webhook still removed) but releases resources.
++    expect(captured.replaceFinalizers).toEqual(['cleanup', 'release-orphan-resources']);
++    expect(reportInteraction).toHaveBeenCalledWith(
++      'grafana_provisioning_repository_deleted',
++      expect.objectContaining({ deleteAction: 'keep-resources', forceDelete: false })
++    );
++  });
++
++  it('does not delete when the keep-resources finalizer update fails', async () => {
++    let replaceAttempted = false;
++    server.use(
++      http.put(`${BASE}/repositories/:name`, () => {
++        replaceAttempted = true;
++        return new HttpResponse(null, { status: 500 });
++      })
++    );
++
++    // keep-resources issues the finalizer PUT first. If that PUT fails we must
++    // abort rather than delete with the wrong finalizer set.
++    const event = await openMenuAndConfirm(createMockRepository(), /keep resources/i);
++    await confirmDelete(event);
++
++    await waitFor(() => expect(replaceAttempted).toBe(true));
++    expect(captured.deletedName).toBeUndefined();
++  });
++});
+diff --git a/public/app/features/provisioning/Repository/DeleteRepositoryButton.tsx b/public/app/features/provisioning/Repository/DeleteRepositoryButton.tsx
+index 3a4a8eb24..4f463ee43 100644
+--- a/public/app/features/provisioning/Repository/DeleteRepositoryButton.tsx
++++ b/public/app/features/provisioning/Repository/DeleteRepositoryButton.tsx
+@@ -12,6 +12,11 @@ import {
+ import { appEvents } from 'app/core/app_events';
+ import { ShowConfirmModalEvent } from 'app/types/events';
+ 
++// The cleanup finalizer removes the provider-side webhook on delete. keep-resources
++// keeps it (the webhook is still removed) but swaps the resource finalizer so
++// resources are released instead of removed.
++const CLEANUP_FINALIZER = 'cleanup';
++
+ type DeleteAction = 'remove-resources' | 'keep-resources';
+ 
+ interface Props {
+@@ -27,21 +32,36 @@ export function DeleteRepositoryButton({ name, repository, redirectTo }: Props)
+ 
+   const performDelete = useCallback(
+     async (deleteAction: DeleteAction) => {
+-      if (deleteAction === 'keep-resources' && repository) {
+-        const updatedRepository = {
+-          ...repository,
+-          metadata: {
+-            ...repository.metadata,
+-            finalizers: ['cleanup', 'release-orphan-resources'],
+-          },
+-        };
+-        await replaceRepository({ name, repository: updatedRepository });
++      const keepResources = deleteAction === 'keep-resources';
++
++      // keep-resources swaps remove-orphan for release-orphan; remove-resources
++      // leaves the repository's finalizers as they are. If a delete then wedges
++      // (e.g. dead credentials block webhook cleanup) the backend surfaces it as
++      // status.deleteError and the Overview banner offers "Delete anyway".
++      let finalizers: string[] | undefined;
++      if (keepResources) {
++        finalizers = [CLEANUP_FINALIZER, 'release-orphan-resources'];
++      }
++
++      if (finalizers && repository) {
++        try {
++          // unwrap so a rejected PUT throws: RTK Query triggers resolve to an
++          // action even on error. If we don't stop here, deletion proceeds with
++          // the wrong finalizer set.
++          await replaceRepository({
++            name,
++            repository: { ...repository, metadata: { ...repository.metadata, finalizers } },
++          }).unwrap();
++        } catch {
++          return;
++        }
+       }
+ 
+       reportInteraction('grafana_provisioning_repository_deleted', {
+         repositoryName: name,
+         repositoryType: repository?.spec?.type ?? 'unknown',
+         deleteAction,
++        forceDelete: false,
+         target: repository?.spec?.sync?.target ?? 'unknown',
+         workflows: repository?.spec?.workflows ?? [],
+       });
+diff --git a/public/app/features/provisioning/Repository/RepositoryOverview.tsx b/public/app/features/provisioning/Repository/RepositoryOverview.tsx
+index 84e242991..0ed03c825 100644
+--- a/public/app/features/provisioning/Repository/RepositoryOverview.tsx
++++ b/public/app/features/provisioning/Repository/RepositoryOverview.tsx
+@@ -30,6 +30,7 @@ import { formatTimestamp } from '../utils/time';
+ 
+ import { RepositoryHealthCard } from './RepositoryHealthCard';
+ import { RepositoryPullStatusCard } from './RepositoryPullStatusCard';
++import { RepositoryStatusAlert } from './RepositoryStatusAlert';
+ 
+ type StatCell<T extends keyof ResourceCount = keyof ResourceCount> = CellProps<ResourceCount, ResourceCount[T]>;
+ 
+@@ -99,6 +100,7 @@ export function RepositoryOverview({ repo }: { repo: Repository }) {
+   return (
+     <Box padding={2}>
+       <Stack direction="column" gap={2}>
++        <RepositoryStatusAlert repository={repo} />
+         {showFolderMetadataCheck && hasMissingFolderMetadata(conditions) && (
+           <MissingFolderMetadataBanner repositoryName={repoName} variant="repo" />
+         )}
+diff --git a/public/app/features/provisioning/Repository/RepositoryStatusAlert.test.tsx b/public/app/features/provisioning/Repository/RepositoryStatusAlert.test.tsx
+new file mode 100644
+index 000000000..c3c4892df
+--- /dev/null
++++ b/public/app/features/provisioning/Repository/RepositoryStatusAlert.test.tsx
+@@ -0,0 +1,118 @@
++import { HttpResponse, http } from 'msw';
++import { act, render, screen } from 'test/test-utils';
++
++import { PROVISIONING_API_BASE as BASE } from '@grafana/test-utils/handlers';
++import server from '@grafana/test-utils/server';
++import { type Repository } from 'app/api/clients/provisioning/v0alpha1';
++import { appEvents } from 'app/core/app_events';
++import { ShowConfirmModalEvent } from 'app/types/events';
++
++import { setupProvisioningMswServer } from '../mocks/server';
++
++import { RepositoryStatusAlert } from './RepositoryStatusAlert';
++
++setupProvisioningMswServer();
++
++const repository = {
++  metadata: {
++    name: 'test-repo',
++    finalizers: ['remove-orphan-resources', 'remove-pending-jobs', 'cleanup'],
++  },
++  spec: {
++    title: 'Test repository',
++    type: 'github',
++    sync: { target: 'folder', enabled: true },
++    workflows: [],
++  },
++  status: {
++    health: { healthy: true },
++    sync: { state: 'success', message: [] },
++    observedGeneration: 1,
++    webhook: {},
++  },
++} as Repository;
++
++describe('RepositoryStatusAlert', () => {
++  it('does not render for a healthy repository', () => {
++    const { container } = render(<RepositoryStatusAlert repository={repository} />);
++
++    expect(container).toBeEmptyDOMElement();
++  });
++
++  it('shows field error details without a force-delete button', () => {
++    const detail = 'The repository returned 404 Not Found';
++    render(
++      <RepositoryStatusAlert
++        repository={{
++          ...repository,
++          status: {
++            ...repository.status!,
++            health: { healthy: false, error: 'health', message: [detail] },
++            fieldErrors: [{ type: 'FieldValueInvalid', field: 'secure.token', detail }],
++          },
++        }}
++      />
++    );
++
++    expect(screen.getByText('Repository error')).toBeInTheDocument();
++    expect(screen.getByText(detail)).toBeInTheDocument();
++    // A field/validation error is not a wedged deletion, so no escape hatch.
++    expect(screen.queryByRole('button', { name: /delete anyway/i })).not.toBeInTheDocument();
++  });
++
++  it('shows the deletion error and a force-delete button for a blocked deletion', () => {
++    const message = 'The cleanup step could not remove the provider webhook.';
++    render(
++      <RepositoryStatusAlert
++        repository={{
++          ...repository,
++          metadata: { ...repository.metadata, deletionTimestamp: '2026-09-11T00:00:00Z' },
++          status: { ...repository.status!, deletion: { state: 'Blocked', finalizer: 'cleanup', message } },
++        }}
++      />
++    );
++
++    expect(screen.getByRole('alert')).toBeInTheDocument();
++    expect(screen.getByText('Repository deletion error')).toBeInTheDocument();
++    expect(screen.getByText(message)).toBeInTheDocument();
++    expect(screen.getByRole('button', { name: /delete anyway/i })).toBeInTheDocument();
++  });
++
++  it('force-removes exactly the blocking finalizer the backend named', async () => {
++    let replaceFinalizers: string[] | undefined;
++    server.use(
++      http.put(`${BASE}/repositories/:name`, async ({ request }) => {
++        const body = (await request.json()) as Repository;
++        replaceFinalizers = body.metadata?.finalizers;
++        return HttpResponse.json(body);
++      })
++    );
++
++    const publishSpy = jest.spyOn(appEvents, 'publish');
++    const { user } = render(
++      <RepositoryStatusAlert
++        repository={{
++          ...repository,
++          metadata: { ...repository.metadata, deletionTimestamp: '2026-09-11T00:00:00Z' },
++          status: {
++            ...repository.status!,
++            deletion: { state: 'Blocked', finalizer: 'cleanup', message: 'blocked' },
++          },
++        }}
++      />
++    );
++
++    await user.click(screen.getByRole('button', { name: /delete anyway/i }));
++
++    expect(publishSpy).toHaveBeenCalledWith(expect.any(ShowConfirmModalEvent));
++    const event = publishSpy.mock.calls.at(-1)![0] as ShowConfirmModalEvent;
++
++    await act(async () => {
++      await event.payload.onConfirm?.();
++    });
++
++    // Only the named finalizer is dropped; the rest stay so the in-progress
++    // deletion still releases/removes resources.
++    expect(replaceFinalizers).toEqual(['remove-orphan-resources', 'remove-pending-jobs']);
++  });
++});
+diff --git a/public/app/features/provisioning/Repository/RepositoryStatusAlert.tsx b/public/app/features/provisioning/Repository/RepositoryStatusAlert.tsx
+new file mode 100644
+index 000000000..148d9e7b7
+--- /dev/null
++++ b/public/app/features/provisioning/Repository/RepositoryStatusAlert.tsx
+@@ -0,0 +1,105 @@
++import { css } from '@emotion/css';
++import { useCallback } from 'react';
++import { useNavigate } from 'react-router-dom-v5-compat';
++
++import { t, Trans } from '@grafana/i18n';
++import { reportInteraction } from '@grafana/runtime';
++import { Alert, Button, Stack } from '@grafana/ui';
++import { type Repository, useReplaceRepositoryMutation } from 'app/api/clients/provisioning/v0alpha1';
++import { appEvents } from 'app/core/app_events';
++import { ShowConfirmModalEvent } from 'app/types/events';
++
++import { PROVISIONING_URL } from '../constants';
++
++const preserveNewlines = css({ whiteSpace: 'pre-line' });
++
++export function RepositoryStatusAlert({ repository }: { repository: Repository }) {
++  const [replaceRepository, replaceRequest] = useReplaceRepositoryMutation();
++  const navigate = useNavigate();
++
++  const deletion = repository.status?.deletion;
++  // status.deletion is the structured signal; deleteError is the deprecated
++  // free-text kept for older backends. Prefer the structured message.
++  const deletionMessage = deletion?.message ?? repository.status?.deleteError;
++  // The backend names exactly which finalizer is blocking deletion; force-remove
++  // that one rather than guessing (e.g. cleanup for a webhook that can't be removed).
++  const blockingFinalizer = deletion?.finalizer;
++
++  const errors = [
++    ...(deletionMessage ? [deletionMessage] : []),
++    ...(repository.status?.fieldErrors?.flatMap((error) => (error.detail ? [error.detail] : [])) ?? []),
++  ];
++
++  const forceDelete = useCallback(() => {
++    const name = repository.metadata?.name;
++    if (!name || !blockingFinalizer) {
++      return;
++    }
++
++    const finalizers = (repository.metadata?.finalizers ?? []).filter((finalizer) => finalizer !== blockingFinalizer);
++
++    appEvents.publish(
++      new ShowConfirmModalEvent({
++        title: t('provisioning.repository-status-alert.force-delete-title', 'Delete repository anyway'),
++        text: t(
++          'provisioning.repository-status-alert.force-delete-warning',
++          'This removes the repository without completing the blocking step, so anything it manages on the provider side (for example a webhook) is left in place. Only do this if the repository can no longer be reached — for example its credentials have expired or been revoked.'
++        ),
++        yesText: t('provisioning.repository-status-alert.force-delete-confirm', 'Delete anyway'),
++        noText: t('provisioning.repository-status-alert.force-delete-cancel', 'Cancel'),
++        yesButtonVariant: 'destructive',
++        onConfirm: async () => {
++          reportInteraction('grafana_provisioning_repository_deleted', {
++            repositoryName: name,
++            repositoryType: repository.spec?.type ?? 'unknown',
++            forceDelete: true,
++            finalizer: blockingFinalizer,
++            target: repository.spec?.sync?.target ?? 'unknown',
++            workflows: repository.spec?.workflows ?? [],
++          });
++
++          try {
++            await replaceRepository({
++              name,
++              repository: { ...repository, metadata: { ...repository.metadata, finalizers } },
++            }).unwrap();
++          } catch {
++            return;
++          }
++
++          navigate(PROVISIONING_URL);
++        },
++      })
++    );
++  }, [replaceRepository, repository, blockingFinalizer, navigate]);
++
++  if (!errors.length) {
++    return null;
++  }
++
++  return (
++    <Alert
++      severity="error"
++      title={
++        deletionMessage
++          ? t('provisioning.repository-status-alert.deletion-title', 'Repository deletion error')
++          : t('provisioning.repository-status-alert.error-title', 'Repository error')
++      }
++    >
++      <Stack direction="column" gap={1}>
++        {errors.map((error, index) => (
++          <div className={preserveNewlines} key={index}>
++            {error}
++          </div>
++        ))}
++        {blockingFinalizer && (
++          <div>
++            <Button variant="destructive" size="sm" onClick={forceDelete} disabled={replaceRequest.isLoading}>
++              <Trans i18nKey="provisioning.repository-status-alert.force-delete-button">Delete anyway</Trans>
++            </Button>
++          </div>
++        )}
++      </Stack>
++    </Alert>
++  );
++}
+diff --git a/public/app/features/provisioning/Repository/RepositoryStatusPage.tsx b/public/app/features/provisioning/Repository/RepositoryStatusPage.tsx
+index 95329bdfe..8c8faaa59 100644
+--- a/public/app/features/provisioning/Repository/RepositoryStatusPage.tsx
++++ b/public/app/features/provisioning/Repository/RepositoryStatusPage.tsx
+@@ -105,7 +105,7 @@ export default function RepositoryStatusPage() {
+                   ))}
+                 </TabsBar>
+                 <TabContent>
+-                  {data?.metadata?.deletionTimestamp && (
++                  {data.metadata?.deletionTimestamp && !data.status?.deletion && !data.status?.deleteError && (
+                     <Alert
+                       title={t('provisioning.repository-status-page.title-queued-for-deletion', 'Queued for deletion')}
+                       severity="warning"
+diff --git a/public/locales/en-US/grafana.json b/public/locales/en-US/grafana.json
+index 89c184a31..82a0bda61 100644
+--- a/public/locales/en-US/grafana.json
++++ b/public/locales/en-US/grafana.json
+@@ -14845,6 +14845,15 @@
+     "repository-status": {
+       "error": "Failed to load repository"
+     },
++    "repository-status-alert": {
++      "deletion-title": "Repository deletion error",
++      "error-title": "Repository error",
++      "force-delete-button": "Delete anyway",
++      "force-delete-cancel": "Cancel",
++      "force-delete-confirm": "Delete anyway",
++      "force-delete-title": "Delete repository anyway",
++      "force-delete-warning": "This removes the repository without completing the blocking step, so anything it manages on the provider side (for example a webhook) is left in place. Only do this if the repository can no longer be reached — for example its credentials have expired or been revoked."
++    },
+     "repository-status-page": {
+       "back-to-repositories": "Back to repositories",
+       "cleaning-up-resources": "Cleaning up repository resources",

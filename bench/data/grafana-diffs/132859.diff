@@ -1,0 +1,332 @@
+diff --git a/public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.test.tsx b/public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.test.tsx
+index bbf157ba3..836d8421b 100644
+--- a/public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.test.tsx
++++ b/public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.test.tsx
+@@ -195,7 +195,7 @@ describe('NotebookLayoutManager', () => {
+     expect(screen.getByText('hidden-panel')).toBeInTheDocument();
+   });
+ 
+-  describe('add cell affordances', () => {
++  describe('add cell controls', () => {
+     it('does not offer them outside edit mode', () => {
+       renderNotebook();
+ 
+@@ -269,7 +269,7 @@ describe('NotebookLayoutManager', () => {
+   });
+ 
+   // The "always one more empty block ready" invariant: unlike the old dedicated prompt component,
+-  // there is no separate affordance any more — the trailing cell in `cells` itself is always an empty,
++  // there is no separate prompt any more. The trailing cell in `cells` itself is always an empty,
+   // placeholder-showing markdown editor, and offers the same "/" menu any empty markdown cell does
+   // (see NotebookCellRenderer/NotebookLayoutManager's own setCellContent doc comment).
+   describe('the trailing empty cell', () => {
+@@ -420,7 +420,7 @@ describe('NotebookLayoutManager', () => {
+       expect(screen.getAllByRole('button', { name: 'Delete block' })).toHaveLength(3);
+     });
+ 
+-    // Inside the frame, so the existing hover rule reveals them with the rest of the cell's affordances
++    // Inside the frame, so the existing hover rule reveals them with the rest of the cell's controls
+     // rather than needing a second mechanism.
+     it('places them inside the frame of their own cell', async () => {
+       renderNotebook(true);
+@@ -648,7 +648,7 @@ describe('NotebookLayoutManager', () => {
+       expect(sibling.state.elementName).toBe('shared');
+     });
+ 
+-    // The trailing-invariant bootstrap is the only affordance an empty notebook has, so this is the
++    // The trailing-invariant bootstrap is the only control an empty notebook has, so this is the
+     // sole path to a first cell.
+     it('gives an empty notebook its first cell', async () => {
+       const { manager, user } = renderManager(buildManager([], true));
+@@ -792,7 +792,7 @@ describe('NotebookLayoutManager', () => {
+     });
+ 
+     // The handle is a tab stop, which is what gives keyboard users the reorder for free — and the
+-    // reason the frame reveals affordances on :focus-within as well as :hover.
++    // reason the frame reveals controls on :focus-within as well as :hover.
+     it('keeps the handle focusable', () => {
+       const { container } = renderNotebook(true);
+ 
+@@ -1635,7 +1635,7 @@ describe('NotebookLayoutManager', () => {
+       expect(frame).toHaveFocus();
+     });
+ 
+-    // The rest of every other affordance on this frame (drag handle, actions bar, the add-block
++    // The rest of every other control on this frame (drag handle, actions bar, the add-block
+     // button) is edit-mode-only too — arrow-key navigation follows the same rule rather than being
+     // a special case, which is also why the frame is not even a tab stop outside edit mode.
+     it('does not respond to arrow keys outside edit mode', () => {
+diff --git a/public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.tsx b/public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.tsx
+index ac7594ac6..5e4515756 100644
+--- a/public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.tsx
++++ b/public/app/features/notebook/scene/layout-notebook/NotebookLayoutManager.tsx
+@@ -41,6 +41,11 @@ import { NotebookDocumentHeader } from './NotebookDocumentHeader';
+ import { type NotebookBlockType } from './edit/NotebookBlockTypeMenu';
+ import { getCellDropIndicator, NotebookCellFrame, type NotebookDragState } from './edit/NotebookCellFrame';
+ import { NotebookFooterAddCell } from './edit/NotebookFooterAddCell';
++import {
++  NOTEBOOK_CELL_CONTROLS_CLASS,
++  NOTEBOOK_CELL_CONTROLS_PINNED_CLASS,
++  NOTEBOOK_CELL_FRAME_CLASS,
++} from './edit/cellClassNames';
+ import { isEmptyMarkdown } from './isEmptyMarkdown';
+ import { setQueryRunnerQueries } from './setQueryRunnerQueries';
+ 
+@@ -577,7 +582,7 @@ export class NotebookLayoutManager
+   }
+ 
+   /**
+-   * Inserts a new cell at `index`, the position the add-block affordance was offering.
++   * Inserts a new cell at `index`, the position the add-block button was offering.
+    *
+    * Visualization stays inert rather than inserting a cell with no content kind behind it, which the
+    * renderer would draw as a blank gap — the menu's "Coming soon" submenu is the only thing it offers.
+@@ -947,7 +952,7 @@ function NotebookLayoutManagerRenderer({ model }: SceneComponentProps<NotebookLa
+                       requestFocus(created?.state.key, caretOffset);
+                     }}
+                     onFocusRequest={() => requestFocus(cell.state.key)}
+-                    // Undefined outside edit mode, same as every other affordance here — a read-only
++                    // Undefined outside edit mode, same as every other cell control here. A read-only
+                     // Code cell still mounts a (readOnly) CodeMirror instance, so without this its own
+                     // ArrowUp/Down keymap would happily fire while just reading the notebook.
+                     onNavigate={isEditing ? (direction) => onNavigate(index, direction) : undefined}
+@@ -1061,5 +1066,14 @@ const getStyles = (theme: GrafanaTheme2) => ({
+   }),
+   listEditing: css({
+     gap: 0,
++    // Without this, the cell you type in and the cell under the pointer both show their controls. So
++    // the pointer wins: this hides the controls on every cell the pointer is not over. Whatever holds
++    // focus stays visible, because a tab stop at opacity 0 is a focus trap. A control that pinned
++    // itself stays too, which is how a control with an open menu keeps the menu anchored.
++    [`&:has(.${NOTEBOOK_CELL_FRAME_CLASS}:hover) .${NOTEBOOK_CELL_FRAME_CLASS}:not(:hover) > .${NOTEBOOK_CELL_CONTROLS_CLASS}:not(:focus-within):not(.${NOTEBOOK_CELL_CONTROLS_PINNED_CLASS})`]:
++      {
++        opacity: 0,
++        pointerEvents: 'none',
++      },
+   }),
+ });
+diff --git a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellActions.tsx b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellActions.tsx
+index ce40d57dd..fbe236d45 100644
+--- a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellActions.tsx
++++ b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellActions.tsx
+@@ -7,12 +7,12 @@ import { IconButton, useStyles2 } from '@grafana/ui';
+ interface Props {
+   onDuplicate: () => void;
+   onDelete: () => void;
+-  /** The frame's hover class, so these reveal with the rest of the cell's affordances. */
++  /** The frame's hover class, so these reveal with the rest of the cell's controls. */
+   className?: string;
+ }
+ 
+ /**
+- * The per-cell actions, revealed with the rest of a cell's affordances on hover: a small elevated bar
++ * The per-cell actions, revealed with the rest of a cell's controls on hover: a small elevated bar
+  * above the cell carrying duplicate and delete.
+  */
+ export function NotebookCellActions({ onDuplicate, onDelete, className }: Props) {
+diff --git a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.test.tsx b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.test.tsx
+index 82f627e2f..9819209fc 100644
+--- a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.test.tsx
++++ b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.test.tsx
+@@ -1,6 +1,7 @@
+ import { render, screen } from 'test/test-utils';
+ 
+ import { NotebookCellAddButton } from './NotebookCellAddButton';
++import { NOTEBOOK_CELL_CONTROLS_PINNED_CLASS } from './cellClassNames';
+ 
+ describe('NotebookCellAddButton', () => {
+   it('renders an accessible add-block trigger', () => {
+@@ -35,5 +36,8 @@ describe('NotebookCellAddButton', () => {
+     await user.click(addButton);
+ 
+     expect(getComputedStyle(wrapper!).opacity).toBe('1');
++    // The cell list hides the controls on every cell the pointer is not over. This class is how the
++    // trigger opts out of that rule for as long as its menu is open.
++    expect(wrapper).toHaveClass(NOTEBOOK_CELL_CONTROLS_PINNED_CLASS);
+   });
+ });
+diff --git a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.tsx b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.tsx
+index 84382dbce..ff1893f07 100644
+--- a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.tsx
++++ b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellAddButton.tsx
+@@ -6,6 +6,7 @@ import { t } from '@grafana/i18n';
+ import { Dropdown, IconButton, useStyles2 } from '@grafana/ui';
+ 
+ import { NotebookBlockTypeMenu, type NotebookBlockType } from './NotebookBlockTypeMenu';
++import { NOTEBOOK_CELL_CONTROLS_PINNED_CLASS } from './cellClassNames';
+ 
+ interface Props {
+   /** This cell's own position; the button always inserts directly below it, at index + 1. */
+@@ -15,7 +16,7 @@ interface Props {
+ }
+ 
+ /**
+- * The per-cell "add block" affordance, shown next to the drag handle in edit mode: inserts a new
++ * The per-cell "add block" button, shown next to the drag handle in edit mode: inserts a new
+  * block directly below this cell.
+  */
+ export function NotebookCellAddButton({ index, onAdd, className }: Props) {
+@@ -23,7 +24,9 @@ export function NotebookCellAddButton({ index, onAdd, className }: Props) {
+   const [isMenuOpen, setIsMenuOpen] = useState(false);
+ 
+   return (
+-    <div className={cx(styles.wrapper, className, isMenuOpen && styles.revealed)}>
++    <div
++      className={cx(styles.wrapper, className, isMenuOpen && [styles.revealed, NOTEBOOK_CELL_CONTROLS_PINNED_CLASS])}
++    >
+       <Dropdown
+         overlay={<NotebookBlockTypeMenu onPick={(type) => onAdd?.(type, index + 1)} />}
+         placement="bottom-start"
+diff --git a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.test.tsx b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.test.tsx
+index 69d9f38a2..f39e5eb3a 100644
+--- a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.test.tsx
++++ b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.test.tsx
+@@ -80,7 +80,7 @@ describe('NotebookCellFrame', () => {
+     expect(await screen.findByText('Hello notebook')).toBeInTheDocument();
+   });
+ 
+-  it('renders no affordances outside edit mode', () => {
++  it('renders no cell controls outside edit mode', () => {
+     renderFrame();
+ 
+     expect(screen.queryByRole('button', { name: 'Drag to reorder' })).not.toBeInTheDocument();
+diff --git a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx
+index 8935a4d63..63ff4839a 100644
+--- a/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx
++++ b/public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx
+@@ -14,13 +14,7 @@ import { resolveScrollAlign } from '../cells/focusExtension';
+ import { type NotebookBlockType } from './NotebookBlockTypeMenu';
+ import { NotebookCellActions } from './NotebookCellActions';
+ import { NotebookCellAddButton } from './NotebookCellAddButton';
+-
+-/**
+- * Stable class name the frame's hover rule targets. Emotion class names are generated, so revealing a
+- * child's style from a parent needs a hand-written class plus a descendant selector — the same
+- * convention as `dashboard-canvas-controls` in the dashboard layouts.
+- */
+-const NOTEBOOK_CELL_AFFORDANCES_CLASS = 'notebook-cell-affordances';
++import { NOTEBOOK_CELL_CONTROLS_CLASS, NOTEBOOK_CELL_FRAME_CLASS } from './cellClassNames';
+ 
+ const NOTEBOOK_CELL_CONTENT_CLASS = 'notebook-cell-content';
+ 
+@@ -93,9 +87,9 @@ interface Props {
+ }
+ 
+ /**
+- * One notebook cell plus its edit-mode affordances: a drag handle and an add-cell button in the left
++ * One notebook cell plus its edit-mode controls: a drag handle and an add-cell button in the left
+  * gutter, both revealed by hovering (or focusing into) the cell. The cell renderer itself stays a pure
+- * content dispatcher — everything editing-related lives here.
++ * content dispatcher, so everything about editing lives here.
+  */
+ export function NotebookCellFrame({
+   cell,
+@@ -190,11 +184,12 @@ export function NotebookCellFrame({
+           role={!isEditorCell ? 'group' : undefined}
+           aria-label={!isEditorCell ? frameLabel : undefined}
+           className={cx(
++            NOTEBOOK_CELL_FRAME_CLASS,
+             styles.frame,
+             isEditing && styles.frameEditing,
+             !isEditorCell && styles.frameFocusable,
+             dragSnapshot.isDragging && styles.dragging,
+-            (dragSnapshot.isDragging || isDragActive) && styles.affordancesHidden,
++            (dragSnapshot.isDragging || isDragActive) && styles.controlsHidden,
+             dropIndicator === 'top' && styles.dropLineTop,
+             dropIndicator === 'bottom' && styles.dropLineBottom
+           )}
+@@ -203,7 +198,7 @@ export function NotebookCellFrame({
+             <div
+               {...dragProvided.dragHandleProps}
+               aria-label={dragHandleLabel}
+-              className={cx(styles.handle, NOTEBOOK_CELL_AFFORDANCES_CLASS)}
++              className={cx(styles.handle, NOTEBOOK_CELL_CONTROLS_CLASS)}
+             >
+               {/* Labelled on the handle, not through a Tooltip: Tooltip makes its child a tab stop,
+                   so the icon was a second stop with no name. */}
+@@ -211,9 +206,7 @@ export function NotebookCellFrame({
+             </div>
+           )}
+ 
+-          {isEditing && (
+-            <NotebookCellAddButton index={index} onAdd={onAdd} className={NOTEBOOK_CELL_AFFORDANCES_CLASS} />
+-          )}
++          {isEditing && <NotebookCellAddButton index={index} onAdd={onAdd} className={NOTEBOOK_CELL_CONTROLS_CLASS} />}
+ 
+           {isEditing && onDuplicate && onDelete && (
+             <>
+@@ -226,7 +219,7 @@ export function NotebookCellFrame({
+               <NotebookCellActions
+                 onDuplicate={onDuplicate}
+                 onDelete={onDelete}
+-                className={NOTEBOOK_CELL_AFFORDANCES_CLASS}
++                className={NOTEBOOK_CELL_CONTROLS_CLASS}
+               />
+             </>
+           )}
+@@ -281,7 +274,7 @@ const getStyles = (theme: GrafanaTheme2) => ({
+       paddingLeft: theme.spacing(10),
+       marginLeft: theme.spacing(-10),
+     },
+-    [`&:hover > .${NOTEBOOK_CELL_AFFORDANCES_CLASS}, &:focus-within > .${NOTEBOOK_CELL_AFFORDANCES_CLASS}`]: {
++    [`&:hover > .${NOTEBOOK_CELL_CONTROLS_CLASS}, &:focus-within > .${NOTEBOOK_CELL_CONTROLS_CLASS}`]: {
+       opacity: 1,
+       pointerEvents: 'auto',
+     },
+@@ -342,8 +335,8 @@ const getStyles = (theme: GrafanaTheme2) => ({
+       boxShadow: theme.flags.visualDesignRefresh ? theme.shadows.z2 : theme.shadows.z3,
+     },
+   }),
+-  affordancesHidden: css({
+-    [`& .${NOTEBOOK_CELL_AFFORDANCES_CLASS}`]: {
++  controlsHidden: css({
++    [`& .${NOTEBOOK_CELL_CONTROLS_CLASS}`]: {
+       visibility: 'hidden',
+     },
+   }),
+diff --git a/public/app/features/notebook/scene/layout-notebook/edit/cellClassNames.ts b/public/app/features/notebook/scene/layout-notebook/edit/cellClassNames.ts
+new file mode 100644
+index 000000000..c858c7482
+--- /dev/null
++++ b/public/app/features/notebook/scene/layout-notebook/edit/cellClassNames.ts
+@@ -0,0 +1,15 @@
++/**
++ * Stable class name on a cell control, which a hover rule on the cell frame selects. Emotion
++ * generates its class names, so a parent that reveals the style of a child needs a hand-written
++ * class and a descendant selector. The dashboard layouts do the same with `dashboard-canvas-controls`.
++ */
++export const NOTEBOOK_CELL_CONTROLS_CLASS = 'notebook-cell-controls';
++
++/** Stable class name on the frame itself, so the cell list can see which cell the pointer is over. */
++export const NOTEBOOK_CELL_FRAME_CLASS = 'notebook-cell-frame';
++
++/**
++ * A control that must stay visible while the pointer is on another cell. A control with an open menu
++ * needs this, because the menu renders in a portal and the control is then not `:focus-within`.
++ */
++export const NOTEBOOK_CELL_CONTROLS_PINNED_CLASS = 'notebook-cell-controls-pinned';
+diff --git a/public/app/features/query/components/QueryEditorRowHeader.tsx b/public/app/features/query/components/QueryEditorRowHeader.tsx
+index e3eb6d854..6d3b75d55 100644
+--- a/public/app/features/query/components/QueryEditorRowHeader.tsx
++++ b/public/app/features/query/components/QueryEditorRowHeader.tsx
+@@ -163,6 +163,9 @@ const getStyles = (theme: GrafanaTheme2) => {
+       overflow: 'hidden',
+     }),
+     queryNameWrapper: css({
++      // The name is one or two characters and it is what tells the rows apart, so it keeps its
++      // width. The data source picker beside it shrinks instead.
++      flexShrink: 0,
+       display: 'flex',
+       cursor: 'pointer',
+       border: '1px solid transparent',
+@@ -207,6 +210,10 @@ const getStyles = (theme: GrafanaTheme2) => {
+       margin: '-4px 0',
+     }),
+     collapsedText: css({
++      // The query name, the data source picker and this text share one flex row. A base width of
++      // zero keeps the text from taking width from the other two, so a long query gives up its own
++      // width and ends in an ellipsis.
++      flex: '1 1 0',
+       fontWeight: theme.typography.fontWeightRegular,
+       fontSize: theme.typography.bodySmall.fontSize,
+       color: theme.colors.text.secondary,

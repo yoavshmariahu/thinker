@@ -1,0 +1,338 @@
+diff --git a/pkg/storage/legacysql/dualwrite/selector.go b/pkg/storage/legacysql/dualwrite/selector.go
+new file mode 100644
+index 000000000..f903efdf1
+--- /dev/null
++++ b/pkg/storage/legacysql/dualwrite/selector.go
+@@ -0,0 +1,46 @@
++package dualwrite
++
++import (
++	"context"
++
++	"k8s.io/apimachinery/pkg/runtime/schema"
++)
++
++type readModeReader interface {
++	ReadFromUnified(context.Context, schema.GroupResource) (bool, error)
++}
++
++// Selector lets callers use their own interface for legacy and unified backends,
++// without making legacy implementations depend on unified-storage RPC types.
++type Selector[T any] struct {
++	dual          readModeReader
++	groupResource schema.GroupResource
++	legacy        T
++	unified       T
++}
++
++// NewSelector accepts a dual-write Service or any reader of the resource's read mode.
++// T should describe the caller's operations, not the unified-storage protocol.
++func NewSelector[T any](dual readModeReader, gr schema.GroupResource, legacy, unified T) *Selector[T] {
++	return &Selector[T]{
++		dual:          dual,
++		groupResource: gr,
++		legacy:        legacy,
++		unified:       unified,
++	}
++}
++
++// Resolve checks the mode on every call because migrations can change it at runtime.
++// Call it for each operation rather than retaining the returned backend.
++// A mode lookup error returns the zero value of T, never a fallback backend.
++func (s *Selector[T]) Resolve(ctx context.Context) (T, error) {
++	unified, err := s.dual.ReadFromUnified(ctx, s.groupResource)
++	if err != nil {
++		var zero T
++		return zero, err
++	}
++	if unified {
++		return s.unified, nil
++	}
++	return s.legacy, nil
++}
+diff --git a/pkg/storage/legacysql/dualwrite/selector_test.go b/pkg/storage/legacysql/dualwrite/selector_test.go
+new file mode 100644
+index 000000000..b6b268d67
+--- /dev/null
++++ b/pkg/storage/legacysql/dualwrite/selector_test.go
+@@ -0,0 +1,110 @@
++package dualwrite_test
++
++import (
++	"context"
++	"errors"
++	"testing"
++
++	"github.com/stretchr/testify/require"
++	"k8s.io/apimachinery/pkg/runtime/schema"
++
++	"github.com/grafana/grafana/pkg/storage/legacysql/dualwrite"
++)
++
++type readModeFunc func(context.Context, schema.GroupResource) (bool, error)
++
++func (f readModeFunc) ReadFromUnified(ctx context.Context, gr schema.GroupResource) (bool, error) {
++	return f(ctx, gr)
++}
++
++type titleLookup interface {
++	Title(name string) string
++}
++
++type legacyTitles map[string]string
++
++func (l legacyTitles) Title(name string) string {
++	return l[name]
++}
++
++type unifiedTitles struct {
++	titles map[string]string
++}
++
++func (u *unifiedTitles) Title(name string) string {
++	return u.titles[name]
++}
++
++func TestSelectorResolve(t *testing.T) {
++	ctx := t.Context()
++	gr := schema.GroupResource{Group: "test.grafana.app", Resource: "items"}
++	legacy := legacyTitles{"item": "legacy title"}
++	unified := &unifiedTitles{titles: map[string]string{"item": "unified title"}}
++
++	var readUnified bool
++	var calls int
++	var gotCtx context.Context
++	var gotGR schema.GroupResource
++	reader := readModeFunc(func(ctx context.Context, gr schema.GroupResource) (bool, error) {
++		gotCtx, gotGR = ctx, gr
++		calls++
++		return readUnified, nil
++	})
++	selector := dualwrite.NewSelector[titleLookup](reader, gr, legacy, unified)
++	require.Zero(t, calls, "construction must not resolve the mode")
++
++	for _, tt := range []struct {
++		name    string
++		unified bool
++		want    titleLookup
++	}{
++		{name: "legacy", want: legacy},
++		{name: "switch to unified", unified: true, want: unified},
++		{name: "switch back to legacy", want: legacy},
++	} {
++		t.Run(tt.name, func(t *testing.T) {
++			readUnified = tt.unified
++			before := calls
++
++			backend, err := selector.Resolve(ctx)
++
++			require.NoError(t, err)
++			require.Equal(t, ctx, gotCtx)
++			require.Equal(t, gr, gotGR)
++			require.Equal(t, tt.want, backend)
++			require.Equal(t, tt.want.Title("item"), backend.Title("item"))
++			require.Equal(t, before+1, calls, "each operation must resolve the mode once")
++		})
++	}
++}
++
++func TestSelectorResolveError(t *testing.T) {
++	gr := schema.GroupResource{Group: "test.grafana.app", Resource: "items"}
++	wantErr := errors.New("mode unavailable")
++
++	for _, unified := range []bool{false, true} {
++		reader := readModeFunc(func(context.Context, schema.GroupResource) (bool, error) {
++			return unified, wantErr
++		})
++		selector := dualwrite.NewSelector[titleLookup](reader, gr, legacyTitles{}, &unifiedTitles{})
++
++		backend, err := selector.Resolve(t.Context())
++
++		require.ErrorIs(t, err, wantErr)
++		require.Nil(t, backend, "mode errors must not select either backend")
++	}
++}
++
++func TestSelectorResolveCanceledContext(t *testing.T) {
++	ctx, cancel := context.WithCancel(t.Context())
++	cancel()
++	reader := readModeFunc(func(ctx context.Context, _ schema.GroupResource) (bool, error) {
++		return false, ctx.Err()
++	})
++	selector := dualwrite.NewSelector(reader, schema.GroupResource{}, "legacy", "unified")
++
++	backend, err := selector.Resolve(ctx)
++
++	require.ErrorIs(t, err, context.Canceled)
++	require.Empty(t, backend)
++}
+diff --git a/pkg/storage/unified/AGENTS.md b/pkg/storage/unified/AGENTS.md
+index d43496df4..2e28a97dc 100644
+--- a/pkg/storage/unified/AGENTS.md
++++ b/pkg/storage/unified/AGENTS.md
+@@ -8,6 +8,10 @@ Unified storage/search runs in-process (default), as a standalone storage server
+ - **Server side** (may deploy separately): `resource/`, `sql/`, `search/`, `migrations/`, `parquet/`.
+ - **Contract** (used by both sides): `proto/`, `resourcepb/`.
+ 
++## Backend selection
++
++When selecting between legacy and unified backends, use `dualwrite.NewSelector[T]` with a caller-defined interface and call `Resolve(ctx)` for each operation. Keep unified RPC translation in the unified implementation; legacy backends should not implement `resourcepb.ResourceIndexClient`. `resource.NewSearchClient` is retained for existing callers; do not add new uses.
++
+ ## Compatibility rules
+ 
+ Any mix of versions must work during rollout: new client ↔ old server and old client ↔ new server.
+diff --git a/pkg/storage/unified/resource/search_client.go b/pkg/storage/unified/resource/search_client.go
+index 1d4f5e81e..f63c86b02 100644
+--- a/pkg/storage/unified/resource/search_client.go
++++ b/pkg/storage/unified/resource/search_client.go
+@@ -22,6 +22,9 @@ type DualWriter interface {
+ 	Status(ctx context.Context, gr schema.GroupResource) (dualwrite.StorageStatus, error)
+ }
+ 
++// NewSearchClient preserves routing for existing ResourceIndexClient callers.
++// For new callers, use dualwrite.NewSelector with a caller-defined interface so
++// legacy backends do not need to implement the unified-storage RPC interface.
+ func NewSearchClient(dual DualWriter, gr schema.GroupResource, unifiedClient resourcepb.ResourceIndexClient,
+ 	legacyClient resourcepb.ResourceIndexClient) resourcepb.ResourceIndexClient {
+ 	return &searchWrapper{
+@@ -29,6 +32,7 @@ func NewSearchClient(dual DualWriter, gr schema.GroupResource, unifiedClient res
+ 		groupResource: gr,
+ 		unifiedClient: unifiedClient,
+ 		legacyClient:  legacyClient,
++		selector:      dualwrite.NewSelector(dual, gr, legacyClient, unifiedClient),
+ 		logger:        log.New("unified-storage.search-client"),
+ 	}
+ }
+@@ -39,6 +43,7 @@ type searchWrapper struct {
+ 
+ 	unifiedClient resourcepb.ResourceIndexClient
+ 	legacyClient  resourcepb.ResourceIndexClient
++	selector      *dualwrite.Selector[resourcepb.ResourceIndexClient]
+ 	logger        log.Logger
+ }
+ 
+@@ -98,14 +103,10 @@ func (s *searchWrapper) HybridSearch(ctx context.Context, in *resourcepb.HybridS
+ 
+ func (s *searchWrapper) Search(ctx context.Context, in *resourcepb.ResourceSearchRequest,
+ 	opts ...grpc.CallOption) (*resourcepb.ResourceSearchResponse, error) {
+-	client := s.legacyClient
+-	unified, err := s.dual.ReadFromUnified(ctx, s.groupResource)
++	client, err := s.selector.Resolve(ctx)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	if unified {
+-		client = s.unifiedClient
+-	}
+ 
+ 	return client.Search(ctx, in, opts...)
+ }
+diff --git a/pkg/storage/unified/resource/search_client_test.go b/pkg/storage/unified/resource/search_client_test.go
+index fcffab4dc..f78cb4337 100644
+--- a/pkg/storage/unified/resource/search_client_test.go
++++ b/pkg/storage/unified/resource/search_client_test.go
+@@ -2,6 +2,7 @@ package resource
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"testing"
+ 	"time"
+ 
+@@ -19,11 +20,12 @@ import (
+ // fakeDualWriter is a hand-written fake for the DualWriter interface.
+ type fakeDualWriter struct {
+ 	readFromUnified bool
++	readErr         error
+ 	status          dualwrite.StorageStatus
+ }
+ 
+ func (f *fakeDualWriter) ReadFromUnified(_ context.Context, _ schema.GroupResource) (bool, error) {
+-	return f.readFromUnified, nil
++	return f.readFromUnified, f.readErr
+ }
+ 
+ func (f *fakeDualWriter) Status(_ context.Context, _ schema.GroupResource) (dualwrite.StorageStatus, error) {
+@@ -114,13 +116,9 @@ func setupTestSearchClient(t *testing.T) (schema.GroupResource, *fakeResourceInd
+ 
+ func setupTestSearchWrapper(t *testing.T, dual *fakeDualWriter, unifiedClient, legacyClient *fakeResourceIndexClient, gr schema.GroupResource) *searchWrapper {
+ 	t.Helper()
+-	return &searchWrapper{
+-		dual:          dual,
+-		groupResource: gr,
+-		unifiedClient: unifiedClient,
+-		legacyClient:  legacyClient,
+-		logger:        log.NewNopLogger(),
+-	}
++	wrapper := NewSearchClient(dual, gr, unifiedClient, legacyClient).(*searchWrapper)
++	wrapper.logger = log.NewNopLogger()
++	return wrapper
+ }
+ 
+ func TestSearchClient_NewSearchClient(t *testing.T) {
+@@ -201,6 +199,65 @@ func TestSearchWrapper_Search(t *testing.T) {
+ 	})
+ }
+ 
++func TestSearchWrapper_SearchModeChanges(t *testing.T) {
++	gr, unifiedClient, legacyClient := setupTestSearchClient(t)
++	dual := &fakeDualWriter{}
++	wrapper := NewSearchClient(dual, gr, unifiedClient, legacyClient)
++	legacyClient.searchResponse = &resourcepb.ResourceSearchResponse{TotalHits: 1}
++	unifiedClient.searchResponse = &resourcepb.ResourceSearchResponse{TotalHits: 2}
++
++	for _, unified := range []bool{false, true, false} {
++		dual.readFromUnified = unified
++		selected, other := legacyClient, unifiedClient
++		if unified {
++			selected, other = unifiedClient, legacyClient
++		}
++
++		resp, err := wrapper.Search(t.Context(), &resourcepb.ResourceSearchRequest{})
++
++		require.NoError(t, err)
++		require.Same(t, selected.searchResponse, resp)
++		require.Len(t, selected.searchCalled, 1)
++		require.Empty(t, other.searchCalled)
++		<-selected.searchCalled
++	}
++}
++
++func TestSearchWrapper_SearchModeError(t *testing.T) {
++	gr, unifiedClient, legacyClient := setupTestSearchClient(t)
++	wantErr := errors.New("mode unavailable")
++	dual := &fakeDualWriter{readErr: wantErr}
++	wrapper := NewSearchClient(dual, gr, unifiedClient, legacyClient)
++
++	resp, err := wrapper.Search(t.Context(), &resourcepb.ResourceSearchRequest{})
++
++	require.ErrorIs(t, err, wantErr)
++	require.Nil(t, resp)
++	require.Empty(t, legacyClient.searchCalled)
++	require.Empty(t, unifiedClient.searchCalled)
++}
++
++func TestSearchWrapper_SearchDoesNotFallback(t *testing.T) {
++	for _, unified := range []bool{false, true} {
++		gr, unifiedClient, legacyClient := setupTestSearchClient(t)
++		dual := &fakeDualWriter{readFromUnified: unified}
++		wrapper := NewSearchClient(dual, gr, unifiedClient, legacyClient)
++		selected, other := legacyClient, unifiedClient
++		if unified {
++			selected, other = unifiedClient, legacyClient
++		}
++		wantErr := errors.New("search failed")
++		selected.searchErr = wantErr
++
++		resp, err := wrapper.Search(t.Context(), &resourcepb.ResourceSearchRequest{})
++
++		require.ErrorIs(t, err, wantErr)
++		require.Nil(t, resp)
++		require.Len(t, selected.searchCalled, 1)
++		require.Empty(t, other.searchCalled)
++	}
++}
++
+ func TestSearchWrapper_GetStats(t *testing.T) {
+ 	req := &resourcepb.ResourceStatsRequest{Namespace: "test"}
+ 	expectedResponse := &resourcepb.ResourceStatsResponse{Stats: []*resourcepb.ResourceStatsResponse_Stats{{Count: 100}}}

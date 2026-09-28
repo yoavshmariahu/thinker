@@ -1,0 +1,227 @@
+diff --git a/public/app/features/dashboard/components/DashNav/DashNavButton.tsx b/public/app/features/dashboard/components/DashNav/DashNavButton.tsx
+deleted file mode 100644
+index 05f82f421..000000000
+--- a/public/app/features/dashboard/components/DashNav/DashNavButton.tsx
++++ /dev/null
+@@ -1,45 +0,0 @@
+-// Libraries
+-import { css } from '@emotion/css';
+-import { type MouseEvent } from 'react';
+-import * as React from 'react';
+-
+-// Components
+-import { type GrafanaTheme2 } from '@grafana/data';
+-import { type IconName, type IconType, type IconSize, IconButton, useStyles2 } from '@grafana/ui';
+-
+-interface Props {
+-  icon?: IconName;
+-  tooltip: string;
+-  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+-  href?: string;
+-  children?: React.ReactNode;
+-  iconType?: IconType;
+-  iconSize?: IconSize;
+-}
+-
+-export const DashNavButton = ({ icon, iconType, iconSize, tooltip, onClick, children }: Props) => {
+-  const styles = useStyles2(getStyles);
+-
+-  return (
+-    <div className={styles.noBorderContainer}>
+-      {icon && (
+-        <IconButton
+-          name={icon}
+-          size={iconSize}
+-          iconType={iconType}
+-          tooltip={tooltip}
+-          tooltipPlacement="bottom"
+-          onClick={onClick}
+-        />
+-      )}
+-      {children}
+-    </div>
+-  );
+-};
+-
+-const getStyles = (theme: GrafanaTheme2) => ({
+-  noBorderContainer: css({
+-    padding: `0 ${theme.spacing(0.5)}`,
+-    display: 'flex',
+-  }),
+-});
+diff --git a/public/app/features/playlist/PlaylistCard.tsx b/public/app/features/playlist/PlaylistCard.tsx
+index 7a15bf66e..a4c7be02c 100644
+--- a/public/app/features/playlist/PlaylistCard.tsx
++++ b/public/app/features/playlist/PlaylistCard.tsx
+@@ -5,7 +5,6 @@ import { type GrafanaTheme2 } from '@grafana/data';
+ import { t, Trans } from '@grafana/i18n';
+ import { Button, Card, LinkButton, ModalsController, Stack, useStyles2 } from '@grafana/ui';
+ import { attachSkeleton, type SkeletonComponent } from '@grafana/ui/unstable';
+-import { DashNavButton } from 'app/features/dashboard/components/DashNav/DashNavButton';
+ import { ManagedBadge } from 'app/features/provisioning/components/ManagedBadge';
+ import {
+   getManagerIdentity,
+@@ -43,37 +42,64 @@ const PlaylistCardComponent = ({ playlist, setStartPlaylist, setPlaylistToDelete
+         </Stack>
+       </Card.Heading>
+       <Card.Actions>
+-        <Button variant="secondary" icon="play" onClick={() => setStartPlaylist(playlist)}>
+-          <Trans i18nKey="playlist-page.card.start">Start playlist</Trans>
++        <Button
++          variant="accent"
++          icon="play"
++          onClick={() => setStartPlaylist(playlist)}
++          fill="outline"
++          size="sm"
++          aria-label={t('playlist-page.card.start-label', 'Start playlist {{ name }} ', { name: playlist.spec?.title })}
++        >
++          <Trans i18nKey="playlist-page.card.start">Start</Trans>
+         </Button>
+-        {canWrite && (
+-          <LinkButton key="edit" variant="secondary" href={`/playlists/edit/${playlist.metadata?.name}`} icon="cog">
+-            <Trans i18nKey="playlist-page.card.edit">Edit playlist</Trans>
+-          </LinkButton>
+-        )}
+-        {canWrite && (
+-          <Button disabled={false} onClick={() => setPlaylistToDelete(playlist)} icon="trash-alt" variant="destructive">
+-            <Trans i18nKey="playlist-page.card.delete">Delete playlist</Trans>
+-          </Button>
+-        )}
+-      </Card.Actions>
+-      <Card.SecondaryActions>
+         <ModalsController key="button-share">
+           {({ showModal, hideModal }) => (
+-            <DashNavButton
+-              tooltip={t('playlist-page.card.tooltip', 'Share playlist')}
++            <Button
++              tooltip={t('playlist-page.card.tooltip', 'Share')}
+               icon="share-alt"
+-              iconSize="lg"
++              variant="secondary"
++              size="sm"
++              aria-label={t('playlist-page.card.share-label', 'Share playlist {{ name }} ', {
++                name: playlist.spec?.title,
++              })}
+               onClick={() => {
+                 showModal(ShareModal, {
+                   playlistUid: playlist.metadata?.name ?? '',
+                   onDismiss: hideModal,
+                 });
+               }}
+-            />
++            >
++              <Trans i18nKey="playlist-page.card.share">Share</Trans>
++            </Button>
+           )}
+         </ModalsController>
+-      </Card.SecondaryActions>
++        {canWrite && (
++          <LinkButton
++            key="edit"
++            variant="secondary"
++            href={`/playlists/edit/${playlist.metadata?.name}`}
++            icon="cog"
++            size="sm"
++            aria-label={t('playlist-page.card.edit-label', 'Edit playlist {{ name }} ', { name: playlist.spec?.title })}
++          >
++            <Trans i18nKey="playlist-page.card.edit">Edit</Trans>
++          </LinkButton>
++        )}
++        {canWrite && (
++          <Button
++            disabled={false}
++            onClick={() => setPlaylistToDelete(playlist)}
++            icon="trash-alt"
++            variant="secondary"
++            size="sm"
++            aria-label={t('playlist-page.card.delete-label', 'Delete playlist {{ name }} ', {
++              name: playlist.spec?.title,
++            })}
++          >
++            <Trans i18nKey="playlist-page.card.delete">Delete</Trans>
++          </Button>
++        )}
++      </Card.Actions>
+     </Card>
+   );
+ };
+diff --git a/public/app/features/playlist/PlaylistPage.test.tsx b/public/app/features/playlist/PlaylistPage.test.tsx
+index 3a26bdd3c..0be58fc85 100644
+--- a/public/app/features/playlist/PlaylistPage.test.tsx
++++ b/public/app/features/playlist/PlaylistPage.test.tsx
+@@ -153,9 +153,9 @@ describe('PlaylistPage', () => {
+           setup();
+           expect(await screen.findByText('A test playlist'));
+           expect(await screen.findByRole('link', { name: /New playlist/i })).toBeInTheDocument();
+-          expect(await screen.findByRole('button', { name: /Start playlist/i })).toBeInTheDocument();
+-          expect(await screen.findByRole('link', { name: /Edit playlist/i })).toBeInTheDocument();
+-          expect(await screen.findByRole('button', { name: /Delete playlist/i })).toBeInTheDocument();
++          expect(await screen.findByRole('button', { name: /Start/i })).toBeInTheDocument();
++          expect(await screen.findByRole('link', { name: /Edit/i })).toBeInTheDocument();
++          expect(await screen.findByRole('button', { name: /Delete/i })).toBeInTheDocument();
+         });
+       });
+ 
+@@ -166,9 +166,9 @@ describe('PlaylistPage', () => {
+           setup();
+           expect(await screen.findByText('A test playlist')).toBeInTheDocument();
+           expect(screen.queryByRole('link', { name: /New playlist/i })).not.toBeInTheDocument();
+-          expect(await screen.findByRole('button', { name: /Start playlist/i })).toBeInTheDocument();
+-          expect(screen.queryByRole('link', { name: /Edit playlist/i })).not.toBeInTheDocument();
+-          expect(screen.queryByRole('button', { name: /Delete playlist/i })).not.toBeInTheDocument();
++          expect(await screen.findByRole('button', { name: /Start/i })).toBeInTheDocument();
++          expect(screen.queryByRole('link', { name: /Edit/i })).not.toBeInTheDocument();
++          expect(screen.queryByRole('button', { name: /Delete/i })).not.toBeInTheDocument();
+         });
+       });
+     });
+@@ -181,9 +181,9 @@ describe('PlaylistPage', () => {
+           setup();
+           expect(await screen.findByText('A test playlist'));
+           expect(await screen.findByRole('link', { name: /New playlist/i })).toBeInTheDocument();
+-          expect(await screen.findByRole('button', { name: /Start playlist/i })).toBeInTheDocument();
+-          expect(await screen.findByRole('link', { name: /Edit playlist/i })).toBeInTheDocument();
+-          expect(await screen.findByRole('button', { name: /Delete playlist/i })).toBeInTheDocument();
++          expect(await screen.findByRole('button', { name: /Start/i })).toBeInTheDocument();
++          expect(await screen.findByRole('link', { name: /Edit/i })).toBeInTheDocument();
++          expect(await screen.findByRole('button', { name: /Delete/i })).toBeInTheDocument();
+         });
+       });
+ 
+@@ -192,9 +192,9 @@ describe('PlaylistPage', () => {
+           setup();
+           expect(await screen.findByText('A test playlist')).toBeInTheDocument();
+           expect(screen.queryByRole('link', { name: /New playlist/i })).not.toBeInTheDocument();
+-          expect(await screen.findByRole('button', { name: /Start playlist/i })).toBeInTheDocument();
+-          expect(screen.queryByRole('link', { name: /Edit playlist/i })).not.toBeInTheDocument();
+-          expect(screen.queryByRole('button', { name: /Delete playlist/i })).not.toBeInTheDocument();
++          expect(await screen.findByRole('button', { name: /Start/i })).toBeInTheDocument();
++          expect(screen.queryByRole('link', { name: /Edit/i })).not.toBeInTheDocument();
++          expect(screen.queryByRole('button', { name: /Delete/i })).not.toBeInTheDocument();
+         });
+       });
+     });
+diff --git a/public/locales/en-US/grafana.json b/public/locales/en-US/grafana.json
+index 82a0bda61..4f8a4f924 100644
+--- a/public/locales/en-US/grafana.json
++++ b/public/locales/en-US/grafana.json
+@@ -13688,10 +13688,15 @@
+   },
+   "playlist-page": {
+     "card": {
+-      "delete": "Delete playlist",
+-      "edit": "Edit playlist",
+-      "start": "Start playlist",
+-      "tooltip": "Share playlist"
++      "delete": "Delete",
++      "delete-label": "Delete playlist {{ name }} ",
++      "edit": "Edit",
++      "edit-label": "Edit playlist {{ name }} ",
++      "share": "Share",
++      "share-label": "Share playlist {{ name }} ",
++      "start": "Start",
++      "start-label": "Start playlist {{ name }} ",
++      "tooltip": "Share"
+     },
+     "create-button": {
+       "title": "New playlist"

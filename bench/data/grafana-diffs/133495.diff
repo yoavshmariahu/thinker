@@ -1,0 +1,1339 @@
+diff --git a/pkg/server/bootstrap/wire/wire_gen.go b/pkg/server/bootstrap/wire/wire_gen.go
+index 1fc71d229..3133cf99d 100644
+--- a/pkg/server/bootstrap/wire/wire_gen.go
++++ b/pkg/server/bootstrap/wire/wire_gen.go
+@@ -669,11 +669,11 @@ func Initialize(ctx context.Context, cfg *setting.Cfg, opts server.Options, apiO
+ 		return nil, err
+ 	}
+ 	ruleMutationValidator := provisioning2.ProvideRuleMutationValidator()
+-	mailer, err := notifications.ProvideSmtpService(cfg)
++	mailer, err := notifications.ProvideSmtpService(cfg, configProvider)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	notificationService, err := notifications.ProvideService(inProcBus, cfg, mailer, tempuserService)
++	notificationService, err := notifications.ProvideService(inProcBus, cfg, configProvider, mailer, tempuserService)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -1440,11 +1440,11 @@ func InitializeForTest(ctx context.Context, t sqlutil.ITestDB, testingT interfac
+ 		return nil, err
+ 	}
+ 	ruleMutationValidator := provisioning2.ProvideRuleMutationValidator()
+-	mailer, err := notifications.ProvideSmtpService(cfg)
++	mailer, err := notifications.ProvideSmtpService(cfg, configProvider)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	notificationService, err := notifications.ProvideService(inProcBus, cfg, mailer, tempuserService)
++	notificationService, err := notifications.ProvideService(inProcBus, cfg, configProvider, mailer, tempuserService)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+diff --git a/pkg/services/ngalert/notifier/email_test.go b/pkg/services/ngalert/notifier/email_test.go
+index 87c73b183..6819f21bf 100644
+--- a/pkg/services/ngalert/notifier/email_test.go
++++ b/pkg/services/ngalert/notifier/email_test.go
+@@ -14,6 +14,7 @@ import (
+ 	"github.com/stretchr/testify/require"
+ 
+ 	"github.com/grafana/grafana/pkg/bus"
++	"github.com/grafana/grafana/pkg/configprovider"
+ 	"github.com/grafana/grafana/pkg/infra/log/logtest"
+ 	"github.com/grafana/grafana/pkg/infra/tracing"
+ 	"github.com/grafana/grafana/pkg/services/notifications"
+@@ -220,15 +221,21 @@ func createEmailSender(t *testing.T) *emailSender {
+ 	cfg := setting.NewCfg()
+ 	cfg.StaticRootPath = "../../../../public/"
+ 	cfg.BuildVersion = "4.0.0"
+-	cfg.Smtp.Enabled = true
+-	cfg.Smtp.TemplatesPatterns = []string{"emails/*.html", "emails/*.txt"}
+-	cfg.Smtp.FromAddress = "from@address.com"
+-	cfg.Smtp.FromName = "Grafana Admin"
+-	cfg.Smtp.ContentTypes = []string{"text/html", "text/plain"}
+-	cfg.Smtp.Host = "localhost:1234"
++	// The notification service reads these live from cfg.Raw.
++	smtpSection := cfg.Raw.Section("smtp")
++	smtpSection.Key("enabled").SetValue("true")
++	smtpSection.Key("from_address").SetValue("from@address.com")
++	smtpSection.Key("from_name").SetValue("Grafana Admin")
++	smtpSection.Key("host").SetValue("localhost:1234")
++	cfg.Raw.Section("emails").Key("content_types").SetValue("text/html, text/plain")
++	smtp, err := setting.ReadSmtpSettings(cfg.Raw, cfg.InstanceName)
++	require.NoError(t, err)
++	cfg.Smtp = smtp
+ 	mailer := notifications.NewFakeMailer()
+ 
+-	ns, err := notifications.ProvideService(bus, cfg, mailer, nil)
++	cfgProvider, err := configprovider.ProvideService(cfg)
++	require.NoError(t, err)
++	ns, err := notifications.ProvideService(bus, cfg, cfgProvider, mailer, nil)
+ 	require.NoError(t, err)
+ 
+ 	return &emailSender{ns: ns}
+diff --git a/pkg/services/notifications/email.go b/pkg/services/notifications/email.go
+index 2ef9b1351..ba0f889bc 100644
+--- a/pkg/services/notifications/email.go
++++ b/pkg/services/notifications/email.go
+@@ -25,6 +25,7 @@ type Message struct {
+ 	SingleEmail      bool
+ 	From             string
+ 	Subject          string
++	ContentTypes     []string // keys of Body, most preferred first
+ 	Body             map[string]string
+ 	Info             string
+ 	ReplyTo          []string
+diff --git a/pkg/services/notifications/mailer.go b/pkg/services/notifications/mailer.go
+index c6239fc24..4407ef975 100644
+--- a/pkg/services/notifications/mailer.go
++++ b/pkg/services/notifications/mailer.go
+@@ -13,6 +13,8 @@ import (
+ 
+ 	"github.com/prometheus/client_golang/prometheus"
+ 	"github.com/prometheus/client_golang/prometheus/promauto"
++
++	"github.com/grafana/grafana/pkg/util"
+ )
+ 
+ var (
+@@ -54,10 +56,18 @@ func (ns *NotificationService) Send(ctx context.Context, msg *Message) (int, err
+ 	return ns.mailer.Send(ctx, messages...)
+ }
+ 
+-func (ns *NotificationService) buildEmailMessage(cmd *SendEmailCommand) (*Message, error) {
+-	if !ns.Cfg.Smtp.Enabled {
++func (ns *NotificationService) buildEmailMessage(ctx context.Context, cmd *SendEmailCommand) (*Message, error) {
++	smtp, err := readLiveSmtpSettings(ctx, ns.cfgProvider, ns.Cfg.InstanceName)
++	if err != nil {
++		return nil, err
++	}
++	if !smtp.Enabled {
+ 		return nil, ErrSmtpNotEnabled
+ 	}
++	// The startup check in ProvideService does not cover remote changes.
++	if !util.IsEmail(smtp.FromAddress) {
++		return nil, errInvalidFromAddress
++	}
+ 
+ 	data := cmd.Data
+ 	if data == nil {
+@@ -67,7 +77,7 @@ func (ns *NotificationService) buildEmailMessage(cmd *SendEmailCommand) (*Messag
+ 	setDefaultTemplateData(ns.Cfg, data, nil)
+ 
+ 	body := make(map[string]string)
+-	for _, contentType := range ns.Cfg.Smtp.ContentTypes {
++	for _, contentType := range smtp.ContentTypes {
+ 		fileExtension, err := getFileExtensionByContentType(contentType)
+ 		if err != nil {
+ 			return nil, err
+@@ -110,12 +120,13 @@ func (ns *NotificationService) buildEmailMessage(cmd *SendEmailCommand) (*Messag
+ 		}
+ 	}
+ 
+-	addr := mail.Address{Name: ns.Cfg.Smtp.FromName, Address: ns.Cfg.Smtp.FromAddress}
++	addr := mail.Address{Name: smtp.FromName, Address: smtp.FromAddress}
+ 	return &Message{
+ 		To:               cmd.To,
+ 		SingleEmail:      cmd.SingleEmail,
+ 		From:             addr.String(),
+ 		Subject:          subject,
++		ContentTypes:     smtp.ContentTypes,
+ 		Body:             body,
+ 		EmbeddedFiles:    cmd.EmbeddedFiles,
+ 		EmbeddedContents: cmd.EmbeddedContents,
+diff --git a/pkg/services/notifications/models.go b/pkg/services/notifications/models.go
+index 6f5b1419e..0fb56b317 100644
+--- a/pkg/services/notifications/models.go
++++ b/pkg/services/notifications/models.go
+@@ -9,6 +9,7 @@ import (
+ 
+ var ErrInvalidEmailCode = errors.New("invalid or expired email code")
+ var ErrSmtpNotEnabled = errors.New("SMTP not configured, check your grafana.ini config file's [smtp] section")
++var errInvalidFromAddress = errors.New("SMTP from_address is not a valid email address, check your grafana.ini config file's [smtp] section")
+ 
+ // SendEmailAttachFile is a definition of the attached files without path
+ type SendEmailAttachFile struct {
+diff --git a/pkg/services/notifications/notifications.go b/pkg/services/notifications/notifications.go
+index dc453874d..9c4b01424 100644
+--- a/pkg/services/notifications/notifications.go
++++ b/pkg/services/notifications/notifications.go
+@@ -3,7 +3,6 @@ package notifications
+ import (
+ 	"bytes"
+ 	"context"
+-	"errors"
+ 	"fmt"
+ 	"html/template"
+ 	"net/url"
+@@ -13,6 +12,7 @@ import (
+ 	"github.com/Masterminds/sprig/v3"
+ 
+ 	"github.com/grafana/grafana/pkg/bus"
++	"github.com/grafana/grafana/pkg/configprovider"
+ 	"github.com/grafana/grafana/pkg/events"
+ 	"github.com/grafana/grafana/pkg/infra/log"
+ 	tempuser "github.com/grafana/grafana/pkg/services/temp_user"
+@@ -51,10 +51,11 @@ const (
+ 	tmplVerifyEmail     = "verify_email"
+ )
+ 
+-func ProvideService(bus bus.Bus, cfg *setting.Cfg, mailer Mailer, store TempUserStore) (*NotificationService, error) {
++func ProvideService(bus bus.Bus, cfg *setting.Cfg, cfgProvider configprovider.ConfigProvider, mailer Mailer, store TempUserStore) (*NotificationService, error) {
+ 	ns := &NotificationService{
+ 		Bus:          bus,
+ 		Cfg:          cfg,
++		cfgProvider:  cfgProvider,
+ 		log:          log.New("notifications"),
+ 		mailQueue:    make(chan *Message, 10),
+ 		webhookQueue: make(chan *Webhook, 10),
+@@ -91,7 +92,7 @@ func ProvideService(bus bus.Bus, cfg *setting.Cfg, mailer Mailer, store TempUser
+ 	}
+ 
+ 	if !util.IsEmail(ns.Cfg.Smtp.FromAddress) {
+-		return nil, errors.New("invalid email address for SMTP from_address config")
++		return nil, errInvalidFromAddress
+ 	}
+ 
+ 	if cfg.EmailCodeValidMinutes == 0 {
+@@ -105,8 +106,9 @@ type TempUserStore interface {
+ }
+ 
+ type NotificationService struct {
+-	Bus bus.Bus
+-	Cfg *setting.Cfg
++	Bus         bus.Bus
++	Cfg         *setting.Cfg
++	cfgProvider configprovider.ConfigProvider
+ 
+ 	mailQueue    chan *Message
+ 	webhookQueue chan *Webhook
+@@ -200,7 +202,7 @@ func __dangerouslyInjectHTML(s string) template.HTML {
+ }
+ 
+ func (ns *NotificationService) SendEmailCommandHandlerSync(ctx context.Context, cmd *SendEmailCommandSync) error {
+-	message, err := ns.buildEmailMessage(&SendEmailCommand{
++	message, err := ns.buildEmailMessage(ctx, &SendEmailCommand{
+ 		Data:             cmd.Data,
+ 		Info:             cmd.Info,
+ 		Template:         cmd.Template,
+@@ -221,7 +223,7 @@ func (ns *NotificationService) SendEmailCommandHandlerSync(ctx context.Context,
+ }
+ 
+ func (ns *NotificationService) SendEmailCommandHandler(ctx context.Context, cmd *SendEmailCommand) error {
+-	message, err := ns.buildEmailMessage(cmd)
++	message, err := ns.buildEmailMessage(ctx, cmd)
+ 	if err != nil {
+ 		return err
+ 	}
+@@ -312,7 +314,17 @@ func (ns *NotificationService) signUpStartedHandler(ctx context.Context, evt *ev
+ }
+ 
+ func (ns *NotificationService) signUpCompletedHandler(ctx context.Context, evt *events.SignUpCompleted) error {
+-	if evt.Email == "" || !ns.Cfg.Smtp.SendWelcomeEmailOnSignUp {
++	if evt.Email == "" {
++		return nil
++	}
++	smtp, err := readLiveSmtpSettings(ctx, ns.cfgProvider, ns.Cfg.InstanceName)
++	if err != nil {
++		// The welcome email is best effort. Returning the error would fail
++		// sign-up after the user has already been created.
++		ns.log.Warn("Skipping welcome email, could not read SMTP settings", "error", err)
++		return nil
++	}
++	if !smtp.SendWelcomeEmailOnSignUp {
+ 		return nil
+ 	}
+ 
+diff --git a/pkg/services/notifications/notifications_test.go b/pkg/services/notifications/notifications_test.go
+index b1b3bdfdc..7e872e1f6 100644
+--- a/pkg/services/notifications/notifications_test.go
++++ b/pkg/services/notifications/notifications_test.go
+@@ -2,13 +2,18 @@ package notifications
+ 
+ import (
+ 	"context"
++	"errors"
++	"maps"
+ 	"regexp"
++	"slices"
+ 	"testing"
+ 
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
+ 
+ 	"github.com/grafana/grafana/pkg/bus"
++	"github.com/grafana/grafana/pkg/configprovider"
++	"github.com/grafana/grafana/pkg/events"
+ 	"github.com/grafana/grafana/pkg/infra/tracing"
+ 	"github.com/grafana/grafana/pkg/services/user"
+ 	"github.com/grafana/grafana/pkg/setting"
+@@ -24,7 +29,7 @@ func TestProvideService(t *testing.T) {
+ 	bus := newBus(t)
+ 
+ 	t.Run("When invalid from_address in configuration", func(t *testing.T) {
+-		cfg := createSmtpConfig()
++		cfg := createSmtpConfig(t)
+ 		cfg.Smtp.FromAddress = "@notanemail@"
+ 		_, _, err := createSutWithConfig(t, bus, cfg)
+ 
+@@ -32,7 +37,7 @@ func TestProvideService(t *testing.T) {
+ 	})
+ 
+ 	t.Run("When all template_patterns fail to parse", func(t *testing.T) {
+-		cfg := createSmtpConfig()
++		cfg := createSmtpConfig(t)
+ 		cfg.Smtp.TemplatesPatterns = []string{"/usr/not-a-dir/**", "/usr/also-not-a-dir/**"}
+ 		_, _, err := createSutWithConfig(t, bus, cfg)
+ 
+@@ -40,7 +45,7 @@ func TestProvideService(t *testing.T) {
+ 	})
+ 
+ 	t.Run("When some template_patterns fail to parse", func(t *testing.T) {
+-		cfg := createSmtpConfig()
++		cfg := createSmtpConfig(t)
+ 		cfg.Smtp.TemplatesPatterns = append(cfg.Smtp.TemplatesPatterns, "/usr/not-a-dir/**")
+ 		_, _, err := createSutWithConfig(t, bus, cfg)
+ 
+@@ -158,8 +163,8 @@ func TestSendEmailSync(t *testing.T) {
+ 	})
+ 
+ 	t.Run("When SMTP disabled in configuration", func(t *testing.T) {
+-		cfg := createSmtpConfig()
+-		cfg.Smtp.Enabled = false
++		cfg := createSmtpConfig(t)
++		setRawKeys(t, cfg, "smtp", map[string]string{"enabled": "false"})
+ 		ns, mailer, err := createSutWithConfig(t, bus, cfg)
+ 		require.NoError(t, err)
+ 		cmd := &SendEmailCommandSync{
+@@ -178,8 +183,8 @@ func TestSendEmailSync(t *testing.T) {
+ 	})
+ 
+ 	t.Run("When invalid content type in configuration", func(t *testing.T) {
+-		cfg := createSmtpConfig()
+-		cfg.Smtp.ContentTypes = append(cfg.Smtp.ContentTypes, "multipart/form-data")
++		cfg := createSmtpConfig(t)
++		setRawKeys(t, cfg, "emails", map[string]string{"content_types": "text/html, multipart/form-data"})
+ 		ns, mailer, err := createSutWithConfig(t, bus, cfg)
+ 		require.NoError(t, err)
+ 		cmd := &SendEmailCommandSync{
+@@ -246,8 +251,8 @@ func TestSendEmailAsync(t *testing.T) {
+ 	})
+ 
+ 	t.Run("When SMTP disabled in configuration", func(t *testing.T) {
+-		cfg := createSmtpConfig()
+-		cfg.Smtp.Enabled = false
++		cfg := createSmtpConfig(t)
++		setRawKeys(t, cfg, "smtp", map[string]string{"enabled": "false"})
+ 		ns, mailer, err := createSutWithConfig(t, bus, cfg)
+ 		require.NoError(t, err)
+ 		cmd := &SendEmailCommand{
+@@ -264,8 +269,8 @@ func TestSendEmailAsync(t *testing.T) {
+ 	})
+ 
+ 	t.Run("When invalid content type in configuration", func(t *testing.T) {
+-		cfg := createSmtpConfig()
+-		cfg.Smtp.ContentTypes = append(cfg.Smtp.ContentTypes, "multipart/form-data")
++		cfg := createSmtpConfig(t)
++		setRawKeys(t, cfg, "emails", map[string]string{"content_types": "text/html, multipart/form-data"})
+ 		ns, mailer, err := createSutWithConfig(t, bus, cfg)
+ 		require.NoError(t, err)
+ 		cmd := &SendEmailCommand{
+@@ -297,10 +302,132 @@ func TestSendEmailAsync(t *testing.T) {
+ 	})
+ }
+ 
++func TestSendEmailFollowsLiveSettings(t *testing.T) {
++	bus := newBus(t)
++	newCmd := func() *SendEmailCommandSync {
++		return &SendEmailCommandSync{
++			SendEmailCommand: SendEmailCommand{
++				Subject:  "subject",
++				To:       []string{"asdf@grafana.com"},
++				Template: "welcome_on_signup",
++			},
++		}
++	}
++
++	t.Run("sends once SMTP is enabled after startup", func(t *testing.T) {
++		cfg := createSmtpConfig(t)
++		setRawKeys(t, cfg, "smtp", map[string]string{"enabled": "false"})
++		ns, mailer, err := createSutWithConfig(t, bus, cfg)
++		require.NoError(t, err)
++
++		require.ErrorIs(t, ns.SendEmailCommandHandlerSync(context.Background(), newCmd()), ErrSmtpNotEnabled)
++
++		setRawKeys(t, cfg, "smtp", map[string]string{"enabled": "true"})
++		require.NoError(t, ns.SendEmailCommandHandlerSync(context.Background(), newCmd()))
++		assert.Len(t, mailer.Sent, 1)
++	})
++
++	t.Run("stops sending once SMTP is disabled after startup", func(t *testing.T) {
++		cfg := createSmtpConfig(t)
++		ns, mailer, err := createSutWithConfig(t, bus, cfg)
++		require.NoError(t, err)
++
++		require.NoError(t, ns.SendEmailCommandHandlerSync(context.Background(), newCmd()))
++
++		setRawKeys(t, cfg, "smtp", map[string]string{"enabled": "false"})
++		require.ErrorIs(t, ns.SendEmailCommandHandlerSync(context.Background(), newCmd()), ErrSmtpNotEnabled)
++		assert.Len(t, mailer.Sent, 1)
++	})
++
++	t.Run("uses the sender changed after startup", func(t *testing.T) {
++		cfg := createSmtpConfig(t)
++		ns, mailer, err := createSutWithConfig(t, bus, cfg)
++		require.NoError(t, err)
++
++		setRawKeys(t, cfg, "smtp", map[string]string{"from_address": "new@address.com", "from_name": "New Sender"})
++		require.NoError(t, ns.SendEmailCommandHandlerSync(context.Background(), newCmd()))
++
++		require.Len(t, mailer.Sent, 1)
++		assert.Equal(t, `"New Sender" <new@address.com>`, mailer.Sent[0].From)
++	})
++
++	t.Run("rejects an invalid sender changed after startup", func(t *testing.T) {
++		cfg := createSmtpConfig(t)
++		ns, mailer, err := createSutWithConfig(t, bus, cfg)
++		require.NoError(t, err)
++
++		setRawKeys(t, cfg, "smtp", map[string]string{"from_address": "@notanemail@"})
++
++		require.ErrorIs(t, ns.SendEmailCommandHandlerSync(context.Background(), newCmd()), errInvalidFromAddress)
++		assert.Empty(t, mailer.Sent)
++	})
++
++	t.Run("renders the content types changed after startup", func(t *testing.T) {
++		cfg := createSmtpConfig(t)
++		ns, mailer, err := createSutWithConfig(t, bus, cfg)
++		require.NoError(t, err)
++
++		setRawKeys(t, cfg, "emails", map[string]string{"content_types": "text/plain"})
++		require.NoError(t, ns.SendEmailCommandHandlerSync(context.Background(), newCmd()))
++
++		require.Len(t, mailer.Sent, 1)
++		assert.Equal(t, []string{"text/plain"}, mailer.Sent[0].ContentTypes)
++		assert.Equal(t, []string{"text/plain"}, slices.Collect(maps.Keys(mailer.Sent[0].Body)))
++	})
++
++	t.Run("returns the config provider error", func(t *testing.T) {
++		providerErr := errors.New("settings unavailable")
++		cfg := createSmtpConfig(t)
++		ns, err := ProvideService(bus, cfg, failingConfigProvider{err: providerErr}, NewFakeMailer(), nil)
++		require.NoError(t, err)
++
++		require.ErrorIs(t, ns.SendEmailCommandHandlerSync(context.Background(), newCmd()), providerErr)
++	})
++}
++
++func TestSignUpCompletedFollowsLiveWelcomeSetting(t *testing.T) {
++	bus := newBus(t)
++	evt := &events.SignUpCompleted{Email: "new@user.com", Name: "New User"}
++
++	t.Run("sends the welcome email once enabled after startup", func(t *testing.T) {
++		cfg := createSmtpConfig(t)
++		ns, _, err := createSutWithConfig(t, bus, cfg)
++		require.NoError(t, err)
++
++		require.NoError(t, ns.signUpCompletedHandler(context.Background(), evt))
++		require.Empty(t, ns.mailQueue)
++
++		setRawKeys(t, cfg, "emails", map[string]string{"welcome_email_on_sign_up": "true"})
++		require.NoError(t, ns.signUpCompletedHandler(context.Background(), evt))
++		require.Len(t, ns.mailQueue, 1)
++		assert.Equal(t, []string{"new@user.com"}, (<-ns.mailQueue).To)
++	})
++
++	t.Run("stops sending the welcome email once disabled after startup", func(t *testing.T) {
++		cfg := createSmtpConfig(t)
++		setRawKeys(t, cfg, "emails", map[string]string{"welcome_email_on_sign_up": "true"})
++		ns, _, err := createSutWithConfig(t, bus, cfg)
++		require.NoError(t, err)
++
++		setRawKeys(t, cfg, "emails", map[string]string{"welcome_email_on_sign_up": "false"})
++		require.NoError(t, ns.signUpCompletedHandler(context.Background(), evt))
++		require.Empty(t, ns.mailQueue)
++	})
++
++	t.Run("does not fail sign-up when the SMTP settings cannot be read", func(t *testing.T) {
++		cfg := createSmtpConfig(t)
++		ns, err := ProvideService(bus, cfg, failingConfigProvider{err: errors.New("settings unavailable")}, NewFakeMailer(), nil)
++		require.NoError(t, err)
++
++		require.NoError(t, ns.signUpCompletedHandler(context.Background(), evt))
++		require.Empty(t, ns.mailQueue)
++	})
++}
++
+ func createSut(t *testing.T, bus bus.Bus) (*NotificationService, *FakeMailer) {
+ 	t.Helper()
+ 
+-	cfg := createSmtpConfig()
++	cfg := createSmtpConfig(t)
+ 	ns, fm, err := createSutWithConfig(t, bus, cfg)
+ 	require.NoError(t, err)
+ 	return ns, fm
+@@ -308,27 +435,41 @@ func createSut(t *testing.T, bus bus.Bus) (*NotificationService, *FakeMailer) {
+ 
+ func createSutWithConfig(t *testing.T, bus bus.Bus, cfg *setting.Cfg) (*NotificationService, *FakeMailer, error) {
+ 	smtp := NewFakeMailer()
+-	ns, err := ProvideService(bus, cfg, smtp, nil)
++	ns, err := provideTestService(t, bus, cfg, smtp)
+ 	return ns, smtp, err
+ }
+ 
+ func createDisconnectedSut(t *testing.T, bus bus.Bus) *NotificationService {
+ 	t.Helper()
+ 
+-	cfg := createSmtpConfig()
++	cfg := createSmtpConfig(t)
+ 	smtp := NewFakeDisconnectedMailer()
+-	ns, err := ProvideService(bus, cfg, smtp, nil)
++	ns, err := provideTestService(t, bus, cfg, smtp)
+ 	require.NoError(t, err)
+ 	return ns
+ }
+ 
+-func createSmtpConfig() *setting.Cfg {
++func provideTestService(t *testing.T, bus bus.Bus, cfg *setting.Cfg, mailer Mailer) (*NotificationService, error) {
++	t.Helper()
++	cfgProvider, err := configprovider.ProvideService(cfg)
++	require.NoError(t, err)
++	return ProvideService(bus, cfg, cfgProvider, mailer, nil)
++}
++
++// createSmtpConfig sets the SMTP settings in cfg.Raw, which the config provider
++// serves at send time, and derives the startup cfg.Smtp from the same values.
++func createSmtpConfig(t *testing.T) *setting.Cfg {
++	t.Helper()
+ 	cfg := setting.NewCfg()
+ 	cfg.StaticRootPath = "../../../public/"
+-	cfg.Smtp.Enabled = true
+-	cfg.Smtp.TemplatesPatterns = []string{"emails/*.html", "emails/*.txt"}
+-	cfg.Smtp.FromAddress = "from@address.com"
+-	cfg.Smtp.FromName = "Grafana Admin"
+-	cfg.Smtp.ContentTypes = []string{"text/html", "text/plain"}
++	setRawKeys(t, cfg, "smtp", map[string]string{
++		"enabled":      "true",
++		"from_address": "from@address.com",
++		"from_name":    "Grafana Admin",
++	})
++	setRawKeys(t, cfg, "emails", map[string]string{"content_types": "text/html, text/plain"})
++	smtp, err := setting.ReadSmtpSettings(cfg.Raw, cfg.InstanceName)
++	require.NoError(t, err)
++	cfg.Smtp = smtp
+ 	return cfg
+ }
+diff --git a/pkg/services/notifications/send_email_integration_test.go b/pkg/services/notifications/send_email_integration_test.go
+index 9a0649145..300c5665f 100644
+--- a/pkg/services/notifications/send_email_integration_test.go
++++ b/pkg/services/notifications/send_email_integration_test.go
+@@ -15,13 +15,16 @@ func TestEmailIntegrationTest(t *testing.T) {
+ 		setting.BuildVersion = "4.0.0"
+ 
+ 		cfg := setting.NewCfg()
+-		cfg.Smtp.Enabled = true
++		setRawKeys(t, cfg, "smtp", map[string]string{
++			"enabled":      "true",
++			"from_address": "from@address.com",
++			"from_name":    "Grafana Admin",
++		})
++		setRawKeys(t, cfg, "emails", map[string]string{"content_types": "text/html, text/plain"})
+ 		cfg.StaticRootPath = "../../../public/"
+ 		cfg.Smtp.TemplatesPatterns = []string{"emails/*.html", "emails/*.txt"}
+ 		cfg.Smtp.FromAddress = "from@address.com"
+-		cfg.Smtp.FromName = "Grafana Admin"
+-		cfg.Smtp.ContentTypes = []string{"text/html", "text/plain"}
+-		ns, err := ProvideService(newBus(t), cfg, NewFakeMailer(), nil)
++		ns, err := provideTestService(t, newBus(t), cfg, NewFakeMailer())
+ 		require.NoError(t, err)
+ 
+ 		t.Run("When sending reset email password", func(t *testing.T) {
+diff --git a/pkg/services/notifications/smtp.go b/pkg/services/notifications/smtp.go
+index 048b4ec3c..7447e3dfd 100644
+--- a/pkg/services/notifications/smtp.go
++++ b/pkg/services/notifications/smtp.go
+@@ -22,6 +22,7 @@ import (
+ 	"go.opentelemetry.io/otel/trace"
+ 	gomail "gopkg.in/mail.v2"
+ 
++	"github.com/grafana/grafana/pkg/configprovider"
+ 	"github.com/grafana/grafana/pkg/infra/tracing"
+ 	"github.com/grafana/grafana/pkg/setting"
+ )
+@@ -29,21 +30,33 @@ import (
+ var tracer = otel.Tracer("github.com/grafana/grafana/pkg/services/notifications")
+ 
+ type SmtpClient struct {
+-	cfg setting.SmtpSettings
++	cfgProvider  configprovider.ConfigProvider
++	instanceName string
+ }
+ 
+-func ProvideSmtpService(cfg *setting.Cfg) (Mailer, error) {
+-	return NewSmtpClient(cfg.Smtp)
++func ProvideSmtpService(cfg *setting.Cfg, cfgProvider configprovider.ConfigProvider) (Mailer, error) {
++	return NewSmtpClient(cfg, cfgProvider)
+ }
+ 
+-func NewSmtpClient(cfg setting.SmtpSettings) (*SmtpClient, error) {
++func NewSmtpClient(cfg *setting.Cfg, cfgProvider configprovider.ConfigProvider) (*SmtpClient, error) {
+ 	client := &SmtpClient{
+-		cfg: cfg,
++		cfgProvider:  cfgProvider,
++		instanceName: cfg.InstanceName,
+ 	}
+ 
+ 	return client, nil
+ }
+ 
++// readLiveSmtpSettings resolves the SMTP settings on every call, so remote
++// changes apply without a restart.
++func readLiveSmtpSettings(ctx context.Context, cfgProvider configprovider.ConfigProvider, instanceName string) (setting.SmtpSettings, error) {
++	iniFile, err := cfgProvider.GetSections(ctx, "smtp", "smtp.static_headers", "emails")
++	if err != nil {
++		return setting.SmtpSettings{}, err
++	}
++	return setting.ReadSmtpSettings(iniFile, instanceName)
++}
++
+ func (sc *SmtpClient) Send(ctx context.Context, messages ...*Message) (int, error) {
+ 	ctx, span := tracer.Start(ctx, "notifications.SmtpClient.Send",
+ 		trace.WithAttributes(attribute.Int("messages", len(messages))),
+@@ -52,15 +65,27 @@ func (sc *SmtpClient) Send(ctx context.Context, messages ...*Message) (int, erro
+ 
+ 	sentEmailsCount := 0
+ 
+-	dialer, err := sc.createDialer()
++	smtp, err := readLiveSmtpSettings(ctx, sc.cfgProvider, sc.instanceName)
+ 	if err != nil {
++		countUndelivered(len(messages))
++		return sentEmailsCount, err
++	}
++	// Messages queued before SMTP was disabled remotely must not go out.
++	if !smtp.Enabled {
++		countUndelivered(len(messages))
++		return sentEmailsCount, ErrSmtpNotEnabled
++	}
++
++	dialer, err := sc.createDialer(smtp)
++	if err != nil {
++		countUndelivered(len(messages))
+ 		return sentEmailsCount, err
+ 	}
+ 
+ 	var errs []error
+ 
+ 	for _, msg := range messages {
+-		err := sc.sendMessage(ctx, dialer, msg)
++		err := sc.sendMessage(ctx, dialer, smtp, msg)
+ 		if err != nil {
+ 			errs = append(errs, err)
+ 			continue
+@@ -71,14 +96,19 @@ func (sc *SmtpClient) Send(ctx context.Context, messages ...*Message) (int, erro
+ 	return sentEmailsCount, errors.Join(errs...)
+ }
+ 
+-func (sc *SmtpClient) sendMessage(ctx context.Context, dialer *gomail.Dialer, msg *Message) error {
++func countUndelivered(count int) {
++	emailsSentTotal.Add(float64(count))
++	emailsSentFailed.Add(float64(count))
++}
++
++func (sc *SmtpClient) sendMessage(ctx context.Context, dialer *gomail.Dialer, smtp setting.SmtpSettings, msg *Message) error {
+ 	ctx, span := tracer.Start(ctx, "notifications.SmtpClient.sendMessage", trace.WithAttributes(
+ 		attribute.String("smtp.sender", msg.From),
+ 		attribute.StringSlice("smtp.recipients", msg.To),
+ 	))
+ 	defer span.End()
+ 
+-	m := sc.buildEmail(ctx, msg)
++	m := sc.buildEmail(ctx, smtp, msg)
+ 
+ 	err := dialer.DialAndSend(m)
+ 	emailsSentTotal.Inc()
+@@ -97,10 +127,10 @@ func (sc *SmtpClient) sendMessage(ctx context.Context, dialer *gomail.Dialer, ms
+ }
+ 
+ // buildEmail converts the Message DTO to a gomail message.
+-func (sc *SmtpClient) buildEmail(ctx context.Context, msg *Message) *gomail.Message {
++func (sc *SmtpClient) buildEmail(ctx context.Context, smtp setting.SmtpSettings, msg *Message) *gomail.Message {
+ 	m := gomail.NewMessage()
+ 	// add all static headers to the email message
+-	for h, val := range sc.cfg.StaticHeaders {
++	for h, val := range smtp.StaticHeaders {
+ 		m.SetHeader(h, val)
+ 	}
+ 	m.SetHeader("From", msg.From)
+@@ -116,7 +146,7 @@ func (sc *SmtpClient) buildEmail(ctx context.Context, msg *Message) *gomail.Mess
+ 		}
+ 	}
+ 
+-	if sc.cfg.EnableTracing {
++	if smtp.EnableTracing {
+ 		otel.GetTextMapPropagator().Inject(ctx, gomailHeaderCarrier{m})
+ 	}
+ 
+@@ -124,10 +154,10 @@ func (sc *SmtpClient) buildEmail(ctx context.Context, msg *Message) *gomail.Mess
+ 	for _, replyTo := range msg.ReplyTo {
+ 		m.SetAddressHeader("Reply-To", replyTo, "")
+ 	}
+-	// loop over content types from settings in reverse order as they are ordered in according to descending
++	// loop over the message's content types in reverse order as they are ordered in according to descending
+ 	// preference while the alternatives should be ordered according to ascending preference
+-	for i, v := range slices.Backward(sc.cfg.ContentTypes) {
+-		if i == len(sc.cfg.ContentTypes)-1 {
++	for i, v := range slices.Backward(msg.ContentTypes) {
++		if i == len(msg.ContentTypes)-1 {
+ 			m.SetBody(v, msg.Body[v])
+ 		} else {
+ 			m.AddAlternative(v, msg.Body[v])
+@@ -161,8 +191,8 @@ func (sc *SmtpClient) setFiles(
+ 	}
+ }
+ 
+-func (sc *SmtpClient) createDialer() (*gomail.Dialer, error) {
+-	host, port, err := net.SplitHostPort(sc.cfg.Host)
++func (sc *SmtpClient) createDialer(smtp setting.SmtpSettings) (*gomail.Dialer, error) {
++	host, port, err := net.SplitHostPort(smtp.Host)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -172,22 +202,22 @@ func (sc *SmtpClient) createDialer() (*gomail.Dialer, error) {
+ 	}
+ 
+ 	tlsconfig := &tls.Config{
+-		InsecureSkipVerify: sc.cfg.SkipVerify,
++		InsecureSkipVerify: smtp.SkipVerify,
+ 		ServerName:         host,
+ 	}
+ 
+-	if sc.cfg.CertFile != "" {
+-		cert, err := tls.LoadX509KeyPair(sc.cfg.CertFile, sc.cfg.KeyFile)
++	if smtp.CertFile != "" {
++		cert, err := tls.LoadX509KeyPair(smtp.CertFile, smtp.KeyFile)
+ 		if err != nil {
+ 			return nil, fmt.Errorf("could not load cert or key file: %w", err)
+ 		}
+ 		tlsconfig.Certificates = []tls.Certificate{cert}
+ 	}
+ 
+-	d := gomail.NewDialer(host, iPort, sc.cfg.User, sc.cfg.Password)
++	d := gomail.NewDialer(host, iPort, smtp.User, smtp.Password)
+ 	d.TLSConfig = tlsconfig
+-	d.StartTLSPolicy = getStartTLSPolicy(sc.cfg.StartTLSPolicy)
+-	d.LocalName = sc.cfg.EhloIdentity
++	d.StartTLSPolicy = getStartTLSPolicy(smtp.StartTLSPolicy)
++	d.LocalName = smtp.EhloIdentity
+ 
+ 	return d, nil
+ }
+diff --git a/pkg/services/notifications/smtp_test.go b/pkg/services/notifications/smtp_test.go
+index 9c3f295f7..550c4b853 100644
+--- a/pkg/services/notifications/smtp_test.go
++++ b/pkg/services/notifications/smtp_test.go
+@@ -16,23 +16,69 @@ import (
+ 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
+ 	"github.com/stretchr/testify/assert"
+ 	"github.com/stretchr/testify/require"
++	"gopkg.in/ini.v1"
+ 
++	"github.com/grafana/grafana/pkg/configprovider"
+ 	"github.com/grafana/grafana/pkg/infra/tracing"
+ 	"github.com/grafana/grafana/pkg/setting"
+ )
+ 
+-func TestBuildMail(t *testing.T) {
++type failingConfigProvider struct {
++	configprovider.ConfigProvider
++	err error
++}
++
++func (p failingConfigProvider) GetSections(context.Context, ...string) (*ini.File, error) {
++	return nil, p.err
++}
++
++func newTestSmtpClient(t *testing.T, cfg *setting.Cfg) *SmtpClient {
++	t.Helper()
++	cfgProvider, err := configprovider.ProvideService(cfg)
++	require.NoError(t, err)
++	sc, err := NewSmtpClient(cfg, cfgProvider)
++	require.NoError(t, err)
++	return sc
++}
++
++// smtpRawCfg returns a cfg whose live [smtp] section holds smtpKeys.
++func smtpRawCfg(t *testing.T, smtpKeys map[string]string) *setting.Cfg {
++	t.Helper()
+ 	cfg := setting.NewCfg()
+-	cfg.Smtp.ContentTypes = []string{"text/html", "text/plain"}
+-	cfg.Smtp.StaticHeaders = map[string]string{"Foo-Header": "foo_value", "From": "malicious_value"}
++	setRawKeys(t, cfg, "smtp", smtpKeys)
++	return cfg
++}
+ 
+-	sc, err := NewSmtpClient(cfg.Smtp)
++// setRawKeys adds or overwrites keys in cfg.Raw, which is what the OSS config
++// provider serves, so tests can change live settings between calls.
++func setRawKeys(t *testing.T, cfg *setting.Cfg, section string, keys map[string]string) {
++	t.Helper()
++	sec := cfg.Raw.Section(section)
++	for name, value := range keys {
++		_, err := sec.NewKey(name, value)
++		require.NoError(t, err)
++	}
++}
++
++func sentHeaders(t *testing.T, sentMsg smtpmock.Message) textproto.MIMEHeader {
++	t.Helper()
++	hdr, err := textproto.NewReader(bufio.NewReader(strings.NewReader(sentMsg.MsgRequest()))).ReadMIMEHeader()
+ 	require.NoError(t, err)
++	return hdr
++}
++
++func TestBuildMail(t *testing.T) {
++	sc := newTestSmtpClient(t, setting.NewCfg())
++
++	smtp := setting.SmtpSettings{
++		StaticHeaders: map[string]string{"Foo-Header": "foo_value", "From": "malicious_value"},
++	}
+ 
+ 	message := &Message{
+-		To:      []string{"to@address.com"},
+-		From:    "Mr. Foo <from@address.com>",
+-		Subject: "Some subject",
++		To:           []string{"to@address.com"},
++		From:         "Mr. Foo <from@address.com>",
++		Subject:      "Some subject",
++		ContentTypes: []string{"text/html", "text/plain"},
+ 		Body: map[string]string{
+ 			"text/html":  "Some HTML body",
+ 			"text/plain": "Some plain text body",
+@@ -42,8 +88,20 @@ func TestBuildMail(t *testing.T) {
+ 
+ 	ctx := context.Background()
+ 
++	t.Run("Uses only the content types listed on the message", func(t *testing.T) {
++		plainOnly := *message
++		plainOnly.ContentTypes = []string{"text/plain"}
++
++		buf := new(bytes.Buffer)
++		_, err := sc.buildEmail(ctx, smtp, &plainOnly).WriteTo(buf)
++		require.NoError(t, err)
++
++		assert.Contains(t, buf.String(), "Some plain text body")
++		assert.NotContains(t, buf.String(), "Some HTML body")
++	})
++
+ 	t.Run("Can successfully build mail", func(t *testing.T) {
+-		email := sc.buildEmail(ctx, message)
++		email := sc.buildEmail(ctx, smtp, message)
+ 		staticHeader := email.GetHeader("Foo-Header")[0]
+ 		assert.Equal(t, staticHeader, "foo_value")
+ 
+@@ -59,27 +117,20 @@ func TestBuildMail(t *testing.T) {
+ 		assert.Less(t, strings.Index(buf.String(), "Some plain text body"), strings.Index(buf.String(), "Some HTML body"))
+ 	})
+ 
+-	t.Run("Skips trace headers when context has no span", func(t *testing.T) {
+-		cfg.Smtp.EnableTracing = true
++	tracingSmtp := smtp
++	tracingSmtp.EnableTracing = true
+ 
+-		sc, err := NewSmtpClient(cfg.Smtp)
+-		require.NoError(t, err)
+-
+-		email := sc.buildEmail(ctx, message)
++	t.Run("Skips trace headers when context has no span", func(t *testing.T) {
++		email := sc.buildEmail(ctx, tracingSmtp, message)
+ 		assert.Empty(t, email.GetHeader("traceparent"))
+ 	})
+ 
+ 	t.Run("Adds trace headers when context has span", func(t *testing.T) {
+-		cfg.Smtp.EnableTracing = true
+-
+-		sc, err := NewSmtpClient(cfg.Smtp)
+-		require.NoError(t, err)
+-
+ 		tracer := tracing.InitializeTracerForTest()
+ 		ctx, span := tracer.Start(ctx, "notifications.SmtpClient.SendContext")
+ 		defer span.End()
+ 
+-		email := sc.buildEmail(ctx, message)
++		email := sc.buildEmail(ctx, tracingSmtp, message)
+ 		assert.NotEmpty(t, email.GetHeader("traceparent"))
+ 	})
+ }
+@@ -88,10 +139,8 @@ func TestSmtpDialer(t *testing.T) {
+ 	ctx := context.Background()
+ 
+ 	t.Run("When SMTP hostname is invalid", func(t *testing.T) {
+-		cfg := createSmtpConfig()
+-		cfg.Smtp.Host = "invalid%hostname:123:456"
+-		client, err := ProvideSmtpService(cfg)
+-		require.NoError(t, err)
++		cfg := smtpRawCfg(t, map[string]string{"enabled": "true", "host": "invalid%hostname:123:456"})
++		client := newTestSmtpClient(t, cfg)
+ 		message := &Message{
+ 			To:          []string{"asdf@grafana.com"},
+ 			SingleEmail: true,
+@@ -109,10 +158,8 @@ func TestSmtpDialer(t *testing.T) {
+ 	})
+ 
+ 	t.Run("When SMTP port is invalid", func(t *testing.T) {
+-		cfg := createSmtpConfig()
+-		cfg.Smtp.Host = "invalid%hostname:123a"
+-		client, err := ProvideSmtpService(cfg)
+-		require.NoError(t, err)
++		cfg := smtpRawCfg(t, map[string]string{"enabled": "true", "host": "invalid%hostname:123a"})
++		client := newTestSmtpClient(t, cfg)
+ 		message := &Message{
+ 			To:          []string{"asdf@grafana.com"},
+ 			SingleEmail: true,
+@@ -130,11 +177,12 @@ func TestSmtpDialer(t *testing.T) {
+ 	})
+ 
+ 	t.Run("When TLS certificate does not exist", func(t *testing.T) {
+-		cfg := createSmtpConfig()
+-		cfg.Smtp.Host = "localhost:1234"
+-		cfg.Smtp.CertFile = "/var/certs/does-not-exist.pem"
+-		client, err := ProvideSmtpService(cfg)
+-		require.NoError(t, err)
++		cfg := smtpRawCfg(t, map[string]string{
++			"enabled":   "true",
++			"host":      "localhost:1234",
++			"cert_file": "/var/certs/does-not-exist.pem",
++		})
++		client := newTestSmtpClient(t, cfg)
+ 		message := &Message{
+ 			To:          []string{"asdf@grafana.com"},
+ 			SingleEmail: true,
+@@ -160,12 +208,13 @@ func TestSmtpSend(t *testing.T) {
+ 	require.NoError(t, srv.Start())
+ 	defer func() { _ = srv.Stop() }()
+ 
+-	cfg := createSmtpConfig()
+-	cfg.Smtp.Host = fmt.Sprintf("127.0.0.1:%d", srv.PortNumber())
+-	cfg.Smtp.EnableTracing = true
++	cfg := smtpRawCfg(t, map[string]string{
++		"enabled":        "true",
++		"host":           fmt.Sprintf("127.0.0.1:%d", srv.PortNumber()),
++		"enable_tracing": "true",
++	})
+ 
+-	client, err := NewSmtpClient(cfg.Smtp)
+-	require.NoError(t, err)
++	client := newTestSmtpClient(t, cfg)
+ 
+ 	ctx := context.Background()
+ 
+@@ -175,10 +224,11 @@ func TestSmtpSend(t *testing.T) {
+ 		defer span.End()
+ 
+ 		message := &Message{
+-			From:    "from@example.com",
+-			To:      []string{"rcpt@example.com"},
+-			Subject: "subject",
+-			Body:    map[string]string{"text/plain": "hello world"},
++			From:         "from@example.com",
++			To:           []string{"rcpt@example.com"},
++			Subject:      "subject",
++			ContentTypes: []string{"text/plain"},
++			Body:         map[string]string{"text/plain": "hello world"},
+ 		}
+ 
+ 		count, err := client.Send(ctx, message)
+@@ -226,10 +276,11 @@ func TestSmtpSend(t *testing.T) {
+ 		defer span.End()
+ 
+ 		message := &Message{
+-			From:    "from@example.com",
+-			To:      []string{"rcpt1@example.com", "rcpt2@example.com", "rcpt3@example.com"},
+-			Subject: "subject",
+-			Body:    map[string]string{"text/plain": "hello world"},
++			From:         "from@example.com",
++			To:           []string{"rcpt1@example.com", "rcpt2@example.com", "rcpt3@example.com"},
++			Subject:      "subject",
++			ContentTypes: []string{"text/plain"},
++			Body:         map[string]string{"text/plain": "hello world"},
+ 		}
+ 
+ 		count, err := client.Send(ctx, message)
+@@ -285,11 +336,11 @@ func TestSmtpSend(t *testing.T) {
+ 
+ 		msgs := []*Message{
+ 			{From: "from@example.com", To: []string{"rcpt1@example.com"},
+-				Subject: "subject", Body: map[string]string{"text/plain": "hello world"}},
++				Subject: "subject", ContentTypes: []string{"text/plain"}, Body: map[string]string{"text/plain": "hello world"}},
+ 			{From: "from@example.com", To: []string{"rcpt2@example.com"},
+-				Subject: "subject", Body: map[string]string{"text/plain": "hello world"}},
++				Subject: "subject", ContentTypes: []string{"text/plain"}, Body: map[string]string{"text/plain": "hello world"}},
+ 			{From: "from@example.com", To: []string{"rcpt3@example.com"},
+-				Subject: "subject", Body: map[string]string{"text/plain": "hello world"}},
++				Subject: "subject", ContentTypes: []string{"text/plain"}, Body: map[string]string{"text/plain": "hello world"}},
+ 		}
+ 
+ 		count, err := client.Send(ctx, msgs...)
+@@ -352,22 +403,23 @@ func TestSmtpSendPartialFailure(t *testing.T) {
+ 	require.NoError(t, srv.Start())
+ 	defer func() { _ = srv.Stop() }()
+ 
+-	cfg := createSmtpConfig()
+-	cfg.Smtp.Host = fmt.Sprintf("127.0.0.1:%d", srv.PortNumber())
++	cfg := smtpRawCfg(t, map[string]string{
++		"enabled": "true",
++		"host":    fmt.Sprintf("127.0.0.1:%d", srv.PortNumber()),
++	})
+ 
+-	client, err := NewSmtpClient(cfg.Smtp)
+-	require.NoError(t, err)
++	client := newTestSmtpClient(t, cfg)
+ 
+ 	ctx := context.Background()
+ 
+ 	t.Run("rejected recipient does not block the remaining messages", func(t *testing.T) {
+ 		msgs := []*Message{
+ 			{From: "from@example.com", To: []string{"rcpt1@example.com"},
+-				Subject: "subject", Body: map[string]string{"text/plain": "hello world"}},
++				Subject: "subject", ContentTypes: []string{"text/plain"}, Body: map[string]string{"text/plain": "hello world"}},
+ 			{From: "from@example.com", To: []string{"rejected@example.com"},
+-				Subject: "subject", Body: map[string]string{"text/plain": "hello world"}},
++				Subject: "subject", ContentTypes: []string{"text/plain"}, Body: map[string]string{"text/plain": "hello world"}},
+ 			{From: "from@example.com", To: []string{"rcpt3@example.com"},
+-				Subject: "subject", Body: map[string]string{"text/plain": "hello world"}},
++				Subject: "subject", ContentTypes: []string{"text/plain"}, Body: map[string]string{"text/plain": "hello world"}},
+ 		}
+ 
+ 		count, err := client.Send(ctx, msgs...)
+@@ -392,3 +444,90 @@ func TestSmtpSendPartialFailure(t *testing.T) {
+ 		}, delivered)
+ 	})
+ }
++
++func TestSmtpSendLiveSettings(t *testing.T) {
++	srv := smtpmock.New(smtpmock.ConfigurationAttr{HostAddress: "127.0.0.1"})
++	require.NoError(t, srv.Start())
++	defer func() { _ = srv.Stop() }()
++
++	ctx := context.Background()
++	newMessage := func() *Message {
++		return &Message{From: "from@example.com", To: []string{"rcpt@example.com"},
++			Subject: "subject", ContentTypes: []string{"text/plain"}, Body: map[string]string{"text/plain": "hello world"}}
++	}
++	newLiveCfg := func(t *testing.T) *setting.Cfg {
++		t.Helper()
++		return smtpRawCfg(t, map[string]string{
++			"enabled": "true",
++			"host":    fmt.Sprintf("127.0.0.1:%d", srv.PortNumber()),
++		})
++	}
++
++	t.Run("applies settings changed between sends", func(t *testing.T) {
++		cfg := newLiveCfg(t)
++		setRawKeys(t, cfg, "smtp.static_headers", map[string]string{"X-Test": "first"})
++		client := newTestSmtpClient(t, cfg)
++
++		_, err := client.Send(ctx, newMessage())
++		require.NoError(t, err)
++		setRawKeys(t, cfg, "smtp.static_headers", map[string]string{"X-Test": "second"})
++		_, err = client.Send(ctx, newMessage())
++		require.NoError(t, err)
++
++		messages, err := srv.WaitForMessagesAndPurge(2, 5*time.Second)
++		require.NoError(t, err)
++		require.Len(t, messages, 2)
++		assert.Equal(t, "first", sentHeaders(t, messages[0]).Get("X-Test"))
++		assert.Equal(t, "second", sentHeaders(t, messages[1]).Get("X-Test"))
++	})
++
++	t.Run("stops sending once SMTP is disabled", func(t *testing.T) {
++		cfg := newLiveCfg(t)
++		client := newTestSmtpClient(t, cfg)
++
++		setRawKeys(t, cfg, "smtp", map[string]string{"enabled": "false"})
++		count, err := client.Send(ctx, newMessage())
++
++		require.ErrorIs(t, err, ErrSmtpNotEnabled)
++		assert.Equal(t, 0, count)
++		assert.Empty(t, srv.MessagesAndPurge())
++	})
++
++	t.Run("uses the instance name as EHLO identity when ehlo_identity is unset", func(t *testing.T) {
++		cfg := newLiveCfg(t)
++		cfg.InstanceName = "test-instance.example.com"
++		client := newTestSmtpClient(t, cfg)
++
++		_, err := client.Send(ctx, newMessage())
++		require.NoError(t, err)
++
++		messages, err := srv.WaitForMessagesAndPurge(1, 5*time.Second)
++		require.NoError(t, err)
++		require.Len(t, messages, 1)
++		assert.Equal(t, "EHLO test-instance.example.com", messages[0].HeloRequest())
++	})
++
++	t.Run("rejects an invalid static header without sending", func(t *testing.T) {
++		cfg := newLiveCfg(t)
++		setRawKeys(t, cfg, "smtp.static_headers", map[string]string{"invalid header": "value"})
++		client := newTestSmtpClient(t, cfg)
++
++		count, err := client.Send(ctx, newMessage())
++
++		require.ErrorContains(t, err, "must follow canonical MIME form")
++		assert.Equal(t, 0, count)
++		assert.Empty(t, srv.MessagesAndPurge())
++	})
++
++	t.Run("returns the config provider error without sending", func(t *testing.T) {
++		providerErr := errors.New("settings unavailable")
++		client, err := NewSmtpClient(setting.NewCfg(), failingConfigProvider{err: providerErr})
++		require.NoError(t, err)
++
++		count, err := client.Send(ctx, newMessage())
++
++		require.ErrorIs(t, err, providerErr)
++		assert.Equal(t, 0, count)
++		assert.Empty(t, srv.MessagesAndPurge())
++	})
++}
+diff --git a/pkg/setting/setting_smtp.go b/pkg/setting/setting_smtp.go
+index dfcbe859d..722728f49 100644
+--- a/pkg/setting/setting_smtp.go
++++ b/pkg/setting/setting_smtp.go
+@@ -5,6 +5,7 @@ import (
+ 	"regexp"
+ 
+ 	"github.com/grafana/grafana/pkg/util"
++	"gopkg.in/ini.v1"
+ )
+ 
+ type SmtpSettings struct {
+@@ -31,53 +32,63 @@ type SmtpSettings struct {
+ var mailHeaderRegex = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*(-[A-Z][A-Za-z0-9]*)*$`)
+ 
+ func (cfg *Cfg) readSmtpSettings() error {
+-	sec := cfg.Raw.Section("smtp")
+-	cfg.Smtp.Enabled = sec.Key("enabled").MustBool(false)
+-	cfg.Smtp.Host = sec.Key("host").String()
+-	cfg.Smtp.User = sec.Key("user").String()
+-	cfg.Smtp.Password = sec.Key("password").String()
+-	cfg.Smtp.CertFile = sec.Key("cert_file").String()
+-	cfg.Smtp.KeyFile = sec.Key("key_file").String()
+-	cfg.Smtp.FromAddress = sec.Key("from_address").String()
+-	cfg.Smtp.FromName = sec.Key("from_name").String()
+-	cfg.Smtp.EhloIdentity = sec.Key("ehlo_identity").String()
+-	if cfg.Smtp.EhloIdentity == "" {
+-		cfg.Smtp.EhloIdentity = cfg.InstanceName
++	smtpSetts, err := ReadSmtpSettings(cfg.Raw, cfg.InstanceName)
++	if err != nil {
++		return err
+ 	}
+-	cfg.Smtp.StartTLSPolicy = sec.Key("startTLS_policy").String()
+-	cfg.Smtp.SkipVerify = sec.Key("skip_verify").MustBool(false)
++	cfg.Smtp = smtpSetts
++	return nil
++}
+ 
+-	emails := cfg.Raw.Section("emails")
+-	cfg.Smtp.SendWelcomeEmailOnSignUp = emails.Key("welcome_email_on_sign_up").MustBool(false)
+-	cfg.Smtp.TemplatesPatterns = util.SplitString(emails.Key("templates_pattern").MustString("emails/*.html, emails/*.txt"))
+-	cfg.Smtp.ContentTypes = util.SplitString(emails.Key("content_types").MustString("text/html"))
++func ReadSmtpSettings(iniFile *ini.File, instanceName string) (SmtpSettings, error) {
++	smtpSection := iniFile.Section("smtp")
++	staticHeadersSection := iniFile.Section("smtp.static_headers")
++	emails := iniFile.Section("emails")
+ 
+-	// populate static headers
+-	if err := cfg.readGrafanaSmtpStaticHeaders(); err != nil {
+-		return err
++	smtpSetts := SmtpSettings{}
++
++	smtpSetts.Enabled = smtpSection.Key("enabled").MustBool(false)
++	smtpSetts.Host = smtpSection.Key("host").String()
++	smtpSetts.User = smtpSection.Key("user").String()
++	smtpSetts.Password = smtpSection.Key("password").String()
++	smtpSetts.CertFile = smtpSection.Key("cert_file").String()
++	smtpSetts.KeyFile = smtpSection.Key("key_file").String()
++	smtpSetts.FromAddress = smtpSection.Key("from_address").String()
++	smtpSetts.FromName = smtpSection.Key("from_name").String()
++	smtpSetts.EhloIdentity = smtpSection.Key("ehlo_identity").String()
++	if smtpSetts.EhloIdentity == "" {
++		smtpSetts.EhloIdentity = instanceName
+ 	}
++	smtpSetts.StartTLSPolicy = smtpSection.Key("startTLS_policy").String()
++	smtpSetts.SkipVerify = smtpSection.Key("skip_verify").MustBool(false)
+ 
+-	cfg.Smtp.EnableTracing = sec.Key("enable_tracing").MustBool(false)
++	smtpSetts.SendWelcomeEmailOnSignUp = emails.Key("welcome_email_on_sign_up").MustBool(false)
++	smtpSetts.TemplatesPatterns = util.SplitString(emails.Key("templates_pattern").MustString("emails/*.html, emails/*.txt"))
++	smtpSetts.ContentTypes = util.SplitString(emails.Key("content_types").MustString("text/html"))
+ 
+-	return nil
++	// populate static headers
++	staticHeaders, err := readGrafanaSmtpStaticHeaders(staticHeadersSection)
++	if err != nil {
++		return SmtpSettings{}, err
++	}
++	smtpSetts.StaticHeaders = staticHeaders
++	smtpSetts.EnableTracing = smtpSection.Key("enable_tracing").MustBool(false)
++	return smtpSetts, nil
+ }
+ 
+ func validHeader(header string) bool {
+ 	return mailHeaderRegex.MatchString(header)
+ }
+ 
+-func (cfg *Cfg) readGrafanaSmtpStaticHeaders() error {
+-	staticHeadersSection := cfg.Raw.Section("smtp.static_headers")
++func readGrafanaSmtpStaticHeaders(staticHeadersSection *ini.Section) (map[string]string, error) {
+ 	keys := staticHeadersSection.Keys()
+-	cfg.Smtp.StaticHeaders = make(map[string]string, len(keys))
+-
++	staticHeaders := make(map[string]string, len(keys))
+ 	for _, key := range keys {
+ 		if !validHeader(key.Name()) {
+-			return fmt.Errorf("header %q in [smtp.static_headers] configuration: must follow canonical MIME form", key.Name())
++			return nil, fmt.Errorf("header %q in [smtp.static_headers] configuration: must follow canonical MIME form", key.Name())
+ 		}
+-
+-		cfg.Smtp.StaticHeaders[key.Name()] = key.Value()
++		staticHeaders[key.Name()] = key.Value()
+ 	}
+ 
+-	return nil
++	return staticHeaders, nil
+ }
+diff --git a/pkg/setting/setting_smtp_test.go b/pkg/setting/setting_smtp_test.go
+index bdc6f3d03..67aed4f42 100644
+--- a/pkg/setting/setting_smtp_test.go
++++ b/pkg/setting/setting_smtp_test.go
+@@ -8,59 +8,100 @@ import (
+ 	"gopkg.in/ini.v1"
+ )
+ 
+-func TestLoadSmtpStaticHeaders(t *testing.T) {
+-	t.Run("will load valid headers", func(t *testing.T) {
+-		f := ini.Empty()
+-		cfg := NewCfg()
+-		s, err := f.NewSection("smtp.static_headers")
++func newStaticHeadersSection(t *testing.T, headers map[string]string) *ini.Section {
++	t.Helper()
++	section, err := ini.Empty().NewSection("smtp.static_headers")
++	require.NoError(t, err)
++	for name, value := range headers {
++		_, err = section.NewKey(name, value)
+ 		require.NoError(t, err)
+-		cfg.Raw = f
+-		_, err = s.NewKey("Foo-Header", "foo_val")
++	}
++	return section
++}
++
++func TestReadGrafanaSmtpStaticHeaders(t *testing.T) {
++	t.Run("will load valid headers", func(t *testing.T) {
++		section := newStaticHeadersSection(t, map[string]string{
++			"Foo-Header": "foo_val",
++			"Bar":        "bar_val",
++		})
++
++		staticHeaders, err := readGrafanaSmtpStaticHeaders(section)
+ 		require.NoError(t, err)
+-		_, err = s.NewKey("Bar", "bar_val")
++
++		assert.Equal(t, "foo_val", staticHeaders["Foo-Header"])
++		assert.Equal(t, "bar_val", staticHeaders["Bar"])
++	})
++
++	t.Run("will load no static headers when section is defined but has no keys", func(t *testing.T) {
++		section := newStaticHeadersSection(t, nil)
++
++		staticHeaders, err := readGrafanaSmtpStaticHeaders(section)
+ 		require.NoError(t, err)
+ 
+-		err = cfg.readGrafanaSmtpStaticHeaders()
++		assert.Empty(t, staticHeaders)
++	})
++
++	t.Run("will load no static headers when section is not defined", func(t *testing.T) {
++		section := ini.Empty().Section("smtp.static_headers")
++
++		staticHeaders, err := readGrafanaSmtpStaticHeaders(section)
+ 		require.NoError(t, err)
+ 
+-		assert.Equal(t, "foo_val", cfg.Smtp.StaticHeaders["Foo-Header"])
+-		assert.Equal(t, "bar_val", cfg.Smtp.StaticHeaders["Bar"])
++		assert.Empty(t, staticHeaders)
+ 	})
+ 
+-	t.Run("will load no static headers into smtp config when section is defined but has no keys", func(t *testing.T) {
++	t.Run("will return error when header label is not in valid format", func(t *testing.T) {
++		section := newStaticHeadersSection(t, map[string]string{
++			"header with spaces": "value",
++		})
++
++		_, err := readGrafanaSmtpStaticHeaders(section)
++		require.Error(t, err)
++	})
++}
++
++func TestReadSmtpSettings(t *testing.T) {
++	t.Run("will populate settings from the ini file", func(t *testing.T) {
+ 		f := ini.Empty()
+-		cfg := NewCfg()
+-		_, err := f.NewSection("smtp.static_headers")
++		smtp, err := f.NewSection("smtp")
++		require.NoError(t, err)
++		_, err = smtp.NewKey("enabled", "true")
++		require.NoError(t, err)
++		_, err = smtp.NewKey("host", "localhost:25")
++		require.NoError(t, err)
++		_, err = smtp.NewKey("ehlo_identity", "custom-identity")
+ 		require.NoError(t, err)
+-		cfg.Raw = f
+ 
+-		err = cfg.readGrafanaSmtpStaticHeaders()
++		headers, err := f.NewSection("smtp.static_headers")
++		require.NoError(t, err)
++		_, err = headers.NewKey("Foo-Header", "foo_val")
+ 		require.NoError(t, err)
+ 
+-		assert.Empty(t, cfg.Smtp.StaticHeaders)
+-	})
++		settings, err := ReadSmtpSettings(f, "instance-name")
++		require.NoError(t, err)
+ 
+-	t.Run("will load no static headers into smtp config when section is not defined", func(t *testing.T) {
+-		f := ini.Empty()
+-		cfg := NewCfg()
+-		cfg.Raw = f
++		assert.True(t, settings.Enabled)
++		assert.Equal(t, "localhost:25", settings.Host)
++		assert.Equal(t, "custom-identity", settings.EhloIdentity)
++		assert.Equal(t, "foo_val", settings.StaticHeaders["Foo-Header"])
++	})
+ 
+-		err := cfg.readGrafanaSmtpStaticHeaders()
++	t.Run("will fall back to instance name for ehlo identity when unset", func(t *testing.T) {
++		settings, err := ReadSmtpSettings(ini.Empty(), "instance-name")
+ 		require.NoError(t, err)
+ 
+-		assert.Empty(t, cfg.Smtp.StaticHeaders)
++		assert.Equal(t, "instance-name", settings.EhloIdentity)
+ 	})
+ 
+-	t.Run("will return error when header label is not in valid format", func(t *testing.T) {
++	t.Run("will return error when a static header label is not in valid format", func(t *testing.T) {
+ 		f := ini.Empty()
+-		cfg := NewCfg()
+-		s, err := f.NewSection("smtp.static_headers")
++		headers, err := f.NewSection("smtp.static_headers")
+ 		require.NoError(t, err)
+-		_, err = s.NewKey("header with spaces", "value")
++		_, err = headers.NewKey("header with spaces", "value")
+ 		require.NoError(t, err)
+-		cfg.Raw = f
+ 
+-		err = cfg.readGrafanaSmtpStaticHeaders()
++		_, err = ReadSmtpSettings(f, "instance-name")
+ 		require.Error(t, err)
+ 	})
+ }
