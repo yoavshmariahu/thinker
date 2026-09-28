@@ -16,6 +16,16 @@ agent session ──► distill ──► .thinker/notes/*.json ──► orient
 
 Requires Node 20+. Tests: `npm test` (`node --test test/*.test.js`).
 
+**Agent concurrency and worktrees (MANDATORY RULE):**
+All agents working on this repository MUST perform code changes, scratch experiments, and benchmark runs in isolated git worktrees to avoid collisions with other active agents or running benchmark jobs. Never edit directly in the primary working tree.
+- **Create a worktree:** `git worktree add -b agent/<task-name> .worktrees/<task-name> HEAD` (or in `bench/worktrees/`; both are gitignored).
+- **Work strictly within the worktree.**
+- **Destroy on completion:** Once changes are committed/pushed/merged, or if the task is aborted or cancelled, always remove the worktree:
+  ```bash
+  git worktree remove --force <path-to-worktree>
+  git branch -D agent/<task-name> # if no longer needed
+  ```
+
 Model calls go through the Anthropic SDK when `ANTHROPIC_API_KEY` is set,
 otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 `agent`), so no extra credentials are needed.

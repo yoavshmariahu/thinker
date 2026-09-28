@@ -4,4 +4,5 @@ dist/
 # benchmark scratch: cloned repos and per-run git worktrees (large, reproducible)
 bench/repos/
 bench/worktrees/
+.worktrees/
 bench/runs/empty-notes/
