@@ -38,17 +38,17 @@ export function detectClients() {
   const found = [];
   if (onPath('claude') || fs.existsSync(home('.claude'))) found.push('claude');
   if (onPath('codex') || fs.existsSync(home('.codex'))) found.push('codex');
-  if (onPath('cursor') || onPath('cursor-agent') || fs.existsSync(home('.cursor'))) found.push('cursor');
-  if (onPath('gemini') || fs.existsSync(home('.gemini'))) found.push('gemini');
+  if (onPath('cursor') || onPath('cursor-agent') || onPath('agent') || fs.existsSync(home('.cursor'))) found.push('cursor');
+  if (onPath('gemini') || onPath('agy') || fs.existsSync(home('.gemini'))) found.push('gemini');
   return found.length ? found : ['claude'];
 }
 
-// "--clients claude,codex" | "all" | "auto" → validated list
 export function parseClients(value, fallback = ['claude']) {
-  if (!value || value === true) return fallback;
-  if (value === 'all') return [...CLIENTS];
-  if (value === 'auto') return detectClients();
-  const list = String(value).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const v = (!value || value === true) ? fallback : value;
+  if (Array.isArray(v)) return v;
+  if (v === 'all') return [...CLIENTS];
+  if (v === 'auto') return detectClients();
+  const list = String(v).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   const bad = list.filter(c => !CLIENTS.includes(c));
   if (bad.length) throw new Error(`unknown client: ${bad.join(', ')} (known: ${CLIENTS.join(', ')}, all, auto)`);
   return [...new Set(list)];

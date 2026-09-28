@@ -86,7 +86,7 @@ async function main() {
       //        the older name), --no-hooks (MCP server only), --late (file-keyed notes),
       //        --local (write .claude/settings.local.json, not shared), --git-hook, --no-mcp, --clients,
       //        --no-trust (leave Codex's trust in the project and the hooks to the user), --yes (do not ask)
-      await init({ clients: parseClients(flags.clients), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !!flags['git-hook'] });
+      await init({ clients: parseClients(flags.clients, 'auto'), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !!flags['git-hook'] });
       break;
     }
     case 'setup': {
@@ -282,9 +282,7 @@ async function main() {
           const n = completenessNudge(store, { session, changed, cochange: loadCochange(repo) });
           if (n.text) { out(JSON.stringify({ decision: 'block', reason: n.text })); break; }
         }
-        // Distill in the background so the hook returns immediately.
         if (client === 'cursor') out('{}');
-        if (flags['no-distill'] || NO_LEARN) break;
         // Claude Code: its transcript. Other agents: the trace the hooks recorded,
         // plus the agent's closing message from the hook input or its transcript.
         let source = ev.transcript_path;
@@ -295,6 +293,7 @@ async function main() {
           recordEvent(store.dir, session, { t: 'say', text: last });
           source = traceFile(store.dir, session);
         }
+        if (flags['no-distill'] || NO_LEARN) break;
         if (!source || !fs.existsSync(source)) break;
         const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo],
           { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } });
@@ -473,7 +472,7 @@ function sourceAreas(limit) {
 function explore(agent, prompt, model) {
   const env = { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
   const opts = { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, env };
-  const bin = findBin({ claude: ['claude'], codex: ['codex'], cursor: ['agent', 'cursor-agent'], gemini: ['gemini'] }[agent] || []);
+  const bin = findBin({ claude: ['claude'], codex: ['codex'], cursor: ['agent', 'cursor-agent'], gemini: ['agy', 'gemini'] }[agent] || []);
   if (!bin) return { error: `the ${agent} CLI was not found` };
   const stream = path.join(store.dir, 'state', `explore-${Date.now()}.jsonl`);
   fs.mkdirSync(path.dirname(stream), { recursive: true });

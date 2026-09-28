@@ -1,0 +1,5 @@
+bench/
+node_modules/
+.git/
+.worktrees/
+.thinker/
