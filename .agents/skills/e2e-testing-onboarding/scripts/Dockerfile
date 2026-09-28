@@ -39,4 +39,4 @@ WORKDIR /thinker
 RUN npm install
 
 WORKDIR /workspace
-CMD ["/bin/bash", "/thinker/docker-experiment/test_runner.sh"]
+CMD ["/bin/bash", "/thinker/.agents/skills/e2e-testing-onboarding/scripts/run_suite.sh"]

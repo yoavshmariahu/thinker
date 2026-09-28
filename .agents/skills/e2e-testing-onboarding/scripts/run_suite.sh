@@ -200,7 +200,7 @@ fi
 
 info "Distilling captured trace into new cache notes..."
 export THINKER_LLM=command
-export THINKER_LLM_CMD="node /thinker/docker-experiment/mock_llm.js"
+export THINKER_LLM_CMD="node /thinker/.agents/skills/e2e-testing-onboarding/scripts/mock_distill_llm.js"
 
 node "$CLI_JS" distill "$TRACE_FILE" --repo "$REPO_DIR" --session "$SESS"
 
