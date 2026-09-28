@@ -218,23 +218,7 @@ button { cursor: pointer; }
 [hidden] { display: none !important; }
 
 .estimate { color: #555a63; }
-.topline-actions { display: flex; align-items: center; gap: 16px; }
-.cli-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: white;
-  color: #454a52;
-  font-family: "Manrope", system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-}
-.cli-toggle:hover { border-color: #bcc0c7; background: var(--soft); }
-.cli-toggle span { color: var(--blue); font-family: "DM Mono", monospace; }
-.cli-toggle:focus-visible, .back-button:focus-visible, .cli-panel button:focus-visible { outline: 3px solid rgba(78,111,255,.25); outline-offset: 2px; }
+.back-button:focus-visible, .cli-panel button:focus-visible { outline: 3px solid rgba(78,111,255,.25); outline-offset: 2px; }
 
 .cli-panel {
   width: min(760px, 100%);
@@ -467,7 +451,6 @@ button { cursor: pointer; }
   .step.active > span, .step.complete > span { background: var(--acid-deep); }
   .step div { display: none; }
   .workspace { min-height: calc(100vh - 173px); padding: 18px 20px 38px; }
-  .topline-actions { gap: 9px; }
   .estimate { display: none; }
   .cli-panel { margin-top: 16px; }
   .panel { padding-top: 34px; }

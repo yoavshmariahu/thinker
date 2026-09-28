@@ -48,19 +48,16 @@
             <button class="back-button" id="backButton" hidden><span>←</span> Back</button>
             <span id="stepLabel">Step 1 of 5</span>
           </div>
-          <div class="topline-actions">
-            <span class="estimate" id="estimate">About 8 minutes</span>
-            <button class="cli-toggle" id="cliToggle" aria-expanded="false" aria-controls="cliPanel"><span>&gt;_</span> Show CLI</button>
-          </div>
+          <span class="estimate" id="estimate">About 8 minutes</span>
         </div>
 
-        <aside class="cli-panel" id="cliPanel" aria-label="CLI equivalent" hidden>
+        <aside class="cli-panel" id="cliPanel" aria-label="CLI equivalent">
           <div class="cli-panel-top">
-            <div><span class="terminal-dot"></span><strong>Prototype CLI</strong></div>
+            <div><span class="terminal-dot"></span><strong>Or use the CLI</strong></div>
             <button id="copyCommand">Copy command</button>
           </div>
           <div class="cli-command"><span>$</span><code id="cliCommand"></code></div>
-          <p>The same step using Thinky from your terminal</p>
+          <p>Prototype command for completing this step from your terminal</p>
         </aside>
 
         <section class="panel active" data-panel="1">

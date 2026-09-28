@@ -4,8 +4,6 @@ const stepLabel = document.querySelector('#stepLabel')
 const estimate = document.querySelector('#estimate')
 const toast = document.querySelector('#toast')
 const backButton = document.querySelector('#backButton')
-const cliToggle = document.querySelector('#cliToggle')
-const cliPanel = document.querySelector('#cliPanel')
 const cliCommand = document.querySelector('#cliCommand')
 const repoSelect = document.querySelector('#repo')
 let currentStep = 1
@@ -61,13 +59,6 @@ document.querySelectorAll('[data-next]').forEach(button => {
 })
 
 backButton.addEventListener('click', () => goToStep(Math.max(1, currentStep - 1)))
-
-cliToggle.addEventListener('click', () => {
-  const expanded = cliToggle.getAttribute('aria-expanded') === 'true'
-  cliToggle.setAttribute('aria-expanded', String(!expanded))
-  cliPanel.hidden = expanded
-  cliToggle.lastChild.textContent = expanded ? ' Show CLI' : ' Hide CLI'
-})
 
 document.querySelector('#copyCommand').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(cliCommand.textContent) } catch {}
