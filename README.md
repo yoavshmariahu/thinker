@@ -6,18 +6,21 @@ short notes keyed to the code they describe, and serves the relevant ones
 into each request. When the code under a note changes, the note is flagged
 stale and re-verified.
 
-**With Claude Fable on real tasks, the cache raised the correctness score
-and lowered the cost.**
+**With Claude Fable on real tasks, the cache raised the correctness score,
+lowered cost, and cut wall time.**
 
 ```
 correctness score    without thinker  ████████████████░░░░  80%
-                     with thinker     ██████████████████░░  89%    +10%
+                     with thinker     ██████████████████░░  89%     +10%
 
 input tokens         without thinker  ████████████████████  1.25M
                      with thinker     ████████████████░░░░  1.02M   -18%
 
 cost per task        without thinker  ████████████████████  $2.72
                      with thinker     ██████████████████░░  $2.45   -10%
+
+wall time            without thinker  ████████████████████  2.7 min
+                     with thinker     █████████████████░░░  2.3 min -14%
 ```
 
 [See the benchmark](#benchmarks).
@@ -51,32 +54,18 @@ Notes:
 ## Benchmarks
 
 Real tasks from merged pull requests in PostHog, each run with and without
-the cache and graded by Claude Fable.
+the cache. Evaluated on Claude Fable (20 pairs via Claude Code) and Gemini 3.8
+Flash (14 pairs via Antigravity CLI), all independently graded on calibrated
+acceptance criteria by Claude Fable.
 
-### Claude Fable (20 pairs)
-
-| per task | without thinker | with thinker | change |
-|---|---|---|---|
-| **Correctness score** | 80% | **89%** | **+10%** |
-| **Every essential criterion met** | 9 of 20 | **12 of 20** | **+3** |
-| Thoroughness | 28% | 34% | +21% |
-| **Input tokens, cached included** | 1.25M | **1.02M** | **-18%** |
-| **Output tokens** | 11.4k | **10.1k** | **-11%** |
-| **Tool calls** | 18.1 | **14.9** | **-17%** |
-| **Time** | 2.7 min | **2.3 min** | **-14%** |
-| **Cost** | $2.72 | **$2.45** | **-10%** |
-
-### Gemini 3.8 Flash (14 pairs)
-
-| per task | without thinker | with thinker | change |
-|---|---|---|---|
-| Correctness (essential criteria) | 51.8% | **52.2%** | **+0.4%** |
-| Every essential criterion met | 5 of 14 | 5 of 14 | parity |
-| **Tool calls** | 142.7 | **111.1** | **-22.2%** |
-| **File reads** | 70.3 | **51.5** | **-26.7%** |
-| **Output tokens** | 98.1k | **76.9k** | **-21.7%** |
-| **Time** | 13.1 min | **11.9 min** | **-8.5%** |
-| **Cost** | $0.416 | **$0.348** | **-16.4%** |
+| per task average | Claude Fable: without | with thinker | change | Gemini 3.8: without | with thinker | change |
+|---|---|---|---|---|---|---|
+| **Correctness (essential criteria)** | 80% | **89%** | **+10%** | 51.8% | **52.2%** | **+0.4%** |
+| **Every essential criterion met** | 9 of 20 (45%) | **12 of 20 (60%)** | **+3** | 5 of 14 (35.7%) | **5 of 14 (35.7%)** | **parity** |
+| **Tool calls** | 18.1 | **14.9** | **-17%** | 142.7 | **111.1** | **-22.2%** |
+| **Output tokens** | 11.4k | **10.1k** | **-11%** | 98.1k | **76.9k** | **-21.7%** |
+| **Wall time** | 2.7 min | **2.3 min** | **-14%** | 13.1 min | **11.9 min** | **-8.5%** |
+| **Cost** | $2.72 | **$2.45** | **-10%** | $0.416 | **$0.348** | **-16.4%** |
 
 Method, uncertainty, per-task results and other models:
 [bench/RESULTS.md](bench/RESULTS.md).
