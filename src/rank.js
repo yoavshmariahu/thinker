@@ -76,8 +76,8 @@ export function bm25(index, qtoks, k1 = 1.4, b = 0.6) {
 // Share of the request's term weight that a note must cover, with its body and pointers
 // and with its question side (title/answers/tags). rel is relative to the best note, so the
 // best of a poor lot scores near 1; these floors are absolute.
-// THINKER_MIN_COVER=body,question changes them; 0,0 turns them off.
-export const MIN_COVER = { body: 0.15, question: 0.05 };
+// THINKER_MIN_COVER=body,question,terms changes them; 0,0 turns them off.
+export const MIN_COVER = { body: 0.15, question: 0.05, terms: 3 };
 
 // path affinity: 1 if a dep is the current file, decaying by directory distance
 function pathAffinity(note, file) {
@@ -108,7 +108,11 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
   // absolute gate: the note's question side (title/answers/tags) must share
   // discriminative terms with the query, or the note must sit on the current file.
   const need = Q.uniq <= 3 ? 1 : 2;
-  const [minB = MIN_COVER.body, minQ = MIN_COVER.question] = (process.env.THINKER_MIN_COVER || '').split(',').filter(Boolean).map(Number);
+  const [floorB = MIN_COVER.body, floorQ = MIN_COVER.question, terms = MIN_COVER.terms] = (process.env.THINKER_MIN_COVER || '').split(',').filter(Boolean).map(Number);
+  // a short query has little weight to cover, and two shared words are a large share of it:
+  // the body must then hold the weight of about `terms` of its words
+  const short = floorB > 0 && Q.uniq > 3 ? Math.min(0.6, terms / Q.uniq) : 0;
+  const minB = Math.max(floorB, short), minQ = floorQ;
   return notes.map(n => {
     const mq = Q.matched.get(n.id) || 0, mb = B.matched.get(n.id) || 0;
     const aff = pathAffinity(n, file);
