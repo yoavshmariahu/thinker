@@ -50,9 +50,10 @@ register('lookup', {
   inputSchema: {
     query: z.string().describe('The question or topic, or a note id listed by orient.'),
     budget: z.number().int().min(200).max(8000).optional(),
+    maxNotes: z.number().int().min(1).max(10).optional().describe('Maximum number of notes to return (default 3)'),
   },
-}, async ({ query, budget }) => {
-  const r = lookup(store, { query, budget: budget || 2500 });
+}, async ({ query, budget, maxNotes }) => {
+  const r = lookup(store, { query, budget: budget || 2500, maxNotes: maxNotes || 3 });
   if (!r.included.length) return text(emptyCache() || 'Nothing cached about that. Try fewer or different words, or an identifier from the code.');
   return text(r.text);
 });

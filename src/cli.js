@@ -137,7 +137,7 @@ async function main() {
       break;
     }
     case 'lookup': {
-      const r = lookup(store, { query: pos.join(' '), budget: Number(flags.budget) || 2500 });
+      const r = lookup(store, { query: pos.join(' '), budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3 });
       out(r.included.length ? r.text : '(nothing cached about that)');
       break;
     }

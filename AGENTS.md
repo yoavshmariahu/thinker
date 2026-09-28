@@ -191,7 +191,8 @@ of relevance), `THINKER_RERANK=haiku`, `THINKER_MIN_COVER=body,question`
   `budget`, up to five are served (past the second, a note must reach 0.7 of
   the best hit's relevance), a linked note is added instead of replacing a
   hit, and relevant notes that were not served are listed by title and id;
-  `lookup` takes such an id. `THINKER_ORIENT_GUIDE` names a file whose text
+  `lookup` takes such an id (or a query, returning up to 3 notes by default).
+  `THINKER_ORIENT_GUIDE` names a file whose text
   is put above the notes `orient` returns (per-model guidance).
 - Prompt-time hook: injects the orientation bundle into every prompt
   automatically (no tool call needed). See [Supported agents](#supported-agents).
@@ -201,7 +202,7 @@ of relevance), `THINKER_RERANK=haiku`, `THINKER_MIN_COVER=body,question`
   (full note, else a one-line stub).
 - Coverage floors: relevance is relative to the best note, so the best of a
   poor lot scores near 1. A note is served only if it also covers a share of
-  the request's term weight: 0.15 with its body and pointers, 0.05 with its
+  the request's term weight: 0.10 with its body and pointers, 0.05 with its
   title, answers and tags (`rank.js:MIN_COVER`). This holds for the prompt
   hook, `orient`, `lookup` and late notes; a note on the current file is
   exempt. When nothing passes, nothing is served.

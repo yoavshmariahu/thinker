@@ -124,8 +124,8 @@ const GRADE_SCHEMA = {
 const srcOnly = d => (d || '').split(/^(?=diff --git )/m).filter(c => !/^diff --git a\/\S*(test_|\.test\.|\/tests?\/|__tests__|__snapshots__|\.ambr|\.snap)/.test(c)).join('');
 
 async function gradePatch(task, patch, summary = '') {
-  const judgeProvider = flags['judge-llm'] || 'claude';
-  const judgeModel = flags.judge || 'fable';
+  const judgeProvider = flags['judge-llm'] || 'gemini';
+  const judgeModel = flags.judge || 'gemini-3.8-flash-high';
   const system = 'You check a patch against acceptance criteria. For each criterion decide whether the code after the patch would exhibit that behaviour: met, not_met, or unclear when what you are shown is not enough to tell. Any design that produces the behaviour counts; do not require a particular file, layer or approach. The author\'s summary is a claim, not evidence. Quote the code that decides each verdict.';
   const prompt = `REQUEST:\n${task.prompt}\n\nCRITERIA:\n${task.criteria.map(c => `${c.id}${c.essential ? ' (essential)' : ''}: ${c.behavior}`).join('\n')}\n\nPATCH:\n${(srcOnly(patch) || '(empty patch)').slice(0, 40000)}\n\nAUTHOR SUMMARY:\n${(summary || '').slice(0, 3000)}`;
 

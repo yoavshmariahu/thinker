@@ -68,7 +68,7 @@ export function bm25(index, qtoks, k1 = 1.4, b = 0.6) {
 // and with its question side (title/answers/tags). rel is relative to the best note, so the
 // best of a poor lot scores near 1; these floors are absolute.
 // THINKER_MIN_COVER=body,question changes them; 0,0 turns them off.
-export const MIN_COVER = { body: 0.15, question: 0.05 };
+export const MIN_COVER = { body: 0.10, question: 0.05 };
 
 // path affinity: 1 if a dep is the current file, decaying by directory distance
 function pathAffinity(note, file) {

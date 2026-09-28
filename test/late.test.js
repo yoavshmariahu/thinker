@@ -89,3 +89,101 @@ test('orient with a caller budget: more notes, links add, the rest is listed; lo
   assert.ok(two.more.length >= 1 && two.more.every(n => !two.included.some(i => i.id === n.id)));
   assert.deepEqual(lookup(store, { query: two.more[0].id }).included.map(n => n.id), [two.more[0].id]);
 });
+
+test('orient with 2 slots preserves a strong second hit and only lets a link take a weak second slot', async () => {
+  const { dir, store } = setup();
+  fs.writeFileSync(path.join(dir, 'src/c.py'), 'def a(): pass\n');
+  for (let i = 0; i < 6; i++) {
+    createNote(store, { title: `Filler ${i}`, kind: 'location', answers: [`filler ${i}`], body: `src/c.py:a filler ${i}`, deps: [{ path: 'src/c.py' }] });
+  }
+
+  const n1 = createNote(store, {
+    title: 'Text editor view mode state in TextNGPanel',
+    kind: 'invariant',
+    answers: ['where is editor view mode kept'],
+    body: 'src/c.py:a keeps view mode state in TextNGPanel',
+    deps: [{ path: 'src/c.py', symbol: 'a' }]
+  }).note;
+
+  const n2 = createNote(store, {
+    title: 'Text panel defaults to split view on open',
+    kind: 'convention',
+    answers: ['default view mode for text panel'],
+    body: 'src/c.py:a default is split view for all panels',
+    deps: [{ path: 'src/c.py', symbol: 'a' }]
+  }).note;
+
+  const link = createNote(store, {
+    title: 'Gate editor flags at render time',
+    kind: 'gotcha',
+    answers: ['how to gate editor feature flags'],
+    body: 'src/c.py:a feature flags must be checked at render',
+    deps: [{ path: 'src/c.py', symbol: 'a' }]
+  }).note;
+
+  n1.related = [link.id];
+  store.put(n1);
+
+  // Strong second hit (n2): both n1 and n2 are served; link does not evict n2
+  const taskStrong = 'Text editor view mode should default to split view when opened';
+  const rStrong = await orient(store, { task: taskStrong, maxNotes: 2 });
+  assert.equal(rStrong.included.length, 2);
+  assert.ok(rStrong.included.some(x => x.id === n1.id));
+  assert.ok(rStrong.included.some(x => x.id === n2.id));
+  assert.ok(!rStrong.included.some(x => x.id === link.id));
+
+  // Weak second hit: link takes slot 2
+  const link2 = createNote(store, {
+    title: 'Text editor split mode layout',
+    kind: 'gotcha',
+    answers: ['how text editor split mode lays out'],
+    body: 'src/c.py:a split mode layout rules',
+    deps: [{ path: 'src/c.py', symbol: 'a' }]
+  }).note;
+  n1.related = [link2.id];
+  store.put(n1);
+
+  const taskWeak = 'Text editor view mode state in TextNGPanel';
+  const rWeak = await orient(store, { task: taskWeak, maxNotes: 2 });
+  assert.equal(rWeak.included.length, 2);
+  assert.equal(rWeak.included[0].id, n1.id);
+  assert.equal(rWeak.included[1].id, link2.id);
+});
+
+test('lookup caps query results to 3 notes by default and respects explicit maxNotes', () => {
+  const { dir, store } = setup();
+  fs.writeFileSync(path.join(dir, 'src/c.py'), 'def a(): pass\n');
+  for (let i = 0; i < 15; i++) {
+    createNote(store, {
+      title: `Filler note ${i}`,
+      kind: 'location',
+      answers: [`filler query ${i}`],
+      body: `src/c.py:a filler detail ${i}`,
+      deps: [{ path: 'src/c.py', symbol: 'a' }]
+    });
+  }
+  const created = [];
+  for (let i = 0; i < 6; i++) {
+    created.push(createNote(store, {
+      title: `View mode handler ${i}`,
+      kind: 'location',
+      answers: [`how does view mode handler ${i} work`],
+      body: `src/c.py:a view mode detail ${i}`,
+      deps: [{ path: 'src/c.py', symbol: 'a' }]
+    }).note);
+  }
+
+  // Query search caps at 3 notes by default
+  const defaultRes = lookup(store, { query: 'view mode' });
+  assert.equal(defaultRes.included.length, 3);
+
+  // Query search with explicit maxNotes = 2
+  const cappedRes = lookup(store, { query: 'view mode', maxNotes: 2 });
+  assert.equal(cappedRes.included.length, 2);
+
+  // Lookup by specific note ID returns exactly that 1 note
+  const byIdRes = lookup(store, { query: created[0].id });
+  assert.equal(byIdRes.included.length, 1);
+  assert.equal(byIdRes.included[0].id, created[0].id);
+});
+

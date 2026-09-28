@@ -219,8 +219,15 @@ export async function orient(store, { task, file, session, budget = HOOK_BUDGET,
   // at least some lexical relevance of its own and is not already selected
   if (top.length && process.env.THINKER_NO_LINKS !== '1') {
     const rel = ranked.filter(r => (top[0].note.related || []).includes(r.note.id) && !top.includes(r) && r.rel >= 0.15)[0];
-    // with two slots the linked note takes the second; with more it is added, so it never evicts a better hit
-    if (rel) top = maxNotes > 2 ? [...top, rel] : [...top.slice(0, maxNotes - 1), rel];
+    // with more than two slots the linked note is added; with two slots it takes the second only if
+    // slot 2 is missing, weak (<0.7 of the best hit), or less relevant than the linked note.
+    if (rel) {
+      if (maxNotes > 2 || top.length < maxNotes) {
+        top = [...top, rel];
+      } else if (top[1] && (top[1].rel < 0.7 * top[0].rel || rel.rel > top[1].rel)) {
+        top = [top[0], rel];
+      }
+    }
   }
   const packed = pack(top, budget, { minRel: 0.35, pointers: early === 'pointers' });
   packed.mode = early;
@@ -411,12 +418,13 @@ export function scheduleVerify(store, notes) {
   } catch (e) { store.log({ op: 'bg-verify-error', error: String(e.message) }); }
 }
 
-export function lookup(store, { query, budget = 2500 }) {
+export function lookup(store, { query, budget = 2500, maxNotes = 3 } = {}) {
   const notes = NAIVE ? store.list().map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; }) : refresh(store, store.list());
   // a note id (as listed by orient) returns that note
   const byId = notes.find(n => n.id === String(query).trim());
   const ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : rank(notes, { query, mode: 'lookup' });
-  const packed = pack(ranked, budget, { minRel: 0.15 });
+  const candidates = byId ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
+  const packed = pack(candidates, budget, { minRel: 0.15 });
   store.log({ op: 'lookup', query: String(query).slice(0, 200), served: packed.included.map(n => n.id), ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
