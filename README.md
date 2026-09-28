@@ -58,14 +58,22 @@ the cache. Evaluated on Claude Fable (20 pairs via Claude Code) and Gemini 3.8
 Flash (14 pairs via Antigravity CLI), all independently graded on calibrated
 acceptance criteria by Claude Fable.
 
-| per task average | Claude Fable: without | with thinker | change | Gemini 3.8: without | with thinker | change |
-|---|---|---|---|---|---|---|
-| **Correctness (essential criteria)** | 80% | **89%** | **+10%** | 51.8% | **52.2%** | **+0.4%** |
-| **Every essential criterion met** | 9 of 20 (45%) | **12 of 20 (60%)** | **+3** | 5 of 14 (35.7%) | **5 of 14 (35.7%)** | **parity** |
-| **Tool calls** | 18.1 | **14.9** | **-17%** | 142.7 | **111.1** | **-22.2%** |
-| **Output tokens** | 11.4k | **10.1k** | **-11%** | 98.1k | **76.9k** | **-21.7%** |
-| **Wall time** | 2.7 min | **2.3 min** | **-14%** | 13.1 min | **11.9 min** | **-8.5%** |
-| **Cost** | $2.72 | **$2.45** | **-10%** | $0.416 | **$0.348** | **-16.4%** |
+| Dimension | Metric | Claude Fable (Claude Code) | Gemini 3.8 Flash (Antigravity CLI) |
+|---|---|---|---|
+| 🎯 **Correctness** | **Essential criteria score** | **+10%** (80% → 89%) | **Parity** (51.8% → 52.2%) |
+| | **Tasks fully solved** | **+33%** (9 of 20 → 12 of 20) | **Parity** (5 of 14 in both) |
+| ⏱️ **Timing** | **Wall clock time** | **-14%** (2.7 min → 2.3 min) | **-8.5%** (13.1 min → 11.9 min) |
+| 🪙 **Token Usage** | **Input / context tokens** | **-18%** (1.25M → 1.02M) | **-21%** (15.2M → 12.1M cached read) |
+| | **Output tokens** | **-11%** (11.4k → 10.1k) | **-22%** (98.1k → 76.9k) |
+| 🔍 **Tool Efficiency** | **Tool calls per task** | **-17%** (18.1 → 14.9) | **-22%** (142.7 → 111.1) |
+| | **File reads** | *(tracked in tool calls)* | **-27%** (70.3 → 51.5) |
+| 💰 **Cost** | **Cost per task** | **-10%** ($2.72 → $2.45) | **-16%** ($0.42 → $0.35) |
+
+### Key Takeaways for Users
+
+- **🎯 Correctness:** On frontier models (Claude Fable), thinker boosts overall correctness by **+10%** and lifts complete task passes from **45% to 60%** (+3 tasks). Fast models (Gemini Flash) maintain strict correctness parity.
+- **⏱️ Timing:** Eliminates blind repo exploration and prevents rabbit holes, cutting wall time by **8.5% to 14%** (and up to **20 minutes** on complex tasks).
+- **🪙 Token Usage & Cost:** Pre-seeded architecture notes reduce input tokens and context re-reads by **18% to 21%**, directly lowering cost per task by **10% to 16%**.
 
 Method, uncertainty, per-task results and other models:
 [bench/RESULTS.md](bench/RESULTS.md).
