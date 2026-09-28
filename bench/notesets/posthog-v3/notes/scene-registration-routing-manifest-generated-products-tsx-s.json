@@ -1,0 +1,123 @@
+{
+  "id": "scene-registration-routing-manifest-generated-products-tsx-s",
+  "title": "Scene registration & routing: manifest → generated products.tsx → scenes.ts/appScenes.ts → sceneLogic",
+  "kind": "callpath",
+  "answers": [
+    "How do I register a new scene?",
+    "Where are routes and urls defined for product scenes?",
+    "How does sceneLogic load a scene?",
+    "What is products/*/manifest.tsx?"
+  ],
+  "body": "Pieces (core scenes hand-written; product scenes via manifest):\n- `frontend/src/scenes/sceneTypes.ts:Scene` enum (value must match scene's first exported component name, for chunk preloading); `SceneExport` = {component, logic?, paramsToProps?, productKey?, emptyState?}.\n- `frontend/src/scenes/urls.ts:urls` = `{...productUrls, ...}`.\n- `frontend/src/scenes/scenes.ts`: `sceneConfigurations` (spreads `productConfiguration`), `redirects` (`productRedirects`), `routes` path->[Scene, urlKey] (`productRoutes`).\n- `frontend/src/scenes/appScenes.ts:appScenes` Scene -> lazy import, starts with `...productScenes`.\n- `products/<name>/manifest.tsx` exports `manifest: ProductManifest` (urls, scenes{name,import}, routes, fileSystemTypes). Example: products/actions/manifest.tsx.\n- `frontend/build-products.mjs` (`pnpm build:products`) generates `frontend/src/products.tsx`, `productScenes.tsx`, `products.json` (DO NOT EDIT). Dynamic imports are split into productScenes.tsx so jest --findRelatedTests doesn't over-match.\nRuntime: `frontend/src/scenes/sceneLogic.tsx:sceneLogic` urlToAction from `routes` → `loadScene` listener → `props.scenes[sceneId]` (appScenes) with retryImport, spinner after 500ms → reads module's `scene` export; unknown → Scene.Error404.\nExample scene export: products/actions/frontend/pages/Actions.tsx `scene: SceneExport`.",
+  "tags": [
+    "scenes",
+    "routing",
+    "products",
+    "manifest"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/sceneTypes.ts",
+      "symbol": "SceneExport",
+      "hash": "sha256:add22897c362b532724b7e7b",
+      "line": 263,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/scenes.ts",
+      "symbol": "routes",
+      "hash": "sha256:c80b0dd31e519e59fc0923a4",
+      "line": 738,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/appScenes.ts",
+      "symbol": "appScenes",
+      "hash": "sha256:e833deb93ec4f1c21da31dad",
+      "line": 6,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/sceneLogic.tsx",
+      "symbol": "sceneLogic",
+      "hash": "sha256:50fa6073873d56581262a585",
+      "line": 399,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/products.tsx",
+      "hash": "sha256:ee5983964e7dff4cb2423926",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/productScenes.tsx",
+      "hash": "sha256:cd69ad765dfde82b283a6fee",
+      "missing": false
+    },
+    {
+      "path": "products/actions/manifest.tsx",
+      "hash": "sha256:f3dfaf6ed3ed4d4a5393f2aa",
+      "missing": false
+    },
+    {
+      "path": "products/actions/frontend/pages/Actions.tsx",
+      "hash": "sha256:bd8822e13d98981431d25f43",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/urls.ts",
+      "symbol": "urls",
+      "hash": "sha256:3d91510808c93446ef3b983d",
+      "line": 36,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/sceneTypes.ts",
+      "symbol": "Scene",
+      "hash": "sha256:eb046d60a67744b2978a2b2d",
+      "line": 11,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/sceneTypes.ts",
+      "symbol": "Scene.Error404",
+      "hash": "sha256:18a3103c464a383f6a3d9c4e",
+      "line": 56,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "0c7a01d6-e1e6-4576-9b68-d81b99475a49"
+  },
+  "created": "2026-09-26T20:19:14.716Z",
+  "verified": "2026-09-26T20:19:14.716Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 8,
+  "related": [
+    "scene-enum-name-must-match-scene-s-exported-component",
+    "adding-a-product-scene-cochange-checklist",
+    "frontend-product-manifest-generated-products-tsx-scenes-urls",
+    "adding-changing-a-product-url-manifest-generated-products-ts"
+  ],
+  "servedIn": [
+    "aef362ec-1476-47a5-a1bb-4ebb13906ee7",
+    "17180cc9-00be-4854-86e4-b5d9eb4e8325",
+    "8a2027b0-97a9-496b-901f-da33440c4feb",
+    "fbb19671-8730-46af-87c2-153efc2fcece",
+    "5e7fd372-cd68-44a7-9ca2-4c2265e30575",
+    "80fdb8eb-165f-47b6-a31e-2e4f7f83357f",
+    "2e9c5e0e-8c55-49dd-8d88-b1af1258e010",
+    "4d474a5e-1000-48c6-99bd-6d78c155539d"
+  ],
+  "says": [
+    "New product page not appearing in navigation or routes",
+    "How do I register a scene in the app?",
+    "Product feature page not loading after scene registration",
+    "Scene manifest not generating corresponding route url",
+    "Custom scene component inaccessible through navigation"
+  ],
+  "saysFor": "1448:scene-registration-routi"
+}

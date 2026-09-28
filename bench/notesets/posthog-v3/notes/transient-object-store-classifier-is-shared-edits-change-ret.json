@@ -1,0 +1,60 @@
+{
+  "id": "transient-object-store-classifier-is-shared-edits-change-ret",
+  "title": "Transient object-store classifier is shared; edits change retry behavior across pipeline",
+  "kind": "invariant",
+  "answers": [
+    "Where is is_transient_object_store_error used",
+    "What does adding to TRANSIENT_OBJECT_STORE_ERRORS affect",
+    "Which S3 errors are retried in delta pipeline"
+  ],
+  "body": "`is_transient_object_store_error` (pipelines/core/delta/errors.py) is shared by `copy_file`, `vacuum`, `compact`, `DeltaTable.is_deltatable()` and `delete_folder` in data_imports/util.py. Adding a message to `TRANSIENT_OBJECT_STORE_ERRORS` both retries the operation and suppresses error-tracking capture everywhere, so only add idempotent, self-clearing conditions. Matching is by message substring (S3's fixed text), and each entry has an explanatory comment above the tuple; keep that pattern. Test cases live in pipelines/core/delta/test/test_delta_errors.py::TestIsTransientObjectStoreError.",
+  "applies": "Any change to transient error classification in warehouse_sources data_imports",
+  "tags": [
+    "s3",
+    "retry",
+    "delta",
+    "classifier"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/pipelines/core/delta/errors.py",
+      "symbol": "is_transient_object_store_error",
+      "hash": "sha256:364811c22d0a68bf56126c5a",
+      "line": 46,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/pipelines/core/delta/test/test_delta_errors.py",
+      "symbol": "TestIsTransientObjectStoreError",
+      "hash": "sha256:1ee83f9ad85ea3c4ee8e43ad",
+      "line": 27,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/util.py",
+      "hash": "sha256:e2c15c93d8210f4199624957",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105307"
+  },
+  "created": "2026-09-27T00:07:01.237Z",
+  "verified": "2026-09-27T00:07:01.237Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "s3-clock-skew-403-arrives-as-generic-permissionerror-classif"
+  ],
+  "says": [
+    "S3 transient errors sometimes retry, sometimes fail immediately",
+    "Adding new error condition to transient classifier impact",
+    "Retry behavior changed across all data import pipelines",
+    "Where is S3 transient error handling configured?",
+    "Which storage errors get automatically retried in pipeline?"
+  ],
+  "saysFor": "685:transient-object-store-c"
+}

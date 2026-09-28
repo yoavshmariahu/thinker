@@ -1,0 +1,78 @@
+{
+  "id": "guards-must-not-depend-on-insightscenelogic-insightlogicref-",
+  "title": "Guards must not depend on insightSceneLogic.insightLogicRef (lags insightId/dashboardId)",
+  "kind": "invariant",
+  "answers": [
+    "how to check whether the current scene is showing a given insight",
+    "is insightLogicRef safe to read right after scene mount",
+    "testing insightSceneLogic.findMounted mocks"
+  ],
+  "body": "insightSceneLogic.insightId and dashboardId are reducers updated synchronously by the URL-matching action; insightLogicRef is set later by a listener that rebuilds/mounts a logic, so it can be stale or null just after mount.\nEnforced in frontend/src/scenes/insights/insightDataLogic.tsx:isInsightSceneInstance, which requires activeSceneId === Scene.Insight and insightId === props.dashboardItemId and (dashboardId ?? null) === (props.dashboardId ?? null).\nIf skipped: persistDisplayOptions may PATCH the insight while the editor is still in edit mode.\nTests: mock insightSceneLogic.findMounted returning { values: { insightId, dashboardId, insightLogicRef: null } } (see persistDisplayOptions describe in insightDataLogic.test.ts).",
+  "applies": "Code reading insightSceneLogic state to decide scene/insight identity",
+  "tags": [
+    "insights",
+    "insightscenelogic",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/insights/insightDataLogic.tsx",
+      "symbol": "isInsightSceneInstance",
+      "hash": "sha256:ec87ebf6698de5e490f8791d",
+      "line": 104,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/insights/insightDataLogic.test.ts",
+      "hash": "sha256:c9aacdbf3ad5d712b588b65c",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/insights/insightSceneLogic.tsx",
+      "symbol": "insightId",
+      "hash": "sha256:c18ef9400f72a6274e9b59f3",
+      "line": 711,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105737"
+  },
+  "created": "2026-09-26T23:57:36.684Z",
+  "verified": "2026-09-26T23:57:36.684Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 20,
+  "related": [
+    "insight-editor-auto-saves-patch-on-chart-type-change-without",
+    "insight-scene-and-logic-layering"
+  ],
+  "lastUsed": "2026-09-28T02:03:25.522Z",
+  "servedIn": [
+    "1fac1cf0-9f8e-4c80-ae03-e7c1edf0c78a",
+    "4d55e782-40c6-4757-a58b-277d24913095",
+    "9f2e5e8d-3340-4f2f-b40b-bebc0ae5b2ff",
+    "020716d5-b008-4ebb-b299-67f837c9a985",
+    "89189e0c-41b6-4792-9702-6cf5c9d8c7f1",
+    "a4704067-874f-461f-9346-7b7c78bc5bcf",
+    "codex-posthog-codex-gpt56-PR106491-hard-0",
+    "codex-posthog-codex-gpt56-PR106491-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR106491-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR106491-hard-1",
+    "probe-PR106491-hard",
+    "probe-PR106491-hard",
+    "probe-PR106491-hard",
+    "probe-PR106491-hard",
+    "probe-PR106491-hard",
+    "probe-PR106491-hard"
+  ],
+  "says": [
+    "Insight editor saves persisting changes while still in edit mode",
+    "Why is the insight logic reference null right after the scene mounts?",
+    "How to check if the current screen is showing a specific insight?",
+    "Insight scene logic reference is stale compared to the actual insight ID?"
+  ],
+  "saysFor": "821:guards-must-not-depend-o"
+}

@@ -139,8 +139,9 @@ const RERANK_SCHEMA = { type: 'object', properties: { useful: { type: 'array', i
 // Ask a small model which candidate notes would actually save work on this
 // task. Returns the subset of ranked entries it picked (order preserved).
 async function rerank(ranked, task, file, model) {
-  const cands = ranked.slice(0, 6);
-  if (cands.length <= 1) return cands;
+  const cands = ranked.slice(0, 8);
+  // a single candidate is judged too: the best of a poor lot is still poor
+  if (!cands.length) return cands;
   const list = cands.map((r, i) => `[${i + 1}] id=${r.note.id} kind=${r.note.kind}\n    title: ${r.note.title}\n    answers: ${(r.note.answers || []).join(' | ')}\n    body: ${r.note.body.slice(0, 350).replace(/\n/g, ' ')}`).join('\n');
   const res = await complete({ model, schema: RERANK_SCHEMA, maxTokens: 300,
     system: 'You gate which cached notes about a codebase get injected into a coding agent\'s context at the start of a task. Injecting an irrelevant note costs tokens and misdirects the agent; injecting a relevant one saves it from re-exploring. Pick only notes whose content directly bears on what the task must touch or understand. Prefer one precise note over several loosely related ones. Picking none is correct when nothing applies.',
@@ -203,7 +204,8 @@ export async function orient(store, { task, file, session, budget = HOOK_BUDGET,
   if (refreshFirst) notes = refresh(store, notes);
   let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient' });
   if (process.env.THINKER_FORCE === '1') ranked = rank(notes, { query: '', mode: 'orient' }).map(r => ({ ...r, rel: 1 })); // control arm: inject regardless of relevance
-  else if (rerankModel && ranked.length) { try { ranked = await rerank(ranked, task, file, rerankModel); } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
+  let chosen = false;
+  if (process.env.THINKER_FORCE !== '1' && rerankModel && ranked.length) { try { ranked = await rerank(ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
   let routed = null;
   if (routerModel && process.env.THINKER_FORCE !== '1') {
     try {
@@ -217,7 +219,8 @@ export async function orient(store, { task, file, session, budget = HOOK_BUDGET,
   if (routed) process.env.THINKER_NO_LINKS = '1'; // the router's selection is final
   // cross-note links: pull in one note linked from the best hit when it has
   // at least some lexical relevance of its own and is not already selected
-  if (top.length && process.env.THINKER_NO_LINKS !== '1') {
+  // what a model chose is final: a linked note it did not choose is not added
+  if (top.length && !chosen && process.env.THINKER_NO_LINKS !== '1') {
     const rel = ranked.filter(r => (top[0].note.related || []).includes(r.note.id) && !top.includes(r) && r.rel >= 0.15)[0];
     // with two slots the linked note takes the second; with more it is added, so it never evicts a better hit
     if (rel) top = maxNotes > 2 ? [...top, rel] : [...top.slice(0, maxNotes - 1), rel];

@@ -1,0 +1,63 @@
+{
+  "id": "oauth-revoke-must-verify-token-belongs-to-requesting-client-",
+  "title": "OAuth revoke must verify token belongs to requesting client before any revoke path",
+  "kind": "invariant",
+  "answers": [
+    "Can one OAuth client revoke another app's token at /oauth/revoke/?",
+    "Why does revoking a token from a different client_id return 200 but do nothing?",
+    "Where is RFC 7009 client binding enforced for token revocation?"
+  ],
+  "body": "Invariant: `revoke_token` in posthog/api/oauth/views.py must first look up the presented token (refresh, else access) and, if its `application_id` != `request.client.pk`, log `oauth_revoke_token_client_mismatch` and return without revoking.\n- The check must run before the DCR/CIMD session sweep (`revoke_oauth_session`) and before `super().revoke_token(...)`. django-oauth-toolkit upstream revokes any token found by value, so skipping the check lets any client end another app's session.\n- Mismatch must still yield HTTP 200 (same as an unknown token). An error response would reveal that the token is live for another client.\n- Applies to both token types and all client types (public, confidential, DCR, CIMD).\n- Limitation: public clients authenticate with client_id only, so a holder of the token who knows the owner's public client_id can still revoke.",
+  "applies": "posthog/api/oauth/views.py revoke_token and any new revoke/introspect-style OAuth endpoint logic",
+  "tags": [
+    "oauth",
+    "revoke",
+    "security",
+    "rfc7009"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/oauth/views.py",
+      "symbol": "revoke_token",
+      "hash": "sha256:b006a4cf45a174780c4b7c91",
+      "line": 1055,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/oauth/test_views.py",
+      "symbol": "test_dcr_token_revoke_from_other_client_leaves_session_untouched",
+      "hash": "sha256:e0bf1ea1ee090e6ebf5a71e7",
+      "line": 4735,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/oauth/views.py",
+      "symbol": "super",
+      "hash": "sha256:9abcf430dd316a87b4ea2eb3",
+      "line": 409,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105396"
+  },
+  "created": "2026-09-27T00:04:16.190Z",
+  "verified": "2026-09-27T00:04:16.190Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "test-oauth-revoke-by-asserting-token-state-for-both-token-ty",
+    "cleanup-job-and-dot-scope-lookup-depend-on-rt-access-token-l"
+  ],
+  "says": [
+    "One OAuth client can revoke another application's tokens",
+    "Token revocation not checking if token belongs to client",
+    "Any client can revoke tokens issued to other apps",
+    "OAuth revoke endpoint missing client ownership verification",
+    "Cross-client token revocation should be prevented"
+  ],
+  "saysFor": "942:oauth-revoke-must-verify"
+}

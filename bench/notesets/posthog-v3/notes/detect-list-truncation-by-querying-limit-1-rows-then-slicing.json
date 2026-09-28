@@ -1,0 +1,55 @@
+{
+  "id": "detect-list-truncation-by-querying-limit-1-rows-then-slicing",
+  "title": "Detect list truncation by querying limit+1 rows, then slicing",
+  "kind": "convention",
+  "answers": [
+    "How do I report that a capped setup context list was truncated?",
+    "libs_truncated implementation in setup_context",
+    "Why does the target surface query use TARGET_SURFACE_MAX_LIBS + 1?"
+  ],
+  "body": "Capped lists in setup_context.py expose a `*_truncated` boolean rather than making agents guess from row count (exactly cap rows is ambiguous).\nPattern in _compute_target_surface: query `limit = MAX + 1`, build libs from `rows[:MAX]`, set `libs_truncated = len(rows) > MAX`. Same as sdk_profile.libs_truncated.\nTests need both an at-cap case (false) and an above-cap case (true); see test_libs_are_truncated_only_above_the_cap, which catches `>` vs `>=` mistakes.\nThe skill (setup-decisions.md) must read the flag, not the row count; existing flags: sdk_profile.libs_truncated, sdk_profile.libs_on_any_event_truncated, shared_metrics.metric_event_match_truncated.",
+  "applies": "capped lists in products/experiments/backend/setup_context.py",
+  "tags": [
+    "experiments",
+    "truncation",
+    "setup-context"
+  ],
+  "deps": [
+    {
+      "path": "products/experiments/backend/setup_context.py",
+      "symbol": "_compute_target_surface",
+      "hash": "sha256:9e5ee2d29db6ede39001e89b",
+      "line": 818,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/test/test_setup_context.py",
+      "symbol": "test_libs_are_truncated_only_above_the_cap",
+      "hash": "sha256:58958c0c788b3f6753515897",
+      "line": 506,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105283"
+  },
+  "created": "2026-09-27T00:08:02.981Z",
+  "verified": "2026-09-27T00:08:02.981Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-setup-context-response-field-files-that-must-change",
+    "bump-setup-context-cache-key-version-when-a-cached-dataclass"
+  ],
+  "says": [
+    "Capped lists expose truncated flag instead of leaving cap status ambiguous",
+    "Query one more than the maximum row count to reliably detect truncation",
+    "Use truncated boolean to signal when list exceeds the cap limit",
+    "Row count alone cannot distinguish at-cap from above-cap results",
+    "Setup context surface lists report whether they were truncated or complete"
+  ],
+  "saysFor": "725:detect-list-truncation-b"
+}

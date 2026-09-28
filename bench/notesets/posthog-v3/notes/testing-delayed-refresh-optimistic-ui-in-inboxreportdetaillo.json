@@ -1,0 +1,50 @@
+{
+  "id": "testing-delayed-refresh-optimistic-ui-in-inboxreportdetaillo",
+  "title": "Testing delayed-refresh optimistic UI in inboxReportDetailLogic tests",
+  "kind": "howto",
+  "answers": [
+    "How to test optimistic state during a slow loader in kea logic",
+    "Test reviewer update failure restores list"
+  ],
+  "body": "In products/signals/frontend/inbox/logics/inboxReportDetailLogic.test.ts ('reviewer updates'): mount the logic with useMocks for artefacts/signals/available_reviewers GET and reviewers PUT.\nTo hold a refresh, re-call useMocks with an async GET handler for '/api/projects/:team_id/signals/reports/:id/artefacts/' that awaits a manually resolved promise; `waitFor` the handler to start, assert `displayReviewers` and `isUpdatingReviewers` mid-flight, then release in `finally` and `await expectLogic(logic).toFinishAllListeners()`.\nFailure case: mock the PUT as `[500, { detail: ... }]` and assert `displayReviewers` returns to the original and `isUpdatingReviewers` is false.",
+  "applies": "Logic tests for kea optimistic updates in signals inbox",
+  "tags": [
+    "testing",
+    "kea",
+    "usemocks",
+    "signals"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/frontend/inbox/logics/inboxReportDetailLogic.test.ts",
+      "hash": "sha256:6f3e254551477c88b2c63a35",
+      "missing": false
+    },
+    {
+      "path": "products/signals/frontend/inbox/logics/inboxReportDetailLogic.ts",
+      "hash": "sha256:3cf512e48dc32164293eec53",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105721"
+  },
+  "created": "2026-09-26T23:58:02.730Z",
+  "verified": "2026-09-26T23:58:02.730Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "kea-listener-must-await-asyncactions-loadx-not-actions-loadx"
+  ],
+  "says": [
+    "Testing optimistic UI update while slow loader is running",
+    "Verifying reviewer update fails and restores original state correctly",
+    "How to test delayed refresh with optimistic display state?",
+    "Mocking slow API responses in kea logic tests",
+    "Restoring list state when reviewer update request fails"
+  ],
+  "saysFor": "744:testing-delayed-refresh-"
+}

@@ -1,0 +1,55 @@
+{
+  "id": "editing-prompts-via-mcp-must-fetch-raw-resolve-false-to-avoi",
+  "title": "Editing prompts via MCP must fetch raw (resolve=false) to avoid flattening references",
+  "kind": "invariant",
+  "answers": [
+    "Why did updating a prompt inline its referenced prompts?",
+    "How to edit a prompt with @@@prompt:...@@@ references via MCP",
+    "llma-prompt-update edits fail to match"
+  ],
+  "body": "Prompt content may contain `@@@prompt:...@@@` references. `llma-prompt-get` resolves them by default (returns assembled content plus `resolved_references`); stored content keeps the raw tags.\nBefore `llma-prompt-update`, fetch with `resolve=false` and edit that raw text. Republishing resolved content replaces references with flattened copies that stop following label moves, and `edits` 'old' text written against resolved content will not match the stored tags.\nListing: `llma-prompt-list` resolves only with `label` + `content=full`; unlabeled listings return raw tags.\nResolution is gradually rolled out: when not enabled for the team, responses return raw tags and no `resolved_references`, so content containing `@@@prompt:` should be treated as unresolved.\nGuidance is documented in products/ai_observability/mcp/tools.yaml (`llma-prompt-get`, `llma-prompt-list`, `llma-prompt-update`); keep it in sync if resolution behavior changes.",
+  "applies": "MCP prompt tools (llma-prompt-get/list/update) and any change to reference resolution defaults",
+  "tags": [
+    "prompts",
+    "references",
+    "resolve",
+    "mcp"
+  ],
+  "deps": [
+    {
+      "path": "products/ai_observability/mcp/tools.yaml",
+      "hash": "sha256:58dd81e642ae530391a1daab",
+      "missing": false
+    },
+    {
+      "path": "products/ai_observability/mcp/tools.yaml",
+      "hash": "sha256:58dd81e642ae530391a1daab",
+      "missing": false
+    },
+    {
+      "path": "products/ai_observability/mcp/tools.yaml",
+      "hash": "sha256:58dd81e642ae530391a1daab",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105656"
+  },
+  "created": "2026-09-27T00:00:16.432Z",
+  "verified": "2026-09-27T00:00:16.432Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mcp-tool-descriptions-live-in-tools-yaml-regenerate-two-sche"
+  ],
+  "says": [
+    "Prompt edit flattens all the referenced sub-prompts into inline content",
+    "Updating prompt through API loses @@@prompt:...@@@ references and inlines them",
+    "How to edit a prompt without inlining its referenced sub-prompts",
+    "Prompt edit should preserve references instead of flattening them inline"
+  ],
+  "saysFor": "1028:editing-prompts-via-mcp-"
+}

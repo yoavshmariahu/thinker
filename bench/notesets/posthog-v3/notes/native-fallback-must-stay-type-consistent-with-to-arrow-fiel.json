@@ -1,0 +1,62 @@
+{
+  "id": "native-fallback-must-stay-type-consistent-with-to-arrow-fiel",
+  "title": "Native fallback must stay type-consistent with to_arrow_field and Arrow path",
+  "kind": "invariant",
+  "answers": [
+    "DateTime64 nanoseconds lost in ClickHouse native sync",
+    "How are ClickHouse Native values converted to Arrow",
+    "Why are JSON(...) and Dynamic(...) columns wrapped in toString"
+  ],
+  "body": "The Native fallback in clickhouse.py must produce batches matching `pa.schema([c.to_arrow_field() ...])`.\n- `DateTime64` columns are requested with `column_formats={name: \"int\"}` and converted by `_ticks_to_timestamp`, because Python datetimes truncate to microseconds and DateTime64(7..9) would lose digits.\n- `_native_column_to_arrow` stringifies values (`str()`) when the target field is string but Native decodes tuples/lists (geo types, AggregateFunction); other type errors re-raise.\n- Types the Arrow path can't handle are wrapped in `toString()` by `_build_select_list` using the prefix tuple (now including `\"JSON(\"` and `\"Dynamic(\"`), applied on both paths; add new unsupported parameterized types there.\nKnown accepted divergence: DateTime is uint32 on Arrow path vs timestamp[s] on Native.",
+  "applies": "ClickHouse source column typing in both Arrow and Native paths",
+  "tags": [
+    "clickhouse",
+    "datetime64",
+    "schema",
+    "arrow"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clickhouse/clickhouse.py",
+      "symbol": "_native_column_to_arrow",
+      "hash": "sha256:ab613f844aab264aa1e1f1df",
+      "line": 1426,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clickhouse/clickhouse.py",
+      "symbol": "_ticks_to_timestamp",
+      "hash": "sha256:0fa161d67d068a5fa6383fab",
+      "line": 1419,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clickhouse/clickhouse.py",
+      "symbol": "toString",
+      "hash": "sha256:e49aa514856ecaac7c6588bf",
+      "line": 1347,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105253"
+  },
+  "created": "2026-09-27T00:09:02.390Z",
+  "verified": "2026-09-27T00:09:02.390Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "clickhouse-sync-fails-on-hosts-rejecting-arrowstream-tinybir"
+  ],
+  "says": [
+    "DateTime64 precision is lost when syncing from ClickHouse",
+    "Native ClickHouse values converting to Arrow format incorrectly",
+    "Why are my ClickHouse timestamps being truncated?",
+    "JSON and Dynamic columns from ClickHouse not converting",
+    "Type mismatches between ClickHouse native and Arrow sync"
+  ],
+  "saysFor": "878:native-fallback-must-sta"
+}

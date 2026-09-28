@@ -1,0 +1,89 @@
+{
+  "id": "bulk-person-delete-call-path-api-celery-dagster-bulk-delete-",
+  "title": "Bulk person delete call path (API/Celery/Dagster → bulk_delete.py)",
+  "kind": "callpath",
+  "answers": [
+    "How does bulk person deletion work?",
+    "Where is person deletion queued via Celery?",
+    "What does delete_persons_profile do?",
+    "Which entry points call delete_persons_profile?"
+  ],
+  "body": "- API: posthog/api/person.py bulk delete action (max 1000 ids/distinct_ids). If settings.PERSON_BULK_DELETE_ASYNC → `_queue_bulk_delete_persons` → posthog/tasks/delete_persons.py:queue_person_deletion (Celery chunks of PERSONS_PER_DELETION_TASK=100) → `process_queued_person_deletion`.\n- Sync path: `resolve_persons_for_deletion` → `delete_persons_profile` → `queue_person_event_deletion` + `queue_person_recording_deletion`.\n- Dagster posthog/dags/data_deletion_requests.py:delete_person_profiles_op also calls `delete_persons_profile(actor=None)`.\n- posthog/models/person/bulk_delete.py: `_tombstone_and_delete_persons` order: `delete_person` per person (CH tombstone, step TOMBSTONE_CLICKHOUSE) → `delete_persons_from_postgres` once (DELETE_POSTGRES; failure drops all from deleted list) → `bulk_log_activity` last (skips persons already logged, so retries don't duplicate).\n- Queued path: `_paginated_get_distinct_ids_for_person` (5000/page), `_run_queued_deletion_steps` batches ≤ QUEUED_DELETION_DISTINCT_IDS_PER_BATCH (20000); order training → recording → profile delete; profile delete last because it removes distinct ids retries need. Failed persons are skipped by later steps.\n- Celery retries only failed persons, MAX_DELETION_RETRIES=3, then raises `PersonDeletionIncomplete`.\n- `queue_person_event_deletion` bulk-creates AsyncDeletion(DeletionType.Person); recording deletion starts Temporal `delete-recordings-with-person` via `_start_recording_workflows` (`_chunk_persons`: 100 persons/2000 distinct ids).",
+  "tags": [
+    "person-deletion",
+    "celery",
+    "bulk-delete"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/person/bulk_delete.py",
+      "symbol": "_tombstone_and_delete_persons",
+      "hash": "sha256:aa2f606edcf4144ebc02f193",
+      "line": 434,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/person.py",
+      "hash": "sha256:59dc86e86ca0edfd0d042347",
+      "missing": false
+    },
+    {
+      "path": "posthog/tasks/delete_persons.py",
+      "hash": "sha256:b5ecab0fa80a6737214f8bf8",
+      "missing": false
+    },
+    {
+      "path": "posthog/dags/data_deletion_requests.py",
+      "hash": "sha256:9e5758fd3058157c92a03c76",
+      "missing": false
+    },
+    {
+      "path": "posthog/tasks/delete_persons.py",
+      "symbol": "queue_person_deletion",
+      "hash": "sha256:5d397e44950314d0ca6e1a79",
+      "line": 49,
+      "missing": false
+    },
+    {
+      "path": "posthog/dags/data_deletion_requests.py",
+      "symbol": "delete_person_profiles_op",
+      "hash": "sha256:03c20c49cef7851696693ae1",
+      "line": 1532,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "7cf2f0b3-71d7-4042-9ecf-dfa8df682419"
+  },
+  "created": "2026-09-26T20:34:12.293Z",
+  "verified": "2026-09-26T20:34:12.293Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 9,
+  "related": [
+    "person-deletion-modes-sync-vs-queued-and-person-bulk-delete-",
+    "person-deletion-step-ordering-and-failure-invariants"
+  ],
+  "lastUsed": "2026-09-26T23:39:29.175Z",
+  "servedIn": [
+    "38139613-8f36-490d-9da7-04d2be397347",
+    "323d2389-cbc9-42d3-82b3-929873b67b40",
+    "ee433ad0-d66f-48db-8907-d2c3054079aa",
+    "d75a4dcc-756a-4789-9b7b-510f352500fc",
+    "daf602ff-a237-4d68-8a7f-b954e4b08514",
+    "b4bb9570-b2c8-4f83-9e04-073a544577f2",
+    "5c851437-f354-45f3-8504-0a898a6f0d51",
+    "adcee338-64ea-4441-8bfb-db43173e8dd9",
+    "5c8e7539-6b19-4050-88bd-69c110e19dd7"
+  ],
+  "says": [
+    "How long does deleting people from the database take",
+    "Does deleting a person remove their events and recordings too",
+    "Person deletion processes immediately or runs in background queue",
+    "Can I bulk delete people using the API or just the UI",
+    "Why does deleting one person fail but others already deleted"
+  ],
+  "saysFor": "1588:bulk-person-delete-call-"
+}

@@ -1,0 +1,63 @@
+{
+  "id": "adding-a-field-to-the-space-hover-card-spacepreview-usespace",
+  "title": "Adding a field to the space hover card: SpacePreview, useSpaceOverview, story and SpaceRow inputs change together",
+  "kind": "cochange",
+  "answers": [
+    "How do I show a new fact in the space hover card?",
+    "Space card says 'Active 8h ago' where does that come from?",
+    "SpaceRow needs unreadSessions and blockedSessions props"
+  ],
+  "body": "A new fact in the space card is threaded through several places:\n- `SpaceOverview` and `NO_OVERVIEW` in `hooks/useRecentSpaceTasks.ts` (`useSpaceOverview` derives it from the `space-tree-tasks` page, e.g. `lastActivityAt`, `total`).\n- `SpacePreview` passes `overview.*` into `SpacePreviewContent` in `components/SpacePreview.tsx`, which takes it as an explicit prop.\n- The `CardFrame` args in `SpacePreview.stories.tsx`.\nThe card's data comes from the `space-tree-tasks` query. A row must warm it with `usePrefetchSpaceTasks` after a rest delay (250ms in `SpaceRow`), or the card opens without its facts.\n`SpacePreviewPayload` needs `unreadSessions`/`blockedSessions` from the caller. `WorkColumn` gets them from `useUnreadSessionCount` and `useBlockedSessionCount`, and `WorkColumn.test.tsx` must mock those hooks.\nThe `WorkColumnSpaceRow.stories.tsx` story seeds `['space-tree-tasks', channelId]` query data.",
+  "applies": "Space hover card (SpacePreview) and the rows that host it in desktop canvas",
+  "tags": [
+    "desktop",
+    "canvas",
+    "space-preview",
+    "stories"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/SpacePreview.tsx",
+      "symbol": "SpacePreviewContent",
+      "hash": "sha256:1149b43de1483f7938e49e75",
+      "line": 138,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/hooks/useRecentSpaceTasks.ts",
+      "symbol": "useSpaceOverview",
+      "hash": "sha256:3bbe67b23b234c2e1aa26fdc",
+      "line": 312,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/work/WorkColumn.test.tsx",
+      "hash": "sha256:667bce10fd1aea75b2bf6f57",
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/work/WorkColumnSpaceRow.stories.tsx",
+      "hash": "sha256:f61df7209930501a4915a9db",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105400"
+  },
+  "created": "2026-09-27T00:04:05.590Z",
+  "verified": "2026-09-27T00:04:05.590Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The space card shows the wrong last activity time",
+    "Preview doesn't display how many active sessions there are",
+    "Hover card is missing recent task or activity data",
+    "Space details are loading too slowly in the preview",
+    "Add indicator for blocked or waiting sessions to card"
+  ],
+  "saysFor": "1024:adding-a-field-to-the-sp"
+}

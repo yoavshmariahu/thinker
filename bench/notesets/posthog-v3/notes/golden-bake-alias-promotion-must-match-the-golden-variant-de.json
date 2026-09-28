@@ -1,0 +1,55 @@
+{
+  "id": "golden-bake-alias-promotion-must-match-the-golden-variant-de",
+  "title": "Golden bake alias promotion must match the golden variant (default vs hotplug)",
+  "kind": "invariant",
+  "answers": [
+    "Manual golden bake with box_mem_boot_mib overwrote the default golden",
+    "Which snapshot alias does the pluggable-memory bake need to be promoted to?",
+    "Bake pluggable golden for task boxes"
+  ],
+  "body": "The golden bake workflow (.github/workflows/cd-tasks-golden-snapshot.yml) has a \"Promote candidate to default\" step that hardcodes `posthog-tasks-default`. A review comment flagged that a manual dispatch with `box_mem_boot_mib` set would therefore overwrite the fixed-size default golden with a pluggable one, while `HOGLAND_HOTPLUG_SNAPSHOT_ALIAS` (`alias:posthog-tasks-hotplug` in hogland_sandbox.py) is what flagged runs restore from. Any change to bake/promotion must keep the promoted alias in sync with the variant baked: pluggable (BOX_MEM_BOOT_MIB set) -> posthog-tasks-hotplug, fixed -> posthog-tasks-default. The scheduled run leaves both inputs blank and must keep baking the fixed 20 GiB default. The hotplug alias must exist before the flag is enabled for a team.",
+  "applies": "cd-tasks-golden-snapshot workflow, bake-golden.sh, and hogland snapshot alias constants",
+  "tags": [
+    "tasks",
+    "hogland",
+    "golden-snapshot",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/cd-tasks-golden-snapshot.yml",
+      "hash": "sha256:eb765d1bface1f9e2f8f60f3",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/sandbox/images/hogland/bake-golden.sh",
+      "hash": "sha256:44fe6bfdd7ebaff9da269d8c",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/hogland_sandbox.py",
+      "symbol": "HOGLAND_HOTPLUG_SNAPSHOT_ALIAS",
+      "hash": "sha256:ae1ff621204acc9f7727efe8",
+      "line": 77,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105407"
+  },
+  "created": "2026-09-27T00:03:28.385Z",
+  "verified": "2026-09-27T00:03:28.385Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Golden bake promotion overwrote the default variant with pluggable memory snapshot",
+    "Which snapshot alias should the pluggable memory golden bake promote to?",
+    "Scheduled golden bake job is overwriting the default golden with hotplug variant",
+    "How to ensure manual golden bake respects fixed versus pluggable memory variants?"
+  ],
+  "saysFor": "855:golden-bake-alias-promot"
+}

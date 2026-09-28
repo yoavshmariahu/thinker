@@ -1,0 +1,86 @@
+{
+  "id": "follow-up-loop-must-skip-ticks-while-a-push-would-eject-the-",
+  "title": "Follow-up loop must skip ticks while a push would eject the PR from the Trunk merge queue",
+  "kind": "invariant",
+  "answers": [
+    "Why does the PostHog Code agent push to a PR that is in the merge queue?",
+    "Agent CI follow-up kicked my enqueued PR out of the Trunk queue",
+    "How does the PR follow-up loop decide to skip when the PR is queued?"
+  ],
+  "body": "Any decision site in the PR follow-up loop must skip (CIFollowUpDecision.SKIP) when `merge_queue_push_would_eject` is true, because a follow-up push ejects the PR from the Trunk queue and restarts PRs testing behind it.\nEnforced at three sites: `_should_run_babysit_follow_up` and `_should_run_ci_follow_up` in products/tasks/backend/temporal/process_task/workflow.py, and `_should_run_ci_follow_up` in products/tasks/backend/temporal/task_management/workflow.py. A new decision site needs the same gate.\nThe flag comes from `merge_queue_push_would_eject()` in process_task/activities/get_pr_context.py, carried on `GetPrContextOutput` and on `PRSnapshot` (babysit_pr/snapshot.py) via `get_pr_babysit_snapshot.py`.\nUse the narrow \"push would eject\" state (queued/testing/passed/pending-failure/UNKNOWN), NOT \"submitted\". A submitted PR waiting on branch protection is not held, or it deadlocks: Trunk waits for green checks and the agent waits for Trunk.\nOn a skipped babysit tick do not touch `_babysit_journal`, so the same feedback is re-delivered after the PR leaves the queue.",
+  "applies": "products/tasks Temporal PR follow-up (babysit and legacy CI follow-up) workflows",
+  "tags": [
+    "merge-queue",
+    "trunk",
+    "temporal",
+    "follow-up"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "_should_run_babysit_follow_up",
+      "hash": "sha256:7f9ff8509ee65b0c7417aafa",
+      "line": 1094,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/get_pr_context.py",
+      "symbol": "merge_queue_push_would_eject",
+      "hash": "sha256:7c0642ccedb7df51ce3fba8c",
+      "line": 83,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/task_management/workflow.py",
+      "symbol": "_should_run_ci_follow_up",
+      "hash": "sha256:709ad139db53a2a6a16ba2de",
+      "line": 1246,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/babysit_pr/snapshot.py",
+      "hash": "sha256:b3a1d6166085e4b4c91d86f3",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/get_pr_babysit_snapshot.py",
+      "hash": "sha256:9cd2ebc1f42529df98c45b36",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "CIFollowUpDecision.SKIP",
+      "hash": "sha256:d2120e5ca51e844419fd1d5f",
+      "line": 307,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105311"
+  },
+  "created": "2026-09-27T00:06:47.960Z",
+  "verified": "2026-09-27T00:06:47.960Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+    "how-task-run-failures-are-recorded",
+    "invariants-for-recording-task-run-status-failure-in-process-",
+    "new-skip-decision-branches-in-tasks-workflows-need-a-workflo"
+  ],
+  "servedIn": [
+    "4ceaeafb-354c-413e-8554-2eeb1b99987f",
+    "afad1150-74a1-4e9a-9a6e-93d48551d352",
+    "2e552557-6ce0-4e96-8d4c-138f629e75bd",
+    "0fbe9612-b859-4114-81f9-f77383771643"
+  ],
+  "says": [
+    "Follow-up pushes eject PR from merge queue",
+    "Why agent shouldn't push when PR queued",
+    "Skip follow-up while PR in trunk queue"
+  ],
+  "saysFor": "1171:follow-up-loop-must-skip"
+}

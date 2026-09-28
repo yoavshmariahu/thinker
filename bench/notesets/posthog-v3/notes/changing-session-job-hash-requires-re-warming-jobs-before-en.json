@@ -1,0 +1,51 @@
+{
+  "id": "changing-session-job-hash-requires-re-warming-jobs-before-en",
+  "title": "Changing session job hash requires re-warming jobs before enabling cached reads",
+  "kind": "gotcha",
+  "answers": [
+    "How to roll out a cache key change for marketing session precompute",
+    "Old session jobs not reused after changing cache_key_context",
+    "Cached attribution slow after job hash change"
+  ],
+  "body": "Changing the `cache_key_context` serialization orphans old jobs whose key changes; there is no compatibility lookup for old keys.\nIn this PR, old keys with unset `cookielessTrafficIsRegular` stay valid (serialization already omitted None), but explicit true/false keys are new and need warming by the updated writer.\nRollout: warm jobs for the full attribution read window, then confirm complete fresh coverage with a read-only lookup (`ensure_marketing_sessions_precomputed(..., run_inserts=False)`) before enabling cached reads. Missing coverage falls back to live calc.\nRegression tests should build legacy jobs via `ensure_precomputed` with the old serialization for each value (None/True/False) and both V2/V3, see test_cookieless_rollout_reuses_jobs_after_cache_key_transition in products/marketing_analytics/backend/hogql_queries/test_marketing_sessions_precompute.py. Document the transition in docs/internal/marketing-attribution-session-precompute.md.",
+  "applies": "Any change to the job-hash inputs of marketing sessions precompute.",
+  "tags": [
+    "marketing-analytics",
+    "cache",
+    "rollout",
+    "dagster"
+  ],
+  "deps": [
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/test_marketing_sessions_precompute.py",
+      "symbol": "TestMarketingSessionsPrecompute.test_cookieless_rollout_reuses_jobs_after_cache_key_transition",
+      "hash": "sha256:94dfa8e0221b214b68fd7a82",
+      "line": 42,
+      "missing": false
+    },
+    {
+      "path": "docs/internal/marketing-attribution-session-precompute.md",
+      "hash": "sha256:cfaa2c6835572383c1bc553c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105597"
+  },
+  "created": "2026-09-27T00:01:44.395Z",
+  "verified": "2026-09-27T00:01:44.395Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Old attribution precompute jobs stopped being reused after hash changed",
+    "Cached marketing session lookups became slow after switching cache keys",
+    "Session precompute jobs must be warmed before enabling cached reads",
+    "Cache key change orphaned existing marketing session precompute computations",
+    "Attribution calculations not reusing cache after switching the hash"
+  ],
+  "saysFor": "1041:changing-session-job-has"
+}

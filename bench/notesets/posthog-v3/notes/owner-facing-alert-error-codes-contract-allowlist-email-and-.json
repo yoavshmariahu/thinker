@@ -1,0 +1,89 @@
+{
+  "id": "owner-facing-alert-error-codes-contract-allowlist-email-and-",
+  "title": "Owner-facing alert error codes: contract, allowlist, email and in-app notification move together",
+  "kind": "cochange",
+  "answers": [
+    "How do I add a new alert check error code?",
+    "Why does the alert check history show a generic error message?",
+    "Where is the alert error code allowlist?"
+  ],
+  "body": "A new owner-readable errored-check code must be updated in several places:\n- Define code and message in products/alerts/backend/judge/contract.py (e.g. `LLM_DETECTOR_UNAVAILABLE_ERROR_CODE`/`_MESSAGE`) and re-export via judge/__init__.py and facade/api.py `__all__`.\n- Serializer allowlist in products/alerts/backend/presentation/views/alert.py `get_error`: codes not listed collapse to a generic 'check the alert configuration' message (raw errors may leak internals).\n- Email: `send_notifications_for_errors` in posthog/tasks/alerts/utils.py sets template context (`provider_unavailable`) used by posthog/templates/email/alert_check_failed_to_evaluate.html.\n- In-app: `dispatch_alert_error_in_app_notifications` in posthog/temporal/alerts/activities.py branches on the code.\n- Retry-exhausted errors get their code via `_failed_evaluation_error`, keyed on `error_type` (class name) that the workflow passes to `record_failed_evaluation`.\nTests: allowlist param in products/alerts/backend/tests/api/test_alert.py, email render in test_email_notifications.py.",
+  "applies": "Adding or changing error codes on errored AlertCheck records.",
+  "tags": [
+    "alerts",
+    "error-codes",
+    "notifications",
+    "serializer"
+  ],
+  "deps": [
+    {
+      "path": "products/alerts/backend/presentation/views/alert.py",
+      "symbol": "get_error",
+      "hash": "sha256:0873319c29c4eaebeb6f6f12",
+      "line": 568,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "_failed_evaluation_error",
+      "hash": "sha256:70c5a16d566990bf0895400f",
+      "line": 320,
+      "missing": false
+    },
+    {
+      "path": "posthog/tasks/alerts/utils.py",
+      "symbol": "send_notifications_for_errors",
+      "hash": "sha256:52d1216670faa42f13e4739f",
+      "line": 300,
+      "missing": false
+    },
+    {
+      "path": "posthog/templates/email/alert_check_failed_to_evaluate.html",
+      "hash": "sha256:8cab7fad6063b8c448706a1b",
+      "missing": false
+    },
+    {
+      "path": "products/alerts/backend/judge/contract.py",
+      "hash": "sha256:c8d921c19c2c9d6a6f8d1e7c",
+      "missing": false
+    },
+    {
+      "path": "products/alerts/backend/presentation/views/__init__.py",
+      "hash": "sha256:e3b0c44298fc1c149afbf4c8",
+      "missing": false
+    },
+    {
+      "path": "products/alerts/backend/tests/api/test_alert.py",
+      "hash": "sha256:6b4a46dff18ea87ef6314154",
+      "missing": false
+    },
+    {
+      "path": "products/alerts/backend/test/test_email_notifications.py",
+      "hash": "sha256:8a4578a1dc62a34910c6772b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105304"
+  },
+  "created": "2026-09-27T00:07:14.229Z",
+  "verified": "2026-09-27T00:07:14.229Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "unavailable-detector-copy-must-name-the-outcome-not-a-cause-",
+    "ai-detector-unavailable-counter-is-incremented-only-on-the-r",
+    "workflow-and-activity-declaration-conventions-posthog-tempor"
+  ],
+  "says": [
+    "Alert checks show generic error message instead of what failed.",
+    "I need to add a new error code for failed alert checks.",
+    "Alert failure emails and in-app notifications show different error details.",
+    "New alert error codes must be added to the allowlist.",
+    "Error codes need to be defined in multiple places to work."
+  ],
+  "saysFor": "1156:owner-facing-alert-error"
+}

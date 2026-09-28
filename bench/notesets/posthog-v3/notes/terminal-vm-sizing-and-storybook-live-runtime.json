@@ -1,0 +1,57 @@
+{
+  "id": "terminal-vm-sizing-and-storybook-live-runtime",
+  "title": "Terminal VM sizing and Storybook live runtime",
+  "kind": "convention",
+  "answers": [
+    "Terminal VM memory size",
+    "How do I run the real terminal runtime in Storybook?",
+    "Where do installed terminal tools live in the guest?"
+  ],
+  "body": "- Guest memory is `memory_size: 512 * 1024 * 1024` in `terminalRuntime.ts`; installed tools go on a separate 256m tmpfs at `/opt/posthog-packages` mounted in the boot script, so they vanish when the terminal stops. Comments should not hard-code the memory size (see `terminalCommands.ts`).\n- Storybook stories mock `TerminalRuntime.prototype.start` in `TerminalScene.stories.tsx` so snapshots don't depend on firmware/boot. A story that needs the real VM sets `parameters: { liveRuntime: true }` and `tags: ['!test']` (see `LiveRuntime`) so it is skipped by visual tests.",
+  "applies": "frontend/src/scenes/terminal runtime and stories",
+  "tags": [
+    "terminal",
+    "storybook",
+    "v86"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/terminal/terminalRuntime.ts",
+      "hash": "sha256:48790c5a6e88ffa2244f1f14",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/TerminalScene.stories.tsx",
+      "symbol": "LiveRuntime",
+      "hash": "sha256:e3301c74bb2da60608da2ddf",
+      "line": 316,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/terminalCommands.ts",
+      "hash": "sha256:d8ef924ac05ce2ffc575e71f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105235"
+  },
+  "created": "2026-09-27T00:10:41.186Z",
+  "verified": "2026-09-27T00:10:41.186Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-terminal-shell-command-requires-script-vm-install-a"
+  ],
+  "says": [
+    "Terminal guest memory size and resource configuration limits",
+    "How much memory does the terminal VM allocate?",
+    "Running the real terminal runtime in Storybook stories",
+    "Terminal installed tools temporary storage and tmpfs mounting",
+    "Storybook terminal story with live VM instead of mock"
+  ],
+  "saysFor": "617:terminal-vm-sizing-and-s"
+}

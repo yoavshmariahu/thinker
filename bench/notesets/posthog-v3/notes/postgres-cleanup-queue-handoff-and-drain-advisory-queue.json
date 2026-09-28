@@ -1,0 +1,67 @@
+{
+  "id": "postgres-cleanup-queue-handoff-and-drain-advisory-queue",
+  "title": "Postgres cleanup queue handoff and drain (advisory queue)",
+  "kind": "invariant",
+  "answers": [
+    "How does person_pg_cleanup_queue get drained?",
+    "Is the pg cleanup queue authoritative?",
+    "What runs between the ClickHouse sweep and Postgres hard delete?"
+  ],
+  "body": "- `persist_deleted_persons` (dags/clickhouse_cleanup.py) queues swept persons into `person_pg_cleanup_queue` before the step that makes them unrecoverable; one checkpoint covers both PG handoff and CH person delete.\n- Queue is advisory: a person can be revived after queueing. `person_pg_cleanup_drain_job` (dags/person_pg_cleanup_drain.py) hands batches to personhog DeleteTombstonedPersons, which deletes only while still tombstoned under row locks; queue row deleted once resolved either way; rows reported blocked get blocked_at.\n- Drain pages by primary key keyset (migration rust/persons_migrations/20260910000001_reshape_person_pg_cleanup_queue_for_drain.sql; cleaned_at dropped, deleted_at index unusable for keyset).\n- Config bounds: max_runtime_seconds (24h), retry_backoff_seconds, rpc_retry_window_seconds.\n- Celery sweeps are only for non-Dagster deployments: `celery_sweeps_enabled` (models/async_deletion/celery_fallback.py; 30-day Dagster activity window) to avoid two sweeps mutating person tables.",
+  "tags": [
+    "dagster",
+    "drain"
+  ],
+  "deps": [
+    {
+      "path": "posthog/dags/person_pg_cleanup_drain.py",
+      "hash": "sha256:08c4531bda18fd9659a600e5",
+      "missing": false
+    },
+    {
+      "path": "posthog/dags/clickhouse_cleanup.py",
+      "symbol": "persist_deleted_persons",
+      "hash": "sha256:585b0d2a5aa73222ca119be9",
+      "line": 1143,
+      "missing": false
+    },
+    {
+      "path": "rust/persons_migrations/20260910000001_reshape_person_pg_cleanup_queue_for_drain.sql",
+      "hash": "sha256:07149ee1c1687db659c2f0ca",
+      "missing": false
+    },
+    {
+      "path": "posthog/models/async_deletion/celery_fallback.py",
+      "symbol": "celery_sweeps_enabled",
+      "hash": "sha256:9ce400dd03c935ee4a83c02a",
+      "line": 21,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "56b7f00e-a572-4ca0-b57b-9c0f9120117f"
+  },
+  "created": "2026-09-27T00:23:53.920Z",
+  "verified": "2026-09-27T00:23:53.920Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "deletion-queue-dags-deletes-job-cleanup-sweep-pg-drain"
+  ],
+  "servedIn": [
+    "231a9dd0-7188-4586-8849-6e6b866d19a4",
+    "adcee338-64ea-4441-8bfb-db43173e8dd9",
+    "5c8e7539-6b19-4050-88bd-69c110e19dd7"
+  ],
+  "says": [
+    "Deleted person records are stuck in the cleanup queue",
+    "Why isn't the database finishing the hard delete of removed persons",
+    "Person deletion blocked and seems unable to complete",
+    "How long should deletion of a customer record take",
+    "Undeleting a user after cleanup started removes them again"
+  ],
+  "saysFor": "1073:postgres-cleanup-queue-h"
+}

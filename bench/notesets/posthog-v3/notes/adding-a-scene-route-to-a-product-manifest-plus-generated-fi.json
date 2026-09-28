@@ -1,0 +1,73 @@
+{
+  "id": "adding-a-scene-route-to-a-product-manifest-plus-generated-fi",
+  "title": "Adding a scene/route to a product: manifest plus generated files must change together",
+  "kind": "cochange",
+  "answers": [
+    "How do I add a new page/scene to the workflows product?",
+    "Moved a route and URLs, what files need updating?",
+    "Where are broadcasts URLs and routes defined?"
+  ],
+  "body": "Moving or adding a scene in products/workflows touches several places in the same PR:\n- products/workflows/manifest.tsx: `scenes`, `routes`, `urls` (source of truth; also `fileSystemTypes`/tree `sceneKey`).\n- frontend/src/scenes/sceneTypes.ts: `Scene` enum entry and `sceneToAccessControlResourceType` (Workflow resource for broadcast scenes).\n- Auto-generated mirrors: frontend/src/productScenes.tsx, frontend/src/products.tsx (`productRoutes`, `productConfiguration`, `productUrls`, `sceneKeys` lists).\n- services/mcp/src/tools/links/app-url-manifest.json and the snapshot services/mcp/tests/unit/__snapshots__/tool-schemas/generate-app-url.json (URL catalog listing).\nIf a scene key is added, also add it to `sceneKeys` of the related product tree items so the sidebar highlights correctly.",
+  "applies": "products/workflows scenes and URLs (Workflows, Broadcasts, Broadcast)",
+  "tags": [
+    "workflows",
+    "broadcasts",
+    "routes",
+    "mcp"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/manifest.tsx",
+      "hash": "sha256:3bb598fa4e7c25039fd1804f",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/products.tsx",
+      "hash": "sha256:ee5983964e7dff4cb2423926",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/sceneTypes.ts",
+      "hash": "sha256:8398c97dfc088280f2336592",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/tools/links/app-url-manifest.json",
+      "hash": "sha256:63387e12accc6b9b87e88320",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105601"
+  },
+  "created": "2026-09-27T00:01:32.605Z",
+  "verified": "2026-09-27T00:01:32.605Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 7,
+  "related": [
+    "scene-registration-routing-manifest-generated-products-tsx-s",
+    "adding-a-product-scene-cochange-checklist",
+    "adding-a-route-under-broadcasts-literal-paths-before-id-and-",
+    "frontend-product-manifest-generated-products-tsx-scenes-urls"
+  ],
+  "servedIn": [
+    "40295eae-3d13-4cbb-9471-89b9e10410a6",
+    "aef362ec-1476-47a5-a1bb-4ebb13906ee7",
+    "070540b0-f7fb-4a94-99dc-1d484c7b4d6b",
+    "aa6e2a76-2846-4e4b-92d3-c7f415d38f48",
+    "5e7fd372-cd68-44a7-9ca2-4c2265e30575",
+    "2e9c5e0e-8c55-49dd-8d88-b1af1258e010",
+    "4d474a5e-1000-48c6-99bd-6d78c155539d"
+  ],
+  "says": [
+    "Moved a scene route and now all URLs broken",
+    "How to add new page to the workflows product",
+    "What files need updating when adding product scene",
+    "Navigation links point to wrong scene after refactor",
+    "Adding new tab requires updating multiple different files"
+  ],
+  "saysFor": "879:adding-a-scene-route-to-"
+}

@@ -1,0 +1,64 @@
+{
+  "id": "onboarding-a-product-to-go-ai-gateway-token-minting-sets-tha",
+  "title": "Onboarding a product to Go AI gateway token minting: sets that must change together",
+  "kind": "cochange",
+  "answers": [
+    "How do I let a sandbox run product mint an AI gateway token?",
+    "Add a new origin product to the Go AI gateway",
+    "Why is my product's sandbox run still using the Python LLM gateway?",
+    "MINTABLE_PRODUCTS AI_CREDITS_BILLED_PRODUCTS SANDBOX_BOUND_MINTABLE_PRODUCTS"
+  ],
+  "body": "Enabling a product for Go gateway minting touches several places that must stay in sync:\n- `MINTABLE_PRODUCTS` in products/tasks/backend/temporal/process_task/ai_gateway_token.py (base eligibility).\n- `SANDBOX_BOUND_MINTABLE_PRODUCTS` (same file) if the run has no wall-clock cap, so the token lives as long as the sandbox.\n- `AI_CREDITS_BILLED_PRODUCTS` (same file) if the Python gateway billed it to AI credits; Go gateway has no credit check so the mint refuses when out of credits.\n- `PRODUCT_ALLOWED_MODELS` in products/tasks/backend/logic/services/gateway_model_pin.py (first-party model pin; off-pin models get `model_outside_pin` and stay on the Python gateway).\n- `SANDBOX_AI_GATEWAY_TOKEN_CAP_USD_PRODUCT_OVERRIDES` default in posthog/settings/temporal.py (per-run USD cap, e.g. \"75\").\n- Tests in products/tasks/backend/temporal/process_task/tests/test_ai_gateway_token.py: the parametrized pin/cap cases and the exact-equality `test_ai_credits_billed_products` assertion.\nMinting stays inert until the product is listed in the `SANDBOX_AI_GATEWAY_PRODUCTS` env setting (deployed via charts, not in this repo).",
+  "applies": "Adding or changing a product's eligibility for Go AI gateway tokens in sandbox task runs.",
+  "tags": [
+    "ai-gateway",
+    "tasks",
+    "sandbox",
+    "temporal"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/ai_gateway_token.py",
+      "symbol": "MINTABLE_PRODUCTS",
+      "hash": "sha256:42da809a07b5d73fac30de93",
+      "line": 73,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/gateway_model_pin.py",
+      "hash": "sha256:775237ca6dc30ab13a2fcfee",
+      "missing": false
+    },
+    {
+      "path": "posthog/settings/temporal.py",
+      "hash": "sha256:1495212b08d1e7381282a6e3",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/tests/test_ai_gateway_token.py",
+      "hash": "sha256:6e569648074a73fc7969845a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105244"
+  },
+  "created": "2026-09-27T00:09:56.365Z",
+  "verified": "2026-09-27T00:09:56.365Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "credit-billed-pinned-products-mint-refusals-and-per-run-trad"
+  ],
+  "says": [
+    "How do I enable a product for AI gateway token minting?",
+    "Sandbox run product still using Python gateway instead of Go",
+    "Product can't mint tokens on the Go AI gateway",
+    "Enabling AI gateway minting requires updating multiple settings",
+    "Which configuration controls Go gateway minting availability?"
+  ],
+  "saysFor": "1204:onboarding-a-product-to-"
+}

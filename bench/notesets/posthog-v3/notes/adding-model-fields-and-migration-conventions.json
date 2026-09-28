@@ -1,0 +1,67 @@
+{
+  "id": "adding-model-fields-and-migration-conventions",
+  "title": "Adding model fields and migration conventions",
+  "kind": "howto",
+  "answers": [
+    "How do I add a field to a PostHog model with a migration?",
+    "What migration safety rules apply?",
+    "Where do product model migrations live?"
+  ],
+  "body": "- Core models: `posthog/models/`, migrations `posthog/migrations/` (`max_migration.txt` tracks latest). Product models: `products/<name>/backend/models/` with `products/<name>/backend/migrations/`; see `products/README.md` (\"Adding or moving backend models and migrations\"); scaffold `hogli product:bootstrap`. Use string FKs (`\"posthog.Team\"`).\n- Separate product DBs declared in `products/db_routing.yaml`; no cross-DB FKs/migration deps (`test_migration_dependencies_share_a_database.py`).\n- Generate: `DEBUG=1 ./manage.py makemigrations [app]`; conflicts: `manage.py rebase_migration <app>`.\n- NOT NULL: set both `default=` and `db_default=`. Growing enums: module-level callable for `choices=`. Remove column: `deprecate_field`/`untrack_field`, never plain RemoveField. Drop table: `SafeDropTable`.\n- Don't add domain fields to Team; use extension model (OneToOne primary_key, `posthog/models/team/extensions.py:register_team_extension_signal`, see team/README.md).\n- Analyzer: `posthog/management/migration_analysis/` (policies.py e.g. HotTableAlterPolicy, AtomicFalsePolicy w/ atomic_false_acknowledged_migrations.txt).",
+  "tags": [
+    "migrations",
+    "django"
+  ],
+  "deps": [
+    {
+      "path": "products/README.md",
+      "hash": "sha256:8bb99e140e08594611301122",
+      "missing": false
+    },
+    {
+      "path": "posthog/management/migration_analysis/policies.py",
+      "hash": "sha256:2ad8e75575920248ab9e5e48",
+      "missing": false
+    },
+    {
+      "path": "posthog/models/team/extensions.py",
+      "hash": "sha256:9d264a83035d5992cf42a834",
+      "missing": false
+    },
+    {
+      "path": "posthog/test/repo_invariants/test_migration_dependencies_share_a_database.py",
+      "hash": "sha256:cc6327315631cbd855b0774c",
+      "missing": false
+    },
+    {
+      "path": "manage.py",
+      "hash": "sha256:ca9beee30900684efa049b05",
+      "missing": false
+    },
+    {
+      "path": "posthog/models/team/extensions.py",
+      "symbol": "register_team_extension_signal",
+      "hash": "sha256:550affb66d689f8a5d23d238",
+      "line": 51,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e7c64b6c-6fa7-4af0-a1fc-6fbb2de193c7"
+  },
+  "created": "2026-09-26T20:21:57.802Z",
+  "verified": "2026-09-26T20:21:57.802Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Add field to model with migration",
+    "Model field addition safety rules",
+    "Safely adding column to existing table",
+    "Product model migration location conventions"
+  ],
+  "saysFor": "1172:adding-model-fields-and-"
+}

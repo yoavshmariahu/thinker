@@ -1,0 +1,84 @@
+{
+  "id": "team-organization-user-project-model-relationships",
+  "title": "Team/Organization/User/Project model relationships",
+  "kind": "overview",
+  "answers": [
+    "How do Team, Organization and User relate?",
+    "Where is OrganizationMembership defined?",
+    "What is parent_team on Team?"
+  ],
+  "body": "- `posthog/models/organization.py:Organization` top-level tenant; `members` M2M to `posthog.User` through `organization.py:OrganizationMembership` (level, joined_at, invited_by).\n- `posthog/models/project.py:Project` FK to Organization (related_name `projects`); Project id == Team id.\n- `posthog/models/team/team.py:Team` FKs: `organization` (related_name `teams`), `project` (related_name `teams`), `parent_team` (related_name `child_teams`, environments under a project).\n- `posthog/models/user.py:User` (custom AbstractUser, UserManager) is not owned by one org; role comes from membership level. `current_organization`/`current_team` are UI preferences, not scoping defaults.\n- `posthog/models/utils.py:RootTeamMixin` resolves child team to parent team for project-scoped data.",
+  "tags": [
+    "models",
+    "team",
+    "organization"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/organization.py",
+      "symbol": "Organization",
+      "hash": "sha256:5aefb8548ed820f942b437a0",
+      "line": 165,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/project.py",
+      "symbol": "Project",
+      "hash": "sha256:3ba9de0a95f75393f056a6b3",
+      "line": 74,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/team/team.py",
+      "symbol": "Team",
+      "hash": "sha256:95932df335ab82ec3666382a",
+      "line": 270,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/user.py",
+      "symbol": "User",
+      "hash": "sha256:538e78aa75b8cd55bb8e16d6",
+      "line": 239,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/utils.py",
+      "symbol": "RootTeamMixin",
+      "hash": "sha256:3263790a7ae0ae4b0e304cbd",
+      "line": 400,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/organization.py",
+      "symbol": "OrganizationMembership",
+      "hash": "sha256:499d09234ca127b86ab6dad8",
+      "line": 711,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e7c64b6c-6fa7-4af0-a1fc-6fbb2de193c7"
+  },
+  "created": "2026-09-26T20:21:57.570Z",
+  "verified": "2026-09-26T20:21:57.570Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 3,
+  "related": [],
+  "servedIn": [
+    "cf0e5e9b-2242-4b02-bb1d-22fefdd8a9aa",
+    "bada6a04-90ca-402b-b4a8-ac0932a722e5",
+    "043b894d-7483-463a-981a-37bca4b0739d"
+  ],
+  "says": [
+    "How do teams, organizations, and projects relate to each other",
+    "User membership levels and roles across organization boundaries",
+    "Environment configuration and hierarchy under projects",
+    "Where to find user and organization membership definitions",
+    "Parent team and child environment relationships in the model"
+  ],
+  "saysFor": "833:team-organization-user-p"
+}

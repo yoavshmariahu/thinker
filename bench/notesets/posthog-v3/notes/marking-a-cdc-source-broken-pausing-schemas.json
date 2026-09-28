@@ -1,0 +1,95 @@
+{
+  "id": "marking-a-cdc-source-broken-pausing-schemas",
+  "title": "Marking a CDC source broken / pausing schemas",
+  "kind": "location",
+  "answers": [
+    "How is a CDC source marked broken?",
+    "Where do schemas get paused?",
+    "What does cdc_broken do?"
+  ],
+  "body": "- `warehouse_sources/backend/temporal/data_imports/cdc/broken.py` marks a CDC source broken across 3 surfaces: `source.status=ERROR`; per-CDC-schema `sync_type_config[\"cdc_broken\"]` marker + `status=FAILED` + friendly `latest_error` (written with locked `update_sync_type_config_keys` so concurrent API PATCH can't clobber); and the Temporal extraction schedule is paused.\n- Triggered when safety net dropped slot after critical lag or extraction hit missing slot/publication. Sweeper re-marks each sweep; only schemas whose `cdc_broken.reason` differs are 'newly broken' (failure-digest evidence reported once).\n- Paused status sites: `warehouse_sources/backend/stalled_schedules.py`, `presentation/views/external_data_source/source_setup.py` (derives PAUSED if any active schema paused), `data_warehouse/backend/sync_status.py` (PAUSED or not `should_sync` → paused warning), `data_load/service.py` (~line 420 filters by status).\n- Schedule pause is driven by `should_sync` (`to_temporal_schedule`).",
+  "tags": [
+    "cdc",
+    "broken",
+    "paused"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py",
+      "hash": "sha256:9282ed8a268e3ac30567b8dd",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "hash": "sha256:70ba601ffd533b5e608ac602",
+      "missing": false
+    },
+    {
+      "path": "products/data_warehouse/backend/sync_status.py",
+      "hash": "sha256:1aabdd88b63aff75244eebf4",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/presentation/views/external_data_source/source_setup.py",
+      "hash": "sha256:fbb3492bf359740a5e733275",
+      "missing": false
+    },
+    {
+      "path": "products/data_warehouse/backend/logic/data_load/service.py",
+      "hash": "sha256:2f4a01478aba6214f1c76b9d",
+      "missing": false
+    },
+    {
+      "path": "packages/quill/packages/primitives/src/chat/chat-source.tsx",
+      "symbol": "status",
+      "hash": "sha256:03824dac93fceb1ed3eea799",
+      "line": 40,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "28c9b241-3689-4e9e-a9ce-5bcb73623a52"
+  },
+  "created": "2026-09-26T20:29:19.170Z",
+  "verified": "2026-09-26T20:29:19.170Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 23,
+  "related": [
+    "cdc-differs-from-regular-sync-per-source-schedule-halt-marke",
+    "schema-disable-delete-schedule-handling-coupled-flags-and-in",
+    "temporal-schedules-in-data-load-service-per-schema-sync-and-"
+  ],
+  "lastUsed": "2026-09-27T21:00:52.314Z",
+  "servedIn": [
+    "075bc015-05d2-43cd-863b-d22c9a868902",
+    "dc4ec292-78d0-494e-aad1-52c00865e3f7",
+    "f8db27e1-d0ea-4cbb-9a42-50d4486c7a9d",
+    "f3fc1bca-d141-4044-9012-e11e388d0f68",
+    "49dc4103-6b11-43fc-9ce9-046f7a3ab6c2",
+    "b232bfe1-c89d-47ac-b37c-cfb38332354d",
+    "db96b0a1-ba11-48a9-b06f-274055191171",
+    "a471e51c-4c4d-47b8-9bb8-9ec2a4d9953b",
+    "codex-posthog-codex-gpt56-PR106917-hard-0",
+    "codex-posthog-codex-gpt56-PR106917-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR106917-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR106917-hard-1",
+    "probe-PR106917-hard",
+    "probe-PR106917-hard",
+    "11dad67d-ff4e-4304-b602-5f1c061d81df",
+    "98300693-df3e-4dad-8e44-45bacccbe7f0",
+    "probe-PR106917-hard",
+    "probe-PR106917-hard",
+    "probe-PR106917-hard"
+  ],
+  "says": [
+    "CDC source marked broken after lag spike but stays marked forever",
+    "How do I pause an individual CDC schema from syncing out of many",
+    "Per-schema status shows failed for sources that are broken",
+    "Extraction schedule paused when CDC replication falls behind threshold",
+    "Where does the system mark a CDC source as unhealthy"
+  ],
+  "saysFor": "1047:marking-a-cdc-source-bro"
+}

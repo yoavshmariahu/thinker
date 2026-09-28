@@ -1,0 +1,87 @@
+{
+  "id": "conventions-for-cross-team-flag-management-commands-and-temp",
+  "title": "Conventions for cross-team flag management commands and Temporal health checks",
+  "kind": "convention",
+  "answers": [
+    "How should a management command iterate all teams' flags?",
+    "How do I add a Temporal health check for feature flags?",
+    "Why not .iterator() in flag audit command?"
+  ],
+  "body": "Management commands (`management/commands/audit_flag_filters.py`, `repair_replay_linked_flag_keys.py`):\n- Read-only/offline by default; `--limit` (0=all, negative -> CommandError), `--team-id` (nonexistent -> CommandError), `--json`.\n- `_iter_flag_rows` uses keyset pagination (`id__gt`, chunk 500), NOT `.iterator()` (PgBouncer, server-side cursors disabled).\n- Bounded output: `MAX_TRACKED_UNKNOWN_KEYS`, capped samples, `_sanitize_for_console` for user JSON. Frozen dataclasses + outcome enums.\n- repair command counts unsafe rows (soft-deleted/other-project) and skips them; rewrites under team row lock.\nTemporal health checks (`posthog/temporal/health_checks/README.md`, example `StaleFeatureFlagsCheck`):\n- Subclass `HealthCheck` with `name`, globally unique `kind`, `owner=JobOwners.TEAM_FEATURE_FLAGS`; register module in `HEALTH_CHECK_MODULES` in `registry.py`.\n- `detect(team_ids)` gets a batch, returns dict[team_id, list[HealthCheckResult]]; absent teams = healthy (issues auto-resolve). Filter queries by `team_id__in=team_ids`.",
+  "applies": "Jobs iterating over all teams in products/feature_flags; no AGENTS.md exists there.",
+  "tags": [
+    "management-command",
+    "temporal",
+    "health-check"
+  ],
+  "deps": [
+    {
+      "path": "products/feature_flags/backend/management/commands/audit_flag_filters.py",
+      "hash": "sha256:d233df8d91f36b58b1485be4",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/management/commands/repair_replay_linked_flag_keys.py",
+      "hash": "sha256:5778028db2681167cd198ec2",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/health_checks/README.md",
+      "hash": "sha256:3e1c600cd0519838e3bf694d",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
+      "symbol": "StaleFeatureFlagsCheck",
+      "hash": "sha256:5a85aa511c376c4db9e8710e",
+      "line": 54,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/health_checks/registry.py",
+      "hash": "sha256:a8beed59e2456c6abd15e890",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "6c653026-d833-43e7-aa3f-28783ae11ea2"
+  },
+  "created": "2026-09-27T00:18:40.056Z",
+  "verified": "2026-09-27T00:18:40.056Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 22,
+  "related": [
+    "how-cross-team-flag-jobs-iterate-commands-and-temporal-healt",
+    "gotcha-stale-flags-health-check-and-featureflagstatuschecker"
+  ],
+  "lastUsed": "2026-09-28T01:20:58.068Z",
+  "servedIn": [
+    "08696bb9-9b76-4e26-aeda-ffbfe1cdf640",
+    "7963fd21-bd15-4e41-8e3c-274cd2823351",
+    "4bb7b6ba-817e-4bd2-a11a-2f55eb654532",
+    "7805d634-fdab-444e-9008-da1f664abcbe",
+    "f46d4b5d-42ec-4d38-853a-4179418ca6d6",
+    "38882f6a-dc45-46d6-ace3-4d87917567d7",
+    "4259021d-5a77-4460-819c-452f8c9c3172",
+    "codex-posthog-codex-gpt56-PR105871-hard-0",
+    "codex-posthog-codex-gpt56-PR105871-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR105871-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR105871-hard-1",
+    "probe-PR105871-hard",
+    "probe-PR105871-hard",
+    "probe-PR105871-hard",
+    "probe-PR105871-hard",
+    "probe-PR105871-hard",
+    "probe-PR105871-hard"
+  ],
+  "says": [
+    "How do I run a compliance audit on feature flags across all teams?",
+    "What health checks detect when feature flags need repair or attention?",
+    "How does the background worker know to flag problematic flags?",
+    "Can I repair flags for multiple teams in a single operation?"
+  ],
+  "saysFor": "1121:conventions-for-cross-te"
+}

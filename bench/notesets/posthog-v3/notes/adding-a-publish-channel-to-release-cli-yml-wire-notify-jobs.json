@@ -1,0 +1,52 @@
+{
+  "id": "adding-a-publish-channel-to-release-cli-yml-wire-notify-jobs",
+  "title": "Adding a publish channel to release-cli.yml: wire notify jobs and match gating",
+  "kind": "cochange",
+  "answers": [
+    "How to add a new publish job to the CLI release workflow",
+    "Why did a failed publish not show up in Slack?",
+    "crates.io trusted publishing setup for posthog-cli"
+  ],
+  "body": "In .github/workflows/release-cli.yml, a new publish-* job (publish-npm, publish-homebrew, publish-cargo) must be added to BOTH `notify-released` (needs list plus an `result == 'success' || 'skipped'` clause in `if`) and `notify-publish-failed` (needs list plus a `result == 'failure'` clause), otherwise failures are silent.\n- Gating: publish-npm and publish-cargo use `!announcement_is_prerelease || publish_prereleases`; publish-homebrew is stable-only.\n- crates.io auth uses Trusted Publishing via rust-lang/crates-io-auth-action (SHA-pinned) with `permissions: id-token: write`; no CARGO_REGISTRY_TOKEN secret. It requires crates.io config for repo PostHog/posthog and workflow release-cli.yml, otherwise no token is returned and the job fails.",
+  "applies": "CLI release workflow channel jobs",
+  "tags": [
+    "github-actions",
+    "release",
+    "trusted-publishing",
+    "slack"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/release-cli.yml",
+      "hash": "sha256:234a5b7a78d45eb8e2eece94",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/release-cli.yml",
+      "hash": "sha256:234a5b7a78d45eb8e2eece94",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105728"
+  },
+  "created": "2026-09-26T23:57:51.711Z",
+  "verified": "2026-09-26T23:57:51.711Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "build-rs-silently-tolerates-a-missing-api-bundle-release-mus",
+    "posthog-cli-crate-api-bundle-is-gitignored-so-include-list-a"
+  ],
+  "says": [
+    "Release failed but Slack notification never arrived",
+    "How to add new package registry to automated releases",
+    "Trusted publishing configuration for cargo packages",
+    "Publish step silently failed with no alert sent",
+    "Setting up secrets for package registry publishing"
+  ],
+  "saysFor": "827:adding-a-publish-channel"
+}

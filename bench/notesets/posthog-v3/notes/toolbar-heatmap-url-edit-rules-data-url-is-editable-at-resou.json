@@ -1,0 +1,66 @@
+{
+  "id": "toolbar-heatmap-url-edit-rules-data-url-is-editable-at-resou",
+  "title": "Toolbar heatmap URL edit rules: data_url is editable at resource level, url/render settings stay locked",
+  "kind": "invariant",
+  "answers": [
+    "Why can't an object-level editor change a heatmap's data URL?",
+    "Can I edit the data URL of a toolbar-captured heatmap?",
+    "PATCH saved heatmap returns 403 when changing url or data_url"
+  ],
+  "body": "Rules for SavedHeatmap partial updates:\n- Toolbar-source heatmaps: `partial_update` in products/web_analytics/backend/api/heatmaps_api.py only treats `url` and `block_consent_modals` as render inputs (rejected with ValidationError). `data_url` is NOT a render input, so it can change without replacing the screenshot/snapshots or enqueuing a render.\n- Object-only editors must never retarget `url` or `data_url` (either source). Aggregate-query scoping (HeatmapAggregateQueryScopingPermission) matches url_exact against heatmaps the caller has object grants on, so retargeting would widen data access. Test: test_heatmap_access_control.py::test_object_level_editor_cannot_retarget_heatmap_url (parameterized over source/field).\n- Frontend mirror: `dataUrlEditDisabledReason` in products/web_analytics/frontend/heatmaps/scenes/heatmap/heatmapLogic.ts requires resource-level Heatmap editor access; `urlEditDisabledReason` and `renderSettingsEditDisabledReason` still lock toolbar captures. HeatmapPageFields.tsx uses the data URL one for the data URL input.\n- Keep backend and frontend gating in sync when changing either.",
+  "applies": "SavedHeatmap PATCH endpoint and the heatmap page settings UI in products/web_analytics",
+  "tags": [
+    "heatmaps",
+    "access-control",
+    "toolbar"
+  ],
+  "deps": [
+    {
+      "path": "products/web_analytics/backend/api/heatmaps_api.py",
+      "symbol": "partial_update",
+      "hash": "sha256:40c449ccaa737bd4582260c1",
+      "line": 1969,
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/frontend/heatmaps/scenes/heatmap/heatmapLogic.ts",
+      "symbol": "dataUrlEditDisabledReason",
+      "hash": "sha256:2d90244009bdd5931a041e17",
+      "line": 340,
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/frontend/heatmaps/components/HeatmapPageFields.tsx",
+      "symbol": "HeatmapPageFields",
+      "hash": "sha256:09ee75b7c722190a2f60329c",
+      "line": 15,
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/backend/test/test_heatmap_access_control.py",
+      "hash": "sha256:a248773459cacb59fe4ff342",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105252"
+  },
+  "created": "2026-09-27T00:09:17.085Z",
+  "verified": "2026-09-27T00:09:17.085Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "toolbar-heatmap-capture-data-url-field-must-flow-through-too"
+  ],
+  "says": [
+    "Can't edit the heatmap URL in object editor",
+    "Heatmap URL change rejected with 403 permission error",
+    "Which fields on captured heatmaps are actually editable?",
+    "Object-only permission blocks me from retargeting heatmap URL",
+    "Updating heatmap page URL kept returning access denied"
+  ],
+  "saysFor": "1225:toolbar-heatmap-url-edit"
+}

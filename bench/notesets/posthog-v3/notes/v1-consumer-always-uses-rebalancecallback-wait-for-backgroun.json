@@ -1,0 +1,64 @@
+{
+  "id": "v1-consumer-always-uses-rebalancecallback-wait-for-backgroun",
+  "title": "v1 consumer always uses rebalanceCallback; wait-for-background-tasks flag removed",
+  "kind": "invariant",
+  "answers": [
+    "CONSUMER_WAIT_FOR_BACKGROUND_TASKS_ON_REBALANCE missing",
+    "why does rebalanceCallback run for v1 consumer",
+    "rebalance_cb true vs callback in consumer-v1"
+  ],
+  "body": "consumer-v1.ts passes `rebalance_cb: this.rebalanceCallback.bind(this)` unconditionally. The flag CONSUMER_WAIT_FOR_BACKGROUND_TASKS_ON_REBALANCE (config.ts, KafkaConsumerConfig, ingestion KafkaConsumerBaseConfig) no longer exists.\nWith `rebalance_cb: true`, node-rdkafka handles assign/unassign itself, so rebalanceCallback, the assignment metric (kafkaConsumerAssignment) and the revoke hook never fire. Do not reintroduce a mode that bypasses rebalanceCallback.\nThe consume loop skips consuming while rebalanceCoordination.isRebalancing, so every code path that sets it must also reset it (resetRebalanceCoordination).\nThe v2 consumer never used the flag.",
+  "applies": "nodejs/src/common/kafka/consumer/consumer-v1.ts and CommonConfig",
+  "tags": [
+    "kafka",
+    "config",
+    "rebalance"
+  ],
+  "deps": [
+    {
+      "path": "nodejs/src/common/kafka/consumer/consumer-v1.ts",
+      "symbol": "rebalanceCallback",
+      "hash": "sha256:004553430ec146dc6431750f",
+      "line": 398,
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/common/config.ts",
+      "hash": "sha256:ce64596fadbbbc9b3df858f7",
+      "missing": false
+    },
+    {
+      "path": "nodejs/src/ingestion/config.ts",
+      "symbol": "KafkaConsumerBaseConfig",
+      "hash": "sha256:b60bb48240cf65200d68f9b4",
+      "line": 68,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105238"
+  },
+  "created": "2026-09-27T00:10:14.480Z",
+  "verified": "2026-09-27T00:10:14.480Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "v1-consumer-stalls-after-revoke-until-rebalance-timeout"
+  ],
+  "servedIn": [
+    "231a9dd0-7188-4586-8849-6e6b866d19a4",
+    "3c34e426-2e6a-494a-a22d-0f17c68ea8ac",
+    "5c8e7539-6b19-4050-88bd-69c110e19dd7"
+  ],
+  "says": [
+    "Kafka v1 consumer background tasks configuration flag removed",
+    "v1 consumer no longer supports background task wait option",
+    "Rebalance callback always active in v1 consumer now",
+    "CONSUMER_WAIT_FOR_BACKGROUND_TASKS_ON_REBALANCE setting no longer exists",
+    "v1 consumer rebalance behavior changed with deprecated flag"
+  ],
+  "saysFor": "740:v1-consumer-always-uses-"
+}

@@ -1,0 +1,75 @@
+{
+  "id": "team-scoping-layer-fail-closed-for-models",
+  "title": "Team scoping layer (fail-closed) for models",
+  "kind": "location",
+  "answers": [
+    "How does team scoping work for Django models?",
+    "Which mixin for a new team-scoped model?",
+    "What raises TeamScopeError?"
+  ],
+  "body": "`posthog/models/scoping/` (see README.md there):\n- Main-DB models: `root_mixin.py:TeamScopedRootMixin` (extends `RootTeamMixin`), `objects = TeamScopedManager()` from `scoping/manager.py`; raises `TeamScopeError` without team context. save() rewrites child env team to parent.\n- Separate-DB products: `product_mixin.py:ProductTeamModel` with plain `team_id` BigIntegerField (no cross-DB FK).\n- Context set by: `TeamAndOrgViewSetMixin.initial()` (DRF), `@with_team_scope()` (Celery), `with team_scope(team_id):` (scripts). Outside request: `Model.objects.for_team(id)`. Escape: `.unscoped()`.\n- CI: `check-idor-model-coverage.py`; exceptions in `scoping/baseline_unmigrated.txt`.\n- Not a full security boundary (`_base_manager`, raw SQL bypass).",
+  "tags": [
+    "scoping",
+    "team",
+    "idor"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/scoping/root_mixin.py",
+      "symbol": "TeamScopedRootMixin",
+      "hash": "sha256:dd292e4fdb313ee4117a8b5f",
+      "line": 38,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/scoping/product_mixin.py",
+      "symbol": "ProductTeamModel",
+      "hash": "sha256:ea934d1a1b861c3a199b3db7",
+      "line": 38,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/scoping/README.md",
+      "hash": "sha256:34a4d4eee18fe0aaf875e859",
+      "missing": false
+    },
+    {
+      "path": ".github/scripts/check-idor-model-coverage.py",
+      "hash": "sha256:82931b42398ad2ea175b868f",
+      "missing": false
+    },
+    {
+      "path": "posthog/models/scoping/manager.py",
+      "symbol": "TeamScopedManager",
+      "hash": "sha256:8a067da3cd16d46319bbbc43",
+      "line": 89,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/scoping/product_mixin.py",
+      "symbol": "save",
+      "hash": "sha256:370a404764c27a816f472c48",
+      "line": 86,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e7c64b6c-6fa7-4af0-a1fc-6fbb2de193c7"
+  },
+  "created": "2026-09-26T20:21:57.641Z",
+  "verified": "2026-09-26T20:21:57.641Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How team context prevents users from accessing each other's data",
+    "Setting team scope for new database models to enforce isolation",
+    "Using team scope outside HTTP requests in Celery and scripts",
+    "Team scope errors indicate missing context when accessing team data",
+    "Separate database products use different data isolation mechanisms"
+  ],
+  "saysFor": "788:team-scoping-layer-fail-"
+}

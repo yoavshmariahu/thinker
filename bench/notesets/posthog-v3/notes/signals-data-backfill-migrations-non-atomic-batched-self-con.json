@@ -1,0 +1,50 @@
+{
+  "id": "signals-data-backfill-migrations-non-atomic-batched-self-con",
+  "title": "Signals data backfill migrations: non-atomic, batched, self-contained, acknowledged in txt file",
+  "kind": "convention",
+  "answers": [
+    "How do I write a batched backfill migration in signals?",
+    "Why is my non-atomic migration failing the migration check?",
+    "Should a backfill migration reuse live model parsing code?"
+  ],
+  "body": "Pattern from `products/signals/backend/migrations/0154_backfill_report_actionability.py`:\n- `atomic = False`, id-ordered batches (cursor `id__gt`), only selecting rows still unfilled so it is resumable; `RunPython(..., RunPython.noop, elidable=True)`.\n- Every non-atomic migration needs an entry plus explanatory comment in `posthog/management/migration_analysis/atomic_false_acknowledged_migrations.txt` (format `signals.0154_...`).\n- Update `products/signals/backend/migrations/max_migration.txt` with the new migration name.\n- Parse in Python inside the migration using historical models, not the live parser (`report_actionability_repair`): an applied migration must not change when live code changes. Skip malformed rows instead of failing the deploy (no SQL `IS JSON` on PG15).\n- Use `update()`, not `save()`, so `updated_at` (used for inbox sorting) is not bumped; repeat the NULL conditions in the UPDATE to avoid overwriting a concurrent receiver write.\n- Unknown actionability strings are cached as-is (matching receivers), only overlong values are dropped.",
+  "applies": "Data migrations in products/signals; non-atomic migrations repo-wide",
+  "tags": [
+    "migrations",
+    "backfill",
+    "signals"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/migrations/0154_backfill_report_actionability.py",
+      "symbol": "backfill_report_actionability",
+      "hash": "sha256:6f20a18f192c40b0822c03a6",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "posthog/management/migration_analysis/atomic_false_acknowledged_migrations.txt",
+      "hash": "sha256:8db235360a4e93e83f35173b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105683"
+  },
+  "created": "2026-09-26T23:59:23.608Z",
+  "verified": "2026-09-26T23:59:23.608Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Non-atomic migration fails the safety checker",
+    "Backfill job needs resumable batching support",
+    "Migration checks reject incomplete backfill setup",
+    "How to resume interrupted data backfill",
+    "Signals data backfill migration process"
+  ],
+  "saysFor": "1163:signals-data-backfill-mi"
+}

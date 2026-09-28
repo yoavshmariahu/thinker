@@ -1,0 +1,58 @@
+{
+  "id": "person-deletion-step-ordering-and-failure-invariants",
+  "title": "Person deletion step ordering and failure invariants",
+  "kind": "invariant",
+  "answers": [
+    "In what order do person deletion steps run?",
+    "Why is the profile delete last?",
+    "How are person deletion failures retried?"
+  ],
+  "body": "- `PersonDeletionStep` in bulk_delete.py orders: resolve persons, fetch distinct IDs, queue training deletion, queue recording deletion, tombstone ClickHouse, delete Postgres, log activity.\n- Profile (Postgres) delete runs last and only for persons whose earlier steps succeeded, because it removes distinct IDs a retry of earlier steps needs (`_run_queued_deletion_steps`, `_tombstone_and_delete_persons`).\n- A failing person is dropped from all later steps so retry redoes only that person.\n- Activity logging is last, dedupes persons that already have a `deleted` ActivityLog; a failed log write is recorded as LOG_ACTIVITY, not raised.\n- Failures recorded via `_record_step_failure` → PERSON_DELETION_STEP_FAILURES_COUNTER.\n- `delete_persons_async` retries only failed UUIDs up to MAX_DELETION_RETRIES.",
+  "applies": "Applies to bulk_delete.py pipeline; not the offline ClickHouse sweep/drain.",
+  "tags": [
+    "person-deletion"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/person/bulk_delete.py",
+      "symbol": "PersonDeletionStep",
+      "hash": "sha256:2402160fdef5b8294d1ecd0e",
+      "line": 39,
+      "missing": false
+    },
+    {
+      "path": "posthog/tasks/delete_persons.py",
+      "hash": "sha256:b5ecab0fa80a6737214f8bf8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "56b7f00e-a572-4ca0-b57b-9c0f9120117f"
+  },
+  "created": "2026-09-27T00:23:53.894Z",
+  "verified": "2026-09-27T00:23:53.894Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "bulk-person-delete-call-path-api-celery-dagster-bulk-delete-",
+    "person-deletion-modes-sync-vs-queued-and-person-bulk-delete-"
+  ],
+  "lastUsed": "2026-09-27T01:00:39.084Z",
+  "servedIn": [
+    "33676976-fd18-4be2-866b-1b8b81e8d5b2",
+    "adcee338-64ea-4441-8bfb-db43173e8dd9",
+    "5c8e7539-6b19-4050-88bd-69c110e19dd7",
+    "3c34e426-2e6a-494a-a22d-0f17c68ea8ac"
+  ],
+  "says": [
+    "Person deletion stops if an earlier step fails for that person.",
+    "Why does profile deletion run as the very last step?",
+    "A failed person deletion step gets retried only for that person.",
+    "Person deletion steps must run in a specific strict order.",
+    "If person metadata deletion fails, the profile persists until retry."
+  ],
+  "saysFor": "859:person-deletion-step-ord"
+}

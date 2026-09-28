@@ -1,0 +1,79 @@
+{
+  "id": "insight-list-default-ordering-must-use-an-indexed-column",
+  "title": "Insight list default ordering must use an indexed column",
+  "kind": "fix",
+  "answers": [
+    "Insights API list without order param is very slow",
+    "Paginating /api/projects/:id/insights/ takes tens of seconds per page",
+    "order_queryset falls back to sorting on unindexed column"
+  ],
+  "body": "Symptom: Listing insights via the API with no `order` param takes tens of seconds per page and pins a web worker; every offset page repeats the cost.\nRoot cause: products/product_analytics/backend/presentation/insight.py:order_queryset defaulted to `order_by(\"order\")`. `Insight.order` is a vestigial nullable, unindexed column, so Postgres scanned and sorted the whole project.\nFix pattern: default to an ordering covered by an existing index: `order_by(\"-last_modified_at\", \"-pk\")`, backed by partial index `dashboarditem_team_lmod_idx` on (team_id, -last_modified_at) WHERE NOT deleted. `-pk` is a tiebreaker for stable pagination.\nConstraints: don't add an index on `order` (NULL for nearly all rows). Keep the `with_last_viewed_at` annotation, since both list serializers return `last_viewed_at`. The `search` branch still returns the queryset unordered (relevance ranking). Changing the default changes response order for clients that send no `order`. The PR did not run a production EXPLAIN.",
+  "applies": "Insight list endpoint default sort in products/product_analytics/backend/presentation/insight.py",
+  "tags": [
+    "insights",
+    "performance",
+    "postgres",
+    "pagination"
+  ],
+  "deps": [
+    {
+      "path": "products/product_analytics/backend/presentation/insight.py",
+      "symbol": "order_queryset",
+      "hash": "sha256:71465ba4e801fef7c384bd6f",
+      "line": 1901,
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/backend/tests/api/test_insight.py",
+      "symbol": "test_list_without_order_sorts_by_last_modified_at_descending",
+      "hash": "sha256:1babcc77e21a5801c8d365e9",
+      "line": 1013,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105670"
+  },
+  "created": "2026-09-26T23:59:52.206Z",
+  "verified": "2026-09-26T23:59:52.206Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 26,
+  "related": [
+    "changing-insight-list-ordering-requires-updating-ambr-query-"
+  ],
+  "lastUsed": "2026-09-27T22:09:07.065Z",
+  "servedIn": [
+    "16f2af5b-640f-43cc-933f-9db4fa4f997d",
+    "8a2027b0-97a9-496b-901f-da33440c4feb",
+    "5ccf3945-df38-4c25-9a75-af5d2048ea1d",
+    "fbb19671-8730-46af-87c2-153efc2fcece",
+    "7b016e34-4074-4f02-aaa7-00989843f0ac",
+    "74c1862a-2c56-4845-8167-1c019dd827d0",
+    "c88cf1c1-3105-45b6-873d-e747e5e94b4d",
+    "afc6603a-63fc-40f1-8eb2-74565bdc41da",
+    "codex-posthog-codex-gpt56-PR107042-hard-0",
+    "codex-posthog-codex-gpt56-PR107042-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR107042-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR107042-hard-1",
+    "codex-posthog-codex-gpt6-sol-trace-PR107042-hard-0",
+    "probe-PR107042-hard",
+    "probe-PR107042-hard",
+    "423a91fd-f01c-4af7-bb5a-3bcb16aab914",
+    "probe-PR107042-hard",
+    "probe-PR107042-hard",
+    "probe-PR107042-hard",
+    "probe-PR107042-hard",
+    "codex-posthog-codex-gpt6-sol-v2-PR107042-hard-0"
+  ],
+  "says": [
+    "The insights list API is extremely slow without specifying an order parameter",
+    "Paginating through insights takes tens of seconds to load each page",
+    "Why does loading the first page of insights hang with no sort specified?",
+    "The insights list is very slow unless I explicitly set a sort order",
+    "Fetching insights performs poorly when the API request has no order parameter"
+  ],
+  "saysFor": "1055:insight-list-default-ord"
+}

@@ -1,0 +1,55 @@
+{
+  "id": "attribution-precompute-writer-query-rules-changes-invalidate",
+  "title": "Attribution precompute: writer query/rules changes invalidate job hashes; deploy together and update docs and snapshots",
+  "kind": "cochange",
+  "answers": [
+    "I changed the sessions precompute writer query and cached attribution returns nothing",
+    "How to roll out changes to marketing attribution session precompute",
+    "Which files change together when altering cached attribution dimensions"
+  ],
+  "body": "The writer query and project channel rules are part of the job hash, so changing either invalidates existing jobs. Rollout: deploy writer and reader together, warm fresh jobs, then enable the sessions-precomputation flag (reader stays off until validated).\nChange together:\n- writer and reader dimension logic in products/marketing_analytics/backend/hogql_queries/attribution_session_dimensions.py (live exception path and cached path must agree)\n- SQL snapshots in products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_table_query_runner.ambr (the hogql_val_N parameter numbering shifts whenever the query shape changes)\n- docs/internal/marketing-attribution-session-precompute.md\nQueries with different channel rules than the writer's, or with project-timezone conversion disabled, still use the live path.",
+  "applies": "Marketing analytics sessions-precompute writer/reader and its snapshot tests",
+  "tags": [
+    "marketing-analytics",
+    "precompute",
+    "rollout",
+    "snapshots"
+  ],
+  "deps": [
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/attribution_session_dimensions.py",
+      "hash": "sha256:4e6b647089426db7a1d67504",
+      "missing": false
+    },
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/__snapshots__/test_attribution_table_query_runner.ambr",
+      "hash": "sha256:913fd875a2879097160a8647",
+      "missing": false
+    },
+    {
+      "path": "docs/internal/marketing-attribution-session-precompute.md",
+      "hash": "sha256:cfaa2c6835572383c1bc553c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105229"
+  },
+  "created": "2026-09-27T00:11:05.039Z",
+  "verified": "2026-09-27T00:11:05.039Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cached-attribution-live-and-cached-paths-must-share-the-same"
+  ],
+  "says": [
+    "Marketing attribution reports return empty after changing session precompute rules",
+    "Cached attribution data breaks when dimension logic or writer query changes",
+    "Revenue attribution shows no data after session precomputation configuration updates",
+    "Attribution jobs invalidated by modifications to dimension calculation"
+  ],
+  "saysFor": "956:attribution-precompute-w"
+}

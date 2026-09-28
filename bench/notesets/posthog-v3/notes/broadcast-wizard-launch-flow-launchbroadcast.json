@@ -1,0 +1,79 @@
+{
+  "id": "broadcast-wizard-launch-flow-launchbroadcast",
+  "title": "Broadcast wizard launch flow (launchBroadcast)",
+  "kind": "callpath",
+  "answers": [
+    "What happens when a broadcast is launched?",
+    "Where is the broadcast wizard logic?",
+    "How does the wizard resume a draft?"
+  ],
+  "body": "`frontend/Broadcasts/broadcastWizardLogic.ts`:\n- Steps: `BROADCAST_WIZARD_STEPS` = recipients, goal, content, schedule, review; `firstInvalidStep` derived from validation errors; `isReadOnly` when status != draft.\n- `buildBroadcastPayload` always sends `status: 'draft'`.\n- `launchBroadcast` listener: save draft → blast-radius preview for confirm token (stop if over batch limit) → PATCH `status:'active'` → create batch job (send now) or schedule (scheduled/recurring) → on failure after activation, PATCH back to `draft`.\n- `loadBroadcastSuccess` + `hydrateFromBroadcast` resume at first invalid step or `review`.",
+  "tags": [
+    "workflows",
+    "broadcast",
+    "wizard"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+      "symbol": "launchBroadcast",
+      "hash": "sha256:015671b8ee4dbbcb74eb03bd",
+      "line": 144,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "3ec4dd80-785e-4bab-8bfd-c8caaa125787"
+  },
+  "created": "2026-09-26T20:24:01.533Z",
+  "verified": "2026-09-26T20:24:01.533Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 39,
+  "related": [
+    "action-eligibility-backend-gates-vs-frontend-mirrors-launch-"
+  ],
+  "lastUsed": "2026-09-27T03:58:00.842Z",
+  "servedIn": [
+    "fd53ee61-e7c2-4b93-9a7b-47ea0e63dfd3",
+    "2396f9df-b35b-4b03-ba90-9b58edf1b680",
+    "eee04521-e091-4b60-befe-9f9325c6ef17",
+    "a40aa07f-444e-46fd-91f6-b65ae2998d2c",
+    "e6153a94-a50b-4af9-9dcf-0445847168df",
+    "c61d0c13-a6d7-449e-bc3a-a7897b57065b",
+    "92974db0-9ca8-489c-b1de-de3706c9d7fc",
+    "9c285907-1126-40fb-b4ec-69fb25ad2395",
+    "3cc45930-6a8b-4f81-9855-ffc26824ae3b",
+    "37e46c18-b94e-4381-81f1-fd3d134fd4c5",
+    "916cfc8a-223e-44ea-83d2-f41dcb33c086",
+    "d3d2c11a-53a1-4b32-b00a-6ef434df14fb",
+    "099da8bb-1ac0-4973-b0df-84cfd644e975",
+    "bd7402ee-bab8-4ced-95a6-1204edb1a14f",
+    "4b97a942-be58-43aa-9fdc-26ef425b2839",
+    "e721b1cb-1a78-4b9d-98d2-71f814de2fc5",
+    "aaed172d-7012-4fdb-b335-178bb0fdc2b6",
+    "c8ddfd8a-15ae-44ca-ba1b-4df6e7b9a68b",
+    "02fcb5bd-4c34-4afa-85c1-dfabf115467e",
+    "f43ad378-3084-4f0d-a9d1-7d6d059cec0d",
+    "3e4e3374-05bc-400d-a4de-f10663eea4ed",
+    "deb29eef-0bf5-4863-b729-12b5a7f4fb6c",
+    "d95ed6fa-4dc7-4922-a299-7bc9f1fa4cb9",
+    "fe286b3b-dec9-4caa-a380-4343e1a520bf",
+    "ce381eeb-2b35-4c34-afea-4f6e02930bc4",
+    "bcbd72c4-7b1f-4204-a5e2-148bdeb63f06",
+    "adf9f900-03cd-4691-bc09-61c2523a53e1",
+    "d8d4f03e-b1ce-4e51-8e93-df1826c1bb8c",
+    "d4b56a2d-8302-41f9-8f52-0691f010c8a4",
+    "0a314f90-3d79-4a53-9587-48b57cfd06b7"
+  ],
+  "says": [
+    "I started a broadcast draft yesterday, where do I resume it from",
+    "Can I edit the broadcast content and schedule before sending it",
+    "Why can't I change the broadcast once it's active and sending",
+    "What validation errors prevent launching a broadcast",
+    "Does the system save my broadcast progress if something fails"
+  ],
+  "saysFor": "663:broadcast-wizard-launch-"
+}

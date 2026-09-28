@@ -1,0 +1,53 @@
+{
+  "id": "read-only-impersonation-403-on-post-with-body-read-endpoints",
+  "title": "Read-only impersonation 403 on POST-with-body read endpoints: add exact-action allowlist entry",
+  "kind": "fix",
+  "answers": [
+    "Support impersonation read-only gets 403 impersonation_read_only on workflow audience count",
+    "Blast radius / audience size never loads while impersonating",
+    "POST read endpoint blocked during read-only impersonation session"
+  ],
+  "body": "Symptom: Support staff in a read-only impersonation session cannot load the workflow audience count; the request fails with `403 impersonation_read_only`.\nRoot cause: `ImpersonationReadOnlyMiddleware` in posthog/middleware.py rejects every non-idempotent method before the viewset runs, and `POST hog_flows/user_blast_radius` uses POST only because filters are too large for a query string.\nFix pattern: add one `(\"POST\", re.compile(...))` entry to `READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS` in posthog/middleware.py naming the single action, with `/?$` and the `(environments|projects)/([0-9]+|@current)` prefix like the neighbouring entries.\nConstraints: only for actions verified to write nothing (no DB writes, no spending of tokens). Do not change how read-only is decided (e.g. viewset-declared read-only actions); the allowlist is deliberately fail-closed and security-reviewed. Sibling `POST feature_flags/user_blast_radius` has the same shape (fixed separately in #105805).",
+  "applies": "posthog/middleware.py read-only impersonation allowlist; POST-as-read endpoints",
+  "tags": [
+    "impersonation",
+    "middleware",
+    "workflows",
+    "hog_flows"
+  ],
+  "deps": [
+    {
+      "path": "posthog/middleware.py",
+      "hash": "sha256:c1bc5f886dae93d4a664d9ce",
+      "missing": false
+    },
+    {
+      "path": "posthog/test/test_middleware.py",
+      "symbol": "test_read_only_impersonation_allows_allowlisted_post",
+      "hash": "sha256:9797ae3251012ee532a18424",
+      "line": 1106,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105799"
+  },
+  "created": "2026-09-26T23:57:12.633Z",
+  "verified": "2026-09-26T23:57:12.633Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "allowlist-entries-must-name-the-action-never-a-whole-prefix-"
+  ],
+  "says": [
+    "Support staff cannot see customer workflow audience sizes",
+    "Audience estimation data stays hidden during support access",
+    "Customer reach metrics don't load while impersonating",
+    "POST-based read operations are blocked in impersonation mode",
+    "View-only access prevents checking campaign blast radius metrics"
+  ],
+  "saysFor": "1078:read-only-impersonation-"
+}

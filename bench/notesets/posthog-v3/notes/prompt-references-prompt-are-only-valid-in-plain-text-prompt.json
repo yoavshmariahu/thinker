@@ -1,0 +1,50 @@
+{
+  "id": "prompt-references-prompt-are-only-valid-in-plain-text-prompt",
+  "title": "Prompt references (@@@prompt:...@@@) are only valid in plain-text prompts",
+  "kind": "invariant",
+  "answers": [
+    "Why is a JSON/structured prompt with a @@@prompt tag rejected?",
+    "reference_in_non_text_prompt error",
+    "Can I use prompt references inside structured or message-based prompts?"
+  ],
+  "body": "Prompt references (`@@@prompt:name=...|label=...@@@`) may only appear in plain-text (string) prompt payloads. Non-string (JSON) payloads containing a tag are rejected with 400 and code `reference_in_non_text_prompt`.\nEnforced in `products/ai_observability/backend/prompt_references.py:validate_reference_targets`, which create, publish and duplicate all share.\nReason: fetch-time splicing inserts raw, unescaped text into the surrounding document, so quotes/newlines in the referenced prompt corrupt JSON.\nThe check runs on the raw `prompt_payload` (isinstance str), not only on normalized text, and only after the early return when no references are found, so JSON payloads without tags are unaffected.\nThis mirrors the existing rule that referenced targets must be plain text. Legacy content written before the rule is not rewritten.",
+  "applies": "LLM prompt management API (create/publish/duplicate) in products/ai_observability and posthog/api llm_prompt",
+  "tags": [
+    "llm-prompts",
+    "validation",
+    "references"
+  ],
+  "deps": [
+    {
+      "path": "products/ai_observability/backend/prompt_references.py",
+      "symbol": "validate_reference_targets",
+      "hash": "sha256:b970b309aa241b2fc64aab9c",
+      "line": 153,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/test/test_llm_prompt.py",
+      "hash": "sha256:ac36609f22525cce73a44ec2",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105405"
+  },
+  "created": "2026-09-27T00:03:50.815Z",
+  "verified": "2026-09-27T00:03:50.815Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "JSON prompt rejects template references with validation error",
+    "Cannot embed template into structured prompt configuration here",
+    "Prompt references work in text but not JSON",
+    "Structured prompt with reference tag fails to save",
+    "Payload validation rejects mixed reference and structured prompts"
+  ],
+  "saysFor": "909:prompt-references-prompt"
+}

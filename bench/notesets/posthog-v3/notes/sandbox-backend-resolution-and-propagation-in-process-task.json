@@ -1,0 +1,88 @@
+{
+  "id": "sandbox-backend-resolution-and-propagation-in-process-task",
+  "title": "Sandbox backend resolution and propagation in process_task",
+  "kind": "callpath",
+  "answers": [
+    "How is the sandbox backend (modal/hogland) chosen?",
+    "How does the backend reach provision activities?",
+    "Why not call get_sandbox_class_for_backend('modal') directly?",
+    "What are dead sandbox error types?"
+  ],
+  "body": "- Decided once: activities/get_task_processing_context.py:_resolve_sandbox_backend -> 'modal' or 'hogland', fails closed to Modal (modal state override always wins; missing hogland config, EU, custom image/Pi runtime/non-default template, flag error). Hard gates precede the 'hogland' override so stale resume state can't bypass. Stored on TaskProcessingContext.sandbox_backend (default 'modal'), stable across retries; also drives use_modal_resume_snapshots flags.\n- Propagation: workflow passes whole `context` into PrepareSandboxForRepositoryInput / CreateSandboxForRepositoryInput; activities/provision_sandbox.py (prepare, _create_sandbox_for_repository, create_sandbox_for_repository) call logic/services/sandbox.py:get_sandbox_class_for_run_backend(ctx.sandbox_backend). Only 'hogland' diverts; others fall to get_sandbox_class() so SANDBOX_PROVIDER (docker etc.) still works. Don't route 'modal' to get_sandbox_class_for_backend.\n- sandbox_connection.py:persist_sandbox_connection writes sandbox_backend into TaskRun.state.\n- Dead-sandbox detection: workflow.py:DEAD_SANDBOX_ERROR_TYPES (SandboxNotRunningError, SandboxNotFoundError), used by _is_dead_sandbox_failure and as non_retryable_error_types.",
+  "applies": "process_task provisioning; later-stage activities may re-resolve from run state.",
+  "tags": [
+    "sandbox",
+    "hogland",
+    "modal",
+    "temporal"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py",
+      "symbol": "_resolve_sandbox_backend",
+      "hash": "sha256:0cb555bfc2e9ff4f3df2e4a1",
+      "line": 958,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/sandbox.py",
+      "symbol": "get_sandbox_class_for_run_backend",
+      "hash": "sha256:ca62d8a532b046510e234a99",
+      "line": 1013,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/activities/provision_sandbox.py",
+      "hash": "sha256:eb550d2e0a9db99f5af1e7e7",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/sandbox_connection.py",
+      "symbol": "persist_sandbox_connection",
+      "hash": "sha256:85c719a4b1cba7514bf3c1a8",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "DEAD_SANDBOX_ERROR_TYPES",
+      "hash": "sha256:4bcddc137eb27b8ed2b3645c",
+      "line": 150,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/sandbox.py",
+      "symbol": "get_sandbox_class",
+      "hash": "sha256:47688c00d5f78f13fc53257a",
+      "line": 969,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "a841c6e4-fe41-4cdb-833d-4d8fbb58fc6f"
+  },
+  "created": "2026-09-27T00:19:55.161Z",
+  "verified": "2026-09-27T00:19:55.161Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "sandbox-backend-selection-and-provider-class-resolution",
+    "cloud-task-run-lifecycle-api-facade-temporal-process-task",
+    "hogland-hotplug-golden-flag-must-be-threaded-through-context",
+    "desktop-bootstrap-launch-is-best-effort-detached-and-must-no"
+  ],
+  "servedIn": [
+    "0fbe9612-b859-4114-81f9-f77383771643"
+  ],
+  "says": [
+    "Tasks switching between modal and hogland sandboxes unexpectedly",
+    "How is the execution environment chosen for task runs?",
+    "Custom image task not using preferred sandbox provider",
+    "Why is task running on modal when configured differently?",
+    "Sandbox backend selection ignoring environment region preference"
+  ],
+  "saysFor": "1268:sandbox-backend-resoluti"
+}

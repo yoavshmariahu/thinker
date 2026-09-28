@@ -1,0 +1,44 @@
+{
+  "id": "persons-db-migrations-idempotent-safe-annotated-sql-in-rust-",
+  "title": "Persons-DB migrations: idempotent, SAFE-annotated SQL in rust/persons_migrations",
+  "kind": "convention",
+  "answers": [
+    "How do I add a table to the persons database?",
+    "Where do persons DB migrations live?",
+    "What should a persons migration look like?"
+  ],
+  "body": "Persons-DB schema changes are plain timestamped SQL files in `rust/persons_migrations/` (e.g. `20260923000001_add_person_tombstone_publish_queue.sql`), run by `sqlx migrate run` in CI.\n- Use `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` so re-applying is a no-op (the PR verified by applying twice).\n- Start the file with a header comment including a `-- SAFE:` line stating why it is safe to deploy (e.g. new empty table, no locks on existing tables).\n- Add a `COMMENT ON TABLE` describing the table's meaning; comments are otherwise kept minimal.\n- Roles in the `readwrite` tier (personhog-replica, dagster) use `pg_read_all_data`/`pg_write_all_data`, so new tables need no GRANT.",
+  "applies": "Adding or changing tables in the persons Postgres DB (rust/persons_migrations).",
+  "tags": [
+    "persons",
+    "migrations",
+    "postgres",
+    "sqlx"
+  ],
+  "deps": [
+    {
+      "path": "rust/persons_migrations/20260923000001_add_person_tombstone_publish_queue.sql",
+      "hash": "sha256:dab7eceff52661edf4f4a71f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105419"
+  },
+  "created": "2026-09-27T00:02:49.627Z",
+  "verified": "2026-09-27T00:02:49.627Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I add a new table to the persons database schema",
+    "Database migration fails when applied a second time to same environment",
+    "Where should I place a persons database schema change",
+    "New table creation is not idempotent across deployments",
+    "Need to document why this database change is safe to deploy"
+  ],
+  "saysFor": "777:persons-db-migrations-id"
+}

@@ -1,0 +1,71 @@
+{
+  "id": "slack-app-http-entry-points-and-api-map",
+  "title": "Slack app HTTP entry points and API map",
+  "kind": "callpath",
+  "answers": [
+    "Where do Slack events and interactivity land?",
+    "How are Slack routes registered for slack_app?",
+    "Where is cross-region Slack proxying handled?"
+  ],
+  "body": "- Routes are NOT in a routes.py: `posthog/urls.py` imports handlers directly: `slack/event-callback` → `products/slack_app/backend/api.py:posthog_code_event_handler`; `slack/interactivity-callback` → `posthog_code_interactivity_handler`; slash command `slack_app_command_handler` from `backend/views/slack_command.py`.\n- `api.py` is one ~4,900-line module. Event flow: `posthog_code_event_handler` → `route_posthog_code_event_to_relevant_region` / `resolve_region_or_terminal_route` → `_route_*` helpers (assistant, app_home_opened, reaction_added, member_joined_channel, team_join).\n- Interactivity: `posthog_code_interactivity_handler` dispatches to `_handle_repo_picker_*`, `_handle_channel_approval_*`, `_handle_untagged_followup_*`, `_handle_insight_alert_snooze`, `_handle_fork_thread_submit`, `_handle_signals_dismiss_report`.\n- US/EU share Slack apps: `send_region_proxy_request`, `does_other_region_claim_workspace`, `slack_workspace_claims_view`. Check these first if events go missing.\n- Workflow starters: `_start_mention_workflow`, `_start_posthog_code_workflow`, `_start_command_workflow`.\n- User resolution: `resolve_slack_user`, `resolve_posthog_user_from_event`.\n- Cross-product access goes through `backend/facade/api.py` (`slack_channel_is_approved`, `slack_followup_invite`, `invalidate_slack_integration_auth_state`).",
+  "tags": [
+    "slack_app",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "products/slack_app/backend/api.py",
+      "symbol": "posthog_code_event_handler",
+      "hash": "sha256:e20536bd6032f6675e35c501",
+      "line": 3697,
+      "missing": false
+    },
+    {
+      "path": "posthog/urls.py",
+      "hash": "sha256:baf3b791cbe2b9b93e0039db",
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/facade/api.py",
+      "hash": "sha256:7c6b5f9b41f7acbc00103ad6",
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/views/slack_command.py",
+      "hash": "sha256:9a702102dd4f6239f2017ed5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "031b9d1f-6e11-4c18-b033-1e2623383119"
+  },
+  "created": "2026-09-26T20:27:59.961Z",
+  "verified": "2026-09-26T20:27:59.961Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 8,
+  "related": [
+    "slack-app-untagged-thread-follow-up-decision-pipeline-webhoo"
+  ],
+  "lastUsed": "2026-09-26T23:33:10.791Z",
+  "servedIn": [
+    "8f9d08f3-75e4-4e34-9131-47cba21e67af",
+    "d27dca9c-b428-46f8-813e-21b6c57ea83d",
+    "33ce2ba1-e38c-41a2-89d5-60c3437c6267",
+    "c7fe9d18-c4f5-4f70-8092-d89f9c72b91d",
+    "659863fb-2f91-467c-9073-412fae3a0d4f",
+    "2de383db-5d63-43c9-9226-cd2cf77e2c10",
+    "dae3994c-821b-4590-b55d-a12fda3d03e4",
+    "935dec57-ba8d-4e31-9b6a-25dacfbe2e3d"
+  ],
+  "says": [
+    "Slack event doesn't trigger expected workflow",
+    "Route Slack requests to correct datacenter automatically",
+    "How slash command reaches the backend",
+    "Slack interaction not being handled properly",
+    "Map Slack API callbacks to request handlers"
+  ],
+  "saysFor": "1378:slack-app-http-entry-poi"
+}

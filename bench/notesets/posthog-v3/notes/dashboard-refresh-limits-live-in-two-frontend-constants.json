@@ -1,0 +1,56 @@
+{
+  "id": "dashboard-refresh-limits-live-in-two-frontend-constants",
+  "title": "Dashboard refresh limits live in two frontend constants",
+  "kind": "cochange",
+  "answers": [
+    "How do I change the minimum time between manual dashboard refreshes?",
+    "Where are dashboard auto-refresh interval options defined?",
+    "Why is the dashboard refresh button disabled?"
+  ],
+  "body": "Dashboard refresh timing is controlled by two separate constants that are not derived from each other:\n- Manual refresh cooldown: `DASHBOARD_MIN_REFRESH_INTERVAL_MINUTES` in `frontend/src/scenes/dashboard/dashboardUtils.ts` (now 5). Used to compute `blockRefresh` / `nextAllowedDashboardRefresh` in dashboardLogic.\n- Auto-refresh menu choices: `REFRESH_INTERVAL_SECONDS` in `frontend/src/scenes/dashboard/DashboardReloadAction.tsx` (now [900, 1800, 3600]; a 10s option is unshifted only when NODE_ENV is development).\nChanging the interval options or cooldown means editing the matching constant. Tests in `frontend/src/scenes/dashboard/dashboardLogic.test.ts` that call `setAutoRefresh(true, <seconds>)` must use a value present in the list. The 'insight refresh' block tests the manual boundary and 'page visibility' tests auto-refresh resume.",
+  "applies": "Dashboard manual refresh cooldown and auto-refresh interval options in the frontend dashboard scene.",
+  "tags": [
+    "dashboards",
+    "refresh",
+    "auto-refresh"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/dashboard/dashboardUtils.ts",
+      "symbol": "DASHBOARD_MIN_REFRESH_INTERVAL_MINUTES",
+      "hash": "sha256:2aa057d36dad532f3aa5d80e",
+      "line": 170,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/dashboard/DashboardReloadAction.tsx",
+      "symbol": "REFRESH_INTERVAL_SECONDS",
+      "hash": "sha256:6ebe14bba41d7c0a653eceb7",
+      "line": 59,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/dashboard/dashboardLogic.test.ts",
+      "hash": "sha256:0d6c00317ca121c0d3e58395",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105519"
+  },
+  "created": "2026-09-27T00:02:06.128Z",
+  "verified": "2026-09-27T00:02:06.128Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why is the dashboard refresh button staying disabled so long?",
+    "How often am I allowed to manually refresh a dashboard?",
+    "Where are the auto-refresh timing options configured?",
+    "How do I change the minimum wait time between dashboard refreshes?"
+  ],
+  "saysFor": "901:dashboard-refresh-limits"
+}

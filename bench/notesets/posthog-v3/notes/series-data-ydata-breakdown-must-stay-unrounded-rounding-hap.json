@@ -1,0 +1,60 @@
+{
+  "id": "series-data-ydata-breakdown-must-stay-unrounded-rounding-hap",
+  "title": "Series data (yData, breakdown) must stay unrounded; rounding happens only at display",
+  "kind": "invariant",
+  "answers": [
+    "Why doesn't yData round to decimal places",
+    "Metric card total or pie total sums rounded values",
+    "Breakdown bucket sums differ from raw sum"
+  ],
+  "body": "y-axis series (`yData` selector in dataVisualizationLogic.ts) and `parseBreakdownSeriesValue` in Components/seriesBreakdownLogic.ts must NOT round to formatting.decimalPlaces.\nDisplay paths (tooltips, axis ticks, value labels, pie labels, metric headline) already round via formatSqlSeriesValue in Components/Charts/sqlLineGraphAdapter.ts.\nIf series are rounded, metric card total/average/change badge, pie totals and unaggregated breakdown buckets sum rounded values (two 0.49 rows become 0 instead of 0.98).\nyData must also return null (or 0 with showNullsAsZero) for unparseable values like 'NaN', not NaN.\nDraft PR #105535 moves these parsers into seriesValues.ts; whichever lands second must drop the rounding too.",
+  "applies": "SQL data visualization series parsing (yData, breakdown series)",
+  "tags": [
+    "data-viz",
+    "series",
+    "rounding"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/dataVisualizationLogic.ts",
+      "symbol": "dataVisualizationLogic",
+      "hash": "sha256:d4066f544739abc929f55c4a",
+      "line": 982,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/seriesBreakdownLogic.ts",
+      "symbol": "parseBreakdownSeriesValue",
+      "hash": "sha256:abd161cca27e8442ccdf6dca",
+      "line": 78,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/nodes/DataVisualization/Components/Charts/sqlLineGraphAdapter.ts",
+      "hash": "sha256:ffd5ef09db0e9ea91bae022f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105690"
+  },
+  "created": "2026-09-26T23:58:55.393Z",
+  "verified": "2026-09-26T23:58:55.393Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "table-cell-selector-ignores-decimalplaces-under-short-style",
+    "decimal-places-0-is-a-valid-value-compare-against-null-never"
+  ],
+  "says": [
+    "Chart total doesn't match visible numbers summed",
+    "Pie slices add up to incorrect total",
+    "Breakdown bucket values misaligned with source data",
+    "Metric card total differs from sum of values",
+    "Rounding errors accumulate in final result"
+  ],
+  "saysFor": "804:series-data-ydata-breakd"
+}

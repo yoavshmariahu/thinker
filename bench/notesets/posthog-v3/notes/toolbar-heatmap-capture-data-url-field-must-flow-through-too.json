@@ -1,0 +1,94 @@
+{
+  "id": "toolbar-heatmap-capture-data-url-field-must-flow-through-too",
+  "title": "Toolbar heatmap capture: data_url field must flow through toolbar form, serializer, and generated clients",
+  "kind": "cochange",
+  "answers": [
+    "Toolbar saved heatmap loses wildcard pattern",
+    "How does the toolbar send the data URL when saving a heatmap?",
+    "Adding a field to the saved heatmap capture request"
+  ],
+  "body": "The capture request carries `url` (exact captured page) separately from optional `data_url` (overlay pattern; omitted/empty defaults to `url`).\n- Toolbar: frontend/src/toolbar/stats/heatmapCaptureLogic.ts builds FormData via buildBaseFormData(href, dataUrl) for both the multi-width and single-width fallback paths; the value comes from currentPageLogic `wildcardHref`. Any new form builder must pass it too.\n- Backend: SavedHeatmapCaptureRequestSerializer.data_url (URLField, required=False, allow_blank=True) and `capture` in products/web_analytics/backend/api/heatmaps_api.py (`validated.get(\"data_url\") or url`).\n- Serializer/help_text changes require regenerating: products/web_analytics/frontend/generated/api.schemas.ts, api.ts, api.zod.ts and services/mcp/src/api/generated.ts (do not hand-edit).\n- Tests: heatmapCaptureLogic.test.ts and test_heatmap_screenshots.py cover exact, wildcard, omitted, empty.",
+  "applies": "Toolbar heatmap capture endpoint /saved/capture/ and its clients",
+  "tags": [
+    "heatmaps",
+    "toolbar",
+    "openapi",
+    "generated"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/toolbar/stats/heatmapCaptureLogic.ts",
+      "symbol": "buildBaseFormData",
+      "hash": "sha256:34784afe4041d1ae7374ac3b",
+      "line": 72,
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/backend/api/heatmaps_api.py",
+      "symbol": "SavedHeatmapCaptureRequestSerializer",
+      "hash": "sha256:0232079fb975a01d71f65a1d",
+      "line": 1437,
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/frontend/generated/api.ts",
+      "symbol": "savedCaptureCreate",
+      "hash": "sha256:572bcf3c896e9d789e9a2b57",
+      "line": 385,
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/frontend/generated/api.schemas.ts",
+      "hash": "sha256:6bd05971a6e694992ed49959",
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/frontend/generated/api.zod.ts",
+      "hash": "sha256:94493eff91557dc3248356d8",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/api/generated.ts",
+      "hash": "sha256:013b8059f6d1727059c06954",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/toolbar/stats/heatmapCaptureLogic.test.ts",
+      "hash": "sha256:5dbf25e96d398b0f2281950e",
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/backend/test/test_heatmap_screenshots.py",
+      "hash": "sha256:525a453b2a1cebf3745c4adc",
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/backend/api/heatmaps_api.py",
+      "symbol": "SavedHeatmapCaptureRequestSerializer.data_url",
+      "hash": "sha256:8487ce506fccbf8f63459548",
+      "line": 1470,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105252"
+  },
+  "created": "2026-09-27T00:09:17.489Z",
+  "verified": "2026-09-27T00:09:17.489Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "toolbar-heatmap-url-edit-rules-data-url-is-editable-at-resou"
+  ],
+  "says": [
+    "Captured heatmap lost its wildcard URL pattern",
+    "How does toolbar send the page URL pattern?",
+    "Toolbar saves heatmap but wildcard pattern got dropped",
+    "Adding a new field to heatmap capture requests",
+    "Wildcard URL pattern not being saved in heatmap"
+  ],
+  "saysFor": "1018:toolbar-heatmap-capture-"
+}

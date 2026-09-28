@@ -1,0 +1,43 @@
+{
+  "id": "person-update-event-signature-and-its-test-must-change-toget",
+  "title": "person_update_event signature and its test must change together with the key format",
+  "kind": "cochange",
+  "answers": [
+    "How do I read the $set key in the person update load-gen test?",
+    "person_update_event takes a user argument"
+  ],
+  "body": "person_update_event(base, event, user) in rust/capture-load-gen/src/event.rs receives the distinct id (`&self.distinct_ids[index]`) at its call site in the event factory.\nThe unit test in the same file's tests module derives the key with `format!(\"loadgen_last_update_{user}\")` from the event's distinct_id.\nIf the key format changes, update the generator and that test's lookup together. The test also asserts every update value is unique, so keep values unique per event.",
+  "applies": "rust/capture-load-gen/src/event.rs and its tests module",
+  "tags": [
+    "capture-load-gen",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "rust/capture-load-gen/src/event.rs",
+      "hash": "sha256:aee804e3951afe62b42c76c0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105417"
+  },
+  "created": "2026-09-27T00:02:58.332Z",
+  "verified": "2026-09-27T00:02:58.332Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "load-gen-person-properties-must-have-a-single-writer-per-key"
+  ],
+  "says": [
+    "Person update load test is failing after key format changed",
+    "Generator and test produce different event keys for same input",
+    "Test expects one key format but generator produces another",
+    "Load generator stopped working when we updated key structure",
+    "Unit test assertion fails on every person update event"
+  ],
+  "saysFor": "557:person-update-event-sign"
+}

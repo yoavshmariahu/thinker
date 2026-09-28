@@ -1,0 +1,88 @@
+{
+  "id": "adding-an-activity-logged-model-scope-list-light-receiver-mo",
+  "title": "Adding an activity-logged model: scope list, light receiver module, ready() wiring, baseline, generated types",
+  "kind": "cochange",
+  "answers": [
+    "How do I add activity logging for a new model in a product app?",
+    "Why did setup_receivers baseline test fail after adding a receiver?",
+    "Added a new ActivityScope and generated api.schemas.ts / mcp generated.ts changed"
+  ],
+  "body": "Adding a model with activity logging (e.g. TracesRetentionRule) touches these together:\n- Model uses `ModelActivityMixin` (products/tracing/backend/models.py:TracesRetentionRule).\n- Add model name to the scope list in posthog/models/activity_logging/activity_log.py (ActivityScope literal).\n- Receiver in a dedicated light module products/tracing/backend/activity_logging.py:handle_traces_retention_rule_activity, using `@mutable_receiver(model_activity_signal, sender=Model)`. No viewset/query-runner imports there.\n- Import that module in `AppConfig.ready()` (products/tracing/backend/apps.py:TracingConfig.ready) so it is wired in celery/temporal/migrate too.\n- Add a `model_activity:<module>.<handler>` line to posthog/test/repo_invariants/setup_receivers_baseline.txt (sorted).\n- Regenerate the scope enums: products/platform_features/frontend/generated/api.schemas.ts and services/mcp/src/api/generated.ts (do not hand-edit beyond generation).",
+  "applies": "Any product model that needs activity-log entries.",
+  "tags": [
+    "activity-log",
+    "tracing",
+    "receivers"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/activity_logging/activity_log.py",
+      "hash": "sha256:75ee5f9c223e25a9edfae659",
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/activity_logging.py",
+      "symbol": "handle_traces_retention_rule_activity",
+      "hash": "sha256:0799be0827ceb558657a2021",
+      "line": 14,
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/apps.py",
+      "symbol": "TracingConfig",
+      "hash": "sha256:b40eead5feadb465fc5ffbf6",
+      "line": 6,
+      "missing": false
+    },
+    {
+      "path": "posthog/test/repo_invariants/setup_receivers_baseline.txt",
+      "hash": "sha256:8eb53f77fd41ec8ff2af3c57",
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/models.py",
+      "symbol": "TracesRetentionRule",
+      "hash": "sha256:35896156af41464032af68bf",
+      "line": 158,
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/apps.py",
+      "symbol": "TracingConfig.ready",
+      "hash": "sha256:cb07250557711665c8e485ac",
+      "line": 11,
+      "missing": false
+    },
+    {
+      "path": "products/platform_features/frontend/generated/api.schemas.ts",
+      "hash": "sha256:a1e52df508543ea2c106f28a",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/api/generated.ts",
+      "hash": "sha256:013b8059f6d1727059c06954",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105214"
+  },
+  "created": "2026-09-27T00:11:58.844Z",
+  "verified": "2026-09-27T00:11:58.844Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "team-scoped-models-must-be-on-idor-semgrep-lists-and-a-fail-",
+    "lock-free-migrations-db-constraint-false-fks-and-constant-db"
+  ],
+  "says": [
+    "Enable activity audit trail for new model",
+    "Model changes not appearing in activity log",
+    "How to add activity logging to model",
+    "Activity trail missing for model type"
+  ],
+  "saysFor": "1059:adding-an-activity-logge"
+}

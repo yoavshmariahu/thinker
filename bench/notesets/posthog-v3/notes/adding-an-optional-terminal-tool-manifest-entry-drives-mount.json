@@ -1,0 +1,71 @@
+{
+  "id": "adding-an-optional-terminal-tool-manifest-entry-drives-mount",
+  "title": "Adding an optional terminal tool: manifest entry drives mounts, shims, and boot copies",
+  "kind": "cochange",
+  "answers": [
+    "How do I add a new command to the PostHog terminal?",
+    "Add a tool that installs on first use in the browser terminal",
+    "Where are node and pi terminal packages defined?"
+  ],
+  "body": "Optional tools are declared only in `frontend/src/scenes/terminal/terminal-packages.json` (pinned `file`, `sha256`, compressed `size`, unpacked `archiveSize`, `dependencies`, `commands` -> entrypoint).\n- `terminalPackages.ts:TerminalPackages.mount` reads it to expose `/posthog/packages/<id>.tar`, the `/posthog/bin/<command>` shell shims and `install-tool`.\n- `terminalRuntime.ts` boot script iterates the same manifest to `cp /posthog/bin/<command> /usr/bin/<command>`; no per-tool edit is needed there.\n- Archives and recipes live in the external PostHog/terminal-assets repo. `baseUrl` is pinned to a commit, so bumping a tool means updating baseUrl, file, sha256, size and archiveSize together.\n- Update the help text in `posthogFilesystem.ts` and the project-structure handbook when user-visible tools change.",
+  "applies": "frontend/src/scenes/terminal optional tools (node, pi, future additions)",
+  "tags": [
+    "terminal",
+    "packages",
+    "v86"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/terminal/terminal-packages.json",
+      "hash": "sha256:abc2624f9835636b6c04eb5a",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/terminalPackages.ts",
+      "symbol": "TerminalPackages",
+      "hash": "sha256:ef024f28a9b31f4bcf78dac8",
+      "line": 35,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/terminalRuntime.ts",
+      "hash": "sha256:48790c5a6e88ffa2244f1f14",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/posthogFilesystem.ts",
+      "hash": "sha256:4faec1accb7d516c4d3d7f6c",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/terminalPackages.ts",
+      "symbol": "TerminalPackages.mount",
+      "hash": "sha256:86309e9c014606d604606c5e",
+      "line": 90,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105235"
+  },
+  "created": "2026-09-27T00:10:40.878Z",
+  "verified": "2026-09-27T00:10:40.878Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-terminal-command-package-cochange-across-manifest-r",
+    "adding-a-terminal-shell-command-requires-script-vm-install-a",
+    "terminal-filesystem-listings-must-never-fetch-notebook-insig",
+    "terminal-package-downloads-must-be-verified-before-exposure-"
+  ],
+  "says": [
+    "Add command to browser terminal",
+    "Terminal tool installs on first use",
+    "How to register new shell utility",
+    "New utility missing from terminal"
+  ],
+  "saysFor": "902:adding-an-optional-termi"
+}

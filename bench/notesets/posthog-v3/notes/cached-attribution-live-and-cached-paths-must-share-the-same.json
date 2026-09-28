@@ -1,0 +1,56 @@
+{
+  "id": "cached-attribution-live-and-cached-paths-must-share-the-same",
+  "title": "Cached attribution: live and cached paths must share the same session-ID timestamp limit",
+  "kind": "invariant",
+  "answers": [
+    "Why are old long sessions missing from marketing attribution table or paths?",
+    "Can cached attribution support sessions whose ID timestamp is more than three days before the read window?",
+    "Changing session lookback in marketing analytics attribution precompute"
+  ],
+  "body": "Sessions whose ID timestamp is more than three days before the extended attribution read window are excluded by BOTH the live path and the cached (precompute) path. This is preserved existing behavior, documented as a limitation and covered by v2/v3 parity tests (IDs two days before the window included, five days before excluded).\n- Enforced in: products/marketing_analytics/backend/hogql_queries/attribution_session_dimensions.py (writer and live exception lookups)\n- Parity tests: products/marketing_analytics/backend/hogql_queries/test_attribution_sessions_precompute_parity.py\n- Doc: docs/internal/marketing-attribution-session-precompute.md\n- Widening the limit in only one path makes cached and live results diverge; change and validate both together.",
+  "applies": "Marketing analytics attribution table/paths, live vs. sessions-precompute readers",
+  "tags": [
+    "marketing-analytics",
+    "attribution",
+    "precompute",
+    "sessions"
+  ],
+  "deps": [
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/attribution_session_dimensions.py",
+      "hash": "sha256:4e6b647089426db7a1d67504",
+      "missing": false
+    },
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/test_attribution_sessions_precompute_parity.py",
+      "hash": "sha256:14ca73be99e0434449d96adf",
+      "missing": false
+    },
+    {
+      "path": "docs/internal/marketing-attribution-session-precompute.md",
+      "hash": "sha256:cfaa2c6835572383c1bc553c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105229"
+  },
+  "created": "2026-09-27T00:11:04.967Z",
+  "verified": "2026-09-27T00:11:04.967Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "attribution-precompute-writer-query-rules-changes-invalidate"
+  ],
+  "says": [
+    "Old sessions older than three days missing from attribution",
+    "Session lookback different between live and cached attribution",
+    "Precomputed attribution excludes sessions live attribution includes",
+    "Why do marketing attribution reports show different session counts",
+    "Sessions from a week ago vanished when attribution cache enabled"
+  ],
+  "saysFor": "848:cached-attribution-live-"
+}

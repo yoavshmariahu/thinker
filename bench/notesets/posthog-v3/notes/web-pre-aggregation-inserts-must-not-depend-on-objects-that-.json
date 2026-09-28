@@ -1,0 +1,60 @@
+{
+  "id": "web-pre-aggregation-inserts-must-not-depend-on-objects-that-",
+  "title": "Web pre-aggregation INSERTs must not depend on objects that exist only on some data hosts",
+  "kind": "fix",
+  "answers": [
+    "Web analytics pre-aggregation job fails with Code: 36 Dictionary not found",
+    "Pre-aggregated web analytics tables stop getting fresh data",
+    "Why does get_team_filters use GLOBAL IN instead of dictHas or an inline IN list"
+  ],
+  "body": "Symptom: The scheduled web analytics pre-aggregation job fails on every run and the pre-aggregated tables go stale. ClickHouse logs show `Code: 36 ... Dictionary not found` on some hosts.\nRoot cause: posthog/models/web_preaggregated/sql.py:get_team_filters used `dictHas('web_pre_aggregated_teams_dict', team_id)`. The distributed INSERT evaluates that on every data host, and a host added after the dictionary migrations lacks the dictionary. Retries cannot recover.\nFix pattern: Without explicit team_ids, filter with `team_id GLOBAL IN (SELECT team_id FROM web_pre_aggregated_teams FINAL WHERE version > 0)`. This is built from WEB_PRE_AGGREGATED_SELECTED_TEAMS_SQL in posthog/models/web_preaggregated/team_selection.py. GLOBAL IN runs the subquery once on the initiator, so data hosts need neither the table nor the dictionary.\nConstraints: Do not inline the selected IDs as an `IN (...)` list, because it grows with the selection and can hit the ClickHouse query size limit. Explicit `team_ids` op config still inlines its short list. Nothing reads the dictionary now, so the team selection asset no longer runs SYSTEM RELOAD DICTIONARY.",
+  "applies": "Web analytics pre-aggregation INSERT SQL and the team selection dagster asset (posthog/models/web_preaggregated, products/web_analytics/dags)",
+  "tags": [
+    "web-analytics",
+    "clickhouse",
+    "dagster",
+    "pre-aggregation"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/web_preaggregated/sql.py",
+      "symbol": "get_team_filters",
+      "hash": "sha256:46e32fbde73b3bde939776a2",
+      "line": 372,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/web_preaggregated/team_selection.py",
+      "symbol": "WEB_PRE_AGGREGATED_SELECTED_TEAMS_SQL",
+      "hash": "sha256:443fd94d7fba08671ae24574",
+      "line": 110,
+      "missing": false
+    },
+    {
+      "path": "products/web_analytics/dags/web_preaggregated_team_selection.py",
+      "symbol": "store_team_selection_in_clickhouse",
+      "hash": "sha256:68f6f35bbccf7e74f4c7e023",
+      "line": 76,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105406"
+  },
+  "created": "2026-09-27T00:03:43.929Z",
+  "verified": "2026-09-27T00:03:43.929Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Web analytics pre-aggregation job fails with dictionary not found error",
+    "Pre-aggregated web tables stop getting fresh data updates",
+    "Why does pre-aggregation crash on some data warehouse hosts",
+    "Web pre-aggregation scheduled job fails every run repeatedly",
+    "Data warehouse aggregation query fails Code 36 on distributed insert"
+  ],
+  "saysFor": "1232:web-pre-aggregation-inse"
+}

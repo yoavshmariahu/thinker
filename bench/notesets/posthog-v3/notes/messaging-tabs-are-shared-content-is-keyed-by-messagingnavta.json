@@ -1,0 +1,57 @@
+{
+  "id": "messaging-tabs-are-shared-content-is-keyed-by-messagingnavta",
+  "title": "Messaging tabs are shared; content is keyed by MessagingNavTabKey in WorkflowsScene",
+  "kind": "invariant",
+  "answers": [
+    "How do I add a new messaging tab (Library, Channels, Opt-outs...)?",
+    "Why is a tab blank on the Workflows page?",
+    "Where are the tabs shown on both Broadcasts and Workflows pages defined?"
+  ],
+  "body": "Tab definitions (label, key, link) live once in products/workflows/frontend/messagingTabs.tsx `messagingNavTabs()`; keys are typed by `MessagingNavTabKey`.\n- WorkflowsScene renders them with content via `MESSAGING_TAB_CONTENT: Record<MessagingNavTabKey, JSX.Element>` in WorkflowsScene.tsx.\n- BroadcastsScene renders them as plain links to `/workflows/<tab>` (no content).\n- Adding a key without an entry in `MESSAGING_TAB_CONTENT` fails typecheck, by design; also add it to `WORKFLOW_SCENE_TABS` so the route works.\nContent stays in WorkflowsScene because those tab links open there.",
+  "applies": "products/workflows tab bars on /workflows and /broadcasts",
+  "tags": [
+    "workflows",
+    "tabs",
+    "broadcasts"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/frontend/messagingTabs.tsx",
+      "symbol": "messagingNavTabs",
+      "hash": "sha256:990709bd28924818cf757faa",
+      "line": 23,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/WorkflowsScene.tsx",
+      "hash": "sha256:5a172e031beb5fe65dcd63bd",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Broadcasts/BroadcastsScene.tsx",
+      "symbol": "BroadcastsScene",
+      "hash": "sha256:454f5cedd307ff0630caf1ae",
+      "line": 27,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105601"
+  },
+  "created": "2026-09-27T00:01:32.633Z",
+  "verified": "2026-09-27T00:01:32.633Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "shared-messaging-tabs-change-tab-keys-content-and-header-act"
+  ],
+  "says": [
+    "How do I add a new messaging tab (Library, Channels, Opt-outs...)?",
+    "Why is a tab blank on the Workflows page?",
+    "Where are the tabs shown on both Broadcasts and Workflows pages defined?"
+  ],
+  "saysFor": "668:messaging-tabs-are-share"
+}

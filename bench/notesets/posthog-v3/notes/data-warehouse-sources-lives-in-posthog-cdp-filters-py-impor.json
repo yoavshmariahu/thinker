@@ -1,0 +1,66 @@
+{
+  "id": "data-warehouse-sources-lives-in-posthog-cdp-filters-py-impor",
+  "title": "DATA_WAREHOUSE_SOURCES lives in posthog/cdp/filters.py; import from there",
+  "kind": "convention",
+  "answers": [
+    "Where is DATA_WAREHOUSE_SOURCES defined",
+    "ImportError DATA_WAREHOUSE_SOURCES from posthog.cdp.validation"
+  ],
+  "body": "`DATA_WAREHOUSE_SOURCES` is defined in posthog/cdp/filters.py because the compiler needs it; validation.py only re-imports it. New code (e.g. products/cdp/backend/api/hog_function.py, products/workflows/backend/api/hog_flow.py) imports it from `posthog.cdp.filters`, not `posthog.cdp.validation`, to avoid a circular dependency (validation imports filters).",
+  "applies": "Python imports in CDP/workflows backend code",
+  "tags": [
+    "cdp",
+    "imports",
+    "warehouse"
+  ],
+  "deps": [
+    {
+      "path": "posthog/cdp/filters.py",
+      "symbol": "DATA_WAREHOUSE_SOURCES",
+      "hash": "sha256:50959c710f0b0020dd4bd30c",
+      "line": 29,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "hash": "sha256:a9621c2c33c7d6ef2fbba6f8",
+      "missing": false
+    },
+    {
+      "path": "posthog/cdp/validation.py",
+      "hash": "sha256:925440b9d08a7b53a706e845",
+      "missing": false
+    },
+    {
+      "path": "products/cdp/backend/api/hog_function.py",
+      "hash": "sha256:d18a0a52b6b9a3c7fd7b77bd",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105687"
+  },
+  "created": "2026-09-26T23:59:11.604Z",
+  "verified": "2026-09-26T23:59:11.604Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "hogflow-status-has-no-backend-transition-matrix-rules-live-i",
+    "adding-a-hogflow-status-transition-what-changes-together",
+    "warehouse-row-filters-must-resolve-columns-under-properties-",
+    "warehouse-destination-table-entries-per-table-match-on-sourc"
+  ],
+  "servedIn": [
+    "1d74124f-792a-4371-985b-456bd989732c",
+    "0a314f90-3d79-4a53-9587-48b57cfd06b7"
+  ],
+  "says": [
+    "Where should I import warehouse data source constants from?",
+    "Why do I get a circular dependency when importing warehouse sources?",
+    "Which module owns the warehouse sources list definition?"
+  ],
+  "saysFor": "431:data-warehouse-sources-l"
+}

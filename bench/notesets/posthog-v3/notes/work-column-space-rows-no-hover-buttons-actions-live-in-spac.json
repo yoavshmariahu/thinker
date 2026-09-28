@@ -1,0 +1,58 @@
+{
+  "id": "work-column-space-rows-no-hover-buttons-actions-live-in-spac",
+  "title": "Work column space rows: no hover buttons; actions live in SpaceHoverCard and right-click menu",
+  "kind": "invariant",
+  "answers": [
+    "Why doesn't the space row in the work column have a + or ⋯ button on hover?",
+    "Where do I add a new action for a space in the work column?",
+    "Space row faces jump on hover"
+  ],
+  "body": "Space rows in the work column (`SpaceRow` in `components/work/WorkColumn.tsx`) must not render hover-revealed buttons: they push the right-aligned `PresenceAvatars` and unread dot sideways on every row.\nActions reach the user two ways, both built from one list, `preview.actions`:\n- `SpaceHoverCard` (from `ChannelItemHoverCard`) shows the list on the shared card handle.\n- A `ContextMenu` around the row renders the same list via `ChannelActionItems kind=\"context\"`.\n`preview.actions` is `[New session, ...useChannelActions(channel).actions]`. Add new actions there, and keep New session first.\n`SpaceActionDialogs` must stay mounted as a sibling of the card, since the actions open dialogs.\nThe rule is recorded in `features/canvas/AGENTS.md`.",
+  "applies": "Desktop work column space rows (products/desktop/packages/ui/src/features/canvas/components/work/WorkColumn.tsx)",
+  "tags": [
+    "desktop",
+    "canvas",
+    "work-column",
+    "hover-card"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/work/WorkColumn.tsx",
+      "symbol": "SpaceRow",
+      "hash": "sha256:8e7c4a52a6b7adeb1f5dd3b7",
+      "line": 148,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/ChannelsList.tsx",
+      "symbol": "useChannelActions",
+      "hash": "sha256:c2370d82a71e47eac6df6387",
+      "line": 750,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/AGENTS.md",
+      "hash": "sha256:f6d31340c9cfbce35193937d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105400"
+  },
+  "created": "2026-09-27T00:04:05.544Z",
+  "verified": "2026-09-27T00:04:05.544Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Work column space rows jump when hovering for actions",
+    "Why can't space rows in work column show action buttons",
+    "Space row presence indicators shift during mouse hover",
+    "Where do actions for spaces live in the work column",
+    "Hovering space rows misaligns the avatar and unread dot"
+  ],
+  "saysFor": "839:work-column-space-rows-n"
+}

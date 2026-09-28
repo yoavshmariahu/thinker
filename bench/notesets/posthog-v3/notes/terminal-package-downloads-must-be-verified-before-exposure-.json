@@ -1,0 +1,52 @@
+{
+  "id": "terminal-package-downloads-must-be-verified-before-exposure-",
+  "title": "Terminal package downloads must be verified before exposure and stay retryable",
+  "kind": "invariant",
+  "answers": [
+    "Why does terminal package install verify SHA-256?",
+    "Terminal tool install failed, how does retry work?",
+    "What must a change to terminal package download preserve?"
+  ],
+  "body": "`terminalPackages.ts:TerminalPackages.download` enforces:\n- Fetch only from the commit-pinned `baseUrl` with `credentials: 'omit'`, `redirect: 'error'`, `referrerPolicy: 'no-referrer'`, and a timeout combined with the terminal abort signal.\n- Check compressed size and SHA-256 (and unpacked `archiveSize`) BEFORE returning bytes to the guest; on mismatch delete the cache entry and throw.\n- Only `cache.put` after verification and while the signal is not aborted; a cache hit is re-verified.\n- Cache errors or missing `caches` must not block install (storage is optional).\n- In-flight downloads are shared via the `downloads` map and removed in `finally`, so failures are retryable.\n- `install-tool` stages into a temp dir and `mv`s it, so a failed extract leaves no partial install.\nSkipping these would expose unverified or partial bytes, or make failures permanent.",
+  "applies": "terminal package loader and install-tool script",
+  "tags": [
+    "terminal",
+    "security",
+    "cache"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/terminal/terminalPackages.ts",
+      "symbol": "TerminalPackages.download",
+      "hash": "sha256:040febe5082ec25521e616e0",
+      "line": 45,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/terminalPackages.test.ts",
+      "hash": "sha256:33572598e8087a07b27529ae",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105235"
+  },
+  "created": "2026-09-27T00:10:40.960Z",
+  "verified": "2026-09-27T00:10:40.960Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-an-optional-terminal-tool-manifest-entry-drives-mount"
+  ],
+  "says": [
+    "Terminal tool installation failed or package verification error",
+    "Why does terminal package install verify SHA-256 hash?",
+    "Terminal install command retries failed downloads automatically",
+    "How does terminal ensure downloaded packages are authentic?",
+    "Fixing terminal tool download and cache validation process"
+  ],
+  "saysFor": "947:terminal-package-downloa"
+}

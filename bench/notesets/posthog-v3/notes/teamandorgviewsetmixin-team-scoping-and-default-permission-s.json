@@ -1,0 +1,55 @@
+{
+  "id": "teamandorgviewsetmixin-team-scoping-and-default-permission-s",
+  "title": "TeamAndOrgViewSetMixin: team scoping and default permission stack",
+  "kind": "invariant",
+  "answers": [
+    "How is team scoping enforced in PostHog API viewsets?",
+    "What permission classes are applied by default to viewsets?",
+    "Can I override get_queryset in a viewset?",
+    "Why does APIScopePermission raise ImproperlyConfigured?"
+  ],
+  "body": "- Every team/org-nested viewset inherits `TeamAndOrgViewSetMixin` (posthog/api/routing.py); don't roll your own scoping.\n- Never override `get_queryset`: the mixin runs `safely_get_queryset` -> `_filter_queryset_by_parents_lookups` -> `_filter_queryset_by_access_level`. Override `safely_get_queryset`; `dangerously_get_queryset` bypasses scoping and needs justification.\n- `dangerously_get_permissions` builds a fixed list: IsAuthenticated, APIScopePermission, AccessControlPermission, then TeamMemberAccessPermission (team/project view) or OrganizationMemberPermissions (org view), then further checks. Extras are added via the `permission_classes` class attribute; the default list is not replaceable that way. Overriding the whole method is the only way to drop them.\n- `InternalAPIAuthentication` gets only IsAuthenticated; sharing-token authenticators get only SharingTokenPermission.\n- Set `scope_object` on every viewset; APIScopePermission raises ImproperlyConfigured otherwise. Override with `required_scopes` on an action.\n- `_filter_queryset_by_access_level` filters only for action == \"list\"; detail access relies on AccessControlPermission at object level, so keep it.\n- Serializers get the team via `self.context[\"get_team\"]()` (lazy lambdas from `get_serializer_context`), not `request.user.team`.",
+  "tags": [
+    "drf",
+    "permissions",
+    "team-scoping"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/routing.py",
+      "symbol": "TeamAndOrgViewSetMixin",
+      "hash": "sha256:cc1e197f89d03262aa8e1c4c",
+      "line": 138,
+      "missing": false
+    },
+    {
+      "path": "posthog/permissions.py",
+      "symbol": "APIScopePermission",
+      "hash": "sha256:6d68c09ebb6d54db9c84b7f2",
+      "line": 811,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "d4e47a02-7a4e-4dec-b5bd-484f4671e692"
+  },
+  "created": "2026-09-27T00:27:32.796Z",
+  "verified": "2026-09-27T00:27:32.796Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "teamandorgviewsetmixin-scoping-and-permission-enforcement",
+    "router-registration-core-vs-product-routes"
+  ],
+  "says": [
+    "API queries automatically filtered to user's current team and project",
+    "Default permission checks: authentication, scope, access control, membership verification",
+    "Customizing access rules without bypassing team and organization isolation",
+    "Why API results never include data from other teams",
+    "Adding extra permission rules to the standard viewset stack"
+  ],
+  "saysFor": "1379:teamandorgviewsetmixin-t"
+}

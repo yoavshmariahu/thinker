@@ -1,0 +1,69 @@
+{
+  "id": "warehouse-row-filters-must-resolve-columns-under-properties-",
+  "title": "Warehouse row filters must resolve columns under `properties` at compile time",
+  "kind": "invariant",
+  "answers": [
+    "Workflow triggered from a warehouse table never fires when I add a column filter",
+    "Real-time filters cannot read <column> on data warehouse trigger",
+    "Warehouse SQL expression filter with bare column name fails to compile",
+    "Why does record.column work in a warehouse filter"
+  ],
+  "body": "Warehouse rows reach the HogVM filter under `properties` (no person, one invocation per row), so column reads must compile to `properties.<col>`.\n- Picker filters: `_as_row_properties` in posthog/cdp/filters.py rewrites `type: data_warehouse` props to `event` type, applied in `_build_global_property_filters` and `_build_warehouse_table_filters`.\n- SQL (hogql) filters: `compile_filters_bytecode` recompiles via `_resolve_warehouse_columns` and `_WarehouseRowFields` (bare unknown root or `record.x` becomes `properties.x`) only when `filters.source` is in `DATA_WAREHOUSE_SOURCES`.\n- Locals (lambda args, `let`, recursive lambda names) shadow columns. Real globals (`timestamp`, `event`) are never moved, so such columns must be written `record.x` or `properties.x`.\n- The team's test account filters are NOT rewritten and stay under the unknown-global guard. Event-source filters with unknown names must still be refused.\nBytecode is compiled at save time, so existing saved filters need a re-save to pick up changes.",
+  "applies": "posthog/cdp/filters.py filter compilation for data-warehouse-table / data-warehouse-view sources (workflow triggers and destinations)",
+  "tags": [
+    "cdp",
+    "warehouse",
+    "hogql",
+    "filters",
+    "workflows"
+  ],
+  "deps": [
+    {
+      "path": "posthog/cdp/filters.py",
+      "symbol": "_WarehouseRowFields",
+      "hash": "sha256:2f35510fe2692bc62f8007cb",
+      "line": 194,
+      "missing": false
+    },
+    {
+      "path": "posthog/cdp/filters.py",
+      "symbol": "_as_row_properties",
+      "hash": "sha256:e5ebcc1dbd402eef92441c9b",
+      "line": 244,
+      "missing": false
+    },
+    {
+      "path": "posthog/cdp/filters.py",
+      "symbol": "compile_filters_bytecode",
+      "hash": "sha256:9e58605db14da517bae379bc",
+      "line": 529,
+      "missing": false
+    },
+    {
+      "path": "posthog/cdp/filters.py",
+      "symbol": "_own_filters_expr",
+      "hash": "sha256:c8e27c1d34a026a7c0ba8b66",
+      "line": 508,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105687"
+  },
+  "created": "2026-09-26T23:59:11.445Z",
+  "verified": "2026-09-26T23:59:11.445Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Workflow triggered from warehouse table stops firing after I add column filter",
+    "Real-time filter can't read warehouse source columns",
+    "Column reference in warehouse filter expression fails to compile",
+    "Why doesn't record.column syntax work in warehouse row conditions",
+    "How do I reference data warehouse table columns in workflow filters"
+  ],
+  "saysFor": "1098:warehouse-row-filters-mu"
+}

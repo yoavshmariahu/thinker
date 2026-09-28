@@ -1,0 +1,52 @@
+{
+  "id": "doit-rejected-key-errors-must-be-registered-in-get-non-retry",
+  "title": "DoIt rejected-key errors must be registered in get_non_retryable_errors with a reconnect message",
+  "kind": "fix",
+  "answers": [
+    "DoIt source keeps retrying every sync and never tells user to replace the API key",
+    "DoIt 403 invalid token: missing expiration keeps failing",
+    "How to stop retrying a warehouse source error that only a new key fixes"
+  ],
+  "body": "Symptom: A DoIt data warehouse source with a rejected API key retries on every sync and fails, and the user is never told to replace the key.\nRoot cause: products/warehouse_sources/backend/temporal/data_imports/sources/doit/source.py:get_non_retryable_errors only matched the 401 text \"invalid or revoked access key\". DoIt also answers some rejected keys with 403 `invalid token: missing expiration`, which was unclassified and so retried.\nFix pattern: Add the error substring as a key in the get_non_retryable_errors dict, mapped to the shared `bad_key` message (\"...create a new key and reconnect.\"). Keys are substring patterns of the error text.\nConstraints: Use only for errors where a retry cannot succeed (bad credentials). The message must keep the word \"reconnect\"; the test checks for it. New DoIt bad-key texts should reuse the `bad_key` variable.",
+  "applies": "DoIt warehouse source; the same pattern applies to other sources' get_non_retryable_errors maps.",
+  "tags": [
+    "doit",
+    "warehouse_sources",
+    "non-retryable",
+    "api-key"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/doit/source.py",
+      "symbol": "get_non_retryable_errors",
+      "hash": "sha256:d9a103bed0c196b292888dff",
+      "line": 63,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/doit/tests/test_doit_source.py",
+      "hash": "sha256:1de7172d6163bfb54c12bb69",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105319"
+  },
+  "created": "2026-09-27T00:06:22.031Z",
+  "verified": "2026-09-27T00:06:22.031Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "new-doit-non-retryable-patterns-need-both-parameterized-test"
+  ],
+  "says": [
+    "DoIt source keeps syncing endlessly with rejected API key",
+    "Invalid token error from warehouse source never tells user to reconnect",
+    "How to stop warehouse source retrying when API key expires",
+    "DoIt 403 invalid token error should fail immediately not retry forever"
+  ],
+  "saysFor": "955:doit-rejected-key-errors"
+}

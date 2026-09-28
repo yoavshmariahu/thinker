@@ -1,0 +1,63 @@
+{
+  "id": "adding-a-field-to-a-hogql-system-table-what-changes-together",
+  "title": "Adding a field to a HogQL system table: what changes together",
+  "kind": "cochange",
+  "answers": [
+    "What to change when adding a column to a system table?",
+    "Which snapshot needs updating for system table changes?"
+  ],
+  "body": "- Postgres column first (Django model + migration).\n- Add `*DatabaseField(name, nullable, description)` to the table in `database/schema/system.py` (`hidden=True` for internal cols like team_id; `ExpressionField` for derived ones; check override classes like `_ActivityLogsTable` fields/`get_predicates`).\n- No registration for a new column on an existing table; a new table needs a `TableNode` in `SystemTables.children` (+ `access_scope` if controlled).\n- Update snapshot `database/test/__snapshots__/test_database.ambr` (lists every system table's fields) and tests in `database/schema/test/test_system_tables.py`.\n- Docs reference e.g. `products/posthog_ai/skills/querying-posthog-data/references/models-batch-exports.md` mention table columns and may need updating.",
+  "applies": "System tables in database/schema/system.py; example traced via batch_export_backfills.",
+  "tags": [
+    "hogql",
+    "system-tables",
+    "snapshot"
+  ],
+  "deps": [
+    {
+      "path": "posthog/hogql/database/schema/system.py",
+      "symbol": "SystemTables",
+      "hash": "sha256:03310e41240e9a14086c0a6d",
+      "line": 2955,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/database/test/__snapshots__/test_database.ambr",
+      "hash": "sha256:3b21a857c2d0829640939c50",
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/database/schema/test/test_system_tables.py",
+      "hash": "sha256:a005bae6f894d3b18e5c15ba",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "677f7a3c-0764-4bf2-9360-b99bd3a6710f"
+  },
+  "created": "2026-09-26T20:36:23.801Z",
+  "verified": "2026-09-26T20:36:23.801Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "hogql-database-schema-layout-and-system-tables"
+  ],
+  "lastUsed": "2026-09-26T23:28:33.173Z",
+  "servedIn": [
+    "ed508f88-1237-460a-9105-5c6cb1fbd83a",
+    "6d17fed1-6cb3-4238-b29c-b361e5c7bca8",
+    "304fe954-29c7-4caa-ac1b-b9b6ed37a2ef",
+    "1ab8ae63-f06f-4044-b522-87020216b687"
+  ],
+  "says": [
+    "The new column doesn't appear in my query results",
+    "I want to select this new field in HogQL",
+    "System table schema seems outdated or incomplete",
+    "Can't group by or filter on the new dimension",
+    "Query builder doesn't list the recently added column"
+  ],
+  "saysFor": "832:adding-a-field-to-a-hogq"
+}

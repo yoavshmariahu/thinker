@@ -1,0 +1,86 @@
+{
+  "id": "adding-a-field-to-scout-team-limits-touches-resolver-datacla",
+  "title": "Adding a field to scout team limits touches resolver, dataclass, serializer, and generated schema",
+  "kind": "cochange",
+  "answers": [
+    "How do I add a new per-team limit to the scout metadata endpoint?",
+    "Which files change when ScoutLimitsSerializer gets a new field?"
+  ],
+  "body": "A new per-project scout limit under the `signals-scout` payload changes together:\n- `team_limits.py`: a `TEAM_CONFIG_*` key constant, a resolver, the `ScoutTeamLimits` dataclass field, `ScoutTeamMetadata.as_dict`, and `resolve_team_metadata`.\n- `serializers.py`: `ScoutLimitsSerializer` field (with help_text).\n- Regenerate `products/signals/frontend/generated/api.schemas.ts` with `hogli build:openapi`; do not hand-edit.\n- Update `scout_harness/AGENTS.md` (`team_limits.py` entry) and the comment beside the constant in `limits.py`.\nTests for resolver matrices live in `test_scout_coordinator.py`; API and status behavior in `test_scout_harness_api.py` and `test_scout_status.py`.",
+  "applies": "scout metadata/limits API changes in products/signals",
+  "tags": [
+    "signals",
+    "openapi",
+    "serializers"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/scout_harness/team_limits.py",
+      "symbol": "resolve_team_metadata",
+      "hash": "sha256:62da93a064f73f1caba1c88a",
+      "line": 597,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/serializers.py",
+      "symbol": "ScoutLimitsSerializer",
+      "hash": "sha256:8d27634658469ccf741f746b",
+      "line": 3957,
+      "missing": false
+    },
+    {
+      "path": "products/signals/frontend/generated/api.schemas.ts",
+      "hash": "sha256:754f670d07756e92260d1d24",
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/limits.py",
+      "hash": "sha256:f5fab53b2e7da0967f626482",
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/test/test_scout_coordinator.py",
+      "hash": "sha256:43515be74ed6c07827a547ca",
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/test/test_scout_harness_api.py",
+      "hash": "sha256:6273e062df091f68e19a7d6b",
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/test/test_scout_status.py",
+      "hash": "sha256:cafe4efedbba54a4383a4008",
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/team_limits.py",
+      "symbol": "ScoutTeamMetadata.as_dict",
+      "hash": "sha256:26d9a160201650c2c75688cd",
+      "line": 583,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105682"
+  },
+  "created": "2026-09-26T23:59:40.532Z",
+  "verified": "2026-09-26T23:59:40.532Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "enabled-scout-cap-must-be-resolved-via-team-limits-and-befor",
+    "lowering-the-enabled-scout-cap-pauses-nothing-tests-patch-th"
+  ],
+  "says": [
+    "Per-project scout processing quota needs to be adjusted",
+    "Team exceeded the signals event limit this month",
+    "How do I check what my project's signal limits are?",
+    "Scout hit the max events per team threshold",
+    "Configure per-team limits for signal detection"
+  ],
+  "saysFor": "780:adding-a-field-to-scout-"
+}

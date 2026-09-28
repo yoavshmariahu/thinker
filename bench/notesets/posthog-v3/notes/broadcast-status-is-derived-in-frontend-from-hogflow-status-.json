@@ -1,0 +1,111 @@
+{
+  "id": "broadcast-status-is-derived-in-frontend-from-hogflow-status-",
+  "title": "Broadcast status is derived in frontend from HogFlow.status + latest batch job",
+  "kind": "overview",
+  "answers": [
+    "How is a broadcast's status represented?",
+    "Where is BroadcastStatus computed?",
+    "Is there a broadcast model in the backend?"
+  ],
+  "body": "- Broadcasts are HogFlows with `origin_product=\"broadcasts\"` (`HogFlow.OriginProduct.BROADCASTS`); no broadcast model or status column.\n- Persisted: `HogFlow.State` = draft/active/archived (`backend/models/hog_flow/hog_flow.py:HogFlow`) plus latest `HogFlowBatchJob.State` = waiting/queued/active/completed/cancelled/failed (`backend/models/hog_flow_batch_job/hog_flow_batch_job.py`).\n- UI: `BroadcastStatus = draft|scheduled|sending|sent|failed|archived` in `frontend/Broadcasts/broadcastsLogic.ts:getBroadcastStatus`.\n- Rules: draft/archived from flow; else job waiting/queued/active→sending; completed→sent; failed/cancelled→failed; no job→scheduled.\n- Pinned by `frontend/Broadcasts/broadcastStatus.test.ts`; labels/colours in `BroadcastsTable.tsx:STATUS_CONFIG` (table also checks `item.status === 'draft'` directly).\n- `BroadcastScene.tsx`: NotFound unless origin_product is broadcasts; draft→`BroadcastWizard`, else read-only summary.\n- Schedules: `backend/models/hog_flow_schedule/hog_flow_schedule.py:HogFlowSchedule` (active/paused/completed).",
+  "tags": [
+    "workflows",
+    "broadcast",
+    "status"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/frontend/Broadcasts/broadcastsLogic.ts",
+      "symbol": "getBroadcastStatus",
+      "hash": "sha256:4ece3a670f482377ba8ce624",
+      "line": 27,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Broadcasts/BroadcastsTable.tsx",
+      "symbol": "STATUS_CONFIG",
+      "hash": "sha256:51a228f885f448f75e353a2e",
+      "line": 16,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Broadcasts/BroadcastScene.tsx",
+      "hash": "sha256:093962997fc0a8e42459e7ae",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow/hog_flow.py",
+      "symbol": "HogFlow",
+      "hash": "sha256:7a5296f57718a2b31cb15b02",
+      "line": 110,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow_batch_job/hog_flow_batch_job.py",
+      "hash": "sha256:8942ccf2e7b49b1fec185a25",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Broadcasts/broadcastStatus.test.ts",
+      "hash": "sha256:439e49fbe97f9b8c973b6486",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow_schedule/hog_flow_schedule.py",
+      "symbol": "HogFlowSchedule",
+      "hash": "sha256:4b43635add952d116550e05f",
+      "line": 9,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow/hog_flow.py",
+      "symbol": "HogFlow.OriginProduct.BROADCASTS",
+      "hash": "sha256:2c1d9f65ba99e9838dcc4a46",
+      "line": 139,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow/hog_flow.py",
+      "symbol": "HogFlow.State",
+      "hash": "sha256:3e02927b57c81fbe06a9bf2c",
+      "line": 126,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow_batch_job/hog_flow_batch_job.py",
+      "symbol": "HogFlowBatchJob.State",
+      "hash": "sha256:9aea79a22cf3f306bbaab2a0",
+      "line": 25,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "3ec4dd80-785e-4bab-8bfd-c8caaa125787"
+  },
+  "created": "2026-09-26T20:24:01.526Z",
+  "verified": "2026-09-26T20:24:01.526Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 5,
+  "related": [
+    "hogflowschedule-status-and-sync-with-flow-batch-job-state",
+    "adding-a-hogflow-status-transition-what-changes-together",
+    "hogflow-status-has-no-backend-transition-matrix-rules-live-i"
+  ],
+  "lastUsed": "2026-09-26T23:28:16.456Z",
+  "servedIn": [
+    "72bb7345-28dc-4f61-9301-4a809d56cef9",
+    "ff757a24-4daa-4fa9-a5c5-8218b29aa8a5",
+    "944d9c5a-5c65-4014-863b-e8c16e823a2e",
+    "14c2ec40-2468-4788-b4a9-dc244490763f",
+    "0a314f90-3d79-4a53-9587-48b57cfd06b7"
+  ],
+  "says": [
+    "Broadcast progress status doesn't update when underlying job batch completes",
+    "Broadcast shows sending when job still waiting in queue",
+    "Broadcast archive state persists even after workflow execution finishes"
+  ],
+  "saysFor": "1132:broadcast-status-is-deri"
+}

@@ -1,0 +1,62 @@
+{
+  "id": "settings-dialog-must-portal-into-portal-container-and-not-us",
+  "title": "Settings dialog must portal into #portal-container and not use inert/native dialog",
+  "kind": "invariant",
+  "answers": [
+    "Why doesn't the settings dialog use quill Dialog?",
+    "Radix Themes styles missing inside settings dialog",
+    "Why is background not inert when settings is open?"
+  ],
+  "body": "Settings overlays render through `SettingsDialogFrame` (features/settings/components/SettingsDialogFrame.tsx), which `createPortal`s into `#portal-container` (fallback `document.body`).\n- Settings pages still use Radix Themes; its styles only apply inside the `<Theme>` root that `#portal-container` sits in. A quill `Dialog` portals to `body`, outside `<Theme>`, and drops the styles.\n- Do not mark the app background `inert` or switch to a top-layer `<dialog>`: settings dropdowns/selects portal to `body`, outside the dialog, and would be disabled or covered.\n- Focus is handled instead by `useDialogFocus` (focus in on open, Tab wrap, restore opener on close); the backdrop div blocks pointer input.\n- Both `SettingsLayout` (route) and `SettingsDialog` (consent/pre-router) must use this frame.",
+  "applies": "products/desktop/packages/ui settings overlay (route SettingsLayout and SettingsDialog)",
+  "tags": [
+    "settings",
+    "dialog",
+    "radix-themes",
+    "focus"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/settings/components/SettingsDialogFrame.tsx",
+      "symbol": "SettingsDialogFrame",
+      "hash": "sha256:7e9350b035807c0e759d208c",
+      "line": 7,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/settings/components/useDialogFocus.ts",
+      "symbol": "useDialogFocus",
+      "hash": "sha256:7600fde2c576037cb7b0150e",
+      "line": 6,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/settings/components/SettingsLayout.tsx",
+      "symbol": "SettingsLayout",
+      "hash": "sha256:30cbc6f50a349e408fe0f229",
+      "line": 14,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105267"
+  },
+  "created": "2026-09-27T00:08:47.907Z",
+  "verified": "2026-09-27T00:08:47.907Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "closing-settings-when-a-report-child-page-is-open-must-use-t"
+  ],
+  "says": [
+    "Settings dialog appears unstyled or missing styling",
+    "Can't use dropdown while settings dialog open",
+    "Settings background overlay blocks interaction outside dialog",
+    "Settings dialog look differs from app styling",
+    "Pointer events disabled outside settings dialog area"
+  ],
+  "saysFor": "881:settings-dialog-must-por"
+}
