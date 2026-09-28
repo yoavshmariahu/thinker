@@ -8,24 +8,38 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { installClient } from '../src/clients.js';
 import { CACHE_USAGE_GUIDE } from '../src/cache-guidance.js';
+import { complete } from '../src/llm.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const REPO = path.join(HERE, 'repos', 'posthog');
-const TASKS = path.join(HERE, 'tasks', 'posthog-hard.json');
-const NOTESET = path.join(HERE, 'notesets', 'posthog-v2');
-const NOTES = path.join(NOTESET, 'notes');
-const TAG = process.argv[2] || 'posthog-codex-gpt56';
-const REPS = Number(process.argv[3]) || 2;
-const CONC = Number(process.argv[4]) || 3;
-const MODEL = process.argv[5] || 'gpt-5.6-terra';
+
+const args = process.argv.slice(2);
+const flags = {};
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--') continue;
+  if (args[i].startsWith('--')) {
+    const k = args[i].slice(2);
+    flags[k] = args[i + 1] && !args[i + 1].startsWith('--') ? args[++i] : true;
+  }
+}
+
+const repoName = flags.repo || 'posthog';
+const REPO = path.join(HERE, 'repos', repoName);
+const TASKS = flags.tasks || path.join(HERE, 'tasks', `${repoName}-hard.json`);
+const NOTESET = flags.noteset || path.join(HERE, 'notesets', `${repoName}-v2`);
+const NOTES = flags['notes-dir'] || path.join(NOTESET, 'notes');
+const TAG = flags.tag || (args[0] && !args[0].startsWith('--') ? args[0] : `${repoName}-codex-gpt56`);
+const REPS = Number(flags.reps || (args[1] && !args[1].startsWith('--') ? args[1] : 2));
+const CONC = Number(flags.conc || (args[2] && !args[2].startsWith('--') ? args[2] : 3));
+const MODEL = flags.model || (args[3] && !args[3].startsWith('--') ? args[3] : 'gpt-5.6-terra');
 const OUT = path.join(HERE, 'runs', TAG);
 const CLI = path.join(ROOT, 'src', 'cli.js');
 // Worktrees are cut from a clone that ends at the base commit, so the merged fixes are not in its history
-const WT_REPO = fs.existsSync(path.join(HERE, 'repos', 'posthog-base')) ? path.join(HERE, 'repos', 'posthog-base') : REPO;
-const BUDGET = Number(process.env.BENCH_BUDGET) || 750;
+const baseClone = path.join(HERE, 'repos', `${repoName}-base`);
+const WT_REPO = fs.existsSync(baseClone) ? baseClone : REPO;
+const BUDGET = Number(flags.budget || process.env.BENCH_BUDGET) || 750;
 // Arms: nocache | full (hooks, MCP tools and the AGENTS.md instruction, as installed) | hook (notes pasted above the request)
-const ARMS = (process.env.BENCH_ARMS || 'nocache,full').split(',');
+const ARMS = (flags.arm || process.env.BENCH_ARMS || 'nocache,full').split(',').map(a => a === 'cache' ? 'full' : a);
 // A Codex home for the benchmark: the login, the hooks (reviewed and trusted there once) and the
 // worktrees marked trusted. The hooks say nothing in a worktree that has no notes.
 const CODEX_HOME = path.join(HERE, 'codex-home');
@@ -36,9 +50,23 @@ ${CACHE_USAGE_GUIDE}
 <!-- thinker:end -->
 
 `;
+
+function ensureCodexTrust(p) {
+  const cfgFile = path.join(CODEX_HOME, 'config.toml');
+  let text = fs.existsSync(cfgFile) ? fs.readFileSync(cfgFile, 'utf8') : '';
+  const header = `[projects."${p}"]`;
+  if (!text.includes(header)) {
+    text = text.trimEnd() + `\n\n${header}\ntrust_level = "trusted"\n`;
+    fs.writeFileSync(cfgFile, text);
+  }
+}
+ensureCodexTrust(WT_REPO);
+ensureCodexTrust(REPO);
+
 // BENCH_ONLY=id,id limits the run to those tasks
-const ONLY = (process.env.BENCH_ONLY || '').split(',').filter(Boolean);
-const tasks = JSON.parse(fs.readFileSync(TASKS, 'utf8')).tasks.filter(t => !ONLY.length || ONLY.includes(t.id));
+const ONLY = (flags.only ? flags.only.split(',') : (process.env.BENCH_ONLY || '').split(',')).filter(Boolean);
+const spec = JSON.parse(fs.readFileSync(TASKS, 'utf8'));
+const tasks = (spec.tasks || spec).filter(t => !ONLY.length || ONLY.includes(t.id));
 fs.mkdirSync(path.join(OUT, 'events'), { recursive: true });
 
 function makeWorktree(i) {
@@ -49,7 +77,8 @@ function makeWorktree(i) {
     try { execFileSync('git', ['worktree', 'remove', '--force', wt], { cwd: WT_REPO }); }
     catch { fs.rmSync(wt, { recursive: true, force: true }); }
   }
-  execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, 'HEAD'], { cwd: WT_REPO });
+  execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, spec.base || 'HEAD'], { cwd: WT_REPO });
+  ensureCodexTrust(wt);
   return wt;
 }
 function resetWorktree(wt) {
@@ -58,6 +87,7 @@ function resetWorktree(wt) {
     execFileSync('git', ['clean', '-qfd'], { cwd: wt });
   } catch {}
   fs.rmSync(path.join(wt, '.thinker'), { recursive: true, force: true });
+  fs.rmSync(path.join(wt, '.codex'), { recursive: true, force: true });
 }
 // The cache as a Codex install has it. Each run serves its own copy of the noteset, so use
 // counters stay in the worktree; remember and feedback are off, so no run writes a note.
@@ -164,6 +194,53 @@ function getDiff(cwd) {
   return diff;
 }
 
+const GRADE_SCHEMA = {
+  type: 'object',
+  properties: {
+    results: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          verdict: { type: 'string', enum: ['met', 'not_met', 'unclear'] },
+          evidence: { type: 'string' }
+        },
+        required: ['id', 'verdict', 'evidence']
+      }
+    }
+  },
+  required: ['results']
+};
+
+const srcOnly = d => (d || '').split(/^(?=diff --git )/m).filter(c => !/^diff --git a\/\S*(test_|\.test\.|\/tests?\/|__tests__|__snapshots__|\.ambr|\.snap)/.test(c)).join('');
+
+async function gradePatch(task, patch, summary = '') {
+  if (!task.criteria?.length) return null;
+  const judgeProvider = flags['judge-llm'] || 'gemini';
+  const judgeModel = flags.judge || 'gemini-3.8-flash-high';
+  const system = 'You check a patch against acceptance criteria. For each criterion decide whether the code after the patch would exhibit that behaviour: met, not_met, or unclear when what you are shown is not enough to tell. Any design that produces the behaviour counts; do not require a particular file, layer or approach. The author\'s summary is a claim, not evidence. Quote the code that decides each verdict.';
+  const prompt = `REQUEST:\n${task.prompt}\n\nCRITERIA:\n${task.criteria.map(c => `${c.id}${c.essential ? ' (essential)' : ''}: ${c.behavior}`).join('\n')}\n\nPATCH:\n${(srcOnly(patch) || '(empty patch)').slice(0, 40000)}\n\nAUTHOR SUMMARY:\n${(summary || '').slice(0, 3000)}`;
+
+  try {
+    process.env.THINKER_LLM = judgeProvider;
+    const res = await complete({ model: judgeModel, system, prompt, schema: GRADE_SCHEMA });
+    const results = res.json?.results || [];
+    const by = Object.fromEntries(results.map(x => [x.id, x.verdict]));
+    const usable = task.criteria.filter(c => c.calibrated !== false);
+    const ess = usable.filter(c => c.essential);
+    const frac = cs => cs.length ? cs.filter(c => by[c.id] === 'met').length / cs.length : 1;
+    return {
+      essential: frac(ess),
+      all: frac(usable),
+      pass: ess.every(c => by[c.id] === 'met'),
+      results
+    };
+  } catch (err) {
+    return { error: err.message, essential: 0, all: 0, pass: false };
+  }
+}
+
 const jobs = [];
 for (let rep = 0; rep < REPS; rep++) for (const task of tasks) for (const arm of ARMS) jobs.push({ task, arm, rep });
 async function worker(wi) {
@@ -198,13 +275,13 @@ async function worker(wi) {
       run.session = run.session_id;
       run.cost = null;
       run.api_ms = null;
-      run.grade = null;
       run.diff = task.type === 'change' ? getDiff(cwd) : null;
+      run.grade = await gradePatch(task, run.diff, run.result);
       // the session is ephemeral, so this stream is the only record of what the agent did
       fs.writeFileSync(path.join(OUT, 'events', `${id}.jsonl`), run.raw_events.map(e => JSON.stringify(e)).join('\n'));
       delete run.raw_events;
       fs.writeFileSync(file, JSON.stringify(run, null, 2));
-      console.log(`${id}: turns=${run.turns} tools=${run.tools.calls} injected=${run.tools.injected.length} ${(run.wall_ms / 1000).toFixed(0)}s in=${run.in_tokens} out=${run.out_tokens}`);
+      console.log(`${id}: turns=${run.turns} tools=${run.tools.calls} injected=${run.tools.injected.length} ${(run.wall_ms / 1000).toFixed(0)}s in=${run.in_tokens} out=${run.out_tokens}${run.grade ? ' pass=' + run.grade.pass + ' ess=' + run.grade.essential : ''}`);
     } catch (e) {
       console.error(`${id} ERROR ${e.message}`);
       fs.writeFileSync(file, JSON.stringify({ id, task: task.id, arm, rep, model: MODEL, turns: 0, error: e.message }, null, 2));
