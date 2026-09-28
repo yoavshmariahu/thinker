@@ -3,28 +3,52 @@ const steps = [...document.querySelectorAll('[data-step]')]
 const stepLabel = document.querySelector('#stepLabel')
 const estimate = document.querySelector('#estimate')
 const toast = document.querySelector('#toast')
+const backButton = document.querySelector('#backButton')
 let currentStep = 1
+let furthestStep = 1
 let analysisTimer
 
 const estimates = ['About 8 minutes', 'About 7 minutes', 'About 5 minutes', 'About 2 minutes', 'Trial complete']
 
 function goToStep(next) {
   currentStep = Number(next)
+  furthestStep = Math.max(furthestStep, currentStep)
   panels.forEach(panel => panel.classList.toggle('active', Number(panel.dataset.panel) === currentStep))
   steps.forEach(step => {
     const value = Number(step.dataset.step)
     step.classList.toggle('active', value === currentStep)
     step.classList.toggle('complete', value < currentStep)
+    step.classList.toggle('available', value <= furthestStep)
+    step.setAttribute('aria-current', value === currentStep ? 'step' : 'false')
+    step.setAttribute('tabindex', value <= furthestStep ? '0' : '-1')
     const marker = step.querySelector(':scope > span')
     marker.textContent = value < currentStep ? '✓' : String(value).padStart(2, '0')
   })
   stepLabel.textContent = `Step ${currentStep} of 5`
   estimate.textContent = estimates[currentStep - 1]
+  backButton.hidden = currentStep === 1
   if (currentStep === 4) runAnalysis()
 }
 
 document.querySelectorAll('[data-next]').forEach(button => {
   button.addEventListener('click', () => goToStep(button.dataset.next))
+})
+
+backButton.addEventListener('click', () => goToStep(Math.max(1, currentStep - 1)))
+
+steps.forEach(step => {
+  step.setAttribute('role', 'button')
+  const openStep = () => {
+    const value = Number(step.dataset.step)
+    if (value <= furthestStep) goToStep(value)
+  }
+  step.addEventListener('click', openStep)
+  step.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      openStep()
+    }
+  })
 })
 
 document.querySelectorAll('.area').forEach(area => {
@@ -85,3 +109,5 @@ function runAnalysis() {
 
 document.querySelector('#restartButton').addEventListener('click', () => goToStep(2))
 document.querySelector('#evidenceButton').addEventListener('click', () => showToast('Evidence view would open here'))
+
+goToStep(1)
