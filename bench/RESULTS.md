@@ -9,8 +9,8 @@ symptom-only tasks; the sections below hold the full tables.
 
 | | without thinker | with thinker | change |
 |---|---|---|---|
-| **Correctness score** (share of essential criteria met) | 0.80 | **0.89** | **+0.08** (0.804 to 0.888; shown as +10% in the README) |
-| **Thoroughness** (share of the further criteria met) | 0.28 | 0.34 | +0.06 |
+| **Correctness score** (share of essential criteria met) | 80% | **89%** | **+10%** (80.4% to 88.8%, +0.08) |
+| **Thoroughness** (share of the further criteria met) | 28% | 34% | +21% (+0.06) |
 | **Input tokens per task** | 1.25M | **1.02M** | **-18%** |
 | **Cost per task** | $2.72 | **$2.45** | **-10%** |
 | **Tool calls per task** | 18.1 | **14.9** | **-17%** |
@@ -59,7 +59,7 @@ is within one standard error. No prompt-only control was run on Fable.
 
 | model | cost per task, no cache | effect of the cache |
 |---|---|---|
-| **Fable** | $2.72 | **18% fewer input tokens, 10% lower cost, correctness 0.89 instead of 0.80** |
+| **Fable** | $2.72 | **18% fewer input tokens, 10% lower cost, correctness 89% instead of 80%** |
 | **Gemini 3.8 Flash** | $0.42 | **22% fewer tool calls, 27% fewer file reads, 16% lower cost ($0.35 vs $0.42), 9% less time; correctness unchanged** |
 | Opus | $4.54 | no change in cost or correctness |
 | Sonnet | $0.41 | 2 to 9% fewer input tokens, correctness unchanged (graded by Sonnet; not yet regraded by Fable) |
@@ -286,8 +286,8 @@ Fable judges correctness and thoroughness. Graded with `node bench/criteria.js g
 
 | arm | n | correctness | thoroughness | calls | in Mtok | $/run | min |
 |---|---|---|---|---|---|---|---|
-| nocache | 20 | 0.80 ±0.06 | 0.28 ±0.08 | 18.1 | 1.25 | 2.72 | 2.7 |
-| hook | 20 | 0.89 ±0.03 | 0.34 ±0.08 | 14.9 | 1.02 | 2.45 | 2.3 |
+| nocache | 20 | 80% ±6% | 28% ±8% | 18.1 | 1.25 | 2.72 | 2.7 |
+| hook | 20 | 89% ±3% | 34% ±8% | 14.9 | 1.02 | 2.45 | 2.3 |
 
 Paired change with the cache: calls -17%, input tokens -18%, cost -10% (-$0.28 ±0.12 per run, cheaper in 15 of 20 pairs), time -14%. Correctness +0.08 ±0.06: better in 6 pairs, same in 12, worse in 2. Thoroughness +0.06 ±0.06: better in 3 pairs, same in 15, worse in 2. Runs that met every essential criterion: 9 of 20 without the cache, 12 of 20 with it.
 

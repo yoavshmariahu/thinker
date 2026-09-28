@@ -10,8 +10,8 @@ stale and re-verified.
 and lowered the cost.**
 
 ```
-correctness score    without thinker  ████████████████░░░░  0.80
-                     with thinker     ██████████████████░░  0.89   +10%
+correctness score    without thinker  ████████████████░░░░  80%
+                     with thinker     ██████████████████░░  89%    +10%
 
 input tokens         without thinker  ████████████████████  1.25M
                      with thinker     ████████████████░░░░  1.02M   -18%
@@ -57,9 +57,9 @@ the cache and graded by Claude Fable.
 
 | per task | without thinker | with thinker | change |
 |---|---|---|---|
-| **Correctness score** | 0.80 | **0.89** | **+10%** |
+| **Correctness score** | 80% | **89%** | **+10%** |
 | **Every essential criterion met** | 9 of 20 | **12 of 20** | **+3** |
-| Thoroughness | 0.28 | 0.34 | +21% |
+| Thoroughness | 28% | 34% | +21% |
 | **Input tokens, cached included** | 1.25M | **1.02M** | **-18%** |
 | **Output tokens** | 11.4k | **10.1k** | **-11%** |
 | **Tool calls** | 18.1 | **14.9** | **-17%** |
