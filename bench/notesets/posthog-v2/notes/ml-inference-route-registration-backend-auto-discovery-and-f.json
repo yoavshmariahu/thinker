@@ -56,12 +56,12 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.85,
   "status": "fresh",
-  "uses": 32,
+  "uses": 33,
   "related": [
     "backend-product-route-auto-discovery",
     "router-registration-core-vs-product-routes"
   ],
-  "lastUsed": "2026-09-27T21:00:45.667Z",
+  "lastUsed": "2026-09-27T22:01:54.071Z",
   "servedIn": [
     "2b19a50b-56fd-4370-9d5a-970da64f9822",
     "39034c00-ed72-48f7-af96-e0ae7a43f8f4",

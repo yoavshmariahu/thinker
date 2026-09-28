@@ -155,7 +155,7 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
     if (hooks) {
       const target = path.join(repo, '.claude', shared ? 'settings.json' : 'settings.local.json');
       const entries = [['UserPromptSubmit', { matcher: '', hooks: [{ type: 'command', command: `node "${cli}" hook prompt`, timeout: 15 }] }]];
-      if (late) entries.push(['PostToolUse', { matcher: 'Read|Bash|Grep', hooks: [{ type: 'command', command: `node "${cli}" hook tool`, timeout: 10 }] }]);
+      if (late) entries.push(['PostToolUse', { matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `node "${cli}" hook tool`, timeout: 10 }] }]);
       if (learn) entries.push(['Stop', { matcher: '', hooks: [{ type: 'command', command: `node "${cli}" hook stop`, timeout: 10 }] }]);
       mergeJson(target, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'Stop', 'PostToolUse'], entries) }));
       done.push(`Claude Code: hooks in ${rel(target)}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learn ? ', sessions distilled into new notes when they end' : ''}`);

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store } from '../src/store.js';
-import { createNote, lateNotes, completenessNudge, orient, lookup } from '../src/ops.js';
+import { createNote, lateNotes, rememberTask, completenessNudge, orient, lookup } from '../src/ops.js';
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-late-'));
@@ -17,15 +17,35 @@ function setup() {
   return { dir, store, inv, cp };
 }
 
-test('late notes: file-keyed, rules first, once per session', () => {
+test('late notes on read: file-keyed, rules first, once per session', () => {
   const { dir, store, inv, cp } = setup();
-  const r1 = lateNotes(store, { session: 's1', files: [path.join(dir, 'src/a.py')], perEvent: 1 });
+  const r1 = lateNotes(store, { on: 'read', session: 's1', files: [path.join(dir, 'src/a.py')], perEvent: 1 });
   assert.deepEqual(r1.included.map(n => n.id), [inv.id]);
-  const r2 = lateNotes(store, { session: 's1', files: ['src/a.py'], perEvent: 1 });
+  const r2 = lateNotes(store, { on: 'read', session: 's1', files: ['src/a.py'], perEvent: 1 });
   assert.deepEqual(r2.included.map(n => n.id), [cp.id]);
-  assert.equal(lateNotes(store, { session: 's1', files: ['src/a.py'] }).included.length, 0);
-  assert.equal(lateNotes(store, { session: 's1', files: ['src/b.py'] }).included.length, 0);
-  assert.equal(lateNotes(store, { session: 's2', files: ['src/a.py'] }).included.length, 2);
+  assert.equal(lateNotes(store, { on: 'read', session: 's1', files: ['src/a.py'] }).included.length, 0);
+  assert.equal(lateNotes(store, { on: 'read', session: 's1', files: ['src/b.py'] }).included.length, 0);
+  assert.equal(lateNotes(store, { on: 'read', session: 's2', files: ['src/a.py'] }).included.length, 2);
+});
+
+test('late notes on edit: rules only, when the file is edited and the rule bears on the request', () => {
+  const { store, inv } = setup();
+  const other = createNote(store, { title: 'Exports are written as CSV with a header row', kind: 'convention', answers: ['export format'], body: 'src/a.py:export writes CSV', deps: [{ path: 'src/a.py', symbol: 'export' }] }).note;
+  assert.equal(lateNotes(store, { session: 'e1', files: ['src/a.py'] }).included.length, 0, 'a read serves nothing');
+  // no request known: the rules on the file, and not the call path
+  assert.deepEqual(lateNotes(store, { session: 'e1', files: ['src/a.py'], edited: true }).included.map(n => n.id).sort(), [inv.id, other.id].sort());
+  rememberTask(store, 'e2', 'users can launch without the eligibility check');
+  assert.deepEqual(lateNotes(store, { session: 'e2', files: ['src/a.py'], edited: true }).included.map(n => n.id), [inv.id]);
+  assert.equal(lateNotes(store, { session: 'e2', files: ['src/a.py'], edited: true }).included.length, 0, 'once per session');
+});
+
+test('late notes: the limit of a session holds', () => {
+  const { dir, store } = setup();
+  for (let i = 0; i < 6; i++) fs.writeFileSync(path.join(dir, `src/w${i}.py`), 'def f():\n    pass\n');
+  for (let i = 0; i < 6; i++) createNote(store, { title: `Rule ${i} about widgets number ${i}`, kind: 'gotcha', answers: [`widget rule ${i}`], body: `src/w${i}.py:f has a trap`, deps: [{ path: `src/w${i}.py` }] });
+  let served = 0;
+  for (let i = 0; i < 6; i++) served += lateNotes(store, { session: 'cap', files: [`src/w${i}.py`], edited: true }).included.length;
+  assert.equal(served, 3);
 });
 
 test('completeness nudge: co-change partner not touched and unseen rule, once', () => {

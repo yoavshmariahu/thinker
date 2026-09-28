@@ -55,7 +55,7 @@
   "verified": "2026-09-26T20:35:12.920Z",
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.85,
-  "status": "fresh",
+  "status": "stale",
   "uses": 4,
   "related": [
     "build-output-naming-must-stay-in-sync-with-server-preload-ma",
@@ -67,5 +67,19 @@
     "aa0facb4-3469-4ea0-a240-86f0eb879eca",
     "4d1906e5-79ec-4b4b-a088-06d0c30914e3",
     "01de268d-b79f-4536-878a-05cd626d33e6"
-  ]
+  ],
+  "stale": {
+    "since": "2026-09-27T22:01:53.437Z",
+    "changed": [
+      {
+        "path": "frontend/build.mjs",
+        "reason": "file changed"
+      },
+      {
+        "path": "common/esbuilder/utils.mjs",
+        "symbol": "copyIndexHtml",
+        "reason": "symbol body changed"
+      }
+    ]
+  }
 }

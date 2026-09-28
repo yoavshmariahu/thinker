@@ -44,12 +44,12 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 18,
+  "uses": 19,
   "related": [
     "keep-deletion-coverage-doc-in-sync-with-deletes-py-verificat",
     "deletion-queue-dags-deletes-job-cleanup-sweep-pg-drain"
   ],
-  "lastUsed": "2026-09-27T21:00:55.630Z",
+  "lastUsed": "2026-09-28T02:13:31.390Z",
   "servedIn": [
     "33676976-fd18-4be2-866b-1b8b81e8d5b2",
     "adcee338-64ea-4441-8bfb-db43173e8dd9",

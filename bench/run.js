@@ -108,7 +108,7 @@ function runClaude(prompt, { arm, allowEdit, cwd }) {
     const hookEnv = `${cfg.env || ''}THINKER_NOTES_DIR=${nd} THINKER_EARLY=${cfg.early} THINKER_NO_BG_VERIFY=1 `;
     const budget = flags.budget ? ` --budget ${Number(flags.budget)}` : '';
     const hooks = { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook prompt --repo ${cwd}${budget}`, timeout: 60 }] }] };
-    if (cfg.late) hooks.PostToolUse = [{ matcher: 'Read|Bash|Grep', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook tool --repo ${cwd}`, timeout: 15 }] }];
+    if (cfg.late) hooks.PostToolUse = [{ matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook tool --repo ${cwd}`, timeout: 15 }] }];
     if (cfg.nudge) hooks.Stop = [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook stop --nudge --no-distill --repo ${cwd}`, timeout: 20 }] }];
     a.push('--settings', JSON.stringify({ hooks }), '--append-system-prompt', HOOK_PROMPT);
   }

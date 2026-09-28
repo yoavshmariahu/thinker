@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
-import { orient, HOOK_BUDGET, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
+import { orient, HOOK_BUDGET, rememberTask, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
 import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs } from './prs.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
@@ -14,6 +14,7 @@ import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } fr
 import { available, provider, findBin } from './llm.js';
 import { summarize, renderUsage, sessionKey } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
+import { MORE_NOTES_INTRO } from './cache-guidance.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -214,10 +215,11 @@ async function main() {
         if (!store.exists() || !store.list().length) break;
         // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
         if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
+        if (session !== 'unknown') rememberTask(store, session, ev.prompt);
         const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, budget: Number(flags.budget) || HOOK_BUDGET });
         if (!r.included.length) break;
-        const more = r.more?.length ? `\n\nAlso in the cache, not shown. Call lookup with the id before searching for what the title covers:\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
-        const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their code dependencies were re-hashed just now and match the current code${r.included.some(n => n.status === 'stale') ? ', except notes marked STALE' : ''}, so the facts below are current: rely on them and do not re-read files only to confirm them. They cover where things are and how they connect, not the design of this change.\n\n${r.text}${more}\n</thinker-cache>`;
+        const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
+        const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify.\n\n${r.text}${more}\n</thinker-cache>`;
         if (client === 'cursor') parkPending(store.dir, session, text);
         else out(promptOutput(client, text));
       } else if (pos[0] === 'tool') {
@@ -243,7 +245,13 @@ async function main() {
           fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '');
           if (p && !mcpCall) parts.push(p);
         }
-        if (client === 'claude' || flags.late) { const r = lateNotes(store, { session, files: toolFiles(ev, repo) }); if (r.text) parts.push(r.text); }
+        if (client === 'claude' || flags.late) {
+          const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
+          // an edit tool, or a shell command that writes a file in place
+          const edited = name === 'Edit' || name === 'Write' || (name === 'Bash' && /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/.test(command));
+          const r = lateNotes(store, { session, files: toolFiles(ev, repo), edited });
+          if (r.text) parts.push(r.text);
+        }
         if (parts.length) out(toolOutput(client, parts.join('\n\n')));
       } else if (pos[0] === 'stop') {
         if (!store.exists()) break;

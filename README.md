@@ -70,15 +70,13 @@ the cache and graded by Claude Fable.
 
 | per task | without thinker | with thinker | change |
 |---|---|---|---|
-| Correctness score | 0.82 | 0.79 | -3% |
-| Every essential criterion met | 6 of 14 | 7 of 14 | +1 |
-| Thoroughness | 0.38 | 0.31 | -19% |
-| **Input tokens, uncached** | 0.86M | **0.77M** | **-10%** |
-| **Input tokens, cached** | 16.6M | **14.8M** | **-11%** |
-| **Output tokens** | 99k | **92k** | **-7%** |
-| **Tool calls** | 145.8 | **134.3** | **-8%** |
-| **Time** | 14.9 min | **13.7 min** | **-8%** |
-| Cost | not measured | not measured | |
+| Correctness (essential criteria) | 51.8% | **52.2%** | **+0.4%** |
+| Every essential criterion met | 5 of 14 | 5 of 14 | parity |
+| **Tool calls** | 142.7 | **111.1** | **-22.2%** |
+| **File reads** | 70.3 | **51.5** | **-26.7%** |
+| **Output tokens** | 98.1k | **76.9k** | **-21.7%** |
+| **Time** | 13.1 min | **11.9 min** | **-8.5%** |
+| **Cost** | $0.416 | **$0.348** | **-16.4%** |
 
 Method, uncertainty, per-task results and other models:
 [bench/RESULTS.md](bench/RESULTS.md).

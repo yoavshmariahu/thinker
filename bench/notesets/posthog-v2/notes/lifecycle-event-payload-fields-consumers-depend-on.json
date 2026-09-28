@@ -52,11 +52,11 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 21,
+  "uses": 22,
   "related": [
     "error-tracking-issue-writes-which-mutations-emit-lifecycle-e"
   ],
-  "lastUsed": "2026-09-27T21:00:53.373Z",
+  "lastUsed": "2026-09-28T01:47:54.566Z",
   "servedIn": [
     "5eebb144-500a-4ee7-b484-68f19134555f",
     "bada6a04-90ca-402b-b4a8-ac0932a722e5",

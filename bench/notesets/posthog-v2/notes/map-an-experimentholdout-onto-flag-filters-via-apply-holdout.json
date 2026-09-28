@@ -47,7 +47,7 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 28,
+  "uses": 29,
   "related": [
     "experiment-metric-identity-uuid-vs-config-fingerprint",
     "uniqueness-constraints-for-experiment-metrics-and-results"
@@ -78,5 +78,5 @@
     "probe-PR106564-hard",
     "probe-PR106564-hard"
   ],
-  "lastUsed": "2026-09-27T21:00:44.578Z"
+  "lastUsed": "2026-09-27T21:50:55.628Z"
 }

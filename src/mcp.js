@@ -6,6 +6,7 @@ import { z } from 'zod';
 import fs from 'node:fs';
 import { Store, findRepoRoot } from './store.js';
 import { orient, lookup, createNote, feedback, KINDS } from './ops.js';
+import { CACHE_USAGE_GUIDE, CACHE_LEARNING_GUIDE, MORE_NOTES_INTRO } from './cache-guidance.js';
 
 const repo = findRepoRoot(process.env.THINKER_REPO || process.cwd());
 // THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
@@ -14,7 +15,7 @@ const off = process.env.THINKER_MCP === 'off';
 const store = off ? null : new Store(repo).init();
 
 const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : {
-  instructions: `thinker is a cache of distilled understanding about this repository (${repo}), written by previous agent sessions and humans. Call \`orient\` FIRST, before any grep/read, whenever you start a task in this repo: it returns notes about where things live, call paths, what must change together, how to build/test, and non-obvious rules. Notes come with file:symbol pointers so you can jump straight to the code. Notes flagged STALE had their dependencies change since verification; confirm them against the code. When you finish figuring something out that took several tool calls (a call path, a location, a co-change rule, a build/test recipe, a gotcha, a "why"), call \`remember\` so the next session can skip that work.`,
+  instructions: `thinker is a cache of notes about this repository (${repo}) from earlier sessions and humans.\n\n${CACHE_USAGE_GUIDE}\n\n${CACHE_LEARNING_GUIDE}`,
 });
 
 const register = off ? () => {} : server.registerTool.bind(server);
@@ -27,7 +28,7 @@ const guide = (() => { try { return process.env.THINKER_ORIENT_GUIDE ? fs.readFi
 
 register('orient', {
   title: 'Orient in this repo',
-  description: 'Call this first when starting a task in this repository. Returns cached, verified notes relevant to the task (locations, call paths, co-change rules, build/test recipes, conventions, gotchas) with file:symbol pointers, packed into a token budget. Prefer following these pointers over grepping from scratch. Notes marked STALE need confirmation against the current code.',
+  description: 'Call once at the start of a task unless a thinker-cache bundle for this request is already present. Returns notes with file:symbol pointers. Call again only for a distinct task part the first result missed; confirm STALE claims against code.',
   inputSchema: {
     task: z.string().optional().default('').describe('What you are about to do, in one or two sentences (the user request is fine).'),
     file: z.string().optional().describe('Path of the file you are currently in or about to edit, if known.'),
@@ -38,14 +39,14 @@ register('orient', {
   // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
   const r = await orient(store, { task, file, budget: budget || 1000, ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
   if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Explore normally, then call remember with what you learn.`);
-  const more = r.more?.length ? `\n\nAlso in the cache, not shown. Call lookup with the id before searching for what the title covers:\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
+  const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
   const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
   return text(guide ? `${guide}\n\n<thinker-cache>\n${notes}\n</thinker-cache>` : notes);
 });
 
 register('lookup', {
   title: 'Look up cached knowledge',
-  description: 'Ask the cache a specific question mid-task, e.g. "what do we know about the session middleware" or "how are migrations run". Returns matching notes with pointers. Cheaper than grepping when the answer has been learned before.',
+  description: 'Use for one specific unanswered question, or a listed note id that directly covers it. Do not fetch every title returned by orient. If no note answers the question, search the code.',
   inputSchema: {
     query: z.string().describe('The question or topic, or a note id listed by orient.'),
     budget: z.number().int().min(200).max(8000).optional(),

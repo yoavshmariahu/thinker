@@ -68,7 +68,7 @@
   "verified": "2026-09-27T00:25:58.997Z",
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.85,
-  "status": "fresh",
+  "status": "stale",
   "uses": 7,
   "related": [
     "chunk-map-file-and-preload-manifest",
@@ -85,5 +85,19 @@
     "01de268d-b79f-4536-878a-05cd626d33e6",
     "14bdd8ea-719f-4bca-937b-f2b36407619a"
   ],
-  "lastUsed": "2026-09-27T01:03:24.986Z"
+  "lastUsed": "2026-09-27T01:03:24.986Z",
+  "stale": {
+    "since": "2026-09-27T22:01:53.530Z",
+    "changed": [
+      {
+        "path": "frontend/build.mjs",
+        "reason": "file changed"
+      },
+      {
+        "path": "common/esbuilder/utils.mjs",
+        "symbol": "copyIndexHtml",
+        "reason": "symbol body changed"
+      }
+    ]
+  }
 }

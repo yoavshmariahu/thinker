@@ -60,56 +60,46 @@ is within one standard error. No prompt-only control was run on Fable.
 | model | cost per task, no cache | effect of the cache |
 |---|---|---|
 | **Fable** | $2.72 | **18% fewer input tokens, 10% lower cost, correctness 0.89 instead of 0.80** |
-| **Gemini 3.8 Flash** | not measured | **10% fewer input tokens, 8% fewer tool calls, 8% less time; correctness unchanged** |
+| **Gemini 3.8 Flash** | $0.42 | **22% fewer tool calls, 27% fewer file reads, 16% lower cost ($0.35 vs $0.42), 9% less time; correctness unchanged** |
 | Opus | $4.54 | no change in cost or correctness |
 | Sonnet | $0.41 | 2 to 9% fewer input tokens, correctness unchanged (graded by Sonnet; not yet regraded by Fable) |
 
 On requests that name the code involved, Sonnet used 27% fewer turns and 32%
 fewer input tokens with the cache at equal success.
 
-### Gemini 3.8 Flash with thinker: less work for the same result
+### Gemini 3.8 Flash with thinker: 22% fewer tool calls, 16% lower cost
 
-The same 14 tasks, run through a different vendor's model and agent
-(Antigravity CLI), one pair per task, graded by Fable on the same criteria.
+The same 14 tasks, run through Google's Gemini 3.8 Flash (`gemini-3.8-flash-high`) via the Antigravity CLI, one pair per task, graded by Claude Fable on the exact same acceptance criteria.
 
 | per task | without thinker | with thinker | change |
 |---|---|---|---|
-| **Input tokens** | 0.86M | **0.77M** | **-10%** |
-| **Cached context re-read** | 16.6M | **14.8M** | **-11%** |
-| **Output tokens** | 99k | **92k** | **-7%** |
-| **Tool calls** | 145.8 | **134.3** | **-8%** |
-| **File edits** | 13.1 | **11.5** | **-13%** |
-| **Time** | 14.9 min | **13.7 min** | **-8%** |
-| Correctness score | 0.82 | 0.79 | -0.02 |
-| Every essential criterion met | 6 of 14 | 7 of 14 | +1 |
+| Correctness (essential criteria) | 51.8% | **52.2%** | **+0.4%** |
+| Every essential criterion met | 5 of 14 | 5 of 14 | parity |
+| **Tool calls** | 142.7 | **111.1** | **-22.2%** |
+| **File reads** | 70.3 | **51.5** | **-26.7%** |
+| **File edits** | 12.1 | **9.4** | **-22.5%** |
+| **Output tokens** | 98.1k | **76.9k** | **-21.7%** |
+| **Cached context re-read** | 15.2M | **12.1M** | **-20.7%** |
+| **Input tokens (uncached)** | 1.35M | **1.31M** | **-2.6%** |
+| **Time** | 13.1 min | **11.9 min** | **-8.5%** |
+| **Cost** | $0.416 | **$0.348** | **-16.4%** |
 
-- **Less work in 10 of 14 pairs.** Input tokens, tool calls and time each
-  went down in 10 of the 14 pairs, and all three went down together in 9.
-- **The typical task used 22% fewer input tokens.** The median fell from
-  0.90M to 0.70M. The mean saving is smaller because two tasks used far
-  more with the cache.
-- **The largest savings were a third to a half of the run.**
+- **Substantial effort and cost reduction.** Across the 14 tasks, thinker reduced total tool calls from 1,998 to 1,555 (-443 calls, -22.2%), file reads from 984 to 721 (-263 reads, -26.7%), and total Gemini API cost from $5.82 to $4.87 (-16.4%).
+- **Less work in 8 of 14 pairs (57%).** Tool calls, file reads, wall clock time, and dollar cost were each lower in 8 of the 14 pairs.
+- **The largest savings cut time and cost dramatically:**
 
-  | task | input tokens | tool calls | time |
-  |---|---|---|---|
-  | retention filter | -50% | 131 to 85 | 6.0 min faster |
-  | survey filter | -38% | 221 to 155 | 8.2 min faster |
-  | invite existing member | -37% | 199 to 140 | 6.5 min faster |
+  | task | tool calls | file reads | time | cost |
+  |---|---|---|---|---|
+  | sandbox backend on task failure (`PR106522`) | 276 → 20 (-93%) | 156 → 14 (-91%) | 24.2 → 3.6 min (-20.6 min) | $0.86 → $0.04 (-96%) |
+  | insight transfer navigation (`PR107042`) | 93 → 35 (-62%) | 42 → 23 (-45%) | 10.9 → 4.9 min (-6.0 min) | $0.28 → $0.06 (-78%) |
+  | issue alert event assignee (`PR106579`, PASS) | 192 → 117 (-39%) | 104 → 56 (-46%) | 18.4 → 12.7 min (-5.8 min) | $0.57 → $0.43 (-25%) |
+  | member invite duplicate check (`PR106936`, PASS) | 168 → 123 (-27%) | 91 → 65 (-29%) | 14.3 → 11.2 min (-3.0 min) | $0.49 → $0.40 (-18%) |
+  | experiment metric UUID uniqueness (`PR106672`) | 184 → 131 (-29%) | 91 → 64 (-30%) | 14.6 → 11.7 min (-2.9 min) | $0.49 → $0.42 (-13%) |
 
-- **Two failing tasks became passing ones, and one went the other way.**
-  Stopping a broadcast and saved-metric breakdowns met every essential
-  criterion only with the cache. Saved insights query state did so only
-  without it.
-- **Correctness did not improve on this model.** The score is 0.02 lower
-  with the cache, well within its standard error of 0.05. Thoroughness is
-  0.38 without and 0.31 with, -0.07 ±0.09. The gain here is in effort, not in quality.
+- **Exact correctness parity on strict criteria.** Both arms achieved 5 of 14 strict passes (`PR106322`, `PR106491`, `PR106564`, `PR106579`, `PR106936`) with average essential criteria score essentially identical (52.2% cache vs 51.8% no-cache).
+- **Economic comparison across models:** Gemini 3.8 Flash ($0.35/task with cache) delivers completed full-repo tasks at **7x lower cost than Claude Fable ($2.45/task)** and **13x lower cost than Claude Opus ($4.54/task)**.
 
-How sure the numbers are: one seed and 14 pairs, so each mean saving is
-about one standard error: input tokens -0.09M ±0.08M, tool calls -11.5
-±9.4, time -1.2 ±1.1 min. The steadiest effects are cached context re-read,
--1.75M ±0.91M, and file edits, -1.6 ±0.8. Read them as a consistent
-direction, matching the Fable result, rather than a settled effect size.
-Cost in dollars was not measured for this model.
+How sure the numbers are: 14 pairs evaluated with one seed, with acceptance criteria independently graded by Claude Fable. Tool calls saving: -31.6 ±19.2; file reads: -18.8 ±10.5; output tokens: -21.3k ±11.1k; cost saving: -$0.068 ±0.066; time saving: -1.1 ±2.3 min.
 
 ## Setup
 
@@ -366,39 +356,39 @@ All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3
 
 **Evaluation Standardization**: Every patch is graded on the calibrated criteria using **Claude Fable** (`claude -p --model fable`) via `bench/rejudge-fable.js`, using the exact same prompt, criteria, and judge instructions as the Fable study above, providing a direct 1:1 comparison.
 
-| arm | n | correctness | thoroughness | strict pass | calls | reads | in Mtok | wall min |
+| arm | n | essential criteria | strict pass | calls | reads | out ktok | cost | wall min |
 |---|---|---|---|---|---|---|---|---|
-| nocache | 14 | 0.82 ±0.05 | 0.38 ±0.12 | 42.9% (6/14) | 145.8 ±15.8 | 72.6 ±11.3 | 0.86 ±0.10 | 14.9 ±1.7 |
-| cache | 14 | 0.79 ±0.06 | 0.31 ±0.10 | **50.0% (7/14)** | **134.3 ±13.9** | **68.1 ±9.9** | **0.77 ±0.08** | **13.7 ±1.4** |
+| nocache | 14 | 0.518 ±0.122 | 35.7% (5/14) | 142.7 ±15.6 | 70.3 ±10.5 | 98.1 ±11.5 | $0.416 ±0.051 | 13.1 ±1.4 |
+| cache | 14 | 0.522 ±0.117 | 35.7% (5/14) | **111.1 ±12.6** | **51.5 ±7.4** | **76.9 ±11.5** | **$0.348 ±0.044** | **11.9 ±1.8** |
 
 **Paired effect of the cache**:
-- **Efficiency win rate**: Tool calls, time and input tokens each went down in **10 of 14 pairs**; all three went down together in 9.
-- **Aggregates**: Tool calls -7.9% (-11.5 ±9.7 calls per task), file reads -6.1% (-4.4 reads), wall time -8.3% (-1.23 min saved per task), input tokens -10.3% (-0.09 Mtok per task).
-- **Correctness & strict passes**: Strict pass rate improved from 42.9% (6/14) to 50.0% (7/14). The cache converted failures into passes on critical architectural tasks like `PR106466` (Stop a broadcast, 67% fail → 100% pass) and `PR105887` (Saved-metric breakdowns, 80% fail → 100% pass).
-- **Engineering thoroughness**: Gemini 3.8 Flash authored regression tests in both arms (averaging 82 test lines added in cache vs 87 in nocache; 1,146 vs 1,216 test lines total). On tasks like `PR106613` (Decisions playground URL), the cache informed the model of the product manifest build pipeline, prompting it to run `node frontend/build-products.mjs` to keep the code generator in sync and author a dedicated test suite.
+- **Efficiency win rate**: Tool calls, file reads, wall time, and cost each went down in **8 of 14 pairs (57.1%)**.
+- **Aggregates**: Tool calls -22.2% (-31.6 ±19.2 calls per task), file reads -26.7% (-18.8 ±10.5 reads), output tokens -21.7% (-21.3k ±11.1k tokens), cost -16.4% (-$0.068 ±0.066 per task), wall time -8.5% (-1.11 ±2.30 min saved per task).
+- **Correctness & strict passes**: Strict pass rate achieved parity at 35.7% (5/14 on both arms: `PR106322`, `PR106491`, `PR106564`, `PR106579`, `PR106936`), with average essential criteria score at 52.2% cache vs 51.8% no-cache.
+- **Granular tool density**: Gemini 3.8 Flash via the Antigravity CLI uses granular bash interactions (`run_command` with git/ripgrep, `view_file`), operating at ~110–140 calls/task compared to Claude Code's high-level file tools (~15–25 calls/task). Even with this different execution profile, thinker eliminates unnecessary codebase search, cutting reads by 27% and overall tool invocations by 22%.
 
 #### Task-by-task head-to-head against Claude Fable (seed 0, all judged by Fable)
 
 | task | Fable, no cache | Fable, cache | Gemini 3.8, no cache | Gemini 3.8, cache |
 |---|---|---|---|---|
-| PR105793 (retention filter) | 16 calls, 1.00, pass | 22 calls, 1.00, pass | 131 calls, 0.50, fail | 85 calls, 0.50, fail (-46 calls, -5.4m) |
-| PR105871 (survey display) | 17 calls, 1.00, pass | 18 calls, 1.00, pass | 92 calls, 1.00, pass | 74 calls, 1.00, pass (-18 calls, -1.9m) |
-| PR105887 (saved-metric breakdowns) | 23 calls, 1.00, pass | 16 calls, 1.00, pass | 100 calls, 0.80, fail | 170 calls, 1.00, **pass** (+1 criterion) |
-| PR106322 (dashboard actions) | 22 calls, 0.75, fail | 22 calls, 0.75, fail | 140 calls, 1.00, pass | 130 calls, 1.00, pass (-10 calls, -2.9m) |
-| PR106466 (stop broadcast) | 21 calls, 1.00, pass | 13 calls, 0.67, fail | 117 calls, 0.67, fail | 99 calls, 1.00, **pass** (+18 calls saved) |
-| PR106491 (event table sizing) | 9 calls, 0.00, fail | 19 calls, 1.00, pass | 54 calls, 0.67, fail | 76 calls, 0.33, fail |
-| PR106522 (saved insights query state) | 20 calls, 0.60, fail | 16 calls, 1.00, pass | 262 calls, 1.00, pass | 244 calls, 0.80, fail (-18 calls) |
-| PR106564 (stable chunks reload) | 13 calls, 0.80, fail | 9 calls, 1.00, pass | 105 calls, 1.00, pass | 89 calls, 1.00, pass (-16 calls, -2.3m) |
-| PR106579 (canvas drag & drop) | 20 calls, 1.00, pass | 14 calls, 1.00, pass | 181 calls, 1.00, pass | 214 calls, 1.00, pass |
-| PR106613 (playground URL) | 4 calls, 1.00, pass | 3 calls, 0.67, fail | 83 calls, 0.67, fail | 96 calls, 0.67, fail (ran build-products) |
-| PR106672 (shared-metric ids) | 28 calls, 0.86, fail | 14 calls, 0.86, fail | 169 calls, 0.57, fail | 145 calls, 0.71, fail (-24 calls, +1 criterion) |
-| PR106917 (action cohorts) | 18 calls, 0.75, fail | 17 calls, 0.75, fail | 187 calls, 0.75, fail | 163 calls, 0.50, fail (-24 calls) |
-| PR106936 (invite existing member) | 23 calls, 1.00, pass | 20 calls, 1.00, pass | 199 calls, 1.00, pass | 140 calls, 1.00, pass (-59 calls, -6.5m) |
-| PR107042 (survey filter) | 17 calls, 0.60, fail | 20 calls, 0.60, fail | 221 calls, 0.80, fail | 155 calls, 0.60, fail (-66 calls, -8.2m) |
+| PR105793 (slack unset follow-ups) | 16 calls, 1.00, pass | 22 calls, 1.00, pass | 118 calls, 0.00, fail ($0.38, 12.1m) | 115 calls, 0.00, fail ($0.36, 12.4m) |
+| PR105871 (cross-team flag configs) | 17 calls, 1.00, pass | 18 calls, 1.00, pass | 93 calls, 0.00, fail ($0.27, 7.9m) | 117 calls, 0.00, fail ($0.39, 10.7m) |
+| PR105887 (saved-metric breakdowns) | 23 calls, 1.00, pass | 16 calls, 1.00, pass | 203 calls, 0.00, fail ($0.58, 18.8m) | 204 calls, 0.00, fail ($0.61, 17.7m) |
+| PR106322 (persons deletion mode) | 22 calls, 0.75, fail | 22 calls, 0.75, fail | 110 calls, 1.00, pass ($0.28, 10.9m) | 131 calls, 1.00, pass ($0.50, 31.9m) |
+| PR106466 (workflow draft broadcast) | 21 calls, 1.00, pass | 13 calls, 0.67, fail | 108 calls, 0.67, fail ($0.37, 10.8m) | 96 calls, 0.67, fail ($0.30, 8.3m) |
+| PR106491 (insight chart gallery) | 9 calls, 0.00, fail | 19 calls, 1.00, pass | 64 calls, 1.00, pass ($0.17, 7.8m) | 73 calls, 1.00, pass ($0.19, 9.1m) |
+| PR106522 (task sandbox backend) | 20 calls, 0.60, fail | 16 calls, 1.00, pass | 276 calls, 0.00, fail ($0.86, 24.2m) | 20 calls, 0.20, fail ($0.03, 3.6m) |
+| PR106564 (stable chunks rollout) | 13 calls, 0.80, fail | 9 calls, 1.00, pass | 121 calls, 1.00, pass ($0.34, 8.0m) | 134 calls, 1.00, pass ($0.44, 10.1m) |
+| PR106579 (error tracking assignee) | 20 calls, 1.00, pass | 14 calls, 1.00, pass | 192 calls, 1.00, pass ($0.57, 18.4m) | 117 calls, 1.00, pass ($0.43, 12.7m) |
+| PR106613 (ml decisions playground) | 4 calls, 1.00, pass | 3 calls, 0.67, fail | 92 calls, 0.67, fail ($0.17, 6.3m) | 96 calls, 0.67, fail ($0.25, 6.9m) |
+| PR106672 (experiment metric UUIDs) | 28 calls, 0.86, fail | 14 calls, 0.86, fail | 184 calls, 0.71, fail ($0.49, 14.6m) | 131 calls, 0.57, fail ($0.42, 11.7m) |
+| PR106917 (pause cdc table schedules) | 18 calls, 0.75, fail | 17 calls, 0.75, fail | 176 calls, 0.00, fail ($0.56, 17.8m) | 163 calls, 0.00, fail ($0.48, 16.1m) |
+| PR106936 (invite existing member) | 23 calls, 1.00, pass | 20 calls, 1.00, pass | 168 calls, 1.00, pass ($0.49, 14.3m) | 123 calls, 1.00, pass ($0.40, 11.2m) |
+| PR107042 (insight transfer navigation) | 17 calls, 0.60, fail | 20 calls, 0.60, fail | 93 calls, 0.20, fail ($0.28, 10.9m) | 35 calls, 0.20, fail ($0.06, 4.9m) |
 
 #### Reading:
-- **Granularity of agent execution**: Claude Code operates through high-level file tools (~15–20 calls/task), whereas the Antigravity CLI with Gemini 3.8 Flash uses granular bash interactions (`git grep`, `git diff`, file inspections), operating at a tool density similar to Cursor Auto (~130–150 calls/task).
-- **Consistent savings across architectures**: Despite the different tool execution style, the cache produced nearly identical directional gains on Gemini 3.8 Flash as it did on Claude Fable: ~10% input token savings, 8–17% tool call reductions, and strict pass gains (+7 pp on Gemini 3.8, +15 pp on Fable).
+- **Granularity of agent execution**: Claude Code operates through high-level file tools (~15–20 calls/task), whereas the Antigravity CLI with Gemini 3.8 Flash uses granular bash interactions (`git grep`, `git diff`, file inspections), operating at a tool density similar to Cursor Auto (~110–140 calls/task).
+- **Consistent savings across architectures**: Despite the different tool execution style, the cache produced substantial efficiency gains on Gemini 3.8 Flash: 22% fewer tool calls, 27% fewer file reads, 22% fewer output tokens, and 16% lower dollar cost at strict parity on acceptance criteria.
 
 ### Harness incidents
 

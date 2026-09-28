@@ -186,9 +186,9 @@ export function specificity(repo, task) {
   return n;
 }
 
-// Room for the two notes a prompt hook serves, each in full: a body of up to 12 lines and its pointers.
-// Below this the second note is cut to its first line, and the agent works the rest out again.
-export const HOOK_BUDGET = 1500;
+// Tokens of notes a prompt hook serves. A note that does not fit is cut to its first line and its
+// pointers; on PostHog two long notes need about 1500 to be served in full.
+export const HOOK_BUDGET = 750;
 
 // early: 'full' (notes with prose), 'pointers' (titles + anchors only),
 // 'auto' (full when the request names code that exists, else pointers), 'none'.
@@ -275,29 +275,61 @@ export function attest(store, assessments, { session } = {}) {
 }
 
 // --- late, file-keyed injection ---------------------------------------------
-// Notes that depend on files the agent just opened, each served once per
-// session. Rules about the code (invariant, gotcha, convention, cochange,
-// rationale, fix) come before maps of it.
+// Rules about files the agent is changing (invariant, gotcha, convention, cochange),
+// served when it edits them: each once per session, and only those that bear on the
+// request. `on: 'read'` (THINKER_LATE=read) serves any note on a file as soon as the
+// agent opens it, rules before maps of the code; an agent that gets those after every
+// read was seen to read in smaller steps and make more calls.
+const RULE_KINDS = ['invariant', 'gotcha', 'convention', 'cochange'];
 const LATE_PRIORITY = { invariant: 0, gotcha: 1, convention: 2, cochange: 3, fix: 4, rationale: 5, howto: 6, callpath: 7, location: 8, overview: 9 };
 function sessionState(store, session) {
   const f = path.join(store.dir, 'state', `session-${String(session).replace(/[^\w-]/g, '')}.json`);
   let st = { late: [], nudged: false }; try { st = { ...st, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch {}
   return { st, save: () => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(st)); } };
 }
-export function lateNotes(store, { session, files, perEvent = 2, perSession = 5 }) {
+// Hooks of one session can run at the same moment. Unlocked, two of them read the same
+// state and both serve, which is how a session got past its limit of late notes.
+function locked(store, session, fn) {
+  const lock = path.join(store.dir, 'state', `session-${String(session).replace(/[^\w-]/g, '')}.lock`);
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  const wait = new Int32Array(new SharedArrayBuffer(4));
+  for (const until = Date.now() + 3000; ;) {
+    try { fs.mkdirSync(lock); break; } catch (e) { if (e.code !== 'EEXIST' || Date.now() > until) break; } // a lock this old was left by a hook that died
+    Atomics.wait(wait, 0, 0, 25);
+  }
+  try { return fn(); } finally { try { fs.rmdirSync(lock); } catch {} }
+}
+// The request of a session, kept for the hooks that run later in it and are not given it
+export function rememberTask(store, session, task) {
+  if (!session || !String(task || '').trim() || !store.exists()) return;
+  locked(store, session, () => { const { st, save } = sessionState(store, session); st.task = String(task).slice(0, 2000); save(); });
+}
+export function lateNotes(store, { session, files, edited = false, on = process.env.THINKER_LATE === 'read' ? 'read' : 'edit', perEvent = 2, perSession = on === 'read' ? 5 : 3, minRel = 0.35 }) {
+  if (on === 'edit' && !edited) return { text: '', included: [] };
   const rel = [...new Set((files || []).map(f => normPath(store.repo, f)).filter(Boolean))];
   if (!rel.length) return { text: '', included: [] };
+  return locked(store, session, () => lateLocked(store, { session, rel, on, perEvent, perSession, minRel }));
+}
+function lateLocked(store, { session, rel, on, perEvent, perSession, minRel }) {
   const { st, save } = sessionState(store, session);
   if (st.late.length >= perSession) return { text: '', included: [] };
   let notes = store.list().filter(n => n.status !== 'invalid' && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
+  if (on === 'edit') {
+    notes = notes.filter(n => RULE_KINDS.includes(n.kind));
+    // relevance is measured among all notes: among these few the best one would always score 1
+    if (st.task && notes.length) { const score = new Map(rank(store.list(), { query: st.task, mode: 'lookup' }).map(r => [r.note.id, r.rel])); notes = notes.filter(n => (score.get(n.id) || 0) >= minRel); }
+  }
   if (!NAIVE) notes = refresh(store, notes);
   notes.sort((a, b) => (LATE_PRIORITY[a.kind] ?? 9) - (LATE_PRIORITY[b.kind] ?? 9) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7));
   const pick = notes.slice(0, Math.min(perEvent, perSession - st.late.length));
   if (!pick.length) return { text: '', included: [] };
   for (const n of pick) { st.late.push(n.id); n.uses = (n.uses || 0) + 1; n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   save();
-  const text = `<thinker-cache>\nCached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>`;
-  store.log({ op: 'late', session, files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
+  const intro = on === 'edit'
+    ? `Rules from previous sessions about code you are changing (${rel.join(', ')}). Check the change against them; they do not call for more reading.`
+    : `Cached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.`;
+  const text = `<thinker-cache>\n${intro}\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>`;
+  store.log({ op: 'late', on, session, files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
   return { included: pick, text };
 }
 

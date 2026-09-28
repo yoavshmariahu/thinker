@@ -38,11 +38,11 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 19,
+  "uses": 20,
   "related": [
     "guards-must-not-depend-on-insightscenelogic-insightlogicref-"
   ],
-  "lastUsed": "2026-09-27T21:00:54.505Z",
+  "lastUsed": "2026-09-28T02:03:25.515Z",
   "servedIn": [
     "probe1",
     "1fac1cf0-9f8e-4c80-ae03-e7c1edf0c78a",

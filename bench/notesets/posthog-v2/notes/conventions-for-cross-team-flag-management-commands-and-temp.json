@@ -52,12 +52,12 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.75,
   "status": "fresh",
-  "uses": 21,
+  "uses": 22,
   "related": [
     "how-cross-team-flag-jobs-iterate-commands-and-temporal-healt",
     "gotcha-stale-flags-health-check-and-featureflagstatuschecker"
   ],
-  "lastUsed": "2026-09-27T21:00:51.224Z",
+  "lastUsed": "2026-09-28T01:20:58.068Z",
   "servedIn": [
     "08696bb9-9b76-4e26-aeda-ffbfe1cdf640",
     "7963fd21-bd15-4e41-8e3c-274cd2823351",
