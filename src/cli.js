@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
-import { orient, HOOK_BUDGET, rememberTask, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
+import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
 import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs } from './prs.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
@@ -57,6 +57,8 @@ const HELP = `thinker — knowledge cache for coding agents
   cochange [file]                mine co-change edges from git history / show partners of a file
   relink                         recompute cross-note links
   verify [ids...] [--model m]    re-verify stale notes with a small model
+  phrase [ids...] [--model m] [--force]
+                                 add to each note how a user would put it, in the words of the product (for retrieval)
   distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--dry] [--model m]
                                  turn a session into notes; reads any of these agents' transcripts, or a plain event trace
   learn [--days n] [--max n] [--idle-min n] [--prs [n]] [--dry]
@@ -185,6 +187,23 @@ async function main() {
         out(`${stale.length}/${notes.length} notes stale`);
       }
       if (flags.verify && stale.length) await verifyAll(stale);
+      break;
+    }
+    case 'phrase': {
+      // how a user would put what each note is about; notes that have it for their present text are left (--force)
+      let notes = store.list().filter(n => n.status !== 'invalid' && (!pos.length || pos.includes(n.id)));
+      if (!flags.force) notes = notes.filter(n => !n.says?.length || n.saysFor !== phraseKey(n));
+      const per = 8, conc = Number(flags.conc) || 4;
+      const groups = []; for (let i = 0; i < notes.length; i += per) groups.push(notes.slice(i, i + per));
+      let n = 0, cost = 0;
+      await Promise.all(Array.from({ length: conc }, async () => {
+        while (groups.length) {
+          const g = groups.shift();
+          try { const r = await phraseNotes(store, g, { model: flags.model }); n += r.done.length; cost += r.cost || 0; }
+          catch (e) { out(`phrase: ${g.length} notes skipped (${String(e.message).slice(0, 120)})`); }
+        }
+      }));
+      out(`phrasings written for ${n} of ${notes.length} notes${cost ? ` ($${cost.toFixed(2)})` : ''}`);
       break;
     }
     case 'verify': {

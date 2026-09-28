@@ -89,3 +89,14 @@ test('orient with a caller budget: more notes, links add, the rest is listed; lo
   assert.ok(two.more.length >= 1 && two.more.every(n => !two.included.some(i => i.id === n.id)));
   assert.deepEqual(lookup(store, { query: two.more[0].id }).included.map(n => n.id), [two.more[0].id]);
 });
+
+test('phrasings of a note count on its question side', async () => {
+  const { rank } = await import('../src/rank.js');
+  const filler = Array.from({ length: 10 }, (_, i) => ({ id: 'f' + i, title: `Widget ${i} storage layout`, kind: 'location', answers: [`where widget ${i} is stored`], body: `widget ${i} rows are kept in table${i}`, deps: [{ path: `src/w${i}.py` }], confidence: 0.9, status: 'fresh' }));
+  const note = { id: 'panel', title: 'setScenePanelOpen is not reset by duplicateInsight', kind: 'gotcha', answers: ['scene panel state after duplicate'], body: 'duplicateInsight redirects to the copy and leaves the actions sidebar open over the new chart', deps: [{ path: 'src/insightLogic.ts' }], confidence: 0.9, status: 'fresh' };
+  const other = { id: 'chart', title: 'Chart legend is drawn after the series', kind: 'gotcha', answers: ['why is the chart legend open on a new chart'], body: 'the legend of a chart stays open over the series of the new chart until the sidebar is drawn', deps: [{ path: 'src/legend.ts' }], confidence: 0.9, status: 'fresh' };
+  const request = 'After I copy a chart on my phone the actions sidebar stays open over the new chart and hides it';
+  assert.equal(rank([note, other, ...filler], { query: request })[0].note.id, 'chart');
+  const said = { ...note, says: ['The actions sidebar stays open after copying a chart', 'Side menu hides the new chart on a phone'] };
+  assert.equal(rank([said, other, ...filler], { query: request })[0].note.id, 'panel');
+});

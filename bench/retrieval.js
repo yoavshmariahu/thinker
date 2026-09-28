@@ -19,7 +19,7 @@ const opt = n => { const i = argv.indexOf('--' + n); return i < 0 ? null : argv.
 // notesets and repos that are not checked in live in another checkout
 const ASSETS = opt('assets') || process.env.BENCH_ASSETS || HERE;
 const VERBOSE = !!flag('verbose'), JSON_OUT = !!flag('json');
-const at = p => [path.join(HERE, p), path.join(ASSETS, p)].find(f => fs.existsSync(f));
+const at = p => [path.join(ASSETS, p), path.join(HERE, p)].find(f => fs.existsSync(f));
 const SETS = {
   grafana: ['tasks/grafana-hard.json', 'notesets/grafana-v1/notes'],
   mitmproxy: ['tasks/mitmproxy-hard.json', 'repos/mitmproxy/.thinker/notes'],

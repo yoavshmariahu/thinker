@@ -421,6 +421,31 @@ export function lookup(store, { query, budget = 2500 }) {
   return packed;
 }
 
+// --- phrasings ------------------------------------------------------------------
+// Notes are written in the words of the code; a request is written in the words of the product
+// ("the sidebar stays open", not setScenePanelOpen). Ranking matches words, so each note gets a
+// few lines of how a user would put it. They come from the note alone, never from a request.
+const PHRASE_SCHEMA = { type: 'object', properties: { notes: { type: 'array', items: { type: 'object', properties: { n: { type: 'number' }, says: { type: 'array', items: { type: 'string' } } }, required: ['n', 'says'] } } }, required: ['notes'] };
+export const phraseKey = n => `${n.title}\n${n.body}`.length + ':' + slugify(n.title).slice(0, 24);
+export async function phraseNotes(store, notes, { model, max = 5 } = {}) {
+  model = model || store.config().phraseModel || 'haiku';
+  const list = notes.map((n, i) => `[${i + 1}] kind=${n.kind}\n    title: ${n.title}\n    answers: ${(n.answers || []).slice(0, 4).join(' | ')}\n    files: ${(n.deps || []).slice(0, 5).map(d => d.path + (d.symbol ? ':' + d.symbol : '')).join(', ')}\n    body: ${String(n.body).slice(0, 700).replace(/\n/g, ' ')}`).join('\n\n');
+  const res = await complete({ model, schema: PHRASE_SCHEMA, maxTokens: 2500,
+    system: `You write search phrasings for notes about a codebase. Each note is written in the words of the code (function, file and type names). The people who will need it describe their problem in the words of the product: what they see on screen, what they clicked, what went wrong, what they want instead. For each note write up to ${max} short lines, each one a way a user or a product manager could report the fault or ask for the change that this note bears on.\nRules: plain product language, no identifiers, no file names; name the feature, screen or control as a user would call it; use different words in each line (synonyms, the symptom, the wish); 6 to 16 words per line; only what the note is really about, nothing generic such as "it does not work".`,
+    prompt: `NOTES:\n\n${list}\n\nReturn one entry per note, with its number as n.` });
+  const done = [];
+  for (const e of res.json?.notes || []) {
+    const n = notes[Number(e.n) - 1]; if (!n) continue;
+    const says = [...new Set((e.says || []).map(x => String(x).trim()).filter(x => x.length > 8))].slice(0, max);
+    if (!says.length) continue;
+    const cur = store.get(n.id) || n;
+    store.put({ ...cur, says, saysFor: phraseKey(cur) });
+    done.push(n.id);
+  }
+  store.log({ op: 'phrase', ids: done, cost: res.cost });
+  return { done, cost: res.cost };
+}
+
 function gitDiffFor(repo, fromCommit, paths) {
   if (!fromCommit) return '';
   try {

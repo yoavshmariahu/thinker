@@ -36,7 +36,8 @@ function stem(w) {
   return w;
 }
 
-function qText(n) { return [n.title, (n.answers || []).join(' '), (n.tags || []).join(' ')].join(' '); }
+// says: how a user would put it, in the words of the product (ops.js:phraseNotes)
+function qText(n) { return [n.title, (n.answers || []).join(' '), (n.tags || []).join(' '), (n.says || []).join(' ')].join(' '); }
 function bText(n) { return [(n.deps || []).map(d => `${d.path} ${d.symbol || ''}`).join(' '), n.body].join(' '); }
 
 function index(notes, textOf) {
