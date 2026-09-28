@@ -222,13 +222,60 @@ of relevance), `THINKER_RERANK=haiku`.
   `~/.codex`). In a terminal they ask first; `--yes` skips the question,
   `--no-trust` leaves it to you, and without a terminal nothing is marked
   unless `--yes` is given. The hook entry is the hash Codex 0.157 stores
-  (`clients.js:codexHookHash`); if a later Codex changes it, Codex asks for
-  the review as before. `uninstall` takes the hook entries out again.
+  (see [What Codex stores as trust](#what-codex-stores-as-trust)); if a later
+  Codex changes it, Codex asks for the review as before. `uninstall` takes the hook entries out again.
 - Cursor loads an MCP server only once it is approved; `setup` and `init`
   do that through Cursor's CLI when it is installed.
 - Gemini CLI also drives agent mode in Gemini Code Assist, which reads the
   same MCP configuration. Google AI Studio is a web app and cannot run local
   hooks or MCP servers, so it is not supported.
+
+### What Codex stores as trust
+
+Codex has no command for this and does not document the format. What follows
+was read from the `config.toml` that Codex 0.157 writes after a review in its
+own interface, and checked by running `codex exec` 0.157.1 on entries that
+thinker wrote. All of it is in Codex's own config (`$CODEX_HOME/config.toml`,
+by default `~/.codex/config.toml`), never in the repository.
+
+A trusted project is a table named by the real path of the repository:
+
+```toml
+[projects."/Users/me/src/repo"]
+trust_level = "trusted"
+```
+
+A reviewed hook is a table per handler:
+
+```toml
+[hooks.state."/Users/me/src/repo/.codex/hooks.json:user_prompt_submit:0:0"]
+trusted_hash = "sha256:6118…1471"
+```
+
+- The key is `<real path of hooks.json>:<event>:<group>:<handler>`: the event
+  in snake case (`UserPromptSubmit` is `user_prompt_submit`), then the index
+  of the group in the event's list and of the handler in the group's `hooks`,
+  both from 0. A hook that moves in the file needs a new entry.
+- The hash is SHA-256, in hex, of this JSON with no whitespace, keys in
+  alphabetical order, and `async` written out as `false` when the hook does
+  not set it:
+
+  ```json
+  {"event_name":"user_prompt_submit","hooks":[{"async":false,"command":"…","timeout":15,"type":"command"}]}
+  ```
+
+  So any change to the command or the timeout makes the entry void, and
+  Codex asks for a review again; `init` writes new entries when it is rerun.
+- Checked: handlers of type `command` with a `timeout` and no `matcher`,
+  which is what thinker writes, for `UserPromptSubmit`, `PostToolUse` and
+  `Stop`. Not known: how a `matcher`, a `statusMessage` or a missing
+  `timeout` enter the hash. `trustCodex` leaves a group with a `matcher`
+  alone, and hooks that are not thinker's are never marked.
+- `codex --dangerously-bypass-hook-trust` runs hooks without these entries
+  for one invocation; thinker does not use it.
+
+The code is `clients.js:codexHookHash` and `clients.js:trustCodex`; a hash
+that Codex stored is held in `test/clients.test.js`.
 
 ### Learning from any agent
 
