@@ -1,0 +1,56 @@
+{
+  "id": "list-s-store-scan-fallback-for-an-unindexed-field-filter-onl",
+  "title": "List's store-scan fallback for an unindexed field filter only applies on the first page",
+  "kind": "invariant",
+  "answers": [
+    "list with field selector fails or errors on the second page",
+    "pagination breaks after index rejects a selectable field filter",
+    "why isn't the store scan fallback happening for a later page",
+    "continue token error with field selectors"
+  ],
+  "body": "server.List (server.go) falls back from search to a full store scan when the search backend returns IsSelectableFieldNotIndexed(err), but server.searchForList (list_with_selectors.go) only triggers that fallback (returns errSearchCannotAnswerList) when req.NextPageToken == \"\". On a later page the token carries SearchAfter/SearchBefore positions from the search index that a store scan has no way to resume from, so the refusal error is passed straight to the caller instead. Any new 'search cannot answer this' case added to searchForList must keep the first-page-only condition or pagination correctness breaks.",
+  "applies": "pkg/storage/unified/resource/server.go List and pkg/storage/unified/resource/list_with_selectors.go searchForList",
+  "tags": [
+    "unified-storage",
+    "list",
+    "pagination",
+    "search-fallback"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "hash": "sha256:76032a33efe3e6ca99134b8a",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "searchForList",
+      "hash": "sha256:0d4343841a6a21c5e4a36a1e",
+      "line": 160,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "errSearchCannotAnswerList",
+      "hash": "sha256:cdf554839046db0d4e5372bf",
+      "line": 18,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133102"
+  },
+  "created": "2026-09-28T05:14:05.051Z",
+  "verified": "2026-09-28T05:14:05.051Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "list-continue-tokens-must-stay-on-the-path-search-vs-store-t",
+    "search-backed-list-silently-drops-pages-after-authorization-",
+    "search-list-continuation-must-survive-authorization-filterin",
+    "server-side-control-flow-inside-unified-storage"
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "id": "dashboardmutationapi-special-cases-render-plan-end-planning-",
+  "title": "dashboardMutationApi special-cases RENDER_PLAN/END_PLANNING before the mounted client",
+  "kind": "invariant",
+  "answers": [
+    "How does a plan preview open a dashboard that isn't loaded yet?",
+    "Why does dashboardMutationApi.execute not go straight to currentClient() for RENDER_PLAN?",
+    "Why does getAvailableCommands() list RENDER_PLAN even with no dashboard open?"
+  ],
+  "body": "dashboardMutationApi.execute (public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts) checks mutation.type against 'RENDER_PLAN'/'END_PLANNING' *before* looking up currentClient(), routing those two to a module-level DashboardPlanPreview instance instead. This is what lets a caller request a preview from any page (e.g. Explore) without a dashboard scene mounted yet — DashboardPlanPreview navigates to /dashboard/new and waits for the client to appear via the same client-registration hook (see onClientDeactivated in the client-unregister callback). Because of this, getAvailableCommands() always includes 'RENDER_PLAN' in its result even when currentClient() is null. Any new command needing to work before a dashboard is mounted must follow this same interception pattern rather than relying on currentClient().",
+  "applies": "Adding or modifying commands in the dashboard/notebook mutation API that need to work outside an already-mounted scene, or changing how getAvailableCommands() is computed.",
+  "tags": [
+    "dashboard-scene",
+    "mutation-api",
+    "assistant",
+    "navigation"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "hash": "sha256:03d6b6552c894c232eee43dc",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/DashboardPlanPreview.ts",
+      "symbol": "DashboardPlanPreview",
+      "hash": "sha256:ef883007b77b70b05814fba4",
+      "line": 13,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "execute",
+      "hash": "sha256:8cf0f2ea43252ac335506a18",
+      "line": 80,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "currentClient",
+      "hash": "sha256:2bdbb1b46bc6254c2180743d",
+      "line": 33,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "getAvailableCommands",
+      "hash": "sha256:8c51b77e09639df1ec3287d5",
+      "line": 100,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133029"
+  },
+  "created": "2026-09-28T05:21:22.163Z",
+  "verified": "2026-09-28T05:21:22.163Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboardplanpreview-guards-against-stale-async-preview-requ"
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "id": "azure-monitor-logs-queries-truncate-at-30-000-rows",
+  "title": "Azure Monitor Logs queries truncate results at 30,000 rows",
+  "kind": "invariant",
+  "answers": [
+    "Why is my Azure Monitor Logs query only returning 30000 rows?",
+    "How do I get more than 30000 rows from an Azure Monitor Logs query?",
+    "What does the azureMonitorDisableLogLimit feature toggle do?",
+    "Logs query results are truncated in Azure Monitor data source"
+  ],
+  "body": "When a Logs query uses the Logs result format, the backend truncates results to 30,000 rows to avoid crashing the browser tab (the logs visualization renders every row at once). Enforced in pkg/tsdb/azuremonitor/loganalytics/azure-response-table-frame.go, with gating logic in pkg/tsdb/azuremonitor/loganalytics/azure-log-analytics-datasource.go. The limit can be removed by enabling the azureMonitorDisableLogLimit feature toggle (registered in pkg/services/featuremgmt/registry.go). Any change to the Logs response frame-building path must preserve this truncation-plus-notice behavior unless the toggle is enabled, otherwise large result sets can hang or crash the browser.",
+  "applies": "pkg/tsdb/azuremonitor/loganalytics/ frame building and truncation logic for Logs-format queries",
+  "tags": [
+    "azure-monitor",
+    "datasource",
+    "logs",
+    "feature-toggle"
+  ],
+  "deps": [
+    {
+      "path": "pkg/tsdb/azuremonitor/loganalytics/azure-response-table-frame.go",
+      "hash": "sha256:a787d8f9eaa4f9a29aee336e",
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/azuremonitor/loganalytics/azure-log-analytics-datasource.go",
+      "hash": "sha256:8454e6fd2a6ef4a065503f32",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/featuremgmt/registry.go",
+      "hash": "sha256:852546db62485959e9d20a8f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133020"
+  },
+  "created": "2026-09-28T05:21:52.024Z",
+  "verified": "2026-09-28T05:22:42.637Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "history": [
+    {
+      "at": "2026-09-28T05:22:42.644Z",
+      "reason": "merged from new session",
+      "prevBody": "Symptom: a Logs-format query against Azure Monitor returns exactly 30,000 rows plus a truncation notice, even when more data exists.\nRoot cause: the Logs visualization renders every row at once, so Grafana caps Logs-format results at 30,000 rows to avoid crashing the browser tab.\nFix pattern: documented mitigations are aggregating with `summarize`, narrowing the time range, or adding KQL filters; to remove the cap entirely enable the `azureMonitorDisableLogLimit` feature toggle.\nConstraints: disabling the toggle can degrade browser performance for very large result sets — treat it as a targeted workaround, not a default recommendation. Documented in docs/sources/datasources/azure-monitor/query-editor/index.md (Logs result row limit) and docs/sources/datasources/azure-monitor/troubleshooting/index.md (Logs query results are truncated)."
+    }
+  ]
+}

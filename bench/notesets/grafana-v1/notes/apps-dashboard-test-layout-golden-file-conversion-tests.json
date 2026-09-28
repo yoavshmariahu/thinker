@@ -1,0 +1,47 @@
+{
+  "id": "apps-dashboard-test-layout-golden-file-conversion-tests",
+  "title": "apps/dashboard test layout: golden-file conversion tests",
+  "kind": "howto",
+  "answers": [
+    "How do I run tests for apps/dashboard?",
+    "How do I regenerate golden test fixtures for dashboard conversions?",
+    "Does apps/dashboard testing need a real database?"
+  ],
+  "body": "Standard *_test.go files sit alongside source (65 files), e.g. apps/dashboard/pkg/migration/conversion/v1_to_v2alpha1_test.go:TestV1ToV2alpha1.\nGolden-file tests: apps/dashboard/pkg/migration/conversion/golden_test.go (TestMain, lines 12-25) checksum-validates fixtures in testdata/{input,output}/. Regenerate checksums with `REGENERATE_CHECKSUMS=true go test ...`, or via Makefile targets `generate-golden-files` / `regenerate-golden-checksums` (regexes MIGRATION_TESTS / GOLDEN_TESTS defined at apps/dashboard/Makefile:4-5).\nNo DB/integration build tags found in this dir — tests run purely against fixture JSON.\nRun all: `go test ./apps/dashboard/...` from repo root (works via go.work). Targeted: `go test -run TestV1ToV2alpha1 ./apps/dashboard/pkg/migration/conversion/`.",
+  "tags": [
+    "grafana",
+    "apps/dashboard",
+    "testing",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "apps/dashboard/pkg/migration/conversion/golden_test.go",
+      "hash": "sha256:95ad89263ed188b7362f53d2",
+      "missing": false
+    },
+    {
+      "path": "apps/dashboard/Makefile",
+      "hash": "sha256:24c9cfd0484f0649d6a68395",
+      "missing": false
+    },
+    {
+      "path": "apps/dashboard/pkg/migration/conversion/v1_to_v2alpha1_test.go",
+      "symbol": "TestV1ToV2alpha1",
+      "hash": "sha256:2ce60c7b7dcaba3e97c3af0f",
+      "line": 17,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "98ce03e9-c5dd-47a9-b5d2-52f37e677c64"
+  },
+  "created": "2026-09-28T05:48:59.192Z",
+  "verified": "2026-09-28T05:48:59.192Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

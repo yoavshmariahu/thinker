@@ -1,0 +1,55 @@
+{
+  "id": "single-org-403-on-api-admin-users-deletion-and-other-global-",
+  "title": "Single-org 403 on /api/admin/users deletion (and other global-scoped user actions)",
+  "kind": "fix",
+  "answers": [
+    "Why does a single-org Admin get 403 deleting a user via /api/admin/users even though they have users:delete?",
+    "Instance user management returns Forbidden in single-org deployments",
+    "DELETE /api/admin/users/:id works via Kubernetes User API but fails via legacy admin API"
+  ],
+  "body": "Symptom: In single-org deployments, an org Admin with users:delete gets 403 on DELETE /api/admin/users/:id (and similarly create/enable/disable/quota/logout/auth-token endpoints), even though the same action succeeds through the Kubernetes User API.\nRoot cause: pkg/api/api.go registerRoutes forced authorization into org 0 via ac.UseGlobalOrg, ignoring the caller's current-organization permissions.\nFix pattern: swap the route authorizer from ac.UseGlobalOrg to ac.UseGlobalOrSingleOrg(hs.Cfg) — in single-org mode it evaluates permissions in the caller's current org, in multi-org mode it still requires global-context permissions.\nConstraints: applies to /api/admin/users/* handlers registered in pkg/api/api.go (routing.Wrap(hs.Admin*)); do not apply to true org-management routes (those intentionally stay global-only) or to endpoints that already have an explicit non-permission guard (e.g. reqGrafanaAdmin), which must be kept alongside.",
+  "applies": "pkg/api/api.go /api/admin/users route registration (adminUserRoute group)",
+  "tags": [
+    "iam",
+    "accesscontrol",
+    "single-org",
+    "admin-users",
+    "authorization"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/api.go",
+      "symbol": "registerRoutes",
+      "hash": "sha256:eac3cefc58fedea6d11e699b",
+      "line": 64,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/api.go",
+      "hash": "sha256:9b18898c01711895fef928c8",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/routing/routing.go",
+      "symbol": "Wrap",
+      "hash": "sha256:5123d767e4ca5b2b278c8221",
+      "line": 17,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133013"
+  },
+  "created": "2026-09-28T05:24:12.778Z",
+  "verified": "2026-09-28T05:24:12.778Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "request-routing-callpath-in-pkg-api",
+    "what-must-change-together-when-adding-or-extending-an-endpoi",
+    "dashboard-fetch-route-handler-service-call-path"
+  ]
+}

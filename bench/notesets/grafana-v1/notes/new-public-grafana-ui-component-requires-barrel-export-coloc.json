@@ -1,0 +1,41 @@
+{
+  "id": "new-public-grafana-ui-component-requires-barrel-export-coloc",
+  "title": "New public grafana-ui component requires barrel export + colocated .story.tsx",
+  "kind": "cochange",
+  "answers": [
+    "What files must I touch when adding a new component to grafana-ui?",
+    "Why is my new component not visible outside the package?",
+    "What's the story file naming convention?"
+  ],
+  "body": "1) Add the export to `packages/grafana-ui/src/index.ts` — nothing else makes it public (no api-extractor gate). 2) Add a colocated `Component.story.tsx` next to `Component.tsx` — this is the enforced convention (135 files follow it); `.stories.tsx` is never used in this package. Story titles are lint-enforced by `@grafana/consistent-story-titles` configured in `eslint.config.js:298-303` against `packages/grafana-ui/src/**/*.story.tsx`.",
+  "applies": "Applies to new components intended to be part of the public @grafana/ui API. Internal-only helpers under src/internal/ don't need the barrel export.",
+  "tags": [
+    "grafana-ui",
+    "components",
+    "storybook",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/index.ts",
+      "hash": "sha256:4cb30fbb3dbfb767325996de",
+      "missing": false
+    },
+    {
+      "path": "eslint.config.js",
+      "hash": "sha256:a132d857c111c636deb6d8b6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1bd56c9f-ac14-468a-b6a3-03296332a944"
+  },
+  "created": "2026-09-28T05:36:50.478Z",
+  "verified": "2026-09-28T05:36:50.478Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,143 @@
+{
+  "id": "pkg-infra-structure-wiring-and-control-flow",
+  "title": "pkg/infra structure, wiring, and control flow",
+  "kind": "overview",
+  "answers": [
+    "What is pkg/infra responsible for?",
+    "How does control flow into pkg/infra services?",
+    "How are pkg/infra services wired up?",
+    "Which packages run as background services?"
+  ],
+  "body": "pkg/infra/ is Grafana's cross-cutting infra layer (logging, tracing, metrics, caching, locking, kv store, DB facade, HTTP client construction). It is core-only: `.golangci.yml`'s `coreplugins` depguard rule forbids core plugins (testdata, azuremonitor, graphite, cloudwatch) from importing it.\nNearly nothing in pkg/infra self-wires with a local `wire.NewSet` — the only exception is `pkg/infra/metrics/wireset.go:WireSet`. Everything else is wired centrally from `pkg/server/wire_core.go` (e.g. `kvstore.ProvideService`, `tracing.ProvideService` + `wire.Bind(new(tracing.Tracer), ...)`, `remotecache.ProvideService` + bind to `CacheStorage`, `wire.Bind(new(db.DB), new(*sqlstore.SQLStore))`).\nLong-running services implement `pkg/registry/registry.go:BackgroundService.Run(ctx) error` and are collected in `pkg/registry/backgroundsvcs/background_services.go:ProvideBackgroundServiceRegistry` — examples: `tracing.TracingService.Run`, `remotecache.RemoteCache.Run`, `metrics/service.go:InternalMetricsService.Run`, `usagestats/service/service.go:UsageStats.Run`, `nats/server.go:Server.Run`.\nLogging is consumed via `log.New(\"name\")` for construction and `log.FromContext(ctx)` for request-scoped fields; `tracing.ProvideService` registers a contextual log provider that injects `traceID` into every `FromContext` call.\nNote: `bus`, `cache`, `registry`, `appcontext`, `grpcutil`, `plugins/repo` are NOT under pkg/infra — `registry.BackgroundService` actually lives in `pkg/registry/registry.go`; caching is split into `localcache` (in-process) and `remotecache` (distributed).",
+  "tags": [
+    "pkg/infra",
+    "wire",
+    "registry",
+    "architecture"
+  ],
+  "deps": [
+    {
+      "path": "pkg/server/wire_core.go",
+      "hash": "sha256:52534e20a43f8811743de33b",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/registry.go",
+      "symbol": "BackgroundService",
+      "hash": "sha256:bcbb70dbd8d004c9975f133e",
+      "line": 23,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/backgroundsvcs/background_services.go",
+      "symbol": "ProvideBackgroundServiceRegistry",
+      "hash": "sha256:7d7f6a11ce62d72a3f03cb93",
+      "line": 61,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/metrics/wireset.go",
+      "symbol": "WireSet",
+      "hash": "sha256:7cf0e299254d3dc54ae918fe",
+      "line": 7,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/log/log.go",
+      "symbol": "New",
+      "hash": "sha256:decb33644b0019c34d014904",
+      "line": 120,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/tracing/tracing.go",
+      "symbol": "TracingService",
+      "hash": "sha256:5ff61ebc4138b90d4fa130c2",
+      "line": 53,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/remotecache/remotecache.go",
+      "symbol": "CacheStorage",
+      "hash": "sha256:ed502381e04b97cb6034665f",
+      "line": 59,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/db/db.go",
+      "symbol": "DB",
+      "hash": "sha256:c9db0d473f60f8acc791a5f5",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": ".golangci.yml",
+      "hash": "sha256:6aa9b250eb71512be7018658",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/registry.go",
+      "hash": "sha256:18fa8d16fb2db1bdac184da4",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/service.go",
+      "hash": "sha256:000d1a9e65b131d5f96ef011",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/service.go",
+      "hash": "sha256:000d1a9e65b131d5f96ef011",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/server.go",
+      "hash": "sha256:1d9ba448a96e2b2c7ae84d4c",
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/tracing/tracing.go",
+      "symbol": "ProvideService",
+      "hash": "sha256:a39c7422af3fd15818e6469a",
+      "line": 84,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/tracing/tracing.go",
+      "symbol": "Tracer",
+      "hash": "sha256:e97748eaeeaa53681f4a84a4",
+      "line": 69,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/remotecache/remotecache.go",
+      "symbol": "ProvideService",
+      "hash": "sha256:1c191065d26179ed0d8db97d",
+      "line": 29,
+      "missing": false
+    },
+    {
+      "path": "pkg/services/sqlstore/sqlstore.go",
+      "symbol": "SQLStore",
+      "hash": "sha256:adeab86bf2aadd1982150d1c",
+      "line": 47,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "357bcccf-aca4-409a-8c17-4f787beb7911"
+  },
+  "created": "2026-09-28T06:00:50.471Z",
+  "verified": "2026-09-28T06:00:50.471Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboard-fetch-route-handler-service-call-path",
+    "extending-pkg-infra-multi-file-cochange-requirements",
+    "pkg-registry-structure-and-how-services-enter-the-boot-seque",
+    "registration-control-flow-wire-registerapiservice-registerap"
+  ]
+}

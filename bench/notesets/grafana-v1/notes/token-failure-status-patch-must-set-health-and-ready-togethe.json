@@ -1,0 +1,39 @@
+{
+  "id": "token-failure-status-patch-must-set-health-and-ready-togethe",
+  "title": "Token failure status patch must set health and Ready together",
+  "kind": "invariant",
+  "answers": [
+    "repo shows Ready=True but health is unhealthy",
+    "how to surface a token failure on repository status",
+    "what patches does tokenFailurePatchOps produce"
+  ],
+  "body": "tokenFailurePatchOps (pkg/registry/apis/provisioning/controller/repository.go) always builds the /status/health patch (healthPatchIfChanged) and the /status/conditions Ready patch (buildReadyConditionWithReason with ReasonAuthenticationFailed, then BuildConditionPatchOpsFromExisting) from the same HealthStatus in one call. If only health were patched, a previously-ready repo would keep reporting Ready=True alongside the new unhealthy status. Any new status-surfacing path for a reconcile failure should reuse tokenFailurePatchOps or replicate both patches together.",
+  "applies": "pkg/registry/apis/provisioning/controller/repository.go, status surfacing for user-caused reconcile failures",
+  "tags": [
+    "provisioning",
+    "status",
+    "health",
+    "ready-condition"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "hash": "sha256:f2f6e5992b36e6e57168d0b0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133004"
+  },
+  "created": "2026-09-28T05:24:49.775Z",
+  "verified": "2026-09-28T05:24:49.775Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "user-caused-token-failures-must-be-swallowed-not-requeued",
+    "don-t-log-and-return-an-error-the-caller-will-log-again"
+  ]
+}

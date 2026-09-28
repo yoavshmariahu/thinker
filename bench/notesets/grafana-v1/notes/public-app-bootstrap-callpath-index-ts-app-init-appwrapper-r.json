@@ -1,0 +1,115 @@
+{
+  "id": "public-app-bootstrap-callpath-index-ts-app-init-appwrapper-r",
+  "title": "public/app bootstrap callpath: index.ts → app.init() → AppWrapper → routes",
+  "kind": "callpath",
+  "answers": [
+    "How does the Grafana frontend boot up?",
+    "Where does control flow from page load to route rendering in public/app?",
+    "What is the entry point for public/app?"
+  ],
+  "body": "Boot sequence: `public/app/index.ts` awaits injected `bootData`, dynamically imports `public/app/initApp.ts`, which calls `app.init()` in `public/app/app.ts` (`GrafanaApp.init()`). That registers runtime services (`setBackendSrv`, `setDataSourceSrv` from `@grafana/runtime`), calls `configureStore()` (`public/app/store/configureStore.ts`), `initAlerting()`, `preloadPlugins()`, then renders `<AppWrapper>` via `createRoot(...).render()`. `public/app/AppWrapper.tsx` wraps `<Provider store={store}>` + theme/context providers and renders routes from `getAppRoutes()` in `public/app/routes/routes.tsx`. Matched routes are gated/rendered by `public/app/core/navigation/GrafanaRoute.tsx:GrafanaRouteWrapper` (auth/role checks) before the page component mounts. All backend HTTP access goes through `public/app/core/services/backend_srv.ts` (`BackendSrv`), reached anywhere via `getBackendSrv()` from `@grafana/runtime`.",
+  "tags": [
+    "public/app",
+    "bootstrap",
+    "routing",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "public/app/index.ts",
+      "hash": "sha256:9bb471b22d104943a85398f1",
+      "missing": false
+    },
+    {
+      "path": "public/app/initApp.ts",
+      "hash": "sha256:49a85052762b825beb89c17a",
+      "missing": false
+    },
+    {
+      "path": "public/app/app.ts",
+      "symbol": "GrafanaApp.init",
+      "hash": "sha256:4dba75b1c38642c13555c811",
+      "line": 159,
+      "missing": false
+    },
+    {
+      "path": "public/app/AppWrapper.tsx",
+      "hash": "sha256:4b8fc76d2c34efb68e496790",
+      "missing": false
+    },
+    {
+      "path": "public/app/routes/routes.tsx",
+      "symbol": "getAppRoutes",
+      "hash": "sha256:ad7dbb96e4d69e2dbc56bbb6",
+      "line": 49,
+      "missing": false
+    },
+    {
+      "path": "public/app/core/navigation/GrafanaRoute.tsx",
+      "symbol": "GrafanaRouteWrapper",
+      "hash": "sha256:7bd5c445bcec67e25a138d04",
+      "line": 73,
+      "missing": false
+    },
+    {
+      "path": "public/app/core/services/backend_srv.ts",
+      "symbol": "BackendSrv",
+      "hash": "sha256:a5eccd0a4c829d1682bf4f50",
+      "line": 30,
+      "missing": false
+    },
+    {
+      "path": "public/app/store/configureStore.ts",
+      "hash": "sha256:5b2cf5df92023dbad03b5de3",
+      "missing": false
+    },
+    {
+      "path": "public/app/app.ts",
+      "symbol": "init",
+      "hash": "sha256:4dba75b1c38642c13555c811",
+      "line": 159,
+      "missing": false
+    },
+    {
+      "path": "public/app/app.ts",
+      "symbol": "configureStore",
+      "hash": "sha256:b5a5179294101c1ebcb47a91",
+      "line": 251,
+      "missing": false
+    },
+    {
+      "path": "public/app/app.ts",
+      "symbol": "initAlerting",
+      "hash": "sha256:08e10be3ae6d90b2f9741f28",
+      "line": 268,
+      "missing": false
+    },
+    {
+      "path": "public/app/app.ts",
+      "symbol": "preloadPlugins",
+      "hash": "sha256:11b114062393adf205aae61e",
+      "line": 338,
+      "missing": false
+    },
+    {
+      "path": "public/app/core/services/backend_srv.ts",
+      "symbol": "getBackendSrv",
+      "hash": "sha256:c347b55449d3be8d36912329",
+      "line": 703,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "4be11d8b-4d1a-4df7-9d57-6c0ad8c67654"
+  },
+  "created": "2026-09-28T05:30:13.823Z",
+  "verified": "2026-09-28T05:30:13.823Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "registries-in-grafana-data-are-empty-until-app-ts-calls-seti"
+  ]
+}

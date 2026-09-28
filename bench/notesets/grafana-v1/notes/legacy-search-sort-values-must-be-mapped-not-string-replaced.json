@@ -1,0 +1,41 @@
+{
+  "id": "legacy-search-sort-values-must-be-mapped-not-string-replaced",
+  "title": "Legacy search sort values must be mapped, not string-replaced, to index field names",
+  "kind": "fix",
+  "answers": [
+    "search results are in random/arbitrary order",
+    "sort dropdown (recently viewed, alphabetical, errors) doesn't sort results",
+    "why does my saved sort option no longer sort dashboards",
+    "legacy sort value from old search UI is ignored by unified search"
+  ],
+  "body": "Symptom: Search results appear in arbitrary order with sort direction lost, specifically for sort options carried over from the old search UI (\"viewed-recently-desc\", \"errors-recently-asc\", \"alpha-desc\", etc.), which persist in browser storage and the page URL.\nRoot cause: public/app/features/search/service/unified.ts derived the API sort field with naive string replacement (`sort.replace('_sort','').replace('name','title')`) that only handled the new UI's own `name_sort` value; other legacy values passed through unchanged and matched no index field.\nFix pattern: replaced the string replacement with an explicit `Record<string,string>` lookup table (`uiSortValues` in public/app/features/search/service/unified.ts) mapping every known sort value (current and legacy) to the real index field name, with a `-` prefix for descending; unmapped values fall through unchanged via `toSortParam`.\nConstraints: applies when translating user-facing/stored values (sort, filter, column names) into backend/index identifiers where the set of legacy values is enumerable; use string transforms only when the mapping is truly mechanical, not when multiple unrelated old UIs feed different vocabularies into the same field.",
+  "applies": "public/app/features/search/service/unified.ts - UnifiedSearcher.search sort handling",
+  "tags": [
+    "search",
+    "sort",
+    "unified-storage",
+    "fix"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/search/service/unified.ts",
+      "symbol": "toSortParam",
+      "hash": "sha256:8656cd6346238edc24da94ac",
+      "line": 394,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133100"
+  },
+  "created": "2026-09-28T05:14:38.874Z",
+  "verified": "2026-09-28T05:14:38.874Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "new-search-sort-options-must-be-added-to-unified-ts-s-sort-v"
+  ]
+}

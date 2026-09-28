@@ -1,0 +1,63 @@
+{
+  "id": "files-to-touch-when-adding-a-new-resource-type-to-unified-st",
+  "title": "Files to touch when adding a new resource type to unified storage",
+  "kind": "cochange",
+  "answers": [
+    "What do I need to change to register a new resource kind in unified storage?",
+    "Adding a new k8s resource type to Grafana storage: what is the checklist?"
+  ],
+  "body": "Adding a new resource type touches: resource/app_manifests.go:AppManifests() (CI-checked via make gen-app-manifests-unistore); a SearchFieldsProvider (resource/search_field.go around line 196) which feeds search/bleve_mappings.go, an on-disk index format contract; optionally migrations/registry.go and legacysql/dualwrite for legacy interop; and RBAC checks in resource/access.go plus search/bleve_postrank_authz.go.",
+  "applies": "Applies when registering an entirely new resource kind in unified storage; not needed for changes to an existing resource's fields only.",
+  "tags": [
+    "pkg/storage",
+    "unified-storage",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/app_manifests.go",
+      "symbol": "AppManifests",
+      "hash": "sha256:c49f8c3d5b5d75f031e37ac7",
+      "line": 32,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/search_field.go",
+      "hash": "sha256:b08674ec3f8d21fefeac927f",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve_mappings.go",
+      "hash": "sha256:0ed62d067086687df2ebcf35",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/migrations/registry.go",
+      "hash": "sha256:81087db4e70021eb2d26d5eb",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "hash": "sha256:45ecb63cafa72531c26333ab",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve_postrank_authz.go",
+      "hash": "sha256:946bbca7db2c2a1406943f8d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9979686a-0418-4ba7-ac35-243357cd27c4"
+  },
+  "created": "2026-09-28T05:41:04.742Z",
+  "verified": "2026-09-28T05:41:04.742Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "silent-authz-denial-when-service-token-lacks-delegated-permi"
+  ]
+}

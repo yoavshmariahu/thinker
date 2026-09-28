@@ -1,0 +1,53 @@
+{
+  "id": "registerappinstaller-signature-change-requires-updating-wire",
+  "title": "RegisterAppInstaller signature change requires updating wire_gen.go call sites",
+  "kind": "cochange",
+  "answers": [
+    "I changed annotation.RegisterAppInstaller's signature, what else breaks?",
+    "wire_gen.go build failure after editing app installer constructor",
+    "Do I need to regenerate wire for annotation app changes?"
+  ],
+  "body": "annotation.RegisterAppInstaller is called directly from generated wire code, not just from a wire provider set indirection layer that auto-adapts. Adding/removing a parameter (here: a tracing.Tracer) required manually updating both call sites in pkg/server/bootstrap/wire/wire_gen.go (Initialize and InitializeForTest). Any future signature change to RegisterAppInstaller (or NewAppInstaller) must update wire_gen.go in the same PR, and if the new dependency isn't already a wire-provided binding, it must be added to the wire provider set.",
+  "applies": "pkg/registry/apps/annotation/register.go RegisterAppInstaller and its wire_gen.go call sites",
+  "tags": [
+    "wire",
+    "dependency-injection",
+    "annotation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/annotation/register.go",
+      "symbol": "RegisterAppInstaller",
+      "hash": "sha256:d5533f9b85657d3e8ed064ef",
+      "line": 54,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/bootstrap/wire/wire_gen.go",
+      "symbol": "Initialize",
+      "hash": "sha256:5182304dbd96c2204032069a",
+      "line": 270,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/bootstrap/wire/wire_gen.go",
+      "symbol": "InitializeForTest",
+      "hash": "sha256:46336741a8e1448ac19e6bc2",
+      "line": 1044,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133034"
+  },
+  "created": "2026-09-28T05:19:42.086Z",
+  "verified": "2026-09-28T05:19:42.086Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "annotation-app-tracer-must-be-injected-never-a-package-level"
+  ]
+}

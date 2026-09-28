@@ -1,0 +1,42 @@
+{
+  "id": "direct-go-resourcesearchrequest-constructions-must-request-f",
+  "title": "Direct Go ResourceSearchRequest constructions must request FIELD_VALUES",
+  "kind": "invariant",
+  "answers": [
+    "How should I build a ResourceSearchRequest in Go?",
+    "Why did CI fail on my new ResourceSearchRequest code?",
+    "What result format should new search request clients use?",
+    "direct-go-resource-search-requires-field-values check failing"
+  ],
+  "body": "Any new Go code that directly constructs a resourcepb.ResourceSearchRequest (composite literal, new(...), or a `var request resourcepb.ResourceSearchRequest` declaration, including inside a grouped `var (...)` block) must set `ResultFormat: resourcepb.ResourceSearchRequest_FIELD_VALUES` and decode the response's actual ResultFormat for mixed-version compatibility. This is enforced only for files/lines changed relative to the PR base, so pre-existing non-FIELD_VALUES usages are grandfathered. If a different format is required for compatibility, suppress the rule at the allocation site with an inline reason comment rather than removing the check.",
+  "applies": "Go code in the grafana/grafana repo that builds resourcepb.ResourceSearchRequest, outside pkg/storage/unified/resourcepb and pkg/storage/unified/testing",
+  "tags": [
+    "search",
+    "resourcepb",
+    "semgrep",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/semgrep/resource-search-field-values.yaml",
+      "hash": "sha256:0d6d2f1de20a31ca6050d1f7",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/pr-resource-search-result-format.yml",
+      "hash": "sha256:ab1b369a85b2cdf9e00cc764",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133001"
+  },
+  "created": "2026-09-28T05:25:23.071Z",
+  "verified": "2026-09-28T05:25:23.071Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,47 @@
+{
+  "id": "oss-calls-to-grafana-com-api-reuse-cfg-grafanacomapiurl-cfg-",
+  "title": "OSS calls to grafana.com API reuse cfg.GrafanaComAPIURL / cfg.GrafanaComSSOAPIToken",
+  "kind": "convention",
+  "answers": [
+    "Which config settings should I use to call the grafana.com API from OSS code?",
+    "How is the gcom API URL/token configured for the router fallback?",
+    "GF_GRAFANA_COM_API_URL / GF_GRAFANA_COM_SSO_API_TOKEN usage",
+    "st_discovery_url / cloud_router fallback config"
+  ],
+  "body": "Rather than introducing a new setting for gcom access, this PR reuses the existing `[grafana_com] api_url` / `sso_api_token` config (env `GF_GRAFANA_COM_API_URL` / `GF_GRAFANA_COM_SSO_API_TOKEN`), exposed as cfg.GrafanaComAPIURL / cfg.GrafanaComSSOAPIToken, matching enterprise's direct gcom instance client. The token is sent as `Authorization: Bearer <token>`; deployments must supply it for the fallback to work. The single-tenant fallback itself stays gated by `[cloud_router] st_discovery_url` (ProvideCloudRoutesLoaderFactory in pkg/router/cloud_router.go) — the gcom settings only take effect when that discovery URL is configured.",
+  "applies": "pkg/router package and any OSS code needing to talk to the grafana.com instances API",
+  "tags": [
+    "config",
+    "grafana_com",
+    "router"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/cloud_router.go",
+      "symbol": "ProvideCloudRoutesLoaderFactory",
+      "hash": "sha256:b769ff3dca87046b0e1d3e38",
+      "line": 40,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/st_fallback.go",
+      "symbol": "newGComURLResolver",
+      "hash": "sha256:1918ae32f93e2a1dd4ed6bad",
+      "line": 300,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133080"
+  },
+  "created": "2026-09-28T05:17:28.731Z",
+  "verified": "2026-09-28T05:17:28.731Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gcom-backed-resolvehost-must-map-404-to-empty-result-not-err"
+  ]
+}

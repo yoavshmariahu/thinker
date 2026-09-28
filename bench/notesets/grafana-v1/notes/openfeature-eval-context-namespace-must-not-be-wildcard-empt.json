@@ -1,0 +1,40 @@
+{
+  "id": "openfeature-eval-context-namespace-must-not-be-wildcard-empt",
+  "title": "OpenFeature eval context namespace must not be wildcard/empty",
+  "kind": "invariant",
+  "answers": [
+    "Why is flag evaluation being rejected with a namespace mismatch?",
+    "Feature flag / OpenFeature eval context has wrong namespace for wildcard identity",
+    "How is the OpenFeature evaluation context namespace determined?"
+  ],
+  "body": "The OpenFeature evaluation context's namespace/targeting key must always be a concrete namespace, never \"*\" or empty. It is computed in pkg/services/contexthandler/contexthandler.go:setRequestContext with fallback order: id.Namespace (only if non-empty and not \"*\") -> \"stacks-\"+cfg.StackID (if StackID set) -> \"default\". If this falls through to a wildcard/empty value, downstream flag evaluation requests get rejected as a namespace mismatch since the caller's concrete auth namespace no longer matches.",
+  "applies": "Any code path setting or consuming the OpenFeature evaluation context namespace/targeting key in Grafana core.",
+  "tags": [
+    "openfeature",
+    "contexthandler",
+    "namespace",
+    "feature-flags"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/contexthandler/contexthandler.go",
+      "symbol": "setRequestContext",
+      "hash": "sha256:d6dcb9bee504a0d88bd24fc0",
+      "line": 103,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133033"
+  },
+  "created": "2026-09-28T05:20:12.672Z",
+  "verified": "2026-09-28T05:20:12.672Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "wildcard-identity-namespace-overrode-openfeature-eval-contex"
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "setting-openfeature-flags-in-tests-via-settestflags",
+  "title": "Setting OpenFeature flags in tests via setTestFlags",
+  "kind": "convention",
+  "answers": [
+    "How do I enable a feature flag in a test?",
+    "How to mock an OpenFeature flag value in Jest tests?",
+    "Test still reads old config.featureToggles value after migration"
+  ],
+  "body": "Once a flag is migrated to OpenFeature, tests must set it via `setTestFlags({ [FlagKeys.X]: true })` from `@grafana/test-utils/unstable` instead of `config.featureToggles.X = true` (the latter no longer affects components using the OpenFeature client). Reset flags between tests with `afterEach(() => setTestFlags())` to avoid leaking flag state across test cases.",
+  "applies": "Tests for any component reading a flag through getFeatureFlagClient() or a useFlagX hook.",
+  "tags": [
+    "openfeature",
+    "testing",
+    "feature-toggles"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/VizPanelSubHeader.test.tsx",
+      "hash": "sha256:9bf9906c9a8dbacfc05c3f10",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/VizPanelSubHeader.test.tsx",
+      "symbol": "setTestFlags",
+      "hash": "sha256:344b485c9807ec2dedd75957",
+      "line": 55,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133118"
+  },
+  "created": "2026-09-28T05:13:24.094Z",
+  "verified": "2026-09-28T05:13:24.094Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

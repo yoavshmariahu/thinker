@@ -1,0 +1,47 @@
+{
+  "id": "isgrafanadevmode-lives-in-its-own-leaf-module",
+  "title": "isGrafanaDevMode lives in its own leaf module",
+  "kind": "convention",
+  "answers": [
+    "Where is isGrafanaDevMode defined?",
+    "How do I mock dev-mode checks in plugin extension tests?",
+    "Why can't I import isGrafanaDevMode from utils.tsx anymore?"
+  ],
+  "body": "isGrafanaDevMode was extracted out of public/app/features/plugins/extensions/utils.tsx into its own leaf file public/app/features/plugins/extensions/isGrafanaDevMode.ts to avoid utils.tsx pulling in @grafana/runtime eagerly and creating an import cycle. Import it from './isGrafanaDevMode', not from './utils'. Tests that need to stub dev mode must `jest.mock('./isGrafanaDevMode', () => ({ isGrafanaDevMode: jest.fn().mockReturnValue(false) }))` instead of mocking './utils' or mutating config.buildInfo.env directly (see usePluginComponent.test.tsx, usePluginComponents.test.tsx, validateExtensionPoint.test.ts).",
+  "applies": "public/app/features/plugins/extensions/** — anything checking Grafana dev mode",
+  "tags": [
+    "circular-dependency",
+    "plugins-extensions",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/plugins/extensions/isGrafanaDevMode.ts",
+      "symbol": "isGrafanaDevMode",
+      "hash": "sha256:aec572b29bc6a9dac3aed136",
+      "line": 3,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/extensions/utils.tsx",
+      "hash": "sha256:12a302dc3d3ddbd92f9ea211",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/extensions/validateExtensionPoint.test.ts",
+      "hash": "sha256:49340ae9ace7a1f123236c55",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133018"
+  },
+  "created": "2026-09-28T05:23:05.103Z",
+  "verified": "2026-09-28T05:23:05.103Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

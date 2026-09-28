@@ -1,0 +1,82 @@
+{
+  "id": "query-dispatch-api-query-serviceimpl-coreplugin-registry-ser",
+  "title": "Query dispatch: API -> query.ServiceImpl -> coreplugin registry -> Service.QueryData",
+  "kind": "callpath",
+  "answers": [
+    "How does a query request reach a core datasource backend?",
+    "What calls Service.QueryData in pkg/tsdb?",
+    "How is a tsdb Service registered for dispatch?"
+  ],
+  "body": "Inbound: HTTP API -> pkg/services/query/query.go:ServiceImpl.handleQuerySingleDatasource builds a backend.QueryDataRequest and calls s.pluginClient.QueryData(ctx, req) (~query.go:325). For core plugins this dispatches in-process (no gRPC) to the registered Service, because pkg/services/pluginsintegration/coreplugin/coreplugins.go:ProvideCoreRegistry wraps each constructed *azuremonitor.Service/*cloudwatch.Service/etc. via asBackendPlugin into a backendplugin.PluginFactoryFunc keyed by plugin ID. Service constructors (e.g. pkg/tsdb/graphite/graphite.go:ProvideService) are supplied by Wire in pkg/server/wire_core.go:242-244. Actual execution happens in each package's RunQuery/QueryData (e.g. pkg/tsdb/graphite/query.go:RunQuery), which fans out per backend.DataQuery, calls the downstream system, and returns backend.QueryDataResponse frames.",
+  "tags": [
+    "tsdb",
+    "callpath",
+    "query"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/query/query.go",
+      "hash": "sha256:bcb78e312250f04f8b19178f",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/pluginsintegration/coreplugin/coreplugins.go",
+      "symbol": "ProvideCoreRegistry",
+      "hash": "sha256:fb7d04c35d31ae9459ecbf13",
+      "line": 73,
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/graphite/graphite.go",
+      "symbol": "ProvideService",
+      "hash": "sha256:812531cf5e545c16d157b477",
+      "line": 33,
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/graphite/query.go",
+      "hash": "sha256:a062df2d71d7491d58010bf6",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire_core.go",
+      "hash": "sha256:52534e20a43f8811743de33b",
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/graphite/query.go",
+      "symbol": "RunQuery",
+      "hash": "sha256:c7c1fe49e4f18c89f9461a59",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/azuremonitor/azuremonitor.go",
+      "symbol": "Service",
+      "hash": "sha256:bc08c842c4d3a014c947b536",
+      "line": 118,
+      "missing": false
+    },
+    {
+      "path": "pkg/plugins/backendplugin/backendplugin.go",
+      "symbol": "PluginFactoryFunc",
+      "hash": "sha256:297b8d80665bee1ed2e2bb2a",
+      "line": 9,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "bf98e887-f714-4b75-bcce-80dca47bc357"
+  },
+  "created": "2026-09-28T05:53:33.241Z",
+  "verified": "2026-09-28T05:53:33.241Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cross-file-changes-required-when-extending-a-core-tsdb-datas",
+    "pkg-tsdb-scope-only-5-core-built-in-datasource-backends-rema"
+  ]
+}

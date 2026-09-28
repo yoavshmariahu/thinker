@@ -1,0 +1,45 @@
+{
+  "id": "use-modal-buttonrow-for-modal-action-buttons-instead-of-cust",
+  "title": "Use Modal.ButtonRow for modal action buttons instead of custom Stack/div",
+  "kind": "convention",
+  "answers": [
+    "How should I lay out buttons in a modal footer?",
+    "What component do I use for action buttons in a dialog?",
+    "Is there a standard way to arrange confirm/cancel buttons in a modal?"
+  ],
+  "body": "Modal footer/action button rows should be built with `Modal.ButtonRow` (packages/grafana-ui/src/components/Modal/Modal.tsx), not a custom `<div>` wrapping a `<Stack>` with manual padding/gap styles.\nWhy: manual wrappers (e.g. the previous `buttonsContainer` css in ConfirmContent.tsx) can clip the button focus ring and duplicate spacing logic that `Modal.ButtonRow` already provides.\nSee packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx for the reference usage after migration.",
+  "applies": "grafana-ui components that render a modal or dialog with action buttons",
+  "tags": [
+    "grafana-ui",
+    "modal",
+    "convention",
+    "buttons"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Modal/Modal.tsx",
+      "hash": "sha256:cfcc5b45b4a79c8400c8b958",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+      "symbol": "ConfirmContent",
+      "hash": "sha256:1b0f886b4db1e45987b16f83",
+      "line": 53,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132979"
+  },
+  "created": "2026-09-28T05:27:17.872Z",
+  "verified": "2026-09-28T05:27:17.872Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cut-clipped-focus-ring-on-modal-footer-buttons"
+  ]
+}

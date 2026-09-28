@@ -1,0 +1,40 @@
+{
+  "id": "known-accepted-race-concurrent-last-admin-removals-via-k8s-r",
+  "title": "Known accepted race: concurrent last-admin removals via k8s redirect path",
+  "kind": "gotcha",
+  "answers": [
+    "Can two admins be removed at the same time leaving zero org admins?",
+    "Is there a TOCTOU risk in removeOrgUserUsingK8s?",
+    "Why wasn't the concurrent-delete race fixed in the k8s org-user delete path?"
+  ],
+  "body": "removeOrgUserUsingK8s checks hs.orgHasOtherAdmin then deletes the user as two separate steps, so two concurrent deletes targeting different remaining admins can both pass the check and leave an org with zero admins. This was flagged in review and explicitly accepted as low risk, not fixed, because this endpoint is expected to be deprecated once the full migration to kubernetes APIs completes — don't 'fix' this with added locking without checking whether it's still needed.",
+  "applies": "pkg/api/org_users.go:removeOrgUserUsingK8s only; legacy orgService.RemoveOrgUser path is unaffected.",
+  "tags": [
+    "race-condition",
+    "org-users",
+    "kubernetes-redirect",
+    "accepted-risk"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/org_users.go",
+      "symbol": "removeOrgUserUsingK8s",
+      "hash": "sha256:e2fa28a77f306c122c1b6d4e",
+      "line": 711,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133091"
+  },
+  "created": "2026-09-28T05:16:05.746Z",
+  "verified": "2026-09-28T05:16:05.746Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "k8s-org-user-delete-path-must-re-implement-last-admin-and-se"
+  ]
+}

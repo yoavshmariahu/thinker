@@ -1,0 +1,46 @@
+{
+  "id": "alert-rule-quality-policy-legacy-string-fieldrequirement-mus",
+  "title": "Alert rule quality policy: legacy string FieldRequirement must still unmarshal",
+  "kind": "fix",
+  "answers": [
+    "Old AlertRuleQualityPolicy / dev quality policies fail to read or error out after upgrade",
+    "requiredAnnotations or requiredLabels stored as plain strings break the API",
+    "How to make a CRD field type change backwards compatible for already-stored resources"
+  ],
+  "body": "Symptom: existing AlertRuleQualityPolicy resources (requiredAnnotations/requiredLabels) fail to be read from storage after upgrading, blocking removal of old dev policies.\nRoot cause: FieldRequirement was changed from a plain JSON string to a struct {Key, Enforce} (grafana/grafana#132549), so previously persisted string-encoded values no longer match the new struct shape during unmarshal.\nFix pattern: add a custom UnmarshalJSON on the changed type that detects the legacy encoding (e.g. leading `\"` byte means a bare string) and converts it into the new struct with a hardcoded legacy default (Enforce: true), falling back to normal struct unmarshal for the new shape. See apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/field_requirement_json.go:UnmarshalJSON.\nConstraints: applies when a CRD/app-platform type's on-the-wire field shape changes and instances already exist in unified storage; verify end-to-end via apistore.NewStorage/store.Get as in pkg/storage/unified/apistore/alertrulequality_test.go. Not needed for new fields with no persisted data. This is meant to be temporary — removed once legacy data is cleared.",
+  "applies": "apps/alerting/alertrulequality and any Grafana app-platform type whose field JSON shape changes after data already exists in unified storage",
+  "tags": [
+    "alerting",
+    "alertrulequality",
+    "backwards-compatibility",
+    "unmarshal",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": "apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/field_requirement_json.go",
+      "symbol": "UnmarshalJSON",
+      "hash": "sha256:4ab075d5bc7a6f3a26312231",
+      "line": 5,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/alertrulequality_test.go",
+      "symbol": "TestStorageGetLegacyAlertRuleQualityPolicy",
+      "hash": "sha256:ec5bf91e39a042664410cb84",
+      "line": 20,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132980"
+  },
+  "created": "2026-09-28T05:27:00.369Z",
+  "verified": "2026-09-28T05:27:00.369Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

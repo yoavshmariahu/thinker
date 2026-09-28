@@ -1,0 +1,47 @@
+{
+  "id": "dashboardplanpreview-guards-against-stale-async-preview-requ",
+  "title": "DashboardPlanPreview guards against stale async preview requests via session identity",
+  "kind": "gotcha",
+  "answers": [
+    "Why doesn't dismissing an old plan preview navigate away from a newer one?",
+    "How does the plan preview avoid racing navigation when multiple RENDER_PLAN calls overlap?",
+    "Why does END_PLANNING sometimes report 'The preview dashboard is no longer open'?"
+  ],
+  "body": "DashboardPlanPreview (public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/DashboardPlanPreview.ts) tracks one `active` PreviewSession object; render()/waitForDashboard()/end()/restoreAfterFailure() all compare `this.active !== session` (object identity, not just planId) before acting, and end() additionally checks `session.client !== client`. This is what prevents a stale/late-resolving render() or a mismatched end() call from navigating away from or clobbering a newer session's state (e.g. a late failure on an older plan must not override the location restore of a newer, successful one). If you touch this file, preserve identity comparisons rather than switching to planId-only checks, since revised plans reuse the same planId lineage but get new session objects.",
+  "applies": "Any change to DashboardPlanPreview's render/end/timeout logic or to how preview sessions are created/replaced.",
+  "tags": [
+    "dashboard-scene",
+    "assistant",
+    "planning",
+    "race-condition"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/DashboardPlanPreview.ts",
+      "symbol": "DashboardPlanPreview",
+      "hash": "sha256:ef883007b77b70b05814fba4",
+      "line": 13,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/DashboardPlanPreview.ts",
+      "symbol": "render",
+      "hash": "sha256:6e23c1c7b1f37e125da5f603",
+      "line": 25,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133029"
+  },
+  "created": "2026-09-28T05:21:22.210Z",
+  "verified": "2026-09-28T05:21:22.210Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboardmutationapi-special-cases-render-plan-end-planning-"
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "id": "error-classification-convention-downstreamerror-vs-plain-err",
+  "title": "Error classification convention: DownstreamError vs plain error",
+  "kind": "convention",
+  "answers": [
+    "How should I return an error from a datasource query handler?",
+    "What is backend.DownstreamError used for?",
+    "Why do some tsdb errors use ErrorResponseWithErrorSource?"
+  ],
+  "body": "Failures caused by the remote/downstream system (network errors, upstream 5xx, malformed response) should be wrapped with backend.DownstreamError(err); bugs in Grafana's own code use plain errors or backend.PluginError(err). Per-query errors are returned via backend.ErrorResponseWithErrorSource(backend.DownstreamError(err)) — see pkg/tsdb/graphite/query.go:91,265,277. This classification feeds Grafana's error-source attribution/alerting UI, so returning a bare error where a downstream failure occurred loses that signal. This pattern is used broadly (83 hits across pkg/tsdb, including cloudwatch and azuremonitor).",
+  "applies": "Applies to errors returned from a tsdb Service's query/resource/health handlers that are surfaced to the query response; internal bugs in Grafana's own code should not use DownstreamError.",
+  "tags": [
+    "tsdb",
+    "error-handling",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/tsdb/graphite/query.go",
+      "hash": "sha256:a062df2d71d7491d58010bf6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "bf98e887-f714-4b75-bcce-80dca47bc357"
+  },
+  "created": "2026-09-28T05:53:33.445Z",
+  "verified": "2026-09-28T05:53:33.445Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "query-dispatch-api-query-serviceimpl-coreplugin-registry-ser"
+  ],
+  "lastUsed": "2026-09-28T06:33:28.423Z"
+}

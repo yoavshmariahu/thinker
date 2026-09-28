@@ -1,0 +1,53 @@
+{
+  "id": "adding-wiring-a-service-requires-3-coordinated-edits-wire-di",
+  "title": "Adding/wiring a service requires 3 coordinated edits (wire DI)",
+  "kind": "cochange",
+  "answers": [
+    "What do I need to change when adding a new service?",
+    "Why does my new service constructor not get injected?",
+    "How does wire dependency injection work in grafana backend?"
+  ],
+  "body": "Provider sets live in `pkg/server/wire_core.go` (build-tag-gated `wire.go` only has top-level `wire.Build` calls, not the sets themselves). One concrete struct commonly satisfies several narrow interfaces, each registered/bound separately, e.g. for dashboards (`wire_core.go:338-343`): `dashboardservice.ProvideDashboardServiceImpl`, `wire.Bind(new(dashboards.PermissionsRegistrationService), new(*dashboardservice.DashboardServiceImpl))`, `ProvideDashboardService`, `ProvideDashboardProvisioningService`, `ProvideDashboardPluginService`, `ProvideDashboardAccessService`. To add a service: (1) write its `ProvideX` constructor in the service package, (2) add it (plus any `wire.Bind` interface->impl mapping) to the matching `wire.NewSet` block in `wire_core.go`, (3) regenerate `pkg/server/wire_gen.go` via `make gen-go`. Skipping step 3 leaves wire_gen.go stale and the new provider unused at runtime.",
+  "applies": "Applies to any backend service intended to be injected via the wire-based DI graph in pkg/server. Does not apply to services only used within a single package via manual construction/tests.",
+  "tags": [
+    "wire",
+    "dependency-injection",
+    "pkg/server",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "pkg/server/wire_core.go",
+      "hash": "sha256:52534e20a43f8811743de33b",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire_gen.go",
+      "hash": "sha256:262422da1e0c63b97a57556e",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "hash": "sha256:c64d1ef39d86a9dfa782c8e8",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire.go",
+      "hash": "sha256:cf7e93c0ab2fcaaa81ebb7b2",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "8adeeb9d-b604-4ea8-863e-efde0ef750fc"
+  },
+  "created": "2026-09-28T05:32:21.243Z",
+  "verified": "2026-09-28T05:32:21.243Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "extending-pkg-infra-multi-file-cochange-requirements"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "id": "stable-built-in-datasource-uids-must-bypass-export-anonymiza",
+  "title": "Stable/built-in datasource UIDs must bypass export anonymization",
+  "kind": "invariant",
+  "answers": [
+    "What must be preserved when anonymizing datasources during dashboard export?",
+    "Rules for adding new datasource-remapping logic in the v2 exporter",
+    "Does anonymization apply to the Dashboard datasource?"
+  ],
+  "body": "Any datasource-remapping/anonymization step added to `makeExportableV2` (public/app/features/dashboard-scene/scene/export/exporters.ts) must check the query's datasource name against known stable/built-in UIDs (e.g. `SHARED_DASHBOARD_QUERY` = '-- Dashboard --') and skip remapping for them before falling through to instance-specific-UID handling (`isReferencingDsTemplateVariable`, label/uid stripping). Skipping this check causes reimported dashboards to silently resolve the reference to Grafana's built-in datasource, changing panel data.",
+  "applies": "public/app/features/dashboard-scene/scene/export/exporters.ts makeExportableV2 and any future datasource anonymization added to v2 export",
+  "tags": [
+    "dashboard-export",
+    "v2-schema",
+    "datasource"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+      "symbol": "makeExportableV2",
+      "hash": "sha256:380f3045b677a3d81039df7c",
+      "line": 423,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133093"
+  },
+  "created": "2026-09-28T05:15:36.775Z",
+  "verified": "2026-09-28T05:15:36.775Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "v2-dashboard-export-loses-dashboard-datasource-query-referen"
+  ]
+}

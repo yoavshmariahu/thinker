@@ -1,0 +1,40 @@
+{
+  "id": "k8s-org-user-delete-path-must-re-implement-last-admin-and-se",
+  "title": "K8s org-user delete path must re-implement last-admin and server-admin guards",
+  "kind": "invariant",
+  "answers": [
+    "Why does deleting an org user check for other admins and IsAdmin separately?",
+    "What safety checks does the k8s org-user delete path need?",
+    "Can a server admin be removed via the k8s redirect?"
+  ],
+  "body": "When RemoveOrgUser is redirected through k8s (removeOrgUserUsingK8s), it bypasses org.ErrLastOrgAdmin from the legacy orgService.RemoveOrgUser, so the handler must independently call hs.orgHasOtherAdmin to block removing the last org admin, and check targetUser.IsAdmin to block removing a Grafana server admin from their only org. Omitting either check would let a single-org deployment end up with zero admins or lock out a server admin.",
+  "applies": "pkg/api/org_users.go:removeOrgUserUsingK8s and any future k8s-redirected write that replaces a legacy-service-enforced invariant.",
+  "tags": [
+    "kubernetes-redirect",
+    "org-users",
+    "last-admin",
+    "server-admin"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/org_users.go",
+      "symbol": "removeOrgUserUsingK8s",
+      "hash": "sha256:e2fa28a77f306c122c1b6d4e",
+      "line": 711,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133091"
+  },
+  "created": "2026-09-28T05:16:05.706Z",
+  "verified": "2026-09-28T05:16:05.706Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "known-accepted-race-concurrent-last-admin-removals-via-k8s-r"
+  ]
+}

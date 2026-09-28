@@ -1,0 +1,46 @@
+{
+  "id": "unified-storage-client-server-independent-deploy-compatibili",
+  "title": "Unified storage client/server independent-deploy compatibility rule",
+  "kind": "invariant",
+  "answers": [
+    "Can client and server sides of unified storage be deployed at different versions?",
+    "What must be true when changing the resource gRPC proto contract?",
+    "Why is there a CI check blocking PRs that touch both client and server storage code?"
+  ],
+  "body": "Client (apistore/, federated/, callers in pkg/registry/apis/) and server (resource/, sql/, search/, migrations/) sides of unified storage can deploy at different cadences. pkg/storage/unified/AGENTS.md states: the same commit can be live on one side and not the other. Consequence: contract changes must be additive/backward-compatible. proto/search.proto has a reserved field number once mapped, never reused; UNSPECIFIED enum values must fall back to old defaults. This is enforced mechanically: unified/semgrep/resource-search-field-values.yaml fails CI if a ResourceSearchRequest literal omits ResultFormat FIELD_VALUES. A CI workflow (pr-unified-storage-compatibility.yml) blocks PRs touching client and server sides together unless a no-check-unified-storage-compatibility label with justification is applied.",
+  "applies": "Applies to any change touching the resourcepb/proto contract or code in both apistore/federated and resource/sql/search/migrations in the same PR; does not apply to changes confined to one side only.",
+  "tags": [
+    "pkg/storage",
+    "unified-storage",
+    "compatibility",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/AGENTS.md",
+      "hash": "sha256:0d5affb2271046137abf6596",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/proto/search.proto",
+      "hash": "sha256:24da426f9c256e652e5dd56c",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/semgrep/resource-search-field-values.yaml",
+      "hash": "sha256:0d6d2f1de20a31ca6050d1f7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9979686a-0418-4ba7-ac35-243357cd27c4"
+  },
+  "created": "2026-09-28T05:41:04.732Z",
+  "verified": "2026-09-28T05:41:04.732Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

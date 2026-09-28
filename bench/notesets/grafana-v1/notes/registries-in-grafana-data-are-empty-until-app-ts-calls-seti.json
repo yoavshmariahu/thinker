@@ -1,0 +1,93 @@
+{
+  "id": "registries-in-grafana-data-are-empty-until-app-ts-calls-seti",
+  "title": "Registries in grafana-data are empty until app.ts calls setInit",
+  "kind": "gotcha",
+  "answers": [
+    "Why is standardTransformersRegistry empty in a test/script?",
+    "Where do package-level registries get populated?",
+    "Why does calling registry.list() before bootstrap return nothing?"
+  ],
+  "body": "standardTransformersRegistry (packages/grafana-data/src/transformations/standardTransformersRegistry.ts) is created as a bare `new Registry<TransformerRegistryItem>()` with no items — it stays empty until public/app/app.ts:272 calls `standardTransformersRegistry.setInit(getStandardTransformers)` during app bootstrap, where getStandardTransformers (public/app/features/transformers/standardTransformers.tsx) attaches the React editor UI + icons per transformer.\nRegistry.setInit (packages/grafana-data/src/utils/Registry.ts:setInit, line 47) throws if called a second time; getIfExists()/list() lazily trigger initialize() on first use. Same pattern applies to other package-level registries populated externally by the app (e.g. field-config editor registries).\nAny unit test that touches transformers/registries directly (outside full app bootstrap) must call `registry.setInit(...)` itself first — this pattern appears in 10+ test files across public/app (e.g. public/app/plugins/datasource/dashboard/datasource.test.ts, public/app/features/explore/utils/decorators.test.ts, TransformationOperationRows.test.tsx).",
+  "applies": "Applies to any Registry instance defined in grafana-data and populated by public/app at bootstrap (transformers, field-config editors). Does not apply to registries that are self-contained and populated within the same package.",
+  "tags": [
+    "grafana-data",
+    "registry",
+    "testing",
+    "bootstrap"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/transformations/standardTransformersRegistry.ts",
+      "hash": "sha256:adcf166ea3ec21cb30875af2",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/utils/Registry.ts",
+      "symbol": "setInit",
+      "hash": "sha256:18bbccbfea8461c828ee0a5b",
+      "line": 48,
+      "missing": false
+    },
+    {
+      "path": "public/app/app.ts",
+      "hash": "sha256:26aff64d6334e6d00b681876",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/transformers/standardTransformers.tsx",
+      "hash": "sha256:acbd5668d2f488534c349544",
+      "missing": false
+    },
+    {
+      "path": "public/app/plugins/datasource/dashboard/datasource.test.ts",
+      "hash": "sha256:122d7c0432f954d7349602fd",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/explore/utils/decorators.test.ts",
+      "hash": "sha256:24496dac6f0d0ce64814c90d",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/utils/Registry.ts",
+      "symbol": "Registry.setInit",
+      "hash": "sha256:18bbccbfea8461c828ee0a5b",
+      "line": 48,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/utils/Registry.ts",
+      "symbol": "getIfExists",
+      "hash": "sha256:febed2ef095a808668ab2bc2",
+      "line": 55,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/utils/Registry.ts",
+      "symbol": "initialize",
+      "hash": "sha256:f246a20b8aa35cdf656d1c00",
+      "line": 67,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/utils/registry.ts",
+      "symbol": "setInit",
+      "hash": "sha256:18bbccbfea8461c828ee0a5b",
+      "line": 48,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c707601f-6672-4b92-ab10-1998193695b1"
+  },
+  "created": "2026-09-28T05:51:30.602Z",
+  "verified": "2026-09-28T05:51:30.602Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "public-app-bootstrap-callpath-index-ts-app-init-appwrapper-r"
+  ]
+}

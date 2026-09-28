@@ -1,0 +1,45 @@
+{
+  "id": "panelcontext-feeds-panel-plugin-state-into-grafana-ui-viz-in",
+  "title": "PanelContext feeds panel/plugin state into grafana-ui viz internals",
+  "kind": "callpath",
+  "answers": [
+    "How do panels pass selection state/event bus into grafana-ui visualization components?",
+    "Where is PanelContext defined?"
+  ],
+  "body": "`PanelContext` is defined inside grafana-ui itself at `packages/grafana-ui/src/components/PanelChrome/PanelContext.ts:103`, with `usePanelContext` at line 116, exported publicly via src/index.ts:181-184. Panels/plugins wrap children in `PanelContextProvider` to push data (selection state, event bus, etc.) down; visualization internals read it back out with `usePanelContext`. Unlike ThemeContext, this context's provider and definition both live in grafana-ui — the app/plugin side only supplies the value.",
+  "tags": [
+    "grafana-ui",
+    "panels",
+    "context"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/PanelChrome/PanelContext.ts",
+      "symbol": "PanelContext",
+      "hash": "sha256:1d7de87db6143f7fb9cd546c",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/index.ts",
+      "hash": "sha256:4cb30fbb3dbfb767325996de",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/components/PanelChrome/index.ts",
+      "hash": "sha256:e626b5fc4089a4aeb3e559a3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1bd56c9f-ac14-468a-b6a3-03296332a944"
+  },
+  "created": "2026-09-28T05:36:50.416Z",
+  "verified": "2026-09-28T05:36:50.416Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

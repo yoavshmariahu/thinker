@@ -1,0 +1,38 @@
+{
+  "id": "org-user-write-endpoints-redirect-to-k8s-only-for-single-org",
+  "title": "Org-user write endpoints redirect to k8s only for single-org + current-org + flag",
+  "kind": "invariant",
+  "answers": [
+    "When does DELETE/PUT org user use kubernetes instead of legacy SQL?",
+    "Why isn't my org-user write going through the k8s User API?",
+    "How to add a new k8s-redirected org-user write path"
+  ],
+  "body": "Org-user write handlers (update, delete) only redirect to the k8s-backed path when all three hold: the command targets the caller's current org (cmd.OrgID == c.GetOrgID()), hs.Cfg.RBAC.SingleOrganization is true, and featuremgmt.FlagKubernetesUsersRedirect is enabled via openfeature. Cross-org variants (e.g. RemoveOrgUser vs RemoveOrgUserForCurrentOrg) always keep using the legacy org service. Skipping any of these three checks would send writes through k8s in multi-org deployments where k8s user data isn't authoritative.",
+  "applies": "pkg/api/org_users.go write handlers for org users (update/delete); any new k8s-redirected org-user write endpoint should follow the same three-part gate.",
+  "tags": [
+    "kubernetes-redirect",
+    "org-users",
+    "feature-toggle",
+    "rbac.singleorganization"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/org_users.go",
+      "symbol": "removeOrgUserHelper",
+      "hash": "sha256:e51238b9003524f04babd9ea",
+      "line": 681,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133091"
+  },
+  "created": "2026-09-28T05:16:05.549Z",
+  "verified": "2026-09-28T05:16:05.549Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

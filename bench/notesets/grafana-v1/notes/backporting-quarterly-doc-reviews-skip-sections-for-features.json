@@ -1,0 +1,42 @@
+{
+  "id": "backporting-quarterly-doc-reviews-skip-sections-for-features",
+  "title": "Backporting quarterly doc reviews: skip sections for features absent in the target release",
+  "kind": "convention",
+  "answers": [
+    "How to backport a quarterly docs review PR when the automatic backport has conflicts",
+    "Backport hit merge conflicts on datasource docs, what to keep",
+    "Manual backport process for docs quarterly update"
+  ],
+  "body": "When a quarterly docs-review PR is backported to an older release branch and the automatic backport conflicts, resolve manually per-file: keep content describing features that don't exist in that release (e.g. \"Enable Batch API\" section was omitted for the 13.1 branch), while still applying release_date/terminology fixes that are release-independent.\nApply the `review_date` bump and any terminology fixes (e.g. self-hosted → self-managed) across all touched pages regardless of which branch, since those aren't feature-gated.\nConstraints: verify feature existence in the target release before porting new functional sections (like a new toggle or limit); don't assume a docs change that applies cleanly to `main` is safe to port verbatim to a release branch.",
+  "applies": "Manual backport docs PRs to release-x.y branches under docs/sources/datasources/**",
+  "tags": [
+    "docs",
+    "backport",
+    "release-branch"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/datasources/azure-monitor/configure/index.md",
+      "hash": "sha256:6eb14e0ca3df71ab6d109234",
+      "missing": false
+    },
+    {
+      "path": "docs/sources/datasources/azure-monitor/template-variables/index.md",
+      "hash": "sha256:84cc179d95bd381d7c8c0820",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133028"
+  },
+  "created": "2026-09-28T05:21:52.040Z",
+  "verified": "2026-09-28T05:21:52.040Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "grafana-docs-style-avoid-e-g-see-and-self-hosted"
+  ]
+}

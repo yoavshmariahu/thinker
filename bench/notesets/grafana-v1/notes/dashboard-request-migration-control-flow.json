@@ -1,0 +1,88 @@
+{
+  "id": "dashboard-request-migration-control-flow",
+  "title": "Dashboard request → migration control flow",
+  "kind": "callpath",
+  "answers": [
+    "How does a dashboard GET request flow through storage and migration?",
+    "Where is schema-version migration invoked for a dashboard?",
+    "How are app manifests registered into the server?"
+  ],
+  "body": "App manifest (SDK-generated): apps/dashboard/pkg/apis/dashboard_manifest.go:57 appManifestData, exposed via LocalManifest()/RemoteManifest() (~:1026/:1030) — lists versions/kinds/routes/search-fields.\nHTTP registration: pkg/registry/apis/dashboard/register.go:111 DashboardsAPIBuilder implements builder.APIGroupBuilder; register.go:147 RegisterAPIService calls apiregistration.RegisterAPI. Wired into server DI at pkg/server/bootstrap/wire/wire_gen.go:945 (dashboard.RegisterAPIService(...)).\nREST storage: DashboardsAPIBuilder.UpdateAPIGroupInfo (register.go:1046) registers per-version rest.Storage via storageForVersion (register.go:1197), wrapped by dashboardStorageWrapper (pkg/registry/apis/dashboard/dashboard_storage.go:24). dto subresource: sub_dto.go:40 NewDTOConnector / sub_dto.go:84 Connect.\nGET-as-DTO path: HTTP → DTOConnector.Connect (sub_dto.go:84) → dashboardStorageWrapper → grafanaregistry.NewRegistryStore → pkg/storage/unified/resource.ResourceClient. If stored version != requested version, conversion.RegisterConversions (register.go:321) invokes apps/dashboard/pkg/migration/migrate.go:77 Migrate(ctx, dash, targetVersion), which runs schemaversion.GetMigrations() (apps/dashboard/pkg/migration/schemaversion/migrations.go:53) up to LATEST_VERSION (migrations.go:12, currently 42), producing a DashboardWithAccessInfo DTO.",
+  "tags": [
+    "grafana",
+    "apps/dashboard",
+    "callpath",
+    "migration"
+  ],
+  "deps": [
+    {
+      "path": "apps/dashboard/pkg/apis/dashboard_manifest.go",
+      "symbol": "appManifestData",
+      "hash": "sha256:ead027f4be8f3256a3394ed0",
+      "line": 57,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "DashboardsAPIBuilder",
+      "hash": "sha256:74867e9d246f8ba9173cdaac",
+      "line": 110,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/dashboard_storage.go",
+      "symbol": "dashboardStorageWrapper",
+      "hash": "sha256:1196989cab4139f7dd3a0091",
+      "line": 20,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/sub_dto.go",
+      "symbol": "NewDTOConnector",
+      "hash": "sha256:9d8145b70616d5b5da5b70e3",
+      "line": 40,
+      "missing": false
+    },
+    {
+      "path": "apps/dashboard/pkg/migration/migrate.go",
+      "symbol": "Migrate",
+      "hash": "sha256:a834f10535c7eb92c81444cc",
+      "line": 75,
+      "missing": false
+    },
+    {
+      "path": "apps/dashboard/pkg/migration/schemaversion/migrations.go",
+      "symbol": "GetMigrations",
+      "hash": "sha256:2576ffa11664d9b5a284cc75",
+      "line": 53,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/bootstrap/wire/wire_gen.go",
+      "hash": "sha256:a7c0346cf0596cc95d35e87b",
+      "missing": false
+    },
+    {
+      "path": "apps/dashboard/pkg/apis/dashboard_manifest.go",
+      "symbol": "LocalManifest",
+      "hash": "sha256:6a6014f638908623972286dd",
+      "line": 1026,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "98ce03e9-c5dd-47a9-b5d2-52f37e677c64"
+  },
+  "created": "2026-09-28T05:48:58.930Z",
+  "verified": "2026-09-28T05:48:58.930Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "things-that-must-change-together-when-extending-apps-dashboa",
+    "apps-dashboard-module-responsibility-and-split-from-pkg-regi",
+    "registerappinstaller-signature-change-requires-updating-wire"
+  ]
+}

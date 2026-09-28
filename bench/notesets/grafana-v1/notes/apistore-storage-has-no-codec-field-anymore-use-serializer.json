@@ -1,0 +1,47 @@
+{
+  "id": "apistore-storage-has-no-codec-field-anymore-use-serializer",
+  "title": "apistore.Storage has no `codec` field anymore; use `serializer`",
+  "kind": "gotcha",
+  "answers": [
+    "Why does my code/test fail to compile referencing Storage.codec?",
+    "Where did apistore.Storage's codec field go?",
+    "How do tests decode objects stored by apistore.Storage now?"
+  ],
+  "body": "`Storage.codec runtime.Codec` was replaced by `Storage.serializer Serializer` (pkg/storage/unified/apistore/store.go: `Storage`). `objectForStorage.raw` is now `json.RawMessage` instead of `bytes.Buffer`, so test/decoding code must call `s.serializer.Decode(ctx, v.raw, obj)` instead of `s.codec.Decode(v.raw.Bytes(), nil, obj)`. Any Storage literal built directly in tests (not via `NewStorage`) must set `serializer` (e.g. `&jsonSerializer{}`) or decoding/encoding will panic on a nil interface.",
+  "applies": "Tests or code that construct pkg/storage/unified/apistore.Storage directly or decode its stored bytes.",
+  "tags": [
+    "apistore",
+    "refactor",
+    "tests"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "symbol": "Storage",
+      "hash": "sha256:5ae11816310fd9ac5e83ef38",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "objectForStorage",
+      "hash": "sha256:453d08946cf970df0572a267",
+      "line": 35,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133083"
+  },
+  "created": "2026-09-28T05:16:32.787Z",
+  "verified": "2026-09-28T05:16:32.787Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "client-side-control-flow-into-unified-storage",
+    "version-cap-must-be-enforced-against-the-persisted-gvk-not-t"
+  ]
+}

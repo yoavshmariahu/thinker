@@ -1,0 +1,47 @@
+{
+  "id": "not-every-tsdb-service-implements-every-backend-handler-inte",
+  "title": "Not every tsdb Service implements every backend handler interface",
+  "kind": "gotcha",
+  "answers": [
+    "Why doesn't grafanads have an admission_handler.go?",
+    "How are optional backend handlers (CallResource, CheckHealth, Admission) wired up?",
+    "Is it safe to assume a Service implements CallResourceHandler?"
+  ],
+  "body": "pkg/services/pluginsintegration/coreplugin/coreplugins.go's asBackendPlugin uses Go type assertions to wire up only the SDK interfaces a given Service actually satisfies (QueryDataHandler, CallResourceHandler, CheckHealthHandler, AdmissionHandler, etc). This is why grafanads has no admission_handler.go/conversion_handler.go while graphite and grafana-testdata-datasource do — it's per-plugin optional, not dead code to be added everywhere. Before assuming a handler method exists or is required, check the SDK interface and whether the specific package actually needs it.",
+  "applies": "When checking whether a core datasource supports resource proxying, admission/conversion, or health checks — absence of e.g. admission_handler.go in a package is intentional, not a missing feature.",
+  "tags": [
+    "tsdb",
+    "gotcha",
+    "backend-sdk"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/pluginsintegration/coreplugin/coreplugins.go",
+      "symbol": "asBackendPlugin",
+      "hash": "sha256:40aa1c73e242af150db1faaf",
+      "line": 101,
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/graphite/admission_handler.go",
+      "hash": "sha256:df157c7e7b78957c41618776",
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/graphite/conversion_handler.go",
+      "hash": "sha256:c443fe953daf32930c15170e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "bf98e887-f714-4b75-bcce-80dca47bc357"
+  },
+  "created": "2026-09-28T05:53:33.479Z",
+  "verified": "2026-09-28T05:53:33.479Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

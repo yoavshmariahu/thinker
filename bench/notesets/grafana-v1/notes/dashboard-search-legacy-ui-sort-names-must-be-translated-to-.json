@@ -1,0 +1,40 @@
+{
+  "id": "dashboard-search-legacy-ui-sort-names-must-be-translated-to-",
+  "title": "Dashboard search: legacy/UI sort names must be translated to index field names",
+  "kind": "fix",
+  "answers": [
+    "Why do dashboard search results come back in a random order when sorted?",
+    "Sort by 'viewed-recently-desc' or 'name_sort' does not sort dashboards correctly",
+    "How are old /api/search sort values or UI sort names handled in the new search endpoint?",
+    "Bookmarked or localStorage sort params don't work in dashboard search"
+  ],
+  "body": "Symptom: Dashboard search returns results in an arbitrary order when the request's `sort` query param is an older/UI sort name (e.g. `viewed-recently-desc`, `alpha-asc`, `name_sort`) rather than an index field name — these were counted as sort capability violations once `search_enforce_sort_capability` metrics were added.\nRoot cause: `convertHttpSearchRequestToResourceSearchRequest` in pkg/registry/apis/dashboard/search.go passed the raw `sort` param straight through as an index field name; legacy `/api/search` sort names and the old UI's `name_sort` value match no index field.\nFix pattern: Route the raw sort string through a translation step (`parseSortParam` in pkg/registry/apis/dashboard/search.go, using `uiSortAliases` and `searchsort.ParseSortName` from pkg/services/search/sort) before using it as an index field name. Unrecognized names still pass through unchanged (not dropped, not erroring) so real typos remain visible as capability violations.\nConstraints: Applies to any client-facing param that is supposed to name an index field but where old clients, browser storage, or bookmarks may keep sending stale spellings indefinitely. Do not silently drop or reject unrecognized values — passthrough preserves error visibility for genuinely invalid input.",
+  "applies": "pkg/registry/apis/dashboard/search.go sort parameter handling for dashboard search requests",
+  "tags": [
+    "search",
+    "dashboard-search",
+    "sort"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/dashboard/search.go",
+      "symbol": "parseSortParam",
+      "hash": "sha256:49f08de733317c07e63c1888",
+      "line": 1062,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133099"
+  },
+  "created": "2026-09-28T05:15:14.114Z",
+  "verified": "2026-09-28T05:15:14.114Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parsesortparam-unrecognized-sort-names-must-pass-through-emp"
+  ]
+}

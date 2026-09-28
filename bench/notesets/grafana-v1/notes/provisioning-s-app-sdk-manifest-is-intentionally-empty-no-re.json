@@ -1,0 +1,35 @@
+{
+  "id": "provisioning-s-app-sdk-manifest-is-intentionally-empty-no-re",
+  "title": "provisioning's app-sdk manifest is intentionally empty — no reconcile loop here",
+  "kind": "gotcha",
+  "answers": [
+    "Where is the provisioning app's reconcile loop?",
+    "Why does provisioning_manifest.go have Versions: []app.ManifestVersion{}?",
+    "Does apps/provisioning run its own app-sdk operator?"
+  ],
+  "body": "apps/provisioning/pkg/apis/manifestdata/provisioning_manifest.go is generated ('DO NOT EDIT') and declares `Versions: []app.ManifestVersion{}` — an empty manifest. This module does not run its own app-sdk controller/operator; the main module's pkg/registry/apis/provisioning does the real API-serving work using these Go types directly. Don't search apps/provisioning for a reconcile loop or controller registration — it isn't there.",
+  "applies": "Applies when looking for an app-sdk controller/operator/reconcile loop for provisioning kinds. The real API-serving logic is in the main module, not in apps/provisioning.",
+  "tags": [
+    "provisioning",
+    "gotcha",
+    "app-sdk"
+  ],
+  "deps": [
+    {
+      "path": "apps/provisioning/pkg/apis/manifestdata/provisioning_manifest.go",
+      "hash": "sha256:cbaec209eab814c6977deb24",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e2b66c4a-e7e3-4c50-b35a-47191dc19ae2"
+  },
+  "created": "2026-09-28T05:46:02.018Z",
+  "verified": "2026-09-28T05:46:02.018Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

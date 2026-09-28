@@ -1,0 +1,36 @@
+{
+  "id": "test-paging-logic-against-a-real-bleve-index-mock-only-serve",
+  "title": "Test paging logic against a real bleve index, mock only server behaviors an index can't produce",
+  "kind": "convention",
+  "answers": [
+    "How should search-paging code be tested in unified storage?",
+    "When to use a real bleve index vs mocked ResourceIndexClient in validator tests"
+  ],
+  "body": "For code that pages through resourcepb Search results, exercise the main paging path against a real bleve index (via an indexSearchClient wrapping resource.ResourceIndex.Search) with a small page size, since that produces real cursors and result-format behavior.\nUse a mocked resource.NewMockResourceClient only for scenarios a real index cannot produce: an older server returning a RESOURCE_TABLE/UNSPECIFIED response, a later page failing, or a server that ignores the cursor and repeats it.\nSee pkg/storage/unified/migrations/validator_test.go (TestFolderTreeValidatorPagesRealIndex vs the mocked TestFolderTreeValidatorBuildUnifiedFolderParentMap* tests).",
+  "applies": "tests for unified storage search-paging code under pkg/storage/unified/migrations",
+  "tags": [
+    "testing",
+    "unified-storage",
+    "bleve"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/migrations/validator_test.go",
+      "symbol": "TestFolderTreeValidatorPagesRealIndex",
+      "hash": "sha256:8607f4da70aa1a2bf5f7f029",
+      "line": 271,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132984"
+  },
+  "created": "2026-09-28T05:26:33.527Z",
+  "verified": "2026-09-28T05:26:33.527Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

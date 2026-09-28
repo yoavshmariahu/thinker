@@ -1,0 +1,88 @@
+{
+  "id": "what-must-change-together-when-adding-or-extending-an-endpoi",
+  "title": "What must change together when adding or extending an endpoint in pkg/api/",
+  "kind": "cochange",
+  "answers": [
+    "What files do I need to touch to add a new API endpoint?",
+    "I added a route but it returns 403 for everyone, what did I miss?",
+    "How do I add a new service dependency to HTTPServer?"
+  ],
+  "body": "Three things are coupled, skipping one causes silent or startup failures:\n1. Handler + route registration: handler in the feature file plus the matching routing.Wrap(hs.MyHandler) line in api.go registerRoutes() (or a feature's register*API, e.g. pkg/api/folder.go:25), including choosing auth middleware (reqSignedIn, authorize(ac.EvalPermission(...)) from pkg/services/accesscontrol/middleware.go:30, quota(...)).\n2. RBAC action/scope plus fixed role: actions/scopes live in the owning domain package (e.g. folder.ActionFoldersRead); any new fixed role must be added in hs.declareFixedRoles() (pkg/api/accesscontrol.go:42-58). A route with authorize(ac.EvalPermission(...)) but no fixed-role grant leaves the endpoint permanently 403 for everyone but grafana-admin.\n3. Swagger annotation: a swagger:route block directly above the handler (pkg/api/dashboard.go:47-66), regenerated via make swagger-clean and make openapi3-gen (see pkg/api/README.md).\nIf introducing a new injected service dependency, also add it in ProvideHTTPServer's params, the HTTPServer struct field, the struct literal, and the relevant Wire set in pkg/server/wire_core.go, then run make gen-go.",
+  "applies": "Applies to adding or modifying HTTP endpoints in pkg/api/. Does not apply to pure internal refactors that don't change the route table or RBAC surface.",
+  "tags": [
+    "pkg/api",
+    "cochange",
+    "rbac"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/api.go",
+      "symbol": "registerRoutes",
+      "hash": "sha256:eac3cefc58fedea6d11e699b",
+      "line": 64,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/accesscontrol.go",
+      "symbol": "declareFixedRoles",
+      "hash": "sha256:3f1fea5527491cdf0342bd92",
+      "line": 39,
+      "missing": false
+    },
+    {
+      "path": "pkg/services/accesscontrol/middleware.go",
+      "hash": "sha256:c2fdfb7e1df56e86efb27802",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/dashboard.go",
+      "hash": "sha256:90689c844177e4bd38f34c74",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/http_server.go",
+      "symbol": "ProvideHTTPServer",
+      "hash": "sha256:e37539bdb918cf203936d51b",
+      "line": 249,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire_core.go",
+      "hash": "sha256:52534e20a43f8811743de33b",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/README.md",
+      "hash": "sha256:fae39d463ca6cc05046e0f75",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/folder.go",
+      "hash": "sha256:ea05de40ea5b1d26a7d9b2ae",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/routing/routing.go",
+      "symbol": "Wrap",
+      "hash": "sha256:5123d767e4ca5b2b278c8221",
+      "line": 17,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "5c4b0482-cb98-48e5-a7f4-12ee5f98656b"
+  },
+  "created": "2026-09-28T06:05:02.681Z",
+  "verified": "2026-09-28T06:05:02.681Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "request-routing-callpath-in-pkg-api",
+    "single-org-403-on-api-admin-users-deletion-and-other-global-",
+    "dashboard-fetch-route-handler-service-call-path",
+    "pkg-api-responsibility-and-di-wiring"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "iam-api-feature-gating-explicit-config-vs-openfeature-dual-p",
+  "title": "IAM API feature gating: explicit config vs OpenFeature dual path",
+  "kind": "convention",
+  "answers": [
+    "How do I gate a new IAM API/route behind a feature flag?",
+    "Why does register.go call featureEnabled instead of ofClient.Boolean directly?",
+    "How does explicit startup IAM config interact with OpenFeature flags?"
+  ],
+  "body": "Every IAM API gate check must go through IdentityAccessManagementAPIBuilder.featureEnabled(ctx, flagKey, func(Features) bool) in pkg/registry/apis/iam/register.go, not ofClient.Boolean directly. It returns the explicit Features value if b.features != nil, otherwise falls back to the OpenFeature flag. REST connectors that need the same per-request gate (e.g. TeamMembersREST, UserTeamREST) follow the same nil-checked-pointer pattern: a `*bool` field set only via a `...WithFeature` constructor, checked before falling back to ofClient.Boolean. Any new gated API/route must add both paths to stay consistent with standalone (explicit-config) and embedded (OpenFeature) deployments.",
+  "applies": "pkg/registry/apis/iam/register.go and any REST handler in pkg/registry/apis/iam/{team,user}/ that gates behavior by an IAM feature flag",
+  "tags": [
+    "iam",
+    "feature-flags",
+    "openfeature"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "hash": "sha256:5804509fbee8ed71265ac119",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/iam/team/rest_members.go",
+      "hash": "sha256:3a78eac1e4bada877d97d893",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "hash": "sha256:5a2a4e08b7f44fe62501906d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133036"
+  },
+  "created": "2026-09-28T05:18:52.383Z",
+  "verified": "2026-09-28T05:18:52.383Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "teams-api-membership-endpoints-are-gated-only-at-startup-reg"
+  ]
+}

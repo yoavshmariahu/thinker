@@ -1,0 +1,43 @@
+{
+  "id": "pkg-tsdb-scope-only-5-core-built-in-datasource-backends-rema",
+  "title": "pkg/tsdb scope: only 5 core (built-in) datasource backends remain",
+  "kind": "overview",
+  "answers": [
+    "What is pkg/tsdb responsible for?",
+    "Why can't I find the Prometheus/Loki/MySQL datasource backend in pkg/tsdb?",
+    "What datasources are 'core' vs external plugins?"
+  ],
+  "body": "pkg/tsdb/ holds Go backends only for Grafana's built-in (non-installable) datasource plugins: azuremonitor, cloudwatch, grafana-testdata-datasource, grafanads (the `-- Grafana --` special datasource), and graphite. All other datasources (Prometheus, Loki, MySQL, Elasticsearch, etc.) have been moved to separate plugin repos — don't expect to find or add them here. Each subpackage implements grafana-plugin-sdk-go `backend` handler interfaces (QueryDataHandler, CallResourceHandler, CheckHealthHandler, AdmissionHandler, sometimes StreamHandler) on a single `Service` struct, with an `instancemgmt.InstanceManager` caching per-instance settings/HTTP clients (e.g. pkg/tsdb/graphite/graphite.go:Service, ProvideService).",
+  "tags": [
+    "tsdb",
+    "datasources",
+    "architecture"
+  ],
+  "deps": [
+    {
+      "path": "pkg/tsdb/graphite/graphite.go",
+      "symbol": "Service",
+      "hash": "sha256:2a4f3922e8437930a9374b6e",
+      "line": 19,
+      "missing": false
+    },
+    {
+      "path": "pkg/services/pluginsintegration/coreplugin/coreplugins.go",
+      "hash": "sha256:26fa0fb143ff4fa851cd77e8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "bf98e887-f714-4b75-bcce-80dca47bc357"
+  },
+  "created": "2026-09-28T05:53:33.021Z",
+  "verified": "2026-09-28T05:53:33.021Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "query-dispatch-api-query-serviceimpl-coreplugin-registry-ser"
+  ]
+}

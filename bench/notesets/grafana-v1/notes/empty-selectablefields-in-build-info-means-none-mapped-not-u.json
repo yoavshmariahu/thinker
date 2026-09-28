@@ -1,0 +1,50 @@
+{
+  "id": "empty-selectablefields-in-build-info-means-none-mapped-not-u",
+  "title": "Empty SelectableFields in build info means 'none mapped', not 'unknown'",
+  "kind": "gotcha",
+  "answers": [
+    "why does an existing index always fall back to the store scan for field filters",
+    "selectable field filters unexpectedly slow after upgrading",
+    "build info SelectableFields is empty but the index should have the field",
+    "index built by an older version refuses all selectable field filters"
+  ],
+  "body": "bleveIndex.mappedSelectableFields is populated from the index's build info (getBuildInfo) and an empty list is deliberately interpreted as 'this index maps zero selectable fields' rather than 'unknown', so any selectable-field filter gets refused via rejectUnmappedSelectableFields. Indexes built between grafana PRs #116939 and #117416 mapped selectable fields into bleve without recording them in build info; such indexes get incorrectly refused and degrade to the slower store scan instead of returning a wrong (empty) answer. This is the intended trade-off (refuse-and-fallback is safe, silently-wrong is not) — don't 'fix' it by treating an empty list as unknown.",
+  "applies": "pkg/storage/unified/search/bleve.go index build-info handling, when reasoning about old/mixed-version indexes",
+  "tags": [
+    "unified-storage",
+    "search",
+    "bleve",
+    "build-info",
+    "versioning"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "newBleveIndex",
+      "hash": "sha256:5b67452d2235b11da5b699b6",
+      "line": 769,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "getBuildInfo",
+      "hash": "sha256:c84b8f1f4067adb044ce3a31",
+      "line": 2113,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133102"
+  },
+  "created": "2026-09-28T05:14:05.095Z",
+  "verified": "2026-09-28T05:14:05.095Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "selectable-field-filters-must-be-refused-if-the-index-doesn-",
+    "server-side-control-flow-inside-unified-storage"
+  ]
+}

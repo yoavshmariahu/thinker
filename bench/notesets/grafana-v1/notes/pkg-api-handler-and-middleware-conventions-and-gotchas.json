@@ -1,0 +1,60 @@
+{
+  "id": "pkg-api-handler-and-middleware-conventions-and-gotchas",
+  "title": "pkg/api/ handler and middleware conventions and gotchas",
+  "kind": "gotcha",
+  "answers": [
+    "Why isn't chi.URLParam working for a path param?",
+    "Why does my custom middleware fire after auth is already resolved?",
+    "Should I write a new legacy SQL handler for this resource?"
+  ],
+  "body": "- Path params use macaron-style web.Params(c.Req)[\":uid\"] with a leading colon required, this is not chi/gorilla-mux (see pkg/api/dashboard.go:69 style handlers).\n- Org is always obtained via c.GetOrgID() on ReqContext; org resolution happens early in ContextHandler.Middleware (pkg/services/contexthandler/contexthandler.go:89), part of the global middleware chain registered in http_server.go:732. Order matters, e.g. OrgRedirect must run after it (http_server.go:735).\n- CSRF middleware is global and registered before per-route auth (http_server.go:700), so CSRF failures short-circuit ahead of RBAC checks.\n- Many resources are mid-migration from legacy SQL-store handlers to a k8s-apiserver/unified-storage pattern (e.g. hs.getK8sDataSourceByUIDHandler() at api.go:405, newPlaylistK8sHandler in playlist.go:28). Check whether a resource has already migrated before adding a new legacy handler.",
+  "applies": "Applies to writing or modifying handlers and global middleware registration in pkg/api/. Not relevant to code outside pkg/api/ routing.",
+  "tags": [
+    "pkg/api",
+    "convention",
+    "middleware"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/http_server.go",
+      "hash": "sha256:f51dbaf900e302423ed53247",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/contexthandler/contexthandler.go",
+      "hash": "sha256:8146799fb89957f5879135fb",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/api.go",
+      "hash": "sha256:9b18898c01711895fef928c8",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/playlist.go",
+      "hash": "sha256:c3ea0964b11012a2df9c9365",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/dashboard.go",
+      "hash": "sha256:90689c844177e4bd38f34c74",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "5c4b0482-cb98-48e5-a7f4-12ee5f98656b"
+  },
+  "created": "2026-09-28T06:05:02.906Z",
+  "verified": "2026-09-28T06:05:02.906Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "request-routing-callpath-in-pkg-api",
+    "dashboard-fetch-route-handler-service-call-path",
+    "what-must-change-together-when-adding-or-extending-an-endpoi",
+    "pkg-api-responsibility-and-di-wiring"
+  ]
+}

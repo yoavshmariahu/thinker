@@ -1,0 +1,69 @@
+{
+  "id": "adding-editing-a-provisioning-repository-or-connection-type-",
+  "title": "Adding/editing a provisioning repository or connection type touches 3 places",
+  "kind": "cochange",
+  "answers": [
+    "What do I need to change to add a new repository type (e.g. Bitbucket)?",
+    "I added a field to the Repository config, what else needs updating?",
+    "Why is my new repository type not validating or building?"
+  ],
+  "body": "Adding a new repository (or connection) type requires all three: (1) implement the Extra interface (Type/Build/Mutate/Validate) — apps/provisioning/pkg/repository/factory.go (mirrored in apps/provisioning/pkg/connection/factory.go); (2) add the config schema to apps/provisioning/kinds/repository.cue (or kinds/connection.cue); (3) register the enabled type + Extra at wiring time in the main module — pkg/registry/apis/provisioning/extras/register.go and pkg/server/wire_core.go. Missing one leaves the type unable to validate, build, or schema-round-trip.\nEditing existing Repository/Connection fields (CUE-authored) requires editing the .cue file then running the app-sdk generator (apps/provisioning/Makefile generate target) to refresh pkg/apis/.../zz_generated.* and pkg/generated/** (clientset/informers/listers/applyconfiguration).",
+  "applies": "Applies when adding a new repository/connection backend type or adding/editing fields on Repository/Connection. Does NOT apply to Job/HistoricJob/health/settings types, which are hand-written Go (see separate codegen-pipeline note).",
+  "tags": [
+    "provisioning",
+    "codegen",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "apps/provisioning/pkg/repository/factory.go",
+      "symbol": "Extra",
+      "hash": "sha256:218fb00209f4e5504ef8c88f",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/connection/factory.go",
+      "hash": "sha256:1ea4aed7f7588c319698d0ce",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/kinds/repository.cue",
+      "hash": "sha256:db244c88eda14d63bfcb2d7d",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/kinds/connection.cue",
+      "hash": "sha256:15760a154a67e6475c79625e",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/Makefile",
+      "hash": "sha256:d97fb4ac23c10cd57fa01386",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/extras/register.go",
+      "hash": "sha256:c4cd36271740015e7fe71aaa",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire_core.go",
+      "hash": "sha256:52534e20a43f8811743de33b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e2b66c4a-e7e3-4c50-b35a-47191dc19ae2"
+  },
+  "created": "2026-09-28T05:46:01.860Z",
+  "verified": "2026-09-28T05:46:01.860Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "control-flow-from-job-repo-creation-to-execution-and-status-"
+  ]
+}

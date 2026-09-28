@@ -1,0 +1,45 @@
+{
+  "id": "don-t-log-and-return-an-error-the-caller-will-log-again",
+  "title": "Don't log-and-return an error the caller will log again",
+  "kind": "fix",
+  "answers": [
+    "why is the same token/connection error logged twice",
+    "duplicate log lines for repository reconcile failures",
+    "double logging in provisioning controller"
+  ],
+  "body": "Symptom: the same repository reconcile error (e.g. connection retrieval, token generation, applying status patches) shows up twice in logs. Root cause: RepositoryController.process (pkg/registry/apis/provisioning/controller/repository.go) called logger.Error at the failure site and then returned/propagated the same error, which the repository controller logs again (controller/repository.go, per review comment referencing that double-log path). Fix pattern: when an error path returns err up to the caller, drop the local logger.Error call; only log locally (logger.Warn) on paths that swallow the error and return nil, since those never reach the caller's log statement. Constraints: applies only inside process()'s error paths — do not remove logging on paths that return nil (swallowed/user-caused errors), those must still log locally or the failure becomes invisible.",
+  "applies": "pkg/registry/apis/provisioning/controller/repository.go RepositoryController.process error paths",
+  "tags": [
+    "provisioning",
+    "logging",
+    "git-sync"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "hash": "sha256:f2f6e5992b36e6e57168d0b0",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "process",
+      "hash": "sha256:ed584b332812b252f1deb956",
+      "line": 780,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133004"
+  },
+  "created": "2026-09-28T05:24:49.833Z",
+  "verified": "2026-09-28T05:24:49.833Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "user-caused-token-failures-must-be-swallowed-not-requeued",
+    "token-failure-status-patch-must-set-health-and-ready-togethe"
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "id": "dashboard-fetch-route-handler-service-call-path",
+  "title": "Dashboard fetch: route -> handler -> service call path",
+  "kind": "callpath",
+  "answers": [
+    "How does an HTTP request reach a services/ implementation?",
+    "What is the call path for GetDashboard?",
+    "How do services get wired into the API layer?"
+  ],
+  "body": "For a GET dashboard-by-uid request: `pkg/api/api.go:467` registers `dashboardRoute.Get(\"/uid/:uid\", authorize(...), routing.Wrap(hs.GetDashboard))` → `pkg/api/dashboard.go:69 GetDashboard` calls `pkg/api/dashboard.go:283 getDashboardHelper` → `hs.DashboardService.GetDashboard(ctx, &dashboards.GetDashboardQuery{...})`. `HTTPServer` holds the interface field `pkg/api/http_server.go:190 DashboardService dashboards.DashboardService`, injected via wire. The concrete implementation is `pkg/services/dashboards/service/dashboard_service.go:DashboardServiceImpl`. Services also self-register as background workers via `Run(ctx) error` satisfying `pkg/registry/registry.go:BackgroundService` (e.g. `dashboard_service.go:386` asserted at `dashboard_service.go:395`), driven by `pkg/server/server.go` through `registry.BackgroundServiceRegistry.GetServices()`.",
+  "tags": [
+    "pkg/services",
+    "pkg/api",
+    "dashboards",
+    "callpath"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/api.go",
+      "hash": "sha256:9b18898c01711895fef928c8",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/dashboard.go",
+      "symbol": "GetDashboard",
+      "hash": "sha256:fcf4f510eb8b64bf25fa2e4c",
+      "line": 47,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/http_server.go",
+      "symbol": "HTTPServer",
+      "hash": "sha256:3b7ee8e593c180069425c20b",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "symbol": "DashboardServiceImpl",
+      "hash": "sha256:0af617563f7febc2f3c3a54c",
+      "line": 83,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/registry.go",
+      "symbol": "BackgroundService",
+      "hash": "sha256:bcbb70dbd8d004c9975f133e",
+      "line": 23,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/server.go",
+      "hash": "sha256:1d9ba448a96e2b2c7ae84d4c",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/routing/routing.go",
+      "symbol": "Wrap",
+      "hash": "sha256:5123d767e4ca5b2b278c8221",
+      "line": 17,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "8adeeb9d-b604-4ea8-863e-efde0ef750fc"
+  },
+  "created": "2026-09-28T05:32:20.973Z",
+  "verified": "2026-09-28T05:32:20.973Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pkg-services-domain-structure",
+    "request-routing-callpath-in-pkg-api",
+    "single-org-403-on-api-admin-users-deletion-and-other-global-",
+    "what-must-change-together-when-adding-or-extending-an-endpoi"
+  ]
+}

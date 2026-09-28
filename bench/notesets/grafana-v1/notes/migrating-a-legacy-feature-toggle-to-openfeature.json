@@ -1,0 +1,52 @@
+{
+  "id": "migrating-a-legacy-feature-toggle-to-openfeature",
+  "title": "Migrating a legacy feature toggle to OpenFeature",
+  "kind": "convention",
+  "answers": [
+    "How do I migrate a feature toggle to OpenFeature?",
+    "How to move a feature flag off config.featureToggles?",
+    "Why does this flag have both LegacyFrontend and React generate options?"
+  ],
+  "body": "To migrate a toggle from legacy config to OpenFeature: in pkg/services/featuremgmt/registry.go set `Generate: Generate{LegacyFrontend: true, React: true}` on the flag entry (keep LegacyFrontend true if the flag key uses the old naming convention without a namespace, e.g. `perPanelNonApplicableDrilldowns` instead of `dashboard.perPanelNonApplicableDrilldowns`). Regenerate openfeature.gen.ts/openfeature-types.gen.d.ts to get a `useFlagX` hook and FlagKeys entry. In component code, replace `config.featureToggles.X` with either the generated `useFlagX()` hook (in React render code) or `getFeatureFlagClient().getBooleanValue(FlagKeys.X, false)` (outside render, e.g. in activate()/lifecycle methods). Once migrated, remove the file's entry from eslint-suppressions.json for the `@grafana/no-config-feature-toggles` rule since direct config.featureToggles access is no longer needed there.",
+  "applies": "Any PR migrating a Grafana feature toggle from legacy config.featureToggles to OpenFeature.",
+  "tags": [
+    "openfeature",
+    "feature-toggles",
+    "grafana-runtime"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/featuremgmt/registry.go",
+      "hash": "sha256:852546db62485959e9d20a8f",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-runtime/src/internal/openFeature/openfeature.gen.ts",
+      "hash": "sha256:e75a933e5d9199b24d782972",
+      "missing": false
+    },
+    {
+      "path": "eslint-suppressions.json",
+      "hash": "sha256:1f13ac6bb69a2f8addb985cd",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-runtime/src/internal/openFeature/openfeature-types.gen.d.ts",
+      "hash": "sha256:0299f08fe4324b7d67c31f3e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133118"
+  },
+  "created": "2026-09-28T05:13:24.014Z",
+  "verified": "2026-09-28T05:13:24.014Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "registry-go-feature-flag-generate-field-co-changes-with-open"
+  ]
+}

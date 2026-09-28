@@ -1,0 +1,40 @@
+{
+  "id": "smallint-alert-rule-column-too-narrow-for-int64-model-field",
+  "title": "SMALLINT alert_rule column too narrow for int64 model field",
+  "kind": "fix",
+  "answers": [
+    "Missing series resolution count above 32767 fails to save",
+    "alert rule numeric field errors or truncates on MySQL/Postgres above SMALLINT max",
+    "int64 model field but DB column is too small",
+    "missing_series_evals_to_resolve out of range error"
+  ],
+  "body": "Symptom: setting an alert rule's missing-series resolution count above 32,767 fails or errors on MySQL/PostgreSQL, even though the Go model field is int64.\nRoot cause: pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go originally created alert_rule.missing_series_evals_to_resolve and alert_rule_version.missing_series_evals_to_resolve as SMALLINT, narrower than the int64 Go field.\nFix pattern: add a new migration using migrator.NewRawSQLMigration(\"\").Mysql(...).Postgres(...) with dialect-specific ALTER TABLE ... MODIFY/ALTER COLUMN ... BIGINT statements (see ExpandAlertRuleMissingSeriesEvalsToResolve), rather than editing the original AddColumn migration.\nConstraints: applies whenever a DB column backing an int64 (or otherwise wide) Go model field was originally created with a narrower SQL type; must widen both the base table and its paired *_version table.",
+  "applies": "Grafana alerting DB schema (alert_rule / alert_rule_version) and similarly modeled tables with narrow numeric columns",
+  "tags": [
+    "migration",
+    "alerting",
+    "mysql",
+    "postgres",
+    "schema"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+      "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve",
+      "hash": "sha256:910108e1b78d35d4e240c381",
+      "line": 19,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-09-28T05:22:10.503Z",
+  "verified": "2026-09-28T05:22:10.503Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

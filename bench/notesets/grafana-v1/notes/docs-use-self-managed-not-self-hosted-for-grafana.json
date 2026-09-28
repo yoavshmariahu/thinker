@@ -1,0 +1,35 @@
+{
+  "id": "docs-use-self-managed-not-self-hosted-for-grafana",
+  "title": "Docs use \"self-managed\" not \"self-hosted\" for Grafana",
+  "kind": "convention",
+  "answers": [
+    "Should Grafana docs say self-hosted or self-managed?",
+    "Terminology standard for on-prem Grafana in docs",
+    "self-hosted vs self-managed Grafana wording"
+  ],
+  "body": "Grafana docs terminology has moved from \"self-hosted\" to \"self-managed\" when referring to non-cloud Grafana deployments (e.g. Terraform provider comment \"For self-managed Grafana\" in docs/sources/datasources/azure-monitor/configure/index.md).\nApply this substitution when editing or reviewing any docs page still using \"self-hosted\", including in code comments inside doc examples.\nConstraints: only applies where the older release branch's content doesn't otherwise diverge — when backporting, only make this wording swap on content that already exists in that branch, don't introduce unrelated newer sections along with it.",
+  "applies": "Any Grafana documentation referring to non-cloud/on-prem Grafana instances",
+  "tags": [
+    "docs",
+    "terminology",
+    "grafana"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/datasources/azure-monitor/configure/index.md",
+      "hash": "sha256:6eb14e0ca3df71ab6d109234",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133028"
+  },
+  "created": "2026-09-28T05:21:52.032Z",
+  "verified": "2026-09-28T05:21:52.032Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

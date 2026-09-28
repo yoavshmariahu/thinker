@@ -1,0 +1,57 @@
+{
+  "id": "apps-dashboard-module-responsibility-and-split-from-pkg-regi",
+  "title": "apps/dashboard/ module responsibility and split from pkg/registry/apis/dashboard/",
+  "kind": "overview",
+  "answers": [
+    "What is apps/dashboard/ responsible for?",
+    "Where do dashboard API types and migrations live vs. HTTP handlers?",
+    "Why can't I find REST handlers under apps/dashboard/?"
+  ],
+  "body": "apps/dashboard is a standalone Go module (apps/dashboard/go.mod, wired into root go.work) built on the Grafana App SDK. It owns the dashboard schema/type/migration layer only: K8s-style API types for Dashboard, LibraryPanel, Snapshot, Variable, Notebook across six coexisting API versions (v0alpha1, v1, v1beta1, v2, v2alpha1, v2beta1 under apps/dashboard/pkg/apis/dashboard/), generated from CUE schemas in apps/dashboard/kinds/*/dashboard_spec.cue. Two migration engines live here too: legacy dashboard-JSON schema-version upgrades (pkg/migration/schemaversion/v2.go..v42.go) and typed cross-version conversions (pkg/migration/conversion/).\nThe actual REST handlers, storage wiring, and admission/validation logic are NOT in apps/dashboard/ — they live in the root-level package pkg/registry/apis/dashboard/ (register.go, dashboard_storage.go, sub_dto.go). Grep both locations when a task mentions \"dashboard API\".",
+  "tags": [
+    "grafana",
+    "apps/dashboard",
+    "architecture"
+  ],
+  "deps": [
+    {
+      "path": "apps/dashboard/pkg/apis/dashboard_manifest.go",
+      "hash": "sha256:ccd5dbea8cc229376a11e7d0",
+      "missing": false
+    },
+    {
+      "path": "apps/dashboard/pkg/migration/migrate.go",
+      "hash": "sha256:5b39bb5daef1ba84a6e5994b",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "hash": "sha256:8af36642872b60168462a622",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/dashboard_storage.go",
+      "hash": "sha256:f378df3596ecb01eb39a3a20",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/sub_dto.go",
+      "hash": "sha256:dbe6d9b135234642a2937a03",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "98ce03e9-c5dd-47a9-b5d2-52f37e677c64"
+  },
+  "created": "2026-09-28T05:48:58.505Z",
+  "verified": "2026-09-28T05:48:58.505Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboard-request-migration-control-flow",
+    "things-that-must-change-together-when-extending-apps-dashboa"
+  ]
+}

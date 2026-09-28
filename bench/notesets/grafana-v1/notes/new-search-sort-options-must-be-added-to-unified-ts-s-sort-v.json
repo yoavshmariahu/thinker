@@ -1,0 +1,40 @@
+{
+  "id": "new-search-sort-options-must-be-added-to-unified-ts-s-sort-v",
+  "title": "New search sort options must be added to unified.ts's sort value map",
+  "kind": "invariant",
+  "answers": [
+    "how do I add a new sort option to search",
+    "adding a sort field to the search UI",
+    "sort option doesn't work after adding it to the dropdown"
+  ],
+  "body": "Any sort value the search UI can produce (current option or a legacy stored/URL value) must have an entry in `uiSortValues` in public/app/features/search/service/unified.ts, mapping it to the real index field name (with a leading `-` for descending).\nEnforced at: public/app/features/search/service/unified.ts:toSortParam.\nIf skipped: the value is passed straight through to the search API as the `sort` query param; since no index field matches it, results come back unsorted with the direction silently dropped, and no error is surfaced.",
+  "applies": "public/app/features/search/service/unified.ts - UnifiedSearcher.search sort handling",
+  "tags": [
+    "search",
+    "sort",
+    "unified-storage",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/search/service/unified.ts",
+      "symbol": "toSortParam",
+      "hash": "sha256:8656cd6346238edc24da94ac",
+      "line": 394,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133100"
+  },
+  "created": "2026-09-28T05:14:38.879Z",
+  "verified": "2026-09-28T05:14:38.879Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "legacy-search-sort-values-must-be-mapped-not-string-replaced"
+  ]
+}

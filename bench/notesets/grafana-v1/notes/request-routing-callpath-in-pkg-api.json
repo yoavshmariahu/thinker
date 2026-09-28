@@ -1,0 +1,90 @@
+{
+  "id": "request-routing-callpath-in-pkg-api",
+  "title": "Request routing callpath in pkg/api/",
+  "kind": "callpath",
+  "answers": [
+    "How does a request get routed to a handler in pkg/api?",
+    "Where are routes declared?",
+    "What does routing.Wrap do?",
+    "Why can route declarations reference hs.SomeService before the mux exists?"
+  ],
+  "body": "HTTPServer.Run (pkg/api/http_server.go:462) → applyRoutes (http_server.go:677) → addMiddlewaresAndStaticRoutes (http_server.go:686) then hs.RouteRegister.Register(...) flushes the deferred route tree onto the real mux.\n\nRoute table: registerRoutes() at pkg/api/api.go:65 (~550 lines). Small routes declared inline (r.Get(...), apiRoute.Group(...)); larger features delegate, e.g. hs.registerFolderAPI to pkg/api/folder.go:25, hs.registerPlaylistAPI to pkg/api/playlist.go:23.\n\nrouting.Wrap (pkg/api/routing/routing.go:17) adapts a func(*contextmodel.ReqContext) response.Response into a raw web.Handler via res.WriteTo(c); typical route line is routing.Wrap(hs.GetDashboard).\n\nRouteRegisterImpl (pkg/api/routing/route_register.go:74) just accumulates routes into a tree until Register() is called once at startup, which is why declarations can reference hs fields before the mux exists, and why duplicate (pattern, method) pairs panic at startup (route_register.go:154) instead of silently overriding.\n\nHandler example: func (hs *HTTPServer) GetDashboard(c *contextmodel.ReqContext) response.Response at pkg/api/dashboard.go:69.",
+  "tags": [
+    "pkg/api",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/http_server.go",
+      "symbol": "Run",
+      "hash": "sha256:a335759084039e605da8da33",
+      "line": 462,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/api.go",
+      "symbol": "registerRoutes",
+      "hash": "sha256:eac3cefc58fedea6d11e699b",
+      "line": 64,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/routing/routing.go",
+      "symbol": "Wrap",
+      "hash": "sha256:5123d767e4ca5b2b278c8221",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/routing/route_register.go",
+      "symbol": "RouteRegisterImpl",
+      "hash": "sha256:7567bbcab6756105d887683f",
+      "line": 74,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/folder.go",
+      "symbol": "registerFolderAPI",
+      "hash": "sha256:f8ece198e9b9c50ac3060361",
+      "line": 25,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/playlist.go",
+      "symbol": "registerPlaylistAPI",
+      "hash": "sha256:5ef6ce5e578ab6ea0694d300",
+      "line": 23,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/dashboard.go",
+      "symbol": "GetDashboard",
+      "hash": "sha256:fcf4f510eb8b64bf25fa2e4c",
+      "line": 47,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/routing/route_register.go",
+      "symbol": "Register",
+      "hash": "sha256:aef90239604e33a0d23e19ae",
+      "line": 120,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "5c4b0482-cb98-48e5-a7f4-12ee5f98656b"
+  },
+  "created": "2026-09-28T06:05:02.476Z",
+  "verified": "2026-09-28T06:05:02.476Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "what-must-change-together-when-adding-or-extending-an-endpoi",
+    "dashboard-fetch-route-handler-service-call-path",
+    "single-org-403-on-api-admin-users-deletion-and-other-global-",
+    "pkg-api-handler-and-middleware-conventions-and-gotchas"
+  ]
+}

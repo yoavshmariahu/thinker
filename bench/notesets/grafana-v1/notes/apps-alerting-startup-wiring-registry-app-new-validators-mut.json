@@ -1,0 +1,76 @@
+{
+  "id": "apps-alerting-startup-wiring-registry-app-new-validators-mut",
+  "title": "apps/alerting startup wiring: registry -> app.New -> validators/mutators",
+  "kind": "callpath",
+  "answers": [
+    "How does control flow from server startup into apps/alerting rules validation?",
+    "Where is the AlertRule/RecordingRule app wired into the apiserver?",
+    "What is the entry point for apps/alerting/rules?"
+  ],
+  "body": "Server startup: pkg/registry/apps/apps.go wires alertingNotificationAppInstaller/rules installer -> pkg/registry/apps/alerting/rules/register.go:RegisterAppInstaller builds a rulesAppConfig.RuntimeConfig (closures over legacy ngalert services) and calls simple.NewAppProvider(rulesManifest.LocalManifest(), appSpecificConfig, rulesApp.New). That calls apps/alerting/rules/pkg/app/app.go:New, which iterates apis.GetKinds() and per-kind attaches a validator (buildKindValidator) and mutator (buildKindMutator), registers custom routes (buildSearchRoutes), then simple.NewApp + a.ValidateManifest. Notifications follow the same pattern via apps/alerting/notifications/pkg/app/app.go:New from pkg/registry/apps/alerting/notifications/register.go. Per-request writes hit this Validator/Mutator (e.g. apps/alerting/rules/pkg/app/alertrule/validator.go:ValidateWrite, mutator.go:NewMutator) before storage.",
+  "tags": [
+    "apps/alerting",
+    "app-sdk",
+    "startup"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/apps.go",
+      "hash": "sha256:e506fb2133958fc9d9bde400",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/alerting/rules/register.go",
+      "symbol": "RegisterAppInstaller",
+      "hash": "sha256:57064f57d2689e8ee0ee57b8",
+      "line": 62,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/app.go",
+      "symbol": "New",
+      "hash": "sha256:c09cec6cb80bdc1febdf8e74",
+      "line": 22,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/notifications/pkg/app/app.go",
+      "symbol": "New",
+      "hash": "sha256:df46783cd74b61e146d56829",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/alertrule/validator.go",
+      "symbol": "ValidateWrite",
+      "hash": "sha256:65ebb9ca7cc457d00dceb245",
+      "line": 100,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/alertrule/mutator.go",
+      "symbol": "NewMutator",
+      "hash": "sha256:5e64e7280db7824c1ab56c94",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/alerting/notifications/register.go",
+      "hash": "sha256:ffe01b92d83c08f1f96cc2fa",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6863f48-ed02-4cad-b750-e30d0507a038"
+  },
+  "created": "2026-09-28T05:55:44.141Z",
+  "verified": "2026-09-28T05:55:44.141Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "extending-an-apps-alerting-kind-requires-3-coordinated-edits"
+  ]
+}

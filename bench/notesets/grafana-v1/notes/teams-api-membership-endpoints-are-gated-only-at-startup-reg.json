@@ -1,0 +1,58 @@
+{
+  "id": "teams-api-membership-endpoints-are-gated-only-at-startup-reg",
+  "title": "Teams API membership endpoints are gated only at startup registration, not per-request",
+  "kind": "invariant",
+  "answers": [
+    "Why does toggling kubernetesTeamsApi flag not affect /teams/{name}/members or /users/{name}/teams at runtime?",
+    "How should feature-flag gating work for IAM API subresources?",
+    "Should REST Connect handlers re-check OpenFeature flags per request?",
+    "Disabling a feature flag doesn't return 403 on an already-registered endpoint"
+  ],
+  "body": "In pkg/registry/apis/iam/register.go, UpdateTeamsAPIGroup and UpdateUsersAPIGroup (via its enableTeamsAPI parameter) decide once, at API group build time, whether to register team.NewTeamMembersREST / user.NewUserTeamREST storage for the members/teams subresources. team/rest_members.go:TeamMembersREST.Connect and user/rest_user_team.go:UserTeamREST.Connect no longer read any feature flag — if the storage is installed, the handler always serves. There is no longer a `*WithFeature` constructor or ofClient field on these types. If new functionality needs flag gating, decide it once when building the API group's storage map (like enableTeamsAPI is threaded through), not inside the handler's request path — a per-request check can't add/remove already-installed routes.",
+  "applies": "pkg/registry/apis/iam Teams/Users API group registration and their REST Connect handlers",
+  "tags": [
+    "iam",
+    "feature-flags",
+    "teams-api",
+    "openfeature"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateTeamsAPIGroup",
+      "hash": "sha256:a6c15b656332f35d87711cd1",
+      "line": 600,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateUsersAPIGroup",
+      "hash": "sha256:83cf38c291d2680a47390de8",
+      "line": 716,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/iam/team/rest_members.go",
+      "hash": "sha256:3a78eac1e4bada877d97d893",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "hash": "sha256:5a2a4e08b7f44fe62501906d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133157"
+  },
+  "created": "2026-09-28T05:12:05.216Z",
+  "verified": "2026-09-28T05:12:05.216Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "iam-api-feature-gating-explicit-config-vs-openfeature-dual-p"
+  ]
+}

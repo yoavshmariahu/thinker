@@ -1,0 +1,42 @@
+{
+  "id": "pluralized-toast-titles-via-t-count-defaultvalue-one-default",
+  "title": "Pluralized toast titles via t() count + defaultValue_one/defaultValue_other",
+  "kind": "convention",
+  "answers": [
+    "How do I add a pluralized i18n string for a toast/label?",
+    "What's the pattern for singular vs plural translation keys in Grafana?",
+    "How to translate 'file added' vs 'files added'"
+  ],
+  "body": "For pluralized UI text, call `t(key, '', { count, defaultValue_one: '...', defaultValue_other: '...' })` and add the corresponding `<key>_one` / `<key>_other` entries to public/locales/en-US/grafana.json (not a single key). See Step1AlertmanagerResources.tsx's templates-added-title usage and the `templates-added-title_one`/`templates-added-title_other` entries.",
+  "applies": "Any new user-facing string in this codebase that varies by count (singular/plural)",
+  "tags": [
+    "i18n",
+    "pluralization",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx",
+      "symbol": "t",
+      "hash": "sha256:caa64e24bb2c41d2d0d304e3",
+      "line": 87,
+      "missing": false
+    },
+    {
+      "path": "public/locales/en-US/grafana.json",
+      "hash": "sha256:cbc8af5aa5e5e2852d108f4d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133035"
+  },
+  "created": "2026-09-28T05:19:13.170Z",
+  "verified": "2026-09-28T05:19:13.170Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

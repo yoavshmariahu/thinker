@@ -1,0 +1,81 @@
+{
+  "id": "cross-file-changes-required-when-extending-a-core-tsdb-datas",
+  "title": "Cross-file changes required when extending a core tsdb datasource",
+  "kind": "cochange",
+  "answers": [
+    "What else do I need to update when adding a field to a datasource query model?",
+    "What must change together when adding a new core datasource constructor?",
+    "Why is there a .cue file next to a generated Go query type?"
+  ],
+  "body": "1) Query schema: Go types under `<pkg>/kinds/dataquery/types_dataquery_gen.go` are generated (\"Code generated - EDITING IS FUTILE\") from the CUE file at public/app/plugins/datasource/<name>/dataquery.cue via `make gen-cue` — edit the .cue, regenerate both Go and TS types, don't hand-edit the generated Go struct.\n2) Plugin ID strings must stay consistent across pkg/services/pluginsintegration/coreplugin/coreplugins.go (the plugin ID constants / NewPlugin switch), the frontend public/app/plugins/datasource/<name>/plugin.json, and — for standalone-capable plugins — the string passed to datasource.Manage(...) in <pkg>/standalone/main.go. pkg/tsdb/Magefile.go greps for these strings to match a Go package to its plugin.json.\n3) Wire DI: adding/changing a ProvideService constructor requires updating pkg/server/wire_core.go (and pkg/extensions/enterprise_imports.go / pkg/server/bootstrap/wire/sets.go if enterprise-relevant) and running `make gen-go` to regenerate pkg/server/bootstrap/wire/wire_gen.go.",
+  "applies": "Applies to the 5 core plugins under pkg/tsdb (azuremonitor, cloudwatch, grafana-testdata-datasource, grafanads, graphite). Does not apply to external/installable plugins which live outside this repo.",
+  "tags": [
+    "tsdb",
+    "cochange",
+    "wire",
+    "cue",
+    "plugin-registration"
+  ],
+  "deps": [
+    {
+      "path": "pkg/tsdb/azuremonitor/kinds/dataquery/types_dataquery_gen.go",
+      "hash": "sha256:edea450c19065315485042c2",
+      "missing": false
+    },
+    {
+      "path": "public/app/plugins/datasource/azuremonitor/dataquery.cue",
+      "hash": "sha256:b84249bef16b91ab2e651611",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/pluginsintegration/coreplugin/coreplugins.go",
+      "hash": "sha256:26fa0fb143ff4fa851cd77e8",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire_core.go",
+      "hash": "sha256:52534e20a43f8811743de33b",
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/Magefile.go",
+      "hash": "sha256:a14190d41397a99ba3535fad",
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/azuremonitor/standalone/main.go",
+      "hash": "sha256:85cf7724ec2fe9ec7a8514a3",
+      "missing": false
+    },
+    {
+      "path": "pkg/extensions/enterprise_imports.go",
+      "hash": "sha256:9639c408397a8aeccfdf2a00",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/bootstrap/wire/sets.go",
+      "hash": "sha256:e9e8cf46edec4f4c44c0fa73",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/bootstrap/wire/wire_gen.go",
+      "hash": "sha256:a7c0346cf0596cc95d35e87b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "bf98e887-f714-4b75-bcce-80dca47bc357"
+  },
+  "created": "2026-09-28T05:53:33.303Z",
+  "verified": "2026-09-28T05:53:33.303Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "query-dispatch-api-query-serviceimpl-coreplugin-registry-ser",
+    "registerappinstaller-signature-change-requires-updating-wire",
+    "registration-control-flow-wire-registerapiservice-registerap"
+  ]
+}

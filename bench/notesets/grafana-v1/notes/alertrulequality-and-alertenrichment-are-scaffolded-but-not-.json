@@ -1,0 +1,43 @@
+{
+  "id": "alertrulequality-and-alertenrichment-are-scaffolded-but-not-",
+  "title": "alertrulequality and alertenrichment are scaffolded but not wired into the server",
+  "kind": "location",
+  "answers": [
+    "Is alertrulequality/alertenrichment actually running in the server?",
+    "Where is the app.go for alertrulequality?",
+    "Why can't I find a register.go for alertenrichment?"
+  ],
+  "body": "apps/alerting/alertrulequality/ and apps/alerting/alertenrichment/ only contain generated API type packages (pkg/apis/.../types.go, zz_generated.*) — there is no pkg/app for either, and no corresponding pkg/registry/apps/alerting/{alertrulequality,alertenrichment}/register.go. They are not referenced from pkg/registry/apps/apps.go, so these kinds don't run in the live apiserver yet.",
+  "tags": [
+    "apps/alerting",
+    "scaffolding"
+  ],
+  "deps": [
+    {
+      "path": "apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/types.go",
+      "hash": "sha256:8d9fd7e36587797e9963f96b",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/alertenrichment/pkg/apis/alertenrichment/v1beta1/types.go",
+      "hash": "sha256:fe182d07ddb219bace000f12",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/apps.go",
+      "hash": "sha256:e506fb2133958fc9d9bde400",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6863f48-ed02-4cad-b750-e30d0507a038"
+  },
+  "created": "2026-09-28T05:55:44.484Z",
+  "verified": "2026-09-28T05:55:44.484Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

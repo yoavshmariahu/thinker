@@ -1,0 +1,47 @@
+{
+  "id": "parsesortparam-unrecognized-sort-names-must-pass-through-emp",
+  "title": "parseSortParam: unrecognized sort names must pass through, empty ones must be dropped",
+  "kind": "invariant",
+  "answers": [
+    "What happens if a search sort field name isn't recognized?",
+    "Can I add validation/error on unknown sort values in dashboard search?",
+    "Why does an empty or '-' sort param get skipped instead of sent to the backend?"
+  ],
+  "body": "In pkg/registry/apis/dashboard/search.go, `parseSortParam` must return the field unchanged (not empty, not an error) when it doesn't match `uiSortAliases` or `searchsort.ParseSortName` — this lets the backend's `search_enforce_sort_capability` check report a genuine capability violation for misspelled/unsupported fields instead of the client swallowing the mistake.\nSeparately, when `parseSortParam` returns an empty field (raw sort was `\"\"` or just `\"-\"`), the caller in `convertHttpSearchRequestToResourceSearchRequest` must `continue` and skip appending to `SortBy` rather than sending an empty-field sort entry to the backend.\nIf either behavior is removed: unknown fields would either error incorrectly (blocking legit-but-unmapped sorts) or be silently accepted (hiding the field-name bug), and empty sorts would send a malformed sort entry to resource search.",
+  "applies": "pkg/registry/apis/dashboard/search.go convertHttpSearchRequestToResourceSearchRequest / parseSortParam",
+  "tags": [
+    "search",
+    "dashboard-search",
+    "sort",
+    "capability-check"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/dashboard/search.go",
+      "symbol": "parseSortParam",
+      "hash": "sha256:49f08de733317c07e63c1888",
+      "line": 1062,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/search.go",
+      "symbol": "convertHttpSearchRequestToResourceSearchRequest",
+      "hash": "sha256:8d830191d9efac09052f66b9",
+      "line": 832,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133099"
+  },
+  "created": "2026-09-28T05:15:14.161Z",
+  "verified": "2026-09-28T05:15:14.161Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboard-search-legacy-ui-sort-names-must-be-translated-to-"
+  ]
+}

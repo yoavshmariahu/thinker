@@ -1,0 +1,43 @@
+{
+  "id": "eventstore-latest-bounded-reverse-read-of-retained-event-met",
+  "title": "eventStore.latest: bounded reverse read of retained event metadata",
+  "kind": "location",
+  "answers": [
+    "How do I read the most recent retained events at or below a resource version?",
+    "Where is the bounded event tail lookup implemented?",
+    "How to fetch latest N events up to a resource-version ceiling"
+  ],
+  "body": "eventStore.latest(ctx, limit, throughRV) in pkg/storage/unified/resource/eventstore.go returns up to `limit` events with ResourceVersion <= throughRV, newest-first. It builds ListOptions{Sort: SortOrderDesc, Limit: limit} and sets EndKey = strconv of throughRV+1 (key range end is exclusive) unless throughRV is math.MaxInt64. Keys are collected first, then read back in batches via readEventPage and reversed to restore ascending order in the result.",
+  "applies": "pkg/storage/unified/resource/eventstore.go reads of the durable event tail",
+  "tags": [
+    "storage",
+    "eventstore"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/eventstore.go",
+      "hash": "sha256:936b2c219ae7e682613eb94b",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/eventStore.go",
+      "symbol": "latest",
+      "hash": "sha256:1c94600bd81e7503ba5d498a",
+      "line": 316,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133042"
+  },
+  "created": "2026-09-28T05:17:45.108Z",
+  "verified": "2026-09-28T05:17:45.108Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "event-tail-scans-must-be-descending-not-ascending"
+  ]
+}

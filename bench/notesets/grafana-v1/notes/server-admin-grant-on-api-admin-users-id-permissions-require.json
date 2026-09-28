@@ -1,0 +1,47 @@
+{
+  "id": "server-admin-grant-on-api-admin-users-id-permissions-require",
+  "title": "Server-admin grant on /api/admin/users/:id/permissions requires reqGrafanaAdmin, not just a permission check",
+  "kind": "invariant",
+  "answers": [
+    "Can a regular admin with users:permissions:update grant isGrafanaAdmin?",
+    "Why does PUT /api/admin/users/:id/permissions still 403 for org admins with the right permission?",
+    "How is granting Grafana server-admin status protected?"
+  ],
+  "body": "Setting isGrafanaAdmin via PUT /api/admin/users/:id/permissions must remain gated by the reqGrafanaAdmin middleware in addition to the ActionUsersPermissionsUpdate permission check.\nEnforced at: pkg/api/api.go, adminUserRoute.Put(\"/:id/permissions\", userUIDResolver, reqGrafanaAdmin, authorizeInOrg(ac.UseGlobalOrSingleOrg(hs.Cfg), ac.EvalPermission(ac.ActionUsersPermissionsUpdate, userIDScope)), ...).\nIf reqGrafanaAdmin is removed or reordered out, an org Admin (single- or multi-org) holding only the permissions:update action could grant server-admin rights to a user, escalating privileges outside org scope.\nRegression covered by TestAdminUsersAuthorization_OrgAdminCannotGrantServerAdmin in pkg/api/admin_users_test.go, run for both single-org and multi-org configs.",
+  "applies": "pkg/api/api.go PUT /api/admin/users/:id/permissions route",
+  "tags": [
+    "iam",
+    "accesscontrol",
+    "server-admin",
+    "privilege-escalation",
+    "admin-users"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/api.go",
+      "hash": "sha256:9b18898c01711895fef928c8",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/admin_users_test.go",
+      "symbol": "TestAdminUsersAuthorization_OrgAdminCannotGrantServerAdmin",
+      "hash": "sha256:ef399f84ad54a13500c110b7",
+      "line": 694,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133013"
+  },
+  "created": "2026-09-28T05:24:12.966Z",
+  "verified": "2026-09-28T05:24:12.966Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "single-org-403-on-api-admin-users-deletion-and-other-global-",
+    "test-admin-route-authorization-via-real-route-registration-n"
+  ]
+}

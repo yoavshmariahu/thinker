@@ -1,0 +1,40 @@
+{
+  "id": "grafana-ui-cannot-import-grafana-test-utils-circular-depende",
+  "title": "grafana-ui cannot import @grafana/test-utils (circular dependency, lint-enforced)",
+  "kind": "gotcha",
+  "answers": [
+    "Why does eslint complain when I import @grafana/test-utils in a grafana-ui test?",
+    "What should I use instead of @grafana/test-utils in grafana-ui?"
+  ],
+  "body": "`eslint.config.js:281-294` defines rule `grafana/grafana-ui-no-test-utils` that blocks importing `@grafana/test-utils` from within grafana-ui, because that package depends back on `@grafana/ui`, creating a circular dependency. Use local DOM-only mocks in `packages/grafana-ui/src/test-utils/mockDom.ts` instead.",
+  "applies": "Applies specifically to test files inside packages/grafana-ui/src/; other packages may use @grafana/test-utils freely.",
+  "tags": [
+    "grafana-ui",
+    "testing",
+    "eslint",
+    "gotcha"
+  ],
+  "deps": [
+    {
+      "path": "eslint.config.js",
+      "hash": "sha256:a132d857c111c636deb6d8b6",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/test-utils/mockDom.ts",
+      "hash": "sha256:a0cd2d7b8ce0c1022cd13113",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1bd56c9f-ac14-468a-b6a3-03296332a944"
+  },
+  "created": "2026-09-28T05:36:50.538Z",
+  "verified": "2026-09-28T05:36:50.538Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

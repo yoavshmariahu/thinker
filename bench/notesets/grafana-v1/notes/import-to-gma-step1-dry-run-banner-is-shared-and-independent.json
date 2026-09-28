@@ -1,0 +1,38 @@
+{
+  "id": "import-to-gma-step1-dry-run-banner-is-shared-and-independent",
+  "title": "Import-to-GMA Step1 dry-run banner is shared and independent of per-dropzone success feedback",
+  "kind": "invariant",
+  "answers": [
+    "Why does the validation banner not confirm a successful file drop?",
+    "Do toasts get suppressed when the dry-run validation shows a warning/error?",
+    "How is per-file feedback surfaced when the shared config validation fails?"
+  ],
+  "body": "Step1Content's dry-run validation banner reflects the state of the whole config (both YAML and templates combined) and is re-run on every drop, so it cannot confirm success for an individual dropzone. Per-dropzone confirmation must use an independent mechanism (the success toast via notifyApp.success) that fires regardless of dryRunState, so it stays visible even when the banner shows warning/error.",
+  "applies": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx Step1Content — any change to dropzone onDrop handlers or dry-run validation flow",
+  "tags": [
+    "alerting",
+    "import-to-gma",
+    "validation",
+    "ux"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx",
+      "symbol": "Step1Content",
+      "hash": "sha256:1fe7ada771e222d47970198c",
+      "line": 111,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133035"
+  },
+  "created": "2026-09-28T05:19:13.213Z",
+  "verified": "2026-09-28T05:19:13.213Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

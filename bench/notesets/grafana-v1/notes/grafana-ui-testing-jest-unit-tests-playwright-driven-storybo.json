@@ -1,0 +1,56 @@
+{
+  "id": "grafana-ui-testing-jest-unit-tests-playwright-driven-storybo",
+  "title": "grafana-ui testing: Jest unit tests + Playwright-driven Storybook for visual/interaction",
+  "kind": "howto",
+  "answers": [
+    "How are grafana-ui components tested?",
+    "How do I run visual/interaction tests for grafana-ui?",
+    "Where do Storybook e2e specs live?"
+  ],
+  "body": "Unit tests: root `jest.config.js` (testEnvironment 'jsdom', ts-jest transform) with @testing-library/react + jest-dom + user-event; tests sit beside the component, e.g. `src/components/Icon/Icon.test.tsx` (RTL render + screen.getByTestId). Visual/interaction: Storybook under `packages/grafana-ui/.storybook/` is driven by Playwright (not Chromatic) — `playwright.storybook.config.ts` boots `yarn storybook` on localhost:9001 and runs specs under `e2e-playwright/storybook/` (e.g. verify.spec.ts hitting a story URL like `?path=/story/inputs-button--basic`). There's also a `storybook:test` package.json script using @storybook/test-runner as an alternative runner.",
+  "tags": [
+    "grafana-ui",
+    "testing",
+    "storybook",
+    "playwright",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "jest.config.js",
+      "hash": "sha256:fb92a24ef1e92f517a520306",
+      "missing": false
+    },
+    {
+      "path": "playwright.storybook.config.ts",
+      "hash": "sha256:c918255cb3091f433c487b8f",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Icon/Icon.test.tsx",
+      "hash": "sha256:5b279089305957befb770290",
+      "missing": false
+    },
+    {
+      "path": "e2e-playwright/storybook/verify.spec.ts",
+      "hash": "sha256:9e1e649f9695afba31afa8c6",
+      "missing": false
+    },
+    {
+      "path": "scripts/prepare-npm-package.js",
+      "hash": "sha256:f3ca3c04700e659c60522a1f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1bd56c9f-ac14-468a-b6a3-03296332a944"
+  },
+  "created": "2026-09-28T05:36:50.680Z",
+  "verified": "2026-09-28T05:36:50.680Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

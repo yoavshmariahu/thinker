@@ -1,0 +1,50 @@
+{
+  "id": "pkg-services-domain-structure",
+  "title": "pkg/services/ domain structure",
+  "kind": "overview",
+  "answers": [
+    "What is pkg/services/ responsible for?",
+    "How is pkg/services organized?",
+    "Where do I find a given domain's business logic?"
+  ],
+  "body": "pkg/services/ is Grafana's business-logic layer: ~100 top-level subdirectories, one per domain (dashboards, folder, ngalert, auth/authn/authz, datasources, user, org, accesscontrol, star, featuremgmt, sqlstore, ...). Each domain typically exposes interface(s) + models at the package root, with a concrete implementation in a sibling `service`/`impl` subpackage (e.g. dashboards + dashboards/service, star + star/starimpl). Size varies hugely: star is ~80 lines total; ngalert is effectively its own sub-monorepo with scheduler/state/notifier/provisioning/eval subpackages.",
+  "tags": [
+    "pkg/services",
+    "architecture"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/dashboards/dashboard.go",
+      "symbol": "DashboardService",
+      "hash": "sha256:28292de52945cc81c03460cd",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "pkg/services/star/star.go",
+      "hash": "sha256:84c92ba9edcb70779b3a800e",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "symbol": "DashboardServiceImpl",
+      "hash": "sha256:0af617563f7febc2f3c3a54c",
+      "line": 83,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "8adeeb9d-b604-4ea8-863e-efde0ef750fc"
+  },
+  "created": "2026-09-28T05:32:20.689Z",
+  "verified": "2026-09-28T05:32:20.689Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboard-fetch-route-handler-service-call-path",
+    "pkg-services-conventions-interface-segregation-store-split-i"
+  ]
+}

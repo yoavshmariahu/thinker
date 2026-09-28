@@ -1,0 +1,56 @@
+{
+  "id": "selectable-field-filters-must-be-refused-if-the-index-doesn-",
+  "title": "Selectable-field filters must be refused if the index doesn't map them",
+  "kind": "invariant",
+  "answers": [
+    "search filter on a field returns no results but matches should exist",
+    "why does filtering by a selectable field silently return empty",
+    "adding a new filter path to bleve search",
+    "filter on newly declared selectable field not working"
+  ],
+  "body": "A ResourceSearchRequest filter on a SEARCH_SELECTABLE_FIELDS_PREFIX field must go through bleveIndex.rejectUnmappedSelectableFields (called from toBleveSearchRequest) before becoming a term query. If the field isn't in bleveIndex.mappedSelectableFields (read once from build info when the index is opened, in newBleveIndex), the search must be refused with NewSelectableFieldNotIndexedError instead of silently running a query against a non-existent field, which would match zero documents and be indistinguishable from a real 'no matches' result. Any new filter/query-building path added to bleve.go must preserve this check.",
+  "applies": "pkg/storage/unified/search/bleve.go — building any ResourceSearchRequest into a bleve query",
+  "tags": [
+    "unified-storage",
+    "search",
+    "bleve",
+    "selectable-fields"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "rejectUnmappedSelectableFields",
+      "hash": "sha256:7ac3e45e048ff0f21fe9a6cf",
+      "line": 3063,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "toBleveSearchRequest",
+      "hash": "sha256:e2a96441d922dfb558b74c9a",
+      "line": 2600,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/errors.go",
+      "symbol": "NewSelectableFieldNotIndexedError",
+      "hash": "sha256:12e7b2bd8edf62f857832313",
+      "line": 179,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133102"
+  },
+  "created": "2026-09-28T05:14:04.919Z",
+  "verified": "2026-09-28T05:14:04.919Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "empty-selectablefields-in-build-info-means-none-mapped-not-u",
+    "server-side-control-flow-inside-unified-storage"
+  ]
+}

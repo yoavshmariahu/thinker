@@ -1,0 +1,100 @@
+{
+  "id": "control-flow-from-job-repo-creation-to-execution-and-status-",
+  "title": "Control flow from job/repo creation to execution and status writeback",
+  "kind": "callpath",
+  "answers": [
+    "How does a Job get validated/mutated before execution?",
+    "What's the chokepoint for building a live Repository client?",
+    "How does job/sync status get written back to the Repository object?",
+    "How do inbound git webhooks get processed?"
+  ],
+  "body": "1. Job create -> admission webhook: pkg/registry/apis/provisioning/register.go:871 registers appjobs.NewAdmissionMutator(userAttributionEnabled) which is apps/provisioning/pkg/jobs/mutator.go:AdmissionMutator.Mutate; validation is apps/provisioning/pkg/jobs/validator.go:ValidateJob.\n2. Repository/Connection construction -> Factory: pkg/registry/apis/provisioning/extras/register.go:93/:110 call repository.ProvideFactory and connection.ProvideFactory (apps/provisioning/pkg/repository/factory.go), wiring one Extra impl per type (git/github/local, github/githuboauth/oauth). All callers (job workers, HTTP handlers, webhook processing) go through factory.Build, the single chokepoint for constructing a live repository client incl. secret decryption.\n3. Job execution: workers in pkg/registry/apis/provisioning/jobs/driver.go and .../jobs/{sync,export,migrate,delete,move,fixfoldermetadata,deleteresources,releaseresources}/worker.go call methods on the repository.Repository built above, including IsWriteAllowed in apps/provisioning/pkg/repository/workflows.go.\n4. Inbound git-provider webhooks land in pkg/registry/apis/provisioning/webhooks/ and are normalized via each backend's WebhookClient (apps/provisioning/pkg/repository/webhook.go, pkg/repository/github/webhook.go).\n5. Status writeback: controller.RepositoryStatusPatcher.Patch (apps/provisioning/pkg/controller/status.go) is how job/controller code in the main module writes results back onto the Repository status subresource, with retry on k8s conflicts and SQLITE_BUSY.",
+  "tags": [
+    "provisioning",
+    "callpath",
+    "jobs",
+    "webhook"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/provisioning/register.go",
+      "hash": "sha256:2d6f20c68c986ad058a25df8",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/jobs/mutator.go",
+      "symbol": "AdmissionMutator",
+      "hash": "sha256:10924b508659f3ac60678b69",
+      "line": 20,
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/jobs/validator.go",
+      "symbol": "ValidateJob",
+      "hash": "sha256:ef366c8342baa1ee5e290d07",
+      "line": 30,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/extras/register.go",
+      "hash": "sha256:c4cd36271740015e7fe71aaa",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/factory.go",
+      "symbol": "ProvideFactory",
+      "hash": "sha256:e22744a5e8b4e15258638093",
+      "line": 39,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/jobs/driver.go",
+      "hash": "sha256:068d0b0f83492bb856cd4776",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/workflows.go",
+      "symbol": "IsWriteAllowed",
+      "hash": "sha256:f29e675af34dffdfebdbf842",
+      "line": 13,
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/webhook.go",
+      "hash": "sha256:1d69db558e356686a28af956",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/controller/status.go",
+      "symbol": "RepositoryStatusPatcher",
+      "hash": "sha256:997d7292b066e14a9224f0c1",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/jobs/mutator.go",
+      "hash": "sha256:8735f9231e6dc6a315cb1cf0",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/factory.go",
+      "symbol": "Build",
+      "hash": "sha256:8819ce89001741fecbe13efd",
+      "line": 71,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e2b66c4a-e7e3-4c50-b35a-47191dc19ae2"
+  },
+  "created": "2026-09-28T05:46:01.822Z",
+  "verified": "2026-09-28T05:46:01.822Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.88,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-editing-a-provisioning-repository-or-connection-type-"
+  ]
+}

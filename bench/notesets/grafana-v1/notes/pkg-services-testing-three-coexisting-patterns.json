@@ -1,0 +1,47 @@
+{
+  "id": "pkg-services-testing-three-coexisting-patterns",
+  "title": "pkg/services testing: three coexisting patterns",
+  "kind": "howto",
+  "answers": [
+    "How are services in pkg/services tested?",
+    "Should I use a mock or a real DB in service tests?",
+    "What test doubles exist for service interfaces?"
+  ],
+  "body": "Three patterns coexist and are chosen per-test: (1) real SQLite via `db.InitTestDB(t)` run against actual migrations, e.g. `pkg/services/star/starimpl/store_test.go:28` — used for store-layer tests. (2) testify/mock against generated mockery mocks (often mocking the k8s/unified-storage client), e.g. `pkg/services/dashboards/service/dashboard_service_test.go` — used for service-layer unit tests with heavier dependencies. (3) Hand-rolled fakes distinct from mockery output, kept in a `*test` subpackage, e.g. `pkg/services/star/startest/fake.go:FakeStarService` — meant for *consumers* of a service that just need a lightweight stand-in, not for testing the service itself.",
+  "applies": "When writing new tests in pkg/services: test the store layer against a real InitTestDB SQLite instance; test service-layer logic with mockery-generated mocks; when another package merely depends on a service, prefer its existing `*test.FakeX` if present instead of writing a new mock.",
+  "tags": [
+    "testing",
+    "pkg/services",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/star/starimpl/store_test.go",
+      "hash": "sha256:6c2f896b74d343a78a41bce4",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service_test.go",
+      "hash": "sha256:0fb6d359f2eb265d6dc03edb",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/star/startest/fake.go",
+      "symbol": "FakeStarService",
+      "hash": "sha256:f2e242073e1eb89883b97302",
+      "line": 9,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "8adeeb9d-b604-4ea8-863e-efde0ef750fc"
+  },
+  "created": "2026-09-28T05:32:21.659Z",
+  "verified": "2026-09-28T05:32:21.659Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

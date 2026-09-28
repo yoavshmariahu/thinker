@@ -1,0 +1,53 @@
+{
+  "id": "apps-provisioning-is-a-types-domain-logic-library-not-a-runn",
+  "title": "apps/provisioning is a types+domain-logic library, not a running service",
+  "kind": "overview",
+  "answers": [
+    "What does apps/provisioning/ do?",
+    "Where does provisioning's HTTP server or reconcile loop live?",
+    "What's the module boundary between apps/provisioning and pkg/registry/apis/provisioning?"
+  ],
+  "body": "apps/provisioning is a standalone Go module (own go.mod, module github.com/grafana/grafana/apps/provisioning, listed in go.work:26) implementing Grafana's Git Sync/provisioning domain: syncing dashboards/folders to external repos (GitHub, GitHub Enterprise, generic Git, local fs) and OAuth/GitHub-App 'Connections'. It has no main(), no HTTP server, no reconcile loop. It defines: API kinds (Repository, Job, HistoricJob, Connection) in pkg/apis/provisioning/v0alpha1/; the repository.Repository/Extra/Factory abstraction + backends in pkg/repository/{git,github,local}/; the mirrored connection.Connection/Extra/Factory abstraction in pkg/connection/{github,githuboauth,oauth}/; admission mutate/validate logic in pkg/jobs/ and *validator*.go files; stateless helpers (pkg/quotas, pkg/safepath, pkg/loki); status-patch helpers in pkg/controller/; generated clientset/informers/listers in pkg/generated/. The actual API server, HTTP routes, and job-execution workers live outside this directory in pkg/registry/apis/provisioning/ (main module), which imports apps/provisioning as a dependency.",
+  "tags": [
+    "provisioning",
+    "architecture",
+    "go-module"
+  ],
+  "deps": [
+    {
+      "path": "apps/provisioning/go.mod",
+      "hash": "sha256:7eb8988be929d84f99b0dd81",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/repository.go",
+      "symbol": "Repository",
+      "hash": "sha256:77790c96c2eb053d4b5c56d4",
+      "line": 13,
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/factory.go",
+      "hash": "sha256:5a3978a9a5fa67f6dd0fcf8a",
+      "missing": false
+    },
+    {
+      "path": "go.work",
+      "hash": "sha256:22134044360c3bda84afa05f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e2b66c4a-e7e3-4c50-b35a-47191dc19ae2"
+  },
+  "created": "2026-09-28T05:46:01.637Z",
+  "verified": "2026-09-28T05:46:01.637Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "control-flow-from-job-repo-creation-to-execution-and-status-"
+  ]
+}

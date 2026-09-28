@@ -1,0 +1,46 @@
+{
+  "id": "public-app-testing-jest-rtl-colocated-playwright-e2e-in-sepa",
+  "title": "public/app testing: Jest/RTL colocated + Playwright e2e in separate dir",
+  "kind": "howto",
+  "answers": [
+    "How is public/app tested?",
+    "Where do unit tests vs e2e tests live for the frontend?",
+    "How do I test a redux thunk or reducer in this codebase?"
+  ],
+  "body": "Unit tests: Jest + React Testing Library, colocated as `*.test.ts(x)` next to source (~2100 files under `public/app/`); conventions documented in `contribute/style-guides/testing.md` and the `frontend-testing-strategy` skill. Reducers/thunks specifically should use the `reducerTester()`/`thunkTester()` helpers documented in `contribute/style-guides/redux.md` rather than hand-rolled dispatch assertions. E2E tests use Playwright, config at repo-root `playwright.config.ts`, with suites under `e2e-playwright/` organized by domain — these are NOT colocated with source, unlike unit tests.",
+  "tags": [
+    "public/app",
+    "testing",
+    "jest",
+    "playwright",
+    "redux"
+  ],
+  "deps": [
+    {
+      "path": "contribute/style-guides/testing.md",
+      "hash": "sha256:068bca3de711df2579f035de",
+      "missing": false
+    },
+    {
+      "path": "contribute/style-guides/redux.md",
+      "hash": "sha256:67e1b5e18ad031eb318b51b3",
+      "missing": false
+    },
+    {
+      "path": "playwright.config.ts",
+      "hash": "sha256:1b34ebf4b7a2945a8fed818c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "4be11d8b-4d1a-4df7-9d57-6c0ad8c67654"
+  },
+  "created": "2026-09-28T05:30:13.906Z",
+  "verified": "2026-09-28T05:30:13.906Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

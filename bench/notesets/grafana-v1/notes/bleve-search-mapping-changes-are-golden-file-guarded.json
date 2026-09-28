@@ -1,0 +1,40 @@
+{
+  "id": "bleve-search-mapping-changes-are-golden-file-guarded",
+  "title": "Bleve search mapping changes are golden-file guarded",
+  "kind": "convention",
+  "answers": [
+    "How do I safely change the search index field mappings in unified storage?",
+    "Why did my search mapping change break a test with no obvious diff?"
+  ],
+  "body": "Changes to bleve field mappings (pkg/storage/unified/search/bleve_mappings.go) are guarded by a golden-file test, search/bleve_mappings_golden_test.go. Regenerate expected output with the test's -update-golden flag and review the diff carefully; this file is effectively an on-disk index format contract, and unreviewed changes can silently break existing indices.",
+  "applies": "Applies only to changes touching bleve field mappings/index schema; unrelated search logic changes don't need golden regeneration.",
+  "tags": [
+    "pkg/storage",
+    "unified-storage",
+    "testing",
+    "bleve"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/search/bleve_mappings.go",
+      "hash": "sha256:0ed62d067086687df2ebcf35",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve_mappings_golden_test.go",
+      "hash": "sha256:ff979a3fbf14ecec9dc9e2c6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9979686a-0418-4ba7-ac35-243357cd27c4"
+  },
+  "created": "2026-09-28T05:41:04.885Z",
+  "verified": "2026-09-28T05:41:04.885Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

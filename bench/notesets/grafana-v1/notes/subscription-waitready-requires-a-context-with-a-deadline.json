@@ -1,0 +1,43 @@
+{
+  "id": "subscription-waitready-requires-a-context-with-a-deadline",
+  "title": "Subscription.WaitReady requires a context with a deadline",
+  "kind": "convention",
+  "answers": [
+    "WaitReady blocking forever",
+    "how to call WaitReady on a nats Subscription",
+    "context deadline exceeded from WaitReady"
+  ],
+  "body": "Subscription.WaitReady(ctx) is documented to require a context that carries a deadline (pkg/infra/nats/subscriber.go, pkg/storage/unified/resource/notifier_nats.go). Callers such as natsNotifier.trySubscribe wrap the incoming ctx with context.WithTimeout(ctx, defaultMaxBackoff) before calling WaitReady rather than passing an undeadlined context straight through.",
+  "applies": "any caller of Subscription.WaitReady in pkg/infra/nats or pkg/storage/unified/resource",
+  "tags": [
+    "nats",
+    "context",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/infra/nats/subscriber.go",
+      "hash": "sha256:5b5f4db0ba0f13aefe4a5666",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier_nats.go",
+      "hash": "sha256:d07022097dd277117220ecb3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133040"
+  },
+  "created": "2026-09-28T05:18:21.319Z",
+  "verified": "2026-09-28T05:18:21.319Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "nats-sub-acknowledgment-must-be-awaited-before-treating-a-wa",
+    "nats-subscription-interface-requires-waitready-on-every-impl"
+  ]
+}

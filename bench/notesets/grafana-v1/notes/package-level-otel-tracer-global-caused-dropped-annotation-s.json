@@ -1,0 +1,49 @@
+{
+  "id": "package-level-otel-tracer-global-caused-dropped-annotation-s",
+  "title": "Package-level otel.Tracer() global caused dropped annotation spans",
+  "kind": "fix",
+  "answers": [
+    "Why are annotation app traces/spans missing in Grafana?",
+    "Annotation spans not showing up in tracing backend",
+    "Tracer created with otel.Tracer() at package init doesn't emit spans",
+    "Lazy-loaded global tracer not resolved"
+  ],
+  "body": "Symptom: annotation app spans (annotation.k8s.*, annotation.store.*, annotation.authz.*) were missing/no-op in the tracing backend even though tracing was configured.\nRoot cause: pkg/registry/apps/annotation/tracing.go declared `var tracer = otel.Tracer(...)` at package init time; this resolved the global TracerProvider before Grafana's real (lazy-loaded) TracerProvider was registered, so the captured tracer stayed a no-op.\nFix pattern: delete the package-level tracer var and thread a `trace.Tracer` explicitly as a constructor/function parameter (AppInstaller.tracer, k8sRESTAdapter.tracer, instrumentedStore.tracer, dashboardFolderResolver.tracer, and as an explicit param to canAccessAnnotation(s), resolveDashboardFolders, newSearchHandler, newTagsHandler, newGraphiteHandler), sourced from the app's tracing.Tracer dependency at wiring time.\nConstraints: applies whenever a package initializes its own otel tracer at var-init time instead of receiving one from DI; not needed if the tracer is obtained lazily inside each call via otel.Tracer() at call time (that pattern does resolve correctly), only the package-level var form is the problem.",
+  "applies": "pkg/registry/apps/annotation package, and any other package using a package-level `var tracer = otel.Tracer(...)` initialized before the real TracerProvider is set",
+  "tags": [
+    "tracing",
+    "opentelemetry",
+    "annotation",
+    "dependency-injection"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/annotation/register.go",
+      "symbol": "NewAppInstaller",
+      "hash": "sha256:15b8cc275fd1caeb3cef5393",
+      "line": 64,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/annotation/k8s_adapter.go",
+      "hash": "sha256:0cd0261022790f03825b7d56",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/annotation/instrumented_store.go",
+      "hash": "sha256:606c6cfc422fcd3a6f342888",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133034"
+  },
+  "created": "2026-09-28T05:19:41.846Z",
+  "verified": "2026-09-28T05:19:41.846Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

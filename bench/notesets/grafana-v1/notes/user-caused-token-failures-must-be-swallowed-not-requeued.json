@@ -1,0 +1,50 @@
+{
+  "id": "user-caused-token-failures-must-be-swallowed-not-requeued",
+  "title": "User-caused token failures must be swallowed, not requeued",
+  "kind": "invariant",
+  "answers": [
+    "why doesn't a repo retry after GitHub App is uninstalled",
+    "how should user-caused git sync errors be handled in reconcile",
+    "token generation fails because permissions revoked, what should happen",
+    "repository stuck reconciling due to lost access"
+  ],
+  "body": "In RepositoryController.process (pkg/registry/apis/provisioning/controller/repository.go), when generateRepositoryToken fails and rc.isUserCaused(err) is true (classifyTokenErrorCause == reconcileCauseUser: app uninstalled, permissions revoked, installation gone, repository not selected), the function must append status patches via tokenFailurePatchOps, set swallowedErr/swallowedPhase = err, reconcilePhaseToken, and return nil instead of err. Returning the error here would requeue forever and page on-call for something only the customer can fix. Non-user-caused token errors must still be returned normally.",
+  "applies": "pkg/registry/apis/provisioning/controller/repository.go RepositoryController.process, and any new user-caused error path added there",
+  "tags": [
+    "provisioning",
+    "git-sync",
+    "reconcile",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "hash": "sha256:f2f6e5992b36e6e57168d0b0",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "hash": "sha256:f2f6e5992b36e6e57168d0b0",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "hash": "sha256:f2f6e5992b36e6e57168d0b0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133004"
+  },
+  "created": "2026-09-28T05:24:49.767Z",
+  "verified": "2026-09-28T05:24:49.767Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "don-t-log-and-return-an-error-the-caller-will-log-again"
+  ],
+  "lastUsed": "2026-09-28T06:33:28.424Z"
+}

@@ -1,0 +1,39 @@
+{
+  "id": "annotation-app-tracer-must-be-injected-never-a-package-level",
+  "title": "Annotation app: tracer must be injected, never a package-level var",
+  "kind": "convention",
+  "answers": [
+    "How should tracing be wired for new code in the annotation app?",
+    "Where do I get a trace.Tracer in pkg/registry/apps/annotation?",
+    "Can I add a package-level otel tracer here?"
+  ],
+  "body": "In pkg/registry/apps/annotation, every component that starts spans takes a `trace.Tracer` as a constructor or function parameter (e.g. NewAppInstaller, NewDashboardFolderResolver, newInstrumentedStore, newSearchHandler, newTagsHandler, newGraphiteHandler, canAccessAnnotation(s), resolveDashboardFolders). RegisterAppInstaller receives a `tracing.Tracer` from the app server and passes it down. There is no package-level `tracer` variable (pkg/registry/apps/annotation/tracing.go was deleted). New code adding spans in this package must accept a tracer parameter/field rather than reintroducing a package-level otel.Tracer().",
+  "applies": "pkg/registry/apps/annotation and code that constructs its components",
+  "tags": [
+    "tracing",
+    "convention",
+    "annotation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/annotation/register.go",
+      "symbol": "RegisterAppInstaller",
+      "hash": "sha256:d5533f9b85657d3e8ed064ef",
+      "line": 54,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133034"
+  },
+  "created": "2026-09-28T05:19:41.979Z",
+  "verified": "2026-09-28T05:19:41.979Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "registerappinstaller-signature-change-requires-updating-wire"
+  ]
+}

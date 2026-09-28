@@ -1,0 +1,51 @@
+{
+  "id": "event-tail-scans-must-be-descending-not-ascending",
+  "title": "Event tail scans must be descending, not ascending",
+  "kind": "invariant",
+  "answers": [
+    "Why does eventStore.latest scan in descending order?",
+    "How do I avoid racing with GC when reading recent events?",
+    "Ascending scan over event metadata skips entries / has gaps",
+    "What order should new event-store range scans use?"
+  ],
+  "body": "Any scan over the durable event tail (pkg/storage/unified/resource/eventstore.go:latest) must use SortOrderDesc, not ascending. Scanning ascending races CleanupOldEvents (GC), which deletes oldest events first, and can leave gaps in the returned page. Scanning descending is safe under concurrent GC: the worst case is only a shortened tail (missing very old entries), never a gap in the middle. Apply this rule to any new read path added over the same eventsSection KV keyspace.",
+  "applies": "pkg/storage/unified/resource/eventstore.go and any new scan added over the eventsSection KV keyspace",
+  "tags": [
+    "storage",
+    "eventstore",
+    "gc",
+    "concurrency"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/eventstore.go",
+      "hash": "sha256:936b2c219ae7e682613eb94b",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/eventstore.go",
+      "hash": "sha256:936b2c219ae7e682613eb94b",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/eventstore.go",
+      "symbol": "latest",
+      "hash": "sha256:1c94600bd81e7503ba5d498a",
+      "line": 316,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133042"
+  },
+  "created": "2026-09-28T05:17:45.056Z",
+  "verified": "2026-09-28T05:17:45.056Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "eventstore-latest-bounded-reverse-read-of-retained-event-met"
+  ]
+}

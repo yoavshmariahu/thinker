@@ -1,0 +1,47 @@
+{
+  "id": "test-feature-gated-subresource-registration-via-builder-bool",
+  "title": "Test feature-gated subresource registration via builder bool params, not OpenFeature mocking",
+  "kind": "convention",
+  "answers": [
+    "How do I write a test for whether a REST handler gets registered based on a feature flag?",
+    "Should I stub OpenFeature/memprovider in iam registry tests?",
+    "Pattern for testing conditional storage registration in UpdateUsersAPIGroup"
+  ],
+  "body": "register_test.go:TestUpdateUsersAPIGroup_TeamsSubresourceRequiresTeamsAPI tests gating by calling UpdateUsersAPIGroup directly with an explicit enableTeamsAPI bool and asserting on storage map keys, instead of stubbing an openfeature/memprovider. The old setTeamsApiFlag helper (in team/rest_members_test.go and user/rest_user_team_test.go) that configured an in-memory OpenFeature provider was deleted since the handlers no longer hold an ofClient/teamsAPIEnabled field to influence. Follow this pattern for any new registration-time gating: pass the flag as a function/param and assert on the resulting storage map.",
+  "applies": "pkg/registry/apis/iam unit tests for API group registration",
+  "tags": [
+    "iam",
+    "testing",
+    "feature-flags"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/register_test.go",
+      "symbol": "TestUpdateUsersAPIGroup_TeamsSubresourceRequiresTeamsAPI",
+      "hash": "sha256:10cc674a2fd50d8a6001aedf",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/iam/team/rest_members_test.go",
+      "hash": "sha256:f794dcb35bcec82790cf0da3",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team_test.go",
+      "hash": "sha256:e706e1f4b1e4ee3802782e7e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133157"
+  },
+  "created": "2026-09-28T05:12:05.246Z",
+  "verified": "2026-09-28T05:12:05.246Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

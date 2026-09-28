@@ -1,0 +1,47 @@
+{
+  "id": "gcom-backed-resolvehost-must-map-404-to-empty-result-not-err",
+  "title": "gcom-backed resolveHost must map 404 to empty result, not error",
+  "kind": "invariant",
+  "answers": [
+    "How should a stack-lookup function report 'not found' vs 'error'?",
+    "Why does the single-tenant fallback silently skip some stacks?",
+    "What should resolveHost return when the stack ID doesn't exist in gcom?",
+    "single tenant fallback returns wrong host / doesn't fall back"
+  ],
+  "body": "newGComURLResolver in pkg/router/st_fallback.go returns (\"\", nil) when gcom answers 404 for GET {gcomBaseURL}/instances/{stackID} — this is treated as 'no fallback host', not an error. Any other non-200 status or a JSON decode failure returns a non-nil error instead. ProvideCloudRoutesLoaderFactory in pkg/router/cloud_router.go wires this function in as the `resolveHost` callback for newSingleTenantFallback, and the fallback cache/lookup path distinguishes empty-string-no-error (stack unknown) from an error (transient failure). Any future resolveHost implementation (or change to this one) must preserve that 404-is-not-an-error contract or the fallback cache will start caching/propagating spurious errors for legitimately missing stacks.",
+  "applies": "pkg/router/st_fallback.go resolveHost implementations and callers of ProvideCloudRoutesLoaderFactory",
+  "tags": [
+    "router",
+    "single-tenant-fallback",
+    "gcom"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/st_fallback.go",
+      "symbol": "newGComURLResolver",
+      "hash": "sha256:1918ae32f93e2a1dd4ed6bad",
+      "line": 300,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/cloud_router.go",
+      "symbol": "ProvideCloudRoutesLoaderFactory",
+      "hash": "sha256:b769ff3dca87046b0e1d3e38",
+      "line": 40,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133080"
+  },
+  "created": "2026-09-28T05:17:28.661Z",
+  "verified": "2026-09-28T05:17:28.661Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "oss-calls-to-grafana-com-api-reuse-cfg-grafanacomapiurl-cfg-"
+  ]
+}

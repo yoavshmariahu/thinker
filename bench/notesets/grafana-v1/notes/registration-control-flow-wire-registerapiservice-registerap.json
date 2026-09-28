@@ -1,0 +1,91 @@
+{
+  "id": "registration-control-flow-wire-registerapiservice-registerap",
+  "title": "Registration control flow: Wire -> RegisterAPIService/RegisterAppInstaller -> apiserver/background service",
+  "kind": "callpath",
+  "answers": [
+    "How does a new API builder get installed into the apiserver?",
+    "How does an App-SDK app get started at boot?",
+    "What calls RegisterAPIService and where does that lead?"
+  ],
+  "body": "API builder path: pkg/server/wire_core.go & pkg/server/bootstrap/wire/sets.go pull in apiregistry.WireSet (pkg/registry/apis/wireset.go) via Wire DI → Wire invokes e.g. folders.RegisterAPIService (pkg/registry/apis/folders/register.go) → builds *FolderAPIBuilder and calls apiregistration.RegisterAPI(builder), where apiregistration is builder.APIRegistrar (pkg/services/apiserver/builder/common.go) → hands the builder to pkg/services/apiserver to install as a real k8s API group. Every builder must satisfy builder.APIGroupBuilder (InstallSchema, UpdateAPIGroupInfo, GetOpenAPIDefinitions, AllowedV0Alpha1Resources).\nApp path: appregistry.ProvideAppInstallers (pkg/registry/apps/apps.go) collects installers from e.g. playlist.RegisterAppInstaller (pkg/registry/apps/playlist/register.go) → returns []appsdkapiserver.AppInstaller → appregistry.Service.Run (pkg/registry/apps/apps.go) drives runner.APIGroupRunner.Init/Run, itself a registry.BackgroundService.\nFinal fan-in: backgroundsvcs.ProvideBackgroundServiceRegistry (pkg/registry/backgroundsvcs/background_services.go) depends on *apiregistry.Service and *appregistry.Service as forced-init sinks, folding both into the single list pkg/server iterates to call Run(ctx) on at boot.",
+  "tags": [
+    "grafana",
+    "registry",
+    "callpath",
+    "apiserver",
+    "wire"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/wireset.go",
+      "hash": "sha256:82bf3453f529c4695d79f044",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/folders/register.go",
+      "symbol": "RegisterAPIService",
+      "hash": "sha256:5d7c7a9a7dc523eeabcbbeae",
+      "line": 143,
+      "missing": false
+    },
+    {
+      "path": "pkg/services/apiserver/builder/common.go",
+      "symbol": "APIGroupBuilder",
+      "hash": "sha256:f5fc32d5b180baaa1599f1d9",
+      "line": 28,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/wireset.go",
+      "hash": "sha256:17c223938b09997fa3e72518",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/playlist/register.go",
+      "symbol": "RegisterAppInstaller",
+      "hash": "sha256:e4e3dabe5fb334b2ad2d7282",
+      "line": 35,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/apps.go",
+      "symbol": "ProvideAppInstallers",
+      "hash": "sha256:122c30feba778009596fba5d",
+      "line": 33,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/backgroundsvcs/background_services.go",
+      "symbol": "ProvideBackgroundServiceRegistry",
+      "hash": "sha256:7d7f6a11ce62d72a3f03cb93",
+      "line": 61,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire_core.go",
+      "hash": "sha256:52534e20a43f8811743de33b",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/bootstrap/wire/sets.go",
+      "hash": "sha256:e9e8cf46edec4f4c44c0fa73",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6926125-b79d-45a0-b9c9-942338e8775c"
+  },
+  "created": "2026-09-28T05:34:20.000Z",
+  "verified": "2026-09-28T05:34:20.000Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "new-api-builders-and-apps-need-dual-registration-wireset-agg",
+    "extending-pkg-infra-multi-file-cochange-requirements",
+    "feature-flag-gating-and-old-vs-new-builder-pattern-conventio",
+    "pkg-infra-structure-wiring-and-control-flow"
+  ]
+}

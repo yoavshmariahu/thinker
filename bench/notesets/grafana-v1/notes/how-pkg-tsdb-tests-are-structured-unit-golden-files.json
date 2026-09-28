@@ -1,0 +1,34 @@
+{
+  "id": "how-pkg-tsdb-tests-are-structured-unit-golden-files",
+  "title": "How pkg/tsdb tests are structured (unit + golden files)",
+  "kind": "howto",
+  "answers": [
+    "How do I run tests for pkg/tsdb?",
+    "How are query response regressions tested in pkg/tsdb?",
+    "Where do golden test fixtures live?"
+  ],
+  "body": "Standard Go table-driven tests live colocated as `*_test.go` next to the code (e.g. pkg/tsdb/graphite/query_test.go), run via `go test ./pkg/tsdb/...` or `make test-go-unit`. Response-shape regression tests use grafana-plugin-sdk-go/experimental.CheckGoldenJSONResponse against fixtures in each package's testdata/ directory (e.g. pkg/tsdb/graphite/query_test.go:743 writes/compares `testdata/<testName>-<refId>.golden`). Golden-file usage is limited (~4 call sites found across pkg/tsdb) — most coverage is plain unit tests, not golden diffs.",
+  "tags": [
+    "tsdb",
+    "testing",
+    "golden-files"
+  ],
+  "deps": [
+    {
+      "path": "pkg/tsdb/graphite/query_test.go",
+      "hash": "sha256:080cc70e30ea7e0ba20d6ff7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "bf98e887-f714-4b75-bcce-80dca47bc357"
+  },
+  "created": "2026-09-28T05:53:33.525Z",
+  "verified": "2026-09-28T05:53:33.525Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

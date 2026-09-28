@@ -1,0 +1,34 @@
+{
+  "id": "apps-alerting-app-go-nil-pointer-in-interface-guard-for-vali",
+  "title": "apps/alerting app.go: nil-pointer-in-interface guard for validators/mutators",
+  "kind": "gotcha",
+  "answers": [
+    "Why does app.go check validator != nil before assigning it?",
+    "What happens if the nil check before assigning KindValidator is removed?"
+  ],
+  "body": "buildKindValidator/buildKindMutator return concrete pointer types (*simple.Validator, *simple.Mutator). app.go explicitly checks `if validator != nil` before assigning into the KindValidator/KindMutator interface fields on the managed kind. Assigning a nil *simple.Validator directly into the interface field would produce a non-nil interface wrapping a nil pointer, which would break ValidateManifest's \"has a mutator/validator\" check downstream. Don't remove this guard as a 'simplification'.",
+  "applies": "Applies specifically to buildKindValidator/buildKindMutator in apps/alerting/rules/pkg/app/app.go, where these return concrete *simple.Validator/*simple.Mutator pointers that can be nil.",
+  "tags": [
+    "apps/alerting",
+    "go-nil-interface",
+    "app-sdk"
+  ],
+  "deps": [
+    {
+      "path": "apps/alerting/rules/pkg/app/app.go",
+      "hash": "sha256:b28a286b0169a181596de6bb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6863f48-ed02-4cad-b750-e30d0507a038"
+  },
+  "created": "2026-09-28T05:55:44.450Z",
+  "verified": "2026-09-28T05:55:44.450Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

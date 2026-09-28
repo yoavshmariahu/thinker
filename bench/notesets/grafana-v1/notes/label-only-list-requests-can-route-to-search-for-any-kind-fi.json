@@ -1,0 +1,43 @@
+{
+  "id": "label-only-list-requests-can-route-to-search-for-any-kind-fi",
+  "title": "Label-only LIST requests can route to search for any kind; field selectors still require manifest",
+  "kind": "invariant",
+  "answers": [
+    "Why does my LIST with a field selector on an external app kind fall back to a full store scan?",
+    "Can I list resources from a kind with no compiled manifest using label selectors?",
+    "How does the server decide whether to serve a LIST from the search index or the store?"
+  ],
+  "body": "shouldUseSearchForList routes a LIST to the search index whenever the request has no field selectors (req.Options.Fields is empty), regardless of whether the resource's group has a manifest compiled into the binary — labels are indexed for every kind. If field selectors are present, the group must still match an AppManifests()-compiled manifest, because selectable fields are mapped into the index from the manifest; a field the index never indexed returns no results. Don't remove the manifest check for the field-selector branch even when simplifying this function.",
+  "applies": "pkg/storage/unified/resource — any code deciding search vs. store routing for LIST",
+  "tags": [
+    "unified-storage",
+    "list",
+    "search-index",
+    "manifest"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "shouldUseSearchForList",
+      "hash": "sha256:7ef8344d65dc9f969f6324a3",
+      "line": 364,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132991"
+  },
+  "created": "2026-09-28T05:25:42.675Z",
+  "verified": "2026-09-28T05:25:42.675Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "list-continue-tokens-must-stay-on-the-path-search-vs-store-t",
+    "list-s-store-scan-fallback-for-an-unindexed-field-filter-onl",
+    "search-backed-list-silently-drops-pages-after-authorization-",
+    "search-list-continuation-must-survive-authorization-filterin"
+  ]
+}

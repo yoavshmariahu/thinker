@@ -1,0 +1,40 @@
+{
+  "id": "styling-convention-usestyles2-getstyles-with-theme-only-styl",
+  "title": "Styling convention: useStyles2(getStyles) with theme-only styles fn, clsx not cx",
+  "kind": "convention",
+  "answers": [
+    "How should I style a grafana-ui component?",
+    "Why is cx from @emotion/css banned?",
+    "Should getStyles take props?"
+  ],
+  "body": "Convention is `useStyles2(getStyles)` where `getStyles` takes only `theme` as its argument — style variants should be composed with `clsx`, not by passing props into getStyles (contribute/style-guides/frontend.md:64; example: src/components/Card/Card.tsx:9,240,257). Repo-wide eslint bans importing `cx` from `@emotion/css` in favor of `clsx`.",
+  "applies": "Applies to component styling within grafana-ui (and encouraged repo-wide per the style guide); doesn't apply to inline one-off style objects outside the styles-function pattern.",
+  "tags": [
+    "grafana-ui",
+    "styling",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "contribute/style-guides/frontend.md",
+      "hash": "sha256:2f65c0b1a8b4f3353e3da6a0",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Card/Card.tsx",
+      "hash": "sha256:e8015b90b3b1ef856ea4dafb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1bd56c9f-ac14-468a-b6a3-03296332a944"
+  },
+  "created": "2026-09-28T05:36:50.497Z",
+  "verified": "2026-09-28T05:36:50.497Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,51 @@
+{
+  "id": "search-backed-list-silently-drops-pages-after-authorization-",
+  "title": "Search-backed List silently drops pages after authorization filtering",
+  "kind": "fix",
+  "answers": [
+    "Why does search-backed List stop paginating early / skip authorized items?",
+    "List response has no NextPageToken even though more matching resources exist",
+    "Clients missing resources after permission/authorization filtering on a list request",
+    "How to make search List continuation aware of authorization filtering"
+  ],
+  "body": "Symptom: A client paging through a search-backed List (resourcepb.ListRequest with selectors) silently stops receiving resources — no NextPageToken is returned even though more authorized rows exist further in the search index.\nRoot cause: pkg/storage/unified/resource/list_with_selectors.go:listWithSelectors only relied on the raw search page size to decide whether to continue; it did not account for authorization filtering shrinking a full page, or post-rank authorization returning a short page when the search response's total hit count is inexact.\nFix pattern: after building the response, call a helper (searchListNeedsContinue(limit, rowCount, totalHitsExact)) that decides if a continuation token is still needed — true when the page is full (rowCount >= limit) or the total is inexact — then build the token from the last row's sortFields via NewSearchContinueToken, reusing the original listRv (not the fresh search response RV).\nConstraints: applies specifically to search-backed List (list_with_selectors.go), not plain unified-storage List. If the last row has no sortFields (e.g. it was itself filtered/replaced), no token can be built — log a warning and return without a token instead of erroring.",
+  "applies": "pkg/storage/unified/resource list_with_selectors.go — search-backed List pagination with post-fetch authorization filtering",
+  "tags": [
+    "pagination",
+    "authorization",
+    "search",
+    "list",
+    "storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "listWithSelectors",
+      "hash": "sha256:6d80df33d24814945220c3b0",
+      "line": 22,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "searchListNeedsContinue",
+      "hash": "sha256:8f0ff340af9915cc18cc418f",
+      "line": 136,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133017"
+  },
+  "created": "2026-09-28T05:23:28.034Z",
+  "verified": "2026-09-28T05:23:28.034Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-list-continuation-must-survive-authorization-filterin",
+    "list-continue-tokens-must-stay-on-the-path-search-vs-store-t",
+    "list-s-store-scan-fallback-for-an-unindexed-field-filter-onl"
+  ]
+}

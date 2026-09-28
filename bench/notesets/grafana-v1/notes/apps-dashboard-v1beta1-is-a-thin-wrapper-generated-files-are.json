@@ -1,0 +1,41 @@
+{
+  "id": "apps-dashboard-v1beta1-is-a-thin-wrapper-generated-files-are",
+  "title": "apps/dashboard: v1beta1 is a thin wrapper; generated files are pruned by Makefile",
+  "kind": "convention",
+  "answers": [
+    "Why does v1beta1 look incomplete/missing generated files?",
+    "Can I hand-edit zz_generated.*.go or *_gen.go in apps/dashboard?",
+    "What is tshack/ for?"
+  ],
+  "body": "v1beta1 is not a fully independent generated version — apps/dashboard/pkg/apis/dashboard/v1beta1/register.go:1-2 states it has \"identical schemas... eliminates code duplication.\" apps/dashboard/Makefile:46-52 deletes generated v1beta1 object/codec/schema files after `make generate` runs (post-generate-cleanup step), and sed-strips generated DeepCopy for v0alpha1/v1beta1. So v1beta1 looking incomplete after codegen is expected, not a bug.\nDo not hand-edit zz_generated.*.go, *_gen.go (codec/object/schema/spec/status), or CUE files — they carry \"DO NOT EDIT MANUALLY\" headers. Regenerate via `make generate` (run inside apps/dashboard/) or `make gen-apps app=dashboard` from repo root. apps/dashboard/tshack/*.ts holds hand-written TypeScript shims the Makefile copies over the SDK's incorrect auto-generated TS for specific versions — this is an intentional override, not stray code.",
+  "applies": "Applies when generating or diffing apps/dashboard code; running the raw SDK generate step alone (without the Makefile's post-processing) will show spurious diffs against v1beta1 and DeepCopy files.",
+  "tags": [
+    "grafana",
+    "apps/dashboard",
+    "codegen",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "apps/dashboard/pkg/apis/dashboard/v1beta1/register.go",
+      "hash": "sha256:425fd22b074bc246921d5734",
+      "missing": false
+    },
+    {
+      "path": "apps/dashboard/Makefile",
+      "hash": "sha256:24c9cfd0484f0649d6a68395",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "98ce03e9-c5dd-47a9-b5d2-52f37e677c64"
+  },
+  "created": "2026-09-28T05:48:59.105Z",
+  "verified": "2026-09-28T05:48:59.105Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

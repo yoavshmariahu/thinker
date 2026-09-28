@@ -1,0 +1,47 @@
+{
+  "id": "registry-go-feature-flag-generate-field-co-changes-with-open",
+  "title": "registry.go feature flag Generate field co-changes with openfeature.gen files",
+  "kind": "cochange",
+  "answers": [
+    "What else needs to change when I edit a feature flag in registry.go?",
+    "Do I need to touch the openfeature.gen files manually?",
+    "Feature toggle generated files out of sync"
+  ],
+  "body": "Editing the `Generate` field of a flag in pkg/services/featuremgmt/registry.go (e.g. adding React: true) requires regenerating packages/grafana-runtime/src/internal/openFeature/openfeature.gen.ts and openfeature-types.gen.d.ts, which add the flag to FlagKeys and produce a useFlagX hook/type union entry. These .gen files are generated — don't hand-edit them outside running the generator, but do commit the resulting diff alongside the registry.go change.",
+  "applies": "Any change to a feature flag's Generate options or metadata in registry.go.",
+  "tags": [
+    "openfeature",
+    "codegen",
+    "feature-toggles"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/featuremgmt/registry.go",
+      "hash": "sha256:852546db62485959e9d20a8f",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-runtime/src/internal/openFeature/openfeature.gen.ts",
+      "hash": "sha256:e75a933e5d9199b24d782972",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-runtime/src/internal/openFeature/openfeature-types.gen.d.ts",
+      "hash": "sha256:0299f08fe4324b7d67c31f3e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133118"
+  },
+  "created": "2026-09-28T05:13:24.067Z",
+  "verified": "2026-09-28T05:13:24.067Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "migrating-a-legacy-feature-toggle-to-openfeature"
+  ]
+}

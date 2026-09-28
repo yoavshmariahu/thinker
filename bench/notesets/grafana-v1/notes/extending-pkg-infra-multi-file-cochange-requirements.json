@@ -1,0 +1,81 @@
+{
+  "id": "extending-pkg-infra-multi-file-cochange-requirements",
+  "title": "Extending pkg/infra: multi-file cochange requirements",
+  "kind": "cochange",
+  "answers": [
+    "What do I need to update when adding a new metric?",
+    "What files change when adding a new background service?",
+    "How do I add a new serverlock query?",
+    "Why do wire bindings need updating in three places?"
+  ],
+  "body": "- New Prometheus metric: declare the var in `pkg/infra/metrics/metrics.go`, init it in `init()`, AND add it to the `MustRegister(...)` list in `initMetricVars` — skipping the third step means the metric is silently never exposed.\n- New `BackgroundService`: implement `registry.BackgroundService.Run`, thread the service through `pkg/registry/backgroundsvcs/background_services.go:ProvideBackgroundServiceRegistry`'s constructor, register the provider in `pkg/server/wire_core.go`, then run `make gen-go` to regenerate `wire_gen.go`.\n- New `serverlock` SQL template: add a `.sql` file under `pkg/infra/serverlock/queries/`, add a matching `mustTemplate(...)` var in `pkg/infra/serverlock/templates.go`, and add per-dialect golden files under `pkg/infra/serverlock/testdata/{mysql,postgres,sqlite}--<template>-<name>.sql` — checked by `pkg/infra/serverlock/templates_test.go:TestTemplates`.\n- Wire binds for infra interfaces (`db.DB`, `tracing.Tracer`, `leaderelection.Elector`) are triplicated across `wireSet`, `wireCLISet`, and `wireTestSet` in `pkg/server/wire_core.go` — e.g. `leaderelection.Elector` binds to a real k8s-lease elector in the main set but to `DefaultElector` in the CLI/test sets. Updating only one set gives one build mode the wrong implementation.",
+  "applies": "Applies when adding a new Prometheus metric, a new BackgroundService, a new serverlock SQL query, or a new interface bound via wire in pkg/infra. Does not apply to plain internal refactors of existing infra code.",
+  "tags": [
+    "pkg/infra",
+    "wire",
+    "metrics",
+    "serverlock",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "pkg/infra/metrics/metrics.go",
+      "symbol": "initMetricVars",
+      "hash": "sha256:946b3f1a933ab650a593cdf8",
+      "line": 757,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/backgroundsvcs/background_services.go",
+      "symbol": "ProvideBackgroundServiceRegistry",
+      "hash": "sha256:7d7f6a11ce62d72a3f03cb93",
+      "line": 61,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire_core.go",
+      "hash": "sha256:52534e20a43f8811743de33b",
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/serverlock/templates.go",
+      "hash": "sha256:4c86cda5ffbac53acfb0a1f7",
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/serverlock/templates_test.go",
+      "symbol": "TestTemplates",
+      "hash": "sha256:aef9d15237ce3748f471e3d8",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire_gen.go",
+      "hash": "sha256:262422da1e0c63b97a57556e",
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/metrics/metrics.go",
+      "symbol": "init",
+      "hash": "sha256:f32cefd6da403541e12c914e",
+      "line": 254,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "357bcccf-aca4-409a-8c17-4f787beb7911"
+  },
+  "created": "2026-09-28T06:00:50.634Z",
+  "verified": "2026-09-28T06:00:50.634Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pkg-infra-structure-wiring-and-control-flow",
+    "registration-control-flow-wire-registerapiservice-registerap",
+    "adding-wiring-a-service-requires-3-coordinated-edits-wire-di",
+    "pkg-api-responsibility-and-di-wiring"
+  ]
+}

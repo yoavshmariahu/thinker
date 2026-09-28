@@ -1,0 +1,76 @@
+{
+  "id": "nats-subscription-interface-requires-waitready-on-every-impl",
+  "title": "nats.Subscription interface requires WaitReady on every implementer",
+  "kind": "cochange",
+  "answers": [
+    "adding a fake/mock NATS subscription for tests",
+    "implementing nats.Subscriber breaks with missing method WaitReady",
+    "how to satisfy the Subscription interface in tests"
+  ],
+  "body": "pkg/infra/nats/subscriber.go's Subscription interface (and the matching pkg/storage/unified/resource/notifier_nats.go Subscription interface) requires both WaitReady(ctx) error and Unsubscribe() error. Any fake/stub implementing this interface for tests must add WaitReady too, or the var _ Subscriber = (*fake)(nil) assertion fails to compile. This PR updated fakeSubscription in pkg/registry/apis/provisioning/informer/helpers_test.go, pkg/storage/unified/informer/informer_test.go, and pkg/storage/unified/resource/notifier_nats_test.go together when the method was added.",
+  "applies": "any code adding to or mocking pkg/infra/nats.Subscription or pkg/storage/unified/resource.Subscription",
+  "tags": [
+    "nats",
+    "interface",
+    "test-fakes",
+    "go"
+  ],
+  "deps": [
+    {
+      "path": "pkg/infra/nats/subscriber.go",
+      "symbol": "Subscription",
+      "hash": "sha256:b31be7101f3671447082ae10",
+      "line": 21,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier_nats.go",
+      "symbol": "Subscription",
+      "hash": "sha256:8c91671ee4e713d820aaea40",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/informer/helpers_test.go",
+      "symbol": "fakeSubscription",
+      "hash": "sha256:782a356afa5057ceb0b041a4",
+      "line": 57,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/informer/informer_test.go",
+      "symbol": "fakeSubscription",
+      "hash": "sha256:782a356afa5057ceb0b041a4",
+      "line": 92,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier_nats_test.go",
+      "symbol": "fakeSubscription",
+      "hash": "sha256:2a57572708a7f85ecd2adcac",
+      "line": 24,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/nats/subscriber.go",
+      "symbol": "Unsubscribe",
+      "hash": "sha256:dd8ad46afe4659331b321c42",
+      "line": 145,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133040"
+  },
+  "created": "2026-09-28T05:18:21.074Z",
+  "verified": "2026-09-28T05:18:21.074Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "nats-sub-acknowledgment-must-be-awaited-before-treating-a-wa",
+    "subscription-waitready-requires-a-context-with-a-deadline"
+  ]
+}

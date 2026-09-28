@@ -1,0 +1,46 @@
+{
+  "id": "silent-authz-denial-when-service-token-lacks-delegated-permi",
+  "title": "Silent authz denial when service token lacks delegated permission",
+  "kind": "fix",
+  "answers": [
+    "Why does a label-selector LIST return an empty list with 200 OK instead of an error?",
+    "Search/list results are empty for dashboards, folders or variables even though data exists",
+    "authz check is denied without ever hitting the authz service",
+    "grafana_grpc_authz_limited_client_missing_delegated_permission_total is firing, what does it mean?"
+  ],
+  "body": "Symptom: a label-selector LIST (dashboards, folders, variables) quietly returns an empty list with HTTP 200 instead of results or an error; nothing is logged.\nRoot cause: authlib's CheckServicePermissions (authz/service_permissions.go) denies the check locally when the calling service's token has no delegated permission for that group/resource/verb, so the authz service is never asked — this denial is indistinguishable from a real 'user has no access'.\nFix pattern: before delegating a Check/Compile/BatchCheck to the underlying authz client, call a guard (authzLimitedClient.serviceCanDelegate in pkg/storage/unified/resource/access.go) that detects this specific case and fails loudly (ErrServiceCannotDelegate) with a log line and a per-group/resource/verb counter, instead of letting the empty/denied result pass through silently.\nConstraints: only applies when the identity's token carries some permissions but not the one being exercised; identities with no token permissions at all (single-tenant/in-process callers) are intentionally left alone since the underlying client already handles that case correctly.",
+  "applies": "Any caller going through authzLimitedClient in pkg/storage/unified/resource for Check/Compile/BatchCheck",
+  "tags": [
+    "authz",
+    "authlib",
+    "unified-storage",
+    "silent-failure"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "serviceCanDelegate",
+      "hash": "sha256:9cbb0838c6f91b5a7984aeb3",
+      "line": 81,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "ErrServiceCannotDelegate",
+      "hash": "sha256:9008486e556ae8798fe7d7f4",
+      "line": 75,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132990"
+  },
+  "created": "2026-09-28T05:26:09.096Z",
+  "verified": "2026-09-28T05:26:09.096Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

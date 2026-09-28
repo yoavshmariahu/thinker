@@ -1,0 +1,45 @@
+{
+  "id": "testing-toast-notifications-assert-via-mocked-useappnotifica",
+  "title": "Testing toast notifications: assert via mocked useAppNotification, not DOM",
+  "kind": "convention",
+  "answers": [
+    "How do I test that a toast/notification was shown?",
+    "Why can't I find toast text with screen.getByText in tests?",
+    "How to assert success notifications in alerting import wizard tests"
+  ],
+  "body": "Toasts are dispatched through `useAppNotification()` (app/core/copy/appNotification) and rendered outside the component tree under test, so they never appear in the DOM from `render()`. Tests must `jest.mock('app/core/copy/appNotification')` and assert against the mocked `success`/`error`/`warning`/`info` functions (e.g. `expect(notifySuccess).toHaveBeenCalledWith(title, detail)`), not `screen.getByText`.",
+  "applies": "Any component/test using useAppNotification for toast feedback, e.g. public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx",
+  "tags": [
+    "testing",
+    "alerting",
+    "toast",
+    "notifications"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.test.tsx",
+      "symbol": "notifySuccess",
+      "hash": "sha256:97a22103767340f37a8bee2b",
+      "line": 35,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.test.tsx",
+      "symbol": "render",
+      "hash": "sha256:f23e692c98255da4635ebf76",
+      "line": 138,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133035"
+  },
+  "created": "2026-09-28T05:19:13.128Z",
+  "verified": "2026-09-28T05:19:13.128Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

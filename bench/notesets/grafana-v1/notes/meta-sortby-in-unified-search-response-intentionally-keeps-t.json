@@ -1,0 +1,36 @@
+{
+  "id": "meta-sortby-in-unified-search-response-intentionally-keeps-t",
+  "title": "meta.sortBy in unified search response intentionally keeps the raw UI sort value, not the translated index field",
+  "kind": "gotcha",
+  "answers": [
+    "why is meta.sortBy still 'name_sort' instead of 'title'",
+    "results table column lookup for sort field",
+    "getColumns doesn't highlight the sorted column"
+  ],
+  "body": "In public/app/features/search/service/unified.ts, `meta.sortBy` is set from the original (untranslated) `query.sort` value even though the actual API request now uses the mapped index field name from `toSortParam`. This is deliberate, per review discussion, not an oversight: it matches pre-existing behavior, and `getColumns` looks up the column by matching this name against fields already present in the response frame (e.g. `title`), so translating it could change which column gets treated as the sort column.\nDo not \"fix\" this by passing the translated field into `meta.sortBy` without checking how `getColumns` consumes it.",
+  "applies": "public/app/features/search/service/unified.ts - meta.sortBy assignment and consumers like getColumns",
+  "tags": [
+    "search",
+    "sort",
+    "unified-storage",
+    "gotcha"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/search/service/unified.ts",
+      "hash": "sha256:79a287bf8e421a1b694d6b32",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133100"
+  },
+  "created": "2026-09-28T05:14:38.961Z",
+  "verified": "2026-09-28T05:14:38.961Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

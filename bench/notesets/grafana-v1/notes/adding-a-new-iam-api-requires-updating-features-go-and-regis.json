@@ -1,0 +1,43 @@
+{
+  "id": "adding-a-new-iam-api-requires-updating-features-go-and-regis",
+  "title": "Adding a new IAM API requires updating features.go and register.go together",
+  "kind": "cochange",
+  "answers": [
+    "I added a new IAM API constant, what else needs to change?",
+    "Where do I register a new supported IAM API name for startup config?",
+    "Why isn't my new API showing up in EnabledAPIs()?"
+  ],
+  "body": "A new gate-able IAM API needs: a new `API` constant and entry in `supportedAPIs` plus a bool field on `Features`, a case in `featureForAPI`, and a line in `Features.SetAPIs` — all in pkg/registry/apis/iam/features.go. It also needs a corresponding `featureEnabled(ctx, flagKey, ...)` call wired into whichever of InstallSchema / UpdateAPIGroupInfo / GetAPIRoutes in pkg/registry/apis/iam/register.go actually uses that gate. Missing either side means the API can be enabled via startup config but never actually installed, or vice versa.",
+  "applies": "pkg/registry/apis/iam/features.go and pkg/registry/apis/iam/register.go when adding/removing a gated IAM API surface",
+  "tags": [
+    "iam",
+    "feature-flags"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/features.go",
+      "symbol": "Features",
+      "hash": "sha256:5b8f6d13f71ebbf33b051b6d",
+      "line": 41,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "hash": "sha256:5804509fbee8ed71265ac119",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133036"
+  },
+  "created": "2026-09-28T05:18:52.390Z",
+  "verified": "2026-09-28T05:18:52.390Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "teams-api-membership-endpoints-are-gated-only-at-startup-reg"
+  ]
+}

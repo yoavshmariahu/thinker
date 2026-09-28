@@ -1,0 +1,61 @@
+{
+  "id": "panel-data-pipeline-query-result-transform-field-overrides-p",
+  "title": "Panel data pipeline: query result → transform → field overrides → panel",
+  "kind": "callpath",
+  "answers": [
+    "How does query data flow into panel rendering?",
+    "Where is transformDataFrame called from?",
+    "What calls applyFieldOverrides?"
+  ],
+  "body": "Central pipeline caller: public/app/features/query/state/PanelQueryRunner.ts pipes datasource query results through transformDataFrame() (packages/grafana-data/src/transformations/transformDataFrame.ts:transformDataFrame, ~line 125) then applyFieldOverrides() (packages/grafana-data/src/field/fieldOverrides.ts:applyFieldOverrides, line 99) before producing PanelData for panel components.\napplyFieldOverrides is also called directly by ~24 other consumers outside the main pipeline when they need config-applied series (e.g. public/app/features/explore/Table/TableContainer.tsx, public/app/features/explore/Graph/ExploreGraph.tsx, public/app/features/inspector/InspectDataTab.tsx, public/app/plugins/panel/live/LivePanel.tsx, public/app/plugins/panel/logstable/hooks/useExtractFields.ts).\ntransformDataFrame resolves DataTransformerInfo via standardTransformersRegistry (packages/grafana-data/src/transformations/standardTransformersRegistry.ts) and caches in-flight resolution promises per transformer id in a module-level Map so concurrent callers share one resolution (failures evict the entry so the next caller retries).",
+  "tags": [
+    "grafana-data",
+    "panel-pipeline",
+    "transformations",
+    "field-overrides"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/query/state/PanelQueryRunner.ts",
+      "hash": "sha256:392493d7a7ee440b222ff924",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/transformations/transformDataFrame.ts",
+      "symbol": "transformDataFrame",
+      "hash": "sha256:e307d8b9258af0bfa2681e77",
+      "line": 122,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/field/fieldOverrides.ts",
+      "symbol": "applyFieldOverrides",
+      "hash": "sha256:9f5c6eb18a6fef1a1fc104e7",
+      "line": 96,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/transformations/standardTransformersRegistry.ts",
+      "hash": "sha256:adcf166ea3ec21cb30875af2",
+      "missing": false
+    },
+    {
+      "path": "public/app/plugins/panel/logstable/hooks/useExtractFields.ts",
+      "hash": "sha256:369a03c63bbb64d6bf54e2a0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c707601f-6672-4b92-ab10-1998193695b1"
+  },
+  "created": "2026-09-28T05:51:30.551Z",
+  "verified": "2026-09-28T05:51:30.551Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-standard-transformer-requires-edits-in-both-grafana"
+  ]
+}

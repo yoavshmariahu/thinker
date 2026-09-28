@@ -1,0 +1,71 @@
+{
+  "id": "server-side-control-flow-inside-unified-storage",
+  "title": "Server-side control flow inside unified storage",
+  "kind": "callpath",
+  "answers": [
+    "How does a write or read RPC get handled on the unified storage server side?",
+    "Where do writes vs search/reads diverge in unified storage?",
+    "What wires up the unified storage gRPC service?"
+  ],
+  "body": "pkg/storage/unified/resource/server.go:type server implements the RPCs (Create, Update, Delete, Read, List, Watch, Search - around lines 1095,1223,1320,1436,1613,2007). Writes go through the StorageBackend interface (server.go:176), implemented by the legacy SQL backend pkg/storage/unified/sql/backend.go (being retired) or the newer KV backend pkg/storage/unified/resource/kv.go. Search/reads go through pkg/storage/unified/search/bleve.go, fed by resource/document.go and kept in sync via resource/notifier*.go. Everything is wired up in pkg/storage/unified/sql/service.go:ProvideUnifiedStorageGrpcService.",
+  "tags": [
+    "pkg/storage",
+    "unified-storage",
+    "callpath"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "symbol": "server",
+      "hash": "sha256:ad437f51d169ffdeeac183c6",
+      "line": 698,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/sql/backend.go",
+      "hash": "sha256:06a0e3dcda2421510c29798a",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/kv.go",
+      "hash": "sha256:d4e179624447f7fedc8fddbc",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "hash": "sha256:4d00cb21a5192b8792a6542a",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/document.go",
+      "hash": "sha256:3b7cd7e9949b01acade7d545",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/sql/service.go",
+      "symbol": "ProvideUnifiedStorageGrpcService",
+      "hash": "sha256:e63341b70770c25e40b5d673",
+      "line": 151,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "hash": "sha256:76032a33efe3e6ca99134b8a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9979686a-0418-4ba7-ac35-243357cd27c4"
+  },
+  "created": "2026-09-28T05:41:04.684Z",
+  "verified": "2026-09-28T05:41:04.684Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "empty-selectablefields-in-build-info-means-none-mapped-not-u",
+    "selectable-field-filters-must-be-refused-if-the-index-doesn-"
+  ]
+}

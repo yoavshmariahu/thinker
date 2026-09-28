@@ -1,0 +1,49 @@
+{
+  "id": "search-list-continuation-must-survive-authorization-filterin",
+  "title": "Search List continuation must survive authorization filtering",
+  "kind": "invariant",
+  "answers": [
+    "When must listWithSelectors emit a NextPageToken?",
+    "What decides whether a search List page needs a continuation token?",
+    "Rules for continuing search-backed list pagination"
+  ],
+  "body": "Any change to listWithSelectors's page-building logic must keep emitting a continuation token whenever rowCount >= req.Limit OR the search response's total hit count is inexact (searchResp.GetTotalHitsExact() == false) — authorization can shrink a full page or stop before filling one, and an inexact total can't rule out more matches.\nEnforced in pkg/storage/unified/resource/list_with_selectors.go:searchListNeedsContinue, called from listWithSelectors after authorization filtering completes.\nThe continue token must be built from the last surviving row's sortFields (not the pre-filter last row) and must carry forward the original listRv used for this List call, not the resource version from the current search response.\nIf skipped, clients treat a filtered-short page as the final page and silently miss later authorized resources; if the RV isn't preserved, subsequent pages could be read against an inconsistent resource version.",
+  "applies": "pkg/storage/unified/resource/list_with_selectors.go — any future edits to authorization filtering, batching, or pagination logic in search-backed List",
+  "tags": [
+    "pagination",
+    "invariant",
+    "authorization",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "searchListNeedsContinue",
+      "hash": "sha256:8f0ff340af9915cc18cc418f",
+      "line": 136,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "listWithSelectors",
+      "hash": "sha256:6d80df33d24814945220c3b0",
+      "line": 22,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133017"
+  },
+  "created": "2026-09-28T05:23:28.123Z",
+  "verified": "2026-09-28T05:23:28.123Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-backed-list-silently-drops-pages-after-authorization-",
+    "list-continue-tokens-must-stay-on-the-path-search-vs-store-t",
+    "list-s-store-scan-fallback-for-an-unindexed-field-filter-onl"
+  ]
+}

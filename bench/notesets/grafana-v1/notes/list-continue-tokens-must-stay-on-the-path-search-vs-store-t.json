@@ -1,0 +1,50 @@
+{
+  "id": "list-continue-tokens-must-stay-on-the-path-search-vs-store-t",
+  "title": "LIST continue tokens must stay on the path (search vs store) they started on",
+  "kind": "invariant",
+  "answers": [
+    "Why did paging through a LIST result in a 400 error partway through?",
+    "How do I know if a continue token came from search or a store scan?",
+    "Can I change routing gates for LIST without breaking in-flight pagination?"
+  ],
+  "body": "A continue token encodes position differently per backend: search tokens carry sort values (SearchAfter/SearchBefore), store-scan tokens carry a Name, and SQL-backend tokens carry a row offset this type never decodes (so they look empty). tokenFromOtherListPath classifies a token as search-originated only if it has SearchAfter/SearchBefore — anything else (including the undecoded SQL offset token) counts as a store token. shouldUseSearchForList checks req.NextPageToken with this helper and forces the store path if the token didn't come from search, so a client mid-pagination never gets rejected or silently restarted when a routing gate changes. A search token arriving where the store path would be chosen still returns 400 (acceptable: only happens on rollback, client retries with a fresh list).",
+  "applies": "pkg/storage/unified/resource — LIST pagination across search/store/SQL backends",
+  "tags": [
+    "unified-storage",
+    "list",
+    "pagination",
+    "continue-token"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "tokenFromOtherListPath",
+      "hash": "sha256:7e769d61ff49060b528eaddf",
+      "line": 200,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "shouldUseSearchForList",
+      "hash": "sha256:7ef8344d65dc9f969f6324a3",
+      "line": 364,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132991"
+  },
+  "created": "2026-09-28T05:25:42.727Z",
+  "verified": "2026-09-28T05:25:42.727Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "label-only-list-requests-can-route-to-search-for-any-kind-fi",
+    "list-s-store-scan-fallback-for-an-unindexed-field-filter-onl",
+    "search-backed-list-silently-drops-pages-after-authorization-",
+    "search-list-continuation-must-survive-authorization-filterin"
+  ]
+}

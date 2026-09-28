@@ -1,0 +1,47 @@
+{
+  "id": "cut-clipped-focus-ring-on-modal-footer-buttons",
+  "title": "Cut/clipped focus ring on modal footer buttons",
+  "kind": "fix",
+  "answers": [
+    "Focus ring around modal buttons is cut off or clipped",
+    "Button outline gets truncated at the bottom of a modal",
+    "Why does the focus ring look chopped off in a confirm dialog?",
+    "Modal button focus indicator is not fully visible"
+  ],
+  "body": "Symptom: the keyboard-focus outline/ring around buttons in a modal's action row appears visually cut off at the edge.\nRoot cause: wrapping the button row in a plain `<div>` + `<Stack>` with only top padding (`buttonsContainer` style in packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx) left no room/overflow allowance around the buttons for the focus ring to render fully.\nFix pattern: replace the ad-hoc `<div className={styles.buttonsContainer}><Stack>...</Stack></div>` wrapper with the shared `Modal.ButtonRow` component (packages/grafana-ui/src/components/Modal/Modal.tsx) which handles spacing/padding correctly for focus rings.\nConstraints: applies to any modal footer/action-button row built from scratch; if a component already uses `Modal.ButtonRow` this issue does not apply.",
+  "applies": "grafana-ui Modal and modal-content components with footer button rows",
+  "tags": [
+    "grafana-ui",
+    "modal",
+    "focus-ring",
+    "accessibility",
+    "css"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+      "symbol": "ConfirmContent",
+      "hash": "sha256:1b0f886b4db1e45987b16f83",
+      "line": 53,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Modal/Modal.tsx",
+      "hash": "sha256:cfcc5b45b4a79c8400c8b958",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132979"
+  },
+  "created": "2026-09-28T05:27:17.850Z",
+  "verified": "2026-09-28T05:27:17.850Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "use-modal-buttonrow-for-modal-action-buttons-instead-of-cust"
+  ]
+}

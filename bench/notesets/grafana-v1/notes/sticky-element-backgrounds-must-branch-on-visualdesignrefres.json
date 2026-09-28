@@ -1,0 +1,54 @@
+{
+  "id": "sticky-element-backgrounds-must-branch-on-visualdesignrefres",
+  "title": "Sticky element backgrounds must branch on visualDesignRefresh flag",
+  "kind": "convention",
+  "answers": [
+    "Why do sticky headers/footers look wrong under visual refresh?",
+    "What background color should sticky elements use?",
+    "How to fix sticky background color bugs in visual refresh theme",
+    "Sticky footer/header has wrong background when visualDesignRefresh is enabled"
+  ],
+  "body": "Sticky-positioned elements (headers, footers, modal headers) must use `theme.colors.background.page` when `theme.flags.visualDesignRefresh` is true, and fall back to the pre-refresh color (`background.canvas` or `background.primary`) otherwise. Pattern: `const visualRefreshEnabled = theme.flags.visualDesignRefresh;` at the top of `getStyles`, then `backgroundColor: visualRefreshEnabled ? theme.colors.background.page : theme.colors.background.<original>`. Applied in PublicDashboardScenePage.tsx:getStyles, DashboardBrandingFooter.tsx:getStyles, TemplateDashboardModal.tsx:getStyles. If a new sticky element is added without this branch, it will show the wrong (non-refreshed) background color once visualDesignRefresh ships.",
+  "applies": "Any `position: 'sticky'` element's getStyles function in the Grafana frontend theming system",
+  "tags": [
+    "theming",
+    "visual-refresh",
+    "sticky",
+    "css",
+    "grafana-theme2"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/pages/PublicDashboardScenePage.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:0526b34532b1c4a2dc55008d",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/dashboard/components/PublicDashboard/DashboardBrandingFooter.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:6eb08464de1020fbae42548d",
+      "line": 117,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/dashboard/dashgrid/DashboardLibrary/TemplateDashboardModal.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:a3c348fec47b9c27f902b7f6",
+      "line": 114,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133030"
+  },
+  "created": "2026-09-28T05:20:25.752Z",
+  "verified": "2026-09-28T05:20:25.752Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

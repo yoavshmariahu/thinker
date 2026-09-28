@@ -1,0 +1,48 @@
+{
+  "id": "overriding-apistore-encoding-decoding-with-a-custom-serializ",
+  "title": "Overriding apistore encoding/decoding with a custom Serializer",
+  "kind": "howto",
+  "answers": [
+    "How do I stop apistore from losing my GVK when one Go type is registered under multiple GVKs?",
+    "How do I control the JSON stored for a resource without going through the versioning codec?",
+    "What is StorageOptions.Serializer / apistore.JSONSerializer used for?"
+  ],
+  "body": "Set `StorageOptions.Serializer` (pkg/storage/unified/apistore/store.go: `StorageOptions.Serializer`) when building the REST options for a resource. `apistore.JSONSerializer()` (pkg/storage/unified/apistore/serializer.go: `JSONSerializer`) encodes/decodes plain JSON and preserves whatever GVK the object carries, without scheme-based version conversion -- needed when several GVKs share one Go type (see pkg/registry/apis/datasource/register.go: `UpdateAPIGroupInfo` setting `Serializer: apistore.JSONSerializer()`). Left nil, `Storage` falls back to a `codecSerializer` wrapping the configured `runtime.Codec`; declared `StorageOptions.GVK` makes that fallback preserve the GVK too, empty GVK routes through full codec conversion. Custom `Serializer` implementations must honor `ctx` (cancellation/request-scoped values) for both `Encode` and `Decode`.",
+  "applies": "Any resource storage registered through pkg/storage/unified/apistore, especially types shared across multiple GVKs (e.g. datasources).",
+  "tags": [
+    "apistore",
+    "serializer",
+    "gvk",
+    "datasource"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/serializer.go",
+      "symbol": "Serializer",
+      "hash": "sha256:5e1893e044cae5ec52b3e896",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "hash": "sha256:cd5e39878bdd41c4dc27f79e",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/datasource/register.go",
+      "hash": "sha256:6614443fef72f7fccb460e42",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133083"
+  },
+  "created": "2026-09-28T05:16:32.562Z",
+  "verified": "2026-09-28T05:16:32.562Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

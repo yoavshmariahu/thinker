@@ -1,0 +1,54 @@
+{
+  "id": "test-admin-route-authorization-via-real-route-registration-n",
+  "title": "Test admin-route authorization via real route registration, not by unit-testing handlers",
+  "kind": "convention",
+  "answers": [
+    "How should I test that a route's permission/scope checks are correct?",
+    "How to test single-org vs multi-org authorization behavior for /api/admin routes?",
+    "Pattern for HTTP-level authorization tests in pkg/api"
+  ],
+  "body": "Authorization behavior for /api/admin/* routes is verified with full HTTP-level tests that exercise the actual registered route and middleware chain, not by calling handler functions directly.\nPattern: build a webtest.Server via SetupAPITestServer with fake services (usertest.FakeUserService, orgtest.FakeOrgService, actest.FakeService, etc.), set hs.Cfg.RBAC.SingleOrganization to toggle single/multi-org, and inject an authntest.FakeService with separate per-org vs GlobalOrgID permission maps to simulate the caller having different permissions in org context vs global context.\nSee pkg/api/admin_users_test.go: setupAdminUsersAuthorizationServer and adminUsersAuthorizationCaller helpers, used by TestAdminUsersAuthorization_* tests.\nUse this pattern when adding/changing authorization on any /api/admin/users (or similarly gated) route so single-org vs multi-org and scope-mismatch cases are covered end-to-end.",
+  "applies": "pkg/api/admin_users_test.go and similar /api/admin route authorization tests",
+  "tags": [
+    "testing",
+    "authorization",
+    "accesscontrol",
+    "webtest"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/admin_users_test.go",
+      "symbol": "setupAdminUsersAuthorizationServer",
+      "hash": "sha256:a657e3817a85cbb359fa7934",
+      "line": 726,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/admin_users_test.go",
+      "symbol": "adminUsersAuthorizationCaller",
+      "hash": "sha256:5fa8397a4b832aa324ab808d",
+      "line": 716,
+      "missing": false
+    },
+    {
+      "path": "pkg/web/webtest/webtest.go",
+      "symbol": "Server",
+      "hash": "sha256:55ad4f5a132760d60651b654",
+      "line": 23,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133013"
+  },
+  "created": "2026-09-28T05:24:13.184Z",
+  "verified": "2026-09-28T05:24:13.184Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "how-to-test-handlers-in-pkg-api"
+  ]
+}

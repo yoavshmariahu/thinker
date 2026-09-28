@@ -1,0 +1,48 @@
+{
+  "id": "adding-a-standard-fieldconfigproperty-requires-an-editor-reg",
+  "title": "Adding a standard FieldConfigProperty requires an editor registry entry too",
+  "kind": "cochange",
+  "answers": [
+    "What do I need to change to add a new field config option?",
+    "Why does my new FieldConfigProperty not appear in the options pane?"
+  ],
+  "body": "Add the value to FieldConfigProperty enum (packages/grafana-data/src/types/fieldOverrides.ts:FieldConfigProperty, line 183), and also register a matching editor entry in standardFieldConfigEditorRegistry (packages/grafana-data/src/field/standardFieldConfigEditorRegistry.ts). createFieldConfigRegistry (packages/grafana-data/src/panel/registryFactories.ts:createFieldConfigRegistry, ~line 44) iterates standardFieldConfigEditorRegistry keyed by FieldConfigProperty id — an enum value without a matching registry entry is silently dropped from the panel options UI.",
+  "applies": "Applies to standard/built-in field config properties (not custom per-plugin FieldConfig.custom extensions, which use a separate mechanism).",
+  "tags": [
+    "grafana-data",
+    "field-config",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/types/fieldOverrides.ts",
+      "symbol": "FieldConfigProperty",
+      "hash": "sha256:fa6dac83af47b66a0a5aec4c",
+      "line": 183,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/field/standardFieldConfigEditorRegistry.ts",
+      "hash": "sha256:df47639f2d86b78f12264a46",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/panel/registryFactories.ts",
+      "symbol": "createFieldConfigRegistry",
+      "hash": "sha256:8fbdc0dafc60fdef93f6b7cf",
+      "line": 8,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c707601f-6672-4b92-ab10-1998193695b1"
+  },
+  "created": "2026-09-28T05:51:30.666Z",
+  "verified": "2026-09-28T05:51:30.666Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

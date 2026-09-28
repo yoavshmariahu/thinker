@@ -1,0 +1,64 @@
+{
+  "id": "pkg-api-responsibility-and-di-wiring",
+  "title": "pkg/api/ responsibility and DI wiring",
+  "kind": "overview",
+  "answers": [
+    "What is pkg/api/ responsible for?",
+    "Where does the HTTP server get constructed and wired?",
+    "How is pkg/api/ started at boot?"
+  ],
+  "body": "pkg/api/ is Grafana's HTTP layer only: routing, auth/RBAC/quota middleware, handlers, DTOs, swagger docs. Domain logic lives in pkg/services/<domain>/; handlers call into services, they don't implement business logic.\n\n`HTTPServer` (pkg/api/http_server.go:125) is a DI container struct with ~90 injected service fields (mostly unexported, package-private) plus `*web.Mux` and `routing.RouteRegister`. Built by `ProvideHTTPServer` (http_server.go:249), a large Wire-provider function wired into the graph at pkg/server/wire_core.go:208.\n\n`HTTPServer` implements `Run(ctx) error` (http_server.go:462) making it a `registry.BackgroundService`, started by pkg/registry/backgroundsvcs/background_services.go:61 — not called directly by pkg/server.Server.",
+  "tags": [
+    "pkg/api",
+    "architecture"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/http_server.go",
+      "symbol": "HTTPServer",
+      "hash": "sha256:3b7ee8e593c180069425c20b",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/http_server.go",
+      "symbol": "ProvideHTTPServer",
+      "hash": "sha256:e37539bdb918cf203936d51b",
+      "line": 249,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wire_core.go",
+      "hash": "sha256:52534e20a43f8811743de33b",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/backgroundsvcs/background_services.go",
+      "hash": "sha256:19e406918c691c09af342aed",
+      "missing": false
+    },
+    {
+      "path": "pkg/web/web.go",
+      "symbol": "Mux",
+      "hash": "sha256:45c3b3697f72759eaf291322",
+      "line": 3,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "5c4b0482-cb98-48e5-a7f4-12ee5f98656b"
+  },
+  "created": "2026-09-28T06:05:01.988Z",
+  "verified": "2026-09-28T06:05:01.988Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "what-must-change-together-when-adding-or-extending-an-endpoi",
+    "dashboard-fetch-route-handler-service-call-path",
+    "extending-pkg-infra-multi-file-cochange-requirements",
+    "pkg-infra-structure-wiring-and-control-flow"
+  ]
+}

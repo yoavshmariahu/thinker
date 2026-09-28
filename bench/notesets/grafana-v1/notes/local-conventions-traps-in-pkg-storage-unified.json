@@ -1,0 +1,63 @@
+{
+  "id": "local-conventions-traps-in-pkg-storage-unified",
+  "title": "Local conventions/traps in pkg/storage/unified",
+  "kind": "gotcha",
+  "answers": [
+    "Why does GuaranteedUpdate not enforce resource-version optimistic concurrency like typical k8s stores?",
+    "What error type do unified storage RPCs return?",
+    "Why can a valid-looking resource name be rejected?",
+    "Is sql/backend.go the right place to add new storage backend logic?"
+  ],
+  "body": "sql/backend.go is legacy and being retired; new backend work belongs in resource/kv.go, not sql/backend.go. Resource versions are derived from Snowflake IDs (sql/backend.go:toMicrosecondRV, around line 851), not simple counters. Optimistic concurrency is enforced via RowsAffected() in checkConflict (backend.go around line 1088), not a read-back comparison. apistore.Storage.GuaranteedUpdate does NOT set the RV precondition by default (apistore/store.go around line 725); do not assume standard k8s RV-based optimistic concurrency always applies here. Server RPC errors are *resourcepb.ErrorResult (HTTP-status-coded, built via resource/errors.go helpers), a separate error model from plain Go error sentinels; mixing them up is a common mistake. Resource keys are strictly validated in resource/keys.go:verifyRequestKeyNamespaceGroupResource; names failing validation.IsValidGrafanaName are rejected at the storage layer. StorageOptions.GVK must be set explicitly per API version (apistore/store.go lines 75-85), not derived; one Go type can back multiple versions.",
+  "applies": "Applies to code implementing or calling storage.Interface / StorageBackend under pkg/storage/unified; not relevant to legacy sqlstore code outside this package.",
+  "tags": [
+    "pkg/storage",
+    "unified-storage",
+    "gotcha",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/sql/backend.go",
+      "symbol": "toMicrosecondRV",
+      "hash": "sha256:58302b1458f73b86ad14e603",
+      "line": 851,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "symbol": "GuaranteedUpdate",
+      "hash": "sha256:68f550fc501f430bcd417016",
+      "line": 689,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/errors.go",
+      "hash": "sha256:ec0e7a2be644b39091518830",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/keys.go",
+      "symbol": "verifyRequestKeyNamespaceGroupResource",
+      "hash": "sha256:8ecacba36eb515f629cd753d",
+      "line": 26,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/sql/kv.go",
+      "hash": "sha256:e2d49eb4cd34186296521559",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9979686a-0418-4ba7-ac35-243357cd27c4"
+  },
+  "created": "2026-09-28T05:41:04.879Z",
+  "verified": "2026-09-28T05:41:04.879Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

@@ -1,0 +1,43 @@
+{
+  "id": "grafana-docs-style-avoid-e-g-see-and-self-hosted",
+  "title": "Grafana docs style: avoid 'e.g.', 'see [', and 'self-hosted'",
+  "kind": "convention",
+  "answers": [
+    "What docs style should I use for Grafana datasource docs?",
+    "Should I write 'e.g.' or 'for example' in Grafana docs?",
+    "Should I use 'see' or 'refer to' for doc links?",
+    "Is it 'self-hosted' or 'self-managed' Grafana?"
+  ],
+  "body": "Grafana docs writers-toolkit style, applied during quarterly doc reviews: use 'for example,' instead of 'e.g.,'; use 'Refer to [link]' instead of 'See [link]'; use 'self-managed' instead of 'self-hosted' when referring to non-Cloud Grafana installs. Seen applied across docs/sources/datasources/azure-monitor/*/index.md during a scheduled quarterly review pass.",
+  "applies": "Prose edits to docs/sources/**/*.md under Grafana docs, especially during scheduled quarterly review passes",
+  "tags": [
+    "docs",
+    "style-guide",
+    "azure-monitor"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/datasources/azure-monitor/configure/index.md",
+      "hash": "sha256:6eb14e0ca3df71ab6d109234",
+      "missing": false
+    },
+    {
+      "path": "docs/sources/datasources/azure-monitor/template-variables/index.md",
+      "hash": "sha256:84cc179d95bd381d7c8c0820",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133020"
+  },
+  "created": "2026-09-28T05:22:42.648Z",
+  "verified": "2026-09-28T05:22:42.648Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "backporting-quarterly-doc-reviews-skip-sections-for-features"
+  ]
+}

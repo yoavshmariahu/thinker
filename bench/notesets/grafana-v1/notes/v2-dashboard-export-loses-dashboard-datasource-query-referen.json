@@ -1,0 +1,47 @@
+{
+  "id": "v2-dashboard-export-loses-dashboard-datasource-query-referen",
+  "title": "V2 dashboard export loses Dashboard-datasource query references",
+  "kind": "fix",
+  "answers": [
+    "Why does a panel show Random Walk data after importing a shared/exported dashboard?",
+    "Exported dashboard loses '-- Dashboard --' datasource reference on reimport",
+    "Panel that reuses another panel's query results breaks after export/import",
+    "How to keep Dashboard datasource references intact when exporting v2 dashboards"
+  ],
+  "body": "Symptom: A v2 dashboard panel configured to use the built-in '-- Dashboard --' datasource (reusing another panel's query results) shows generated Random Walk data instead of the expected data after the dashboard is exported (Share with another instance) and reimported.\nRoot cause: `makeExportableV2` in public/app/features/dashboard-scene/scene/export/exporters.ts treated the Dashboard datasource's stable UID (`SHARED_DASHBOARD_QUERY` from app/plugins/datasource/dashboard/constants) as an ordinary instance-specific datasource UID and ran it through the anonymization/remapping logic, stripping the reference.\nFix pattern: before running generic datasource anonymization (label attachment / UID removal) on a DataQueryKind, add an early-return guard for known stable/built-in datasource UIDs so they pass through export unchanged.\nConstraints: applies specifically to the v2 export path in exporters.ts (`makeExportableV2`); ordinary datasource anonymization, other built-in datasources, v1 export/migrations, and runtime datasource resolution are unaffected and must keep their existing remapping behavior.",
+  "applies": "public/app/features/dashboard-scene/scene/export/exporters.ts makeExportableV2, v2 dashboard export/share-externally flow",
+  "tags": [
+    "dashboard-export",
+    "v2-schema",
+    "datasource"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+      "symbol": "makeExportableV2",
+      "hash": "sha256:380f3045b677a3d81039df7c",
+      "line": 423,
+      "missing": false
+    },
+    {
+      "path": "public/app/plugins/datasource/dashboard/constants.ts",
+      "symbol": "SHARED_DASHBOARD_QUERY",
+      "hash": "sha256:f774aab2db51ee0712fd0459",
+      "line": 1,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133093"
+  },
+  "created": "2026-09-28T05:15:36.770Z",
+  "verified": "2026-09-28T05:15:36.770Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "stable-built-in-datasource-uids-must-bypass-export-anonymiza"
+  ]
+}

@@ -148,6 +148,18 @@ async function gradePatch(task, patch, summary = '') {
   }
 }
 
+// A stopped run prints no conversation id: take the conversation started after t0 whose transcript names this worktree.
+function lastConversation(t0, cwd) {
+  const brain = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain');
+  try {
+    for (const id of fs.readdirSync(brain)) {
+      const f = path.join(brain, id, '.system_generated', 'logs', 'transcript.jsonl');
+      try { if (fs.statSync(path.join(brain, id)).birthtimeMs >= t0 - 5000 && (!cwd || fs.readFileSync(f, 'utf8').includes(cwd))) return id; } catch {}
+    }
+  } catch {}
+  return null;
+}
+
 async function runAgy(prompt, { arm, cwd }) {
   let fullPrompt = prompt;
   if (arm === 'cache') {
@@ -183,11 +195,15 @@ Rely directly on the verified file:symbol pointers above and do not re-explore f
       '--dangerously-skip-permissions'
     ];
     const p = spawn('agy', args, { cwd, env: { ...process.env, THINKER_LOG: 'local', THINKER_NO_LEARN: '1', ...(arm === 'cache' ? {} : { THINKER_MCP: 'off' }) } });
-    let o = '', e = '';
+    let o = '', e = '', timedOut = false;
+    // a run that passes the limit is stopped and kept, with its edits so far, as timed_out
+    const limit = setTimeout(() => { timedOut = true; p.kill('SIGKILL'); }, (Number(flags['max-min']) || 20) * 60000);
     p.stdout.on('data', d => o += d);
     p.stderr.on('data', d => e += d);
     p.on('error', err => reject(err));
     p.on('close', code => {
+      clearTimeout(limit);
+      if (timedOut) return resolve({ timed_out: true, conversation_id: lastConversation(t0, cwd), wall_ms: Date.now() - t0 });
       let j;
       try {
         const start = o.indexOf('{');
@@ -250,11 +266,11 @@ async function main() {
       }
 
       const convId = r.conversation_id;
-      const transcriptFile = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain', convId, '.system_generated', 'logs', 'transcript.jsonl');
+      const transcriptFile = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain', convId || 'none', '.system_generated', 'logs', 'transcript.jsonl');
       const tools = toolStats(transcriptFile);
 
       // Detect rate limit / quota exhaustion / empty run
-      if (tools.calls === 0 && (!r.usage?.total_tokens || r.usage?.total_tokens === 0)) {
+      if (!r.timed_out && tools.calls === 0 && (!r.usage?.total_tokens || r.usage?.total_tokens === 0)) {
         console.log(`[rate-limit] ${id}: 0 tools and 0 tokens (quota or API error). Pausing 60s and retrying...`);
         jobs.unshift({ task, arm, rep });
         resetWorktree(cwd);
@@ -290,6 +306,7 @@ async function main() {
         model,
         session: convId,
         turns: r.num_turns,
+        timed_out: !!r.timed_out,
         wall_ms: r.wall_ms,
         wall_sec: (r.wall_ms / 1000).toFixed(1),
         usage: r.usage,

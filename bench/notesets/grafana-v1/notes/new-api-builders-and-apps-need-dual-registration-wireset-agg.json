@@ -1,0 +1,60 @@
+{
+  "id": "new-api-builders-and-apps-need-dual-registration-wireset-agg",
+  "title": "New API builders and apps need dual registration (WireSet + aggregator)",
+  "kind": "cochange",
+  "answers": [
+    "What do I need to edit to register a new API group builder?",
+    "Why did my new builder/app never get called at startup?",
+    "What files must change together when adding a new registry.apis or registry.apps entry?"
+  ],
+  "body": "For a new API builder: add its RegisterAPIService provider to WireSet in pkg/registry/apis/wireset.go AND add a parameter for it in ProvideRegistryServiceSink in pkg/registry/apis/apis.go. A comment in wireset.go explicitly says each must be added in both places. Missing the sink means Wire never forces the builder to construct, so it silently never registers (no error, no panic — it just doesn't run).\nFor a new app: same pattern in pkg/registry/apps/ — add the installer provider to WireSet in pkg/registry/apps/wireset.go AND add/append it (optionally behind a feature flag) inside ProvideAppInstallers in pkg/registry/apps/apps.go.",
+  "applies": "Applies when adding a brand-new API group builder under pkg/registry/apis/ or a new App-SDK app under pkg/registry/apps/. Does not apply to modifying an existing builder's internal logic.",
+  "tags": [
+    "grafana",
+    "registry",
+    "wire",
+    "gotcha",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/wireset.go",
+      "hash": "sha256:82bf3453f529c4695d79f044",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/apis.go",
+      "symbol": "ProvideRegistryServiceSink",
+      "hash": "sha256:f7532fc3f0ba8677e7f32196",
+      "line": 19,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/wireset.go",
+      "hash": "sha256:17c223938b09997fa3e72518",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/apps.go",
+      "symbol": "ProvideAppInstallers",
+      "hash": "sha256:122c30feba778009596fba5d",
+      "line": 33,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6926125-b79d-45a0-b9c9-942338e8775c"
+  },
+  "created": "2026-09-28T05:34:20.029Z",
+  "verified": "2026-09-28T05:34:20.029Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "registration-control-flow-wire-registerapiservice-registerap",
+    "feature-flag-gating-and-old-vs-new-builder-pattern-conventio",
+    "pkg-registry-structure-and-how-services-enter-the-boot-seque"
+  ]
+}

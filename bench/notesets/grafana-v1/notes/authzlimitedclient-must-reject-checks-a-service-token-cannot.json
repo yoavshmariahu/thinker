@@ -1,0 +1,37 @@
+{
+  "id": "authzlimitedclient-must-reject-checks-a-service-token-cannot",
+  "title": "authzLimitedClient must reject checks a service token cannot delegate before forwarding them",
+  "kind": "invariant",
+  "answers": [
+    "Do I need to call serviceCanDelegate before the underlying authz client?",
+    "What must Check/Compile/BatchCheck do before forwarding to the real client?",
+    "How is a deployment misconfiguration distinguished from a normal access denial?"
+  ],
+  "body": "Every entry point on authzLimitedClient (Check, Compile, BatchCheck in pkg/storage/unified/resource/access.go) must call serviceCanDelegate(ctx, id, group, resource, verb) before forwarding the check to the underlying authz client. This is the layer that decides which kinds get access-checked, so it's the only place that can tell 'service token misconfigured' apart from 'user genuinely denied'.\nIf skipped: a service whose token has permissions but not the delegated one for that group/resource/verb will get a silent local denial from authlib, and the caller sees empty/unauthorized results with no signal that anything is wrong (no log, no metric, no error).\nThe check is a no-op (returns nil) when the identity carries no token permissions at all (single-tenant/in-process callers), so it must not be tightened to reject those.",
+  "applies": "pkg/storage/unified/resource/access.go — authzLimitedClient and any future entry points added to it",
+  "tags": [
+    "authz",
+    "invariant",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "hash": "sha256:45ecb63cafa72531c26333ab",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132990"
+  },
+  "created": "2026-09-28T05:26:09.103Z",
+  "verified": "2026-09-28T05:26:09.103Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "silent-authz-denial-when-service-token-lacks-delegated-permi"
+  ]
+}

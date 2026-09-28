@@ -1,0 +1,67 @@
+{
+  "id": "things-that-must-change-together-when-extending-apps-dashboa",
+  "title": "Things that must change together when extending apps/dashboard/",
+  "kind": "cochange",
+  "answers": [
+    "What do I need to touch to add a new schema-version migration?",
+    "What do I need to touch to add a new dashboard API version?",
+    "What do I need to touch to add a new resource kind?"
+  ],
+  "body": "1. New schema migration (e.g. v43): add apps/dashboard/pkg/migration/schemaversion/v43.go, register it in GetMigrations() map (schemaversion/migrations.go:53), AND bump LATEST_VERSION (migrations.go:12). Missing the bump means old dashboards silently stop migrating.\n2. New API version (e.g. v3): CUE schema under apps/dashboard/kinds/v3/ → codegen produces apps/dashboard/pkg/apis/dashboard/v3/*_gen.go → conversion functions in apps/dashboard/pkg/migration/conversion/ → in pkg/registry/apis/dashboard/register.go update GetGroupVersions() (:269), InstallSchema() (:280), and add a branch in UpdateAPIGroupInfo/storageForVersion (:1046-:1195). storageForVersion exists specifically so each version persists as itself rather than whatever the scheme reports first (comment at register.go:982-984).\n3. New resource kind on an existing version (e.g. Variable/Notebook): must move in lockstep across the admission switch in Validate() (register.go:355, \"Reachability invariant\" comments at :382/:398) and storage registration (:1160-:1193) — consistency between the two is enforced only by comment, not by the compiler.",
+  "applies": "Applies specifically to apps/dashboard's versioned-API/migration model; does not generalize to other Grafana apps unless they use the same App SDK versioning pattern.",
+  "tags": [
+    "grafana",
+    "apps/dashboard",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "apps/dashboard/pkg/migration/schemaversion/migrations.go",
+      "symbol": "GetMigrations",
+      "hash": "sha256:2576ffa11664d9b5a284cc75",
+      "line": 53,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "DashboardsAPIBuilder",
+      "hash": "sha256:74867e9d246f8ba9173cdaac",
+      "line": 110,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "GetGroupVersions",
+      "hash": "sha256:fa04cc44fe154d3a542b1479",
+      "line": 269,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "InstallSchema",
+      "hash": "sha256:a27114478581f1d7b71e252e",
+      "line": 280,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "Validate",
+      "hash": "sha256:7dba3e4e23e77b93d885c5e6",
+      "line": 351,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "98ce03e9-c5dd-47a9-b5d2-52f37e677c64"
+  },
+  "created": "2026-09-28T05:48:59.055Z",
+  "verified": "2026-09-28T05:48:59.055Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboard-request-migration-control-flow"
+  ]
+}

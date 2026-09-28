@@ -1,0 +1,50 @@
+{
+  "id": "two-different-codegen-pipelines-coexist-in-v0alpha1-package",
+  "title": "Two different codegen pipelines coexist in v0alpha1 package",
+  "kind": "convention",
+  "answers": [
+    "Why does regenerating types with the app-sdk generator not pick up Job changes?",
+    "Which types are CUE-authored vs hand-written Go in provisioning?",
+    "How do I regenerate Job/HistoricJob deepcopy/openapi code?"
+  ],
+  "body": "Repository and Connection are CUE-authored (kinds/*.cue -> app-sdk `generate`), but Job, HistoricJob, RepositoryViewList, and health/condition types are plain Go with kubebuilder markers (+k8s:deepcopy-gen, +genclient) regenerated via `./hack/update-codegen.sh provisioning` from the repo root (comment at apps/provisioning/pkg/apis/provisioning/v0alpha1/jobs.go says this explicitly). kinds/manifest.cue only lists `repository` and `connection` as manifest kinds — Job is not part of the CUE manifest at all. Forgetting the right regeneration step leaves zz_generated.deepcopy.go/zz_generated.openapi.go stale, which typically fails CI rather than compilation.",
+  "applies": "Applies within apps/provisioning/pkg/apis/provisioning/v0alpha1/ and apps/provisioning/kinds/. Does not apply to other apps/* modules unless they show the same split.",
+  "tags": [
+    "provisioning",
+    "codegen",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "apps/provisioning/kinds/manifest.cue",
+      "hash": "sha256:c58a05d5a754396550621ea0",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/apis/provisioning/v0alpha1/jobs.go",
+      "hash": "sha256:beb194edb1da45eac41eedd6",
+      "missing": false
+    },
+    {
+      "path": "hack/update-codegen.sh",
+      "hash": "sha256:3cfa046e39e9a97becb19447",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/apis/provisioning/v0alpha1/zz_generated.openapi.go",
+      "hash": "sha256:f0a2cedaaa3799bf6d3d1545",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e2b66c4a-e7e3-4c50-b35a-47191dc19ae2"
+  },
+  "created": "2026-09-28T05:46:01.971Z",
+  "verified": "2026-09-28T05:46:01.971Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

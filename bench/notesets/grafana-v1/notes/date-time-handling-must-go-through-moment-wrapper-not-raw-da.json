@@ -1,0 +1,46 @@
+{
+  "id": "date-time-handling-must-go-through-moment-wrapper-not-raw-da",
+  "title": "Date/time handling must go through moment_wrapper, not raw Date/moment",
+  "kind": "convention",
+  "answers": [
+    "How should I create or manipulate dates in grafana-data / grafana code?",
+    "Why shouldn't I use moment or Date directly?"
+  ],
+  "body": "Use dateTime()/toUtc() from packages/grafana-data/src/datetime/moment_wrapper.ts (e.g. toUtc at line ~117) instead of raw `moment` or `Date`. The wrapper sits on top of moment_implementation.ts and an in-progress luxon compatibility shim (src/datetime/luxon_moment_compat/). Bypassing it breaks timezone handling and will conflict with the ongoing moment→luxon migration.",
+  "applies": "Applies to any new code in grafana-data or its consumers doing date/time creation or formatting; does not cover already-committed legacy code still using moment directly elsewhere in the app, which is being migrated incrementally.",
+  "tags": [
+    "grafana-data",
+    "datetime",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/datetime/moment_wrapper.ts",
+      "hash": "sha256:9b97926ea7236a0df47d9842",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/datetime/moment_implementation.ts",
+      "hash": "sha256:cb7cdafc323909ea9075cf3d",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/datetime/moment_wrapper.ts",
+      "symbol": "dateTime",
+      "hash": "sha256:7700c3ad2bff68e20a1bb26f",
+      "line": 134,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c707601f-6672-4b92-ab10-1998193695b1"
+  },
+  "created": "2026-09-28T05:51:30.685Z",
+  "verified": "2026-09-28T05:51:30.685Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

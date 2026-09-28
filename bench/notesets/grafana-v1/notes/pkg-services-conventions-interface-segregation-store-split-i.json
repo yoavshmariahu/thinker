@@ -1,0 +1,73 @@
+{
+  "id": "pkg-services-conventions-interface-segregation-store-split-i",
+  "title": "pkg/services conventions: interface segregation, store split, identity.Requester, typed errors, inline feature flags, mockery",
+  "kind": "convention",
+  "answers": [
+    "What conventions should I follow when writing a new service in pkg/services?",
+    "How is auth/user identity passed into service methods?",
+    "How are errors represented in services?",
+    "How are feature flags checked in service code?",
+    "How are mocks generated for service interfaces?"
+  ],
+  "body": "- Interface segregation over one god-interface: `pkg/services/dashboards` root defines 5 separate interfaces (DashboardService, DashboardAccessService, PermissionsRegistrationService, PluginService, DashboardProvisioningService) all satisfied by one `DashboardServiceImpl` struct (see wire.Bind usage above).\n- Store/service split: e.g. `pkg/services/star/starimpl/store.go` defines an unexported `store` interface, `star.go` holds business logic, `xorm_store.go` is the SQL impl — service code talks only to `store`, never the DB directly.\n- Auth via `identity.Requester`, not raw user IDs: `pkg/services/dashboards/service/dashboard_service.go:104 HasDashboardAccess(ctx, user identity.Requester, ...)` using `claims.TypeUser`/`claims.TypeServiceAccount` from authlib/types.\n- Errors are typed structs carrying HTTP status, not plain `errors.New`: `pkg/services/dashboards/errors.go` defines `ErrDashboardNotFound = dashboardaccess.DashboardErr{Reason: ..., StatusCode: 404, ...}`.\n- Feature flags are checked inline via a held `features featuremgmt.FeatureToggles` field and `dr.features.IsEnabledGlobally(featuremgmt.FlagX)` calls scattered through business logic (e.g. `dashboard_service.go:1273`) — there is no separate gating layer/middleware.\n- Mocks are generated with `//go:generate mockery` directives placed directly above the interface they mock (e.g. `dashboards.go:19`), producing an in-package `FakeDashboardService`; ~39 such directives exist under pkg/services.",
+  "applies": "General conventions across pkg/services domains; individual small services (e.g. star) may skip some (e.g. no feature-flag checks) but the store/service split and mockery pattern are broadly consistent.",
+  "tags": [
+    "convention",
+    "pkg/services",
+    "mockery",
+    "errors",
+    "feature-flags"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/dashboards/dashboard.go",
+      "hash": "sha256:032a145f2b94c018e35737a2",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/star/starimpl/store.go",
+      "hash": "sha256:5a9f050fc50fae0f4659b133",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/star/star.go",
+      "hash": "sha256:84c92ba9edcb70779b3a800e",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "symbol": "HasDashboardAccess",
+      "hash": "sha256:70bbddfc335c3e169d339b5f",
+      "line": 103,
+      "missing": false
+    },
+    {
+      "path": "pkg/services/dashboards/errors.go",
+      "hash": "sha256:61ee132780157c6816994013",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/star/starimpl/star.go",
+      "hash": "sha256:46e1be633c3f591a2328d57c",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/star/starimpl/xorm_store.go",
+      "hash": "sha256:eb62dcc16331c62012346294",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "8adeeb9d-b604-4ea8-863e-efde0ef750fc"
+  },
+  "created": "2026-09-28T05:32:21.634Z",
+  "verified": "2026-09-28T05:32:21.634Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pkg-services-domain-structure"
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "id": "grafana-data-package-responsibility-ownership-split",
+  "title": "grafana-data package: responsibility & ownership split",
+  "kind": "overview",
+  "answers": [
+    "What is packages/grafana-data responsible for?",
+    "Who owns packages/grafana-data/src subdirectories?",
+    "Why do conventions differ between subfolders of grafana-data?"
+  ],
+  "body": "packages/grafana-data is the shared pure-logic/type foundation used by grafana core, @grafana/* packages, and all datasource/panel plugins: DataFrame/Field model, field display/formatting, field-config overrides, transformations, theming, date/time handling, and base plugin classes (src/panel/PanelPlugin.ts). It has React as a dep but is the layer under @grafana/ui, not UI-heavy itself.\nIt is NOT owned by one squad: .github/CODEOWNERS (lines ~549-622) splits ownership per subdirectory — dataframe/, geo/, table/, text/, vector/ → dataviz-squad; field/, panel/, valueFormats/ → dashboards-squad; transformations/ → datapro; rbac/ → access-squad; types/, datetime/, themes/, and src/index.ts itself → grafana-frontend-platform.\nPublic export surfaces are declared in package.json's `exports` map: src/index.ts (~180 exports, the stable @grafana/data API), src/unstable.ts (internal-only APIs explicitly documented as forbidden for community plugins), and test/index.ts (mock helpers under @grafana/data/test, e.g. test/helpers/fieldConfig.ts, test/helpers/pluginMocks.ts).",
+  "tags": [
+    "grafana-data",
+    "ownership",
+    "package-structure"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/index.ts",
+      "hash": "sha256:03d3230d65b1c4b367451b90",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/unstable.ts",
+      "hash": "sha256:26cbf5fb0778decf6fbc25f6",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/test/index.ts",
+      "hash": "sha256:f73f98698733fb7b410c38b4",
+      "missing": false
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "hash": "sha256:2ceea6cc1a2e20b3c9664307",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/package.json",
+      "hash": "sha256:d5ad13829b1b97b3b7f10800",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/panel/PanelPlugin.ts",
+      "hash": "sha256:9da161e2170d2ed3cb93353c",
+      "missing": false
+    },
+    {
+      "path": "scripts/prepare-npm-package.js",
+      "hash": "sha256:f3ca3c04700e659c60522a1f",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/test/helpers/fieldConfig.ts",
+      "hash": "sha256:c35ec4d0385c06ff8c19bd57",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/test/helpers/pluginMocks.ts",
+      "hash": "sha256:2a1a91afc832f014fbbfb016",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c707601f-6672-4b92-ab10-1998193695b1"
+  },
+  "created": "2026-09-28T05:51:30.512Z",
+  "verified": "2026-09-28T05:51:30.512Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

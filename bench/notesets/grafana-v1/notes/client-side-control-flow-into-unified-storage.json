@@ -1,0 +1,62 @@
+{
+  "id": "client-side-control-flow-into-unified-storage",
+  "title": "Client-side control flow into unified storage",
+  "kind": "callpath",
+  "answers": [
+    "How does an API server request reach unified storage?",
+    "What implements k8s storage.Interface for Grafana resources?",
+    "Where is the gRPC client to unified storage built?"
+  ],
+  "body": "pkg/services/apiserver/options/storage.go builds apistore.RESTOptionsGetter (pkg/storage/unified/apistore/restoptions.go:NewRESTOptionsGetterForClient), used by k8s generic.Store per resource. apistore.Storage (pkg/storage/unified/apistore/store.go) implements storage.Interface: Create, Get, GetList, GuaranteedUpdate, Delete, Watch (store.go around lines 315,527,572,703,393,482). Flow per store.go's doc.go diagram: API Server to DualWriter to apistore.Storage to unified.ResourceClient to StorageServer (or to LegacyStorage to LegacyService to SQL for resources not yet migrated). The gRPC client is built in pkg/storage/unified/client.go:ProvideUnifiedStorageClient/newClient, which either calls in-process or hops to a separate unified-grpc service.",
+  "tags": [
+    "pkg/storage",
+    "unified-storage",
+    "callpath"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/apiserver/options/storage.go",
+      "hash": "sha256:5dbf974d95ca205516bd521c",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/restoptions.go",
+      "symbol": "NewRESTOptionsGetterForClient",
+      "hash": "sha256:df46b97bc0f77ed1446e079d",
+      "line": 150,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "symbol": "Storage",
+      "hash": "sha256:5ae11816310fd9ac5e83ef38",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/client.go",
+      "symbol": "ProvideUnifiedStorageClient",
+      "hash": "sha256:6119b54ffa3bae7c99ef3cff",
+      "line": 112,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/doc.go",
+      "hash": "sha256:10ad29e7ae96f67dd8b873d4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9979686a-0418-4ba7-ac35-243357cd27c4"
+  },
+  "created": "2026-09-28T05:41:04.650Z",
+  "verified": "2026-09-28T05:41:04.650Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apistore-storage-has-no-codec-field-anymore-use-serializer"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "id": "adding-an-icon-requires-updating-both-the-svg-asset-and-the-",
+  "title": "Adding an icon requires updating both the SVG asset and the hand-maintained IconName type",
+  "kind": "cochange",
+  "answers": [
+    "What do I need to change to add a new icon to grafana-ui?",
+    "Where is IconName defined?"
+  ],
+  "body": "`IconName` (`packages/grafana-data/src/types/icon.ts:321`, `keyof typeof availableIconsIndex`) is a hand-maintained static object, not generated from the filesystem. Adding an icon means adding the SVG asset AND adding its key to this index; `packages/grafana-ui/src/components/Icon/utils.ts` resolves the file path from the icon name at runtime, so a missing index entry means the icon silently can't be referenced by name even if the file exists.",
+  "applies": "Only for adding/renaming icons available via the Icon component; unrelated to other asset types.",
+  "tags": [
+    "grafana-ui",
+    "icons",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/types/icon.ts",
+      "symbol": "IconName",
+      "hash": "sha256:12c459a50bc1e8273e660298",
+      "line": 321,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Icon/utils.ts",
+      "hash": "sha256:d9092b2549374ecb36d78da2",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1bd56c9f-ac14-468a-b6a3-03296332a944"
+  },
+  "created": "2026-09-28T05:36:50.485Z",
+  "verified": "2026-09-28T05:36:50.485Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

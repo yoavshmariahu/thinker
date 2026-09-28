@@ -1,0 +1,54 @@
+{
+  "id": "grafana-ui-public-api-surface-is-a-hand-curated-barrel-not-g",
+  "title": "grafana-ui public API surface is a hand-curated barrel, not generated",
+  "kind": "overview",
+  "answers": [
+    "How is @grafana/ui's public API defined?",
+    "Where do I export a new grafana-ui component so it's usable outside the package?",
+    "What are grafana-ui's entry points?"
+  ],
+  "body": "package.json `exports` maps three entry points: `.` → `src/index.ts`, `./unstable` → `src/unstable.ts`, `./internal` → `src/internal/index.ts`. `src/index.ts` (~547 lines) is a manually maintained barrel (e.g. `export { Icon } from './components/Icon/Icon';` at src/index.ts:20), loosely grouped by comments (forms, next-gen forms, visualizations, a 'Graveyard' section for deprecated-but-shipped components under `src/graveyard/`). There is no api-extractor step gating this (no api-extractor.json in this package) — anything not re-exported in src/index.ts is simply invisible to consumers, and anything added is exported with no automated check.",
+  "tags": [
+    "grafana-ui",
+    "public-api",
+    "barrel-exports"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/index.ts",
+      "hash": "sha256:4cb30fbb3dbfb767325996de",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/package.json",
+      "hash": "sha256:2c2cd1eec2097217b3f35a72",
+      "missing": false
+    },
+    {
+      "path": "scripts/prepare-npm-package.js",
+      "hash": "sha256:f3ca3c04700e659c60522a1f",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/unstable.ts",
+      "hash": "sha256:159570992eb15ae8fd6c4adc",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/internal/index.ts",
+      "hash": "sha256:78e91f424fde7c7a21b8d836",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1bd56c9f-ac14-468a-b6a3-03296332a944"
+  },
+  "created": "2026-09-28T05:36:50.379Z",
+  "verified": "2026-09-28T05:36:50.379Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

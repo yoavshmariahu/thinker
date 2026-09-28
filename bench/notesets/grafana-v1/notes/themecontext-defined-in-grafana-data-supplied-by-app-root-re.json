@@ -1,0 +1,51 @@
+{
+  "id": "themecontext-defined-in-grafana-data-supplied-by-app-root-re",
+  "title": "ThemeContext: defined in grafana-data, supplied by app root, read via useTheme2/useStyles2 in grafana-ui",
+  "kind": "callpath",
+  "answers": [
+    "How does theming flow into grafana-ui components?",
+    "Where is ThemeContext defined and provided?",
+    "Why doesn't grafana-ui import its own theme provider?"
+  ],
+  "body": "`ThemeContext` is defined in `packages/grafana-data/src/themes/context.tsx:6`, not in grafana-ui — grafana-ui just re-exports it (src/index.ts:464) and consumes it via `useTheme2`/`useStyles2` in `packages/grafana-ui/src/themes/ThemeContext.tsx`. The app supplies the actual value once at the root: `public/app/core/utils/ConfigProvider.tsx:81` does `<ThemeContext.Provider value={theme}>`, reacting to a `ThemeChangedEvent` from `@grafana/runtime`. Any change to theming propagation across the app should touch ConfigProvider, not grafana-ui's ThemeContext.tsx.",
+  "tags": [
+    "grafana-ui",
+    "theming",
+    "context"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/themes/context.tsx",
+      "symbol": "ThemeContext",
+      "hash": "sha256:15fed6695da35b555c77e580",
+      "line": 5,
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/themes/ThemeContext.tsx",
+      "hash": "sha256:a0223b01901933d3983dee5c",
+      "missing": false
+    },
+    {
+      "path": "public/app/core/utils/ConfigProvider.tsx",
+      "hash": "sha256:f61349437cf0e91254ad7dbf",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/index.ts",
+      "hash": "sha256:4cb30fbb3dbfb767325996de",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1bd56c9f-ac14-468a-b6a3-03296332a944"
+  },
+  "created": "2026-09-28T05:36:50.409Z",
+  "verified": "2026-09-28T05:36:50.409Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

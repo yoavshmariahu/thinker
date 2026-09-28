@@ -1,0 +1,42 @@
+{
+  "id": "alert-rule-and-alert-rule-version-schemas-must-stay-in-sync-",
+  "title": "alert_rule and alert_rule_version schemas must stay in sync; new migrations require testdata/migration_ids.txt entry",
+  "kind": "cochange",
+  "answers": [
+    "How do I add a new DB migration for alert_rule",
+    "Migration test fails after adding a new AddMigration call",
+    "alert_rule_version out of sync with alert_rule schema",
+    "what files change together for an alert_rule column change"
+  ],
+  "body": "alert_rule_version is a versioned shadow copy of alert_rule (used to track rule history); any column type/definition change applied to alert_rule must be applied identically to alert_rule_version in the same PR, or version records can fail to save or get silently truncated.\nWhen registering a new migration in pkg/services/sqlstore/migrations/migrations.go (OSSMigrations.AddMigration), the migration's name string must also be appended to pkg/services/sqlstore/migrations/testdata/migration_ids.txt in the same order, or the migration ID snapshot test fails.",
+  "applies": "Any change to Grafana alerting DB schema (alert_rule/alert_rule_version) or any new migration added via OSSMigrations.AddMigration",
+  "tags": [
+    "migration",
+    "testdata",
+    "convention",
+    "alerting"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/migrations.go",
+      "hash": "sha256:29f3e082ed11626740e91a01",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/sqlstore/migrations/testdata/migration_ids.txt",
+      "hash": "sha256:4b53fc6ce3b6938cea762e2f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-09-28T05:22:10.515Z",
+  "verified": "2026-09-28T05:22:10.515Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

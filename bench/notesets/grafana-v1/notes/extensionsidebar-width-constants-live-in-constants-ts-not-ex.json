@@ -1,0 +1,38 @@
+{
+  "id": "extensionsidebar-width-constants-live-in-constants-ts-not-ex",
+  "title": "ExtensionSidebar width constants live in constants.ts, not ExtensionSidebar.tsx",
+  "kind": "convention",
+  "answers": [
+    "Where are MIN/MAX/DEFAULT_EXTENSION_SIDEBAR_WIDTH defined?",
+    "Why is there a circular dependency between AppChrome, ExtensionSidebar, and ExtensionSidebarProvider?"
+  ],
+  "body": "MIN_EXTENSION_SIDEBAR_WIDTH, MAX_EXTENSION_SIDEBAR_WIDTH, and DEFAULT_EXTENSION_SIDEBAR_WIDTH were moved from ExtensionSidebar.tsx into public/app/core/components/AppChrome/ExtensionSidebar/constants.ts. This breaks a cycle where AppChrome.tsx, ExtensionSidebar.tsx, and ExtensionSidebarProvider.tsx all imported from each other. Import these width constants from './ExtensionSidebar/constants', not from './ExtensionSidebar/ExtensionSidebar'.",
+  "applies": "public/app/core/components/AppChrome/ExtensionSidebar/** and AppChrome.tsx",
+  "tags": [
+    "circular-dependency",
+    "app-chrome"
+  ],
+  "deps": [
+    {
+      "path": "public/app/core/components/AppChrome/ExtensionSidebar/constants.ts",
+      "hash": "sha256:8624a30a739fc4e7df290067",
+      "missing": false
+    },
+    {
+      "path": "public/app/core/components/AppChrome/AppChrome.tsx",
+      "hash": "sha256:c0352fdfb7b199f76532f96c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133018"
+  },
+  "created": "2026-09-28T05:23:05.165Z",
+  "verified": "2026-09-28T05:23:05.165Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

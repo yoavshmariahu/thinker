@@ -1,0 +1,42 @@
+{
+  "id": "version-cap-must-be-enforced-against-the-persisted-gvk-not-t",
+  "title": "Version cap must be enforced against the persisted GVK, not the declared one",
+  "kind": "invariant",
+  "answers": [
+    "Why does apistore reject a write even though the request declared an allowed version?",
+    "How is the max-allowed-version policy checked during storage writes?",
+    "Can a codec/serializer that upconverts bypass the version cap?"
+  ],
+  "body": "`Storage.encode` (pkg/storage/unified/apistore/prepare.go: `Storage.encode`) always serializes first, then checks `VersionPolicy.HasMaxAllowed` against the version actually persisted (read back via `persistedVersion`, not the object's requested/declared version). This matters because a codec or custom Serializer can upconvert to a higher-priority storage version than the caller requested; checking the declared version would let an over-cap write slip through. A persisted GVK from outside the resource's group is rejected outright (cannot be ranked against the group's cap). `enforceCap=true` on create and non-deletion updates; `enforceCap=false` for deletion-related writes (soft delete, finalizer/status writes while `deletionTimestamp` is set) so an already over-cap object stays removable.",
+  "applies": "Any write path through pkg/storage/unified/apistore.Storage for a resource group with a VersionPolicy max-allowed-version cap.",
+  "tags": [
+    "apistore",
+    "version-policy",
+    "storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "hash": "sha256:db0293b27ffa68c6e0462f4d",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "persistedVersion",
+      "hash": "sha256:3380a0879e7b1b04ad01ee50",
+      "line": 499,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133083"
+  },
+  "created": "2026-09-28T05:16:32.571Z",
+  "verified": "2026-09-28T05:16:32.571Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

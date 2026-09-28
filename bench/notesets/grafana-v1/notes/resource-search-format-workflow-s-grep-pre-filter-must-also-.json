@@ -1,0 +1,35 @@
+{
+  "id": "resource-search-format-workflow-s-grep-pre-filter-must-also-",
+  "title": "Resource-search-format workflow's grep pre-filter must also catch grouped var(...) declarations",
+  "kind": "gotcha",
+  "answers": [
+    "Why does the resource search field-values check miss some ResourceSearchRequest declarations?",
+    "Grouped var block not detected by pr-resource-search-result-format check",
+    "How to update the grep filter in pr-resource-search-result-format.yml"
+  ],
+  "body": "Before running semgrep, the workflow greps for files containing ResourceSearchRequest constructions and fails the job if none are found. A naive `var\\s+\\w+\\s+...ResourceSearchRequest` regex misses grouped declarations like `var (\\n  request resourcepb.ResourceSearchRequest\\n)` because `var` isn't on the same line as the identifier. The current grep in the workflow adds a second alternative matching a bare `identifier type` line (optionally with a trailing comment) to also catch these. If you edit this pre-filter regex, test it against both standalone `var x Type` and grouped `var (x Type)` forms.",
+  "applies": ".github/workflows/pr-resource-search-result-format.yml grep pre-filter step",
+  "tags": [
+    "ci",
+    "semgrep",
+    "shell-grep"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/pr-resource-search-result-format.yml",
+      "hash": "sha256:ab1b369a85b2cdf9e00cc764",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133001"
+  },
+  "created": "2026-09-28T05:25:23.117Z",
+  "verified": "2026-09-28T05:25:23.117Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

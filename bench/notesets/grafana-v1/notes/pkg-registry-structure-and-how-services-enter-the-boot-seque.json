@@ -1,0 +1,62 @@
+{
+  "id": "pkg-registry-structure-and-how-services-enter-the-boot-seque",
+  "title": "pkg/registry/ structure and how services enter the boot sequence",
+  "kind": "overview",
+  "answers": [
+    "What is pkg/registry/ responsible for?",
+    "How do registry.apis and registry.apps differ?",
+    "Where do background services get collected at startup?"
+  ],
+  "body": "pkg/registry/ is composition/wiring code, not business logic. Three sub-registries feed pkg/server at boot:\n- apis/ (pkg apiregistry): k8s-style API group builders (folders, dashboards, iam, provisioning, secrets, ...) implementing builder.APIGroupBuilder.\n- apps/ (pkg appregistry): newer App-SDK based apps (playlist, shorturl, quotas, ...) wrapped as appsdkapiserver.AppInstaller.\n- backgroundsvcs/ + usagestatssvcs/: flat lists of everything implementing registry.BackgroundService / registry.ProvidesUsageStats (defined in pkg/registry/registry.go).\nActual REST storage/conversion/validation logic lives in the builder's own subpackage (apis/folders/*.go, apps/playlist/migrator/) or in apps/<name>/pkg/..., not in the registration file itself.",
+  "tags": [
+    "grafana",
+    "registry",
+    "wiring",
+    "orientation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/registry.go",
+      "symbol": "BackgroundService",
+      "hash": "sha256:bcbb70dbd8d004c9975f133e",
+      "line": 23,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/apis.go",
+      "hash": "sha256:e69f18dc5ad9df898ab3426e",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/apps.go",
+      "hash": "sha256:e506fb2133958fc9d9bde400",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/backgroundsvcs/background_services.go",
+      "hash": "sha256:19e406918c691c09af342aed",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/usagestatssvcs/usage_stats_providers_registry.go",
+      "hash": "sha256:fb8de85c4713d85c34e827a6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6926125-b79d-45a0-b9c9-942338e8775c"
+  },
+  "created": "2026-09-28T05:34:19.521Z",
+  "verified": "2026-09-28T05:34:19.521Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pkg-infra-structure-wiring-and-control-flow",
+    "dashboard-fetch-route-handler-service-call-path",
+    "new-api-builders-and-apps-need-dual-registration-wireset-agg",
+    "registration-control-flow-wire-registerapiservice-registerap"
+  ]
+}

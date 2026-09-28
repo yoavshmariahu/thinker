@@ -1,0 +1,36 @@
+{
+  "id": "batchcheck-dedupes-the-delegation-check-by-group-resource-ve",
+  "title": "BatchCheck dedupes the delegation check by group/resource/verb",
+  "kind": "convention",
+  "answers": [
+    "Why does BatchCheck only log/count the missing-delegation error once even with many items?",
+    "How to add a new per-request guard to BatchCheck without spamming logs/metrics per hit?"
+  ],
+  "body": "In authzLimitedClient.BatchCheck (pkg/storage/unified/resource/access.go), the serviceCanDelegate guard is run once per unique group+resource+verb combination across itemsToCheck (via a seen map keyed on those three fields), not once per item, since a page of BatchCheck hits typically repeats the same combination many times.\nAny new guard or metric added to BatchCheck's per-item loop should follow the same dedup pattern to avoid inflating log volume and counters proportional to page size.",
+  "applies": "pkg/storage/unified/resource/access.go — authzLimitedClient.BatchCheck",
+  "tags": [
+    "authz",
+    "batchcheck",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "hash": "sha256:45ecb63cafa72531c26333ab",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132990"
+  },
+  "created": "2026-09-28T05:26:09.145Z",
+  "verified": "2026-09-28T05:26:09.145Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "silent-authz-denial-when-service-token-lacks-delegated-permi"
+  ]
+}

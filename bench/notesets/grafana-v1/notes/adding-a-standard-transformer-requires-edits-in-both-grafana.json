@@ -1,0 +1,58 @@
+{
+  "id": "adding-a-standard-transformer-requires-edits-in-both-grafana",
+  "title": "Adding a standard transformer requires edits in both grafana-data and public/app",
+  "kind": "cochange",
+  "answers": [
+    "What files do I need to touch to add a new data transformer?",
+    "Why does my new transformer not show up in the UI picker?"
+  ],
+  "body": "1) Write the transformer in packages/grafana-data/src/transformations/transformers/<name>.ts.\n2) Add its id to DataTransformerID enum in packages/grafana-data/src/transformations/transformers/ids.ts.\n3) Export it from packages/grafana-data/src/transformations/transformers.ts (which itself is a deprecated direct-import surface — new code should go through standardTransformersRegistry instead).\n4) Register a TransformerRegistryItem (editor component + light/dark SVG icons) in public/app/features/transformers/standardTransformers.tsx, feeding getStandardTransformers which app.ts wires into standardTransformersRegistry.\nSkipping step 4 means transformDataFrame() can still execute the transformer if invoked directly with its id, but it never appears in the transformation picker UI.",
+  "applies": "Only for 'standard' built-in transformers shipped in core; external/plugin-provided transformers register differently.",
+  "tags": [
+    "grafana-data",
+    "transformations",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/transformations/transformers/ids.ts",
+      "hash": "sha256:f2f24249bd7b12b9d3a784d3",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/transformations/transformers.ts",
+      "hash": "sha256:03ade20d23ab59d147d02df1",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/transformers/standardTransformers.tsx",
+      "hash": "sha256:acbd5668d2f488534c349544",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/transformations/transformDataFrame.ts",
+      "hash": "sha256:c252a62b0417c99ae2fab306",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/transformations/transformDataFrame.ts",
+      "symbol": "transformDataFrame",
+      "hash": "sha256:e307d8b9258af0bfa2681e77",
+      "line": 122,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c707601f-6672-4b92-ab10-1998193695b1"
+  },
+  "created": "2026-09-28T05:51:30.657Z",
+  "verified": "2026-09-28T05:51:30.657Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "panel-data-pipeline-query-result-transform-field-overrides-p"
+  ]
+}

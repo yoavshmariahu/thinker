@@ -1,0 +1,65 @@
+{
+  "id": "how-to-test-handlers-in-pkg-api",
+  "title": "How to test handlers in pkg/api/",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test for a new API handler?",
+    "What is the standard test harness in pkg/api?",
+    "How do I simulate a signed-in user with specific permissions in a pkg/api test?"
+  ],
+  "body": "Standard harness: SetupAPITestServer(t, opts ...APITestServerOption) (pkg/api/common_test.go:295) builds a near-real HTTPServer with mocked service fields, calls registerRoutes(), wraps it in webtest.Server.\n\npkg/web/webtest/webtest.go:32 NewServer backs it with a real httptest.Server; webtest.RequestWithSignedInUser(req, user) attaches a *user.SignedInUser with explicit permissions, exercising the real RBAC middleware chain end-to-end instead of mocking it away.\n\nExample pattern: pkg/api/folder_test.go:36 TestFoldersCreateAPIEndpoint, table-driven, sets permissions []accesscontrol.Permission per case, builds request, asserts status plus decoded DTO.",
+  "tags": [
+    "pkg/api",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/common_test.go",
+      "symbol": "SetupAPITestServer",
+      "hash": "sha256:df8ca0b9d8dc642a5cc30cd9",
+      "line": 291,
+      "missing": false
+    },
+    {
+      "path": "pkg/web/webtest/webtest.go",
+      "symbol": "NewServer",
+      "hash": "sha256:f7d91420518aa5a787d8936f",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "pkg/api/folder_test.go",
+      "symbol": "TestFoldersCreateAPIEndpoint",
+      "hash": "sha256:f1ee45b0c9d7710ccdcc1367",
+      "line": 36,
+      "missing": false
+    },
+    {
+      "path": "pkg/web/webtest/webtest.go",
+      "symbol": "Server",
+      "hash": "sha256:55ad4f5a132760d60651b654",
+      "line": 23,
+      "missing": false
+    },
+    {
+      "path": "pkg/web/webtest/webtest.go",
+      "symbol": "RequestWithSignedInUser",
+      "hash": "sha256:d34c97aad0939f3f0629412e",
+      "line": 117,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "5c4b0482-cb98-48e5-a7f4-12ee5f98656b"
+  },
+  "created": "2026-09-28T06:05:03.019Z",
+  "verified": "2026-09-28T06:05:03.019Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "test-admin-route-authorization-via-real-route-registration-n"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "new-required-pr-check-workflows-need-codeowners-policy-yml-e",
+  "title": "New required PR-check workflows need CODEOWNERS + .policy.yml entries to actually gate merges",
+  "kind": "cochange",
+  "answers": [
+    "What else do I need to add besides the workflow file for a new required PR check?",
+    "My new pr-*.yml workflow runs but doesn't block merge",
+    "How to make a GitHub Actions check required in this repo"
+  ],
+  "body": "Adding a new `.github/workflows/pr-*.yml` that should act as a merge gate requires three co-changes: (1) a CODEOWNERS entry for the workflow file, (2) a top-level entry in .policy.yml's policy list (\"Workflow X succeeded or skipped\"), and (3) a matching approval_rules block with `changed_files.paths` regexes and a `has_workflow_result` condition allowing `skipped`/`success`. Omitting any of these means the workflow runs but isn't enforced as a required check.",
+  "applies": "Any new required .github/workflows/pr-*.yml check in grafana/grafana",
+  "tags": [
+    "ci",
+    "policy",
+    "codeowners"
+  ],
+  "deps": [
+    {
+      "path": ".github/CODEOWNERS",
+      "hash": "sha256:2ceea6cc1a2e20b3c9664307",
+      "missing": false
+    },
+    {
+      "path": ".policy.yml",
+      "hash": "sha256:67e4f412e87d237fed495082",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133001"
+  },
+  "created": "2026-09-28T05:25:23.161Z",
+  "verified": "2026-09-28T05:25:23.161Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

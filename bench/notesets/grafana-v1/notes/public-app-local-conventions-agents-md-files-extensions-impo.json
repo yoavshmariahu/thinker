@@ -1,0 +1,59 @@
+{
+  "id": "public-app-local-conventions-agents-md-files-extensions-impo",
+  "title": "public/app local conventions: AGENTS.md files, extensions import boundary, manual reducer wiring, SafeDynamicImport",
+  "kind": "convention",
+  "answers": [
+    "Why can't I import JourneyTrackerImpl directly?",
+    "Why does eslint block importing from app/extensions?",
+    "Are route components lazy-loaded in public/app?",
+    "What conventions should I follow when editing public/app?"
+  ],
+  "body": "Nested `AGENTS.md` files under `public/app` are load-bearing (not decorative), e.g. `public/app/features/AGENTS.md`, `public/app/core/journeys/AGENTS.md` (says: don't import `JourneyTrackerImpl`/`JourneyRegistryImpl` directly, use `@grafana/runtime` hooks instead), `public/app/features/alerting/unified/AGENTS.md`. ESLint `no-restricted-imports` blocks importing anything from `app/extensions/*` outside of `public/app/extensions/**` (enterprise hook point isolation). Route components in `public/app/routes/routes.tsx` are almost universally wrapped in `SafeDynamicImport` for code-splitting; a plain static import there is the exception, not the norm. Root reducer composition (`public/app/core/reducers/root.ts`) is manual, see cochange note on adding features.",
+  "applies": "Applies to code under public/app/; the extensions import boundary specifically applies to anything importing from app/extensions/* from outside that directory.",
+  "tags": [
+    "public/app",
+    "convention",
+    "eslint",
+    "agents.md"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/AGENTS.md",
+      "hash": "sha256:d322e0c528204a1561783274",
+      "missing": false
+    },
+    {
+      "path": "public/app/core/journeys/AGENTS.md",
+      "hash": "sha256:a821018ad53deab174fbc9a7",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/alerting/unified/AGENTS.md",
+      "hash": "sha256:5e4f202b5fdb48a30f278122",
+      "missing": false
+    },
+    {
+      "path": "public/app/routes/routes.tsx",
+      "hash": "sha256:b94578b5343aef6488f55844",
+      "missing": false
+    },
+    {
+      "path": "public/app/core/reducers/root.ts",
+      "hash": "sha256:cee6386293a439c52abeabfd",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "4be11d8b-4d1a-4df7-9d57-6c0ad8c67654"
+  },
+  "created": "2026-09-28T05:30:13.854Z",
+  "verified": "2026-09-28T05:30:13.854Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-new-feature-route-in-public-app-requires-4-coordina"
+  ]
+}

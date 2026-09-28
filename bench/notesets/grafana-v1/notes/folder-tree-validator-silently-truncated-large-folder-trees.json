@@ -1,0 +1,40 @@
+{
+  "id": "folder-tree-validator-silently-truncated-large-folder-trees",
+  "title": "Folder tree validator silently truncated large folder trees",
+  "kind": "fix",
+  "answers": [
+    "Why does folder tree migration validation report false differences on large folder trees?",
+    "Folder validator says folders differ between legacy and unified storage but they look the same",
+    "Unified storage migration validation false positive on many folders"
+  ],
+  "body": "Symptom: FolderTreeValidator reported spurious folder-tree mismatches between legacy tables and unified storage on namespaces with many folders.\nRoot cause: pkg/storage/unified/migrations/validator.go buildUnifiedFolderParentMap issued a single Search request with a fixed Limit (100000), silently discarding folders beyond that limit.\nFix pattern: replace the single large-limit request with bounded pages, continuing from the SearchAfter cursor built from the last row's sort fields (row.GetSortFields()), looping until a page returns fewer than the page size.\nConstraints: applies to any resourcepb Search consumer that needs the complete result set rather than a top-N sample; do not paginate with an offset for this API since concurrent creates/deletes shift offsets and can hide or duplicate rows.",
+  "applies": "pkg/storage/unified/migrations code that queries resourcepb Search for a full result set",
+  "tags": [
+    "unified-storage",
+    "pagination",
+    "search",
+    "migration-validator"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/migrations/validator.go",
+      "symbol": "buildUnifiedFolderParentMap",
+      "hash": "sha256:651a2158ad6395665d5331ce",
+      "line": 339,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132984"
+  },
+  "created": "2026-09-28T05:26:33.405Z",
+  "verified": "2026-09-28T05:26:33.405Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cursor-based-paging-over-resourcepb-search-must-detect-non-a"
+  ]
+}

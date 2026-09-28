@@ -1,0 +1,58 @@
+{
+  "id": "extending-an-apps-alerting-kind-requires-3-coordinated-edits",
+  "title": "Extending an apps/alerting kind requires 3 coordinated edits",
+  "kind": "cochange",
+  "answers": [
+    "What do I need to change when adding a field to AlertRule spec?",
+    "What must I update when adding a new kind to apps/alerting/rules?",
+    "What breaks if I forget to update compat.go after a schema change?"
+  ],
+  "body": "1) CUE schema (e.g. apps/alerting/rules/kinds/v0alpha1/alertRule_spec.cue) must be regenerated (make gen-cue/gen-apps) to update generated Go/TS types; new/changed fields also typically need semantic checks added in the kind's validator.go and defaulting in mutator.go, since OpenAPI-generated validation (apps/alerting/rules/pkg/app/validation/builder.go's WithOpenAPIValidation) only checks shape.\n2) Because AlertRule/RecordingRule dual-write to legacy SQL, spec/status field changes need matching updates in pkg/registry/apps/alerting/rules/alertrule/compat.go (both convertToK8sResource and convertToBaseDomainModel) or data is dropped on one side of the round trip.\n3) A brand-new kind must be added to kinds: [...] in apps/alerting/rules/kinds/manifest.cue, given a case in buildKindValidator/buildKindMutator in apps/alerting/rules/pkg/app/app.go, and given switch cases in the AppInstaller in pkg/registry/apps/alerting/rules/register.go (GetLegacyStorage, GetStorageOptions, GetAuthorizer) — a missing GetLegacyStorage case panics at runtime rather than failing silently.",
+  "applies": "Applies to rules/ and notifications/ sub-apps (kind-per-GVR pattern with legacy dual-write). Does not apply to alertrulequality/alertenrichment, which only have generated API types and no pkg/app or registry wiring yet.",
+  "tags": [
+    "apps/alerting",
+    "cue",
+    "codegen"
+  ],
+  "deps": [
+    {
+      "path": "apps/alerting/rules/kinds/manifest.cue",
+      "hash": "sha256:8db1128e1038ada444fb7c59",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/app.go",
+      "hash": "sha256:b28a286b0169a181596de6bb",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/validation/builder.go",
+      "hash": "sha256:89b489afc161daf73716e05c",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/alerting/rules/alertrule/compat.go",
+      "hash": "sha256:4ec956d50c92c84a9b08606d",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/alerting/rules/register.go",
+      "hash": "sha256:de02cb9b7b34d1d40f31d80c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6863f48-ed02-4cad-b750-e30d0507a038"
+  },
+  "created": "2026-09-28T05:55:44.324Z",
+  "verified": "2026-09-28T05:55:44.324Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "alertrule-recordingrule-dual-write-to-legacy-sql-via-compat-",
+    "apps-alerting-startup-wiring-registry-app-new-validators-mut"
+  ]
+}

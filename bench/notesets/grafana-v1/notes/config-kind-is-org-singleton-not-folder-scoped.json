@@ -1,0 +1,36 @@
+{
+  "id": "config-kind-is-org-singleton-not-folder-scoped",
+  "title": "Config kind is org-singleton, not folder-scoped",
+  "kind": "convention",
+  "answers": [
+    "Why doesn't Config support folders like AlertRule does?",
+    "Is the Config kind folder-scoped?"
+  ],
+  "body": "pkg/registry/apps/alerting/rules/register.go's GetStorageOptions special-cases config.ResourceInfo.GroupResource() to skip EnableFolderSupport, because Config is a per-org singleton rather than a folder-scoped resource like the other rules kinds.",
+  "applies": "Only for apps/alerting/rules Config kind (rules.alerting.grafana.app); AlertRule/RecordingRule/RuleSequence are folder-scoped and don't need this exception.",
+  "tags": [
+    "apps/alerting",
+    "folders",
+    "config-kind"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/alerting/rules/register.go",
+      "symbol": "GetStorageOptions",
+      "hash": "sha256:17cf3f334da4ad87a7b8879e",
+      "line": 313,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6863f48-ed02-4cad-b750-e30d0507a038"
+  },
+  "created": "2026-09-28T05:55:44.476Z",
+  "verified": "2026-09-28T05:55:44.476Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

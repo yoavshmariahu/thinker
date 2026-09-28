@@ -1,0 +1,44 @@
+{
+  "id": "pkg-storage-scope-and-subdirectory-map",
+  "title": "pkg/storage/ scope and subdirectory map",
+  "kind": "overview",
+  "answers": [
+    "What is pkg/storage/ responsible for?",
+    "Is pkg/storage the general SQL layer?",
+    "What do the subdirectories under pkg/storage/unified/ do?"
+  ],
+  "body": "pkg/storage/ is the persistence layer for Grafana's k8s-style resource API (unified storage): implements k8s.io/apiserver/pkg/storage.Interface plus a gRPC ResourceServer/SearchServer so pkg/services/apiserver can serve resource kinds (dashboards, folders, playlists, secrets) via common CRUD/watch/search. It is NOT the legacy SQL layer for older services (that's pkg/services/sqlstore / pkg/infra/db). unified/ holds 470 of ~516 files. Subdirs: unified/resource (core server, StorageBackend, blob/GC/quota, watch), unified/sql (legacy SQL backend + gRPC bootstrap, being retired), unified/search (bleve index + authz post-filtering), unified/apistore (bridges k8s storage.Interface to gRPC client), unified/migrations (legacy to unified SQL migration), unified/proto and resourcepb (shared gRPC contract), unified/semgrep (custom lint for compatibility), unified/testing (shared backend test harness), legacysql/dualwrite (dual-write orchestration), secret/ (SQL storage for secrets).",
+  "tags": [
+    "pkg/storage",
+    "unified-storage",
+    "orientation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/legacysql/README.md",
+      "hash": "sha256:6cee9dfc00c5b0f1ec9c9019",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "hash": "sha256:cd5e39878bdd41c4dc27f79e",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/AGENTS.md",
+      "hash": "sha256:0d5affb2271046137abf6596",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "9979686a-0418-4ba7-ac35-243357cd27c4"
+  },
+  "created": "2026-09-28T05:41:04.425Z",
+  "verified": "2026-09-28T05:41:04.425Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

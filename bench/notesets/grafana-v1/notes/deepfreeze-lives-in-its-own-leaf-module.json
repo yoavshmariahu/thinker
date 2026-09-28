@@ -1,0 +1,40 @@
+{
+  "id": "deepfreeze-lives-in-its-own-leaf-module",
+  "title": "deepFreeze lives in its own leaf module",
+  "kind": "convention",
+  "answers": [
+    "Where is deepFreeze defined?",
+    "Why doesn't utils.tsx export deepFreeze anymore?"
+  ],
+  "body": "deepFreeze was moved out of public/app/features/plugins/extensions/utils.tsx into public/app/features/plugins/extensions/deepFreeze.ts as a standalone leaf module (no external deps), used by Registry.ts to break an eager import cycle through utils.tsx. Import it from './deepFreeze', not './utils'.",
+  "applies": "public/app/features/plugins/extensions/registry/** and any code needing deep object freezing",
+  "tags": [
+    "circular-dependency",
+    "plugins-extensions"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/plugins/extensions/deepFreeze.ts",
+      "symbol": "deepFreeze",
+      "hash": "sha256:bd49b48adb0373b460d7fc1d",
+      "line": 1,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/extensions/registry/Registry.ts",
+      "hash": "sha256:683228d896dee216a548d83b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133018"
+  },
+  "created": "2026-09-28T05:23:05.138Z",
+  "verified": "2026-09-28T05:23:05.138Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

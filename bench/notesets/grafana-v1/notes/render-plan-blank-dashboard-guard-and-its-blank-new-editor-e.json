@@ -1,0 +1,39 @@
+{
+  "id": "render-plan-blank-dashboard-guard-and-its-blank-new-editor-e",
+  "title": "RENDER_PLAN blank-dashboard guard and its blank-new-editor exception",
+  "kind": "invariant",
+  "answers": [
+    "Why did my dashboard plan preview get refused with 'RENDER_PLAN can only render into a blank, unsaved dashboard'?",
+    "When is RENDER_PLAN allowed to render into a dashboard?",
+    "Why does the Add pane close when a plan preview renders?"
+  ],
+  "body": "renderPlanCommand (public/app/features/dashboard-scene/mutation-api/commands/renderPlan.ts) refuses to render a plan if scene.state.uid is set, or the body already has panels, or the scene is dirty — UNLESS the scene is a blank, unsaved, currently-editing dashboard (isBlankNewEditor), since a fresh /dashboard/new scene auto-enters edit mode and can already be dirty for that reason alone. An already-planning scene (scene.state.planning defined) may always be re-rendered regardless of dirty/content state. When a render is accepted, the command also closes the sidebar's 'add' pane if open (scene.state.sidebar.closePane()) so a reused blank editor doesn't leave stale UI open. Any change to what counts as 'blank' must preserve this ordering: uid check first, then hasExistingContent, then the dirty check gated by isBlankNewEditor.",
+  "applies": "Any change to renderPlanCommand's eligibility check or to what happens to scene UI state when a plan is accepted into an existing scene.",
+  "tags": [
+    "dashboard-scene",
+    "mutation-api",
+    "assistant",
+    "planning"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/mutation-api/commands/renderPlan.ts",
+      "symbol": "renderPlanCommand",
+      "hash": "sha256:13dd775962449c3f88839c7b",
+      "line": 59,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133029"
+  },
+  "created": "2026-09-28T05:21:22.111Z",
+  "verified": "2026-09-28T05:21:22.111Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [],
+  "lastUsed": "2026-09-28T06:33:33.080Z"
+}

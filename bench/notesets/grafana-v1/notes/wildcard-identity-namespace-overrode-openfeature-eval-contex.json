@@ -1,0 +1,41 @@
+{
+  "id": "wildcard-identity-namespace-overrode-openfeature-eval-contex",
+  "title": "Wildcard identity namespace overrode OpenFeature eval context",
+  "kind": "fix",
+  "answers": [
+    "Flag evaluation fails/rejected for cluster-wide service tokens",
+    "Wildcard namespace * causing OpenFeature namespace mismatch",
+    "Why does a service account with wildcard namespace break flag targeting?"
+  ],
+  "body": "Symptom: requests authenticated with a wildcard identity namespace (e.g. a cluster-wide service token) caused OpenFeature flag evaluation to be rejected as a namespace mismatch. Root cause: pkg/services/contexthandler/contexthandler.go:setRequestContext used id.Namespace unconditionally whenever id != nil, so \"*\" (or empty) propagated into the eval context, no longer matching the caller's concrete auth namespace downstream. Fix pattern: when deriving a scoping value from an identity for use by another subsystem, treat sentinel/wildcard values as \"no concrete value\" and fall back to a more specific default (here: stack namespace, then \"default\") instead of passing the sentinel through. Constraints: applies to derivations feeding external/downstream scoping systems (like OpenFeature); does not apply to authorization checks where \"*\" is an intentional wildcard grant.",
+  "applies": "pkg/services/contexthandler and any other code deriving a scoping key from identity.Namespace for use outside the auth layer.",
+  "tags": [
+    "openfeature",
+    "contexthandler",
+    "namespace",
+    "wildcard",
+    "auth"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/contexthandler/contexthandler.go",
+      "symbol": "setRequestContext",
+      "hash": "sha256:d6dcb9bee504a0d88bd24fc0",
+      "line": 103,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133033"
+  },
+  "created": "2026-09-28T05:20:12.733Z",
+  "verified": "2026-09-28T05:20:12.733Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "openfeature-eval-context-namespace-must-not-be-wildcard-empt"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "id": "feature-flag-gating-and-old-vs-new-builder-pattern-conventio",
+  "title": "Feature-flag gating and old-vs-new builder pattern conventions in pkg/registry",
+  "kind": "convention",
+  "answers": [
+    "Where should feature-flag gating for a new app go?",
+    "Should I use builder.APIGroupBuilder or App-SDK app.Provider for a new API?",
+    "What is ProvideBuilderRunners vs ProvideAppInstallers?"
+  ],
+  "body": "Feature-flag gating for apps happens in the aggregator ProvideAppInstallers (pkg/registry/apps/apps.go), via features.IsEnabledGlobally(...) checks, not inside the app itself — new experimental apps should follow that pattern rather than self-disabling.\nTwo API-integration patterns coexist deliberately: raw builder.APIGroupBuilder (older, under apis/) vs App-SDK app.Provider/AppInstaller (newer, under apps/). Check which pattern neighboring code in your domain uses before picking one. ProvideBuilderRunners (pkg/registry/apps/apps.go) is explicitly marked deprecated in favor of ProvideAppInstallers.\nWireSetExts in pkg/registry/apis/wireset.go exists so enterprise builds can override OSS defaults (noop role/permission/auditing providers) — don't hardcode enterprise-only wiring into the OSS WireSet.",
+  "applies": "Applies when adding a new app under pkg/registry/apps/ or deciding between builder.APIGroupBuilder and App-SDK app.Provider for a new integration. Does not apply to backgroundsvcs/usagestatssvcs which have no such split.",
+  "tags": [
+    "grafana",
+    "registry",
+    "convention",
+    "feature-flags"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/apps.go",
+      "symbol": "ProvideAppInstallers",
+      "hash": "sha256:122c30feba778009596fba5d",
+      "line": 33,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/wireset.go",
+      "hash": "sha256:82bf3453f529c4695d79f044",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6926125-b79d-45a0-b9c9-942338e8775c"
+  },
+  "created": "2026-09-28T05:34:20.106Z",
+  "verified": "2026-09-28T05:34:20.106Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "new-api-builders-and-apps-need-dual-registration-wireset-agg",
+    "registration-control-flow-wire-registerapiservice-registerap"
+  ]
+}

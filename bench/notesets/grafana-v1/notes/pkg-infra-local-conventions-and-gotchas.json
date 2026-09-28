@@ -1,0 +1,75 @@
+{
+  "id": "pkg-infra-local-conventions-and-gotchas",
+  "title": "pkg/infra local conventions and gotchas",
+  "kind": "gotcha",
+  "answers": [
+    "Why do some pkg/infra loggers not have an infra. prefix?",
+    "Is InitTestDB still the right way to set up a test DB?",
+    "Can RegisterContextualLogProvider be called more than once?",
+    "Is the remotecache.CacheStorage doc comment accurate?"
+  ],
+  "body": "- Logger-name prefixing (e.g. `infra.lockservice`, `infra.kvstore.sql`) is inconsistently applied — `tracing`, `pkg/infra/metrics/service.go`, and `httpclientprovider` all omit the `infra.` prefix. Check the local package rather than assuming a repo-wide naming rule.\n- `log.RegisterContextualLogProvider` (`pkg/infra/log/log.go`) is a process-global additive slice; calling it twice (e.g. in ad-hoc test setup) duplicates log fields on every subsequent `FromContext` call.\n- `db.InitTestDB`/`InitTestDBWithCfg` in `pkg/infra/db/db.go` are deprecated (`// Deprecated: use NewTestStore instead`, `//nolint:staticcheck`) but still used by older tests (`kvstore_test.go`, `serverlock_test.go`). New tests should use `db.NewTestStore`.\n- `remotecache.CacheStorage`'s doc comment in `pkg/infra/remotecache/remotecache.go` references a `remotecache.Register(...)` function for gob encoding that no longer exists in the package — stale doc, don't trust it at face value.\n- Repo-wide banned imports enforced via `.golangci.yml` `main` depguard also apply here: no `io/ioutil`, `gopkg.in/yaml.v2` or `v3`, `github.com/pkg/errors`, `github.com/xorcare/pointer`, `github.com/gofrs/uuid`.",
+  "applies": "When adding logging, tests, or reading docs in pkg/infra subpackages specifically; not a repo-wide guarantee.",
+  "tags": [
+    "pkg/infra",
+    "logging",
+    "testing",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/infra/log/log.go",
+      "symbol": "RegisterContextualLogProvider",
+      "hash": "sha256:e0b393d14d0a246b8943e57a",
+      "line": 295,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/db/db.go",
+      "symbol": "InitTestDB",
+      "hash": "sha256:28eff0e7add528fd0680fdaf",
+      "line": 87,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/remotecache/remotecache.go",
+      "symbol": "CacheStorage",
+      "hash": "sha256:ed502381e04b97cb6034665f",
+      "line": 59,
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/tracing/tracing.go",
+      "hash": "sha256:f067445cb4b2a94e9fec72cc",
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/metrics/service.go",
+      "hash": "sha256:9d4bf54149853e53159f00f2",
+      "missing": false
+    },
+    {
+      "path": ".golangci.yml",
+      "hash": "sha256:6aa9b250eb71512be7018658",
+      "missing": false
+    },
+    {
+      "path": "pkg/infra/serverlock/serverlock_test.go",
+      "hash": "sha256:85f792b152851a9ec7e82feb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "357bcccf-aca4-409a-8c17-4f787beb7911"
+  },
+  "created": "2026-09-28T06:00:51.005Z",
+  "verified": "2026-09-28T06:00:51.005Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pkg-infra-structure-wiring-and-control-flow"
+  ]
+}

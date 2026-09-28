@@ -1,0 +1,47 @@
+{
+  "id": "cursor-based-paging-over-resourcepb-search-must-detect-non-a",
+  "title": "Cursor-based paging over resourcepb Search must detect non-advancing cursors",
+  "kind": "invariant",
+  "answers": [
+    "How should I page through resourcepb.ResourceSearchResponse results safely?",
+    "SearchAfter cursor paging rules for unified storage search",
+    "What happens if a search server ignores the SearchAfter cursor?"
+  ],
+  "body": "When paging resourcepb.ResourceSearchRequest results, use SearchAfter set to the previous page's last row cursor (row.GetSortFields()), not an offset — offsets shift under concurrent create/delete and can skip or duplicate rows.\nA full page (length == requested page size) must be followed by another request; a page smaller than the page size means paging is done.\nA full page whose rows carry no cursor, or whose next cursor equals the previous cursor, is treated as an error (server ignoring the cursor) rather than looped on forever.\nEnforced in pkg/storage/unified/migrations/validator.go buildUnifiedFolderParentMap / decodeFolderRows. Breaking this (e.g. reverting to offset or limit-only paging) reintroduces silent truncation or infinite loops against non-conformant servers.",
+  "applies": "code paging resourcepb ResourceSearchResponse (unified storage search API)",
+  "tags": [
+    "unified-storage",
+    "pagination",
+    "search",
+    "cursor"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/migrations/validator.go",
+      "symbol": "buildUnifiedFolderParentMap",
+      "hash": "sha256:651a2158ad6395665d5331ce",
+      "line": 339,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/migrations/validator.go",
+      "symbol": "decodeFolderRows",
+      "hash": "sha256:f41f11714410f633391cd6c6",
+      "line": 409,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132984"
+  },
+  "created": "2026-09-28T05:26:33.484Z",
+  "verified": "2026-09-28T05:26:33.484Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "folder-tree-validator-silently-truncated-large-folder-trees"
+  ]
+}

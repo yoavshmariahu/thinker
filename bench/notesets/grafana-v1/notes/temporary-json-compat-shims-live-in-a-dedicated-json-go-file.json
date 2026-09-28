@@ -1,0 +1,40 @@
+{
+  "id": "temporary-json-compat-shims-live-in-a-dedicated-json-go-file",
+  "title": "Temporary JSON compat shims live in a dedicated *_json.go file, marked for removal",
+  "kind": "convention",
+  "answers": [
+    "Where to put a temporary UnmarshalJSON backwards-compat shim for an app type",
+    "How Grafana app-platform schema migrations note that a compat layer is temporary"
+  ],
+  "body": "When adding a custom UnmarshalJSON to make a type backwards-compatible with a legacy stored format, put it in a separate file named <type>_json.go alongside the generated type file rather than editing the generated type file itself, and add a comment stating the shim is temporary and why/when it can be removed (e.g. 'remove once legacy policies are cleared'). See apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/field_requirement_json.go next to the generated FieldRequirement type, with matching tests in field_requirement_json_test.go.",
+  "applies": "apps/*/pkg/apis/*/v0alpha1 generated types in the app-platform monorepo",
+  "tags": [
+    "convention",
+    "app-platform",
+    "codegen",
+    "compat-shim"
+  ],
+  "deps": [
+    {
+      "path": "apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/field_requirement_json.go",
+      "hash": "sha256:68c2be72f26cd0cb83ed7ebb",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/field_requirement_json_test.go",
+      "hash": "sha256:950d47a57a1c07ca6846a9cf",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132980"
+  },
+  "created": "2026-09-28T05:27:00.434Z",
+  "verified": "2026-09-28T05:27:00.434Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

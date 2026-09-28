@@ -1,0 +1,43 @@
+{
+  "id": "alertrule-recordingrule-dual-write-to-legacy-sql-via-compat-",
+  "title": "AlertRule/RecordingRule dual-write to legacy SQL via compat.go",
+  "kind": "callpath",
+  "answers": [
+    "Why does AlertRule write to the old SQL alert_rule table?",
+    "Where does the k8s AlertRule get converted to/from the legacy ngmodels.AlertRule?",
+    "What happens if GetLegacyStorage gets an unknown resource type?"
+  ],
+  "body": "AlertRule and RecordingRule are not unified-storage-native: pkg/registry/apps/alerting/rules/register.go's AppInstaller.GetLegacyStorage routes their GVRs to pkg/registry/apps/alerting/rules/alertrule|recordingrule:NewStorage, which translates between the k8s v0alpha1.AlertRule and legacy ngmodels.AlertRule via pkg/registry/apps/alerting/rules/alertrule/compat.go:convertToK8sResource and convertToDomainModel/convertToBaseDomainModel. RuleSequence and Config return nil from GetLegacyStorage, so they are served natively from unified storage. GetLegacyStorage panics on an unrecognized GVR (register.go ~line 339) rather than returning an error.",
+  "tags": [
+    "apps/alerting",
+    "legacy-storage",
+    "compat"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/alerting/rules/register.go",
+      "hash": "sha256:de02cb9b7b34d1d40f31d80c",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/alerting/rules/alertrule/compat.go",
+      "symbol": "convertToK8sResource",
+      "hash": "sha256:53f325290379a09477fa1e92",
+      "line": 28,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "f6863f48-ed02-4cad-b750-e30d0507a038"
+  },
+  "created": "2026-09-28T05:55:44.230Z",
+  "verified": "2026-09-28T05:55:44.230Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "extending-an-apps-alerting-kind-requires-3-coordinated-edits"
+  ]
+}
