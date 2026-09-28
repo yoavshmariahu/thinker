@@ -1,0 +1,63 @@
+{
+  "id": "display-days-are-calendar-based-lookback-reachback-are-elaps",
+  "title": "Display days are calendar-based; lookback/reachback are elapsed UTC durations",
+  "kind": "convention",
+  "answers": [
+    "How are timezone and DST handled in marketing session precompute window",
+    "Should attribution lookback use calendar days or timedelta",
+    "Tests for precompute window with timezones"
+  ],
+  "body": "In precompute_window_start (products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py): PRECOMPUTE_WINDOW_DAYS is subtracted in the team's local calendar (midnight, then `.astimezone(UTC)`), while attribution_window_days and SESSION_READ_REACHBACK_DAYS are subtracted as UTC `timedelta` after conversion, so they stay elapsed durations across DST.\n- Changing the boundary does not change the writer query, job hashes or CHUNK_DAYS, so existing ready daily jobs stay reusable; the warmer only fills missing oldest windows.\n- Tests use `time_machine.travel(now, tick=False)` with parameterized timezones (UTC, America/Los_Angeles, Pacific/Auckland) and DST dates: products/marketing_analytics/backend/hogql_queries/test_attribution_sessions_read.py and products/marketing_analytics/dags/tests/test_marketing_sessions_precompute.py. Patch PRECOMPUTE_WINDOW_DAYS in the backend module (the dag module no longer needs it).\n- Docs: docs/internal/marketing-attribution-session-precompute.md must be updated with boundary changes.",
+  "applies": "Changes to marketing sessions precompute window math and its tests",
+  "tags": [
+    "marketing_analytics",
+    "timezone",
+    "dst",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py",
+      "symbol": "precompute_window_start",
+      "hash": "sha256:c9e0334b97e17c0557facee5",
+      "line": 94,
+      "missing": false
+    },
+    {
+      "path": "docs/internal/marketing-attribution-session-precompute.md",
+      "hash": "sha256:cfaa2c6835572383c1bc553c",
+      "missing": false
+    },
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/test_attribution_sessions_read.py",
+      "hash": "sha256:f8dc58848bbb9d8b8472dcc7",
+      "missing": false
+    },
+    {
+      "path": "products/marketing_analytics/dags/tests/test_marketing_sessions_precompute.py",
+      "hash": "sha256:08436d5ba47f7ad72550c47e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105637"
+  },
+  "created": "2026-09-27T00:01:06.415Z",
+  "verified": "2026-09-27T00:01:06.415Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "marketing-sessions-reader-and-warmer-must-share-precompute-w",
+    "marketing-sessions-job-hash-must-exclude-modifiers-the-inser"
+  ],
+  "says": [
+    "Marketing precompute window skips wrong number of days around daylight saving time",
+    "Attribution lookback crosses DST boundary and miscounts session window",
+    "Why does precompute use calendar days for display but duration for lookback",
+    "Session attribution counted wrong when daylight saving time transitions occur"
+  ],
+  "saysFor": "1126:display-days-are-calenda"
+}

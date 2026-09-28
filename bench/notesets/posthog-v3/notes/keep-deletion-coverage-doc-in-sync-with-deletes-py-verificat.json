@@ -1,0 +1,56 @@
+{
+  "id": "keep-deletion-coverage-doc-in-sync-with-deletes-py-verificat",
+  "title": "Keep deletion-coverage doc in sync with deletes.py verification behavior",
+  "kind": "cochange",
+  "answers": [
+    "What docs must be updated when changing mark_deletions_verified behavior?",
+    "Where is the deletes_job verification gate documented?"
+  ],
+  "body": "Changes to how `mark_deletions_verified` treats the survivor count must be mirrored in docs/internal/clickhouse-deletion-coverage.md: the sweeps-section bullet about `deletes_job` and the \"Known gaps\" entry. A reviewer (Greptile) flagged the doc contradicting the code when only the code changed.\n- The `DeleteConfig.verification_max_execution_time` field description in posthog/dags/deletes.py also encodes the gate/report semantics.\n- Tests live in posthog/dags/tests/test_deletes.py (`test_marking_proceeds_when_the_check_does_not_come_back_clean`); end-to-end `delete_verified_at` is asserted in `test_full_job_person_deletes`.",
+  "applies": "Any change to deletes_job verification/gating semantics",
+  "tags": [
+    "docs",
+    "deletes",
+    "dagster"
+  ],
+  "deps": [
+    {
+      "path": "docs/internal/clickhouse-deletion-coverage.md",
+      "hash": "sha256:bc526b47a4ccface8a9931c1",
+      "missing": false
+    },
+    {
+      "path": "posthog/dags/deletes.py",
+      "symbol": "mark_deletions_verified",
+      "hash": "sha256:45ac82c346e1908ffec63cd2",
+      "line": 1044,
+      "missing": false
+    },
+    {
+      "path": "posthog/dags/tests/test_deletes.py",
+      "symbol": "test_marking_proceeds_when_the_check_does_not_come_back_clean",
+      "hash": "sha256:7786f2f583f8fb9eec37ccb8",
+      "line": 1240,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105317"
+  },
+  "created": "2026-09-27T00:06:34.197Z",
+  "verified": "2026-09-27T00:06:34.197Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "deletes-job-survivor-count-is-report-only-do-not-turn-it-bac"
+  ],
+  "says": [
+    "Deletion verification documentation contradicts the actual code behavior.",
+    "ClickHouse deletion sweeps: what gets verified and how?",
+    "Where are the gates that control deletion coverage checking?"
+  ],
+  "saysFor": "704:keep-deletion-coverage-d"
+}

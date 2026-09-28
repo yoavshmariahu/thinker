@@ -1,0 +1,57 @@
+{
+  "id": "work-column-pr-badges-gray-rows-must-run-the-pr-status-looku",
+  "title": "Work column PR badges gray: rows must run the PR status lookup",
+  "kind": "fix",
+  "answers": [
+    "Work column PR badge is always gray",
+    "PR badges don't show open/merged/closed colors in the new desktop layout",
+    "withPrStatus prop on ChannelItemRow"
+  ],
+  "body": "Symptom: In the work column of the new desktop layout, every session's PR badge is gray regardless of open, merged or closed.\nRoot cause: WorkColumn.tsx passed `withPrStatus={false}` to `ChannelItemRow`, so `useChannelTaskStatus` only knew a PR existed, not its state.\nFix pattern: Remove the opt-out so rows run the same cached per-task PR lookup as the Code sidebar; bound the cost host-side (see task-pr-status.ts `TaskPrStatusService`) rather than disabling it in the UI. The `withPrStatus` prop was deleted from `ChannelItemRow`.\nConstraints: The space tree deliberately keeps the lookup off by calling `useChannelTaskStatus` directly instead of `ChannelItemRow` (documented in canvas/AGENTS.md). Colors: green open, purple merged, red closed, gray draft.",
+  "applies": "desktop canvas ChannelItemRow / WorkColumn PR badge",
+  "tags": [
+    "desktop",
+    "canvas",
+    "pr-badge"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/ChannelItemRow.tsx",
+      "symbol": "ChannelItemRow",
+      "hash": "sha256:c2797f3a5e005530b30da5f2",
+      "line": 375,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/canvas/components/work/WorkColumn.tsx",
+      "symbol": "WorkColumn",
+      "hash": "sha256:c31e8e6343ee84af4b5c32e1",
+      "line": 273,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/workspace-server/src/services/git/task-pr-status.ts",
+      "hash": "sha256:bae3fb95bc427806a0a9ce6f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105647"
+  },
+  "created": "2026-09-27T00:00:27.122Z",
+  "verified": "2026-09-27T00:00:27.122Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Work column PR badge always displays gray no matter what",
+    "PR status colors not showing in work column session rows",
+    "Why don't PR badges show open merged or closed state",
+    "Work column pull request indicator missing colored states",
+    "PR status not updating in the work column display"
+  ],
+  "saysFor": "823:work-column-pr-badges-gr"
+}

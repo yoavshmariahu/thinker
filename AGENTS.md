@@ -37,6 +37,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
+| `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
 | `.thinker/` | thinker's own notes about this repo |
 
 `bench/repos/` (clones of click, mitmproxy, PostHog) and `bench/runs/` (raw
@@ -180,7 +181,8 @@ Controls for experiments: `THINKER_NO_LINKS=1`, `THINKER_NO_COCHANGE=1`,
 `THINKER_MCP=off` (the MCP server offers no tools),
 `THINKER_NAIVE=1` (no invalidation), `THINKER_FORCE=1` (inject regardless
 of relevance), `THINKER_RERANK=haiku`, `THINKER_MIN_COVER=body,question`
-(the coverage floors below; `0,0` turns them off).
+(the coverage floors below, a third value is the number of words for short
+queries; `0,0` turns them off).
 
 ## Serving
 
@@ -203,9 +205,24 @@ of relevance), `THINKER_RERANK=haiku`, `THINKER_MIN_COVER=body,question`
 - Coverage floors: relevance is relative to the best note, so the best of a
   poor lot scores near 1. A note is served only if it also covers a share of
   the request's term weight: 0.10 with its body and pointers, 0.05 with its
-  title, answers and tags (`rank.js:MIN_COVER`). This holds for the prompt
-  hook, `orient`, `lookup` and late notes; a note on the current file is
-  exempt. When nothing passes, nothing is served.
+  title, answers and tags (`rank.js:MIN_COVER`). A short query must be
+  covered by more: the weight of about three of its words. This holds for
+  the prompt hook, `orient`, `lookup` and late notes; a note on the current
+  file is exempt. When nothing passes, nothing is served.
+- The query: function words are dropped (`rank.js:STOP`), and so is what the
+  request tells the agent not to do ("do not run the test suite"), which
+  would otherwise bring up the notes on running tests (`rank.js:subject`).
+- Phrasings: notes are written in the words of the code, requests in those
+  of the product. `thinker phrase` adds to each note up to five lines of how
+  a user would put it (`says`), written by a small model from the note alone;
+  ranking counts them with the title and answers. Notes whose text changed
+  since are done again; about $0.005 a note with Haiku.
+- `THINKER_RERANK=haiku` (or `rerank` in `.thinker/config.json`) hands the
+  eight best candidates to a small model, which keeps those that bear on the
+  request, or none. Its choice is final: no linked note is added to it.
+  Through an agent's CLI a call took 8 to 13 seconds and about $0.02, which
+  is close to the 15 seconds a prompt hook is given, so it is off by default;
+  with `ANTHROPIC_API_KEY` the call goes to the API directly.
 - Team mode: notes are plain JSON under `.thinker/notes/`; commit them.
 - Benchmark arm `live` runs the whole loop: the cache grows and
   self-corrects between tasks (`bench/RESULTS.md`, "Live loop").

@@ -1,0 +1,84 @@
+{
+  "id": "adding-a-setup-context-response-field-files-that-must-change",
+  "title": "Adding a setup-context response field: files that must change together",
+  "kind": "cochange",
+  "answers": [
+    "I added a field to the experiment setup context response, what else must I update?",
+    "Where do I add a new field to target_surface in the experiments setup context?",
+    "Which generated files change when ExperimentSetupTargetSurfaceSerializer changes?"
+  ],
+  "body": "A new field on the setup context response touches:\n- products/experiments/backend/setup_context.py: dataclass (e.g. TargetSurface) and its _compute_* builder, plus the cache key version bump in _cache_key.\n- products/experiments/backend/presentation/serializers.py: ExperimentSetupTargetSurfaceSerializer (with help_text, which flows into generated types).\n- Generated: products/experiments/frontend/generated/api.schemas.ts and services/mcp/src/api/generated.ts (regenerate, don't hand-edit).\n- products/experiments/frontend/setupInspector/SetupInspector.stories.tsx: FULL_CONTEXT fixture must include the new required field or types break.\n- Tests in products/experiments/backend/test/test_setup_context.py.\n- The agent skill (products/experiments/skills/creating-experiments/references/setup-decisions.md) if agents should read the field; TestCreationSkillNamesRealFields checks skill-referenced field names exist.",
+  "applies": "experiments setup context endpoint response changes",
+  "tags": [
+    "experiments",
+    "setup-context",
+    "generated-types",
+    "skills"
+  ],
+  "deps": [
+    {
+      "path": "products/experiments/backend/presentation/serializers.py",
+      "symbol": "ExperimentSetupTargetSurfaceSerializer",
+      "hash": "sha256:50c5e8fff99efbbdd895a263",
+      "line": 2528,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/setup_context.py",
+      "symbol": "TargetSurface",
+      "hash": "sha256:f8b576a8861b7b23c8f02596",
+      "line": 266,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/frontend/setupInspector/SetupInspector.stories.tsx",
+      "symbol": "FULL_CONTEXT",
+      "hash": "sha256:c4d05071542fc13e4155998e",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/skills/creating-experiments/references/setup-decisions.md",
+      "hash": "sha256:511ce63586dbb0a0911d1d31",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/frontend/generated/api.schemas.ts",
+      "hash": "sha256:fa5061672d4ac26b8468680d",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/api/generated.ts",
+      "hash": "sha256:013b8059f6d1727059c06954",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/test/test_setup_context.py",
+      "hash": "sha256:e680c4ab0fbd2b6eed5c98be",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105283"
+  },
+  "created": "2026-09-27T00:08:02.673Z",
+  "verified": "2026-09-27T00:08:02.673Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bump-setup-context-cache-key-version-when-a-cached-dataclass",
+    "detect-list-truncation-by-querying-limit-1-rows-then-slicing",
+    "places-that-must-compute-the-same-metric-fingerprint-saved-v"
+  ],
+  "says": [
+    "Added setup option but frontend doesn't recognize it",
+    "New experiment setting not available in setup wizard",
+    "Where to define experiment configuration and setup fields",
+    "Experiment wizard missing new target surface option",
+    "Setup context doesn't include required field for feature"
+  ],
+  "saysFor": "988:adding-a-setup-context-r"
+}

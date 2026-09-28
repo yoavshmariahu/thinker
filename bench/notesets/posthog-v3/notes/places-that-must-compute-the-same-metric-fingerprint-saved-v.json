@@ -1,0 +1,106 @@
+{
+  "id": "places-that-must-compute-the-same-metric-fingerprint-saved-v",
+  "title": "Places that must compute the same metric fingerprint (saved vs inline)",
+  "kind": "cochange",
+  "answers": [
+    "Where is compute_metric_fingerprint called?",
+    "How do saved and inline metrics get resolved for recalculation?",
+    "Why does the frontend get query.fingerprint for saved metrics?"
+  ],
+  "body": "All callers must pass identical inputs (start_date, `get_experiment_stats_method`, exposure_criteria, only_count_matured_users, excluded_variants) and hash the same metric dict:\n1. Stored `metric[\"fingerprint\"]`: written on create/update, re-derived on launch (`experiment_service.py` `_recompute_fingerprints`; also `legacy_migration.py`).\n2. Saved metrics: `presentation/serializers.py:ExperimentSerializer.to_representation` injects `query.fingerprint` at read time (not stored); frontend needs it for timeseries.\n3. Discovery/sync: `timeseries_sync.py:sync_timeseries_recalculation`.\n4. Recalc calculate: `temporal/recalculation_logic.py`.\n5. Read-back: `recalculation.py:_recalc_fingerprints_for_run` + cold-start fallback. Hazard: derived from mutable experiment fields, so changes between write and read diverge.\nSaved vs inline: `temporal/metric_resolution.py:find_metric_dict/iter_metric_dicts` resolve uuid across both; saved get `_merge_saved_metric_breakdowns` (breakdowns from link.metadata). Serializer/discovery hash raw saved query, recalc hashes merged dict; `_strip_empty_breakdowns` reconciles (test `test_only_real_breakdowns_change_the_fingerprint`). Saved primary/secondary comes from `ExperimentToSavedMetric.metadata[\"type\"]` (default primary) in `discover_experiment_metrics`. `is_scheduled_metric` / `is_daily_timeseries_metric` gate scheduling (retention excluded from daily).",
+  "applies": "Any change to fingerprint inputs or normalization; frontend keys by metric uuid (metric_uuid in polled results, experimentMetricsLogic.ts).",
+  "tags": [
+    "experiments",
+    "fingerprint",
+    "saved-metrics"
+  ],
+  "deps": [
+    {
+      "path": "products/experiments/backend/presentation/serializers.py",
+      "symbol": "ExperimentSerializer",
+      "hash": "sha256:e4cfaa07a1a1fd931277d079",
+      "line": 361,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/timeseries_sync.py",
+      "symbol": "sync_timeseries_recalculation",
+      "hash": "sha256:5b8fe5bada19d09f2766c903",
+      "line": 45,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/temporal/metric_resolution.py",
+      "symbol": "find_metric_dict",
+      "hash": "sha256:97d46d910dc7dee0ad95fdfb",
+      "line": 84,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/recalculation.py",
+      "symbol": "_recalc_fingerprints_for_run",
+      "hash": "sha256:e688bfbd9ff53145fd06b683",
+      "line": 374,
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/experiment_service.py",
+      "hash": "sha256:00e7aa468f96e9e322ae618c",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/temporal/recalculation_logic.py",
+      "hash": "sha256:7178bcedb588bf639fd69d0f",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/legacy_migration.py",
+      "hash": "sha256:644507d72f12c8da0c5efa96",
+      "missing": false
+    },
+    {
+      "path": "products/experiments/backend/presentation/serializers.py",
+      "symbol": "ExperimentSerializer.to_representation",
+      "hash": "sha256:8f7b91f67d7fd5655c7c044c",
+      "line": 581,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "19a1b465-2ae5-4aac-be03-62deb6217e7f"
+  },
+  "created": "2026-09-27T00:17:34.154Z",
+  "verified": "2026-09-27T00:17:34.154Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 10,
+  "related": [
+    "experiment-metric-fingerprints-computation-and-call-sites",
+    "experiment-metric-uuid-assignment-and-resolution",
+    "uniqueness-constraints-for-experiment-metrics-and-results",
+    "experiment-metric-identity-uuid-vs-config-fingerprint"
+  ],
+  "servedIn": [
+    "ffd5d7a2-4585-4abf-82a8-6ebeb4e1eab6",
+    "0f544b05-7ebd-4b31-867b-086e7019dd17",
+    "bc7bdba1-1b39-43a1-acd9-79de7ec24874",
+    "dc57c855-9d09-4ae7-80f5-246632cf3126",
+    "7509243b-8859-4cf6-a36d-f2a353754833",
+    "983841c6-448d-4c99-8bfd-b5c7d3ee8fd7",
+    "b1480431-e51f-41d1-99be-1bdab52e1970",
+    "d6de17d5-8e0d-4f82-a244-1b3ad814b8b9",
+    "36249c18-3dd5-4db5-aceb-ad444635e403",
+    "9d7cb4d1-d895-491e-920b-ba43d2189f27"
+  ],
+  "lastUsed": "2026-09-27T00:55:36.851Z",
+  "says": [
+    "Metric fingerprint differs between saved query and inline query",
+    "Experiment recalculation gives different results after launch",
+    "Inline metric and saved metric calculate to different values",
+    "Frontend metric value doesn't match what backend computed",
+    "Metric fingerprint changed unexpectedly after metrics sync"
+  ],
+  "saysFor": "1474:places-that-must-compute"
+}

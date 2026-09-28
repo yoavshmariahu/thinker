@@ -1,0 +1,56 @@
+{
+  "id": "cleanup-job-and-dot-scope-lookup-depend-on-rt-access-token-l",
+  "title": "Cleanup job and DOT scope lookup depend on RT.access_token link",
+  "kind": "invariant",
+  "answers": [
+    "why does refresh token access_token link matter",
+    "what determines refresh token expiry in oauth cleanup",
+    "how are scopes chosen on non-rotating refresh"
+  ],
+  "body": "For non-rotating refresh tokens, OAuthRefreshToken.access_token must point at the most recent access token. Enforced in posthog/api/oauth/views.py `_save_bearer_token`.\nWhy: (1) the daily cleanup deletes an RT by the expiry of its linked AT; (2) django-oauth-toolkit reads next-refresh scopes from the linked AT; (3) upstream revoke deletes the linked AT, so revoking an RT now hits the latest AT, not the auth-code AT.\nIf skipped: in-use RTs get deleted, and scope narrowing/ceiling_scopes behave inconsistently. Tests such as test_dcr_refresh_token_revoke_from_other_client_does_not_sweep_session in posthog/api/oauth/test_views.py must watch the auth-code AT (unlinked) to verify no session sweep.",
+  "applies": "OAuth refresh/revoke changes in posthog/api/oauth",
+  "tags": [
+    "oauth",
+    "invariant",
+    "refresh-token"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/oauth/views.py",
+      "symbol": "_save_bearer_token",
+      "hash": "sha256:76ad4fd0e26e315c8a62c444",
+      "line": 952,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/oauth/test_views.py",
+      "symbol": "test_dcr_client_refresh_token_is_not_rotated",
+      "hash": "sha256:3cf4757081f82a2bd2c35fbf",
+      "line": 4510,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105394"
+  },
+  "created": "2026-09-27T00:04:28.106Z",
+  "verified": "2026-09-27T00:04:28.106Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dcr-cimd-refresh-token-deleted-67-days-after-consent-despite",
+    "oauth-revoke-must-verify-token-belongs-to-requesting-client-",
+    "test-oauth-revoke-by-asserting-token-state-for-both-token-ty"
+  ],
+  "says": [
+    "Refresh token expired before its linked access token",
+    "Why did changing refresh token scopes have inconsistent effects",
+    "Refresh token cleanup is removing tokens still actively in use",
+    "Access token expiry determines how long refresh tokens remain valid",
+    "Which access token defines the scope ceiling for refresh tokens"
+  ],
+  "saysFor": "764:cleanup-job-and-dot-scop"
+}

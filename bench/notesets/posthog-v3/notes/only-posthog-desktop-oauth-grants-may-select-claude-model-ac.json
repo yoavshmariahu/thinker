@@ -1,0 +1,53 @@
+{
+  "id": "only-posthog-desktop-oauth-grants-may-select-claude-model-ac",
+  "title": "Only PostHog Desktop OAuth grants may select claude_model_access=own-subscription",
+  "kind": "invariant",
+  "answers": [
+    "Why does my API key get 400 on claude_model_access own-subscription?",
+    "Cloud run on own Claude plan times out after 120 seconds",
+    "Who can start a task run with their Claude plan?"
+  ],
+  "body": "Selecting `claude_model_access=\"own-subscription\"` on run creation requires a consented OAuth token from the Desktop app's OAuth application. Personal API keys, browser sessions, sandbox tokens and other OAuth clients get a 400 on `claude_model_access`.\n- Enforced in `products/tasks/backend/presentation/serializers.py:_validate_subscription_caller`, using `_is_desktop_app_grant`. That helper combines `get_oauth_client_id(request) in POSTHOG_CODE_OAUTH_APP_CLIENT_IDS` with `is_interactive_desktop_grant(request)`.\n- It is an allow-list, not a deny-list of sandbox tokens. The mobile client (`POSTHOG_DESKTOP_MOBILE_APP_CLIENT_ID_US`) counts as Desktop for task provenance but is deliberately excluded, because it cannot hand over a Claude token.\n- If the check is skipped, the sandbox asks a Desktop that isn't watching the run for a Claude token, and the run fails after the 120s timeout.\n- The check is shared by TaskRunCreateRequestSerializer and TaskRunBootstrapCreateRequestSerializer, so both `/run/` and `/runs/` are covered.",
+  "applies": "products/tasks run-creation serializers (/run/ and /runs/); any new caller or client that sets claude_model_access",
+  "tags": [
+    "tasks",
+    "oauth",
+    "claude-subscription",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/presentation/serializers.py",
+      "symbol": "_validate_subscription_caller",
+      "hash": "sha256:3687739501e6eb8a3a174cff",
+      "line": 113,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/presentation/serializers.py",
+      "symbol": "_is_desktop_app_grant",
+      "hash": "sha256:413e4514499e300f03182195",
+      "line": 109,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105218"
+  },
+  "created": "2026-09-27T00:11:28.896Z",
+  "verified": "2026-09-27T00:11:28.896Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "My API key got a 400 when requesting own-subscription model access.",
+    "Cloud run on my Claude plan times out after two minutes.",
+    "Only PostHog Desktop can use own-subscription for task model selection.",
+    "Personal API tokens cannot start runs using the user's Claude subscription.",
+    "Why does own-subscription require a desktop app OAuth token?"
+  ],
+  "saysFor": "1118:only-posthog-desktop-oau"
+}

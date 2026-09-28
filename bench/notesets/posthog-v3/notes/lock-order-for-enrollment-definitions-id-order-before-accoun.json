@@ -1,0 +1,74 @@
+{
+  "id": "lock-order-for-enrollment-definitions-id-order-before-accoun",
+  "title": "Lock order for enrollment: definitions (id order) before account; callers must not hold locks with a human actor",
+  "kind": "invariant",
+  "answers": [
+    "What lock order must customer analytics relationship writers use?",
+    "Can I call relationships.assign with a person actor while holding the account lock?",
+    "Why recheck is_controlled after locking definitions?"
+  ],
+  "body": "Every writer locks controlled definitions in id order first, then the Account row. _enroll_on_human_edit must run inside the mutation's transaction BEFORE _lock_or_raise on the account.\n- It does unlocked reads first (controlled_definitions, existing controls) and returns early with no lock for non-human actors, uncontrolled relationships, and fully enrolled accounts.\n- Then ownership.lock_definitions and re-checks is_controlled under the locks, since a definition can be uncontrolled between reads (tested by patching ownership.controlled_definitions).\n- A caller already holding the account or a definition lock must not pass a person as actor (deadlock/order inversion); documented in the module docstring of logic/relationships.py.\n- end_relationship reads definition_id (ended_at null filter) unlocked to find the definition before enrolling.",
+  "applies": "logic/relationships.py mutation helpers and any new caller passing Actor.human",
+  "tags": [
+    "customer-analytics",
+    "locking",
+    "concurrency"
+  ],
+  "deps": [
+    {
+      "path": "products/customer_analytics/backend/logic/relationships.py",
+      "symbol": "_enroll_on_human_edit",
+      "hash": "sha256:a06527c428a3445122b2efce",
+      "line": 109,
+      "missing": false
+    },
+    {
+      "path": "products/customer_analytics/backend/logic/ownership.py",
+      "symbol": "set_controlled",
+      "hash": "sha256:27acf3608dcd34b79a59440b",
+      "line": 72,
+      "missing": false
+    },
+    {
+      "path": "products/customer_analytics/backend/logic/relationships.py",
+      "symbol": "end_relationship",
+      "hash": "sha256:bbf411b6000e5b55579dfbdf",
+      "line": 201,
+      "missing": false
+    },
+    {
+      "path": "products/customer_analytics/backend/logic/ownership.py",
+      "symbol": "lock_definitions",
+      "hash": "sha256:c2d37e1f676738f9423176e0",
+      "line": 50,
+      "missing": false
+    },
+    {
+      "path": "products/customer_analytics/backend/logic/ownership.py",
+      "symbol": "controlled_definitions",
+      "hash": "sha256:256b79da6dc6e00f7cd6e531",
+      "line": 46,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105292"
+  },
+  "created": "2026-09-27T00:07:47.150Z",
+  "verified": "2026-09-27T00:07:47.150Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "person-edits-auto-enroll-linked-accounts-only-human-actors-t"
+  ],
+  "says": [
+    "Relationship assignment caused a deadlock under concurrent account updates",
+    "Why does calling relationships assign with certain actors cause deadlocks",
+    "The enrollment logic deadlocks when updating accounts and relationships together",
+    "Concurrent writes to customer analytics are failing from lock ordering"
+  ],
+  "saysFor": "964:lock-order-for-enrollmen"
+}

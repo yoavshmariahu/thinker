@@ -1,0 +1,112 @@
+{
+  "id": "chart-alternatives-previews-where-implemented-and-what-to-to",
+  "title": "Chart alternatives & previews: where implemented and what to touch for a new display",
+  "kind": "cochange",
+  "answers": [
+    "Where are chart alternatives/previews implemented?",
+    "How do I add a new trends chart display?",
+    "How are gallery previews built?"
+  ],
+  "body": "Dir: products/product_analytics/frontend/insights/chartAlternatives/.\n- ChartAlternatives.tsx mounts chartAlternativesLogic + chartPreviewsLogic; falls back to ChartFilter if !canShowAlternatives; else popover with ChartGallery.\n- chartDisplayOptions.ts: option catalogue/eligibility (getChartDisplayOptions, applyChartDisplay).\n- chartRecommendations.ts:getChartAlternatives: up to 3 ranked suggestions.\n- chartPreviewsLogic.ts: one ChartPreview per option; previewVizNode = embedded InsightVizNode; real response or sample fallback.\n- chartPreviewData.ts:deriveChartPreview, RAW_TIME_SERIES_DISPLAYS; chartPreviewSamples.ts synthesizes rows (world map, calendar heatmap, box plot).\n- ChartPreviewCanvas.tsx re-mounts logic stack, renders TrendInsight with PREVIEW_CONTEXT {hideAxes:true}.\nNew trends display: edit Trends.tsx (component), chartDisplayOptions.ts (option+eligibility), chartRecommendations.ts (if suggested), chartPreviewSamples/Data (if synthetic data needed).",
+  "applies": "Trends chart displays; other insight types don't use ChartAlternatives gallery the same way.",
+  "tags": [
+    "chart-alternatives",
+    "preview",
+    "trends"
+  ],
+  "deps": [
+    {
+      "path": "products/product_analytics/frontend/insights/chartAlternatives/ChartAlternatives.tsx",
+      "symbol": "ChartAlternatives",
+      "hash": "sha256:3d7402abbb88321aa745f042",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/insights/chartAlternatives/chartPreviewsLogic.ts",
+      "symbol": "chartPreviewsLogic",
+      "hash": "sha256:19e1af69c5de7cb98028f839",
+      "line": 197,
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/insights/chartAlternatives/chartPreviewData.ts",
+      "symbol": "deriveChartPreview",
+      "hash": "sha256:171b2fbbe5b6ed02f549bec9",
+      "line": 184,
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts",
+      "symbol": "chartAlternativesLogic",
+      "hash": "sha256:18c0832f2103529b63023e75",
+      "line": 182,
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/insights/trends/Trends.tsx",
+      "hash": "sha256:8d9e2d90ab57240bcdb0ff30",
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/insights/chartAlternatives/chartDisplayOptions.ts",
+      "hash": "sha256:38465815a41c0f2a30c263b1",
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/insights/chartAlternatives/chartRecommendations.ts",
+      "symbol": "getChartAlternatives",
+      "hash": "sha256:82dc8039a6f9acc4a1e4e4ce",
+      "line": 72,
+      "missing": false
+    },
+    {
+      "path": "products/product_analytics/frontend/insights/chartAlternatives/chartPreviewSamples.ts",
+      "hash": "sha256:94778e706eb479660c289adc",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "b436f7a0-0071-423e-8d02-28b9ff005324"
+  },
+  "created": "2026-09-26T20:33:06.948Z",
+  "verified": "2026-09-26T20:33:06.948Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 21,
+  "related": [],
+  "lastUsed": "2026-09-27T00:59:41.591Z",
+  "servedIn": [
+    "ed508f88-1237-460a-9105-5c6cb1fbd83a",
+    "fab0dfcc-607d-4c4f-bfc6-277041dd7976",
+    "a302ad28-26bc-41ee-a3b8-8fdfbaa6ce0a",
+    "2274930a-e576-464a-b536-5c41ced342b8",
+    "6d17fed1-6cb3-4238-b29c-b361e5c7bca8",
+    "6a16f795-6bc9-4f7c-86dd-8aafc55338b8",
+    "e26d7b3b-8313-4ecb-a31e-bd0e0e9bf5f2",
+    "6696458d-9a18-4960-8085-858a940ecbcc",
+    "304fe954-29c7-4caa-ac1b-b9b6ed37a2ef",
+    "6efcc824-2f16-4d9f-a477-47f18ca3c68a",
+    "t",
+    "t",
+    "t",
+    "1ab8ae63-f06f-4044-b522-87020216b687",
+    "31add6de-c755-4bf5-891f-93d8e7fb9a1a",
+    "probe1",
+    "1fac1cf0-9f8e-4c80-ae03-e7c1edf0c78a",
+    "a260cb07-ddeb-4c4f-9e9e-8c1aa194e191",
+    "4d55e782-40c6-4757-a58b-277d24913095",
+    "020716d5-b008-4ebb-b299-67f837c9a985",
+    "89189e0c-41b6-4792-9702-6cf5c9d8c7f1"
+  ],
+  "says": [
+    "Where should new chart display type implementations be placed",
+    "Adding a new trends chart display option to the gallery",
+    "How are chart alternative previews and sample data generated",
+    "Chart alternatives feature implementation location and component architecture",
+    "Where do chart display options get registered and validated"
+  ],
+  "saysFor": "1062:chart-alternatives-previ"
+}

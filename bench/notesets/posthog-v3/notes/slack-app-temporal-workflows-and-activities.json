@@ -1,0 +1,120 @@
+{
+  "id": "slack-app-temporal-workflows-and-activities",
+  "title": "Slack app Temporal workflows and activities",
+  "kind": "location",
+  "answers": [
+    "Where are Slack Temporal workflows defined?",
+    "Where are slack_app activities registered?"
+  ],
+  "body": "- Workflows in `posthog/temporal/ai/slack_app/`: `slack_app_mention.py:SlackAppMentionWorkflow` (`slack-app-mention`), `posthog_code_slack_mention.py:PostHogCodeSlackMentionWorkflow`, `posthog_code_slack_mention_command.py:PostHogCodeSlackMentionCommandWorkflow`, `slack_app_fork.py:SlackAppForkThreadWorkflow`, `posthog_slack_inbox_onboarding.py:PostHogSlackInboxOnboardingWorkflow`. Types in `types.py`.\n- Activities live in `activities/` (`fork.py`, `onboarding.py`, `billing.py`, `classifiers.py`, `thread.py`, ...) and are re-exported from `activities/__init__.py`.\n- Registration: `posthog/temporal/ai/__init__.py` (workflows + `SLACK_APP_ACTIVITIES`). New workflow/activity must be added there.",
+  "tags": [
+    "temporal",
+    "slack_app"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/ai/slack_app/activities/__init__.py",
+      "hash": "sha256:6bc550a8e010587ad022c31a",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/__init__.py",
+      "hash": "sha256:04c55d4b115e2ce38a103552",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/slack_app_mention.py",
+      "symbol": "SlackAppMentionWorkflow",
+      "hash": "sha256:b9e1143e585530cd9b75fefe",
+      "line": 69,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/posthog_code_slack_mention.py",
+      "symbol": "PostHogCodeSlackMentionWorkflow",
+      "hash": "sha256:1c6e42c5d7ac2034a5fe48ac",
+      "line": 49,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/posthog_code_slack_mention_command.py",
+      "symbol": "PostHogCodeSlackMentionCommandWorkflow",
+      "hash": "sha256:ddcf9423d3c7e20b6c068bbc",
+      "line": 27,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/slack_app_fork.py",
+      "symbol": "SlackAppForkThreadWorkflow",
+      "hash": "sha256:18ac240b3948ed43ac795504",
+      "line": 34,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/posthog_slack_inbox_onboarding.py",
+      "symbol": "PostHogSlackInboxOnboardingWorkflow",
+      "hash": "sha256:daf6b080fdaf07675f02f7e2",
+      "line": 16,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/types.py",
+      "hash": "sha256:55f11b91187923237fdf9fc1",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/activities/fork.py",
+      "hash": "sha256:c584ced039a070a3cd086ba4",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/activities/onboarding.py",
+      "hash": "sha256:fb88a093ee5d6c9c7fee23e0",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/activities/billing.py",
+      "hash": "sha256:3f05a11700064abc7d2733da",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/activities/classifiers.py",
+      "hash": "sha256:fa17b55f05244066053020d1",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/ai/slack_app/activities/thread.py",
+      "hash": "sha256:5c24d9a8e4106fd0442f2439",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "031b9d1f-6e11-4c18-b033-1e2623383119"
+  },
+  "created": "2026-09-26T20:27:59.996Z",
+  "verified": "2026-09-26T20:27:59.996Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "slack-app-billing-quota-gate-lives-only-in-the-temporal-work",
+    "slack-app-untagged-thread-follow-up-decision-pipeline-webhoo"
+  ],
+  "lastUsed": "2026-09-26T22:43:36.828Z",
+  "servedIn": [
+    "157a3868-f053-4836-b02b-bb30c31d0106",
+    "c1c890eb-7c20-47ea-b6ac-20ec42ebf2b2",
+    "dae3994c-821b-4590-b55d-a12fda3d03e4",
+    "935dec57-ba8d-4e31-9b6a-25dacfbe2e3d"
+  ],
+  "says": [
+    "Add new Slack bot response for fork events",
+    "Implement Slack workflow for onboarding flow",
+    "Extend Slack automation with additional trigger type",
+    "Create new Slack mention handling mode",
+    "Slack mention workflow not working properly"
+  ],
+  "saysFor": "745:slack-app-temporal-workf"
+}

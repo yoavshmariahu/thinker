@@ -1,0 +1,84 @@
+{
+  "id": "hogql-database-schema-layout-and-system-tables",
+  "title": "HogQL database schema layout and system tables",
+  "kind": "overview",
+  "answers": [
+    "Where are HogQL tables and fields defined?",
+    "How are system tables registered?",
+    "How is access to system tables controlled?"
+  ],
+  "body": "- Building blocks in `database/models.py`: `FieldOrTable` (hidden, description), `DatabaseField` subclasses (`StringDatabaseField`, ...), `Table`, `LazyTable`, `VirtualTable`, `FunctionCallTable`, `TableNode`, `DANGEROUS_NoTeamIdCheckTable`.\n- Catalog: `database/database.py:_construct_database_root_node` builds TableNode tree; `ROOT_TABLES__DO_NOT_ADD_ANY_MORE` is frozen; new non-system tables go in `posthog` node under `# Add new tables here`; `\"system\": SystemTables()` mounts system tables. `build_database_root_node` pickles once, loads via `_CatalogUnpickler`.\n- Per-team `Database` removes unentitled/denied system tables (`_compute_system_table_access_decision`, `system_table_denials`, `_unentitled_system_tables`).\n- `database/schema/system.py`: most are `PostgresTable` constants (e.g. `batch_export_backfills`, `postgres_table_name=\"posthog_batchexportbackfill\"`); ClickHouse-native ones like `IngestionWarningsTable`; registered in `SystemTables.children`.\n- `PostgresTable` (`database/postgres_table.py`) knobs: `access_scope`, `required_feature_on_cloud`, `access_control_id_field`, `retention_field`, `predicates`. `_scoped_system_tables` is process-cached so `access_scope` must be static.\n- `database/schema/AGENTS.md` (CLAUDE.md symlink): give every table/field a `description`; `schema/information_schema.py` exposes them live.",
+  "tags": [
+    "hogql",
+    "schema",
+    "system-tables"
+  ],
+  "deps": [
+    {
+      "path": "posthog/hogql/database/models.py",
+      "symbol": "FieldOrTable",
+      "hash": "sha256:0fb90572fba9637697b465fb",
+      "line": 43,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/database/database.py",
+      "symbol": "_construct_database_root_node",
+      "hash": "sha256:6f04df8a45364554081031fe",
+      "line": 515,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/database/schema/system.py",
+      "symbol": "SystemTables",
+      "hash": "sha256:03310e41240e9a14086c0a6d",
+      "line": 2955,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/database/postgres_table.py",
+      "symbol": "PostgresTable",
+      "hash": "sha256:f47c392c024700b2178f78dc",
+      "line": 90,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/database/schema/AGENTS.md",
+      "hash": "sha256:8e4a20deb793675bdb794695",
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/database/schema/information_schema.py",
+      "hash": "sha256:23bc4f78e6de8ef343612859",
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/database/database.py",
+      "symbol": "SystemTables",
+      "hash": "sha256:b46acdae140b104e7dfd68af",
+      "line": 641,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "677f7a3c-0764-4bf2-9360-b99bd3a6710f"
+  },
+  "created": "2026-09-26T20:36:23.751Z",
+  "verified": "2026-09-26T20:36:23.751Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-field-to-a-hogql-system-table-what-changes-together"
+  ],
+  "says": [
+    "Where can I find what data I can query?",
+    "How do I add a new data table?",
+    "What are the special system data tables?",
+    "Who can access what data tables?",
+    "What columns and fields are available to use?"
+  ],
+  "saysFor": "1397:hogql-database-schema-la"
+}

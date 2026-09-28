@@ -1,0 +1,67 @@
+{
+  "id": "adding-a-source-config-field-source-py-fields-generated-conf",
+  "title": "Adding a source config field: source.py fields, generated config and SOURCES.md must change together",
+  "kind": "cochange",
+  "answers": [
+    "What files change when I implement a scaffolded warehouse source?",
+    "Do I edit generated_configs by hand?",
+    "Where do I register an implemented source in SOURCES.md?"
+  ],
+  "body": "Implementing a previously scaffolded source touches several places together:\n- Fields in source.py:get_source_config (SourceFieldInputConfig `api_key`, `table_ids`) must match the regenerated generated_configs/clay.py:ClaySourceConfig. The generated config is regenerated, not hand-edited.\n- Drop `unreleasedSource=True` and set `releaseStatus=ReleaseStatus.ALPHA` to expose it.\n- Move the source in SOURCES.md from the scaffolded list into the implemented table.\n- Set `supported_versions`/`default_version`. The test_source_versions and test_source_categories invariants were run for this.\n- Every HTTP call needs an explicit request timeout (clay uses REQUEST_TIMEOUT_SECONDS=60 in both the sync client and validate_credentials).",
+  "applies": "Implementing any scaffolded source under sources/<name>/",
+  "tags": [
+    "warehouse-sources",
+    "codegen",
+    "checklist"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clay/source.py",
+      "symbol": "ClaySource.get_source_config",
+      "hash": "sha256:6f5d1c3d83fc4be7ee1428b7",
+      "line": 94,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/generated_configs/clay.py",
+      "symbol": "ClaySourceConfig",
+      "hash": "sha256:6e545cfb34c8131557b0e139",
+      "line": 7,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/SOURCES.md",
+      "hash": "sha256:cc1e9cca58bb8ad804d34008",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clay/source.py",
+      "symbol": "get_source_config",
+      "hash": "sha256:6f5d1c3d83fc4be7ee1428b7",
+      "line": 94,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105270"
+  },
+  "created": "2026-09-27T00:08:19.069Z",
+  "verified": "2026-09-27T00:08:19.069Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "clay-flatten-record-column-fields-must-never-overwrite-a-rea",
+    "resumable-rest-warehouse-source-post-body-cursor-with-resume"
+  ],
+  "says": [
+    "How to implement new data import source connector",
+    "Source configuration field added but not actually working",
+    "Generated source config is out of date now",
+    "New data connector isn't available in import setup",
+    "Where to register newly implemented data import source"
+  ],
+  "saysFor": "833:adding-a-source-config-f"
+}

@@ -1,0 +1,89 @@
+{
+  "id": "hogql-parse-resolve-print-pipeline",
+  "title": "HogQL parse → resolve → print pipeline",
+  "kind": "callpath",
+  "answers": [
+    "How is HogQL parsed and resolved?",
+    "Where does resolve_types run?",
+    "Which parser backends exist?"
+  ],
+  "body": "- Parse: `parser.py:parse_expr/parse_select/parse_order_expr/parse_program` → `_resolve_parser_mode` → `_parse_cached` → `RULE_TO_PARSE_FUNCTION[backend][ParseRule]` (backends `cpp-json`, `rust-json`, `rust-py`) → optional `_run_shadow_comparison` → `replace_placeholders`. Output is untyped `ast.py` nodes.\n- Grammar: `grammar/HogQLParser.g4` + `HogQLLexer.common.g4`/`HogQLLexer.cpp.g4`; only C++ is ANTLR-generated (`pnpm run grammar:build` → `common/hogql_parser/`). Rust parser is hand-written and must be updated by hand for grammar changes.\n- Resolve: `resolver.py:resolve_types` → `Resolver` (a CloningVisitor); `visit_select_query`, `visit_join_expr` bind tables from `context.database`; `visit_field`/`visit_call` type expressions.\n- Called from `printer/utils.py:prepare_ast_for_printing` (timed `resolve_types`; re-run after JSON pushdown / Trino lowering).\n- Postgres-backed tables are printed in `printer/clickhouse.py:ClickHousePrinter._print_table_ref` (team guard, predicates, retention); `printer/access_control.py` adds object-level guard.",
+  "tags": [
+    "hogql",
+    "parser",
+    "resolver"
+  ],
+  "deps": [
+    {
+      "path": "posthog/hogql/parser.py",
+      "hash": "sha256:f487403984a30d9a41750f11",
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/resolver.py",
+      "symbol": "Resolver",
+      "hash": "sha256:b1329ea210311bc1d87385ef",
+      "line": 394,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/printer/utils.py",
+      "symbol": "prepare_ast_for_printing",
+      "hash": "sha256:827db2a3c50db02ce3230808",
+      "line": 176,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/parser.py",
+      "symbol": "parse_expr",
+      "hash": "sha256:6592b93361ab296636b7c384",
+      "line": 604,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/ast.py",
+      "hash": "sha256:9f07768242ddae75c341f3a6",
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/resolver.py",
+      "symbol": "resolve_types",
+      "hash": "sha256:bedf8ef6fff43a36e1424054",
+      "line": 239,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/printer/clickhouse.py",
+      "symbol": "ClickHousePrinter._print_table_ref",
+      "hash": "sha256:594f576f2c360703363ff840",
+      "line": 1034,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/printer/access_control.py",
+      "hash": "sha256:17565d2d8e582b2cb1d73bc7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "677f7a3c-0764-4bf2-9360-b99bd3a6710f"
+  },
+  "created": "2026-09-26T20:36:23.704Z",
+  "verified": "2026-09-26T20:36:23.704Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "gotcha-resolver-refuses-already-typed-nodes"
+  ],
+  "says": [
+    "Why doesn't my HogQL query work?",
+    "What's causing the query type error?",
+    "What query parser backends can HogQL use?",
+    "How does query validation and type checking work?",
+    "I need to fix my query compilation error"
+  ],
+  "saysFor": "1097:hogql-parse-resolve-prin"
+}

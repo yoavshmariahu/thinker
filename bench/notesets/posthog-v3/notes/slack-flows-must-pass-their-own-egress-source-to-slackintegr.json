@@ -1,0 +1,72 @@
+{
+  "id": "slack-flows-must-pass-their-own-egress-source-to-slackintegr",
+  "title": "Slack flows must pass their own egress `source` to SlackIntegration",
+  "kind": "convention",
+  "answers": [
+    "How do I label Slack API calls by feature?",
+    "Why do all Slack calls show source=integration in slack_api_requests_total?",
+    "Adding a new Slack notification flow: what source label to use?"
+  ],
+  "body": "Any outbound Slack notification flow that builds a client via `SlackIntegration` should pass its own name: `SlackIntegration(integration, source=\"<flow>\")` (posthog/models/integration/slack.py:SlackIntegration.__init__, keyword-only, default `\"integration\"`).\n- The source is applied to both `.client` and `.async_client(...)`, so sync and async paths of one flow share a label.\n- Existing labels: error_tracking_alerts, subscriptions (ee/tasks/subscriptions/slack_subscriptions.py), signals_inbox, signals_scout, stamphog, visual_review, loop_notifications, eval_reports, customer_analytics_event_stream.\n- Leave the default `integration` for the Slack app's in-conversation replies and other generic callers.\n- Documented in posthog/egress/slack/README.md; update it if the convention changes.\n- Test fakes replacing SlackIntegration must accept `source` (products/stamphog/backend/tests/fakes.py:FakeSlackIntegration).",
+  "applies": "Code that constructs SlackIntegration to send Slack messages from product flows.",
+  "tags": [
+    "slack",
+    "egress",
+    "metrics"
+  ],
+  "deps": [
+    {
+      "path": "posthog/models/integration/slack.py",
+      "symbol": "SlackIntegration",
+      "hash": "sha256:9127804a9ce11d78f78de11e",
+      "line": 86,
+      "missing": false
+    },
+    {
+      "path": "posthog/egress/slack/README.md",
+      "hash": "sha256:0be90e0e6f0e2cc39eb9db8a",
+      "missing": false
+    },
+    {
+      "path": "products/stamphog/backend/tests/fakes.py",
+      "symbol": "FakeSlackIntegration",
+      "hash": "sha256:940f34891e1a90cd1ae5f78e",
+      "line": 517,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/integration/slack.py",
+      "symbol": "SlackIntegration.__init__",
+      "hash": "sha256:22054a76acc7438472154bf4",
+      "line": 89,
+      "missing": false
+    },
+    {
+      "path": "ee/tasks/subscriptions/slack_subscriptions.py",
+      "hash": "sha256:da3fe9477b21178263b19d98",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105814"
+  },
+  "created": "2026-09-26T23:57:00.764Z",
+  "verified": "2026-09-26T23:57:00.764Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "retry-after-gauge-stays-without-a-source-label-shared-slack-",
+    "stamphog-fake-github-must-return-node-id-on-dismissal-and-re"
+  ],
+  "says": [
+    "New Slack feature not appearing in metrics",
+    "Slack requests all showing same source label",
+    "Monitor new Slack flow separately in dashboard",
+    "Slack analytics missing for notification feature",
+    "Track Slack usage by which feature sent"
+  ],
+  "saysFor": "989:slack-flows-must-pass-th"
+}

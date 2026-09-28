@@ -1,0 +1,84 @@
+{
+  "id": "adding-a-warm-task-option-touches-client-hook-host-interface",
+  "title": "Adding a warm-task option touches client, hook, host interface, saga, and TaskInput",
+  "kind": "cochange",
+  "answers": [
+    "How to add a new option to warm cloud task",
+    "Which files change when warm task request gets a new field",
+    "Warm activation vs warm request mismatch"
+  ],
+  "body": "A new launch option for warm cloud tasks (as `permissionMode` was) must change together:\n- API client: `warmTask` options/body in products/desktop/packages/api-client/src/posthog-client.ts (send `?? null`) and the run-start/activation payload type (`initial_permission_mode?`) in the same file; update posthog-client.test.ts expected bodies.\n- Hook: `UseWarmTaskOptions`/`useWarmTask` and `WarmTaskLeaseKeyParts` (ui/.../hooks).\n- Host interface: `ITaskCreationHost.takeWarmTaskLease` in products/desktop/packages/core/src/task-detail/taskCreationHost.ts and impl `TrpcTaskCreationHost` in ui/.../taskCreationHostImpl.ts.\n- Saga: `TaskCreationSaga` passes it to `takeWarmTaskLease` and to warm activation (gated on `workspaceMode === \"cloud\" && canActivateWarmRun && runtime !== \"pi\"`).\n- UI: TaskInput.tsx passes it to `useWarmTask`.\n- Adapter default must match everywhere: `adapter ?? \"claude\"` in both TaskInput and saga, else lease keys differ (null vs claude).",
+  "applies": "Desktop warm task / cloud task creation code paths",
+  "tags": [
+    "desktop",
+    "warm-task",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/core/src/task-detail/taskCreationSaga.ts",
+      "symbol": "TaskCreationSaga",
+      "hash": "sha256:0c0b47dd05bce09da470ec02",
+      "line": 76,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/api-client/src/posthog-client.ts",
+      "symbol": "PostHogAPIClient",
+      "hash": "sha256:026e4e73c5e56401d4c38b41",
+      "line": 1905,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/task-detail/components/TaskInput.tsx",
+      "symbol": "TaskInput",
+      "hash": "sha256:c32e8fc209f9af268c86c257",
+      "line": 219,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/core/src/task-detail/taskCreationHost.ts",
+      "symbol": "ITaskCreationHost",
+      "hash": "sha256:58fd1d396ec3d8054c82be03",
+      "line": 72,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/api-client/src/posthog-client.test.ts",
+      "hash": "sha256:86504e78f491619a3b13e8d1",
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/core/src/task-detail/TaskInput.ts",
+      "hash": "sha256:4f9538ab5a6d52fbd508499f",
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/core/src/task-detail/taskCreationHost.ts",
+      "symbol": "ITaskCreationHost.takeWarmTaskLease",
+      "hash": "sha256:1dcac2db3a89c1769b48e23d",
+      "line": 111,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105645"
+  },
+  "created": "2026-09-27T00:00:41.527Z",
+  "verified": "2026-09-27T00:00:41.527Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "warm-cloud-task-lease-must-be-keyed-on-every-setting-the-tas"
+  ],
+  "says": [
+    "How to add options to warm cloud task",
+    "Warm task initialization missing new parameter",
+    "What controls warm task request behavior",
+    "Coordinating warm task changes across layers"
+  ],
+  "saysFor": "1050:adding-a-warm-task-optio"
+}

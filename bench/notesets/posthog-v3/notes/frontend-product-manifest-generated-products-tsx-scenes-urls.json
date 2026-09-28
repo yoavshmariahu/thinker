@@ -1,0 +1,101 @@
+{
+  "id": "frontend-product-manifest-generated-products-tsx-scenes-urls",
+  "title": "Frontend product manifest -> generated products.tsx -> scenes/urls consumers",
+  "kind": "callpath",
+  "answers": [
+    "How does products/<name>/manifest.tsx get into the app?",
+    "Where do productRoutes/productUrls come from?",
+    "Can I edit frontend/src/products.tsx by hand?",
+    "What does build-products.mjs generate?"
+  ],
+  "body": "- Contract: `frontend/src/types.ts:ProductManifest` (name, scenes, routes[path]=[SceneName, sceneKey], redirects, urls, fileSystemTypes, treeItemsNew/Products/Games/Metadata, setupProbe). `SceneConfig` is in `frontend/src/scenes/sceneTypes.ts`.\n- Generator: `frontend/build-products.mjs` scans `products/*/manifest.tsx` via TS AST (no import), skips if input hash unchanged (`.cache/products.hash`).\n- Outputs: `frontend/src/products.tsx` (GENERATED, DO NOT EDIT: productRoutes, productRedirects, productConfiguration (import stripped), productUrls, fileSystemTypes, productSetupProbes, getTreeItems*), `frontend/src/productScenes.tsx` (productScenes: name -> lazy import; separate so jest doesn't treat every test as related to a scene change), `frontend/src/products.json` (tree item metadata, read by Python `posthog/products.py:Products`).\n- Consumers: `frontend/src/scenes/urls.ts` spreads `...productUrls`; `frontend/src/scenes/scenes.ts` spreads productConfiguration/productRedirects/productRoutes; `frontend/src/scenes/appScenes.ts` spreads `...productScenes`.\n- Generator does not copy imports: new icon/type used in a manifest must be imported in products.tsx by hand (products/README.md 'Manual setup').",
+  "tags": [
+    "products",
+    "manifest",
+    "frontend",
+    "codegen"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/types.ts",
+      "symbol": "ProductManifest",
+      "hash": "sha256:0a81ee977df59f5aaff2965c",
+      "line": 7899,
+      "missing": false
+    },
+    {
+      "path": "frontend/build-products.mjs",
+      "hash": "sha256:a9595a1a2c673277b07f3e4f",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/products.tsx",
+      "hash": "sha256:ee5983964e7dff4cb2423926",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/urls.ts",
+      "hash": "sha256:90b3f7e059dca2aeb7be20d9",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/scenes.ts",
+      "hash": "sha256:02967c8b5c765d1157685cdf",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/appScenes.ts",
+      "hash": "sha256:212aa8f6df35bdc27b916704",
+      "missing": false
+    },
+    {
+      "path": "products/README.md",
+      "hash": "sha256:8bb99e140e08594611301122",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/sceneTypes.ts",
+      "hash": "sha256:8398c97dfc088280f2336592",
+      "missing": false
+    },
+    {
+      "path": "posthog/products.py",
+      "symbol": "Products",
+      "hash": "sha256:4c7304aa1f9c92d944079935",
+      "line": 52,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "3a3272a0-af54-45ee-b4ca-e751f6a7ee0e"
+  },
+  "created": "2026-09-26T20:20:11.282Z",
+  "verified": "2026-09-26T20:20:11.282Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 6,
+  "related": [
+    "scene-registration-routing-manifest-generated-products-tsx-s",
+    "adding-changing-a-product-url-manifest-generated-products-ts",
+    "adding-a-route-to-a-product-what-changes-together",
+    "scene-enum-name-must-match-scene-s-exported-component"
+  ],
+  "servedIn": [
+    "aef362ec-1476-47a5-a1bb-4ebb13906ee7",
+    "17180cc9-00be-4854-86e4-b5d9eb4e8325",
+    "8a2027b0-97a9-496b-901f-da33440c4feb",
+    "fbb19671-8730-46af-87c2-153efc2fcece",
+    "80fdb8eb-165f-47b6-a31e-2e4f7f83357f",
+    "2e9c5e0e-8c55-49dd-8d88-b1af1258e010"
+  ],
+  "says": [
+    "How does my product configuration get loaded into the app?",
+    "Why can't I manually edit the generated product routes file?",
+    "Where do the product URLs and navigation routes come from?",
+    "How is the product manifest file processed during the build?",
+    "Can I hand-edit the products file or will it be overwritten?"
+  ],
+  "saysFor": "1291:frontend-product-manifes"
+}

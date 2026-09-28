@@ -1,0 +1,129 @@
+{
+  "id": "action-eligibility-backend-gates-vs-frontend-mirrors-launch-",
+  "title": "Action eligibility: backend gates vs frontend mirrors (launch, run, stop, edit, resend)",
+  "kind": "location",
+  "answers": [
+    "Where is eligibility to launch a broadcast/batch decided?",
+    "Which frontend checks mirror backend API gates?",
+    "How do I stop a broadcast?",
+    "Is there a resend endpoint?",
+    "Where is broadcast editability decided?"
+  ],
+  "body": "- Launch batch: backend `HogFlowViewSet.batch_jobs` POST requires status==active; job snapshots trigger's stored filters (caller filters ignored); agent sources need `_require_audience_confirm_token`; `HogFlowBatchJob` post_save calls CDP with `max_audience_size` from `get_hogflow_batch_trigger_limit`. Frontend: `HogFlowManualTriggerButton` disabled unless status==='active', no unsaved changes, blastRadius.affected<=limit; `broadcastWizardLogic.launchBroadcast` repeats limit check.\n- Run now: `run` action requires active and trigger.type==\"schedule\", 5KB variable cap, Idempotency-Key (409 in progress).\n- Edit broadcast: no backend rule; frontend `broadcastWizardLogic.isReadOnly` = status!=='draft'; `BroadcastScene` shows BroadcastSummary for non-draft.\n- Stop: `cancel_batch_job` acts only on waiting|queued|active, conditional update so completion wins race, flips only when CDP sweep reports done; frontend `WorkflowBatchInvocations` STOPPABLE_STATUSES. No stop control in BroadcastSummary.\n- Resend: no endpoint; `rerun` replays ClickHouse invocations, needs person:read+group:read+hog_flow:write. New send = new batch job.\n- Enable/disable: `WorkflowSceneHeader` toggles draft↔active, disabled with unsaved changes. Archive/restore in `workflowsLogic` (archived / draft); `bulk_delete` only deletes archived.\n- Publish/discard: `publishDisabledReason`/`discardDisabledReason` in workflowLogic.ts.",
+  "applies": "Backend batch_jobs/run gates are real; edit/enable/archive gates are frontend-only.",
+  "tags": [
+    "workflows",
+    "broadcasts",
+    "eligibility",
+    "batch-jobs"
+  ],
+  "deps": [
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowViewSet",
+      "hash": "sha256:91a7248e2c6515c9b07cae8c",
+      "line": 3987,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/models/hog_flow_batch_job/hog_flow_batch_job.py",
+      "symbol": "HogFlowBatchJob",
+      "hash": "sha256:ae4dceccd27a2f2def589e5a",
+      "line": 15,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+      "symbol": "isReadOnly",
+      "hash": "sha256:57eda93461eb6fec610dd926",
+      "line": 264,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Workflows/hogflows/HogFlowManualTriggerButton.tsx",
+      "hash": "sha256:21b811c15ee92a9e6aa0e39b",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Workflows/workflowsLogic.ts",
+      "hash": "sha256:29e3115231a9083b9478e713",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Workflows/workflowLogic.ts",
+      "hash": "sha256:c8375b9c7f2a897d82290323",
+      "missing": false
+    },
+    {
+      "path": "products/workflows/backend/api/hog_flow.py",
+      "symbol": "HogFlowViewSet.batch_jobs",
+      "hash": "sha256:0fcc510ba084e56d9c88c73e",
+      "line": 5710,
+      "missing": false
+    },
+    {
+      "path": "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+      "symbol": "launchBroadcast",
+      "hash": "sha256:015671b8ee4dbbcb74eb03bd",
+      "line": 144,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "6b23f6f0-67e5-41f7-83d1-f40cd68c9123"
+  },
+  "created": "2026-09-27T00:14:11.536Z",
+  "verified": "2026-09-27T00:14:11.536Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 59,
+  "related": [
+    "hogflow-status-has-no-backend-transition-matrix-rules-live-i",
+    "hogflowschedule-status-and-sync-with-flow-batch-job-state",
+    "adding-a-hogflow-status-transition-what-changes-together",
+    "broadcast-wizard-launch-flow-launchbroadcast"
+  ],
+  "lastUsed": "2026-09-27T21:27:07.607Z",
+  "servedIn": [
+    "3e4e3374-05bc-400d-a4de-f10663eea4ed",
+    "deb29eef-0bf5-4863-b729-12b5a7f4fb6c",
+    "d95ed6fa-4dc7-4922-a299-7bc9f1fa4cb9",
+    "fe286b3b-dec9-4caa-a380-4343e1a520bf",
+    "ce381eeb-2b35-4c34-afea-4f6e02930bc4",
+    "bcbd72c4-7b1f-4204-a5e2-148bdeb63f06",
+    "adf9f900-03cd-4691-bc09-61c2523a53e1",
+    "d8d4f03e-b1ce-4e51-8e93-df1826c1bb8c",
+    "d4b56a2d-8302-41f9-8f52-0691f010c8a4",
+    "c09c6c8a-d40b-41b0-88d1-ee151cc2b736",
+    "0a314f90-3d79-4a53-9587-48b57cfd06b7",
+    "probe3",
+    "probe3",
+    "1657d73f-5055-4e1f-8ea5-48975afc6c39",
+    "b27032a4-7830-409f-bb6c-47a9f09681c6",
+    "8cf1fc35-a554-457e-8a5e-ee999a578775",
+    "codex-posthog-codex-gpt56-PR106466-hard-0",
+    "codex-posthog-codex-gpt56-PR106466-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR106466-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR106466-hard-1",
+    "probe-x",
+    "codex-posthog-codex-gpt6-sol-trace-PR106466-hard-0",
+    "probe-PR106466-hard",
+    "probe-PR106466-hard",
+    "f07665f7-1018-4f84-8be9-ba01bae74156",
+    "probe-PR106466-hard",
+    "probe-PR106466-hard",
+    "probe-PR106466-hard",
+    "probe-PR106466-hard",
+    "codex-posthog-codex-gpt6-sol-v2-PR106466-hard-0"
+  ],
+  "says": [
+    "I can't launch the broadcast, the button is disabled",
+    "When can I send a batch campaign to my audiences?",
+    "How do I resend or edit an active broadcast?",
+    "Running a scheduled workflow gives an API error",
+    "The run now button won't let me start the workflow"
+  ],
+  "saysFor": "1498:action-eligibility-backe"
+}

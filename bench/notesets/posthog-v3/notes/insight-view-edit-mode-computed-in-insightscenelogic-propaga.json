@@ -1,0 +1,68 @@
+{
+  "id": "insight-view-edit-mode-computed-in-insightscenelogic-propaga",
+  "title": "Insight view/edit mode: computed in insightSceneLogic, propagated via readOnly/editMode props",
+  "kind": "callpath",
+  "answers": [
+    "Where is insight edit vs view mode computed?",
+    "How does insightMode reach InsightViz and Query?",
+    "Which components must honor ItemMode?"
+  ],
+  "body": "- Computed: frontend/src/scenes/insights/insightSceneLogic.tsx `urlToAction` (~L833): `mode==='edit' || shortId==='new'` → ItemMode.Edit; subscriptions/alerts/sharing → own modes; else View. Stored in `insightMode` reducer, set by `setSceneState`. Not derived from permissions.\n- Scene consumers: InsightAsScene.tsx (passes `readOnly={insightMode !== Edit}` and `editMode` to `<Query>`, gates showQueryEditor/help), InsightPageHeader.tsx (forceEdit, saveOnBlur, Edit vs Save/Cancel), InsightSceneHeader.tsx, InsightScene.tsx (SQL editor redirect), InsightModals.tsx (`isOpen={insightMode===...}`), SidePanel/InsightPanelToggles.tsx + InsightSceneMenuBar.tsx (`hasDashboardItemId && insightMode !== Edit`), SqlInsightFilters.tsx (View only).\n- Below scene: Query.tsx `readOnly` picks propsQuery over localQuery (~L106); InsightViz.tsx `showing={!readOnly && showingFilters}` for EditorFilters, `showingFilters = query.showFilters ?? editMode ?? false`; InsightVizDisplay.tsx `actionable = !embedded && editMode`, `canEditSeriesNameInline`; InsightsTable `useURLForSorting={!editMode}`.",
+  "tags": [
+    "insights",
+    "edit-mode",
+    "itemmode"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/insights/insightSceneLogic.tsx",
+      "symbol": "insightMode",
+      "hash": "sha256:37f0e4ebcc3e6471e1e61f7b",
+      "line": 403,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/nodes/InsightViz/InsightViz.tsx",
+      "symbol": "InsightViz",
+      "hash": "sha256:fa3298e9b18fb3a4ed886c7b",
+      "line": 46,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/queries/Query/Query.tsx",
+      "hash": "sha256:c56a9055aff2773e17d6f1c2",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/insights/InsightPageHeader.tsx",
+      "hash": "sha256:16109336b354c57d6e8b33e7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "b65dbe06-4d9f-432e-bdf5-887a8d22c8a5"
+  },
+  "created": "2026-09-27T00:15:15.277Z",
+  "verified": "2026-09-27T00:15:15.277Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "insightviz-render-path-query-insightviz-insightvizdisplay-pe",
+    "two-ways-to-detect-view-mode-insightmode-vs-regex-isinviewmo",
+    "insight-permission-and-override-gating-caneditinsight-hasove"
+  ],
+  "servedIn": [
+    "9f2e5e8d-3340-4f2f-b40b-bebc0ae5b2ff"
+  ],
+  "says": [
+    "How does the insight editor determine when to show view versus edit mode?",
+    "Which components know whether an insight is being edited or just viewed?",
+    "Where is read-only versus editable state computed for an insight display?",
+    "What controls whether an insight is in view mode or edit mode?",
+    "How does edit mode information get passed to child visualization components?"
+  ],
+  "saysFor": "1178:insight-view-edit-mode-c"
+}

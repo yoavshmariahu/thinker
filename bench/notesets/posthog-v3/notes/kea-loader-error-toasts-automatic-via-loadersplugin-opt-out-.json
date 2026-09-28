@@ -1,0 +1,58 @@
+{
+  "id": "kea-loader-error-toasts-automatic-via-loadersplugin-opt-out-",
+  "title": "Kea loader error toasts: automatic via loadersPlugin, opt out via allow-lists in initKea.ts",
+  "kind": "convention",
+  "answers": [
+    "How do errors toast for kea loaders?",
+    "How do I suppress the automatic error toast for a loader?",
+    "Where is ERROR_FILTER_ALLOW_LIST defined?"
+  ],
+  "body": "- Failed loader actions toast automatically from the `loadersPlugin` config in `frontend/src/initKea.ts`. Non-2xx responses toast, except 200/201/204/401/409, and except 403 on `load*` actions.\n- To skip the auto toast, add the action key to `ERROR_FILTER_ALLOW_LIST` with a comment saying why. Existing entries include `loadBilling` and `loadRecordingMeta`.\n- `ACCESS_DENIED_SELF_HANDLED` is for when only 403 is handled (`saveFeatureFlag`). `NOT_FOUND_SELF_HANDLED` is for when a 404 is an expected state (`loadLineage`).\n- For custom failure behaviour, listen to `loadFooFailure`.\n- Do not try/catch inside a loader handler: it swallows the error before `loadFooFailure` fires. Listeners and handlers that catch on purpose show `lemonToast.error(...)` (e.g. `dashboardLogic.tsx` ~1712-1777).\n- Success toasts go inside the handler after the call succeeds (`revokeSession` in `scenes/settings/user/loginSessionsLogic.ts`).",
+  "applies": "Applies to kea-loaders actions. Allow-list and self-handled names come from the skill references; only the ERROR_FILTER_ALLOW_LIST grep was partially seen in the trace.",
+  "tags": [
+    "kea",
+    "toast",
+    "loaders",
+    "errors"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/initKea.ts",
+      "hash": "sha256:5f3dc206b10175b749bd3972",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/settings/user/loginSessionsLogic.ts",
+      "symbol": "loginSessionsLogic",
+      "hash": "sha256:16257b30026eca2d58d3a7ad",
+      "line": 82,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "7417e7f1-2cc0-470c-99e3-4c08481693fb"
+  },
+  "created": "2026-09-27T00:28:20.460Z",
+  "verified": "2026-09-27T00:28:20.460Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "kea-logic-conventions-builder-order-keyed-logics-connect-con"
+  ],
+  "servedIn": [
+    "aa0facb4-3469-4ea0-a240-86f0eb879eca",
+    "28603e98-37bf-447a-8663-6a7c6b802c85",
+    "72ef30ba-b28a-471e-966b-ddf41a97cbbb"
+  ],
+  "says": [
+    "Loader failures automatically show error toasts to the user.",
+    "Suppress the automatic error message for a specific data fetch.",
+    "How should I handle 403 or 404 responses in my loader?",
+    "Custom error behavior when a loader finishes but the data wasn't found.",
+    "Prevent toast notifications for expected failure states."
+  ],
+  "saysFor": "1016:kea-loader-error-toasts-"
+}

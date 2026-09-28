@@ -1,0 +1,85 @@
+{
+  "id": "temporal-workflow-activity-registration-to-worker-queues",
+  "title": "Temporal workflow/activity registration to worker queues",
+  "kind": "callpath",
+  "answers": [
+    "Where are Temporal workflows registered?",
+    "How do I add a new workflow to a worker?",
+    "How do task queues map to workflows and activities?"
+  ],
+  "body": "- Each feature package exports `WORKFLOWS` and `ACTIVITIES` lists from its `__init__.py`, e.g. `posthog/temporal/alerts/__init__.py:WORKFLOWS`, `:ACTIVITIES`. `:AI_QUEUE_ACTIVITIES` is separate because `evaluate_alert` must run on the AI worker (model credentials).\n- `posthog/management/commands/start_temporal_worker.py:_task_queue_specs` is a list of `(settings.<X>_TASK_QUEUE, workflows, activities)` tuples, folded into `WORKFLOWS_DICT`/`ACTIVITIES_DICT` via `defaultdict(set)`. Locally many queues share a name, so the sets merge.\n- `Command.handle` looks up the queue's entries and calls `posthog/temporal/common/worker.py:create_worker`, wrapped in `ManagedWorker`, gated by `common/interceptor.py:is_task_queue_supported`.\n- Products register the same way from outside `posthog/` (e.g. `products.wizard.backend.facade.temporal`).\n- A comment in start_temporal_worker.py says to update the matching `check_changes_*_temporal_worker` step in `.github/workflows/container-images-cd.yml` when adding modules to a queue; new fleets need a trigger step there too.",
+  "applies": "Adding or moving workflows/activities between queues.",
+  "tags": [
+    "temporal",
+    "worker",
+    "registration"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/__init__.py",
+      "hash": "sha256:7bbdb81378188895298b04c7",
+      "missing": false
+    },
+    {
+      "path": "posthog/management/commands/start_temporal_worker.py",
+      "hash": "sha256:1e2c4e6982c11a312df396a2",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/worker.py",
+      "symbol": "create_worker",
+      "hash": "sha256:d8059bb43685145b8d01d458",
+      "line": 220,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/__init__.py",
+      "symbol": "WORKFLOWS",
+      "hash": "sha256:2ea10fd49af275b46af96352",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "posthog/management/commands/start_temporal_worker.py",
+      "symbol": "_task_queue_specs",
+      "hash": "sha256:1f97206b14a79d452f47ed62",
+      "line": 308,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/common/interceptor.py",
+      "symbol": "is_task_queue_supported",
+      "hash": "sha256:0d5c7db073c81cf1245ae0da",
+      "line": 29,
+      "missing": false
+    },
+    {
+      "path": "posthog/management/commands/start_temporal_worker.py",
+      "symbol": "Command.handle",
+      "hash": "sha256:a3c89641d9d396e374254036",
+      "line": 715,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "e64496e3-34ea-4415-8688-589f00033e63"
+  },
+  "created": "2026-09-26T20:23:00.381Z",
+  "verified": "2026-09-26T20:23:00.381Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ai-detector-evaluate-alert-must-run-on-max-ai-task-queue-and"
+  ],
+  "says": [
+    "How do I add a new Temporal workflow to the system?",
+    "Where do I configure which task queue a workflow uses?",
+    "How does a workflow get registered with its task queue?",
+    "Setting up a new workflow to run on a specific queue",
+    "Task queue configuration and workflow registration"
+  ],
+  "saysFor": "1123:temporal-workflow-activi"
+}

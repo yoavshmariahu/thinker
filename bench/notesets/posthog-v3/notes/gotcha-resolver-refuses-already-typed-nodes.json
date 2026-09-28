@@ -1,0 +1,57 @@
+{
+  "id": "gotcha-resolver-refuses-already-typed-nodes",
+  "title": "Gotcha: Resolver refuses already-typed nodes",
+  "kind": "gotcha",
+  "answers": [
+    "Why does ResolutionError occur when resolving twice?",
+    "How to re-resolve an AST?"
+  ],
+  "body": "`Resolver.visit` raises `ResolutionError` if a node already has a type. To re-resolve, first `clone_expr(node, clear_types=True)` as `printer/utils.py:prepare_ast_for_printing` does before the post-Trino-lowering `resolve_types`.",
+  "applies": "When calling resolve_types on a tree that was already resolved.",
+  "tags": [
+    "hogql",
+    "resolver"
+  ],
+  "deps": [
+    {
+      "path": "posthog/hogql/resolver.py",
+      "symbol": "Resolver",
+      "hash": "sha256:b1329ea210311bc1d87385ef",
+      "line": 394,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/printer/utils.py",
+      "symbol": "prepare_ast_for_printing",
+      "hash": "sha256:827db2a3c50db02ce3230808",
+      "line": 176,
+      "missing": false
+    },
+    {
+      "path": "posthog/hogql/resolver.py",
+      "symbol": "Resolver.visit",
+      "hash": "sha256:b46d6eb5ca03dd13133692d7",
+      "line": 428,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "677f7a3c-0764-4bf2-9360-b99bd3a6710f"
+  },
+  "created": "2026-09-26T20:36:23.718Z",
+  "verified": "2026-09-26T20:36:23.718Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "hogql-parse-resolve-print-pipeline"
+  ],
+  "says": [
+    "Why does resolution fail when I try to resolve the same node twice?",
+    "How do I re-resolve a node that already has a type?",
+    "Can I clear types from a resolved expression to resolve again?"
+  ],
+  "saysFor": "274:gotcha-resolver-refuses-"
+}

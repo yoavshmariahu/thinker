@@ -1,0 +1,54 @@
+{
+  "id": "test-oauth-revoke-by-asserting-token-state-for-both-token-ty",
+  "title": "Test OAuth revoke by asserting token state for both token types, not just the sweep",
+  "kind": "convention",
+  "answers": [
+    "How should I test cross-client OAuth revoke behavior?",
+    "Why did the old other-client revoke test miss the bug?"
+  ],
+  "body": "Revoke tests in posthog/api/oauth/test_views.py should assert the actual token rows are unchanged, not only the DCR session sweep side effect.\n- `test_dcr_token_revoke_from_other_client_leaves_session_untouched` is parameterized over `refresh_token` and `access_token` presented, and asserts `OAuthRefreshToken.revoked` is None and the application's `OAuthAccessToken` set is intact.\n- The earlier test only checked the sweep, so it passed while upstream django-oauth-toolkit still revoked the token.\n- Cover both token types when changing `revoke_token` in posthog/api/oauth/views.py.",
+  "applies": "OAuth revoke tests in posthog/api/oauth/test_views.py",
+  "tags": [
+    "oauth",
+    "testing",
+    "revoke"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/oauth/test_views.py",
+      "symbol": "test_dcr_token_revoke_from_other_client_leaves_session_untouched",
+      "hash": "sha256:e0bf1ea1ee090e6ebf5a71e7",
+      "line": 4735,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/oauth/views.py",
+      "symbol": "revoke_token",
+      "hash": "sha256:b006a4cf45a174780c4b7c91",
+      "line": 1055,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105396"
+  },
+  "created": "2026-09-27T00:04:16.206Z",
+  "verified": "2026-09-27T00:04:16.206Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "oauth-revoke-must-verify-token-belongs-to-requesting-client-",
+    "cleanup-job-and-dot-scope-lookup-depend-on-rt-access-token-l"
+  ],
+  "says": [
+    "OAuth token revoked from other client leaves session intact",
+    "Testing cross-client token revocation behavior and token state",
+    "Why did token revoke test miss the actual revocation?",
+    "Verifying both access token and refresh token revocation",
+    "OAuth revoke should not affect tokens from different clients"
+  ],
+  "saysFor": "669:test-oauth-revoke-by-ass"
+}

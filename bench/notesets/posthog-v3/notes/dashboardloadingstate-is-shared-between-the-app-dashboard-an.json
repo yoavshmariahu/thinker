@@ -1,0 +1,56 @@
+{
+  "id": "dashboardloadingstate-is-shared-between-the-app-dashboard-an",
+  "title": "DashboardLoadingState is shared between the app dashboard and the exporter (shared dashboards)",
+  "kind": "cochange",
+  "answers": [
+    "shared dashboard loading skeleton",
+    "how to change dashboard loading placeholder cards",
+    "exporter dashboard Suspense fallback"
+  ],
+  "body": "The dashboard loading skeleton lives in products/dashboards/frontend/components/DashboardLoadingState/DashboardLoadingState.tsx and is reused by the exporter.\n- frontend/src/exporter/Exporter.tsx renders `<DashboardLoadingState showControls={false} tileCount={dashboard.tiles?.length ?? 0} />` as the Suspense fallback for LazyDashboardScene.\n- Props: `showControls` (default true) and `tileCount` (default 8) keep the regular dashboard behaviour unchanged.\n- Test hooks are `data-attr=\"dashboard-loading-controls\"` and `data-attr=\"dashboard-loading-tile\"`; the test is in frontend/src/exporter/Exporter.test.tsx.\n- Changing the skeleton's markup or props affects both the in-app dashboard and shared/exported views, so check both call sites.",
+  "applies": "Dashboard loading skeleton and shared/exported dashboard views in the exporter.",
+  "tags": [
+    "dashboards",
+    "exporter",
+    "skeleton"
+  ],
+  "deps": [
+    {
+      "path": "products/dashboards/frontend/components/DashboardLoadingState/DashboardLoadingState.tsx",
+      "symbol": "DashboardLoadingState",
+      "hash": "sha256:11d02d395ec1b28fa18b4478",
+      "line": 3,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/exporter/Exporter.tsx",
+      "symbol": "Exporter",
+      "hash": "sha256:fcded0c678ec0e130c046d28",
+      "line": 76,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/exporter/Exporter.test.tsx",
+      "hash": "sha256:0d687b33845c97c57a169799",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105513"
+  },
+  "created": "2026-09-27T00:02:12.466Z",
+  "verified": "2026-09-27T00:02:12.466Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How does the shared dashboard display its loading state?",
+    "What's the placeholder skeleton that appears while dashboards load?",
+    "Can I customize the loading cards shown on exported dashboards?",
+    "Where does the dashboard exporter get its loading fallback?"
+  ],
+  "saysFor": "837:dashboardloadingstate-is"
+}

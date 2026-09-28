@@ -1,0 +1,73 @@
+{
+  "id": "ai-detector-evaluate-alert-must-run-on-max-ai-task-queue-and",
+  "title": "AI detector evaluate_alert must run on MAX_AI_TASK_QUEUE and be registered there",
+  "kind": "invariant",
+  "answers": [
+    "Why does an AI detector alert check error every cadence tick?",
+    "Which Temporal task queue does evaluate_alert run on for llm detector alerts?",
+    "How do I route a Temporal activity to the max-ai worker?"
+  ],
+  "body": "Only the max-ai worker holds model provider credentials; the analytics-platform worker does not, so model calls there fail.\n- Routing: `CheckAlertWorkflow.run` in posthog/temporal/alerts/workflows.py passes `task_queue=settings.MAX_AI_TASK_QUEUE` to `evaluate_alert` only when `prepare_result.uses_llm_detector`; otherwise `None` (workflow's own queue).\n- The route is gated by `workflow.patched(\"alerts-evaluate-ai-detector-on-ai-queue\")` so in-flight runs replay safely. Any new routing change on a live workflow needs a similar patch.\n- Registration: activities routed to the AI queue must be listed in `AI_QUEUE_ACTIVITIES` (posthog/temporal/alerts/__init__.py) and appended to the MAX_AI_TASK_QUEUE entry in posthog/management/commands/start_temporal_worker.py. If not, the activity sits unpolled until timeout.\n- Guard test: `test_ai_queue_registers_the_alert_evaluate_activity` in posthog/management/commands/test/test_start_temporal_worker.py.",
+  "applies": "Temporal alert workflows and worker queue registration for the AI detector (`llm` detector type).",
+  "tags": [
+    "temporal",
+    "alerts",
+    "ai-detector",
+    "task-queue"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/workflows.py",
+      "symbol": "CheckAlertWorkflow",
+      "hash": "sha256:a356657b0311790e64069950",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/__init__.py",
+      "symbol": "AI_QUEUE_ACTIVITIES",
+      "hash": "sha256:32be899cefda1b6ca3206d7d",
+      "line": 26,
+      "missing": false
+    },
+    {
+      "path": "posthog/management/commands/start_temporal_worker.py",
+      "hash": "sha256:1e2c4e6982c11a312df396a2",
+      "missing": false
+    },
+    {
+      "path": "posthog/management/commands/test/test_start_temporal_worker.py",
+      "hash": "sha256:620515188bbdc94ee21c7038",
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/workflows.py",
+      "symbol": "CheckAlertWorkflow.run",
+      "hash": "sha256:28ed3ac70aaf916e79d2156c",
+      "line": 132,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105304"
+  },
+  "created": "2026-09-27T00:07:14.184Z",
+  "verified": "2026-09-27T00:07:14.184Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "temporal-workflow-activity-registration-to-worker-queues",
+    "workflow-and-activity-declaration-conventions-posthog-tempor",
+    "temporal-retries-timeouts-and-heartbeat-conventions"
+  ],
+  "says": [
+    "Alert using AI model fails with permission",
+    "Alert check needs access to model credentials",
+    "How to route alert to AI worker",
+    "Temporal alert evaluation runs on wrong queue"
+  ],
+  "saysFor": "1032:ai-detector-evaluate-ale"
+}

@@ -1,0 +1,61 @@
+{
+  "id": "person-edits-auto-enroll-linked-accounts-only-human-actors-t",
+  "title": "Person edits auto-enroll linked accounts; only HUMAN actors trigger it",
+  "kind": "invariant",
+  "answers": [
+    "Why did an account become enrolled after someone assigned an AE or CSM?",
+    "Why does a workflow or AI tool get refused writing AE/CSM on an account?",
+    "How do accounts get enrolled in customer analytics ownership without running adopt_account_ownership?"
+  ],
+  "body": "A person's assign / end_active / end_relationship on a controlled relationship enrolls the account under EVERY controlled definition (not just the edited one), in the same transaction, before the change's own activity row.\n- Enforced in products/customer_analytics/backend/logic/relationships.py:_enroll_on_human_edit, called at the top of assign, end_active and end_relationship; body shared via _enroll_locked (also used by enroll).\n- Trigger is actor.source == AccountRelationshipSource.HUMAN only. Workflow, AI tool, MCP, migration and Salesforce claim never enroll.\n- Accounts with no external_id stay unenrolled; the link is read only under the account lock.\n- Once enrolled, autonomous writers are refused on that role, so tests that need legacy/unmanaged holders must create them via a non-human actor (see test_account_ownership_commands.py:_assign).",
+  "applies": "products/customer_analytics account relationship writes (logic/relationships.py) and tests that seed holders",
+  "tags": [
+    "customer-analytics",
+    "ownership",
+    "enrollment"
+  ],
+  "deps": [
+    {
+      "path": "products/customer_analytics/backend/logic/relationships.py",
+      "symbol": "_enroll_on_human_edit",
+      "hash": "sha256:a06527c428a3445122b2efce",
+      "line": 109,
+      "missing": false
+    },
+    {
+      "path": "products/customer_analytics/backend/logic/relationships.py",
+      "symbol": "_enroll_locked",
+      "hash": "sha256:5656f965216f64f1ffb1fb61",
+      "line": 318,
+      "missing": false
+    },
+    {
+      "path": "products/customer_analytics/backend/test/test_account_ownership_commands.py",
+      "symbol": "_assign",
+      "hash": "sha256:6bdc9c0d92875464ec72c34f",
+      "line": 185,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105292"
+  },
+  "created": "2026-09-27T00:07:47.126Z",
+  "verified": "2026-09-27T00:07:47.126Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "lock-order-for-enrollment-definitions-id-order-before-accoun"
+  ],
+  "says": [
+    "Account became enrolled after I assigned an account executive to it",
+    "Why didn't the automation enroll the account when we updated ownership",
+    "Workflow tools cannot trigger auto-enrollment of accounts in analytics",
+    "Only manual assignment of account managers triggers enrollment",
+    "CSM assignment enrolled the account but the automation did not"
+  ],
+  "saysFor": "930:person-edits-auto-enroll"
+}

@@ -1,0 +1,56 @@
+{
+  "id": "fetch-channel-map-requires-source-keep-it-matching-the-flow-",
+  "title": "fetch_channel_map requires source; keep it matching the flow's posts",
+  "kind": "cochange",
+  "answers": [
+    "fetch_channel_map TypeError missing source",
+    "Label channel listing calls with the same source as posts",
+    "Adding a caller of fetch_channel_map"
+  ],
+  "body": "`fetch_channel_map(integration, *, source)` (posthog/team_notifications/slack.py:fetch_channel_map) has a required keyword `source` and builds `SlackIntegration(integration, source=source)`.\n- Callers must pass the same label as the flow's `SlackIntegration` posts, so listing calls and posts land in one series. Examples: products/stamphog/backend/logic/channel_resolution.py:build_routing_context uses \"stamphog\"; products/visual_review/backend/logic/debt_digest.py:send_debt_digest uses \"visual_review\".\n- Any new caller must supply `source`, and any test fake of it must accept it.",
+  "applies": "Callers of fetch_channel_map and digest-style Slack flows.",
+  "tags": [
+    "slack",
+    "egress"
+  ],
+  "deps": [
+    {
+      "path": "posthog/team_notifications/slack.py",
+      "symbol": "fetch_channel_map",
+      "hash": "sha256:e6ce548dfeb4e3d6faa94166",
+      "line": 113,
+      "missing": false
+    },
+    {
+      "path": "products/stamphog/backend/logic/channel_resolution.py",
+      "symbol": "build_routing_context",
+      "hash": "sha256:f8fa724b97399361324db9f2",
+      "line": 186,
+      "missing": false
+    },
+    {
+      "path": "products/visual_review/backend/logic/debt_digest.py",
+      "symbol": "send_debt_digest",
+      "hash": "sha256:3b1a41a50403c418929902cc",
+      "line": 842,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105814"
+  },
+  "created": "2026-09-26T23:57:00.778Z",
+  "verified": "2026-09-26T23:57:00.778Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Channel mapping requires source parameter matching posts",
+    "Slack channel listing must use same source label",
+    "Why channel resolution calls are labeled incorrectly"
+  ],
+  "saysFor": "654:fetch-channel-map-requir"
+}

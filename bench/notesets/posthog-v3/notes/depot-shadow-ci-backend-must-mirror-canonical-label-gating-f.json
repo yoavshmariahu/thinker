@@ -1,0 +1,47 @@
+{
+  "id": "depot-shadow-ci-backend-must-mirror-canonical-label-gating-f",
+  "title": "Depot shadow ci-backend must mirror canonical label gating for RUN_NEW_EVENTS_SCHEMA",
+  "kind": "cochange",
+  "answers": [
+    "Changing backend CI matrix gating in both GitHub and Depot workflows",
+    "Depot CI native-JSON variants gating"
+  ],
+  "body": "`.github/workflows/ci-backend.yml` and `.depot/workflows/ci-backend.yml` each have two matrix-builder steps setting RUN_NEW_EVENTS_SCHEMA; edit all four together.\n- Depot uses the label gate only. Unlike canonical, it does not double on workflow_dispatch: shadow dispatches stay legacy-only so trial runs match handed-off PR runs (see header comment in the depot file).\n- Update the explanatory comments in both files when the gating rule changes.",
+  "applies": "Edits to backend CI matrix builders in GitHub and Depot workflows",
+  "tags": [
+    "ci",
+    "depot",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": ".depot/workflows/ci-backend.yml",
+      "hash": "sha256:2acce135f8210d5456aff6fc",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/ci-backend.yml",
+      "hash": "sha256:7c320697b3266bacdc8e63c8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105879"
+  },
+  "created": "2026-09-26T23:56:30.131Z",
+  "verified": "2026-09-26T23:56:30.131Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Backend CI matrix gating must be kept in sync across GitHub and Depot",
+    "Changing RUN_NEW_EVENTS_SCHEMA test gating requires updates in both workflows",
+    "Depot CI workflows need the same label-based test filtering as canonical",
+    "New events schema test matrix gating changes must apply to all CI systems",
+    "Backend workflow changes affect both GitHub Actions and Depot CI equally"
+  ],
+  "saysFor": "532:depot-shadow-ci-backend-"
+}

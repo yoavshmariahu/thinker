@@ -1,0 +1,68 @@
+{
+  "id": "files-sidebar-starred-tree-search-must-be-mirrored-from-the-",
+  "title": "Files sidebar: starred tree search must be mirrored from the project tree via navFilesTabLogic",
+  "kind": "invariant",
+  "answers": [
+    "Why doesn't the Starred section in the Files sidebar filter when I search?",
+    "How is the starred files tree kept in sync with the Filter files search?",
+    "Starred section stays visible/empty after searching files in simple sidebar"
+  ],
+  "body": "The Files tab renders two projectTreeLogic instances: the project tree (`FILES_TREE_KEY`, root `project://`) and the starred tree (`FILES_STARRED_TREE_KEY`, root `shortcuts://`, shortcutScope `files`). Only the project tree owns the search input.\n`navFilesTabLogic` (frontend/src/layout/panel-layout/navbar/tabs/navFilesTabLogic.ts) listens to the project tree's `setSearchTerm` and `clearSearch` and forwards them to the starred tree. It must be mounted (NavTabFiles uses `useValues(navFilesTabLogic)`; stories use `useMountedLogic(navFilesTabLogic)`), otherwise starred files stop filtering and never restore after clearing.\nAlways import the two tree keys from navFilesTabLogic instead of hardcoding 'navbar-files' strings, since the logic and the components must build identical logic keys/props.\nRegression test: navFilesTabLogic.test.ts.",
+  "applies": "Simple sidebar (simple-sidepanel flag) Files tab in frontend/src/layout/panel-layout/navbar/tabs",
+  "tags": [
+    "sidebar",
+    "files",
+    "kea",
+    "search",
+    "starred"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/layout/panel-layout/navbar/tabs/navFilesTabLogic.ts",
+      "symbol": "navFilesTabLogic",
+      "hash": "sha256:3f7637522105e02c04da777c",
+      "line": 29,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/layout/panel-layout/navbar/tabs/NavTabFiles.tsx",
+      "symbol": "NavTabFiles",
+      "hash": "sha256:7e3efa02dedf8bf55c49f13f",
+      "line": 16,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/layout/panel-layout/navbar/tabs/navFilesTabLogic.test.ts",
+      "hash": "sha256:25c45563f02e030222fcdda8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105376"
+  },
+  "created": "2026-09-27T00:05:28.387Z",
+  "verified": "2026-09-27T00:05:28.387Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 5,
+  "related": [
+    "folder-links-files-scene-reads-folder-from-router-navfilesta",
+    "sidebar-collapsible-sections-use-navtabsection-and-remount-i"
+  ],
+  "lastUsed": "2026-09-27T05:04:12.553Z",
+  "servedIn": [
+    "16f2af5b-640f-43cc-933f-9db4fa4f997d",
+    "8a2027b0-97a9-496b-901f-da33440c4feb",
+    "5ccf3945-df38-4c25-9a75-af5d2048ea1d",
+    "fbb19671-8730-46af-87c2-153efc2fcece",
+    "7b016e34-4074-4f02-aaa7-00989843f0ac"
+  ],
+  "says": [
+    "Starred files section doesn't filter when searching",
+    "Search doesn't apply to shortcuts in files tab",
+    "Why starred section stays visible after clearing search"
+  ],
+  "saysFor": "938:files-sidebar-starred-tr"
+}

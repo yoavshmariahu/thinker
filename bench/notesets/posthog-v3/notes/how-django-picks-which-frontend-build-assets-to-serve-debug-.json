@@ -1,0 +1,111 @@
+{
+  "id": "how-django-picks-which-frontend-build-assets-to-serve-debug-",
+  "title": "How Django picks which frontend build/assets to serve (DEBUG vs prod, JS_URL, preload manifest)",
+  "kind": "callpath",
+  "answers": [
+    "How does the backend choose which built assets to serve?",
+    "Do feature flags or query params switch frontend builds?",
+    "Where are preload hints for index.html computed?",
+    "What does JS_URL do?"
+  ],
+  "body": "No feature-flag/query-param build switch exists; only `settings.DEBUG and not settings.TEST` and `JS_URL`.\n- Templates: `TEMPLATES[0]['DIRS']=['frontend/dist','posthog/templates']` in posthog/settings/web.py; static `STATIC_URL='/static/'`, `STATICFILES_DIRS=[frontend/dist]` (+ frontend/public in DEBUG). Rendered by `render_template`/`get_context_for_template` in posthog/utils.py.\n- Bundle by template name: build side `writeIndexHtml`/`writeExporterHtml`/`writeRenderQueryHtml` in frontend/build.mjs → `copyIndexHtml` (common/esbuilder/utils.mjs). index.html/layout.html→`index`, exporter.html→`exporter`, render_query.html→`render-query`.\n- Dev: `_build_template_context` (posthog/utils.py) sets `debug`, `git_branch`, `vite_dev_scripts` (maps exporter.html→src/exporter/index.tsx, render_query.html→src/render-query/index.tsx, else src/index.tsx); posthog/templates/head.html emits them only `{% if debug %}` and sets `window.JS_URL`.\n- `get_js_url` rewrites localhost JS_URL host to the request host in DEBUG unless HTTPS.\n- Prod preload: `_resolve_entry_assets(include_authenticated_shell)` (lru_cache maxsize=2) reads frontend/dist/preload-manifest.json via `_read_preload_manifest`; empty in DEBUG/TEST/missing file; only for template_name=='index.html'; `authenticatedJs` only if request.user.is_authenticated. Fills preload_css_url/preload_js_urls/preload_font_url used in frontend/src/index.html.",
+  "tags": [
+    "frontend",
+    "build",
+    "assets",
+    "django"
+  ],
+  "deps": [
+    {
+      "path": "posthog/utils.py",
+      "symbol": "_resolve_entry_assets",
+      "hash": "sha256:c1dbb743e99a7b4a49b9ddce",
+      "line": 431,
+      "missing": false
+    },
+    {
+      "path": "posthog/utils.py",
+      "symbol": "get_js_url",
+      "hash": "sha256:77fe6690ba25e2e159771387",
+      "line": 408,
+      "missing": false
+    },
+    {
+      "path": "posthog/settings/web.py",
+      "hash": "sha256:835a4671df261600589924bb",
+      "missing": false
+    },
+    {
+      "path": "frontend/build.mjs",
+      "hash": "sha256:04a704af38df6caa36299f29",
+      "missing": false
+    },
+    {
+      "path": "common/esbuilder/utils.mjs",
+      "symbol": "copyIndexHtml",
+      "hash": "sha256:12685859b64c1fa568d3bb8c",
+      "line": 71,
+      "missing": false
+    },
+    {
+      "path": "posthog/templates/head.html",
+      "hash": "sha256:1675a81afb50b9317c313511",
+      "missing": false
+    },
+    {
+      "path": "rust/cohort-stream-processor/src/store/durability/manifest.rs",
+      "symbol": "json",
+      "hash": "sha256:45b13c44a7709c5045125ff6",
+      "line": 100,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "56b36f43-cd94-43ec-8082-2753133d1527"
+  },
+  "created": "2026-09-27T00:25:58.997Z",
+  "verified": "2026-09-27T00:25:58.997Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "stale",
+  "uses": 7,
+  "related": [
+    "chunk-map-file-and-preload-manifest",
+    "frontend-build-esbuild-config-chunk-naming-index-html-genera",
+    "backend-asset-serving-js-url-static-dirs-templates-from-dist",
+    "self-update-must-match-the-generated-installers-receipt-loca"
+  ],
+  "servedIn": [
+    "2de383db-5d63-43c9-9226-cd2cf77e2c10",
+    "aa0facb4-3469-4ea0-a240-86f0eb879eca",
+    "4d1906e5-79ec-4b4b-a088-06d0c30914e3",
+    "28603e98-37bf-447a-8663-6a7c6b802c85",
+    "24f89782-0f25-48e3-8160-c7a6d999894b",
+    "01de268d-b79f-4536-878a-05cd626d33e6",
+    "14bdd8ea-719f-4bca-937b-f2b36407619a"
+  ],
+  "lastUsed": "2026-09-27T01:03:24.986Z",
+  "stale": {
+    "since": "2026-09-27T22:01:53.530Z",
+    "changed": [
+      {
+        "path": "frontend/build.mjs",
+        "reason": "file changed"
+      },
+      {
+        "path": "common/esbuilder/utils.mjs",
+        "symbol": "copyIndexHtml",
+        "reason": "symbol body changed"
+      }
+    ]
+  },
+  "says": [
+    "Which version of the frontend code is live?",
+    "How does the server pick which assets to serve?",
+    "Can we serve multiple versions of the frontend?",
+    "My code changes don't show up in the app",
+    "How does the app decide which template to use?"
+  ],
+  "saysFor": "1505:how-django-picks-which-f"
+}

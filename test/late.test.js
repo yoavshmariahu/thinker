@@ -137,7 +137,7 @@ test('orient with 2 slots preserves a strong second hit and only lets a link tak
     title: 'Text editor split mode layout',
     kind: 'gotcha',
     answers: ['how text editor split mode lays out'],
-    body: 'src/c.py:a split mode layout rules',
+    body: 'src/c.py:a text editor view mode split layout rules',
     deps: [{ path: 'src/c.py', symbol: 'a' }]
   }).note;
   n1.related = [link2.id];
@@ -187,3 +187,13 @@ test('lookup caps query results to 3 notes by default and respects explicit maxN
   assert.equal(byIdRes.included[0].id, created[0].id);
 });
 
+test('phrasings of a note count on its question side', async () => {
+  const { rank } = await import('../src/rank.js');
+  const filler = Array.from({ length: 10 }, (_, i) => ({ id: 'f' + i, title: `Widget ${i} storage layout`, kind: 'location', answers: [`where widget ${i} is stored`], body: `widget ${i} rows are kept in table${i}`, deps: [{ path: `src/w${i}.py` }], confidence: 0.9, status: 'fresh' }));
+  const note = { id: 'panel', title: 'setScenePanelOpen is not reset by duplicateInsight', kind: 'gotcha', answers: ['scene panel state after duplicate'], body: 'duplicateInsight redirects to the copy and leaves the actions sidebar open over the new chart', deps: [{ path: 'src/insightLogic.ts' }], confidence: 0.9, status: 'fresh' };
+  const other = { id: 'chart', title: 'Chart legend is drawn after the series', kind: 'gotcha', answers: ['why is the chart legend open on a new chart'], body: 'the legend of a chart stays open over the series of the new chart until the sidebar is drawn', deps: [{ path: 'src/legend.ts' }], confidence: 0.9, status: 'fresh' };
+  const request = 'After I copy a chart on my phone the actions sidebar stays open over the new chart and hides it';
+  assert.equal(rank([note, other, ...filler], { query: request })[0].note.id, 'chart');
+  const said = { ...note, says: ['The actions sidebar stays open after copying a chart', 'Side menu hides the new chart on a phone'] };
+  assert.equal(rank([said, other, ...filler], { query: request })[0].note.id, 'panel');
+});

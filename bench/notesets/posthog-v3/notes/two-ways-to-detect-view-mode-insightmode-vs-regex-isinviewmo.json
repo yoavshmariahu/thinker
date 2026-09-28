@@ -1,0 +1,61 @@
+{
+  "id": "two-ways-to-detect-view-mode-insightmode-vs-regex-isinviewmo",
+  "title": "Two ways to detect view mode: insightMode vs regex isInViewMode",
+  "kind": "gotcha",
+  "answers": [
+    "Is there another view-mode check besides insightMode?",
+    "What is isInViewMode in insightLogic?"
+  ],
+  "body": "insightLogic.tsx `isInViewMode` (~L977) is a regex on router pathname (`/insights/[a-zA-Z0-9]+$`) and does not read insightSceneLogic's `insightMode`. The two can disagree (e.g. subscriptions/alerts/sharing sub-paths, or new). Prefer `insightMode` in scene-level UI; be aware which one a component uses.",
+  "applies": "Components using insightLogic selectors vs insightSceneLogic; not for embedded/dashboard tiles where no scene exists.",
+  "tags": [
+    "insights",
+    "gotcha"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/insights/insightLogic.tsx",
+      "symbol": "isInViewMode",
+      "hash": "sha256:39c1a20384529d8add27169f",
+      "line": 506,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/insights/insightSceneLogic.tsx",
+      "symbol": "insightMode",
+      "hash": "sha256:37f0e4ebcc3e6471e1e61f7b",
+      "line": 403,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "b65dbe06-4d9f-432e-bdf5-887a8d22c8a5"
+  },
+  "created": "2026-09-27T00:15:15.327Z",
+  "verified": "2026-09-27T00:15:15.327Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "insight-view-edit-mode-computed-in-insightscenelogic-propaga",
+    "insight-permission-and-override-gating-caneditinsight-hasove",
+    "insight-scene-and-logic-layering"
+  ],
+  "lastUsed": "2026-09-27T00:30:21.446Z",
+  "servedIn": [
+    "probe1",
+    "8a2027b0-97a9-496b-901f-da33440c4feb",
+    "9f2e5e8d-3340-4f2f-b40b-bebc0ae5b2ff",
+    "fbb19671-8730-46af-87c2-153efc2fcece"
+  ],
+  "says": [
+    "Why does insight behave differently in view versus edit",
+    "Insight page shows view mode inconsistently across screens",
+    "View mode setting not applying to insight subscriptions",
+    "Insight details display incorrectly in certain pages",
+    "Switching between insight views causes mode to change"
+  ],
+  "saysFor": "367:two-ways-to-detect-view-"
+}

@@ -1,0 +1,52 @@
+{
+  "id": "code-owner-resolution-only-yields-project-members-with-a-lin",
+  "title": "Code-owner resolution only yields project members with a linked GitHub login, and fails soft",
+  "kind": "invariant",
+  "answers": [
+    "Why isn't a CODEOWNERS team or email suggested as a reviewer?",
+    "How are CODEOWNERS handles resolved to reviewers in signals?",
+    "What happens when CODEOWNERS is missing or GitHub calls fail?"
+  ],
+  "body": "In ownership_reviewers.py:suggest_repository_owners, every owner handle (user, @org/team, email) is reduced to GitHub logins, then filtered via resolve_org_github_login_to_users and team.all_users_with_access(). Non-members and members without a linked GitHub identity are dropped; emails match case-insensitively via Lower(email) plus get_github_login().\nTeam handles are expanded with github.list_team_members and only for the repository's own org; slugs must match _TEAM_SLUG.\nCODEOWNERS is read from the first of .github/CODEOWNERS, CODEOWNERS, docs/CODEOWNERS (_CODEOWNERS_LOCATIONS); last matching rule wins; files >=3 MB, negations and section patterns are skipped; paths capped at _MAX_PATHS and '..' rejected.\nAll failures log and return [] so existing author-based suggestions stay intact. Keep new lookups inside those try/except blocks. The scout prompt (scout_harness/prompt.py) states the same rules and should be updated in tandem.",
+  "applies": "Signals reviewer suggestion from repository ownership files",
+  "tags": [
+    "signals",
+    "codeowners",
+    "github",
+    "access-control"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/report_generation/ownership_reviewers.py",
+      "symbol": "suggest_repository_owners",
+      "hash": "sha256:8e5c582419d11beeddb36ed9",
+      "line": 65,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/prompt.py",
+      "hash": "sha256:55bf97421631eb394ea7c252",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105268"
+  },
+  "created": "2026-09-27T00:08:31.740Z",
+  "verified": "2026-09-27T00:08:31.740Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "suggested-reviewer-ordering-and-human-edit-precedence-in-age"
+  ],
+  "says": [
+    "Why aren't my team members suggested as code reviewers from CODEOWNERS?",
+    "How does reviewer suggestion handle team mentions that don't have GitHub accounts?",
+    "What stops an email address in CODEOWNERS from becoming a reviewer assignment?",
+    "Why can't I use external contributors in CODEOWNERS for code review?"
+  ],
+  "saysFor": "1039:code-owner-resolution-on"
+}

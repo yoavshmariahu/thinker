@@ -1,0 +1,63 @@
+{
+  "id": "capability-lookups-belong-in-model-catalog-ts-and-go-through",
+  "title": "Capability lookups belong in model-catalog.ts and go through normalizeModelId",
+  "kind": "convention",
+  "answers": [
+    "Where should a new per-model capability lookup live?",
+    "Why does the model lookup normalize the model id?",
+    "Gateway provider-qualified model id drops to 200k context"
+  ],
+  "body": "Per-model capability lookups sit in products/desktop/packages/shared/src/model-catalog.ts beside `labelForModel`/`accessFlagForModel`, reading `catalogModelFor(modelId)` and defaulting to false/undefined for unknown models. They do not belong in reasoning-effort.ts.\nThe Python mirror in products/tasks/backend/model_catalog.py (`supports_1m_context`, `supports_fast_mode`) uses `_MODEL_BY_ID.get(normalize_model_id(...))` and must be added to `__all__`.\nNormalization matters: the gateway serves some ids provider-qualified, and a raw id check would silently drop the model to the 200k window (per the removed comment).\nKeep the `@posthog/shared` re-export in packages/shared/src/index.ts pointing at the new home so call sites don't change.",
+  "applies": "Adding capability accessors for models in the desktop shared package or the tasks backend catalog",
+  "tags": [
+    "model-catalog",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/shared/src/model-catalog.ts",
+      "symbol": "supportsFastMode",
+      "hash": "sha256:26763c1ad4f182cefd584c84",
+      "line": 144,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/model_catalog.py",
+      "symbol": "supports_fast_mode",
+      "hash": "sha256:8c2ef18e1eac4cdfa18ba76d",
+      "line": 194,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/shared/src/reasoning-effort.ts",
+      "hash": "sha256:2f633e3da9992d01623e38d1",
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/shared/src/index.ts",
+      "hash": "sha256:6d833f2dbbd398caba743b9b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105701"
+  },
+  "created": "2026-09-26T23:58:42.359Z",
+  "verified": "2026-09-26T23:58:42.359Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "model-catalog-flags-edit-python-source-regenerate-ts-project"
+  ],
+  "says": [
+    "Where should I add support for a new model capability",
+    "This model doesn't support fast mode even though it should",
+    "Model features inconsistent between frontend and backend code",
+    "New model options not recognized in the UI dropdown",
+    "How do I check if a model supports extended context"
+  ],
+  "saysFor": "820:capability-lookups-belon"
+}

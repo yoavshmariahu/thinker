@@ -1,0 +1,54 @@
+{
+  "id": "closing-settings-when-a-report-child-page-is-open-must-use-t",
+  "title": "Closing settings when a report/child page is open must use the back handler",
+  "kind": "invariant",
+  "answers": [
+    "Settings close button does nothing when a report is open inside settings",
+    "Escape vs close button behave differently in settings",
+    "How does dismissing settings work with child routes?"
+  ],
+  "body": "In `SettingsLayout`, `back` is defined only when `children` exist (a page opened inside settings, on its own route); it either pushes `childBackHref` (preserving `tabId`) or `navigateToSettings(category)`.\n- `dismiss = back ?? closeSettings` feeds the close button and backdrop click (`onDismiss`/`onClose`); `onEscape={back}` and `onBack` use the same handler.\n- Calling `closeSettings()` from a child route breaks because there is no settings route to leave.\n- `SettingsPanel` no longer owns Escape; the Escape hotkey lives in `SettingsDialogFrame` (search input still clears its query on first Escape).",
+  "applies": "SettingsLayout, SettingsPanel, SettingsDialogFrame",
+  "tags": [
+    "settings",
+    "navigation",
+    "escape"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/ui/src/features/settings/components/SettingsLayout.tsx",
+      "symbol": "SettingsLayout",
+      "hash": "sha256:30cbc6f50a349e408fe0f229",
+      "line": 14,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/ui/src/features/settings/components/SettingsPanel.tsx",
+      "symbol": "SettingsPanel",
+      "hash": "sha256:98fd7475121f307529957816",
+      "line": 132,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105267"
+  },
+  "created": "2026-09-27T00:08:47.922Z",
+  "verified": "2026-09-27T00:08:47.922Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "settings-dialog-must-portal-into-portal-container-and-not-us"
+  ],
+  "says": [
+    "Settings close button doesn't work when a report page is open",
+    "Escape key and close button behave completely differently inside settings",
+    "Can't exit or dismiss the settings panel from a nested view",
+    "Settings won't close after I open a detail page inside it",
+    "Back button closes but the X button doesn't work in settings"
+  ],
+  "saysFor": "681:closing-settings-when-a-"
+}

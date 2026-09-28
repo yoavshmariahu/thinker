@@ -1,0 +1,73 @@
+{
+  "id": "untagged-follow-up-preference-defaults-to-never-opt-in-creat",
+  "title": "Untagged follow-up preference defaults to NEVER (opt-in), creator's setting governs thread",
+  "kind": "invariant",
+  "answers": [
+    "What is the default when untagged_followup_mode is unset?",
+    "Whose follow-up preference applies in a Slack thread?",
+    "Where is resolve_untagged_followup_mode?"
+  ],
+  "body": "`resolve_untagged_followup_mode` in products/slack_app/backend/services/slack_settings.py returns `UntaggedFollowupMode.NEVER` when no slack_user_id, no SlackSettings row, NULL column, or unrecognised value. So follow-ups are opt-in per person.\nChoices: `UntaggedFollowupMode` (auto/ask/never) in models.py; column `SlackSettings.untagged_followup_mode`.\nThe mode is read from the thread creator (`mapping.mentioning_slack_user_id`) and applies to everyone replying in that thread. Lookup is per (workspace, user) personal row only; no workspace-wide NULL-user fallback for this setting.\n`never` acts at the webhook (`_untagged_followups_switched_off`); ask/auto act in the workflow. Confirmed runs re-check that the creator has not switched off.",
+  "tags": [
+    "slack",
+    "settings"
+  ],
+  "deps": [
+    {
+      "path": "products/slack_app/backend/services/slack_settings.py",
+      "symbol": "resolve_untagged_followup_mode",
+      "hash": "sha256:7bdf34699d99e4de98d46886",
+      "line": 35,
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/models.py",
+      "symbol": "UntaggedFollowupMode",
+      "hash": "sha256:5a02bdbbe85196c4a9ae597c",
+      "line": 115,
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/models.py",
+      "symbol": "UntaggedFollowupMode.NEVER",
+      "hash": "sha256:31cdab5c024234e157481f72",
+      "line": 125,
+      "missing": false
+    },
+    {
+      "path": "products/slack_app/backend/models.py",
+      "symbol": "SlackSettings.untagged_followup_mode",
+      "hash": "sha256:76c9aefeb0d940dee42e1226",
+      "line": 167,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "42d88004-4889-4694-be0c-0150e5f2e201"
+  },
+  "created": "2026-09-27T00:25:05.398Z",
+  "verified": "2026-09-27T00:25:05.398Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "slack-app-home-settings-services-layout"
+  ],
+  "lastUsed": "2026-09-27T00:53:46.809Z",
+  "servedIn": [
+    "8d634aa7-5c3e-4d13-99a2-aefd91be94b4",
+    "dae3994c-821b-4590-b55d-a12fda3d03e4",
+    "5cdc0858-6dfe-42a3-8ce3-fc855a9e02e0",
+    "935dec57-ba8d-4e31-9b6a-25dacfbe2e3d"
+  ],
+  "says": [
+    "Slack follow-ups to untagged messages on or off by default",
+    "Who controls follow-up settings in a Slack thread",
+    "Slack follow-up preference per person or team-wide setting",
+    "Slack follow-ups not showing up in thread replies automatically",
+    "Slack follow-up mode not affecting untagged message threads"
+  ],
+  "saysFor": "837:untagged-follow-up-prefe"
+}

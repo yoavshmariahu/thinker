@@ -1,0 +1,55 @@
+{
+  "id": "tool-detail-runners-must-apply-shared-filters-via-tool-call-",
+  "title": "Tool detail runners must apply shared filters via _tool_call_where(query, ...)",
+  "kind": "invariant",
+  "answers": [
+    "how do I add a new MCP tool detail table",
+    "shared filters ignored in MCP tool query",
+    "filterTestAccounts not applied in tool_tables runner",
+    "neighbors query filters"
+  ],
+  "body": "Every tool detail runner in products/mcp_analytics/backend/hogql_queries/tool_tables.py must build its WHERE through `_tool_call_where(query, date_range, team, extra=...)`. That helper takes the whole query, not a tool name. It applies `tool_scope_exprs(query.toolName)` and `shared_filter_exprs(team, query.properties, query.filterTestAccounts)`.\nIf a query kind declares the filters in the schema but its WHERE skips them, the UI shows unfiltered data behind filter controls that claim to narrow it.\nA new table's query type must be added to the `_ToolDetailQuery` union.\n`MCPToolNeighborsQueryRunner` does not use the helper. It calls `shared_filter_exprs` inside its CTE, so a filtered-out call cannot count as a neighbour of the target tool. Keep the filter in the CTE, not the outer WHERE.",
+  "applies": "products/mcp_analytics tool detail query runners (tool_tables.py).",
+  "tags": [
+    "mcp_analytics",
+    "hogql",
+    "filters"
+  ],
+  "deps": [
+    {
+      "path": "products/mcp_analytics/backend/hogql_queries/tool_tables.py",
+      "symbol": "_tool_call_where",
+      "hash": "sha256:429e712dfe4303d105197800",
+      "line": 107,
+      "missing": false
+    },
+    {
+      "path": "products/mcp_analytics/backend/hogql_queries/tool_tables.py",
+      "symbol": "MCPToolNeighborsQueryRunner",
+      "hash": "sha256:3f449197d218c8b87a413d5a",
+      "line": 735,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105212"
+  },
+  "created": "2026-09-27T00:12:16.604Z",
+  "verified": "2026-09-27T00:12:16.604Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "fix-mcp-tool-detail-sections-400-with-extra-forbidden-on-pro"
+  ],
+  "says": [
+    "Filter controls appear but tool data stays unfiltered",
+    "Test account filter not working in tool analysis",
+    "Why do new tool tables ignore the shared filters?",
+    "Adding tool detail table, which filter logic applies?",
+    "Applied filter control but tool data didn't actually filter"
+  ],
+  "saysFor": "874:tool-detail-runners-must"
+}

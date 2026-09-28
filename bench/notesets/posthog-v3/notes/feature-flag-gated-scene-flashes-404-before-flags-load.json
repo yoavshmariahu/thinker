@@ -1,0 +1,70 @@
+{
+  "id": "feature-flag-gated-scene-flashes-404-before-flags-load",
+  "title": "Feature-flag-gated scene flashes 404 before flags load",
+  "kind": "fix",
+  "answers": [
+    "Scene shows not found page briefly then the real page loads",
+    "404 flash on feature-flagged scene on first load",
+    "Flag-gated page shows NotFound before posthog-js flags arrive",
+    "How to gate a scene on a feature flag without flashing NotFound"
+  ],
+  "body": "Symptom: A staff member opens a flag-gated scene (decisions playground) and sees the not-found page for a moment before the real page renders.\nRoot cause: products/ml_inference/frontend/DecisionPlaygroundScene.tsx:DecisionPlaygroundScene read an unset `featureFlags[...]` as off; on first load the flag is unset until posthog-js returns flags.\nFix pattern: Read `receivedFeatureFlags` from `featureFlagLogic` and `featureFlagsTimedOut` from `appLogic`. When the flag is falsy, render `<NotFound>` only if `receivedFeatureFlags || featureFlagsTimedOut`; otherwise render `<Spinner className=\"text-3xl mx-auto my-8\" />`.\nConstraints: Applies to scenes that render NotFound based on a flag. A flag already true (persisted flags, or pinned in a Storybook story) renders immediately, so snapshots are unchanged. Keep the timeout branch, otherwise a failed flags request leaves the spinner up forever.",
+  "applies": "Frontend scenes that return NotFound when a feature flag is off (e.g. products/ml_inference decisions playground).",
+  "tags": [
+    "feature-flags",
+    "frontend",
+    "loading-state",
+    "ml_inference"
+  ],
+  "deps": [
+    {
+      "path": "products/ml_inference/frontend/DecisionPlaygroundScene.tsx",
+      "symbol": "DecisionPlaygroundScene",
+      "hash": "sha256:26c4c452ed98c7618ab8bda4",
+      "line": 53,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105293"
+  },
+  "created": "2026-09-27T00:07:35.181Z",
+  "verified": "2026-09-27T00:07:35.181Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 25,
+  "related": [],
+  "lastUsed": "2026-09-27T21:50:55.625Z",
+  "servedIn": [
+    "7f55fb13-0cd8-44cb-8c17-e95628f2e036",
+    "aa0facb4-3469-4ea0-a240-86f0eb879eca",
+    "3c87f53b-2863-49b8-a330-2bc3b4ab43d1",
+    "28603e98-37bf-447a-8663-6a7c6b802c85",
+    "11cb3a3c-bf3c-44e7-bc34-5f2d1b763110",
+    "32292e2b-f34f-4f03-88be-eae6ad5c6b4f",
+    "461ccefd-e751-45f3-846a-5ee6369b7409",
+    "62dcccb3-560a-43e1-9b25-218ef0c70e4c",
+    "fc3a9395-dcb1-4e72-a2d8-3d746ed996b1",
+    "4cc0efc6-1ac7-4c5b-b3d9-95b87f0388fc",
+    "codex-posthog-codex-gpt56-PR106564-hard-0",
+    "codex-posthog-codex-gpt56-PR106564-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR106564-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR106564-hard-1",
+    "probe-PR106564-hard",
+    "probe-PR106564-hard",
+    "probe-PR106564-hard",
+    "probe-PR106564-hard",
+    "probe-PR106564-hard",
+    "probe-PR106564-hard"
+  ],
+  "says": [
+    "Scene gated on feature flag shows not found page briefly before real page loads",
+    "Staff member sees 404 screen then correct page appears during feature flag initialization",
+    "Flag-gated page displays not found page incorrectly until feature flags finish loading",
+    "Avoid rendering not found while feature flags are still loading on first page visit",
+    "How to properly gate a scene on a feature flag without momentary 404 flash"
+  ],
+  "saysFor": "950:feature-flag-gated-scene"
+}

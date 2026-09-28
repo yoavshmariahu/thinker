@@ -1,0 +1,58 @@
+{
+  "id": "mcp-tool-scopes-must-not-exceed-what-the-backend-endpoint-en",
+  "title": "MCP tool scopes must not exceed what the backend endpoint enforces (hasScopes is all-or-nothing)",
+  "kind": "fix",
+  "answers": [
+    "MCP tool missing for read-only token",
+    "alert-simulate not visible to read-only scout",
+    "Why is an MCP tool hidden from my API key catalog",
+    "tool disappears from MCP catalog instead of erroring"
+  ],
+  "body": "Symptom: A read-only token (e.g. scheduled anomaly scout with alert:read + insight:read) cannot see the `alert-simulate` MCP tool at all, so it falls back to weaker raw queries.\nRoot cause: products/alerts/mcp/tools.yaml declared `alert:write` for alert-simulate, but AlertViewSet.simulate only enforces alert:read + insight:read. `hasScopes` in services/mcp/src/lib/api.ts requires every declared scope, so over-declaring hides the whole tool rather than gating one mode.\nFix pattern: Set `scopes:` in tools.yaml to exactly the viewset's required_scopes; leave mode-specific stricter checks (e.g. alert:write for the charged `llm` detector in `_require_write_scope_for_charged_simulation`, called from `check_throttles`) on the backend, and document them in the tool description.\nConstraints: Do not hoist a single mode's requirement onto the whole tool. Keep `readOnly: false` when one mode spends money/model budget. `hasScope` treats :write as granting :read, so write-scoped callers are unaffected.",
+  "applies": "products/*/mcp/tools.yaml scope declarations and the MCP tool catalog filter in services/mcp",
+  "tags": [
+    "mcp",
+    "scopes",
+    "alerts",
+    "api-keys"
+  ],
+  "deps": [
+    {
+      "path": "products/alerts/mcp/tools.yaml",
+      "hash": "sha256:a08ace0e339fc138d7b8de65",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/lib/api.ts",
+      "symbol": "hasScopes",
+      "hash": "sha256:9b7e7a2f918b66c07975d47d",
+      "line": 30,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/tests/unit/alert-simulate-scopes.test.ts",
+      "hash": "sha256:ecaab4f6abbb283e2be8f571",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105231"
+  },
+  "created": "2026-09-27T00:10:52.633Z",
+  "verified": "2026-09-27T00:10:52.633Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "changing-mcp-tool-scopes-description-edit-tools-yaml-and-reg"
+  ],
+  "says": [
+    "MCP tool missing for read-only token",
+    "alert-simulate not visible to read-only scout",
+    "Why is an MCP tool hidden from my API key catalog",
+    "tool disappears from MCP catalog instead of erroring"
+  ],
+  "saysFor": "1100:mcp-tool-scopes-must-not"
+}

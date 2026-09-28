@@ -1,0 +1,60 @@
+{
+  "id": "terminal-open-must-not-navigate-to-external-urls-or-after-th",
+  "title": "Terminal open must not navigate to external URLs or after the terminal stops, and must stay lazy",
+  "kind": "invariant",
+  "answers": [
+    "Is terminal open safe against external redirect?",
+    "Why does open not download file contents?",
+    "open command navigation validation"
+  ],
+  "body": "Terminal navigation to PostHog pages is guarded in two places:\n- `PosthogFilesystem.navigationUrl` (posthogFilesystem.ts) only returns internal hrefs: must start with `/`, not `//`, and contain no backslash, control chars or whitespace. Otherwise it throws 'no PostHog page'. Tests cover https:, //, /\\, javascript:, newline. Keep this check on any new navigation path, since hrefs come from stored file entries.\n- `PosthogCommands.execute('open')` re-checks `this.signal.aborted` after the async resolve and before calling `navigate`, so a stopped terminal never navigates.\n- Resolution walks nodes with `loadChildren` per folder only, and uses stored identity (`references`, `fileSystemTypes[type].href`), never `notebooksRetrieve`/`fileSystemRetrieve`. Preserve lazy loading; tests assert those are not called.\nNavigation is injected as a callback (terminalLogic passes `router.actions.push`), keeping PosthogCommands testable.",
+  "applies": "terminal open/navigation code in frontend/src/scenes/terminal",
+  "tags": [
+    "terminal",
+    "security",
+    "navigation"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/terminal/posthogFilesystem.ts",
+      "symbol": "PosthogFilesystem.navigationUrl",
+      "hash": "sha256:e311636d4a8495e848c6ae9a",
+      "line": 252,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/posthogCommands.ts",
+      "symbol": "PosthogCommands.execute",
+      "hash": "sha256:1bce922d7e142150a28701e4",
+      "line": 375,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/terminal/terminalLogic.ts",
+      "hash": "sha256:d454cc792b570a57959fe146",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105371"
+  },
+  "created": "2026-09-27T00:05:41.991Z",
+  "verified": "2026-09-27T00:05:41.991Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-terminal-shell-command-requires-script-vm-install-a",
+    "terminal-filesystem-listings-must-never-fetch-notebook-insig"
+  ],
+  "says": [
+    "Is the terminal open command safe against malicious redirects?",
+    "Terminal open command navigates to wrong or external location",
+    "How does terminal validate URLs before opening them?",
+    "Open command security validation and internal link checking",
+    "Why does terminal open command reject certain navigation paths?"
+  ],
+  "saysFor": "1027:terminal-open-must-not-n"
+}

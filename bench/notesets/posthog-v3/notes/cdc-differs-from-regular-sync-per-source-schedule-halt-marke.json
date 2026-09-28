@@ -1,0 +1,95 @@
+{
+  "id": "cdc-differs-from-regular-sync-per-source-schedule-halt-marke",
+  "title": "CDC differs from regular sync: per-source schedule, halt markers, paused-is-normal",
+  "kind": "invariant",
+  "answers": [
+    "How does CDC scheduling differ from regular sync?",
+    "What is cdc_broken vs cdc_extraction_paused?",
+    "Why doesn't disabling a CDC schema pause a schedule?",
+    "Are paused CDC schedules considered stalled?"
+  ],
+  "body": "- CDC schedule is one per source: `cdc-extraction-{source_id}` (`_get_cdc_extraction_schedule_id`, data_load/service.py). `sync_cdc_extraction_schedule` rebuilds from schemas with sync_type=CDC, should_sync=True, not deleted, source not deleted; interval = min (`cdc_min_interval`). Empty set → schedule DELETED, not paused. So disabling one CDC schema does nothing to the schedule unless callers re-run `sync_cdc_extraction_schedule`.\n- Streaming CDC schema (`is_cdc and cdc_mode==\"streaming\"`): paused per-schema schedule is steady state (CDCExtractionWorkflow owns it). `find_stalled_schemas`/`repair_stalled_schema` (stalled_schedules.py) skip them and any `cdc_halted`; regular schemas with paused schedule and should_sync=True are faults.\n- Halt markers live in `sync_type_config`: `cdc_broken` (slot/publication gone) and `cdc_extraction_paused` (non-retryable error, slot intact). `cdc_halted` = either; `sync_halted` = not should_sync or cdc_halted.\n- `mark_cdc_broken` (cdc/broken.py): sets marker + status=FAILED + latest_error on all active CDC schemas, source status=ERROR, pauses schedule via `pause_cdc_extraction_schedule`; under source row lock, uses `update_sync_type_config_keys` to avoid clobbering PATCHes.\n- Halted states are absorbing: job status update (external_data_source/jobs.py) must not repaint a halted schema healthy when a loader finishes late.\n- Repair (cdc/repair.py) covers all CDC schemas including should_sync=False ones, since the new slot can't replay lost data.",
+  "applies": "CDC sources (sync_type=CDC) only; regular schemas use per-schema schedules.",
+  "tags": [
+    "cdc",
+    "schedules",
+    "warehouse"
+  ],
+  "deps": [
+    {
+      "path": "products/data_warehouse/backend/logic/data_load/service.py",
+      "hash": "sha256:2f4a01478aba6214f1c76b9d",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/stalled_schedules.py",
+      "hash": "sha256:70ba601ffd533b5e608ac602",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py",
+      "symbol": "mark_cdc_broken",
+      "hash": "sha256:9d29b4ad9b4d1397791998a6",
+      "line": 44,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/cdc/activities.py",
+      "hash": "sha256:a873c68fbbcb17be85624c1e",
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/cdc/repair.py",
+      "hash": "sha256:f2ba186a9008e7c593cb0027",
+      "missing": false
+    },
+    {
+      "path": "products/data_warehouse/backend/logic/external_data_source/jobs.py",
+      "hash": "sha256:99070be3ec84a8d28f71dc62",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "2fe69706-e92b-46d4-b17f-5d8d4cbee387"
+  },
+  "created": "2026-09-27T00:21:11.780Z",
+  "verified": "2026-09-27T00:21:11.780Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 23,
+  "related": [
+    "marking-a-cdc-source-broken-pausing-schemas",
+    "temporal-schedules-in-data-load-service-per-schema-sync-and-"
+  ],
+  "lastUsed": "2026-09-28T01:31:44.389Z",
+  "servedIn": [
+    "d33f1871-0064-497f-bd60-0a14a8b56836",
+    "16f5ca99-cdb8-4381-89ea-cf164c731422",
+    "b232bfe1-c89d-47ac-b37c-cfb38332354d",
+    "fa84a58b-0a14-4d54-8264-f2b328ad3f3d",
+    "db96b0a1-ba11-48a9-b06f-274055191171",
+    "a471e51c-4c4d-47b8-9bb8-9ec2a4d9953b",
+    "codex-posthog-codex-gpt56-PR106917-hard-0",
+    "codex-posthog-codex-gpt56-PR106917-hard-1",
+    "codex-posthog-codex-gpt6-sol-PR106917-hard-0",
+    "codex-posthog-codex-gpt6-sol-PR106917-hard-1",
+    "probe-PR106917-hard",
+    "probe-PR106917-hard",
+    "11dad67d-ff4e-4304-b602-5f1c061d81df",
+    "98300693-df3e-4dad-8e44-45bacccbe7f0",
+    "probe-PR106917-hard",
+    "probe-PR106917-hard",
+    "probe-PR106917-hard",
+    "probe-PR106917-hard"
+  ],
+  "says": [
+    "CDC extraction schedule keeps running after disabling the source schema",
+    "Why does pausing a CDC schema not stop the extraction",
+    "CDC extraction continues when all schemas are disabled for sync",
+    "When is a CDC extraction schedule considered active versus stalled",
+    "Paused CDC schedules persist indefinitely, is this expected behavior"
+  ],
+  "saysFor": "1585:cdc-differs-from-regular"
+}

@@ -1,0 +1,48 @@
+{
+  "id": "deterministic-failures-in-replay-vision-activities-must-rais",
+  "title": "Deterministic failures in Replay Vision activities must raise non-retryable ApplicationError",
+  "kind": "invariant",
+  "answers": [
+    "Missing ExportedAsset in prepare_observation_thumbnail_activity keeps retrying",
+    "How to fail a Replay Vision activity without Temporal retries"
+  ],
+  "body": "In products/replay_vision/backend/temporal/activities/observation_media.py:prepare_observation_thumbnail_activity, deterministic failures (analysis asset row missing via ExportedAsset.DoesNotExist, or empty content_location) must raise `ApplicationError(..., non_retryable=True)`. Otherwise Temporal burns all retry attempts on something that cannot recover.\nWhen adding lookups to these activities, catch DoesNotExist and convert it. Test pattern is in products/replay_vision/backend/tests/test_observation_media.py (asserts caught.value.non_retryable is True).",
+  "applies": "Replay Vision media/observation activities",
+  "tags": [
+    "replay-vision",
+    "temporal",
+    "non-retryable"
+  ],
+  "deps": [
+    {
+      "path": "products/replay_vision/backend/temporal/activities/observation_media.py",
+      "symbol": "prepare_observation_thumbnail_activity",
+      "hash": "sha256:eb4da6f9877c9ef50352a6ef",
+      "line": 69,
+      "missing": false
+    },
+    {
+      "path": "products/replay_vision/backend/tests/test_observation_media.py",
+      "hash": "sha256:f764097f8652e31198b9d4a0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105551"
+  },
+  "created": "2026-09-27T00:01:58.491Z",
+  "verified": "2026-09-27T00:01:58.491Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Missing observation asset keeps retrying instead of failing permanently",
+    "How to make activity fail once instead of burning all retry attempts",
+    "Replay observation thumbnail export loops endlessly on missing data",
+    "Deterministic export errors should stop retrying after first failure"
+  ],
+  "saysFor": "655:deterministic-failures-i"
+}

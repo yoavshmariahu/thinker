@@ -1,0 +1,62 @@
+{
+  "id": "ai-detector-unavailable-counter-is-incremented-only-on-the-r",
+  "title": "AI detector unavailable counter is incremented only on the retry-exhausted path",
+  "kind": "invariant",
+  "answers": [
+    "Why does the ai detector checks unavailable metric count more than once per check?",
+    "Where should record_ai_detector_check_outcome('unavailable') be called?",
+    "AI detector check failure counted once per Temporal attempt"
+  ],
+  "body": "`posthog_insight_alerts_ai_detector_checks_total{outcome=\"unavailable\"}` must be one increment per scheduled check, not per Temporal attempt.\n- Enforced in `posthog/temporal/alerts/activities.py:record_failed_evaluation` (`_record`): increments only when `error.get(\"code\") == LLM_DETECTOR_UNAVAILABLE_ERROR_CODE` AND an errored check was actually written.\n- `evaluate_alert`/`_evaluate` must NOT call `record_ai_detector_check_outcome(\"unavailable\")` when re-raising `LLMDetectorUnavailableError`; a retry that then succeeds would otherwise count both failure and success.\n- Early returns in `_record` (alert disabled, gone, or `next_check_at` in the future) write no errored check and so must not move the counter.\n- Tests: `test_an_unavailable_detector_is_not_counted_on_every_attempt`, `test_counts_one_unavailable_outcome_per_recorded_failure` in `posthog/temporal/tests/test_alerts_activities.py`.",
+  "applies": "Alert Temporal activities and AI detector health metrics",
+  "tags": [
+    "alerts",
+    "temporal",
+    "metrics",
+    "llm-detector"
+  ],
+  "deps": [
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "record_failed_evaluation",
+      "hash": "sha256:8aa482e903ec6c76c7ddc618",
+      "line": 569,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/alerts/activities.py",
+      "symbol": "evaluate_alert",
+      "hash": "sha256:1c6d69b0d2ca2a684f629dcb",
+      "line": 340,
+      "missing": false
+    },
+    {
+      "path": "posthog/temporal/tests/test_alerts_activities.py",
+      "hash": "sha256:d6e00140d2854e9a19bb519e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105409"
+  },
+  "created": "2026-09-27T00:03:14.199Z",
+  "verified": "2026-09-27T00:03:14.199Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "evaluate-alert-must-skip-when-detector-type-differs-from-the",
+    "unavailable-detector-copy-must-name-the-outcome-not-a-cause-",
+    "workflow-and-activity-declaration-conventions-posthog-tempor",
+    "owner-facing-alert-error-codes-contract-allowlist-email-and-"
+  ],
+  "says": [
+    "Alert evaluation reports AI detector unavailable multiple times for one check",
+    "Monitoring dashboard inflates AI detector failure counts during alert retries",
+    "Metrics show duplicate unavailable events when alert system retries failed checks",
+    "AI detection failures counted per retry attempt instead of per scheduled check"
+  ],
+  "saysFor": "983:ai-detector-unavailable-"
+}

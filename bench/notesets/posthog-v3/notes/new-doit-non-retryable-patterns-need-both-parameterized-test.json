@@ -1,0 +1,53 @@
+{
+  "id": "new-doit-non-retryable-patterns-need-both-parameterized-test",
+  "title": "New DoIt non-retryable patterns need both parameterized test lists updated",
+  "kind": "cochange",
+  "answers": [
+    "Adding a non-retryable error pattern to the DoIt source",
+    "Which tests to update when changing get_non_retryable_errors"
+  ],
+  "body": "When adding a pattern to get_non_retryable_errors in doit/source.py, extend two parameterized tests in doit/tests/test_doit_source.py:\n- test_non_retryable_errors_includes_pattern: add the pattern string to the parametrize list.\n- test_non_retryable_errors_tells_the_customer_to_reconnect_on_a_bad_key: add it too if it is a bad-key pattern, so its message is asserted to contain \"reconnect\".\nAnnotate the parametrized arg (`pattern: str`), as a reviewer asked.",
+  "applies": "DoIt source non-retryable error changes.",
+  "tags": [
+    "doit",
+    "tests",
+    "warehouse_sources"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/doit/source.py",
+      "symbol": "get_non_retryable_errors",
+      "hash": "sha256:d9a103bed0c196b292888dff",
+      "line": 63,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/doit/tests/test_doit_source.py",
+      "symbol": "test_non_retryable_errors_includes_pattern",
+      "hash": "sha256:f733c4fe37f390d5bde3d9d9",
+      "line": 33,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105319"
+  },
+  "created": "2026-09-27T00:06:22.042Z",
+  "verified": "2026-09-27T00:06:22.042Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "doit-rejected-key-errors-must-be-registered-in-get-non-retry"
+  ],
+  "says": [
+    "Adding a new error pattern to skip retries in DoIt imports",
+    "Where do I add non-retryable errors for the DoIt source?",
+    "Tests broke when I added new DoIt error patterns",
+    "Which test files need updates for new DoIt error handling?",
+    "DoIt source error patterns require test list updates"
+  ],
+  "saysFor": "536:new-doit-non-retryable-p"
+}

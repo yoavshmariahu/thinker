@@ -1,0 +1,61 @@
+{
+  "id": "fix-mcp-tool-detail-sections-400-with-extra-forbidden-on-pro",
+  "title": "Fix: MCP tool detail sections 400 with extra_forbidden on properties/filterTestAccounts",
+  "kind": "fix",
+  "answers": [
+    "MCP analytics tool detail page shows only errors",
+    "Extra inputs are not permitted properties filterTestAccounts MCPTool query",
+    "QueryRequest returns 400 for MCPToolStats/Failures/TopUsers query",
+    "tool detail filters don't narrow tables"
+  ],
+  "body": "Symptom: Every section on the MCP analytics tool detail page fails to load; the requests return 400 with \"Extra inputs are not permitted [type=extra_forbidden]\" on `properties` and `filterTestAccounts`.\nRoot cause: the frontend spread the dashboard's shared filters into the tool detail query builders, but the query kinds in frontend/src/queries/schema/schema-general.ts (e.g. `MCPToolStatsQuery`) did not declare the fields. The generated pydantic models in posthog/schema.py use extra=\"forbid\", so `QueryRequest` rejects them before any runner runs.\nFix pattern: declare `properties?: MCPAnalyticsPropertyFilter[]` and `filterTestAccounts?: boolean` on each affected query kind, regenerate with `pnpm schema:build`, and apply them in the runner WHERE via `shared_filter_exprs`.\nConstraints: TypeScript cannot catch this, because excess property checks skip spread properties. Logic tests that mock `api.query` also miss it. Only a backend schema check or a runner test shows it.",
+  "applies": "Any MCP analytics query kind that the frontend sends shared dashboard filters to.",
+  "tags": [
+    "mcp_analytics",
+    "schema",
+    "query-runner"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/queries/schema/schema-general.ts",
+      "symbol": "MCPToolStatsQuery",
+      "hash": "sha256:fe1aa1ee16cecd7923296798",
+      "line": 208,
+      "missing": false
+    },
+    {
+      "path": "posthog/schema.py",
+      "symbol": "MCPToolFailuresQuery",
+      "hash": "sha256:ff88466e6900b32f98b2d786",
+      "line": 27586,
+      "missing": false
+    },
+    {
+      "path": "products/mcp_analytics/backend/hogql_queries/tool_tables.py",
+      "symbol": "_tool_call_where",
+      "hash": "sha256:429e712dfe4303d105197800",
+      "line": 107,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105212"
+  },
+  "created": "2026-09-27T00:12:16.417Z",
+  "verified": "2026-09-27T00:12:16.417Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tool-detail-runners-must-apply-shared-filters-via-tool-call-",
+    "adding-shared-filter-fields-to-mcp-query-kinds-touches-schem"
+  ],
+  "says": [
+    "Tool detail page only shows errors and fails",
+    "Extra properties rejected on tool analytics queries",
+    "Tool filters don't narrow data in detail view"
+  ],
+  "saysFor": "1069:fix-mcp-tool-detail-sect"
+}

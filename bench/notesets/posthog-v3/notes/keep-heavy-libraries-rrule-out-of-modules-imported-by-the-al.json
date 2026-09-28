@@ -1,0 +1,59 @@
+{
+  "id": "keep-heavy-libraries-rrule-out-of-modules-imported-by-the-al",
+  "title": "Keep heavy libraries (rrule) out of modules imported by the always-loaded authenticated shell",
+  "kind": "convention",
+  "answers": [
+    "Why did rrule end up in the main bundle for every logged-in page?",
+    "Where should getNextDeliveryDate be imported from?",
+    "How do I keep a heavy dependency out of the authenticated shell bundle?"
+  ],
+  "body": "The export nudge logic on every page imports `canNudgeToSubscribe` from `products/subscriptions/frontend/components/Subscriptions/utils.tsx`, so anything that module imports at top level ships in the eager shell bundle.\n- `rrule` (45 KiB) was pulled in this way by `getNextDeliveryDate`; it now lives in its own module `products/subscriptions/frontend/components/Subscriptions/nextDeliveryDate.ts`.\n- Only the editors import it: `SubscriptionWizard.tsx` and `views/EditSubscription.tsx` (`import { getNextDeliveryDate } from './nextDeliveryDate'`).\n- Do not re-add rrule (or other editor-only heavy imports) to `utils.tsx`; put them in a separate leaf module imported only by the components that need them.\n- Tests for the moved function stay in `utils.test.ts` but import from `./nextDeliveryDate`.",
+  "applies": "products/subscriptions/frontend/components/Subscriptions/utils.tsx and any module reachable from shell-wide code (nudges, nav)",
+  "tags": [
+    "bundle-size",
+    "rrule",
+    "subscriptions",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "products/subscriptions/frontend/components/Subscriptions/utils.tsx",
+      "symbol": "canNudgeToSubscribe",
+      "hash": "sha256:0382a809d15cc7a5102a49da",
+      "line": 159,
+      "missing": false
+    },
+    {
+      "path": "products/subscriptions/frontend/components/Subscriptions/nextDeliveryDate.ts",
+      "symbol": "getNextDeliveryDate",
+      "hash": "sha256:47c5b32c1888abc99dc618c8",
+      "line": 22,
+      "missing": false
+    },
+    {
+      "path": "products/subscriptions/frontend/components/Subscriptions/utils.test.ts",
+      "hash": "sha256:6b4e2310c4e30b9123b05182",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105248"
+  },
+  "created": "2026-09-27T00:09:42.257Z",
+  "verified": "2026-09-27T00:09:42.257Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "client-next-delivery-preview-mirrors-backend-schedule-commen"
+  ],
+  "says": [
+    "Heavy library added to utils file ships to every authenticated user.",
+    "Bundle size bloat from importing editor-only dependencies at top level.",
+    "Move large dependency so it only loads for users who need it.",
+    "Why did the rrule calendar library end up in my main bundle?"
+  ],
+  "saysFor": "893:keep-heavy-libraries-rru"
+}

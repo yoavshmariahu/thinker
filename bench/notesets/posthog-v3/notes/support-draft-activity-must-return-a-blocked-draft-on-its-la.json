@@ -1,0 +1,67 @@
+{
+  "id": "support-draft-activity-must-return-a-blocked-draft-on-its-la",
+  "title": "Support draft activity must return a blocked draft on its last attempt, never raise",
+  "kind": "invariant",
+  "answers": [
+    "Support ticket stuck on Processing after draft agent fails",
+    "Why does the draft activity return a blocked_on_knowledge draft instead of raising?",
+    "Ticket stays in_progress after AI reply draft fails"
+  ],
+  "body": "The draft activity may raise only while a retry remains. On the final attempt it must return a draft with confidence 0.0 and verdict `blocked_on_knowledge`, so the ticket never auto-sends and a person picks it up.\n- Enforced in `products/conversations/backend/temporal/ai_reply/activities/draft.py:_give_up`. It raises `DraftNotProducedError` while `llm_attempts() < DRAFT_ACTIVITY_MAX_ATTEMPTS`, and otherwise returns the blocked draft.\n- If the last attempt raises, the workflow fails before it records a result and the ticket stays `in_progress` (shown as \"Processing\").\n- The retry limit is the `DRAFT_ACTIVITY_MAX_ATTEMPTS` constant in `products/conversations/backend/temporal/ai_reply/constants.py`. `pipeline.py` uses it in `RetryPolicy(maximum_attempts=...)`. Keep the two in sync. The value stays 2 so workflow replay is unchanged.\n- Every new failure path in `_draft_async` should go through `_give_up`.",
+  "applies": "products/conversations ai_reply draft activity and its Temporal retry policy in pipeline.py",
+  "tags": [
+    "temporal",
+    "support",
+    "draft",
+    "retry"
+  ],
+  "deps": [
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "_give_up",
+      "hash": "sha256:5388549d8664286bf2331279",
+      "line": 92,
+      "missing": false
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/constants.py",
+      "symbol": "DRAFT_ACTIVITY_MAX_ATTEMPTS",
+      "hash": "sha256:10f54ff9fa5690967ecbfc31",
+      "line": 44,
+      "missing": false
+    },
+    {
+      "path": "products/conversations/backend/temporal/pipeline.py",
+      "hash": "sha256:d12fe5928c4ac844e3425c0e",
+      "missing": false
+    },
+    {
+      "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
+      "symbol": "llm_attempts",
+      "hash": "sha256:b817c12538502b6f342a15a2",
+      "line": 98,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105707"
+  },
+  "created": "2026-09-26T23:58:30.318Z",
+  "verified": "2026-09-26T23:58:30.318Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "draft-agent-runs-without-output-schema-json-parsed-from-raw-"
+  ],
+  "says": [
+    "Support ticket stuck when draft fails",
+    "Failed draft leaves ticket in processing",
+    "No escalation when draft retries exhausted",
+    "Draft activity failure prevents ticket handoff",
+    "Ticket frozen on draft activity failure"
+  ],
+  "saysFor": "997:support-draft-activity-m"
+}

@@ -1,0 +1,90 @@
+{
+  "id": "issue-mutation-call-path-view-facade-logic-model",
+  "title": "Issue mutation call path (view → facade → logic → model)",
+  "kind": "callpath",
+  "answers": [
+    "Where is issue status/assignee mutated in error tracking?",
+    "How does resolving an error tracking issue flow through the backend?",
+    "Where do merge and split of issues live?"
+  ],
+  "body": "EB = products/error_tracking/backend.\nHops: EB/presentation/views/issues.py:ErrorTrackingIssueViewSet → EB/facade/issues.py (thin wrapper) → EB/logic/issue_mutations.py.\n- update_issue: status/severity/name/description. Resolve/reopen are status changes here, not separate functions.\n- merge_issues → models.py:ErrorTrackingIssue.merge (select_for_update in id order, raw SQL fingerprint rewrite, moves spike events, _adopt_source_assignee_on_merge). split_issue → ErrorTrackingIssue.split.\n- assign_issue → _assign_one; bulk_update_issues supports set_status and assign.\n- set_issue_cohort is a bare update_or_create: no activity log, no event.\n- API only allows active/resolved/suppressed: WRITABLE_ISSUE_STATUSES in views/issues.py.\n- update_issue: save + activity log + lifecycle event registration in one transaction.atomic(); sync_issues_to_clickhouse runs after the block (not on_commit), so a raise leaves Postgres committed.",
+  "tags": [
+    "error_tracking",
+    "issues",
+    "mutations"
+  ],
+  "deps": [
+    {
+      "path": "products/error_tracking/backend/logic/issue_mutations.py",
+      "hash": "sha256:5757061d3631afeb893d1404",
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/models.py",
+      "symbol": "ErrorTrackingIssue",
+      "hash": "sha256:29b545b6384972813b8fd809",
+      "line": 58,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/presentation/views/issues.py",
+      "symbol": "WRITABLE_ISSUE_STATUSES",
+      "hash": "sha256:ea8aa9715d90891b5e60c3c8",
+      "line": 40,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/facade/issues.py",
+      "hash": "sha256:f212437bfc68f6ea51c20b45",
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/presentation/views/issues.py",
+      "symbol": "ErrorTrackingIssueViewSet",
+      "hash": "sha256:b5d7a0b1232c2d6ef86f7523",
+      "line": 251,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/models.py",
+      "symbol": "ErrorTrackingIssue.merge",
+      "hash": "sha256:4b578f56050c8721bc2eee60",
+      "line": 92,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/models.py",
+      "symbol": "ErrorTrackingIssue.split",
+      "hash": "sha256:d6c0a453e70b5d91adaed03e",
+      "line": 152,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c78d59b1-60fc-4a6c-8eac-edc5dfa51f9e"
+  },
+  "created": "2026-09-26T20:32:07.975Z",
+  "verified": "2026-09-26T20:32:07.975Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "error-tracking-issue-writes-which-mutations-emit-lifecycle-e",
+    "writes-that-bypass-django-mutations-no-events-activity-log"
+  ],
+  "servedIn": [
+    "bada6a04-90ca-402b-b4a8-ac0932a722e5",
+    "13935055-b92f-4957-9b47-f87439c7994c",
+    "043b894d-7483-463a-981a-37bca4b0739d"
+  ],
+  "says": [
+    "Resolving an error-tracking issue: what backend steps happen?",
+    "Can I merge two duplicate errors into a single issue?",
+    "What happens when I split one error into two separate issues?",
+    "Changing error priority, title, or description via the API.",
+    "Updating status or assignee for multiple errors at once."
+  ],
+  "saysFor": "990:issue-mutation-call-path"
+}

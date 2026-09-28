@@ -1,0 +1,68 @@
+{
+  "id": "lock-free-migrations-db-constraint-false-fks-and-constant-db",
+  "title": "Lock-free migrations: db_constraint=False FKs and constant db_default columns; schema PR lands before code",
+  "kind": "convention",
+  "answers": [
+    "How to create a table with FKs to posthog_team without locking",
+    "How to add a column to an existing table without a rewrite",
+    "Why is retention_days defined with default and db_default?"
+  ],
+  "body": "Convention in tracing migrations (0006, 0007):\n- New tables FK to `posthog.Team`/`posthog.User` use `db_constraint=False` (with `related_name=\"+\"`), so CREATE TABLE takes no lock on the parents; cascade/set-null are enforced by the Django collector only.\n- New columns on existing tables use a constant `default=` plus `db_default=Value(...)` (products/tracing/backend/models.py:TeamTracingConfig.retention_days) so no table rewrite.\n- Schema-only migrations are split into their own PR ahead of dependent code; update products/tracing/backend/migrations/max_migration.txt with the latest migration.\n- Mirrored constants that can't be imported across products (DEFAULT_TRACES_RETENTION_DAYS vs logs) are duplicated and pinned by a test (products/tracing/backend/tests/test_models.py).",
+  "applies": "Migrations for PostHog product apps, esp. tracing/logs.",
+  "tags": [
+    "migrations",
+    "tracing",
+    "postgres"
+  ],
+  "deps": [
+    {
+      "path": "products/tracing/backend/migrations/0007_tracesretentionrule.py",
+      "hash": "sha256:e5f9e9f751ce4a35c2c3865a",
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/migrations/max_migration.txt",
+      "hash": "sha256:35d2605b688553bf9cd816d5",
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/models.py",
+      "symbol": "TeamTracingConfig",
+      "hash": "sha256:10e3959970d63b3a77ddea16",
+      "line": 114,
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/models.py",
+      "symbol": "TeamTracingConfig.retention_days",
+      "hash": "sha256:d8c413210253fbe97257acb6",
+      "line": 147,
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/tests/test_models.py",
+      "hash": "sha256:433f99d6580177ebbff6894c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105214"
+  },
+  "created": "2026-09-27T00:11:59.071Z",
+  "verified": "2026-09-27T00:11:59.071Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "team-scoped-models-must-be-on-idor-semgrep-lists-and-a-fail-"
+  ],
+  "says": [
+    "Database table additions locked the schema during the migration process",
+    "How to add a foreign key without locking the parent table",
+    "The schema migration blocked all queries while altering the table",
+    "Adding a column to an existing table caused unexpected downtime"
+  ],
+  "saysFor": "891:lock-free-migrations-db-"
+}

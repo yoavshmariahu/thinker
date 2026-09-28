@@ -1,0 +1,84 @@
+{
+  "id": "model-catalog-flags-edit-python-source-regenerate-ts-project",
+  "title": "Model catalog flags: edit Python source, regenerate TS projections and snapshot",
+  "kind": "cochange",
+  "answers": [
+    "How do I add a new Claude model with 1M context or fast mode toggle?",
+    "Where is per-model supports 1M context / fast mode defined?",
+    "Desktop composer missing fast mode toggle for new model"
+  ],
+  "body": "Per-model capabilities (1M context, fast mode) live only on the catalog row; no hand-kept Sets remain in reasoning-effort.ts.\n- Source of truth: products/tasks/backend/model_catalog.py `CatalogModel.supports_1m_context` / `supports_fast_mode` (default False, so a new model gets neither toggle until set).\n- Generator: products/tasks/scripts/build_model_catalog.py `model_entry` emits `supports1MContext`/`supportsFastMode` and the interface docs.\n- Generated outputs, do not hand-edit: products/tasks/frontend/modelCatalog.generated.ts and products/desktop/packages/shared/src/model-catalog.generated.ts.\n- Update the snapshot products/tasks/backend/tests/__snapshots__/test_model_catalog/test_every_model_resolves_to_the_recorded_triple.json (built by `_resolved_catalog` in tests/test_model_catalog.py); it records both flags per model.\n- Lookups: `supports1MContext`/`supportsFastMode` in products/desktop/packages/shared/src/model-catalog.ts, re-exported from products/desktop/packages/shared/src/index.ts.",
+  "applies": "Adding or changing a model's 1M-context or fast-mode support in the tasks/desktop model catalog",
+  "tags": [
+    "model-catalog",
+    "desktop",
+    "codegen"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/model_catalog.py",
+      "symbol": "CatalogModel",
+      "hash": "sha256:d4b12123a1c9d0c35888f2e4",
+      "line": 105,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/scripts/build_model_catalog.py",
+      "symbol": "model_entry",
+      "hash": "sha256:772df2b6427fe0467b9af89e",
+      "line": 139,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/shared/src/model-catalog.ts",
+      "symbol": "supports1MContext",
+      "hash": "sha256:015477c35f1d179e5642445b",
+      "line": 140,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/shared/src/index.ts",
+      "hash": "sha256:6d833f2dbbd398caba743b9b",
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/shared/src/reasoning-effort.ts",
+      "hash": "sha256:2f633e3da9992d01623e38d1",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/frontend/modelCatalog.generated.ts",
+      "hash": "sha256:a364b4a37bc7303df729306f",
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/shared/src/model-catalog.generated.ts",
+      "hash": "sha256:8241e30df46adc40dea1fe0f",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/tests/test_model_catalog.py",
+      "hash": "sha256:02e354b06707c17aef59e7af",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105701"
+  },
+  "created": "2026-09-26T23:58:42.156Z",
+  "verified": "2026-09-26T23:58:42.156Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "capability-lookups-belong-in-model-catalog-ts-and-go-through"
+  ],
+  "says": [
+    "How do I add a new Claude model with 1M context or fast mode toggle?",
+    "Where is per-model supports 1M context / fast mode defined?",
+    "Desktop composer missing fast mode toggle for new model"
+  ],
+  "saysFor": "1091:model-catalog-flags-edit"
+}

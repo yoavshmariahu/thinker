@@ -1,0 +1,82 @@
+{
+  "id": "writes-that-bypass-django-mutations-no-events-activity-log",
+  "title": "Writes that bypass Django mutations (no events/activity log)",
+  "kind": "gotcha",
+  "answers": [
+    "Why didn't an issue change emit a lifecycle event?",
+    "Who else writes ErrorTrackingIssue rows?"
+  ],
+  "body": "Paths that skip activity log and/or lifecycle events:\n- bulk_update_issues status uses QuerySet.update() (skips save()); passes opener_allowed=False to lifecycle events.\n- Temporal auto-merge: EB/temporal/fingerprint_embedding_result/activities.py:_merge_fingerprint_into_closest_issue (gated by ERROR_TRACKING_AUTO_MERGE_ENABLED) writes no activity log, emits no event.\n- Cymbal (rust/cymbal/src/modes/processing/issue_resolution.rs) inserts and reopens issues directly in Postgres.\n- Also EB/logic/github_external_references.py and management command backfill_error_tracking_issue_legacy_statuses.\n- ClickHouse sync: sync_issues_to_clickhouse version is ms timestamp, must match cymbal FingerprintIssueState::new.",
+  "applies": "When adding logic that must react to every issue change; user API paths through issue_mutations.py are covered, these are not.",
+  "tags": [
+    "error_tracking",
+    "gotcha",
+    "cymbal"
+  ],
+  "deps": [
+    {
+      "path": "products/error_tracking/backend/logic/issue_mutations.py",
+      "hash": "sha256:5757061d3631afeb893d1404",
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/temporal/fingerprint_embedding_result/activities.py",
+      "symbol": "_merge_fingerprint_into_closest_issue",
+      "hash": "sha256:7d1aab4db870c3ae8b8b57d1",
+      "line": 193,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/models.py",
+      "symbol": "sync_issues_to_clickhouse",
+      "hash": "sha256:253b185b8def32b72bb833c8",
+      "line": 331,
+      "missing": false
+    },
+    {
+      "path": "rust/cymbal/src/modes/processing/issue_resolution.rs",
+      "hash": "sha256:a49fa35840b7244dc640467a",
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/logic/github_external_references.py",
+      "hash": "sha256:328d91ad2efe44bf65b30ddd",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "c78d59b1-60fc-4a6c-8eac-edc5dfa51f9e"
+  },
+  "created": "2026-09-26T20:32:07.990Z",
+  "verified": "2026-09-26T20:32:07.990Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.65,
+  "status": "fresh",
+  "uses": 10,
+  "related": [
+    "issue-mutation-call-path-view-facade-logic-model",
+    "error-tracking-issue-writes-which-mutations-emit-lifecycle-e"
+  ],
+  "lastUsed": "2026-09-26T23:37:59.147Z",
+  "servedIn": [
+    "36ed048a-8bbd-4dbe-a047-a2bd1591f964",
+    "e530ac93-95f2-44ae-bbf2-7fc345286ef6",
+    "a9bb7107-4a9e-4ae1-81f0-15c93d3f08ba",
+    "287589bf-f6a0-49fe-8802-6a78218b2c92",
+    "ed597624-1717-4457-b82c-06dd9dea399c",
+    "db2ac0f3-193d-48ed-a2a8-c7fc90a6215a",
+    "ddbd884d-ef4d-41a4-9d62-94f6ffe130b2",
+    "bada6a04-90ca-402b-b4a8-ac0932a722e5",
+    "13935055-b92f-4957-9b47-f87439c7994c",
+    "043b894d-7483-463a-981a-37bca4b0739d"
+  ],
+  "says": [
+    "Issue status changed but activity log shows no record",
+    "Automatic issue merges happen silently with no audit trail",
+    "Activity history missing entries for background job issue updates",
+    "Who reassigned or resolved this issue - no changelog entry",
+    "External system updates to issues don't appear in timeline"
+  ],
+  "saysFor": "776:writes-that-bypass-djang"
+}

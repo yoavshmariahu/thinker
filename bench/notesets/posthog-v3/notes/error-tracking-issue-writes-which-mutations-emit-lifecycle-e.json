@@ -1,0 +1,91 @@
+{
+  "id": "error-tracking-issue-writes-which-mutations-emit-lifecycle-e",
+  "title": "Error tracking issue writes: which mutations emit lifecycle events",
+  "kind": "invariant",
+  "answers": [
+    "Which issue mutations must emit lifecycle events?",
+    "Where are error tracking issue write paths?",
+    "When are $error_tracking_issue_* events emitted and when not?",
+    "Why must events be registered inside the transaction?"
+  ],
+  "body": "Write paths: `logic/issue_mutations.py:update_issue|merge_issues|split_issue|assign_issue|bulk_update_issues|_assign_one|set_issue_cohort`, re-exported by `facade/issues.py`. Pattern: PG write -> `log_activity` -> register lifecycle events -> stamp `state_updated_at` -> ClickHouse sync on commit.\n- Emit: status change to active/resolved/suppressed (`lifecycle_events.py:STATUS_CHANGE_EVENTS`, also bulk `set_status`); `_assign_one` set -> ISSUE_ASSIGNED_EVENT, clear -> ISSUE_UNASSIGNED_EVENT; `merge_issues` only when result is MERGED -> ISSUE_MERGED_EVENT; `split_issue` only if new issues created -> ISSUE_SPLIT_EVENT.\n- No event for no-ops (`_assign_one` returns None: no event/log/stamp/CH sync; bulk skips issues already in target status). No events for severity/name/description changes, `set_issue_cohort`, or merge adopting a source assignee (`models.py:_adopt_source_assignee_on_merge`, silent).\n- Events are snapshotted via `prepare_issue_lifecycle_event` inside the transaction (merge sources get deleted) and published by `produce_issue_lifecycle_events_on_commit` (`transaction.on_commit(robust=True)`); registration must be inside the txn so a CH sync failure does not lose the event (retry sees no transition).\n- One team per batch (ValueError otherwise). Producer/celery failures are swallowed/logged, never fail the mutation.\n- Bulk actions pass `opener_allowed=False`: `_with_reply_targets` drops transitions unless an `ErrorTrackingAlertThread` already exists.\n- Ingestion transitions (created, reopened-by-exception, spiking) come from cymbal, not Django. Manual reopen reuses the cymbal ISSUE_REOPENED_EVENT.",
+  "applies": "Django-side user-driven mutations only; ingestion-driven events are produced by cymbal (Rust), not verified here.",
+  "tags": [
+    "error-tracking",
+    "events",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "products/error_tracking/backend/logic/issue_mutations.py",
+      "hash": "sha256:5757061d3631afeb893d1404",
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/logic/lifecycle_events.py",
+      "symbol": "produce_issue_lifecycle_events_on_commit",
+      "hash": "sha256:dab86cb9b2baa29d8a30bb2d",
+      "line": 189,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/facade/issues.py",
+      "hash": "sha256:f212437bfc68f6ea51c20b45",
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/models.py",
+      "symbol": "_adopt_source_assignee_on_merge",
+      "hash": "sha256:8d9f9fd54a3f3ee6ba36c417",
+      "line": 137,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/logic/issue_mutations.py",
+      "symbol": "update_issue",
+      "hash": "sha256:8b8134b389de3ca54e7a5c37",
+      "line": 92,
+      "missing": false
+    },
+    {
+      "path": "products/error_tracking/backend/logic/lifecycle_events.py",
+      "hash": "sha256:d135bb464755f81e2a2bb6ae",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "cded38d8-1fbe-4117-887d-607f8f15cb75"
+  },
+  "created": "2026-09-27T00:22:18.876Z",
+  "verified": "2026-09-27T00:22:18.876Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 12,
+  "related": [
+    "writes-that-bypass-django-mutations-no-events-activity-log",
+    "issue-assignment-validation-notifications-auto-assign",
+    "lifecycle-event-payload-fields-consumers-depend-on",
+    "lifecycle-events-emission-flow-and-temporal-alert-delivery"
+  ],
+  "lastUsed": "2026-09-27T21:00:53.380Z",
+  "servedIn": [
+    "5eebb144-500a-4ee7-b484-68f19134555f",
+    "bada6a04-90ca-402b-b4a8-ac0932a722e5",
+    "cf0e5e9b-2242-4b02-bb1d-22fefdd8a9aa",
+    "50d00da5-e8ed-4cbd-b114-2290506e0b28",
+    "13935055-b92f-4957-9b47-f87439c7994c",
+    "043b894d-7483-463a-981a-37bca4b0739d",
+    "probe-PR106579-hard",
+    "probe-PR106579-hard",
+    "probe-PR106579-hard"
+  ],
+  "says": [
+    "Issue status change does not trigger analytics event for error tracking",
+    "Which issue operations should emit tracking events and when exactly",
+    "Bulk reassign does not notify downstream systems of the assignment changes",
+    "Merging error issues failed to emit the merge event to analytics"
+  ],
+  "saysFor": "1699:error-tracking-issue-wri"
+}

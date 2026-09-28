@@ -1,0 +1,54 @@
+{
+  "id": "metrics4-samples-time-range-filtering-must-use-the-arraymin-",
+  "title": "metrics4_samples time-range filtering must use the arrayMin/arrayMax alias expressions to hit the minmax indexes",
+  "kind": "invariant",
+  "answers": [
+    "How do I make metrics4_samples time window queries use the timestamp_min/timestamp_max index?",
+    "Why does querying metrics4_samples read whole edge hours?",
+    "indexHint on metrics4_samples timestamp"
+  ],
+  "body": "metrics4_samples has alias columns timestamp_min = arrayMin(timestamp_arr) and timestamp_max = arrayMax(timestamp_arr) with minmax indexes idx_timestamp_min_minmax / idx_timestamp_max_minmax (granularity 1), defined in posthog/clickhouse/hcl/roles/logs/metrics/metrics4.hcl and posthog/clickhouse/metrics/metrics4.py.\n- Index analysis matches the alias expression, so readers must filter `arrayMin(timestamp_arr) <= maxt AND arrayMax(timestamp_arr) >= mint`, or wrap that predicate in `indexHint`.\n- Filtering only on time_bucket still reads every series-hour row of the edge hours.\n- Indexes are not materialized for old parts (migration 0331 omits MATERIALIZE INDEX); only parts written after it carry them, so older parts work but get no pruning until they expire.\n- Keep the alias definitions and index names identical across HCL, Python and migration.",
+  "applies": "Queries against metrics4_samples (e.g. snuffle) and any change to its timestamp index columns",
+  "tags": [
+    "clickhouse",
+    "metrics4",
+    "indexes",
+    "query-performance"
+  ],
+  "deps": [
+    {
+      "path": "posthog/clickhouse/hcl/roles/logs/metrics/metrics4.hcl",
+      "hash": "sha256:d04802982b3735665a12f367",
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/migrations/0331_metrics4_samples_timestamp_minmax.py",
+      "hash": "sha256:84b8101026d91544863e1e74",
+      "missing": false
+    },
+    {
+      "path": "posthog/clickhouse/metrics/metrics4.py",
+      "hash": "sha256:544e14949a5f36d298f5b468",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105380"
+  },
+  "created": "2026-09-27T00:05:10.273Z",
+  "verified": "2026-09-27T00:05:10.273Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "clickhouse-table-schema-changes-must-be-updated-in-hcl-gener"
+  ],
+  "says": [
+    "How do I make metrics4_samples time window queries use the timestamp_min/timestamp_max index?",
+    "Why does querying metrics4_samples read whole edge hours?",
+    "indexHint on metrics4_samples timestamp"
+  ],
+  "saysFor": "969:metrics4-samples-time-ra"
+}

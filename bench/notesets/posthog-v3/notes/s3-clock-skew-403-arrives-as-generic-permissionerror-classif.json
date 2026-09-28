@@ -1,0 +1,60 @@
+{
+  "id": "s3-clock-skew-403-arrives-as-generic-permissionerror-classif",
+  "title": "S3 clock-skew 403 arrives as generic PermissionError; classify by message in shared transient list",
+  "kind": "fix",
+  "answers": [
+    "S3OperationError reported to error tracking for RequestTimeTooSkewed",
+    "delete_folder clock skew PermissionError shows up as a bug in data import sync",
+    "How to make a new S3 transient error retried in warehouse pipeline"
+  ],
+  "body": "Symptom: A warehouse/data-import sync's best-effort cleanup of an old query folder creates an error-tracking issue (S3OperationError) even though the sync is fine; the underlying S3 error is a clock-skew rejection.\nRoot cause: s3fs maps every 403 (including RequestTimeTooSkewed) onto a generic PermissionError, so only the fixed message text distinguishes it. `delete_folder` in products/warehouse_sources/backend/temporal/data_imports/util.py only skipped capture for `_is_transient_s3_connection_error`, and `TRANSIENT_OBJECT_STORE_ERRORS` in pipelines/core/delta/errors.py lacked the message.\nFix pattern: add the S3 fixed message substring to `TRANSIENT_OBJECT_STORE_ERRORS` (used by `is_transient_object_store_error`) and widen the `delete_folder` capture guard to `_is_transient_s3_connection_error(e) or is_transient_object_store_error(e)`.\nConstraints: Only for errors that self-clear on retry and have a stable S3 message. Do not classify bare PermissionError as transient; real AccessDenied must still be captured. Add a case to `TestIsTransientObjectStoreError` and a `delete_folder` test in tests/test_util.py.",
+  "applies": "Warehouse sources data-import pipeline S3/delta error classification",
+  "tags": [
+    "s3",
+    "error-tracking",
+    "data-imports",
+    "s3fs"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/pipelines/core/delta/errors.py",
+      "symbol": "TRANSIENT_OBJECT_STORE_ERRORS",
+      "hash": "sha256:b7a22fa466df2a4f94b0e90a",
+      "line": 26,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/util.py",
+      "symbol": "delete_folder",
+      "hash": "sha256:f4adb1dfd62e5e6f7c164e5a",
+      "line": 345,
+      "missing": false
+    },
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/tests/test_util.py",
+      "hash": "sha256:03440281f56a0b1079779f23",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105307"
+  },
+  "created": "2026-09-27T00:07:01.213Z",
+  "verified": "2026-09-27T00:07:01.213Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "transient-object-store-classifier-is-shared-edits-change-ret"
+  ],
+  "says": [
+    "Data import sync creates error spike when S3 times out",
+    "Why does delete folder report permission error for time sync?",
+    "Warehouse cleanup failing with S3 access denied randomly",
+    "Clock skew rejections should not block data import completion",
+    "S3 transient errors triggering false data pipeline failures"
+  ],
+  "saysFor": "1222:s3-clock-skew-403-arrive"
+}

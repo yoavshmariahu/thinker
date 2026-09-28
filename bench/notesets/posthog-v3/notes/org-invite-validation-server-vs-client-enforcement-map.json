@@ -1,0 +1,119 @@
+{
+  "id": "org-invite-validation-server-vs-client-enforcement-map",
+  "title": "Org invite validation: server vs client enforcement map",
+  "kind": "location",
+  "answers": [
+    "Where are invite validation rules enforced?",
+    "Which invite rules are client-only vs server-only?",
+    "Where is the plus-address / verified-domain check for invites?",
+    "Where is the invite level cap enforced?"
+  ],
+  "body": "Server (posthog/api/organization_invite.py):\n- `OrganizationInviteSerializer.validate_target_email`: EmailNormalizer.normalize, `reject_plus_addressed_email`, `validate_invite_target_email_domain` (also used in `OrganizationInviteViewSet.delegate`).\n- `validate_first_name` -> `validate_display_name`; `validate_message` -> `validate_message_body` (posthog/helpers/email_utils.py).\n- `validate_level` raises PermissionDenied if level > inviter's; `validate_private_project_access` checks project access levels (member/admin only); model re-checks JSON shape in posthog/models/organization_invite.py.\n- `create` rejects invitee who is already a member (case-insensitive on user__email).\n- Permissions: `UserCanInvitePermission` (posthog/permissions.py) + TimeSensitiveActionPermission; throttles Burst 50/h, Sustained 200/d in `get_throttles`; max 20 per `bulk`.\n- Accept: `OrganizationInvite.validate`/`use` (expiry INVITE_DAYS_VALIDITY=3 days, email, membership).\nClient: `isEmail` in InviteRow, `canSubmit` + `inviteContainsOwnerLevel` (owner confirmation is client-only) in inviteLogic.ts, `MAX_INVITES_AT_ONCE` in InviteModal.tsx, allowedLevels filtered <= membership_level. Plus, domain, name/message content and project checks are server-only; errors surface only from the response.",
+  "tags": [
+    "invites",
+    "validation",
+    "organization"
+  ],
+  "deps": [
+    {
+      "path": "posthog/api/organization_invite.py",
+      "symbol": "OrganizationInviteSerializer",
+      "hash": "sha256:ea199ff9c2a80f2ceade64a0",
+      "line": 166,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/organization_invite.py",
+      "hash": "sha256:9355095ca44e0f754fa6859b",
+      "missing": false
+    },
+    {
+      "path": "posthog/permissions.py",
+      "symbol": "UserCanInvitePermission",
+      "hash": "sha256:6f42381755b1163c6dd41cfe",
+      "line": 1360,
+      "missing": false
+    },
+    {
+      "path": "posthog/helpers/email_utils.py",
+      "hash": "sha256:0fb6b02647c8426d1127ebaf",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/settings/organization/inviteLogic.ts",
+      "hash": "sha256:1ba7c1fa1a4d51cc10cd1f3f",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/scenes/settings/organization/InviteModal.tsx",
+      "hash": "sha256:4d71a53478f9e0c8706a73cd",
+      "missing": false
+    },
+    {
+      "path": "posthog/api/organization_invite.py",
+      "symbol": "OrganizationInviteSerializer.validate_target_email",
+      "hash": "sha256:e5850111487307fbe683d1f6",
+      "line": 196,
+      "missing": false
+    },
+    {
+      "path": "posthog/helpers/email_utils.py",
+      "symbol": "EmailNormalizer.normalize",
+      "hash": "sha256:33c78ceaa4bc6b8d5e94905a",
+      "line": 247,
+      "missing": false
+    },
+    {
+      "path": "posthog/api/organization_invite.py",
+      "symbol": "OrganizationInviteViewSet.delegate",
+      "hash": "sha256:8002035c3447692e4fead910",
+      "line": 534,
+      "missing": false
+    },
+    {
+      "path": "posthog/models/organization_invite.py",
+      "symbol": "OrganizationInvite.validate",
+      "hash": "sha256:109f80efea21f348120a197a",
+      "line": 103,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "10d004c0-2900-4f08-9249-8b0791302d9b"
+  },
+  "created": "2026-09-27T00:16:17.733Z",
+  "verified": "2026-09-27T00:16:17.733Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 14,
+  "related": [
+    "org-invite-flow-modal-invitelogic-bulk-api",
+    "bulk-invite-partial-failure-semantics",
+    "onboarding-and-settings-invite-flows-share-invitelogic"
+  ],
+  "lastUsed": "2026-09-27T05:09:55.654Z",
+  "servedIn": [
+    "08c19801-a7d7-4020-a810-5039faf472a6",
+    "eefc43a9-7ed5-4dad-924b-8c97b4d79809",
+    "ea4b1d4e-069e-4b41-8cab-b4c6d80f18e6",
+    "272e951d-10ea-4f07-a076-73905bf2484b",
+    "757b5028-64cf-4783-930e-850f40b213f3",
+    "8343a249-277d-4e67-b6aa-c983610531d2",
+    "ee0dce34-40ce-4fac-8407-70d21d106849",
+    "72ef30ba-b28a-471e-966b-ddf41a97cbbb",
+    "probe2",
+    "probe3",
+    "probe3",
+    "probe4"
+  ],
+  "says": [
+    "My invite got blocked because it used a plus-addressed email.",
+    "Server rejected invites to my verified domain, but client did not.",
+    "Why am I capped at 20 invites when I send more?",
+    "Email normalization rules are enforced before the invite is sent.",
+    "Which invite validation rules work on client versus the server?"
+  ],
+  "saysFor": "1344:org-invite-validation-se"
+}

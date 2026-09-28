@@ -1,0 +1,66 @@
+{
+  "id": "team-scoped-models-must-be-on-idor-semgrep-lists-and-a-fail-",
+  "title": "Team-scoped models must be on IDOR semgrep lists and a fail-closed EnvironmentScopedManager",
+  "kind": "invariant",
+  "answers": [
+    "New team-scoped model fails check-idor-model-coverage",
+    "How to make a model environment scoped without leaking sibling environments' rows",
+    "Why does the model have all_teams and objects managers?"
+  ],
+  "body": "A new per-environment model must (1) use `objects = EnvironmentScopedManager()` (filters by literal team id, so sibling environments cannot read it) with `all_teams = models.Manager()` and `Meta.default_manager_name = \"all_teams\"` (products/tracing/backend/models.py:TracesRetentionRule), and (2) be added to BOTH class-name alternation lists in .semgrep/rules/security/idor-team-scoped-models.yaml. `.github/scripts/check-idor-model-coverage.py` checks this; skipping either fails CI or leaves an IDOR blind spot.",
+  "applies": "New models with a team FK in PostHog products.",
+  "tags": [
+    "idor",
+    "scoping",
+    "semgrep",
+    "tracing"
+  ],
+  "deps": [
+    {
+      "path": ".semgrep/rules/security/idor-team-scoped-models.yaml",
+      "hash": "sha256:82b14ac2a1e1caa218e197f9",
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/models.py",
+      "symbol": "TracesRetentionRule",
+      "hash": "sha256:35896156af41464032af68bf",
+      "line": 158,
+      "missing": false
+    },
+    {
+      "path": ".github/scripts/check-idor-model-coverage.py",
+      "hash": "sha256:82931b42398ad2ea175b868f",
+      "missing": false
+    },
+    {
+      "path": "products/tracing/backend/models.py",
+      "symbol": "Meta.default_manager_name",
+      "hash": "sha256:9cb2abee88c9d704bfa6813d",
+      "line": 186,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105214"
+  },
+  "created": "2026-09-27T00:11:58.940Z",
+  "verified": "2026-09-27T00:11:58.940Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-an-activity-logged-model-scope-list-light-receiver-mo",
+    "lock-free-migrations-db-constraint-false-fks-and-constant-db"
+  ],
+  "says": [
+    "Data in one environment must not leak to sibling environments",
+    "New models for environment-specific data need security checks in CI",
+    "How to safely add retention or configuration models",
+    "Team scoping prevents users from seeing data outside their environment",
+    "Multiple database managers protect against accidental cross-environment contamination"
+  ],
+  "saysFor": "606:team-scoped-models-must-"
+}

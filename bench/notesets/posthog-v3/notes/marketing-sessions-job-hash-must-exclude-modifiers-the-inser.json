@@ -1,0 +1,53 @@
+{
+  "id": "marketing-sessions-job-hash-must-exclude-modifiers-the-inser",
+  "title": "Marketing sessions job hash must exclude modifiers the insert SQL ignores",
+  "kind": "invariant",
+  "answers": [
+    "Why does marketing attribution fall back to live calculation despite cached sessions?",
+    "Session precompute job hash differs between writer and reader",
+    "cookielessTrafficIsRegular cache key mismatch in marketing analytics"
+  ],
+  "body": "The session job hash for the marketing sessions dimensional precompute is built from `cache_key_context` in `ensure_marketing_sessions_precomputed` (products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py).\nIt serializes modifiers with `model_dump_json(exclude_none=True, exclude={\"cookielessTrafficIsRegular\"})`.\nReason: the insert SQL (`SESSIONS_INSERT_TEMPLATE`) does not classify traffic types, and that rollout flag can resolve differently in writer (background) and reader (query) workers. If it is in the hash, the reader misses the cache and silently falls back to live calc.\nOnly modifiers that don't affect the insert SQL may be excluded. Other modifiers, channel rules and classifier versions must still invalidate jobs.\nIf a new modifier is resolved per-worker/flag but doesn't change the insert SQL, exclude it the same way.",
+  "applies": "Marketing analytics session precompute cache identity (writer and reader must compute identical hash).",
+  "tags": [
+    "marketing-analytics",
+    "cache",
+    "precompute",
+    "modifiers"
+  ],
+  "deps": [
+    {
+      "path": "products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py",
+      "symbol": "ensure_marketing_sessions_precomputed",
+      "hash": "sha256:dd9000fc8efb14ea2de030eb",
+      "line": 104,
+      "missing": false
+    },
+    {
+      "path": "docs/internal/marketing-attribution-session-precompute.md",
+      "hash": "sha256:cfaa2c6835572383c1bc553c",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#105597"
+  },
+  "created": "2026-09-27T00:01:44.327Z",
+  "verified": "2026-09-27T00:01:44.327Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "display-days-are-calendar-based-lookback-reachback-are-elaps"
+  ],
+  "says": [
+    "Attribution falls back to live calculation despite precomputed sessions",
+    "Session cache hit rate drops when cookieless traffic flag changes",
+    "Precompute job hash differs between background writer and reader",
+    "Why am I not getting cached marketing attribution results anymore",
+    "Session cache mismatch between simultaneous background and foreground workers"
+  ],
+  "saysFor": "939:marketing-sessions-job-h"
+}
