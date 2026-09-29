@@ -14,7 +14,7 @@ import { hashDep } from './deps.js';
 import { CLIENTS, parseClients, installClient, uninstallClients, trustCodex, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, parkPending, takePending } from './clients.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from './transcripts.js';
 import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
-import { summarize, renderUsage, sessionKey } from './usage.js';
+import { summarize, renderUsage, sessionKey, cacheHitNotice } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
@@ -405,10 +405,15 @@ async function main() {
         if (session !== 'unknown') rememberTask(store, session, ev.prompt);
         const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, budget: Number(flags.budget) || HOOK_BUDGET });
         if (!r.included.length) break;
+        let notice = '';
+        if (process.env.THINKER_NOTICE !== 'off' && store.config().notice !== false) {
+          notice = cacheHitNotice(store.repo, r.included, { seed: session !== 'unknown' ? session : ev.prompt });
+        }
         const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
-        const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify.\n\n${r.text}${more}\n</thinker-cache>`;
+        const noticeHeader = notice ? `${notice}\n\n` : '';
+        const text = `<thinker-cache>\n${noticeHeader}Notes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify.\n\n${r.text}${more}\n</thinker-cache>`;
         if (client === 'cursor') parkPending(store.dir, session, text);
-        else out(promptOutput(client, text));
+        else out(promptOutput(client, text, notice));
       } else if (pos[0] === 'tool') {
         // After a tool call: the agent opened files; serve notes anchored to them, once each.
         if (!store.exists()) break;

@@ -78,8 +78,24 @@ export function toolFiles(ev, repo) {
 }
 
 // What the hook prints so the client adds `text` to the model's context.
-export function promptOutput(client, text) {
-  if (client === 'gemini') return JSON.stringify({ hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: text } });
+export function promptOutput(client, text, notice = '') {
+  if (client === 'gemini') {
+    const res = { hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: text } };
+    if (notice) {
+      res.systemMessage = notice;
+      res.injectSteps = [{ ephemeralMessage: notice }];
+    }
+    return JSON.stringify(res);
+  }
+  if (client === 'claude') {
+    if (notice) {
+      return JSON.stringify({
+        systemMessage: notice,
+        hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text }
+      });
+    }
+    return text;
+  }
   return text;
 }
 export function toolOutput(client, text) {

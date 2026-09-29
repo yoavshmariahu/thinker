@@ -24,6 +24,57 @@ export function savingOf(repo, note) {
   return { calls, tokens };
 }
 
+export function cacheHitSavings(repo, notes) {
+  let calls = 0, tokens = 0;
+  const seenFiles = new Set();
+  for (const n of notes || []) {
+    for (const f of [...new Set((n?.deps || []).map(d => d.path).filter(Boolean))].slice(0, MAX_FILES)) {
+      if (seenFiles.has(f)) continue;
+      seenFiles.add(f);
+      try {
+        const st = fs.statSync(path.join(repo, f));
+        if (!st.isFile()) continue;
+        calls++;
+        tokens += Math.min(Math.ceil(st.size / 3.6), FILE_CAP);
+      } catch {}
+    }
+  }
+  if (!tokens && notes?.length) {
+    tokens = notes.reduce((sum, n) => sum + Math.max(Math.ceil((n.body || '').length / 3.6) * 4, 300), 0);
+  }
+  return { calls, tokens };
+}
+
+export function formatTokens(n) {
+  if (n >= 10000) return `${Math.round(n / 1000)}k`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  return `${Math.round(n)}`;
+}
+
+export const PUNCHLINES = [
+  'your context window thanks you! 🚀',
+  'cache to the rescue! 🪄',
+  'earlier sessions doing the heavy lifting 🏋️',
+  'bypassed the file-hunting grind ✨',
+  'smooth sailing ahead ⛵',
+  'fast-forward engaged ⏩',
+];
+
+export function cacheHitNotice(repo, notes, { seed = 0 } = {}) {
+  const hits = (notes || []).length;
+  if (!hits) return '';
+  const { tokens } = cacheHitSavings(repo, notes);
+  const hitStr = hits === 1 ? 'cache hit' : 'cache hits';
+  const tokStr = formatTokens(tokens);
+  let hash = 0;
+  const s = String(seed);
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  const punchline = PUNCHLINES[hash % PUNCHLINES.length];
+  const tokPart = tokens > 0 ? `Saved ~${tokStr} tokens` : 'Saved exploration tokens';
+  return `✨ thinker: ${hits} ${hitStr}! ${tokPart} — ${punchline}`;
+}
+
+
 // One form for a session's id wherever it was written: as the agent gave it, as the name of
 // the trace recorded for it, or (in older assessments) as the name of its transcript file.
 export function sessionKey(s) {

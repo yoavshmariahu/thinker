@@ -114,9 +114,19 @@ test('prompt hook output matches what each client accepts', () => {
   const dir = repo();
   const codex = hook(dir, 'prompt', 'codex', { session_id: 's1', prompt: PROMPT, cwd: dir });
   assert.ok(codex.startsWith('<thinker-cache>') && codex.includes('RateLimiter.allow'));
+  assert.ok(codex.includes('cache hit'));
 
   const gem = JSON.parse(hook(dir, 'prompt', 'gemini', { session_id: 's2', prompt: PROMPT, cwd: dir }));
   assert.ok(gem.hookSpecificOutput.additionalContext.includes('RateLimiter.allow'));
+  assert.ok(gem.systemMessage.includes('cache hit'));
+  assert.ok(gem.injectSteps[0].ephemeralMessage.includes('cache hit'));
+
+  const claude = JSON.parse(hook(dir, 'prompt', 'claude', { session_id: 's4', prompt: PROMPT, cwd: dir }));
+  assert.ok(claude.hookSpecificOutput.additionalContext.includes('RateLimiter.allow'));
+  assert.ok(claude.systemMessage.includes('cache hit'));
+
+  const off = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--repo', dir], { input: JSON.stringify({ session_id: 's5', prompt: PROMPT }), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_NOTICE: 'off' } }).trim();
+  assert.ok(off.startsWith('<thinker-cache>') && !off.includes('✨ thinker:'));
 
   // nothing relevant: Gemini must get no stray text on stdout
   assert.equal(hook(dir, 'prompt', 'gemini', { session_id: 's3', prompt: 'hello' }), '');

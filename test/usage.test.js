@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store, logFile } from '../src/store.js';
-import { summarize, renderUsage, savingOf } from '../src/usage.js';
+import { summarize, renderUsage, savingOf, cacheHitSavings, formatTokens, cacheHitNotice, PUNCHLINES } from '../src/usage.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 // run with the environment set as given (undefined removes a variable), then put it back
@@ -168,3 +168,26 @@ test('assessments are logged under the session id, and older ones under a file n
     assert.equal(summarize(store).saved.calls, 2);
   });
 });
+
+test('cache hit notice formats brief friendly one-liner with quantified token savings', () => {
+  assert.equal(formatTokens(450), '450');
+  assert.equal(formatTokens(1500), '1.5k');
+  assert.equal(formatTokens(10000), '10k');
+  assert.equal(formatTokens(24500), '25k');
+
+  const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
+  assert.deepEqual(cacheHitSavings(one.repo, [one.get('n1'), one.get('n2')]), { calls: 2, tokens: 7000 });
+
+  assert.equal(cacheHitNotice(one.repo, []), '');
+
+  const single = cacheHitNotice(one.repo, [one.get('n2')], { seed: 's1' });
+  assert.ok(single.startsWith('✨ thinker: 1 cache hit! Saved ~1k tokens — '));
+  assert.equal(single.split('\n').length, 1);
+  assert.ok(PUNCHLINES.some(p => single.endsWith(p)));
+
+  const multi = cacheHitNotice(one.repo, [one.get('n1'), one.get('n2')], { seed: 42 });
+  assert.ok(multi.startsWith('✨ thinker: 2 cache hits! Saved ~7k tokens — '));
+  assert.equal(multi.split('\n').length, 1);
+  assert.ok(PUNCHLINES.some(p => multi.endsWith(p)));
+});
+
