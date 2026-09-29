@@ -62,15 +62,15 @@ Real tasks from merged pull requests, each run with and without the cache. Evalu
 | 🔍 **Tool Efficiency** | **Tool calls** | **17% fewer calls** | **22% fewer calls** | **20% fewer calls** (won 81% of tasks) |
 | | **File reads / exploration** | *(tracked in tool calls)* | **27% fewer file reads** | **11% less exploration** |
 | 💰 **Cost** | **Cost per task** | **10% cheaper** | **16% cheaper** | *(flat rate / subscription)* |
-| 🎯 **Correctness** | **Criteria accuracy** | **+10% improved** | **Parity** (0% diff) | **-6% diff** |
-| | **Tasks fully solved** | **+33% more solved** | **Parity** (0% diff) | **-9% diff** (10 vs 11 solved) |
+| 🎯 **Correctness** | **Criteria accuracy** | **+10% improved** | **Parity** (0% diff) | **Parity** (within noise) |
+| | **Tasks fully solved** | **+33% more solved** | **Parity** (0% diff) | **Parity** (10 vs 11 solved) |
 
 ### Key Takeaways for Users
 
 - **⏱️ Timing:** Eliminates blind repo exploration and prevents rabbit holes, cutting wall time by **8.5% to 14%** (saving up to **100+ seconds** on complex Grafana tasks).
 - **🪙 Token Usage & Cost:** Pre-seeded architecture notes reduce input tokens and context re-reads by **18% to 21%**, directly lowering cost per task by **10% to 16%**.
 - **🔍 Tool Efficiency:** Reduces tool calls across every evaluated agent harness — Claude Code (**-17%**), Codex CLI (**-20%**, lower in 13 of 16 tasks), and Antigravity CLI (**-22%**).
-- **🎯 Correctness:** On frontier models (Claude Fable), thinker boosts overall correctness by **+10%** and lifts complete task passes from **45% to 60%** (+3 tasks). Fast models (Gemini Flash) maintain strict correctness parity, and GPT-6 Astra achieves near-parity (10 vs 11 solved, within single-run noise).
+- **🎯 Correctness:** On frontier models (Claude Fable), thinker boosts overall correctness by **+10%** and lifts complete task passes from **45% to 60%** (+3 tasks). Fast and frontier models (Gemini Flash, GPT-6 Astra) maintain strict correctness parity (within single-run noise).
 
 Method, uncertainty, per-task results and other models:
 [bench/RESULTS.md](bench/RESULTS.md).

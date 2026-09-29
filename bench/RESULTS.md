@@ -408,6 +408,7 @@ All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3
 - **Reduced codebase exploration**: Total input tokens dropped by **-20.2%** (-109.9k tokens/task), and fresh uncached tokens dropped by **-11.4%** (-5.3k tokens/task).
 - **Wall latency savings**: End-to-end task time dropped by **-8.6%**, saving up to **101 seconds** on complex tasks (`PR133112-hard` -100s, `PR133335-hard` -101s, `PR133220-hard` -52s).
 - **Reversal of the PostHog trend**: On PostHog, Codex (`gpt-6-sol`) suffered tool call inflation (+50%). On Grafana, `gpt-6-astra` demonstrated effective cache adoption with an 81% win rate on tool calls across both frontend and backend tasks.
+- **Correctness parity**: 14 of 16 tasks had identical pass/fail outcomes between arms, achieving functional parity (10 vs 11 solved, a single-task difference well within the ±1.3 task single-run noise margin).
 
 #### Task-by-task paired results (all 16 tasks, judged by Gemini 3.8 Flash)
 
