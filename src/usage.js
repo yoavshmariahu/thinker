@@ -60,18 +60,22 @@ export const PUNCHLINES = [
   'fast-forward engaged ⏩',
 ];
 
-export function cacheHitNotice(repo, notes, { seed = 0 } = {}) {
+export function cacheHitNotice(repo, notes, { style = 'compact', seed = 0 } = {}) {
   const hits = (notes || []).length;
   if (!hits) return '';
   const { tokens } = cacheHitSavings(repo, notes);
   const hitStr = hits === 1 ? 'cache hit' : 'cache hits';
   const tokStr = formatTokens(tokens);
-  let hash = 0;
-  const s = String(seed);
-  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
-  const punchline = PUNCHLINES[hash % PUNCHLINES.length];
-  const tokPart = tokens > 0 ? `Saved ~${tokStr} tokens` : 'Saved exploration tokens';
-  return `✨ thinker: ${hits} ${hitStr}! ${tokPart} — ${punchline}`;
+  if (style === 'creative') {
+    let hash = 0;
+    const s = String(seed);
+    for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+    const punchline = PUNCHLINES[hash % PUNCHLINES.length];
+    const tokPart = tokens > 0 ? `Saved ~${tokStr} tokens` : 'Saved exploration tokens';
+    return `✨ thinker: ${hits} ${hitStr}! ${tokPart} — ${punchline}`;
+  }
+  const tokPart = tokens > 0 ? ` (~${tokStr} tokens saved)` : '';
+  return `🧠 thinker: ${hits} ${hitStr}${tokPart}`;
 }
 
 

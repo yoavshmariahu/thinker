@@ -126,7 +126,7 @@ test('prompt hook output matches what each client accepts', () => {
   assert.ok(claude.systemMessage.includes('cache hit'));
 
   const off = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--repo', dir], { input: JSON.stringify({ session_id: 's5', prompt: PROMPT }), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_NOTICE: 'off' } }).trim();
-  assert.ok(off.startsWith('<thinker-cache>') && !off.includes('✨ thinker:'));
+  assert.ok(off.startsWith('<thinker-cache>') && !off.includes('thinker:'));
 
   // nothing relevant: Gemini must get no stray text on stdout
   assert.equal(hook(dir, 'prompt', 'gemini', { session_id: 's3', prompt: 'hello' }), '');

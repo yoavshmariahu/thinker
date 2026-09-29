@@ -180,14 +180,15 @@ test('cache hit notice formats brief friendly one-liner with quantified token sa
 
   assert.equal(cacheHitNotice(one.repo, []), '');
 
-  const single = cacheHitNotice(one.repo, [one.get('n2')], { seed: 's1' });
-  assert.ok(single.startsWith('✨ thinker: 1 cache hit! Saved ~1k tokens — '));
-  assert.equal(single.split('\n').length, 1);
-  assert.ok(PUNCHLINES.some(p => single.endsWith(p)));
+  const single = cacheHitNotice(one.repo, [one.get('n2')]);
+  assert.equal(single, '🧠 thinker: 1 cache hit (~1k tokens saved)');
 
-  const multi = cacheHitNotice(one.repo, [one.get('n1'), one.get('n2')], { seed: 42 });
-  assert.ok(multi.startsWith('✨ thinker: 2 cache hits! Saved ~7k tokens — '));
-  assert.equal(multi.split('\n').length, 1);
-  assert.ok(PUNCHLINES.some(p => multi.endsWith(p)));
+  const multi = cacheHitNotice(one.repo, [one.get('n1'), one.get('n2')]);
+  assert.equal(multi, '🧠 thinker: 2 cache hits (~7k tokens saved)');
+
+  const creative = cacheHitNotice(one.repo, [one.get('n1'), one.get('n2')], { style: 'creative', seed: 42 });
+  assert.ok(creative.startsWith('✨ thinker: 2 cache hits! Saved ~7k tokens — '));
+  assert.equal(creative.split('\n').length, 1);
+  assert.ok(PUNCHLINES.some(p => creative.endsWith(p)));
 });
 

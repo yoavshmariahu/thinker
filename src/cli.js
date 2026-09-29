@@ -406,8 +406,9 @@ async function main() {
         const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, budget: Number(flags.budget) || HOOK_BUDGET });
         if (!r.included.length) break;
         let notice = '';
-        if (process.env.THINKER_NOTICE !== 'off' && store.config().notice !== false) {
-          notice = cacheHitNotice(store.repo, r.included, { seed: session !== 'unknown' ? session : ev.prompt });
+        if (process.env.THINKER_NOTICE !== 'off' && store.config().notice !== false && store.config().notice !== 'off') {
+          const style = process.env.THINKER_NOTICE === 'creative' || store.config().notice === 'creative' ? 'creative' : 'compact';
+          notice = cacheHitNotice(store.repo, r.included, { style, seed: session !== 'unknown' ? session : ev.prompt });
         }
         const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
         const noticeHeader = notice ? `${notice}\n\n` : '';
