@@ -43,7 +43,7 @@ const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], en
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  onboard [--clients list|all|auto] [--areas n] [--prs n] [--pr <num>] [--benchmark] [--no-benchmark] [--yes]
+  onboard [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>] [--benchmark] [--no-benchmark] [--yes]
                                  guided 3-step onboarding: connect harness CLIs, build the knowledge cache with
                                  pre-flight estimates (time, size, location), and run an optional PR change benchmark
   setup                          alias for onboard
@@ -738,7 +738,7 @@ async function setup() {
   const areas = flags['no-seed'] ? 0 : num(flags.areas, 12);
   const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug());
   const prs = slug ? num(flags.prs, 60) : 0;
-  const agent = typeof flags.agent === 'string' ? flags.agent : exploreAgent();
+  const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
 
   await runOnboarding({
     repo,

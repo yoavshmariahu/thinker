@@ -101,6 +101,356 @@ export function exploreAgent() {
   return agents.includes(process.env.THINKER_LLM) ? process.env.THINKER_LLM : agents[0] || null;
 }
 
+// --- Agent Tools & Auth Verification -----------------------------------------
+
+export const BUILD_AGENTS = ['claude', 'gemini', 'codex', 'cursor'];
+
+export function getAgentDisplayName(agent, bin = null) {
+  if (agent === 'claude') return 'Claude Code';
+  if (agent === 'codex') return 'Codex CLI';
+  if (agent === 'cursor') return 'Cursor Agent';
+  if (agent === 'gemini') {
+    if (bin && path.basename(bin) === 'agy') return 'Antigravity (agy)';
+    return 'Gemini CLI';
+  }
+  return agent;
+}
+
+export function getAgentLoginCommand(agent, bin = null) {
+  if (agent === 'claude') return 'claude auth login';
+  if (agent === 'codex') return 'codex login';
+  if (agent === 'cursor') return `${bin ? path.basename(bin) : 'agent'} login`;
+  if (agent === 'gemini') {
+    if (bin && path.basename(bin) === 'agy') return 'agy';
+    return 'gemini';
+  }
+  return `${agent} login`;
+}
+
+export function getAgentLoginArgs(agent, bin = null) {
+  if (agent === 'claude') return [bin || 'claude', 'auth', 'login'];
+  if (agent === 'codex') return [bin || 'codex', 'login'];
+  if (agent === 'cursor') return [bin || 'agent', 'login'];
+  if (agent === 'gemini') {
+    if (bin && path.basename(bin) === 'agy') return [bin || 'agy'];
+    return [bin || 'gemini'];
+  }
+  return [bin || agent, 'login'];
+}
+
+export function checkAgentAuth(agent, { timeout = 5000, env = process.env, spawnFn = spawnSync } = {}) {
+  const bin = findBin(BINS[agent] || [agent]);
+  if (!bin) {
+    return {
+      agent,
+      installed: false,
+      authenticated: false,
+      details: 'Binary not found',
+      loginCmd: getAgentLoginCommand(agent),
+    };
+  }
+
+  const loginCmd = getAgentLoginCommand(agent, bin);
+  const opts = { encoding: 'utf8', timeout, env: { ...env, THINKER_IN_LLM: '1' } };
+
+  try {
+    if (agent === 'claude') {
+      const r = spawnFn(bin, ['auth', 'status'], opts);
+      if (r.error && r.error.code === 'ETIMEDOUT') {
+        return { agent, installed: true, authenticated: false, details: 'Auth check timed out', loginCmd };
+      }
+      const output = ((r.stdout || '') + (r.stderr || '')).trim();
+      try {
+        const j = JSON.parse(r.stdout || output);
+        if (j.loggedIn === true) {
+          const account = j.email || j.orgName || null;
+          return {
+            agent,
+            installed: true,
+            authenticated: true,
+            account,
+            details: account ? `Signed in as ${account}` : 'Signed in',
+            loginCmd,
+          };
+        } else if (j.loggedIn === false) {
+          return {
+            agent,
+            installed: true,
+            authenticated: false,
+            details: 'Not signed in',
+            loginCmd,
+          };
+        }
+      } catch {}
+
+      if (output.includes('"loggedIn":true') || output.includes('"loggedIn": true')) {
+        return { agent, installed: true, authenticated: true, details: 'Signed in', loginCmd };
+      }
+      if (output.includes('"loggedIn":false') || output.includes('"loggedIn": false') || output.toLowerCase().includes('not logged in')) {
+        return { agent, installed: true, authenticated: false, details: 'Not signed in', loginCmd };
+      }
+      if (r.status === 0 && !output.toLowerCase().includes('error')) {
+        return { agent, installed: true, authenticated: true, details: 'Signed in', loginCmd };
+      }
+      return { agent, installed: true, authenticated: false, details: output || 'Not signed in', loginCmd };
+    }
+
+    if (agent === 'codex') {
+      const r = spawnFn(bin, ['login', 'status'], opts);
+      if (r.error && r.error.code === 'ETIMEDOUT') {
+        return { agent, installed: true, authenticated: false, details: 'Auth check timed out', loginCmd };
+      }
+      const output = ((r.stdout || '') + (r.stderr || '')).trim();
+      if (output.toLowerCase().includes('not logged in')) {
+        return { agent, installed: true, authenticated: false, details: 'Not signed in', loginCmd };
+      }
+      if (output.toLowerCase().includes('logged in')) {
+        return { agent, installed: true, authenticated: true, details: output, loginCmd };
+      }
+      if (r.status === 0 && !output.toLowerCase().includes('error')) {
+        return { agent, installed: true, authenticated: true, details: output || 'Signed in', loginCmd };
+      }
+      return { agent, installed: true, authenticated: false, details: output || 'Not signed in', loginCmd };
+    }
+
+    if (agent === 'cursor') {
+      const r = spawnFn(bin, ['status', '--format', 'json'], opts);
+      if (r.error && r.error.code === 'ETIMEDOUT') {
+        return { agent, installed: true, authenticated: false, details: 'Auth check timed out', loginCmd };
+      }
+      const output = ((r.stdout || '') + (r.stderr || '')).trim();
+      try {
+        const j = JSON.parse(r.stdout || output);
+        if (j.isAuthenticated === true || j.status === 'authenticated') {
+          const account = j.userInfo?.email || null;
+          return {
+            agent,
+            installed: true,
+            authenticated: true,
+            account,
+            details: account ? `Signed in as ${account}` : 'Signed in',
+            loginCmd,
+          };
+        }
+        if (j.isAuthenticated === false || j.status === 'unauthenticated') {
+          return { agent, installed: true, authenticated: false, details: 'Not signed in', loginCmd };
+        }
+      } catch {}
+
+      if (output.toLowerCase().includes('logged in as') || output.toLowerCase().includes('authenticated')) {
+        return { agent, installed: true, authenticated: true, details: output, loginCmd };
+      }
+      if (output.toLowerCase().includes('not logged in')) {
+        return { agent, installed: true, authenticated: false, details: 'Not signed in', loginCmd };
+      }
+      if (r.status === 0 && !output.toLowerCase().includes('error')) {
+        return { agent, installed: true, authenticated: true, details: output || 'Signed in', loginCmd };
+      }
+      return { agent, installed: true, authenticated: false, details: output || 'Not signed in', loginCmd };
+    }
+
+    if (agent === 'gemini') {
+      if (env.GEMINI_API_KEY) {
+        return { agent, installed: true, authenticated: true, details: 'GEMINI_API_KEY set', loginCmd };
+      }
+      if (path.basename(bin) === 'agy') {
+        const r = spawnFn(bin, ['models'], { ...opts, input: '' });
+        if (r.error && r.error.code === 'ETIMEDOUT') {
+          return { agent, installed: true, authenticated: false, details: 'Auth check timed out', loginCmd };
+        }
+        const output = ((r.stdout || '') + (r.stderr || '')).trim();
+        if (output.includes('Please sign in') || output.includes('Error: Please sign in')) {
+          return { agent, installed: true, authenticated: false, details: 'Not signed in', loginCmd };
+        }
+        if (r.status === 0 && (output.includes('gemini-') || output.includes('models'))) {
+          return { agent, installed: true, authenticated: true, details: 'Signed in', loginCmd };
+        }
+        return { agent, installed: true, authenticated: false, details: output || 'Not signed in', loginCmd };
+      } else {
+        const r = spawnFn(bin, ['--version'], opts);
+        if (r.status === 0) {
+          return { agent, installed: true, authenticated: true, details: 'CLI detected', loginCmd };
+        }
+        return { agent, installed: true, authenticated: false, details: 'CLI error', loginCmd };
+      }
+    }
+  } catch (err) {
+    return {
+      agent,
+      installed: true,
+      authenticated: false,
+      details: err.message,
+      loginCmd,
+    };
+  }
+
+  return { agent, installed: true, authenticated: false, details: 'Unknown status', loginCmd };
+}
+
+export async function selectAndAuthenticateAgent({
+  requestedAgent = null,
+  clients = [],
+  yes = false,
+  out = console.log,
+  checkAuthFn = checkAgentAuth,
+  execFileFn = execFileSync,
+  readlineFn = null,
+} = {}) {
+  const installedAgents = BUILD_AGENTS.filter(ag => Boolean(findBin(BINS[ag] || [])));
+  const isInteractive = !yes && (Boolean(readlineFn) || Boolean(process.stdin.isTTY));
+
+  let selectedAgent = requestedAgent;
+
+  if (selectedAgent) {
+    const bin = findBin(BINS[selectedAgent] || []);
+    if (!bin && !['anthropic', 'command'].includes(selectedAgent)) {
+      out(`  ${c.red('✖')} Requested agent "${selectedAgent}" is not installed on this system.`);
+      return { ok: false, agent: selectedAgent, error: 'not_installed' };
+    }
+  } else if (installedAgents.length === 0) {
+    out(`  ${c.red('✖')} ${c.bold('No supported agent CLI found')} (claude, gemini, codex, cursor).`);
+    out(`    Install at least one agent CLI to explore and build the knowledge cache.\n`);
+    return { ok: false, agent: null, error: 'no_agent' };
+  } else if (installedAgents.length === 1) {
+    selectedAgent = installedAgents[0];
+    const bin = findBin(BINS[selectedAgent] || []);
+    const name = getAgentDisplayName(selectedAgent, bin);
+    out(`  ${c.cyan('•')} Using detected agent: ${c.bold(name)} (${selectedAgent})`);
+  } else {
+    // Multiple agents installed: allow user to choose based on tools they have
+    const agentStatuses = installedAgents.map(ag => {
+      const bin = findBin(BINS[ag] || []);
+      const name = getAgentDisplayName(ag, bin);
+      const auth = checkAuthFn(ag);
+      return { agent: ag, bin, name, auth };
+    });
+
+    let defaultIdx = -1;
+    if (clients && clients.length === 1 && installedAgents.includes(clients[0])) {
+      defaultIdx = agentStatuses.findIndex(s => s.agent === clients[0]);
+    }
+    if (defaultIdx === -1) {
+      const preferred = exploreAgent();
+      defaultIdx = agentStatuses.findIndex(s => s.agent === preferred && s.auth.authenticated);
+    }
+    if (defaultIdx === -1) {
+      defaultIdx = agentStatuses.findIndex(s => s.auth.authenticated);
+    }
+    if (defaultIdx === -1) defaultIdx = 0;
+
+    if (!isInteractive) {
+    selectedAgent = agentStatuses[defaultIdx].agent;
+    out(`  ${c.cyan('•')} Selected agent: ${c.bold(agentStatuses[defaultIdx].name)} (${selectedAgent})`);
+  } else {
+    out(`  ${c.bold('Available agents to build the knowledge cache:')}`);
+    agentStatuses.forEach((s, idx) => {
+      const num = idx + 1;
+      const isDefault = idx === defaultIdx;
+      const authTag = s.auth.authenticated
+        ? c.green(`Signed in${s.auth.account ? ` (${s.auth.account})` : ''}`)
+        : c.yellow('⚠ Not signed in');
+      const recTag = isDefault ? c.dim(' [recommended]') : '';
+      out(`    ${num}) ${s.name.padEnd(20)} (${s.agent}) · ${authTag}${recTag}`);
+    });
+    out('');
+
+    const rl = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
+    const promptText = `  Select an agent [1-${agentStatuses.length}, default: ${defaultIdx + 1}]: `;
+    const answer = await rl.question(promptText);
+    rl.close();
+
+    const trimmed = answer.trim();
+    let chosenIdx = defaultIdx;
+    if (trimmed) {
+      const parsedNum = parseInt(trimmed, 10);
+      if (!Number.isNaN(parsedNum) && parsedNum >= 1 && parsedNum <= agentStatuses.length) {
+        chosenIdx = parsedNum - 1;
+      } else {
+        const byName = agentStatuses.findIndex(s => s.agent.toLowerCase() === trimmed.toLowerCase() || s.name.toLowerCase().includes(trimmed.toLowerCase()));
+        if (byName !== -1) chosenIdx = byName;
+      }
+    }
+    selectedAgent = agentStatuses[chosenIdx].agent;
+  }
+  }
+
+  // Check authentication for selected agent
+  let auth = checkAuthFn(selectedAgent);
+  const agentBin = findBin(BINS[selectedAgent] || []);
+  const agentName = getAgentDisplayName(selectedAgent, agentBin);
+
+  if (auth.authenticated) {
+    out(`  ${c.green('✔')} ${c.bold(agentName)} is authenticated${auth.account ? ` (${auth.account})` : ''}.\n`);
+    return { ok: true, agent: selectedAgent };
+  }
+
+  // Auth issue detected
+  out(`\n  ${c.yellow('⚠')} ${c.bold(agentName)} is not authenticated.`);
+  if (auth.details && auth.details !== 'Not signed in') {
+    out(`    ${c.dim(auth.details)}`);
+  }
+  out(`    Sign-in command: ${c.cyan(auth.loginCmd)}\n`);
+
+  if (!isInteractive) {
+    const otherAuthed = installedAgents.find(a => a !== selectedAgent && checkAuthFn(a).authenticated);
+    if (otherAuthed) {
+      const otherName = getAgentDisplayName(otherAuthed, findBin(BINS[otherAuthed]));
+      out(`  ${c.yellow('⚠')} Automatically switching to authenticated agent: ${c.bold(otherName)} (${otherAuthed}).\n`);
+      return { ok: true, agent: otherAuthed };
+    }
+    out(`  ${c.yellow('⚠')} ${agentName} is not signed in. Run '${auth.loginCmd}' to authenticate.`);
+    out(`    Proceeding with agent exploration skipped.\n`);
+    return { ok: true, agent: selectedAgent, skipExploration: true };
+  }
+
+  // Interactive mode: ask user to sign in
+  const rl = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
+  const askSignIn = await rl.question(`  Would you like to sign in to ${agentName} now? [Y/n] `);
+  rl.close();
+
+  if (!/^n/i.test(askSignIn.trim())) {
+    out(`\n  Launching: ${c.cyan(auth.loginCmd)} ...\n`);
+    const loginArgs = getAgentLoginArgs(selectedAgent, agentBin);
+    try {
+      execFileFn(loginArgs[0], loginArgs.slice(1), { stdio: 'inherit' });
+    } catch (err) {
+      out(`  ${c.yellow('⚠')} Sign-in process exited: ${err.message}`);
+    }
+
+    auth = checkAuthFn(selectedAgent);
+    if (auth.authenticated) {
+      out(`\n  ${c.green('✔')} Successfully authenticated with ${c.bold(agentName)}!\n`);
+      return { ok: true, agent: selectedAgent };
+    } else {
+      out(`\n  ${c.yellow('⚠')} Authentication still incomplete for ${agentName}.`);
+    }
+  }
+
+  const otherAuthed = installedAgents.filter(a => a !== selectedAgent && checkAuthFn(a).authenticated);
+  if (otherAuthed.length > 0) {
+    const rl2 = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
+    const names = otherAuthed.map(a => getAgentDisplayName(a)).join(', ');
+    const switchAns = await rl2.question(`  Switch to a signed-in agent (${names})? [Y/n] `);
+    rl2.close();
+    if (!/^n/i.test(switchAns.trim())) {
+      const alternative = otherAuthed[0];
+      out(`  Switched to ${c.bold(getAgentDisplayName(alternative))} (${alternative}).\n`);
+      return { ok: true, agent: alternative };
+    }
+  }
+
+  const rl3 = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
+  const contAns = await rl3.question(`  Proceed without agent exploration (co-change patterns only)? [Y/n] `);
+  rl3.close();
+  if (!/^n/i.test(contAns.trim())) {
+    out(`  Proceeding with agent exploration skipped.\n`);
+    return { ok: true, agent: selectedAgent, skipExploration: true };
+  }
+
+  out(`\n  ${c.yellow('○')} Setup paused. Please sign in with '${c.cyan(auth.loginCmd)}' and run ${c.cyan('thinker setup')} again.\n`);
+  return { ok: false, agent: selectedAgent, error: 'unauthenticated' };
+}
+
 // --- Pre-flight Cache Estimation ---------------------------------------------
 
 export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false, noPrs = false, slug = null, agent = null } = {}) {
@@ -785,17 +1135,44 @@ export async function runOnboarding({
 
   // Step 2: Build Knowledge Cache
   const slug = githubSlug(repo);
-  const activeAgent = agent || exploreAgent();
-  const estimates = estimateCacheBuild(repo, { areas, prs, noSeed, noPrs, slug, agent: activeAgent });
 
   out(stepBanner(2, 3, 'Build Knowledge Cache', 'Mine co-change patterns, PR invariants, and explore codebase topology'));
+
+  let activeAgent = agent || null;
+  let effectiveNoSeed = noSeed;
+
+  if (!noSeed || !noPrs) {
+    const authResult = await selectAndAuthenticateAgent({
+      requestedAgent: agent || null,
+      clients,
+      yes,
+      out,
+    });
+    if (!authResult.ok) {
+      return { skipped: true, error: authResult.error };
+    }
+    activeAgent = authResult.agent;
+    if (authResult.skipExploration) {
+      effectiveNoSeed = true;
+    }
+  } else {
+    activeAgent = activeAgent || exploreAgent();
+  }
+
+  if (activeAgent) {
+    if (!process.env.THINKER_LLM) process.env.THINKER_LLM_PREFER = activeAgent;
+    process.env.THINKER_LLM = activeAgent;
+  }
+
+  const estimates = estimateCacheBuild(repo, { areas, prs, noSeed: effectiveNoSeed, noPrs, slug, agent: activeAgent });
+
   const cacheRes = await stepBuildCache({
     repo,
     store,
     estimates,
     areas,
     prs,
-    noSeed,
+    noSeed: effectiveNoSeed,
     noPrs,
     noPhrase,
     model,

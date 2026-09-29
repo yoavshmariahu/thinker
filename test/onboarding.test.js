@@ -18,6 +18,12 @@ import {
   buildPrBenchmarkTask,
   renderPrBenchmarkReport,
   runOnboarding,
+  BUILD_AGENTS,
+  getAgentDisplayName,
+  getAgentLoginCommand,
+  getAgentLoginArgs,
+  checkAgentAuth,
+  selectAndAuthenticateAgent,
 } from '../src/onboarding.js';
 
 function createMockGitRepo() {
@@ -228,3 +234,338 @@ test('runOnboarding completes 3-step onboarding flow in clean repo', async () =>
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test('getAgentDisplayName, getAgentLoginCommand, and getAgentLoginArgs return expected metadata', () => {
+  assert.equal(getAgentDisplayName('claude'), 'Claude Code');
+  assert.equal(getAgentDisplayName('codex'), 'Codex CLI');
+  assert.equal(getAgentDisplayName('cursor'), 'Cursor Agent');
+  assert.equal(getAgentDisplayName('gemini', '/path/to/agy'), 'Antigravity (agy)');
+  assert.equal(getAgentDisplayName('gemini', '/path/to/gemini'), 'Gemini CLI');
+
+  assert.equal(getAgentLoginCommand('claude'), 'claude auth login');
+  assert.equal(getAgentLoginCommand('codex'), 'codex login');
+  assert.equal(getAgentLoginCommand('cursor'), 'agent login');
+  assert.equal(getAgentLoginCommand('cursor', '/usr/bin/cursor-agent'), 'cursor-agent login');
+  assert.equal(getAgentLoginCommand('gemini', '/usr/bin/agy'), 'agy');
+  assert.equal(getAgentLoginCommand('gemini', '/usr/bin/gemini'), 'gemini');
+
+  assert.deepEqual(getAgentLoginArgs('claude'), ['claude', 'auth', 'login']);
+  assert.deepEqual(getAgentLoginArgs('codex'), ['codex', 'login']);
+  assert.deepEqual(getAgentLoginArgs('cursor'), ['agent', 'login']);
+  assert.deepEqual(getAgentLoginArgs('gemini', '/usr/bin/agy'), ['/usr/bin/agy']);
+});
+
+test('checkAgentAuth checks Claude authentication correctly', () => {
+  const mockSpawnAuthed = (bin, args) => {
+    assert.deepEqual(args, ['auth', 'status']);
+    return { status: 0, stdout: JSON.stringify({ loggedIn: true, email: 'dev@example.com' }) };
+  };
+  const resAuthed = checkAgentAuth('claude', { spawnFn: mockSpawnAuthed });
+  assert.equal(resAuthed.authenticated, true);
+  assert.equal(resAuthed.account, 'dev@example.com');
+  assert.match(resAuthed.details, /Signed in as dev@example\.com/);
+
+  const mockSpawnUnauthed = () => {
+    return { status: 0, stdout: JSON.stringify({ loggedIn: false }) };
+  };
+  const resUnauthed = checkAgentAuth('claude', { spawnFn: mockSpawnUnauthed });
+  assert.equal(resUnauthed.authenticated, false);
+  assert.equal(resUnauthed.details, 'Not signed in');
+  assert.equal(resUnauthed.loginCmd, 'claude auth login');
+
+  const mockSpawnTimeout = () => {
+    return { error: { code: 'ETIMEDOUT' } };
+  };
+  const resTimeout = checkAgentAuth('claude', { spawnFn: mockSpawnTimeout });
+  assert.equal(resTimeout.authenticated, false);
+  assert.equal(resTimeout.details, 'Auth check timed out');
+});
+
+test('checkAgentAuth checks Codex authentication correctly', () => {
+  const mockSpawnAuthed = () => {
+    return { status: 0, stdout: '', stderr: 'Logged in using ChatGPT\n' };
+  };
+  const resAuthed = checkAgentAuth('codex', { spawnFn: mockSpawnAuthed });
+  assert.equal(resAuthed.authenticated, true);
+  assert.match(resAuthed.details, /Logged in using ChatGPT/);
+
+  const mockSpawnUnauthed = () => {
+    return { status: 0, stdout: 'Not logged in\n' };
+  };
+  const resUnauthed = checkAgentAuth('codex', { spawnFn: mockSpawnUnauthed });
+  assert.equal(resUnauthed.authenticated, false);
+  assert.equal(resUnauthed.loginCmd, 'codex login');
+});
+
+test('checkAgentAuth checks Cursor authentication correctly', () => {
+  const mockSpawnAuthed = () => {
+    return {
+      status: 0,
+      stdout: JSON.stringify({
+        status: 'authenticated',
+        isAuthenticated: true,
+        userInfo: { email: 'cursor-dev@example.com' },
+      }),
+    };
+  };
+  const resAuthed = checkAgentAuth('cursor', { spawnFn: mockSpawnAuthed });
+  assert.equal(resAuthed.authenticated, true);
+  assert.equal(resAuthed.account, 'cursor-dev@example.com');
+
+  const mockSpawnUnauthed = () => {
+    return {
+      status: 0,
+      stdout: JSON.stringify({ status: 'unauthenticated', isAuthenticated: false }),
+    };
+  };
+  const resUnauthed = checkAgentAuth('cursor', { spawnFn: mockSpawnUnauthed });
+  assert.equal(resUnauthed.authenticated, false);
+  assert.match(resUnauthed.loginCmd, /login/);
+});
+
+test('checkAgentAuth checks Gemini authentication correctly', () => {
+  const resEnv = checkAgentAuth('gemini', { env: { GEMINI_API_KEY: 'test-key-123' } });
+  assert.equal(resEnv.authenticated, true);
+  assert.match(resEnv.details, /GEMINI_API_KEY/);
+
+  const mockSpawnAgy = () => {
+    return { status: 0, stdout: 'gemini-3.8-flash-high\tGemini 3.8 Flash (High)\n' };
+  };
+  const resAgy = checkAgentAuth('gemini', { spawnFn: mockSpawnAgy, env: {} });
+  assert.equal(resAgy.authenticated, true);
+
+  const mockSpawnAgyUnauthed = () => {
+    return { status: 0, stdout: 'Error: Please sign in to view available models.\n' };
+  };
+  const resAgyUnauthed = checkAgentAuth('gemini', { spawnFn: mockSpawnAgyUnauthed, env: {} });
+  assert.equal(resAgyUnauthed.authenticated, false);
+  assert.equal(resAgyUnauthed.loginCmd, 'agy');
+});
+
+test('selectAndAuthenticateAgent handles explicit requestedAgent', async () => {
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => {
+    return { agent, installed: true, authenticated: true, account: 'explicit@test.com' };
+  };
+
+  const res = await selectAndAuthenticateAgent({
+    requestedAgent: 'codex',
+    yes: true,
+    out,
+    checkAuthFn: mockCheckAuth,
+  });
+
+  assert.equal(res.ok, true);
+  assert.equal(res.agent, 'codex');
+  assert.match(outLines.join('\n'), /Codex CLI is authenticated/);
+});
+
+test('selectAndAuthenticateAgent prompts user when multiple agents installed in interactive mode', async () => {
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => {
+    return {
+      agent,
+      installed: true,
+      authenticated: true,
+      account: `${agent}@test.com`,
+    };
+  };
+
+  const mockReadline = () => ({
+    question: async (prompt) => '2',
+    close: () => {},
+  });
+
+  const res = await selectAndAuthenticateAgent({
+    yes: false,
+    out,
+    checkAuthFn: mockCheckAuth,
+    readlineFn: mockReadline,
+  });
+
+  assert.equal(res.ok, true);
+  assert.ok(res.agent);
+  const fullOut = outLines.join('\n');
+  assert.match(fullOut, /Available agents to build the knowledge cache:/);
+  assert.match(fullOut, /Signed in/);
+});
+
+test('selectAndAuthenticateAgent asks unauthenticated user to sign in and re-checks', async () => {
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  let callCount = 0;
+  const mockCheckAuth = (agent) => {
+    callCount++;
+    return {
+      agent,
+      installed: true,
+      authenticated: callCount > 1,
+      loginCmd: `${agent} login`,
+    };
+  };
+
+  let execCalled = false;
+  const mockExecFile = (cmd, args) => {
+    execCalled = true;
+  };
+
+  const mockReadline = () => ({
+    question: async (prompt) => 'Y',
+    close: () => {},
+  });
+
+  const res = await selectAndAuthenticateAgent({
+    requestedAgent: 'claude',
+    yes: false,
+    out,
+    checkAuthFn: mockCheckAuth,
+    execFileFn: mockExecFile,
+    readlineFn: mockReadline,
+  });
+
+  assert.equal(res.ok, true);
+  assert.equal(res.agent, 'claude');
+  assert.equal(execCalled, true);
+  assert.match(outLines.join('\n'), /Successfully authenticated with Claude Code!/);
+});
+
+test('selectAndAuthenticateAgent allows switching to another signed-in agent if sign-in declined', async () => {
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => {
+    if (agent === 'codex') {
+      return { agent, installed: true, authenticated: true, account: 'codex@example.com' };
+    }
+    return { agent, installed: true, authenticated: false, loginCmd: `${agent} auth login` };
+  };
+
+  let promptStep = 0;
+  const mockReadline = () => ({
+    question: async (prompt) => {
+      promptStep++;
+      if (promptStep === 1) return 'n'; // Decline sign in to claude
+      if (promptStep === 2) return 'y'; // Accept switch to codex
+      return 'n';
+    },
+    close: () => {},
+  });
+
+  const res = await selectAndAuthenticateAgent({
+    requestedAgent: 'claude',
+    yes: false,
+    out,
+    checkAuthFn: mockCheckAuth,
+    readlineFn: mockReadline,
+  });
+
+  assert.equal(res.ok, true);
+  assert.equal(res.agent, 'codex');
+  assert.match(outLines.join('\n'), /Switched to Codex CLI/);
+});
+
+test('selectAndAuthenticateAgent pauses setup when user declines sign-in and alternatives', async () => {
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => {
+    return { agent, installed: true, authenticated: false, loginCmd: `${agent} login` };
+  };
+
+  const mockReadline = () => ({
+    question: async (prompt) => 'n',
+    close: () => {},
+  });
+
+  const res = await selectAndAuthenticateAgent({
+    requestedAgent: 'claude',
+    yes: false,
+    out,
+    checkAuthFn: mockCheckAuth,
+    readlineFn: mockReadline,
+  });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.error, 'unauthenticated');
+  assert.match(outLines.join('\n'), /Setup paused/);
+});
+
+test('selectAndAuthenticateAgent allows proceeding without exploration when user elects co-change only', async () => {
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => {
+    return { agent, installed: true, authenticated: false, loginCmd: `${agent} login` };
+  };
+
+  let promptStep = 0;
+  const mockReadline = () => ({
+    question: async (prompt) => {
+      promptStep++;
+      if (promptStep === 1) return 'n'; // Decline sign in
+      return 'y'; // Accept proceeding without exploration
+    },
+    close: () => {},
+  });
+
+  const res = await selectAndAuthenticateAgent({
+    requestedAgent: 'claude',
+    yes: false,
+    out,
+    checkAuthFn: mockCheckAuth,
+    readlineFn: mockReadline,
+  });
+
+  assert.equal(res.ok, true);
+  assert.equal(res.skipExploration, true);
+  assert.match(outLines.join('\n'), /Proceeding with agent exploration skipped/);
+});
+
+test('selectAndAuthenticateAgent non-interactive switches to authenticated alternative', async () => {
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => {
+    if (agent === 'codex') {
+      return { agent, installed: true, authenticated: true, account: 'codex@test.com' };
+    }
+    return { agent, installed: true, authenticated: false, loginCmd: `${agent} auth login` };
+  };
+
+  const res = await selectAndAuthenticateAgent({
+    requestedAgent: 'claude',
+    yes: true,
+    out,
+    checkAuthFn: mockCheckAuth,
+  });
+
+  assert.equal(res.ok, true);
+  assert.equal(res.agent, 'codex');
+  assert.match(outLines.join('\n'), /Automatically switching to authenticated agent: Codex CLI/);
+});
+
+test('selectAndAuthenticateAgent non-interactive skips exploration when no agent authenticated', async () => {
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => {
+    return { agent, installed: true, authenticated: false, loginCmd: `${agent} login` };
+  };
+
+  const res = await selectAndAuthenticateAgent({
+    requestedAgent: 'claude',
+    yes: true,
+    out,
+    checkAuthFn: mockCheckAuth,
+  });
+
+  assert.equal(res.ok, true);
+  assert.equal(res.skipExploration, true);
+  assert.match(outLines.join('\n'), /Proceeding with agent exploration skipped/);
+});
+
