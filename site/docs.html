@@ -61,33 +61,151 @@
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 1.25rem;
+      gap: 0.75rem;
     }
 
-    .nav-link {
-      color: #555555;
+    .btn-back-nav {
+      color: #111111;
       text-decoration: none;
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       font-weight: 500;
-      transition: color 0.15s ease;
+      padding: 0.45rem 0.85rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      letter-spacing: -0.01em;
+      display: inline-flex;
+      align-items: center;
+      background: #ffffff;
     }
 
-    .nav-link:hover {
+    .btn-back-nav:hover {
+      background: #fafafa;
+      border-color: #111111;
+    }
+
+    .btn-benchmark {
+      background: transparent;
+      border: 1px solid #e5e5e5;
+      color: #111111;
+      padding: 0.45rem 0.85rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: -0.01em;
+    }
+
+    .btn-benchmark:hover {
+      border-color: #111111;
+      background: #fafafa;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 1.5rem;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    .modal-card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 760px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+      animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalIn {
+      from { transform: scale(0.97) translateY(8px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: #111111;
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      font-size: 1.35rem;
+      color: #666666;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .btn-close:hover {
       color: #000000;
+      background: #f5f5f5;
     }
 
-    .btn-nav-install {
+    .modal-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+    }
+
+    .modal-note {
+      font-size: 0.85rem;
+      color: #666666;
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+    }
+
+    .gain {
+      color: #15803d;
+      font-weight: 600;
+    }
+
+    .nodiff {
+      color: #9ca3af;
+    }
+
+    .btn-primary-action {
       background: #000000;
       color: #ffffff;
       text-decoration: none;
-      font-size: 0.82rem;
+      font-size: 0.85rem;
       font-weight: 500;
-      padding: 0.4rem 0.85rem;
+      padding: 0.5rem 1rem;
       border-radius: 6px;
       transition: background 0.15s ease;
+      display: inline-block;
     }
 
-    .btn-nav-install:hover {
+    .btn-primary-action:hover {
       background: #262626;
     }
 
@@ -369,11 +487,8 @@
       thinker <span class="brand-docs">/ docs</span>
     </a>
     <div class="nav-links">
-      <a href="index.html" class="nav-link">Home</a>
-      <a href="index.html#benchmarks" class="nav-link">Benchmarks</a>
-      <a href="#team-cloud" class="nav-link">Teams</a>
-      <a href="https://github.com/yoavshmariahu/thinker" target="_blank" rel="noopener" class="nav-link">GitHub ↗</a>
-      <a href="index.html" class="btn-nav-install">Get Started</a>
+      <a href="index.html" class="btn-back-nav">&larr; Back</a>
+      <button class="btn-benchmark" onclick="openModal()">Benchmarks</button>
     </div>
   </header>
 
@@ -619,13 +734,30 @@ thinker benchmark report</code></pre>
 
         <div id="what-to-expect">
           <h3>What Outcomes to Expect</h3>
-          <p>Across extensive benchmarks on real PR tasks (evaluated with Claude Fable, Gemini 3.8 Flash, and GPT-6 Astra):</p>
+          <p>
+            Evaluated on real tasks from merged pull requests across frontier and fast coding models (Claude Fable via Claude Code, Gemini 3.8 Flash via Antigravity CLI, and GPT-6 Astra via Codex CLI), independently graded against calibrated acceptance criteria:
+          </p>
           <ul>
-            <li><strong>18–21% less input tokens:</strong> Eliminates repetitive reading of 10–25 files per session.</li>
-            <li><strong>17–22% fewer tool calls:</strong> Cuts blind <code>grep</code> and <code>find</code> exploratory loops.</li>
-            <li><strong>7–14% faster wall time:</strong> Saves 30 to 100+ seconds on complex tasks.</li>
-            <li><strong>+33% tasks fully solved:</strong> Front-loading architecture conventions prevents agent hallucination and rabbit holes.</li>
+            <li>
+              <strong>Tool &amp; Exploration Efficiency (Consistent across all models):</strong>
+              Reduces total tool calls by <strong>17% to 22%</strong> and cuts file reads by <strong>14% to 27%</strong>. Pre-seeded architecture notes prevent agents from burning early turns on repetitive <code>grep</code> and <code>find</code> loops.
+            </li>
+            <li>
+              <strong>Context &amp; Token Savings (Consistent across all models):</strong>
+              Cuts input context re-reads by <strong>18% to 21%</strong>, directly lowering cost per task by <strong>10% to 16%</strong> across metered models.
+            </li>
+            <li>
+              <strong>Wall Clock Time (Consistent across all models):</strong>
+              Completes tasks <strong>7% to 14% faster</strong> (saving between 30 and 100+ seconds on complex tasks).
+            </li>
+            <li>
+              <strong>Correctness &amp; Accuracy (Model-dependent):</strong>
+              On frontier models (Claude Fable), pre-seeding conventions and invariants raised acceptance criteria accuracy by <strong>+10%</strong> and lifted complete task passes from 45% to 60% (<strong>+33% more tasks fully solved</strong>). Fast and reasoning models (Gemini Flash, GPT-6 Astra) maintained strict correctness parity (within single-run noise) while achieving significant token and tool reductions.
+            </li>
           </ul>
+          <p style="font-size: 0.88rem; color: #6b7280; margin-top: 0.85rem;">
+            <em>Note: The cache accelerates code navigation and eliminates redundant file exploration; it does not turn a weak model into a strong one. Run <code>thinker benchmark report</code> in your repository to measure your own baseline.</em>
+          </p>
         </div>
       </section>
 
@@ -734,5 +866,108 @@ export THINKER_TELEMETRY=off
     </main>
   </div>
 
+  <div class="modal-overlay" id="modal-overlay" onclick="handleBackdrop(event)">
+    <div class="modal-card" id="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Benchmark Results</div>
+        <button class="btn-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-note">
+          Measured on real tasks from merged pull requests, evaluated with and without thinker cache across frontier and fast coding models.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Dimension</th>
+              <th>Metric</th>
+              <th>Claude Fable<br><small>(Claude Code)</small></th>
+              <th>Gemini 3.8 Flash<br><small>(Antigravity CLI)</small></th>
+              <th>GPT-6 Astra<br><small>(Codex CLI)</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Timing</strong></td>
+              <td>Wall clock time</td>
+              <td class="gain">14% faster</td>
+              <td class="gain">8.5% faster</td>
+              <td class="gain">7.0% faster</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Token Usage</strong></td>
+              <td>Input context</td>
+              <td class="gain">18% less</td>
+              <td class="gain">21% less</td>
+              <td class="gain">19% less</td>
+            </tr>
+            <tr>
+              <td>Output tokens</td>
+              <td class="gain">11% less</td>
+              <td class="gain">22% less</td>
+              <td class="gain">11% less</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Tool Efficiency</strong></td>
+              <td>Tool calls</td>
+              <td class="gain">17% fewer</td>
+              <td class="gain">22% fewer</td>
+              <td class="gain">18% fewer</td>
+            </tr>
+            <tr>
+              <td>File reads</td>
+              <td class="nodiff">no diff</td>
+              <td class="gain">27% fewer</td>
+              <td class="gain">14% fewer</td>
+            </tr>
+            <tr>
+              <td><strong>Cost</strong></td>
+              <td>Cost per task</td>
+              <td class="gain">10% cheaper</td>
+              <td class="gain">16% cheaper</td>
+              <td class="nodiff">no diff</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Correctness</strong></td>
+              <td>Criteria accuracy</td>
+              <td class="gain">10% improved</td>
+              <td class="nodiff">no diff</td>
+              <td class="nodiff">no diff</td>
+            </tr>
+            <tr>
+              <td>Fully solved</td>
+              <td class="gain">33% more solved</td>
+              <td class="nodiff">no diff</td>
+              <td class="nodiff">no diff</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openModal() {
+      const modal = document.getElementById('modal-overlay');
+      modal.classList.add('active');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('modal-overlay');
+      modal.classList.remove('active');
+    }
+
+    function handleBackdrop(e) {
+      if (e.target.id === 'modal-overlay') {
+        closeModal();
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    });
+  </script>
 </body>
 </html>
