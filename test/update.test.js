@@ -181,6 +181,66 @@ test('cli update --status and --check run cleanly', () => {
       env: { ...process.env, THINKER_HOME: tmp },
     });
     assert.ok(upgradeOut.includes('Thinker installation:'));
+
+    // branch command
+    const branchOut = execFileSync('node', [CLI, 'branch'], {
+      encoding: 'utf8',
+      env: { ...process.env, THINKER_HOME: tmp },
+    });
+    assert.ok(branchOut.includes('On branch') || branchOut.includes('On ref'));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('applyUpdate can switch between git branches', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-branch-'));
+  try {
+    const bareDir = path.join(tmp, 'remote.git');
+    const localDir = path.join(tmp, 'local');
+    execFileSync('git', ['init', '--bare', '-q', bareDir]);
+
+    // Setup working checkout to push initial commit to main
+    const seedDir = path.join(tmp, 'seed');
+    execFileSync('git', ['clone', '-q', bareDir, seedDir]);
+    fs.writeFileSync(path.join(seedDir, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.0' }));
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: seedDir });
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: seedDir });
+    execFileSync('git', ['add', '.'], { cwd: seedDir });
+    execFileSync('git', ['commit', '-m', 'v1'], { cwd: seedDir });
+    execFileSync('git', ['push', '-q', 'origin', 'HEAD:main'], { cwd: seedDir });
+
+    // Push a feature branch
+    execFileSync('git', ['checkout', '-b', 'feature-exp'], { cwd: seedDir });
+    fs.writeFileSync(path.join(seedDir, 'exp.txt'), 'experimental feature');
+    execFileSync('git', ['add', '.'], { cwd: seedDir });
+    execFileSync('git', ['commit', '-m', 'add exp'], { cwd: seedDir });
+    execFileSync('git', ['push', '-q', 'origin', 'HEAD:feature-exp'], { cwd: seedDir });
+
+    // Clone main into local
+    execFileSync('git', ['clone', '-q', '-b', 'main', bareDir, localDir]);
+    execFileSync('git', ['config', 'user.name', 'Test'], { cwd: localDir });
+    execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: localDir });
+
+    const install = detectInstall(localDir, tmp);
+    assert.equal(install.branch, 'main');
+    assert.ok(!fs.existsSync(path.join(localDir, 'exp.txt')));
+
+    // Switch to feature-exp via applyUpdate
+    const res = await applyUpdate({ home: tmp, rootDir: localDir, install, ref: 'feature-exp', quiet: true });
+    assert.equal(res.updated, true);
+    assert.equal(res.branch, 'feature-exp');
+    assert.ok(fs.existsSync(path.join(localDir, 'exp.txt')));
+
+    const currentBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: localDir, encoding: 'utf8' }).trim();
+    assert.equal(currentBranch, 'feature-exp');
+
+    // Switch back to main via applyUpdate
+    const installExp = detectInstall(localDir, tmp);
+    const resMain = await applyUpdate({ home: tmp, rootDir: localDir, install: installExp, ref: 'main', quiet: true });
+    assert.equal(resMain.updated, true);
+    assert.equal(resMain.branch, 'main');
+    assert.ok(!fs.existsSync(path.join(localDir, 'exp.txt')));
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

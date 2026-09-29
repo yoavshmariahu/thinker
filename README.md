@@ -97,12 +97,26 @@ Real tasks from merged pull requests, each run with and without the cache. Evalu
 Method, uncertainty, per-task results and other models:
 [bench/RESULTS.md](bench/RESULTS.md).
 
-## Updates
+## Updates and testing branches
 
 Thinker auto-updates daily in the background. To check or update manually at any time:
 
 ```bash
 thinker update
+```
+
+To test a specific branch version:
+
+```bash
+# Switch to a branch version (or tag)
+thinker switch <branch-name>
+# or: thinker update <branch-name>
+
+# Check current branch
+thinker branch
+
+# Switch back to main
+thinker switch main
 ```
 
 See `thinker update --status` for current install and schedule details, or `thinker update --schedule` / `thinker update --unschedule` to manage OS-level background updates.

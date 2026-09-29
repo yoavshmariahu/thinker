@@ -27,6 +27,7 @@
 #   --shared            write hooks to .claude/settings.json (committed) instead of settings.local.json
 #   --mcp               register the MCP server in .mcp.json (Cursor, Codex, other MCP clients)
 #   --git-hook          re-check notes against the code after every commit
+#   --branch <name>     branch or tag to install (default main; --ref also accepted)
 #   --update            update thinker CLI to the latest version and exit
 #   --no-auto-update    do not schedule daily background auto-updates
 #   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too)
@@ -43,7 +44,7 @@
 set -euo pipefail
 
 main() {
-  local cache="" build=0 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1
+  local cache="" build=0 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 ref="${THINKER_REF:-main}"
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; shift 2 ;;
@@ -51,6 +52,7 @@ main() {
       --areas) areas="${2:-}"; shift 2 ;;
       --prs) prs="${2:-}"; shift 2 ;;
       --clients) clients="${2:-}"; shift 2 ;;
+      --branch|--ref) ref="${2:-}"; shift 2 ;;
       --learn) learn=1; shift ;;
       --no-learn) learn=0; shift ;;
       --late) late=1; shift ;;
@@ -69,7 +71,7 @@ main() {
 
   local home="${THINKER_HOME:-$HOME/.thinker}"
   local ghrepo="${THINKER_GH_REPO:-yoavshmariahu/thinker}"
-  local ref="${THINKER_REF:-main}"
+  local ref="${ref:-${THINKER_REF:-main}}"
   local dist="${THINKER_DIST_URL:-}"
   local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
   say() { printf '%s\n' "$*"; }
@@ -108,7 +110,7 @@ main() {
 
   if [ "$update" = 1 ]; then
     [ -x "$thinker" ] || die "thinker is not installed in $home"
-    exec "$thinker" update
+    exec "$thinker" update --branch "$ref"
   fi
 
   # --- install the tool ----------------------------------------------------

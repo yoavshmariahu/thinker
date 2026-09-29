@@ -83,26 +83,40 @@ const HELP = `thinker — knowledge cache for coding agents
   benchmark run "<repo question>" [--agent a] [--model m] [--budget n]
                                  run a paired, read-only onboarding benchmark without and with relevant cached notes
   benchmark report              show the latest comparison (answers are saved for human quality review)
-  update [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]
-                                 update thinker CLI to the latest version; --schedule / --unschedule manages daily background updates
+  update [branch] [--branch b] [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]
+                                 update thinker CLI or switch to a branch version; --schedule / --unschedule manages daily background updates
+  switch <branch>                switch thinker CLI to a specific branch version
+  branch                         show current branch or ref
   upgrade                        alias for update
   stats
 `;
 
 async function main() {
-  if (process.stderr.isTTY && !['update', 'upgrade', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
+  if (process.stderr.isTTY && !['update', 'upgrade', 'switch', 'branch', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
     const notice = checkPendingNotice(thinkerHome());
     if (notice) process.stderr.write(`[thinker] ${notice}\n`);
   }
-  if (!['update', 'upgrade'].includes(cmd) && !flags.background) {
+  if (!['update', 'upgrade', 'switch', 'branch'].includes(cmd) && !flags.background) {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
   }
 
   switch (cmd) {
+    case 'switch':
+    case 'branch':
     case 'update':
     case 'upgrade': {
       const home = thinkerHome();
       const install = detectInstall(path.resolve(HERE, '..'), home);
+      const targetRef = flags.branch || flags.ref || (pos[0] && !pos[0].startsWith('-') ? pos[0] : null);
+
+      if (cmd === 'branch' && !targetRef) {
+        if (install.type === 'git') {
+          out(`On branch ${install.branch || 'detached'} (${install.commit ? install.commit.slice(0, 7) : 'unknown'})`);
+        } else {
+          out(`On ref ${install.ref || 'main'} (${install.commit ? install.commit.slice(0, 7) : 'unknown'})`);
+        }
+        break;
+      }
 
       if (flags.status) {
         out('Thinker installation:');
@@ -172,10 +186,17 @@ async function main() {
         break;
       }
 
-      if (!flags.quiet) out('Checking for updates...');
+      if (!flags.quiet) {
+        if (targetRef && (install.branch !== targetRef && install.ref !== targetRef)) {
+          out(`Checking branch ${targetRef}...`);
+        } else {
+          out('Checking for updates...');
+        }
+      }
+
       let chk;
       try {
-        chk = await checkUpdate({ home, install, ghrepo: flags.repo, ref: flags.ref });
+        chk = await checkUpdate({ home, install, ghrepo: flags.repo, ref: targetRef });
       } catch (e) {
         out(`Update check failed: ${e.message}`);
         process.exit(1);
@@ -183,17 +204,18 @@ async function main() {
 
       if (flags.check) {
         if (chk.available) {
-          out(`Update available: ${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'}`);
+          const target = chk.targetBranch || chk.targetRef || targetRef || '';
+          out(`Update available${target ? ` for ${target}` : ''}: ${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'}`);
           if (chk.commitMessage) out(`  ${chk.commitMessage}`);
         } else {
-          out(`thinker is already up to date (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
+          out(`thinker is already up to date on ${chk.branch || chk.ref || 'main'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
         }
         break;
       }
 
       if (!chk.available && !flags.force) {
         if (!flags.quiet) {
-          out(`thinker is already up to date (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
+          out(`thinker is already up to date on ${chk.branch || chk.ref || 'main'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
           if (!isScheduled(home)) {
             out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
           }
@@ -202,18 +224,23 @@ async function main() {
       }
 
       if (!flags.quiet) {
-        out(`Updating thinker (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'})...`);
+        if (chk.switchingBranch || chk.switchingRef) {
+          out(`Switching thinker to ${chk.targetBranch || chk.targetRef} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'current'} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'})...`);
+        } else {
+          out(`Updating thinker (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'})...`);
+        }
       }
 
       try {
-        const res = await applyUpdate({ home, install, force: !!flags.force, quiet: !!flags.quiet, ghrepo: flags.repo, ref: flags.ref });
+        const res = await applyUpdate({ home, install, force: !!flags.force, quiet: !!flags.quiet, ghrepo: flags.repo, ref: targetRef });
         if (!flags.quiet) {
-          out(`Updated thinker to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
+          const branchInfo = res.branch ? ` on branch ${res.branch}` : (res.ref ? ` on ref ${res.ref}` : '');
+          out(`Updated thinker${branchInfo} to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
           if (!isScheduled(home)) {
             out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
           }
         }
-        store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: false });
+        store.log({ op: 'update', from: res.from, to: res.to, version: res.version, branch: res.branch || res.ref, auto: false });
       } catch (e) {
         out(`Update failed: ${e.message}`);
         process.exit(1);

@@ -106,60 +106,82 @@ export async function checkUpdate(opts = {}) {
     const rootDir = install.path;
     let isDirty = false;
     try {
-      const status = execFileSync('git', ['status', '--porcelain'], { cwd: rootDir, encoding: 'utf8' }).trim();
+      const status = execFileSync('git', ['status', '--porcelain', '-uno'], { cwd: rootDir, encoding: 'utf8' }).trim();
       isDirty = status.length > 0;
     } catch {}
 
-    const branch = install.branch || 'main';
+    const targetBranch = opts.ref || opts.branch || install.branch || 'main';
+    const switchingBranch = targetBranch !== install.branch;
     try {
-      execFileSync('git', ['fetch', '--quiet', 'origin'], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000 });
-    } catch (e) {
-      return {
-        type: 'git',
-        error: `Failed to fetch remote git changes: ${e.message}`,
-        currentCommit: install.commit,
-        version: install.version,
-        branch,
-        isDirty,
-      };
-    }
-
-    let remoteCommit = '';
-    try {
-      remoteCommit = execFileSync('git', ['rev-parse', '@{u}'], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      execFileSync('git', ['fetch', '--quiet', 'origin', targetBranch], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000 });
     } catch {
       try {
-        remoteCommit = execFileSync('git', ['rev-parse', `origin/${branch}`], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-      } catch {
-        try {
-          remoteCommit = execFileSync('git', ['rev-parse', 'origin/main'], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-        } catch {}
+        execFileSync('git', ['fetch', '--quiet', 'origin'], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30_000 });
+      } catch (e) {
+        return {
+          type: 'git',
+          error: `Failed to fetch remote git changes: ${e.message}`,
+          currentCommit: install.commit,
+          version: install.version,
+          branch: targetBranch,
+          isDirty,
+        };
       }
     }
 
-    const available = !!(remoteCommit && remoteCommit !== install.commit);
+    let remoteCommit = '';
+    if (opts.ref || opts.branch) {
+      try {
+        remoteCommit = execFileSync('git', ['rev-parse', `origin/${targetBranch}`], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      } catch {
+        try {
+          remoteCommit = execFileSync('git', ['rev-parse', targetBranch], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+        } catch {}
+      }
+    } else {
+      try {
+        remoteCommit = execFileSync('git', ['rev-parse', '@{u}'], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      } catch {
+        try {
+          remoteCommit = execFileSync('git', ['rev-parse', `origin/${targetBranch}`], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+        } catch {
+          try {
+            remoteCommit = execFileSync('git', ['rev-parse', 'origin/main'], { cwd: rootDir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+          } catch {}
+        }
+      }
+    }
+
+    const available = switchingBranch || !!(remoteCommit && remoteCommit !== install.commit);
     return {
       type: 'git',
       available,
+      switchingBranch,
+      currentBranch: install.branch,
+      targetBranch,
       currentCommit: install.commit,
       latestCommit: remoteCommit || install.commit,
       version: install.version,
-      branch,
+      branch: targetBranch,
       isDirty,
     };
   }
 
   // Archive install
   const ghrepo = opts.ghrepo || install.ghrepo || 'yoavshmariahu/thinker';
-  const ref = opts.ref || install.ref || 'main';
+  const ref = opts.ref || opts.branch || install.ref || 'main';
+  const switchingRef = ref !== (install.ref || 'main');
   const token = opts.token || getToken();
 
   const latest = await fetchLatestCommit({ ghrepo, ref, token });
-  const available = !install.commit || (latest.sha && latest.sha !== install.commit);
+  const available = switchingRef || !install.commit || (latest.sha && latest.sha !== install.commit);
 
   return {
     type: 'archive',
     available,
+    switchingRef,
+    currentRef: install.ref || 'main',
+    targetRef: ref,
     currentCommit: install.commit,
     latestCommit: latest.sha,
     commitMessage: latest.message,
@@ -177,24 +199,49 @@ export async function applyUpdate(opts = {}) {
   const force = !!opts.force;
   const token = opts.token || getToken();
   const ghrepo = opts.ghrepo || install.ghrepo || 'yoavshmariahu/thinker';
-  const ref = opts.ref || install.ref || 'main';
+  const ref = opts.ref || opts.branch || install.ref || 'main';
   const dist = opts.dist || install.dist || '';
 
   if (install.type === 'git') {
     const gitDir = install.path;
-    const status = execFileSync('git', ['status', '--porcelain'], { cwd: gitDir, encoding: 'utf8' }).trim();
+    const status = execFileSync('git', ['status', '--porcelain', '-uno'], { cwd: gitDir, encoding: 'utf8' }).trim();
     if (status && !force) {
       throw new Error(`Git working tree at ${gitDir} has uncommitted changes. Stash or commit them before updating, or pass --force.`);
     }
 
-    const branch = install.branch || 'main';
-    execFileSync('git', ['fetch', 'origin', branch], { cwd: gitDir, encoding: 'utf8', timeout: 30_000 });
+    const targetBranch = opts.ref || opts.branch || install.branch || 'main';
+    const switchingBranch = targetBranch !== install.branch;
+
+    try {
+      execFileSync('git', ['fetch', 'origin', targetBranch], { cwd: gitDir, encoding: 'utf8', timeout: 30_000 });
+    } catch {
+      try {
+        execFileSync('git', ['fetch', 'origin'], { cwd: gitDir, encoding: 'utf8', timeout: 30_000 });
+      } catch {}
+    }
+
     const oldCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: gitDir, encoding: 'utf8' }).trim();
 
-    if (force && status) {
-      execFileSync('git', ['reset', '--hard', `origin/${branch}`], { cwd: gitDir, encoding: 'utf8' });
+    if (switchingBranch) {
+      const localExists = spawnSync('git', ['rev-parse', '--verify', `refs/heads/${targetBranch}`], { cwd: gitDir }).status === 0;
+      if (localExists) {
+        execFileSync('git', ['checkout', targetBranch], { cwd: gitDir, encoding: 'utf8' });
+        try {
+          execFileSync('git', ['pull', '--ff-only', 'origin', targetBranch], { cwd: gitDir, encoding: 'utf8' });
+        } catch {}
+      } else {
+        try {
+          execFileSync('git', ['checkout', '-b', targetBranch, '--track', `origin/${targetBranch}`], { cwd: gitDir, encoding: 'utf8' });
+        } catch {
+          execFileSync('git', ['checkout', '-b', targetBranch], { cwd: gitDir, encoding: 'utf8' });
+        }
+      }
     } else {
-      execFileSync('git', ['pull', '--ff-only', 'origin', branch], { cwd: gitDir, encoding: 'utf8' });
+      if (force && status) {
+        execFileSync('git', ['reset', '--hard', `origin/${targetBranch}`], { cwd: gitDir, encoding: 'utf8' });
+      } else {
+        execFileSync('git', ['pull', '--ff-only', 'origin', targetBranch], { cwd: gitDir, encoding: 'utf8' });
+      }
     }
 
     const newCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: gitDir, encoding: 'utf8' }).trim();
@@ -206,10 +253,11 @@ export async function applyUpdate(opts = {}) {
 
     return {
       type: 'git',
-      updated: oldCommit !== newCommit || force,
+      updated: oldCommit !== newCommit || switchingBranch || force,
       from: oldCommit,
       to: newCommit,
       version: install.version,
+      branch: targetBranch,
     };
   }
 
