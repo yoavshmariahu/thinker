@@ -15,11 +15,13 @@
 # Options
 #   --build             build the cache here (on by default for repositories without a cache)
 #   --no-build          do not build a cache; only wire up hooks and MCP server (thinker init)
+#   --no-seed           with --build: skip architectural subsystem exploration
 #   --areas <n>         with --build: source areas to explore, one agent session each (default 12)
 #   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
 #   --pr <number>       specific PR number to target for the paired benchmark
 #   --benchmark         run paired PR benchmark during onboarding
 #   --no-benchmark      skip the paired PR benchmark step
+#   -y, --yes           accept defaults and skip interactive confirmation prompts
 #   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, all or auto
 #                       (default: auto with --build, otherwise claude)
 #   --cache <source>    cache built for this repo. One of: gh:<path in the thinker repo>, an https URL, a local file.
@@ -49,12 +51,14 @@ export COPYFILE_DISABLE=1
 export COPY_EXTENDED_ATTRIBUTES_DISABLE=1
 
 main() {
-  local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 ref="${THINKER_REF:-main}" benchmark="" pr_target=""
+  local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; shift 2 ;;
       --build) build=1; shift ;;
       --no-build) build=0; shift ;;
+      --no-seed) no_seed=1; shift ;;
+      -y|--yes) yes=1; shift ;;
       --areas) areas="${2:-}"; shift 2 ;;
       --prs) prs="${2:-}"; shift 2 ;;
       --pr) pr_target="${2:-}"; shift 2 ;;
@@ -212,7 +216,9 @@ EOF
   # --- wire it into this repository -------------------------------------------
   local args=""
   if [ "$build" = 1 ]; then
-    args="--yes --clients $clients"
+    args="--clients $clients"
+    [ "$yes" = 1 ] && args="$args --yes"
+    [ "$no_seed" = 1 ] && args="$args --no-seed"
     [ -n "$areas" ] && args="$args --areas $areas"
     [ -n "$prs" ] && args="$args --prs $prs"
     [ -n "$pr_target" ] && args="$args --pr $pr_target"
@@ -223,16 +229,25 @@ EOF
     [ "$shared" = 1 ] && args="$args --shared"
     [ "$githook" = 1 ] && args="$args --git-hook"
     # shellcheck disable=SC2086
-    "$thinker" onboard $args --repo "$repo"
+    if [ ! -t 0 ] && [ -r /dev/tty ]; then
+      "$thinker" onboard $args --repo "$repo" < /dev/tty
+    else
+      "$thinker" onboard $args --repo "$repo"
+    fi
   else
     if [ "$learn" = 1 ]; then args=""; else args="--no-learn"; fi
+    [ "$yes" = 1 ] && args="$args --yes"
     [ "$late" = 1 ] && args="$args --late"
     [ "$shared" = 1 ] || args="$args --local"
     [ "$mcp" = 1 ] || args="$args --no-mcp"
     [ "$githook" = 1 ] && args="$args --git-hook"
     [ -n "$clients" ] && args="$args --clients $clients"
     # shellcheck disable=SC2086
-    "$thinker" init $args --repo "$repo"
+    if [ ! -t 0 ] && [ -r /dev/tty ]; then
+      "$thinker" init $args --repo "$repo" < /dev/tty
+    else
+      "$thinker" init $args --repo "$repo"
+    fi
   fi
 
   case ":$PATH:" in *":$home/bin:"*) ;; *) say "  Optional: add $home/bin to your PATH to run 'thinker' directly." ;; esac

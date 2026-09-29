@@ -296,8 +296,8 @@ export async function selectAndAuthenticateAgent({
   execFileFn = execFileSync,
   readlineFn = null,
   purpose = 'build the knowledge cache',
-  actionName = 'agent exploration',
-  allowSkip = true,
+  actionName = 'subsystem exploration',
+  allowSkip = false,
 } = {}) {
   const installedAgents = BUILD_AGENTS.filter(ag => Boolean(findBin(BINS[ag] || [])));
   const isInteractive = !yes && (Boolean(readlineFn) || Boolean(process.stdin.isTTY));
@@ -401,9 +401,15 @@ export async function selectAndAuthenticateAgent({
       out(`  ${c.yellow('⚠')} Automatically switching to authenticated agent: ${c.bold(otherName)} (${otherAuthed}).\n`);
       return { ok: true, agent: otherAuthed };
     }
-    out(`  ${c.yellow('⚠')} ${agentName} is not signed in. Run '${auth.loginCmd}' to authenticate.`);
-    out(`    Proceeding with ${actionName} skipped.\n`);
-    return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
+    if (allowSkip) {
+      out(`  ${c.yellow('⚠')} ${agentName} is not signed in. Run '${auth.loginCmd}' to authenticate.`);
+      out(`    Proceeding with ${actionName} skipped.\n`);
+      return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
+    }
+    out(`  ${c.red('✖')} ${c.bold('Authentication required:')} ${agentName} is not signed in.`);
+    out(`    Run '${c.cyan(auth.loginCmd)}' to authenticate, then retry.`);
+    out(`    Subsystem exploration requires an authenticated agent (or pass --no-seed to build without exploration).\n`);
+    return { ok: false, agent: selectedAgent, error: 'unauthenticated', loginCmd: auth.loginCmd };
   }
 
   // Interactive mode: ask user to sign in
@@ -444,7 +450,7 @@ export async function selectAndAuthenticateAgent({
 
   if (allowSkip) {
     const rl3 = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
-    const skipPrompt = actionName === 'agent exploration'
+    const skipPrompt = actionName === 'subsystem exploration' || actionName === 'agent exploration'
       ? '  Proceed without agent exploration (co-change patterns only)? [Y/n] '
       : `  Proceed without ${actionName}? [Y/n] `;
     const contAns = await rl3.question(skipPrompt);
@@ -457,8 +463,10 @@ export async function selectAndAuthenticateAgent({
 
   const pausedPrefix = purpose === 'run the benchmark' ? 'Benchmark paused.' : 'Setup paused.';
   const retryCmd = purpose === 'run the benchmark' ? 'thinker benchmark' : 'thinker setup';
-  out(`\n  ${c.yellow('○')} ${pausedPrefix} Please sign in with '${c.cyan(auth.loginCmd)}' and run ${c.cyan(retryCmd)} again.\n`);
-  return { ok: false, agent: selectedAgent, error: 'unauthenticated' };
+  out(`\n  ${c.yellow('○')} ${pausedPrefix} Subsystem exploration requires an authenticated agent (Claude, Gemini/Agy, Codex, Cursor).`);
+  out(`    Please sign in with '${c.cyan(auth.loginCmd)}' and run ${c.cyan(retryCmd)} again.`);
+  out(`    ${c.dim('Tip: To build a basic cache without agent exploration, use: thinker setup --no-seed')}\n`);
+  return { ok: false, agent: selectedAgent, error: 'unauthenticated', loginCmd: auth.loginCmd };
 }
 
 // --- Pre-flight Cache Estimation ---------------------------------------------
@@ -711,12 +719,19 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
     try {
       const res = await seedFn({ areas, model, agent });
       seedCount = res.ok || 0;
-      out(`        ${c.green('✔')} Explored ${seedCount} subsystems → architectural notes generated`);
+      if (seedCount > 0) {
+        out(`        ${c.green('✔')} Explored ${seedCount} subsystems → architectural notes generated`);
+      } else {
+        out(`        ${c.yellow('⚠')} Subsystem exploration produced 0 notes`);
+      }
     } catch (e) {
-      out(`        ${c.yellow('⚠')} Exploration skipped: ${e.message}`);
+      out(`        ${c.yellow('⚠')} Exploration error: ${e.message}`);
     }
   } else {
-    out(`  ${c.dim('[3/4] Subsystem exploration · Skipped (run `thinker seed` anytime)')}`);
+    const reason = noSeed
+      ? '(--no-seed flag passed)'
+      : (!agent ? '(no authenticated agent available)' : '(run `thinker seed` anytime)');
+    out(`  ${c.dim(`[3/4] Subsystem exploration · Skipped ${reason}`)}`);
   }
 
   // Stage 4: Cross-note linking and phrasings
@@ -1197,16 +1212,18 @@ export async function runOnboarding({
       clients,
       yes,
       out,
+      purpose: 'build the knowledge cache',
+      actionName: 'subsystem exploration',
+      allowSkip: false,
     });
     if (!authResult.ok) {
+      out(`\n  ${c.red('✖')} ${c.bold('Setup halted.')} Subsystem exploration requires an authenticated agent.`);
+      out(`    Run '${c.cyan(authResult.loginCmd || 'claude auth login')}' to authenticate, then re-run setup.`);
+      out(`    ${c.dim('Tip: To build a basic cache without agent exploration, use: thinker setup --no-seed')}\n`);
       return { skipped: true, error: authResult.error };
     }
     activeAgent = authResult.agent;
-    if (authResult.skipExploration || authResult.skip) {
-      effectiveNoSeed = true;
-    } else {
-      agentAuthed = true;
-    }
+    agentAuthed = true;
   } else {
     activeAgent = activeAgent || exploreAgent();
   }

@@ -95,7 +95,14 @@ function exec(bin, args, { cwd, input, timeoutMs = 20 * 60_000, env = {} }) {
       if (timedOut) return reject(new Error(`${path.basename(bin)} timed out`));
       if (code !== 0) {
         const rawOutput = (stderr || stdout).slice(0, 500);
-        const err = new Error(`${path.basename(bin)} exited ${code}: ${rawOutput}`);
+        let errorDetail = rawOutput;
+        try {
+          const parsed = JSON.parse(stderr || stdout);
+          if (parsed.result) errorDetail = String(parsed.result);
+          else if (parsed.error?.message) errorDetail = String(parsed.error.message);
+          else if (parsed.message) errorDetail = String(parsed.message);
+        } catch {}
+        const err = new Error(`${path.basename(bin)} exited ${code}: ${errorDetail}`);
         if (isAuthError(err)) err.isAuth = true;
         return reject(err);
       }

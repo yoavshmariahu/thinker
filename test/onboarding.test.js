@@ -237,6 +237,45 @@ test('runOnboarding completes 3-step onboarding flow in clean repo', async () =>
   }
 });
 
+test('runOnboarding halts setup when agent is not installed or authenticated and --no-seed is not passed', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-onboard-halt-'));
+  execFileSync('git', ['init', repo]);
+  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
+  execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: repo });
+  fs.writeFileSync(path.join(repo, 'index.js'), 'export function hello() { return "world"; }\n');
+  execFileSync('git', ['add', '.'], { cwd: repo });
+  execFileSync('git', ['commit', '-m', 'initial commit'], { cwd: repo });
+
+  const store = new Store(repo);
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  try {
+    const res = await runOnboarding({
+      repo,
+      store,
+      cliPath: path.resolve('src/cli.js'),
+      mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
+      clients: ['claude'],
+      areas: 2,
+      prs: 2,
+      noSeed: false,
+      noPrs: true,
+      noBenchmark: true,
+      agent: 'nonexistent-agent',
+      yes: true,
+      out,
+    });
+
+    assert.equal(res.skipped, true);
+    assert.ok(res.error);
+    const fullOut = outLines.join('\n');
+    assert.match(fullOut, /Requested agent "nonexistent-agent" is not installed/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('getAgentDisplayName, getAgentLoginCommand, and getAgentLoginArgs return expected metadata', () => {
   assert.equal(getAgentDisplayName('claude'), 'Claude Code');
   assert.equal(getAgentDisplayName('codex'), 'Codex CLI');
@@ -521,11 +560,12 @@ test('selectAndAuthenticateAgent allows proceeding without exploration when user
     out,
     checkAuthFn: mockCheckAuth,
     readlineFn: mockReadline,
+    allowSkip: true,
   });
 
   assert.equal(res.ok, true);
   assert.equal(res.skipExploration, true);
-  assert.match(outLines.join('\n'), /Proceeding with agent exploration skipped/);
+  assert.match(outLines.join('\n'), /Proceeding with subsystem exploration skipped/);
 });
 
 test('selectAndAuthenticateAgent non-interactive switches to authenticated alternative', async () => {
@@ -551,7 +591,7 @@ test('selectAndAuthenticateAgent non-interactive switches to authenticated alter
   assert.match(outLines.join('\n'), /Automatically switching to authenticated agent: Codex CLI/);
 });
 
-test('selectAndAuthenticateAgent non-interactive skips exploration when no agent authenticated', async () => {
+test('selectAndAuthenticateAgent non-interactive halts when allowSkip is false and no agent authenticated', async () => {
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
 
@@ -564,11 +604,34 @@ test('selectAndAuthenticateAgent non-interactive skips exploration when no agent
     yes: true,
     out,
     checkAuthFn: mockCheckAuth,
+    allowSkip: false,
+  });
+
+  assert.equal(res.ok, false);
+  assert.equal(res.error, 'unauthenticated');
+  assert.match(outLines.join('\n'), /Authentication required/);
+  assert.match(outLines.join('\n'), /Subsystem exploration requires an authenticated agent/);
+});
+
+test('selectAndAuthenticateAgent non-interactive skips exploration when allowSkip is true and no agent authenticated', async () => {
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => {
+    return { agent, installed: true, authenticated: false, loginCmd: `${agent} login` };
+  };
+
+  const res = await selectAndAuthenticateAgent({
+    requestedAgent: 'claude',
+    yes: true,
+    out,
+    checkAuthFn: mockCheckAuth,
+    allowSkip: true,
   });
 
   assert.equal(res.ok, true);
   assert.equal(res.skipExploration, true);
-  assert.match(outLines.join('\n'), /Proceeding with agent exploration skipped/);
+  assert.match(outLines.join('\n'), /Proceeding with subsystem exploration skipped/);
 });
 
 test('isAuthError and cleanErrorMessage correctly identify and format auth failure messages', () => {
