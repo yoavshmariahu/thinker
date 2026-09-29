@@ -37,6 +37,19 @@ gh api repos/yoavshmariahu/thinker/contents/install.sh -H "Accept: application/v
 Then work with your agent as usual. Notes are added to each request
 automatically.
 
+To check the value on a real question from your own repository, run the
+paired onboarding benchmark after setup:
+
+```bash
+thinker benchmark run "explain how <a real workflow> works"
+thinker benchmark report
+```
+
+It makes two read-only agent calls, without and with relevant thinker notes,
+and compares time, turns and tokens. It saves both answers under
+`.thinker/benchmarks/` so you can review quality; it does not pretend that
+speed alone is a correctness score.
+
 Notes:
 
 - **Requirements.** git, curl, tar, Node 20+, the GitHub CLI logged in (`gh auth login`)

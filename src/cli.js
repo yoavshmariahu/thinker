@@ -17,6 +17,7 @@ import { available, provider, findBin } from './llm.js';
 import { summarize, renderUsage, sessionKey } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
+import { benchmarkAgent, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -78,6 +79,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, what was learned, and an estimate of the tool calls and tokens saved
                                  (--here: this repository only; history is kept in ~/.thinker/log.jsonl)
+  benchmark run "<repo question>" [--agent a] [--model m] [--budget n]
+                                 run a paired, read-only onboarding benchmark without and with relevant cached notes
+  benchmark report              show the latest comparison (answers are saved for human quality review)
   stats
 `;
 
@@ -337,6 +341,38 @@ async function main() {
       out(flags.json ? JSON.stringify(u, null, 2) : renderUsage(u, { days }));
       break;
     }
+    case 'benchmark': {
+      const sub = pos.shift();
+      if (sub === 'report') {
+        out(renderBenchmarkReport(latestBenchmark(store)));
+        break;
+      }
+      if (sub !== 'run') {
+        out('Run a small benchmark in this repository:\n  thinker benchmark run "explain how <a real workflow> works"\n  thinker benchmark report\n\nUse a concrete question that the cache has notes about. Each run makes two read-only agent calls; answers are saved for review.');
+        break;
+      }
+      const task = pos.join(' ').trim();
+      if (!task) { out('usage: thinker benchmark run "<repo question>" [--agent claude|codex|cursor|gemini] [--model m]'); process.exitCode = 1; break; }
+      const selected = benchmarkAgent(typeof flags.agent === 'string' ? flags.agent : undefined);
+      if (!selected) { out('benchmark needs an installed agent CLI: claude, codex, cursor (agent), or gemini'); process.exitCode = 1; break; }
+      const oriented = await orient(store, { task, budget: Number(flags.budget) || 1000, recordUsage: false, backgroundVerify: false });
+      if (!oriented.included.length) {
+        out('No relevant notes matched that question, so a paired run would not test thinker. Try a more concrete question covered by `thinker list`, or build the cache first with `thinker setup`.');
+        process.exitCode = 1; break;
+      }
+      const instruction = 'Read-only repository benchmark. Answer the request from the actual code. Be concrete and cite file:symbol locations. Do not edit files, run destructive commands, or change git state.';
+      const baselinePrompt = `${instruction}\n\nREQUEST:\n${task}`;
+      const cachePrompt = `${instruction}\n\n<thinker-cache>\n${oriented.text}\n</thinker-cache>\n\nUse relevant pointers above to avoid re-deriving known repository structure. Verify claims against code when needed.\n\nREQUEST:\n${task}`;
+      out(`Running two read-only ${selected} calls for the same question (first without thinker, then with ${oriented.included.length} relevant notes).`);
+      const baseline = await runBenchmarkAgent(selected, { repo, prompt: baselinePrompt, model: typeof flags.model === 'string' ? flags.model : undefined, timeoutMs: Number(flags.timeout) ? Number(flags.timeout) * 1000 : undefined });
+      out(`  no cache: ${Math.round(baseline.wallMs / 1000)}s${baseline.inputTokens ? `, ${baseline.inputTokens} input tokens` : ''}`);
+      const cached = await runBenchmarkAgent(selected, { repo, prompt: cachePrompt, model: typeof flags.model === 'string' ? flags.model : undefined, timeoutMs: Number(flags.timeout) ? Number(flags.timeout) * 1000 : undefined });
+      out(`  thinker:  ${Math.round(cached.wallMs / 1000)}s${cached.inputTokens ? `, ${cached.inputTokens} input tokens` : ''}`);
+      const record = { version: 1, createdAt: new Date().toISOString(), repo, task, agent: selected, model: typeof flags.model === 'string' ? flags.model : null, notes: oriented.included.map(n => n.id), runs: { baseline, cache: cached } };
+      saveBenchmark(store, record);
+      out('\n' + renderBenchmarkReport(record));
+      break;
+    }
     case 'stats': {
       const notes = store.list();
       const by = {}; for (const n of notes) by[n.status] = (by[n.status] || 0) + 1;
@@ -432,7 +468,9 @@ async function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
   }
   if (!fs.existsSync(path.join(store.dir, 'cochange.json'))) { try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {} }
   const gi = path.join(repo, '.thinker', '.gitignore');
-  if (!fs.existsSync(gi)) fs.writeFileSync(gi, 'log.jsonl\nstate/\n');
+  const ignored = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';
+  const missing = ['log.jsonl', 'state/', 'benchmarks/'].filter(line => !ignored.split('\n').includes(line));
+  if (missing.length) fs.writeFileSync(gi, ignored + (ignored && !ignored.endsWith('\n') ? '\n' : '') + missing.join('\n') + '\n');
 }
 
 // owner/name of the GitHub repository behind `origin`, or null

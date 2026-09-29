@@ -26,6 +26,26 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--git-hook` | re-check notes after each commit |
 | `--uninstall [--purge]` | remove hooks; `--purge` also deletes the notes |
 
+## First-run benchmark
+
+After the cache is built or imported, use a concrete architectural question
+from the user's own repository:
+
+```bash
+thinker benchmark run "explain how an upload is authorized and persisted"
+thinker benchmark report
+```
+
+The first command makes two read-only calls through the same installed agent:
+one without thinker context and one with the notes selected by `orient`. It
+compares time, turns, tool calls when the agent reports them, and tokens. Both
+answers are kept in `.thinker/benchmarks/` for a human quality check. If no
+notes match the question, it exits before making either model call.
+
+This is a quick repository-specific signal, not a statistically conclusive
+benchmark or an automatic correctness grade. Use `--agent codex` (or
+`claude`, `cursor`, `gemini`) and `--model <name>` to pin the runner.
+
 ## Granting access
 
 Add each user as a collaborator with read access on `yoavshmariahu/thinker` (Settings → Collaborators), or move the repository to an organization and use a team.

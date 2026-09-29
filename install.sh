@@ -190,6 +190,12 @@ SHIM
   say "  Start your coding agent in this repository as usual; relevant notes are added to each request."
   say "  See what it knows:      $thinker list --repo \"$repo\""
   say "  Try a request:          $thinker orient \"<what you want to change>\" --repo \"$repo\""
+  if [ "$count" -gt 0 ]; then
+    say ""
+    say "  Benchmark thinker in this repository (optional; uses two read-only agent calls):"
+    say "    $thinker benchmark run \"explain how <a real workflow> works\" --repo \"$repo\""
+    say "    $thinker benchmark report --repo \"$repo\""
+  fi
   say "  Remove from this repo:  $thinker uninstall --repo \"$repo\""
   case ":$PATH:" in *":$home/bin:"*) ;; *) say "  Optional: add $home/bin to your PATH to run 'thinker' directly." ;; esac
 }

@@ -195,7 +195,7 @@ export const HOOK_BUDGET = 750;
 // 'auto' (full when the request names code that exists, else pointers), 'none'.
 // maxNotes/relFloor: the prompt hooks serve two notes; a caller that names its own budget (the MCP
 // tool) passes a higher maxNotes, and notes past the second must then reach relFloor of the best hit.
-export async function orient(store, { task, file, session, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
+export async function orient(store, { task, file, session, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
   if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
   const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
   if (early === 'auto' || early === 'router') early = specificity(store.repo, task) >= 1 ? 'full' : 'pointers'; // heuristic, also the router's fallback
@@ -236,8 +236,8 @@ export async function orient(store, { task, file, session, budget = HOOK_BUDGET,
   packed.mode = early;
   // relevant notes that were not served, so the caller can name them and the agent can ask for one
   packed.more = ranked.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, 6).map(r => r.note);
-  for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
-  if (!NAIVE) scheduleVerify(store, packed.included.filter(n => n.status === 'stale'));
+  if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
+  if (!NAIVE && backgroundVerify) scheduleVerify(store, packed.included.filter(n => n.status === 'stale'));
   // co-change edges for the files the served notes (and the current file) point at
   // co-change lines are carried through every later model call, so they are
   // off at the start by default; the end-of-task nudge uses them instead
@@ -251,7 +251,7 @@ export async function orient(store, { task, file, session, budget = HOOK_BUDGET,
   if (packed.included.length && process.env.THINKER_NO_GUARD !== '1') {
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: process.env.THINKER_GUARD_PHRASES !== '1', max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
-  store.log({ op: 'orient', session, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
