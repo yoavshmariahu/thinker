@@ -17,10 +17,10 @@ import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from
 import { summarize, renderUsage, sessionKey, cacheHitNotice } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
-import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
+import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath, tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendDailyTelemetryInBackground } from './telemetry.js';
-import { runOnboarding, stepPrBenchmark } from './onboarding.js';
+import { runOnboarding, stepPrBenchmark, selectAndAuthenticateAgent, getAgentLoginCommand } from './onboarding.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -612,6 +612,7 @@ async function main() {
           model: typeof flags.model === 'string' ? flags.model : undefined,
           budget: Number(flags.budget) || 1500,
           benchmarkFlag: true,
+          yes: Boolean(flags.yes),
           out,
         });
         break;
@@ -622,8 +623,19 @@ async function main() {
       }
       const task = pos.join(' ').trim();
       if (!task) { out('usage: thinker benchmark run "<repo question>" [--agent claude|codex|cursor|gemini] [--model m]'); process.exitCode = 1; break; }
-      const selected = benchmarkAgent(typeof flags.agent === 'string' ? flags.agent : undefined);
-      if (!selected) { out('benchmark needs an installed agent CLI: claude, codex, cursor (agent), or gemini'); process.exitCode = 1; break; }
+      const authRes = await selectAndAuthenticateAgent({
+        requestedAgent: typeof flags.agent === 'string' ? flags.agent : undefined,
+        yes: Boolean(flags.yes),
+        out,
+        purpose: 'run the benchmark',
+        actionName: 'benchmark',
+        allowSkip: false,
+      });
+      if (!authRes.ok || !authRes.agent || authRes.skip || authRes.skipExploration) {
+        process.exitCode = 1;
+        break;
+      }
+      const selected = authRes.agent;
       const oriented = await orient(store, { task, budget: Number(flags.budget) || 1000, recordUsage: false, backgroundVerify: false });
       if (!oriented.included.length) {
         const suggestions = benchmarkSuggestions(store);
@@ -640,10 +652,26 @@ async function main() {
       const baselinePrompt = `${instruction}\n\nREQUEST:\n${task}`;
       const cachePrompt = `${instruction}\n\n<thinker-cache>\n${oriented.text}\n</thinker-cache>\n\nUse relevant pointers above to avoid re-deriving known repository structure. Verify claims against code when needed.\n\nREQUEST:\n${task}`;
       out(`Running two read-only ${selected} calls for the same question (first without thinker, then with ${oriented.included.length} relevant notes).`);
-      const baseline = await runBenchmarkAgent(selected, { repo, prompt: baselinePrompt, model: typeof flags.model === 'string' ? flags.model : undefined, timeoutMs: Number(flags.timeout) ? Number(flags.timeout) * 1000 : undefined });
-      out(`  no cache: ${Math.round(baseline.wallMs / 1000)}s${baseline.inputTokens ? `, ${baseline.inputTokens} input tokens` : ''}`);
-      const cached = await runBenchmarkAgent(selected, { repo, prompt: cachePrompt, model: typeof flags.model === 'string' ? flags.model : undefined, timeoutMs: Number(flags.timeout) ? Number(flags.timeout) * 1000 : undefined });
-      out(`  thinker:  ${Math.round(cached.wallMs / 1000)}s${cached.inputTokens ? `, ${cached.inputTokens} input tokens` : ''}`);
+      let baseline, cached;
+      try {
+        baseline = await runBenchmarkAgent(selected, { repo, prompt: baselinePrompt, model: typeof flags.model === 'string' ? flags.model : undefined, timeoutMs: Number(flags.timeout) ? Number(flags.timeout) * 1000 : undefined });
+        out(`  no cache: ${Math.round(baseline.wallMs / 1000)}s${baseline.inputTokens ? `, ${baseline.inputTokens} input tokens` : ''}`);
+        cached = await runBenchmarkAgent(selected, { repo, prompt: cachePrompt, model: typeof flags.model === 'string' ? flags.model : undefined, timeoutMs: Number(flags.timeout) ? Number(flags.timeout) * 1000 : undefined });
+        out(`  thinker:  ${Math.round(cached.wallMs / 1000)}s${cached.inputTokens ? `, ${cached.inputTokens} input tokens` : ''}`);
+      } catch (err) {
+        if (isAuthError(err)) {
+          const loginCmd = getAgentLoginCommand(selected);
+          out(`\nBenchmark failed: ${selected} reported an authentication issue.`);
+          const cleanMsg = cleanErrorMessage(err);
+          if (cleanMsg) out(`  ${cleanMsg}`);
+          out(`  Please sign in with '${loginCmd}' and retry.\n`);
+          process.exitCode = 1;
+          break;
+        }
+        out(`\nBenchmark failed: ${cleanErrorMessage(err)}\n`);
+        process.exitCode = 1;
+        break;
+      }
       const record = { version: 1, createdAt: new Date().toISOString(), repo, task, agent: selected, model: typeof flags.model === 'string' ? flags.model : null, notes: oriented.included.map(n => n.id), runs: { baseline, cache: cached } };
       saveBenchmark(store, record);
       out('\n' + renderBenchmarkReport(record));

@@ -12,7 +12,7 @@ import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPr
 import { discoverAreas } from './topology.js';
 import { CLIENTS, detectClients, parseClients, installClient, trustCodex } from './clients.js';
 import { available, provider, findBin, BINS } from './llm.js';
-import { benchmarkAgent, benchmarkSuggestions, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
+import { benchmarkAgent, benchmarkSuggestions, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
 
@@ -295,6 +295,9 @@ export async function selectAndAuthenticateAgent({
   checkAuthFn = checkAgentAuth,
   execFileFn = execFileSync,
   readlineFn = null,
+  purpose = 'build the knowledge cache',
+  actionName = 'agent exploration',
+  allowSkip = true,
 } = {}) {
   const installedAgents = BUILD_AGENTS.filter(ag => Boolean(findBin(BINS[ag] || [])));
   const isInteractive = !yes && (Boolean(readlineFn) || Boolean(process.stdin.isTTY));
@@ -309,7 +312,7 @@ export async function selectAndAuthenticateAgent({
     }
   } else if (installedAgents.length === 0) {
     out(`  ${c.red('✖')} ${c.bold('No supported agent CLI found')} (claude, gemini, codex, cursor).`);
-    out(`    Install at least one agent CLI to explore and build the knowledge cache.\n`);
+    out(`    Install at least one agent CLI to ${purpose}.\n`);
     return { ok: false, agent: null, error: 'no_agent' };
   } else if (installedAgents.length === 1) {
     selectedAgent = installedAgents[0];
@@ -339,39 +342,39 @@ export async function selectAndAuthenticateAgent({
     if (defaultIdx === -1) defaultIdx = 0;
 
     if (!isInteractive) {
-    selectedAgent = agentStatuses[defaultIdx].agent;
-    out(`  ${c.cyan('•')} Selected agent: ${c.bold(agentStatuses[defaultIdx].name)} (${selectedAgent})`);
-  } else {
-    out(`  ${c.bold('Available agents to build the knowledge cache:')}`);
-    agentStatuses.forEach((s, idx) => {
-      const num = idx + 1;
-      const isDefault = idx === defaultIdx;
-      const authTag = s.auth.authenticated
-        ? c.green(`Signed in${s.auth.account ? ` (${s.auth.account})` : ''}`)
-        : c.yellow('⚠ Not signed in');
-      const recTag = isDefault ? c.dim(' [recommended]') : '';
-      out(`    ${num}) ${s.name.padEnd(20)} (${s.agent}) · ${authTag}${recTag}`);
-    });
-    out('');
+      selectedAgent = agentStatuses[defaultIdx].agent;
+      out(`  ${c.cyan('•')} Selected agent: ${c.bold(agentStatuses[defaultIdx].name)} (${selectedAgent})`);
+    } else {
+      out(`  ${c.bold(`Available agents to ${purpose}:`)}`);
+      agentStatuses.forEach((s, idx) => {
+        const num = idx + 1;
+        const isDefault = idx === defaultIdx;
+        const authTag = s.auth.authenticated
+          ? c.green(`Signed in${s.auth.account ? ` (${s.auth.account})` : ''}`)
+          : c.yellow('⚠ Not signed in');
+        const recTag = isDefault ? c.dim(' [recommended]') : '';
+        out(`    ${num}) ${s.name.padEnd(20)} (${s.agent}) · ${authTag}${recTag}`);
+      });
+      out('');
 
-    const rl = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
-    const promptText = `  Select an agent [1-${agentStatuses.length}, default: ${defaultIdx + 1}]: `;
-    const answer = await rl.question(promptText);
-    rl.close();
+      const rl = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
+      const promptText = `  Select an agent [1-${agentStatuses.length}, default: ${defaultIdx + 1}]: `;
+      const answer = await rl.question(promptText);
+      rl.close();
 
-    const trimmed = answer.trim();
-    let chosenIdx = defaultIdx;
-    if (trimmed) {
-      const parsedNum = parseInt(trimmed, 10);
-      if (!Number.isNaN(parsedNum) && parsedNum >= 1 && parsedNum <= agentStatuses.length) {
-        chosenIdx = parsedNum - 1;
-      } else {
-        const byName = agentStatuses.findIndex(s => s.agent.toLowerCase() === trimmed.toLowerCase() || s.name.toLowerCase().includes(trimmed.toLowerCase()));
-        if (byName !== -1) chosenIdx = byName;
+      const trimmed = answer.trim();
+      let chosenIdx = defaultIdx;
+      if (trimmed) {
+        const parsedNum = parseInt(trimmed, 10);
+        if (!Number.isNaN(parsedNum) && parsedNum >= 1 && parsedNum <= agentStatuses.length) {
+          chosenIdx = parsedNum - 1;
+        } else {
+          const byName = agentStatuses.findIndex(s => s.agent.toLowerCase() === trimmed.toLowerCase() || s.name.toLowerCase().includes(trimmed.toLowerCase()));
+          if (byName !== -1) chosenIdx = byName;
+        }
       }
+      selectedAgent = agentStatuses[chosenIdx].agent;
     }
-    selectedAgent = agentStatuses[chosenIdx].agent;
-  }
   }
 
   // Check authentication for selected agent
@@ -399,8 +402,8 @@ export async function selectAndAuthenticateAgent({
       return { ok: true, agent: otherAuthed };
     }
     out(`  ${c.yellow('⚠')} ${agentName} is not signed in. Run '${auth.loginCmd}' to authenticate.`);
-    out(`    Proceeding with agent exploration skipped.\n`);
-    return { ok: true, agent: selectedAgent, skipExploration: true };
+    out(`    Proceeding with ${actionName} skipped.\n`);
+    return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
   }
 
   // Interactive mode: ask user to sign in
@@ -439,15 +442,22 @@ export async function selectAndAuthenticateAgent({
     }
   }
 
-  const rl3 = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
-  const contAns = await rl3.question(`  Proceed without agent exploration (co-change patterns only)? [Y/n] `);
-  rl3.close();
-  if (!/^n/i.test(contAns.trim())) {
-    out(`  Proceeding with agent exploration skipped.\n`);
-    return { ok: true, agent: selectedAgent, skipExploration: true };
+  if (allowSkip) {
+    const rl3 = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
+    const skipPrompt = actionName === 'agent exploration'
+      ? '  Proceed without agent exploration (co-change patterns only)? [Y/n] '
+      : `  Proceed without ${actionName}? [Y/n] `;
+    const contAns = await rl3.question(skipPrompt);
+    rl3.close();
+    if (!/^n/i.test(contAns.trim())) {
+      out(`  Proceeding with ${actionName} skipped.\n`);
+      return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
+    }
   }
 
-  out(`\n  ${c.yellow('○')} Setup paused. Please sign in with '${c.cyan(auth.loginCmd)}' and run ${c.cyan('thinker setup')} again.\n`);
+  const pausedPrefix = purpose === 'run the benchmark' ? 'Benchmark paused.' : 'Setup paused.';
+  const retryCmd = purpose === 'run the benchmark' ? 'thinker benchmark' : 'thinker setup';
+  out(`\n  ${c.yellow('○')} ${pausedPrefix} Please sign in with '${c.cyan(auth.loginCmd)}' and run ${c.cyan(retryCmd)} again.\n`);
   return { ok: false, agent: selectedAgent, error: 'unauthenticated' };
 }
 
@@ -969,7 +979,22 @@ export function renderPrBenchmarkReport(record) {
   ].filter(Boolean).join('\n');
 }
 
-export async function stepPrBenchmark({ repo, store, prNumber, agent: requestedAgent, model, budget = 1500, benchmarkFlag = false, noBenchmark = false, yes = false, out = console.log }) {
+export async function stepPrBenchmark({
+  repo,
+  store,
+  prNumber,
+  agent: requestedAgent,
+  model,
+  budget = 1500,
+  benchmarkFlag = false,
+  noBenchmark = false,
+  yes = false,
+  out = console.log,
+  checkAuthFn = checkAgentAuth,
+  execFileFn = execFileSync,
+  readlineFn = null,
+  runBenchmarkFn = runBenchmarkAgent,
+}) {
   if (noBenchmark) {
     out(`  ${c.gray('○')} PR change benchmark skipped (--no-benchmark).`);
     return null;
@@ -996,8 +1021,8 @@ export async function stepPrBenchmark({ repo, store, prNumber, agent: requestedA
   if (!shouldRun) {
     if (yes) {
       shouldRun = true;
-    } else if (process.stdin.isTTY) {
-      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    } else if (readlineFn || process.stdin.isTTY) {
+      const rl = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
       const a = await rl.question(`  Run paired benchmark on this PR change? [Y/n] `);
       rl.close();
       shouldRun = !/^n/i.test(a.trim());
@@ -1010,15 +1035,25 @@ export async function stepPrBenchmark({ repo, store, prNumber, agent: requestedA
     return null;
   }
 
-  let selectedAgent = null;
-  try {
-    selectedAgent = benchmarkAgent(requestedAgent);
-  } catch {}
+  const authRes = await selectAndAuthenticateAgent({
+    requestedAgent,
+    yes,
+    out,
+    checkAuthFn,
+    execFileFn,
+    readlineFn,
+    purpose: 'run the benchmark',
+    actionName: 'benchmark',
+    allowSkip: true,
+  });
 
-  if (!selectedAgent) {
-    out(`  ${c.yellow('⚠')} Benchmark skipped: needs an installed agent CLI (claude, codex, cursor, or gemini).`);
+  if (!authRes.ok || authRes.skip || authRes.skipExploration) {
+    out(`  ${c.gray('○')} Benchmark skipped.`);
+    out(`    ${c.dim(`To benchmark this PR later: thinker benchmark pr ${pr.number || ''}`)}`);
     return null;
   }
+
+  const selectedAgent = authRes.agent;
 
   const task = buildPrBenchmarkTask(pr);
   const oriented = await orient(store, {
@@ -1028,18 +1063,32 @@ export async function stepPrBenchmark({ repo, store, prNumber, agent: requestedA
     backgroundVerify: false,
   });
 
-  out(`  ${c.cyan('Running paired benchmark with')} ${c.bold(selectedAgent)}...`);
+  out(`  ${c.cyan('Running paired benchmark with')} ${c.bold(getAgentDisplayName(selectedAgent))} (${selectedAgent})...`);
   const instruction = 'Read-only repository benchmark. Answer the request from the actual code. Be concrete and cite file:symbol locations. Do not edit files, run destructive commands, or change git state.';
   const baselinePrompt = `${instruction}\n\nREQUEST:\n${task}`;
   const cachePrompt = `${instruction}\n\n<thinker-cache>\n${oriented.text}\n</thinker-cache>\n\nUse relevant pointers above to avoid re-deriving known repository structure. Verify claims against code when needed.\n\nREQUEST:\n${task}`;
 
-  out(`  ${c.bold('[1/2] Baseline run (without cache)...')}`);
-  const baseline = await runBenchmarkAgent(selectedAgent, { repo, prompt: baselinePrompt, model });
-  out(`        ✔ Completed in ${(baseline.wallMs / 1000).toFixed(1)}s (${baseline.inputTokens || 0} input tokens)`);
+  let baseline, cached;
+  try {
+    out(`  ${c.bold('[1/2] Baseline run (without cache)...')}`);
+    baseline = await runBenchmarkFn(selectedAgent, { repo, prompt: baselinePrompt, model });
+    out(`        ✔ Completed in ${(baseline.wallMs / 1000).toFixed(1)}s (${baseline.inputTokens || 0} input tokens)`);
 
-  out(`  ${c.bold(`[2/2] Thinker run (with ${oriented.included.length} relevant notes)...`)}`);
-  const cached = await runBenchmarkAgent(selectedAgent, { repo, prompt: cachePrompt, model });
-  out(`        ✔ Completed in ${(cached.wallMs / 1000).toFixed(1)}s (${cached.inputTokens || 0} input tokens)`);
+    out(`  ${c.bold(`[2/2] Thinker run (with ${oriented.included.length} relevant notes)...`)}`);
+    cached = await runBenchmarkFn(selectedAgent, { repo, prompt: cachePrompt, model });
+    out(`        ✔ Completed in ${(cached.wallMs / 1000).toFixed(1)}s (${cached.inputTokens || 0} input tokens)`);
+  } catch (err) {
+    if (isAuthError(err)) {
+      const loginCmd = getAgentLoginCommand(selectedAgent);
+      out(`\n  ${c.yellow('⚠')} Benchmark stopped: ${c.bold(selectedAgent)} reported an authentication issue.`);
+      const cleanMsg = cleanErrorMessage(err);
+      if (cleanMsg) out(`    ${c.dim(cleanMsg)}`);
+      out(`    Please sign in with '${c.cyan(loginCmd)}' and retry: ${c.cyan(`thinker benchmark pr ${pr.number || ''}`)}\n`);
+      return null;
+    }
+    out(`\n  ${c.yellow('⚠')} Benchmark failed: ${cleanErrorMessage(err)}\n`);
+    return null;
+  }
 
   // Target files precision evaluation
   const targetFiles = (pr.files || []).filter(f => !f.startsWith('.') && !f.endsWith('.md') && !f.endsWith('.txt')).slice(0, 8);
@@ -1140,6 +1189,7 @@ export async function runOnboarding({
 
   let activeAgent = agent || null;
   let effectiveNoSeed = noSeed;
+  let agentAuthed = false;
 
   if (!noSeed || !noPrs) {
     const authResult = await selectAndAuthenticateAgent({
@@ -1152,14 +1202,16 @@ export async function runOnboarding({
       return { skipped: true, error: authResult.error };
     }
     activeAgent = authResult.agent;
-    if (authResult.skipExploration) {
+    if (authResult.skipExploration || authResult.skip) {
       effectiveNoSeed = true;
+    } else {
+      agentAuthed = true;
     }
   } else {
     activeAgent = activeAgent || exploreAgent();
   }
 
-  if (activeAgent) {
+  if (activeAgent && agentAuthed) {
     if (!process.env.THINKER_LLM) process.env.THINKER_LLM_PREFER = activeAgent;
     process.env.THINKER_LLM = activeAgent;
   }
@@ -1193,7 +1245,7 @@ export async function runOnboarding({
     repo,
     store,
     prNumber,
-    agent: activeAgent,
+    agent: agentAuthed ? activeAgent : (agent || null),
     model,
     budget: 1500,
     benchmarkFlag: benchmark,
