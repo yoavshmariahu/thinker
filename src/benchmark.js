@@ -157,9 +157,16 @@ export function renderBenchmarkReport(record) {
     metric('tool calls', a.toolCalls, b.toolCalls),
     metric('input tokens', a.inputTokens, b.inputTokens),
     metric('output tokens', a.outputTokens, b.outputTokens),
+    a.targetFilesFound != null && b.targetFilesFound != null
+      ? metric('target files', `${a.targetFilesFound}/${a.targetFilesTotal}`, `${b.targetFilesFound}/${b.targetFilesTotal}`)
+      : null,
   ].filter(Boolean);
+  const prLine = record.pr?.number
+    ? `Pull Request: #${record.pr.number}: ${record.pr.title}`
+    : (record.pr?.title ? `Recent Change: ${record.pr.title}` : '');
   return [
     `Repository benchmark: ${record.task}`,
+    prLine,
     `Agent: ${record.agent}${record.model ? ` (${record.model})` : ''}; cached run received ${record.notes.length} note${record.notes.length === 1 ? '' : 's'}.`,
     '',
     'metric           no cache       thinker      change',
@@ -167,7 +174,7 @@ export function renderBenchmarkReport(record) {
     '',
     'This single pair is indicative, not statistically conclusive, and measures exploration efficiency rather than correctness. Review baseline.md and thinker.md before drawing a conclusion.',
     `Artifacts: ${record.dir}`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 }
 
 export function latestBenchmark(store) {

@@ -37,14 +37,13 @@ curl -fsSL https://zerotime.dev/thinker101/install.sh | bash
 Then work with your agent as usual. Notes are added to each request
 automatically.
 
-To check the value on your own repository after setup, pick a concrete,
-read-only workflow question and run the paired onboarding benchmark:
+To check the value on your own repository after setup, run the paired onboarding benchmark on a recent PR change or specific workflow question:
 
 ```bash
-# Optional: see the topics currently covered by the cache
-thinker list
+# Benchmark on a recent PR change (compares efficiency & target file location)
+thinker benchmark pr [number]
 
-# Run the same question without and with Thinker context
+# Or benchmark a specific question without and with Thinker context
 thinker benchmark run "explain how <a real workflow> works"
 
 # Show the latest comparison again

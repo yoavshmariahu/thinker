@@ -17,6 +17,9 @@
 #   --no-build          do not build a cache; only wire up hooks and MCP server (thinker init)
 #   --areas <n>         with --build: source areas to explore, one agent session each (default 12)
 #   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
+#   --pr <number>       specific PR number to target for the paired benchmark
+#   --benchmark         run paired PR benchmark during onboarding
+#   --no-benchmark      skip the paired PR benchmark step
 #   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, all or auto
 #                       (default: auto with --build, otherwise claude)
 #   --cache <source>    cache built for this repo. One of: gh:<path in the thinker repo>, an https URL, a local file.
@@ -44,7 +47,7 @@
 set -euo pipefail
 
 main() {
-  local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 ref="${THINKER_REF:-main}"
+  local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 ref="${THINKER_REF:-main}" benchmark="" pr_target=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; shift 2 ;;
@@ -52,6 +55,9 @@ main() {
       --no-build) build=0; shift ;;
       --areas) areas="${2:-}"; shift 2 ;;
       --prs) prs="${2:-}"; shift 2 ;;
+      --pr) pr_target="${2:-}"; shift 2 ;;
+      --benchmark) benchmark=1; shift ;;
+      --no-benchmark) benchmark=0; shift ;;
       --clients) clients="${2:-}"; shift 2 ;;
       --branch|--ref) ref="${2:-}"; shift 2 ;;
       --learn) learn=1; shift ;;
@@ -187,44 +193,27 @@ EOF
     args="--yes --clients $clients"
     [ -n "$areas" ] && args="$args --areas $areas"
     [ -n "$prs" ] && args="$args --prs $prs"
+    [ -n "$pr_target" ] && args="$args --pr $pr_target"
+    [ "$benchmark" = 1 ] && args="$args --benchmark"
+    [ "$benchmark" = 0 ] && args="$args --no-benchmark"
     [ "$learn" = 1 ] || args="$args --no-learn"
     [ "$late" = 1 ] && args="$args --late"
     [ "$shared" = 1 ] && args="$args --shared"
     [ "$githook" = 1 ] && args="$args --git-hook"
     # shellcheck disable=SC2086
-    "$thinker" setup $args --repo "$repo"
+    "$thinker" onboard $args --repo "$repo"
   else
-  if [ "$learn" = 1 ]; then args=""; else args="--no-learn"; fi
-  [ "$late" = 1 ] && args="$args --late"
-  [ "$shared" = 1 ] || args="$args --local"
-  [ "$mcp" = 1 ] || args="$args --no-mcp"
-  [ "$githook" = 1 ] && args="$args --git-hook"
-  [ -n "$clients" ] && args="$args --clients $clients"
-  # shellcheck disable=SC2086
-  "$thinker" init $args --repo "$repo"
+    if [ "$learn" = 1 ]; then args=""; else args="--no-learn"; fi
+    [ "$late" = 1 ] && args="$args --late"
+    [ "$shared" = 1 ] || args="$args --local"
+    [ "$mcp" = 1 ] || args="$args --no-mcp"
+    [ "$githook" = 1 ] && args="$args --git-hook"
+    [ -n "$clients" ] && args="$args --clients $clients"
+    # shellcheck disable=SC2086
+    "$thinker" init $args --repo "$repo"
   fi
 
-  if ! command -v claude >/dev/null && ! command -v codex >/dev/null && ! command -v agent >/dev/null && ! command -v gemini >/dev/null; then
-    say "Note: no agent CLI (claude, codex, agent, gemini) was found. Notes will still be served; learning and re-verification need one."
-  fi
-
-  # --- confirm -----------------------------------------------------------------
-  local count; count="$(ls "$repo/.thinker/notes"/*.json 2>/dev/null | wc -l | tr -d ' ')"
-  say ""
-  say "thinker is set up for $(basename "$repo"): $count notes."
-  say "  Start your coding agent in this repository as usual; relevant notes are added to each request."
-  say "  See what it knows:      $thinker list --repo \"$repo\""
-  say "  Try a request:          $thinker orient \"<what you want to change>\" --repo \"$repo\""
-  if [ "$count" -gt 0 ]; then
-    say ""
-    say "  Benchmark thinker in this repository (optional; uses two read-only agent calls):"
-    say "    $thinker benchmark run \"explain how <a real workflow> works\" --repo \"$repo\""
-    say "    $thinker benchmark report --repo \"$repo\""
-  fi
-  say "  Remove from this repo:  $thinker uninstall --repo \"$repo\""
-  say "  Update thinker:         $thinker update (auto-updates daily)"
   case ":$PATH:" in *":$home/bin:"*) ;; *) say "  Optional: add $home/bin to your PATH to run 'thinker' directly." ;; esac
-  "$thinker" telemetry --background --event install 2>/dev/null || true
 }
 
 main "$@"

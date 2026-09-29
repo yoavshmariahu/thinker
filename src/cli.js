@@ -20,6 +20,7 @@ import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath } from './update.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendDailyTelemetryInBackground } from './telemetry.js';
+import { runOnboarding, stepPrBenchmark } from './onboarding.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -42,10 +43,10 @@ const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], en
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--clients list|all|auto] [--areas n] [--prs n] [--no-seed] [--no-prs] [--no-learn] [--late] [--shared] [--git-hook] [--no-trust] [--export f.tgz] [--yes]
-                                 everything for a new repo in one step: build the cache (co-change, merged PRs,
-                                 one exploration session per source area) and wire it into the coding agents found;
-                                 sessions are distilled into new notes as they end (--no-learn or THINKER_NO_LEARN=1 turns that off, for evals)
+  onboard [--clients list|all|auto] [--areas n] [--prs n] [--pr <num>] [--benchmark] [--no-benchmark] [--yes]
+                                 guided 3-step onboarding: connect harness CLIs, build the knowledge cache with
+                                 pre-flight estimates (time, size, location), and run an optional PR change benchmark
+  setup                          alias for onboard
   init [--no-learn] [--no-hooks] [--late] [--local] [--git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
@@ -81,6 +82,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, what was learned, and an estimate of the tool calls and tokens saved
                                  (--here: this repository only; history is kept in ~/.thinker/log.jsonl)
+  benchmark pr [number] [--agent a] [--model m] [--budget n]
+                                 run a paired benchmark on a recent PR change with vs without the cache
   benchmark run "<repo question>" [--agent a] [--model m] [--budget n]
                                  run a paired, read-only onboarding benchmark without and with relevant cached notes
   benchmark report              show the latest comparison (answers are saved for human quality review)
@@ -261,6 +264,7 @@ async function main() {
       maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store, force: true, event: 'install' });
       break;
     }
+    case 'onboard':
     case 'setup': {
       await setup();
       break;
@@ -570,8 +574,22 @@ async function main() {
         out(renderBenchmarkReport(latestBenchmark(store)));
         break;
       }
+      if (sub === 'pr') {
+        const prNum = pos[0] && !pos[0].startsWith('-') ? Number(pos.shift()) : (flags.pr ? Number(flags.pr) : null);
+        await stepPrBenchmark({
+          repo,
+          store,
+          prNumber: prNum,
+          agent: typeof flags.agent === 'string' ? flags.agent : undefined,
+          model: typeof flags.model === 'string' ? flags.model : undefined,
+          budget: Number(flags.budget) || 1500,
+          benchmarkFlag: true,
+          out,
+        });
+        break;
+      }
       if (sub !== 'run') {
-        out('Run a small benchmark in this repository:\n  thinker benchmark run "explain how <a real workflow> works"\n  thinker benchmark report\n\nUse a concrete question that the cache has notes about. Each run makes two read-only agent calls; answers are saved for review.');
+        out('Run a benchmark in this repository:\n  thinker benchmark pr [number]           paired benchmark on a recent PR change\n  thinker benchmark run "<repo question>" paired benchmark on a specific question\n  thinker benchmark report                 show the latest benchmark result\n\nEach benchmark makes two read-only agent calls; answers are saved for review.');
         break;
       }
       const task = pos.join(' ').trim();
@@ -721,60 +739,36 @@ async function setup() {
   const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug());
   const prs = slug ? num(flags.prs, 60) : 0;
   const agent = typeof flags.agent === 'string' ? flags.agent : exploreAgent();
-  const canBuild = !!provider();
-  const canSeed = !!agent;
-  const canMine = prs && hasBin('gh');
-  out(`thinker setup for ${path.basename(repo)}`);
-  out(`  clients:      ${clients.join(', ')}`);
-  out(`  explore:      ${areas && canSeed ? `${areas} source areas, one ${agent} session each` : areas ? 'skipped (needs an agent CLI: claude, codex, agent or gemini)' : 'skipped'}`);
-  out(`  merged PRs:   ${canMine && canBuild ? `up to ${prs} from ${slug}` : flags['no-prs'] || (slug && !prs) ? 'skipped' : !slug ? 'skipped (origin is not a GitHub repository)' : 'skipped (needs the gh CLI and an agent CLI)'}`);
-  // measured on PostHog: ~$0.45 per exploration session incl. distillation, ~$0.06 per mined PR
-  const est = (areas && canSeed ? areas * 0.45 : 0) + (canMine && canBuild ? prs * 0.06 : 0);
-  out(`  learning:     ${learnOn() ? 'on: each session is distilled into notes when it ends, through the login of the agent that ran it (about $0.05 a session with Claude Sonnet; --no-learn turns it off)' : 'off'}`);
-  if (est) out(`  model usage:  through your ${agent || provider()} login; roughly $${est.toFixed(0)} when measured with Claude Sonnet (varies with repo size and model)`);
-  if (est && !flags.yes && process.stdin.isTTY) {
-    const rl = (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout });
-    const a = await rl.question('Continue? [Y/n] '); rl.close();
-    if (/^n/i.test(a.trim())) { out('stopped before building; nothing was changed'); return; }
-  }
-  await init({ clients, hooks: true, learn: learnOn(), late: !!flags.late, shared: !!flags.shared, mcp: true, gitHook: !!flags['git-hook'] });
-  let prsResult = null, seedResult = null;
-  if (canMine && canBuild) prsResult = await minePrs(slug, { limit: prs, model: flags.model, before: typeof flags.before === 'string' ? flags.before : undefined });
-  if (areas && canSeed) seedResult = await seed({ areas, model: flags.model, agent });
-  const notes = store.list();
-  for (const n of notes) linkNotes(store, n, notes);
-  if (notes.length && canBuild && !flags['no-phrase']) {
-    out(`generating search phrasings for ${notes.length} notes...`);
-    try { await phraseNotes(store, notes, { model: flags.model }); } catch (e) { out(`phrasing warning: ${e.message}`); }
-  }
-  if (typeof flags.export === 'string') { execFileSync('node', [path.join(HERE, 'cli.js'), 'export', flags.export, '--repo', repo], { stdio: 'inherit' }); }
-  out(`\nthinker is set up for ${path.basename(repo)}: ${notes.length} notes, served to ${clients.join(', ')}.`);
-  maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store, force: true, event: 'install' });
-  if (!notes.length) {
-    if (areas || prs) {
-      out(`\n❌ cache init failed: The cache is empty (0 notes created).`);
-      if (seedResult && seedResult.ok === 0) {
-        out(`   • Area exploration failed across all attempted agents.`);
-        if (seedResult.failures?.length) {
-          out(`     Latest failure: ${seedResult.failures[0].error}`);
-        }
-      } else if (!canSeed && areas) {
-        out(`   • Area exploration was skipped: no supported agent CLI found (claude, gemini, codex, cursor).`);
-      }
-      if (prsResult && prsResult.saved === 0 && prs) {
-        out(`   • PR mining produced 0 notes.`);
-      } else if (!canMine && prs) {
-        out(`   • PR mining was skipped: requires GitHub CLI (\`gh\`) logged in.`);
-      }
-      out(`\n   To resolve this:`);
-      out(`   1. Ensure at least one agent CLI is logged in (\`claude\`, \`gemini\`, or \`codex\`).`);
-      out(`   2. Retry building the cache with:`);
-      out(`        thinker seed\n`);
-      process.exitCode = 1;
-    } else {
-      out(learnOn() ? 'The cache is empty. It fills from your own sessions as you work.' : 'The cache is empty and learning is off. Re-run setup without --no-learn, or where an agent CLI is available.');
-    }
-  }
+
+  await runOnboarding({
+    repo,
+    store,
+    cliPath: path.join(HERE, 'cli.js'),
+    mcpEntry: mcpEntry(),
+    clients,
+    areas,
+    prs,
+    prNumber: flags.pr ? Number(flags.pr) : null,
+    benchmark: Boolean(flags.benchmark),
+    noBenchmark: Boolean(flags['no-benchmark']),
+    noSeed: Boolean(flags['no-seed']),
+    noPrs: Boolean(flags['no-prs']),
+    noPhrase: Boolean(flags['no-phrase']),
+    model: flags.model,
+    agent,
+    yes: Boolean(flags.yes),
+    hooks: !flags['no-hooks'],
+    learn: learnOn(),
+    late: Boolean(flags.late),
+    shared: Boolean(flags.shared),
+    mcp: !flags['no-mcp'],
+    gitHook: Boolean(flags['git-hook']),
+    noTrust: Boolean(flags['no-trust']),
+    exportFile: typeof flags.export === 'string' ? flags.export : null,
+    out,
+    seedFn: async (opts) => seed(opts),
+    minePrsFn: async (slug, opts) => minePrs(slug, opts),
+  });
 }
 
 // mine-prs and learn --prs: the repo defaults to the GitHub origin, and what is needed is checked first

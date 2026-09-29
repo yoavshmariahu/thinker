@@ -18,47 +18,71 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 |---|---|
 | `--cache <source>` | the cache built for this repository: `gh:caches/<repo>.tgz` (a file in the thinker repo), an https URL, or a local file; omit when `.thinker/notes` is already committed in the user's repo |
 | `--build` | build the cache on this machine: co-change, merged pull requests (`--prs n`, default 60), one exploration session per source area (`--areas n`, default 12) |
+| `--pr <number>` | target a specific PR number for the paired benchmark during onboarding |
+| `--benchmark` | run the paired PR change benchmark during onboarding |
+| `--no-benchmark` | skip the paired PR benchmark step |
 | `--clients <list>` | agents to wire up: `claude`, `codex`, `cursor`, `gemini`, `all` or `auto` (default `auto` with `--build`, otherwise `claude`); see "Supported agents" in `AGENTS.md` |
 | `--no-learn` | do not distill the user's own sessions into new notes. Learning is on by default for every agent wired up (uses that agent's login; about $0.05 per session with Claude Sonnet); switch it off for evals |
 | `--late` | also serve notes about files as the agent opens them |
 | `--shared` | write hooks to `.claude/settings.json` so the whole team gets them on pull |
 | `--mcp` | also register the MCP server for the chosen agents (needs npm); always on for Cursor |
 | `--git-hook` | re-check notes after each commit |
-| `--branch <name>` | install a specific branch or tag version (default `main`; `--ref` also accepted) |
+| `--branch <name>` | install a specific branch or tag version (default `main`; `--ref also accepted) |
 | `--update` | update the thinker CLI to the latest version and exit |
 | `--no-auto-update` | do not schedule daily background auto-updates (daily auto-update is on by default) |
 | `--uninstall [--purge]` | remove hooks; `--purge` also deletes the notes |
 
+## The 3-Stage Onboarding Flow (`thinker onboard`)
+
+When run in a new repository (either via `curl .../install.sh` or `thinker onboard`), Thinker runs a guided, visually aesthetic 3-step onboarding flow:
+
+```
+[Step 1: Connect Harness CLIs] ──► [Step 2: Build Knowledge Cache] ──► [Step 3: PR Change Benchmark]
+ (Claude, Codex, Cursor, Gemini)     (Estimates: time, size, path)     (With vs without cache)
+```
+
+1. **Step 1: Connect Harness CLIs**
+   Scans your local environment for installed coding agents (`claude`, `codex`, `cursor`/`agent`, `gemini`/`agy`). Wires hooks and registers MCP servers, saves Codex trust in `~/.codex/config.toml`, and approves Cursor MCP access.
+
+2. **Step 2: Build Knowledge Cache**
+   Computes pre-flight estimates upfront:
+   - **Target storage location:** `.thinker/` (notes in `.thinker/notes/`, co-change in `.thinker/cochange.json`)
+   - **Estimated size:** notes count and disk footprint (typically 50–120 notes, ~120–220 KB on disk)
+   - **Estimated build time:** broken down across co-change mining, PR distillation, and exploration
+   Then mines git co-change history, distills merged PRs into fix and invariant notes, explores key subsystems, and generates search phrasings.
+
+3. **Step 3: Optional PR Change Benchmark**
+   Tests how an installed coding agent performs on a recent PR change with vs without the Thinker cache:
+   - Detects the latest merged code PR (or user-specified `--pr <number>`)
+   - Runs a paired read-only comparison through the agent (baseline vs Thinker arm)
+   - Measures wall time, agent turns, tool exploration calls, token usage, and target file precision
+   - Displays an aligned side-by-side comparison table and preserves answers in `.thinker/benchmarks/`
+
 ## First-run benchmark
 
-After the cache is built or imported, run this loop:
-
-1. Optionally inspect `thinker list` for workflows the cache already covers.
-2. Choose a concrete, read-only architectural question from the repository.
-3. Run the paired benchmark.
-4. Review the comparison and both saved answers before drawing a conclusion.
+After the cache is built or imported, you can benchmark on a recent PR change or any repository question anytime:
 
 ```bash
-# 1. Browse cached topics if you need an idea
-thinker list
+# 1. Benchmark on a recent PR change
+thinker benchmark pr [number]
 
-# 2. Run one question without and with Thinker context
+# 2. Or run a question without and with Thinker context
 thinker benchmark run "explain how an upload is authorized and persisted"
 
 # 3. Reprint the latest result later
 thinker benchmark report
 ```
 
-The `benchmark run` command makes two read-only calls through the same installed agent:
+The benchmark commands make two read-only calls through the same installed agent:
 one without thinker context and one with the notes selected by `orient`. It
-compares time, turns, tool calls when the agent reports them, and tokens. Both
+compares time, turns, tool calls when the agent reports them, tokens, and target files found. Both
 answers are kept in `.thinker/benchmarks/` for a human quality check.
 
 If the cache does not have sufficiently relevant notes for the question,
 Thinker stops before making either agent call, confirms that no model usage was
 spent, and prints up to three replacement commands drawn from distinct cached
 topics. Copy one of the suggested commands and try again. If there are no
-usable topics yet, run `thinker setup` to build the cache first.
+usable topics yet, run `thinker onboard` to build the cache first.
 
 This is a quick repository-specific signal, not a statistically conclusive
 benchmark or an automatic correctness grade. Use `--agent codex` (or
