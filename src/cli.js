@@ -13,7 +13,7 @@ import { mineCochange, partners } from './cochange.js';
 import { hashDep } from './deps.js';
 import { CLIENTS, parseClients, installClient, uninstallClients, trustCodex, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, parkPending, takePending } from './clients.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from './transcripts.js';
-import { available, provider, findBin } from './llm.js';
+import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
 import { summarize, renderUsage, sessionKey } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
@@ -738,21 +738,25 @@ function sourceAreas(limit) {
 function explore(agent, prompt, model) {
   const env = { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
   const opts = { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, env };
-  const bin = findBin({ claude: ['claude'], codex: ['codex'], cursor: ['agent', 'cursor-agent'], gemini: ['agy', 'gemini'] }[agent] || []);
+  const bin = findBin(BINS[agent] || []);
   if (!bin) return { error: `the ${agent} CLI was not found` };
   const stream = path.join(store.dir, 'state', `explore-${Date.now()}.jsonl`);
   fs.mkdirSync(path.dirname(stream), { recursive: true });
+  const m = resolveModel(agent, model);
   if (agent === 'claude') {
-    const r = spawnSync(bin, ['-p', '--model', model || 'sonnet', '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--disallowedTools', 'Edit,Write,NotebookEdit', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--max-turns', '40'], { ...opts, input: prompt });
+    const r = spawnSync(bin, ['-p', '--model', m || 'sonnet', '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--disallowedTools', 'Edit,Write,NotebookEdit', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--max-turns', '40'], { ...opts, input: prompt });
+    if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `claude exited ${r.status}`).slice(0, 200) };
     let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
+    if (j.is_error) return { error: String(j.result || j.error || 'claude error').slice(0, 200) };
     const transcript = transcriptsFor(repo).find(f => f.includes(j.session_id));
     return transcript ? { transcript, cost: j.total_cost_usd || 0, turns: j.num_turns } : { error: 'no transcript found' };
   }
-  const m = model && !['haiku', 'sonnet', 'opus', 'fable'].includes(model) ? model : process.env.THINKER_LLM_MODEL;
   if (path.basename(bin) === 'agy') {
     const agyArgs = ['-p', prompt, '--model', m || 'gemini-3.8-flash-high', '--output-format', 'json', '--dangerously-skip-permissions'];
     const r = spawnSync(bin, agyArgs, { ...opts, cwd: repo });
+    if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `agy exited ${r.status}`).slice(0, 200) };
     let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
+    if (j.is_error) return { error: String(j.result || j.error || 'agy error').slice(0, 200) };
     const convId = j.conversation_id;
     if (convId) {
       const transcript = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain', convId, '.system_generated', 'logs', 'transcript.jsonl');
@@ -761,9 +765,9 @@ function explore(agent, prompt, model) {
     return { error: 'agy transcript not found: ' + (r.stderr || r.stdout || '').slice(0, 200) };
   }
   let r;
-  if (agent === 'codex') r = spawnSync(bin, ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', ...(m ? ['--model', m] : []), '--cd', repo, '-'], { ...opts, input: prompt });
+  if (agent === 'codex') r = spawnSync(bin, ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', ...(m ? ['--model', m] : ['--model', 'gpt-6-luna']), '--cd', repo, '-'], { ...opts, input: prompt });
   else if (agent === 'cursor') r = spawnSync(bin, ['-p', '--output-format', 'stream-json', '--mode', 'ask', '--trust', ...(m ? ['--model', m] : []), '--workspace', repo, prompt], opts);
-  else r = spawnSync(bin, ['--output-format', 'stream-json', ...(m ? ['-m', m] : [])], { ...opts, input: prompt });
+  else r = spawnSync(bin, ['--output-format', 'stream-json', ...(m ? ['-m', m] : ['-m', 'gemini-3.8-flash-high'])], { ...opts, input: prompt });
   if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || '').slice(0, 200) };
   // failures these CLIs report inside their output (usage limits, auth)
   for (const l of String(r.stdout).split('\n')) {
@@ -789,24 +793,58 @@ async function seed({ areas, model, dry, prompts, agent }) {
     };
   });
   if (dry) { for (const a of list) out(`${(a.dir || '-').padEnd(40)} ${a.n || ''}`); return; }
-  agent = agent || exploreAgent();
-  if (!agent) { out('no agent CLI found to explore with (claude, codex, agent or gemini)'); return; }
+  let activeAgent = agent || exploreAgent();
+  if (!activeAgent) { out('no agent CLI found to explore with (claude, gemini, codex, or cursor)'); return; }
+
+  const getCandidateAgents = (primary) => {
+    const order = FALLBACK_ORDER;
+    const candidates = [primary];
+    for (const a of order) {
+      if (!candidates.includes(a) && available().includes(a)) candidates.push(a);
+    }
+    return candidates;
+  };
+
   let cost = 0, ok = 0;
   for (const a of list) {
     const t0 = Date.now();
     const label = (a.dir || a.prompt.slice(0, 40)).padEnd(40);
-    const r = explore(agent, a.prompt, model);
-    if (r.error) { out(`${label} ${agent} failed: ${r.error}`); continue; }
+    const candidates = getCandidateAgents(activeAgent);
+    let r = null;
+    let usedAgent = activeAgent;
+
+    for (let i = 0; i < candidates.length; i++) {
+      const ag = candidates[i];
+      usedAgent = ag;
+      r = explore(ag, a.prompt, model);
+      if (!r.error) {
+        if (ag !== activeAgent) {
+          out(`${label} switched to fallback agent ${ag}`);
+          activeAgent = ag;
+        }
+        break;
+      }
+      const next = candidates[i + 1];
+      if (next) {
+        out(`${label} ${ag} failed (${r.error}); falling back to ${next}...`);
+      }
+    }
+
+    if (r && r.error) {
+      out(`${label} all agents failed (${candidates.join(' -> ')}): ${r.error}`);
+      continue;
+    }
+
     cost += r.cost || 0; ok++;
-    out(`${label} ${agent}${r.turns ? ` ${r.turns} turns` : ''}${r.cost ? ` $${r.cost.toFixed(2)}` : ''} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+    out(`${label} ${usedAgent}${r.turns ? ` ${r.turns} turns` : ''}${r.cost ? ` $${r.cost.toFixed(2)}` : ''} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
     try { await distillFile(r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: false, incremental: false }); } catch (e) { out(`${label} distill failed: ${String(e.message).slice(0, 160)}`); }
     if (r.temp) fs.rmSync(r.transcript, { force: true });
   }
-  out(`explored ${ok} of ${list.length} areas with ${agent}${cost ? `, agent cost $${cost.toFixed(2)}` : ''}`);
+  out(`explored ${ok} of ${list.length} areas with ${activeAgent}${cost ? `, agent cost $${cost.toFixed(2)}` : ''}`);
 }
-// the agent that explores: THINKER_LLM if it names one, else the first installed
+// the agent that explores: THINKER_LLM if it names one, else the first installed in fallback order (claude, gemini, codex, cursor)
 function exploreAgent() {
-  const agents = available().filter(p => ['claude', 'codex', 'cursor', 'gemini'].includes(p));
+  const agents = available().filter(p => ['claude', 'gemini', 'codex', 'cursor'].includes(p));
   return agents.includes(process.env.THINKER_LLM) ? process.env.THINKER_LLM : agents[0] || null;
 }
 

@@ -15,7 +15,39 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 const ALIASES = { haiku: 'claude-haiku-4-5', sonnet: 'claude-sonnet-5', opus: 'claude-opus-5', fable: 'claude-fable-5-1' };
-const BINS = { claude: ['claude'], codex: ['codex'], cursor: ['agent', 'cursor-agent'], gemini: ['agy', 'gemini'] };
+export const BINS = { claude: ['claude'], gemini: ['agy', 'gemini'], codex: ['codex'], cursor: ['agent', 'cursor-agent'] };
+export const FALLBACK_ORDER = ['claude', 'gemini', 'codex', 'cursor'];
+
+export const TIER_MODELS = {
+  sonnet: {
+    claude: 'sonnet',
+    gemini: 'gemini-3.8-flash-high',
+    codex: 'gpt-6-luna',
+    cursor: 'sonnet',
+  },
+  haiku: {
+    claude: 'haiku',
+    gemini: 'gemini-3.8-flash-high',
+    codex: 'gpt-6-luna',
+    cursor: 'haiku',
+  },
+  opus: {
+    claude: 'opus',
+    gemini: 'gemini-3.8-flash-high',
+    codex: 'gpt-6-luna',
+    cursor: 'opus',
+  },
+};
+
+export function resolveModel(provider, model) {
+  if (process.env.THINKER_LLM_MODEL) return process.env.THINKER_LLM_MODEL;
+  const tier = model || 'sonnet';
+  if (TIER_MODELS[tier] && TIER_MODELS[tier][provider]) return TIER_MODELS[tier][provider];
+  if (model && !['haiku', 'sonnet', 'opus', 'fable'].includes(model)) return model;
+  if (provider === 'gemini') return 'gemini-3.8-flash-high';
+  if (provider === 'codex') return 'gpt-6-luna';
+  return model || 'sonnet';
+}
 
 // Hooks run with a short PATH; also look where these tools install themselves.
 export function findBin(names) {
@@ -27,25 +59,68 @@ export function available() {
   const out = [];
   if (process.env.THINKER_LLM_CMD) out.push('command');
   if (process.env.ANTHROPIC_API_KEY && process.env.THINKER_BACKEND !== 'cli') out.push('anthropic');
-  for (const p of ['claude', 'codex', 'gemini', 'cursor']) if (findBin(BINS[p])) out.push(p);
+  for (const p of ['claude', 'gemini', 'codex', 'cursor']) if (findBin(BINS[p])) out.push(p);
   return out;
 }
-export function provider() {
-  const want = process.env.THINKER_LLM;
-  const have = available();
-  if (want) { if (want === 'anthropic' || want === 'command' || BINS[want]) return want; throw new Error(`unknown THINKER_LLM: ${want}`); }
-  const prefer = process.env.THINKER_LLM_PREFER;
-  if (prefer && have.includes(prefer) && !have.includes('command') && !have.includes('anthropic')) return prefer;
-  return have[0] || null;
+
+let activeFallback = null;
+
+export function resetFallback() {
+  activeFallback = null;
 }
 
-export async function complete(opts) {
-  const p = provider();
-  if (!p) throw new Error('no model available: install one of the claude, codex, gemini or cursor (agent) CLIs, or set ANTHROPIC_API_KEY or THINKER_LLM_CMD');
-  const o = { model: 'sonnet', maxTokens: 8000, timeoutMs: 300_000, ...opts };
+export function getFallbackOrder() {
+  const want = process.env.THINKER_LLM;
+  if (want) {
+    if (want === 'anthropic' || want === 'command' || BINS[want]) return [want];
+    throw new Error(`unknown THINKER_LLM: ${want}`);
+  }
+  const have = available();
+  const list = [];
+  const prefer = process.env.THINKER_LLM_PREFER;
+  if (activeFallback && have.includes(activeFallback)) {
+    list.push(activeFallback);
+  } else if (prefer && have.includes(prefer) && !have.includes('command') && !have.includes('anthropic')) {
+    list.push(prefer);
+  }
+  for (const p of ['command', 'anthropic', 'claude', 'gemini', 'codex', 'cursor']) {
+    if (have.includes(p) && !list.includes(p)) list.push(p);
+  }
+  return list;
+}
+
+export function provider() {
+  return getFallbackOrder()[0] || null;
+}
+
+async function executeProvider(p, o) {
   if (p === 'anthropic') return viaSdk(o);
   if (p === 'claude') return viaCli(o);
   return viaOther(p, o);
+}
+
+export async function complete(opts) {
+  const o = { model: 'sonnet', maxTokens: 8000, timeoutMs: 300_000, ...opts };
+  const providers = getFallbackOrder();
+  if (!providers.length) throw new Error('no model available: install one of the claude, gemini, or codex CLIs, or set ANTHROPIC_API_KEY or THINKER_LLM_CMD');
+  if (process.env.THINKER_LLM) return executeProvider(providers[0], o);
+
+  let lastError = null;
+  for (let i = 0; i < providers.length; i++) {
+    const p = providers[i];
+    try {
+      const res = await executeProvider(p, o);
+      if (i > 0) activeFallback = p;
+      return res;
+    } catch (err) {
+      lastError = err;
+      const next = providers[i + 1];
+      if (next && !process.env.THINKER_QUIET) {
+        process.stderr.write(`[thinker] ${p} failed (${String(err.message || err).slice(0, 100)}), falling back to ${next}...\n`);
+      }
+    }
+  }
+  throw lastError || new Error('all model providers failed');
 }
 
 // Find the JSON object in a model's reply (it may be fenced or have text around it).
@@ -71,11 +146,9 @@ function run(bin, args, { input, cwd, timeoutMs, shell = false }) {
   });
 }
 
-// Agents other than Claude Code: one prompt in, the final message out. The
-// model is the agent's own default unless THINKER_LLM_MODEL names one
-// (Claude aliases such as "haiku" mean nothing to them).
-async function viaOther(p, { system, prompt, schema, timeoutMs }) {
-  const model = process.env.THINKER_LLM_MODEL;
+// Agents other than Claude Code: one prompt in, the final message out.
+async function viaOther(p, { system, prompt, schema, timeoutMs, model }) {
+  const resolvedModel = resolveModel(p, model);
   let full = (system ? system + '\n\n' : '') + prompt;
   if (schema) full += `\n\nReply with one JSON object and nothing else: no prose, no code fence. It must match this JSON Schema:\n${JSON.stringify(schema)}`;
   full += '\n\nEverything you need is in this message. Do not run tools or read files.';
@@ -88,7 +161,7 @@ async function viaOther(p, { system, prompt, schema, timeoutMs }) {
     if (p === 'command') text = await run(process.env.THINKER_LLM_CMD, [], { input: full, cwd, timeoutMs, shell: true });
     else if (p === 'codex') {
       const args = ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only'];
-      if (model) args.push('--model', model);
+      if (resolvedModel) args.push('--model', resolvedModel);
       const out = await run(findBin(BINS.codex), [...args, '-'], { input: full, cwd, timeoutMs });
       const evs = out.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
       const fail = evs.find(e => e.type === 'turn.failed' || e.type === 'error');
@@ -97,7 +170,7 @@ async function viaOther(p, { system, prompt, schema, timeoutMs }) {
       usage = evs.filter(e => e.type === 'turn.completed').map(e => e.usage).pop() || null;
     } else if (p === 'cursor') {
       const args = ['-p', '--output-format', 'json', '--mode', 'ask', '--trust'];
-      if (model) args.push('--model', model);
+      if (resolvedModel) args.push('--model', resolvedModel);
       const j = JSON.parse(await run(findBin(BINS.cursor), [...args, full], { cwd, timeoutMs }));
       if (j.is_error) throw new Error('cursor: ' + String(j.result).slice(0, 400));
       text = j.result || ''; usage = j.usage || null;
@@ -105,12 +178,12 @@ async function viaOther(p, { system, prompt, schema, timeoutMs }) {
       const bin = findBin(BINS.gemini);
       const isAgy = path.basename(bin) === 'agy';
       if (isAgy) {
-        const args = ['--output-format', 'json', '--model', model || 'gemini-3.8-flash-high', '--dangerously-skip-permissions', '-p', full];
+        const args = ['--output-format', 'json', '--model', resolvedModel || 'gemini-3.8-flash-high', '--dangerously-skip-permissions', '-p', full];
         const j = JSON.parse(await run(bin, args, { cwd, timeoutMs }));
         text = j.response || ''; usage = j.usage || null;
       } else {
         const args = ['--output-format', 'json'];
-        if (model) args.push('-m', model);
+        if (resolvedModel) args.push('-m', resolvedModel);
         const j = JSON.parse(await run(bin, args, { input: full, cwd, timeoutMs }));
         if (j.error) throw new Error('gemini: ' + JSON.stringify(j.error).slice(0, 400));
         text = j.response || ''; usage = j.stats || null;
@@ -123,22 +196,25 @@ async function viaOther(p, { system, prompt, schema, timeoutMs }) {
 async function viaSdk({ system, prompt, model, schema, maxTokens, timeoutMs }) {
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic({ timeout: timeoutMs });
-  const req = { model: ALIASES[model] || model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] };
+  const resolved = resolveModel('claude', model);
+  const req = { model: ALIASES[resolved] || resolved, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] };
   if (schema) req.output_config = { format: { type: 'json_schema', schema } };
   const res = await client.messages.create(req);
   if (res.stop_reason === 'refusal') throw new Error('model refused');
   const text = res.content.filter(c => c.type === 'text').map(c => c.text).join('');
-  return { text, json: schema ? JSON.parse(text) : null, usage: res.usage, cost: null };
+  return { text, json: schema ? JSON.parse(text) : null, usage: res.usage, cost: null, provider: 'anthropic' };
 }
 
 const LIMIT_RE = /session limit|usage limit|rate limit|limit reached|hit your .*limit/i;
 
 async function viaCli(opts) {
-  // usage limits: wait and retry instead of failing the caller
+  // usage limits: wait and retry instead of failing the caller, unless other fallbacks exist
+  const hasFallback = getFallbackOrder().length > 1;
+  const maxAttempts = hasFallback ? 1 : 18;
   for (let attempt = 0; ; attempt++) {
     try { return await viaCliOnce(opts); }
     catch (e) {
-      if (!LIMIT_RE.test(String(e.message)) || attempt >= 18 || process.env.THINKER_NO_LIMIT_WAIT === '1') throw e;
+      if (!LIMIT_RE.test(String(e.message)) || attempt >= maxAttempts || process.env.THINKER_NO_LIMIT_WAIT === '1') throw e;
       await new Promise(r => setTimeout(r, 10 * 60_000));
     }
   }
@@ -147,7 +223,8 @@ async function viaCli(opts) {
 async function viaCliOnce({ system, prompt, model, schema, timeoutMs }) {
   // Run in an empty temp cwd so no project CLAUDE.md / MCP servers leak in.
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-llm-'));
-  const args = ['-p', '--model', ALIASES[model] || model, '--output-format', 'json', '--no-session-persistence',
+  const resolved = resolveModel('claude', model);
+  const args = ['-p', '--model', ALIASES[resolved] || resolved, '--output-format', 'json', '--no-session-persistence',
     '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}'];
   if (system) args.push('--append-system-prompt', system);
   if (schema) args.push('--json-schema', JSON.stringify(schema));
@@ -162,9 +239,9 @@ async function viaCliOnce({ system, prompt, model, schema, timeoutMs }) {
       p.stdin.end(prompt);
     });
     const j = JSON.parse(stdout);
-    if (j.is_error || LIMIT_RE.test(String(j.result || '').slice(0, 200)) && (j.num_turns || 0) <= 1) throw new Error('claude -p error: ' + (j.result || '').slice(0, 500));
+    if (j.is_error || (LIMIT_RE.test(String(j.result || '').slice(0, 200)) && (j.num_turns || 0) <= 1)) throw new Error('claude -p error: ' + (j.result || '').slice(0, 500));
     let json = j.structured_output ?? null;
     if (schema && json == null) { try { json = JSON.parse(j.result); } catch { throw new Error('no structured output: ' + String(j.result).slice(0, 300)); } }
-    return { text: j.result, json, usage: j.usage, cost: j.total_cost_usd };
+    return { text: j.result, json, usage: j.usage, cost: j.total_cost_usd, provider: 'claude' };
   } finally { try { fs.rmSync(cwd, { recursive: true, force: true }); } catch {} }
 }

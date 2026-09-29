@@ -146,3 +146,10 @@ Average Wall Clock Time:
    Linked notes provide helpful context, but should never displace an intrinsically relevant top candidate unless slot 2 is genuinely weak (<0.7 of hit #1).
 3. **Guard MCP Tool Payload Sizes**:
    Coding agents suffer non-linear latency and cognitive penalties when tool responses spill into auxiliary files (`output.txt`). Strict default limits (`maxNotes = 3`) keep context tightly bounded and generation latencies minimal.
+
+---
+
+## 7. Future Research Directions
+
+For upcoming experiments, hypotheses, and architectural ideas (such as bootstrapping the knowledge cache with Claude Opus), see [`research/ideas.md`](file:///Users/yoavshmariahu/src/thinker/research/ideas.md).
+
