@@ -874,7 +874,7 @@ function sourceAreas(limit) {
 // One read-only exploration session with the given agent; returns the file
 // holding its transcript (the agent's own, or its streamed output).
 function explore(agent, prompt, model) {
-  const env = { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
+  const env = { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', IS_SANDBOX: '1' };
   const opts = { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, env };
   const bin = findBin(BINS[agent] || []);
   if (!bin) return { error: `the ${agent} CLI was not found` };

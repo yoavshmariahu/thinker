@@ -204,7 +204,7 @@ export async function runBenchmarkAgent(agent, { repo, prompt, model, timeoutMs 
   // only the explicit bundle in `prompt`.
   const emptyNotes = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-benchmark-empty-'));
   try {
-    const r = await exec(bin, args, { cwd: repo, input: agent === 'cursor' || path.basename(bin) === 'agy' ? '' : prompt, timeoutMs, env: { THINKER_NOTES_DIR: emptyNotes, THINKER_MCP: 'off', THINKER_NO_LEARN: '1', THINKER_LOG: 'off' } });
+    const r = await exec(bin, args, { cwd: repo, input: agent === 'cursor' || path.basename(bin) === 'agy' ? '' : prompt, timeoutMs, env: { ...process.env, THINKER_NOTES_DIR: emptyNotes, THINKER_MCP: 'off', THINKER_NO_LEARN: '1', THINKER_LOG: 'off', IS_SANDBOX: '1' } });
     if (agent === 'claude') return parseClaude(r.stdout, r.wallMs);
     if (agent === 'codex') return parseCodex(r.stdout, r.wallMs);
     if (agent === 'cursor') return parseCursor(r.stdout, r.wallMs);
