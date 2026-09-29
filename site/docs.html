@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation — thinker</title>
+  <meta name="description" content="Documentation for thinker: a knowledge cache for your coding agents.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: #ffffff;
+      color: #111111;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.6;
+    }
+
+    /* Top Navigation */
+    header {
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid #e5e7eb;
+      z-index: 50;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+      color: #000000;
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-docs {
+      font-weight: 400;
+      color: #666666;
+      font-size: 0.95rem;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .nav-link {
+      color: #555555;
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+
+    .nav-link:hover {
+      color: #000000;
+    }
+
+    .btn-nav-install {
+      background: #000000;
+      color: #ffffff;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.4rem 0.85rem;
+      border-radius: 6px;
+      transition: background 0.15s ease;
+    }
+
+    .btn-nav-install:hover {
+      background: #262626;
+    }
+
+    /* Layout */
+    .docs-container {
+      display: flex;
+      max-width: 1240px;
+      margin: 0 auto;
+      min-height: calc(100vh - 60px);
+    }
+
+    /* Sidebar */
+    aside {
+      width: 260px;
+      flex-shrink: 0;
+      border-right: 1px solid #e5e7eb;
+      padding: 2rem 1.5rem 3rem 0;
+      position: sticky;
+      top: 60px;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+    }
+
+    .sidebar-group {
+      margin-bottom: 1.75rem;
+    }
+
+    .sidebar-heading {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      color: #888888;
+      margin-bottom: 0.6rem;
+      padding-left: 0.75rem;
+    }
+
+    .sidebar-nav {
+      list-style: none;
+    }
+
+    .sidebar-item a {
+      display: block;
+      padding: 0.38rem 0.75rem;
+      color: #4b5563;
+      text-decoration: none;
+      font-size: 0.88rem;
+      border-radius: 6px;
+      transition: all 0.12s ease;
+    }
+
+    .sidebar-item a:hover {
+      color: #000000;
+      background: #f4f4f5;
+    }
+
+    .sidebar-item.active a {
+      color: #000000;
+      font-weight: 600;
+      background: #f4f4f5;
+    }
+
+    /* Main Content */
+    main {
+      flex: 1;
+      padding: 2.5rem 3.5rem 6rem;
+      max-width: 860px;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      font-size: 2.35rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1.15;
+      margin-bottom: 0.75rem;
+      color: #000000;
+    }
+
+    p.lead {
+      font-size: 1.15rem;
+      color: #4b5563;
+      letter-spacing: -0.01em;
+      margin-bottom: 2rem;
+      line-height: 1.55;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin-top: 3rem;
+      margin-bottom: 1rem;
+      color: #111111;
+      padding-top: 1rem;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    h2:first-of-type {
+      border-top: none;
+      padding-top: 0;
+      margin-top: 1.5rem;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-top: 1.75rem;
+      margin-bottom: 0.65rem;
+      color: #111111;
+    }
+
+    p {
+      color: #374151;
+      margin-bottom: 1.15rem;
+      font-size: 0.95rem;
+      line-height: 1.65;
+    }
+
+    strong {
+      color: #111111;
+      font-weight: 600;
+    }
+
+    /* Callouts */
+    .callout {
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
+    .callout.tip {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+    }
+
+    .callout.note {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      color: #334155;
+    }
+
+    .callout strong {
+      display: inline-block;
+      margin-bottom: 0.2rem;
+    }
+
+    /* Code blocks */
+    pre {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      overflow-x: auto;
+      margin: 1.25rem 0 1.5rem;
+      position: relative;
+    }
+
+    code {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.86rem;
+      background: #f3f4f6;
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      color: #111827;
+    }
+
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: inherit;
+      font-size: 0.88rem;
+    }
+
+    .code-comment {
+      color: #64748b;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.88rem;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 0.75rem 0.9rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+      font-weight: 600;
+      color: #111111;
+      background: #f9fafb;
+      font-size: 0.82rem;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Lists */
+    ul, ol {
+      margin: 0.75rem 0 1.25rem 1.5rem;
+      color: #374151;
+      font-size: 0.95rem;
+    }
+
+    li {
+      margin-bottom: 0.45rem;
+    }
+
+    /* Step flow */
+    .flow-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      margin: 1.5rem 0;
+    }
+
+    .step-box {
+      border: 1px solid #e5e7eb;
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .step-badge {
+      background: #000000;
+      color: #ffffff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .step-title {
+      font-weight: 600;
+      color: #111111;
+      font-size: 1rem;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 860px) {
+      aside {
+        display: none;
+      }
+
+      main {
+        padding: 2rem 1.25rem 4rem;
+      }
+
+      header {
+        padding: 0 1.25rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <a href="index.html" class="brand">
+      thinker <span class="brand-docs">/ docs</span>
+    </a>
+    <div class="nav-links">
+      <a href="index.html" class="nav-link">Home</a>
+      <a href="index.html#benchmarks" class="nav-link">Benchmarks</a>
+      <a href="https://github.com/yoavshmariahu/thinker" target="_blank" rel="noopener" class="nav-link">GitHub ↗</a>
+      <a href="index.html" class="btn-nav-install">Get Started</a>
+    </div>
+  </header>
+
+  <div class="docs-container">
+    <aside>
+      <div class="sidebar-group">
+        <div class="sidebar-heading">Overview</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item active"><a href="#what-is-thinker">What is Thinker?</a></li>
+          <li class="sidebar-item"><a href="#the-mental-model">The Mental Model</a></li>
+          <li class="sidebar-item"><a href="#quickstart">Quickstart</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-heading">Supported Agents</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#claude-code">Claude Code</a></li>
+          <li class="sidebar-item"><a href="#cursor">Cursor</a></li>
+          <li class="sidebar-item"><a href="#codex-cli">Codex CLI</a></li>
+          <li class="sidebar-item"><a href="#gemini-cli">Gemini CLI</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-heading">How It Works</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#the-lifecycle">Distill, Serve, Invalidate</a></li>
+          <li class="sidebar-item"><a href="#what-a-note-is">What a Note Is</a></li>
+          <li class="sidebar-item"><a href="#symbol-invalidation">Symbol Invalidation</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-heading">Proving Outcomes</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#local-benchmark">Verifying in Your Repo</a></li>
+          <li class="sidebar-item"><a href="#what-to-expect">Expected Outcomes</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-heading">Team & CLI</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#team-mode">Sharing with a Team</a></li>
+          <li class="sidebar-item"><a href="#cli-reference">CLI Reference</a></li>
+          <li class="sidebar-item"><a href="#telemetry">Privacy & Telemetry</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <main>
+      <section id="what-is-thinker">
+        <h1>thinker documentation</h1>
+        <p class="lead">
+          Thinker is a persistent knowledge cache for coding agents. It prevents agents from re-grepping and re-reading your codebase every turn by pre-seeding verified architecture notes, conventions, and invariants.
+        </p>
+
+        <div class="callout note">
+          <strong>The Problem:</strong> When you start a prompt in a complex repository, coding agents spend 50–70% of their early turns running <code>grep</code>, reading <code>package.json</code>, tracing import trees, and hitting dead ends. This wastes minutes of wall time and burns tens of thousands of context tokens before any code is generated.
+        </div>
+      </section>
+
+      <section id="the-mental-model">
+        <h2>The Mental Model</h2>
+        <p>
+          Thinker is not a vector database or an ungrounded RAG system. It is a <strong>dependency-keyed knowledge cache</strong> stored locally under <code>.thinker/</code> in your repository.
+        </p>
+        <p>
+          Thinker maintains concise 3–12 line notes answering recurring architectural questions (callpaths, locations, invariants, gotchas). Each note is explicitly tied to the exact files and symbols it describes via SHA-256 hashes.
+        </p>
+        <div class="flow-steps">
+          <div class="step-box">
+            <div class="step-header">
+              <span class="step-badge">1</span>
+              <span class="step-title">Mine & Distill</span>
+            </div>
+            <p>During setup, Thinker mines git co-change history, merged PRs, and subsystem areas, synthesizing structured notes with explicit code pointers.</p>
+          </div>
+          <div class="step-box">
+            <div class="step-header">
+              <span class="step-badge">2</span>
+              <span class="step-title">Inject Context</span>
+            </div>
+            <p>Before your agent begins a turn, Thinker runs BM25 ranking against your prompt with coverage floors and injects the 2–3 most relevant notes via native agent hooks or MCP tools.</p>
+          </div>
+          <div class="step-box">
+            <div class="step-header">
+              <span class="step-badge">3</span>
+              <span class="step-title">Invalidate & Verify</span>
+            </div>
+            <p>Every note tracks symbol-level content hashes against your working tree. When code changes, notes are flagged stale and verified with a fast model—never serving outdated claims.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="quickstart">
+        <h2>Quickstart</h2>
+        <p>
+          Run the installer from inside the repository you want to equip:
+        </p>
+        <pre><code><span class="code-comment"># From inside your git repository:</span>
+curl -fsSL https://zerotime.dev/thinker101/install.sh | bash</code></pre>
+
+        <p>Requirements:</p>
+        <ul>
+          <li><strong>Git</strong>, <strong>curl</strong>, <strong>tar</strong></li>
+          <li><strong>Node.js 20+</strong></li>
+          <li>At least one installed agent CLI (<code>claude</code>, <code>codex</code>, <code>cursor</code>/<code>agent</code>, or <code>gemini</code>), already logged in.</li>
+        </ul>
+
+        <h3>The 3-Stage Onboarding Flow</h3>
+        <p>
+          When installed, Thinker executes <code>thinker onboard</code>:
+        </p>
+        <ol>
+          <li><strong>Connects Harness CLIs:</strong> Detects installed agent CLIs on your machine and configures prompt hooks and MCP tools without requiring root privileges.</li>
+          <li><strong>Builds Knowledge Cache:</strong> Mines co-change edges, distills merged PRs into fix records, and explores primary subsystems. Pre-flight estimates of time and cost are printed upfront.</li>
+          <li><strong>Runs PR Change Benchmark:</strong> Optionally runs a paired test on a recent PR change (baseline vs. with cache) so you see immediate before/after metrics.</li>
+        </ol>
+      </section>
+
+      <section id="supported-agents">
+        <h2>Supported Agents</h2>
+        <p>
+          Thinker hooks into your existing coding tools without changing your daily command workflow.
+        </p>
+
+        <div id="claude-code">
+          <h3>Claude Code</h3>
+          <p>
+            Thinker configures <code>.claude/settings.local.json</code>:
+          </p>
+          <ul>
+            <li><strong>Prompt hook:</strong> <code>UserPromptSubmit</code> automatically injects the orientation notes into the prompt bundle.</li>
+            <li><strong>Session learning:</strong> <code>Stop</code> hook condenses turn activity and distills new notes incrementally in the background.</li>
+            <li><strong>Late file notes:</strong> Serves relevant context when Claude opens specific files (<code>--late</code>).</li>
+          </ul>
+        </div>
+
+        <div id="cursor">
+          <h3>Cursor</h3>
+          <p>
+            Thinker writes <code>.cursor/hooks.json</code> and approves the MCP server:
+          </p>
+          <ul>
+            <li>Cursor's prompt hook computes candidate notes and delivers them on the first tool invocation.</li>
+            <li>Cursor's agent can also explicitly call the <code>orient</code> and <code>remember</code> MCP tools.</li>
+          </ul>
+        </div>
+
+        <div id="codex-cli">
+          <h3>Codex CLI</h3>
+          <p>
+            Thinker registers hooks in <code>.codex/hooks.json</code> and marks the project and hook hashes as trusted in <code>~/.codex/config.toml</code>, avoiding repetitive approval prompts.
+          </p>
+        </div>
+
+        <div id="gemini-cli">
+          <h3>Gemini CLI / Antigravity</h3>
+          <p>
+            Wires prompt-time context injection directly into <code>.gemini/settings.json</code>.
+          </p>
+        </div>
+      </section>
+
+      <section id="the-lifecycle">
+        <h2>How It Works</h2>
+
+        <div id="what-a-note-is">
+          <h3>What a Note Is</h3>
+          <p>
+            A Thinker note answers a recurring developer question, not a redundant restatement of "what this file does":
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>Kind</th>
+                <th>What It Answers</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>callpath</code></td>
+                <td>How control/data flows across files for an operation</td>
+              </tr>
+              <tr>
+                <td><code>location</code></td>
+                <td>Where a recurring concern is handled</td>
+              </tr>
+              <tr>
+                <td><code>cochange</code></td>
+                <td>What files or modules must change together</td>
+              </tr>
+              <tr>
+                <td><code>howto</code></td>
+                <td>How to build, test, or lint with non-obvious flags</td>
+              </tr>
+              <tr>
+                <td><code>convention</code></td>
+                <td>Local codebase rules an agent would otherwise violate</td>
+              </tr>
+              <tr>
+                <td><code>gotcha</code></td>
+                <td>A trap (similar names, hidden ordering, cache invalidation)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div id="symbol-invalidation">
+          <h3>Dependency-Keyed Invalidation</h3>
+          <p>
+            Traditional documentation goes stale the moment code changes. Thinker avoids this using fine-grained symbol hashing:
+          </p>
+          <ul>
+            <li>A dependency is tracked as <code>{path, symbol?}</code>. With a symbol, Thinker hashes just that definition block (e.g. <code>AuthManager.verifyToken</code>).</li>
+            <li>A note about <code>AuthManager.verifyToken</code> does not go stale just because an unrelated method in the same file was modified.</li>
+            <li>Every prompt serving re-hashes candidate deps against your working tree, catching uncommitted edits immediately.</li>
+            <li>Stale notes are deprioritized, served with a <code>⚠ STALE</code> banner, and scheduled for background verification.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="local-benchmark">
+        <h2>Verifying in Your Repo</h2>
+        <p>
+          You don't need to take benchmark claims on faith. Thinker includes built-in commands to measure the impact directly on your repository:
+        </p>
+
+        <pre><code><span class="code-comment"># 1. Benchmark agent efficiency on a recent merged PR:</span>
+thinker benchmark pr [number]
+
+<span class="code-comment"># 2. Or test a specific question with vs. without Thinker context:</span>
+thinker benchmark run "explain how permissions are validated on project exports"
+
+<span class="code-comment"># 3. View the latest side-by-side comparison report:</span>
+thinker benchmark report</code></pre>
+
+        <p>
+          How it works: Thinker makes two read-only agent calls—one without Thinker context and one with the relevant notes—and compares wall time, agent turns, tool calls, and token usage side-by-side. Both answers are saved under <code>.thinker/benchmarks/</code> for human inspection.
+        </p>
+
+        <div id="what-to-expect">
+          <h3>What Outcomes to Expect</h3>
+          <p>Across extensive benchmarks on real PR tasks (evaluated with Claude Fable, Gemini 3.8 Flash, and GPT-6 Astra):</p>
+          <ul>
+            <li><strong>18–21% less input tokens:</strong> Eliminates repetitive reading of 10–25 files per session.</li>
+            <li><strong>17–22% fewer tool calls:</strong> Cuts blind <code>grep</code> and <code>find</code> exploratory loops.</li>
+            <li><strong>7–14% faster wall time:</strong> Saves 30 to 100+ seconds on complex tasks.</li>
+            <li><strong>+33% tasks fully solved:</strong> Front-loading architecture conventions prevents agent hallucination and rabbit holes.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="team-mode">
+        <h2>Sharing with a Team</h2>
+        <p>
+          The simplest way to share a Thinker cache with your engineering team is to commit the <code>.thinker/</code> directory to your git repository:
+        </p>
+        <pre><code>git add .thinker/notes/ .thinker/cochange.json
+git commit -m "chore: add thinker knowledge cache for repository"
+git push</code></pre>
+        <p>
+          When teammates pull the branch and run <code>thinker onboard</code>, they immediately get full cache hits without spending agent API credits to rebuild the knowledge base.
+        </p>
+      </section>
+
+      <section id="cli-reference">
+        <h2>CLI Reference</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>thinker onboard</code></td>
+              <td>Interactive 3-stage onboarding (detect harnesses, build cache, benchmark)</td>
+            </tr>
+            <tr>
+              <td><code>thinker benchmark pr [n]</code></td>
+              <td>Run paired agent benchmark on a recent PR change</td>
+            </tr>
+            <tr>
+              <td><code>thinker benchmark run &lt;query&gt;</code></td>
+              <td>Run paired agent benchmark on an architectural query</td>
+            </tr>
+            <tr>
+              <td><code>thinker benchmark report</code></td>
+              <td>Reprint the latest benchmark comparison table</td>
+            </tr>
+            <tr>
+              <td><code>thinker check</code></td>
+              <td>Check all notes against the current working tree and report stale deps</td>
+            </tr>
+            <tr>
+              <td><code>thinker verify</code></td>
+              <td>Verify stale notes against changed diffs with a fast model</td>
+            </tr>
+            <tr>
+              <td><code>thinker update</code></td>
+              <td>Update Thinker CLI to the latest version</td>
+            </tr>
+            <tr>
+              <td><code>thinker uninstall [--purge]</code></td>
+              <td>Remove agent hooks and MCP registrations (<code>--purge</code> removes notes)</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="telemetry">
+        <h2>Privacy & Telemetry</h2>
+        <p>
+          Thinker collects anonymous daily effectiveness metrics (cache hit rate, total note count, estimated token savings) to monitor cache quality.
+        </p>
+        <p>
+          <strong>No code snippets, note bodies, prompt text, file paths, or repository URLs are ever collected or transmitted.</strong>
+        </p>
+        <p>
+          To opt out completely at any time:
+        </p>
+        <pre><code><span class="code-comment"># In your shell environment:</span>
+export THINKER_TELEMETRY=off
+
+<span class="code-comment"># Or in .thinker/config.json:</span>
+{ "telemetry": false }</code></pre>
+      </section>
+    </main>
+  </div>
+
+</body>
+</html>

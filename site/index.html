@@ -18,9 +18,9 @@
     }
 
     html, body {
-      height: 100%;
+      min-height: 100%;
       width: 100%;
-      overflow: hidden;
+      overflow-x: hidden;
       background-color: #ffffff;
       color: #111111;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -36,16 +36,46 @@
       right: 0;
       padding: 1.5rem 2rem;
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
       align-items: center;
       z-index: 10;
+    }
+
+    .nav-brand {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #000000;
+      letter-spacing: -0.03em;
+      text-decoration: none;
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .nav-link {
+      color: #444444;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      letter-spacing: -0.01em;
+    }
+
+    .nav-link:hover {
+      color: #000000;
+      background: #f5f5f5;
     }
 
     .btn-benchmark {
       background: transparent;
       border: 1px solid #e5e5e5;
       color: #111111;
-      padding: 0.5rem 1rem;
+      padding: 0.45rem 0.85rem;
       font-size: 0.85rem;
       font-weight: 500;
       border-radius: 6px;
@@ -61,14 +91,14 @@
 
     /* Main Viewport Centered */
     main {
-      height: 100vh;
+      min-height: 100vh;
       width: 100vw;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       text-align: center;
-      padding: 1.5rem;
+      padding: 5rem 1.5rem 3.5rem;
     }
 
     h1 {
@@ -82,10 +112,20 @@
 
     p.subtitle {
       font-size: 1.25rem;
-      color: #666666;
+      color: #444444;
       font-weight: 400;
       letter-spacing: -0.02em;
       margin-bottom: 2rem;
+      max-width: 580px;
+      line-height: 1.45;
+    }
+
+    .subtitle-sub {
+      display: block;
+      font-size: 0.95rem;
+      color: #777777;
+      margin-top: 0.45rem;
+      font-weight: 400;
     }
 
     /* Action Container */
@@ -116,6 +156,10 @@
       letter-spacing: -0.01em;
       white-space: nowrap;
       font-family: inherit;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .btn-main.btn-primary {
@@ -316,8 +360,117 @@
       border-color: #16a34a;
     }
 
+    /* Benchmark Hero Card */
+    .benchmark-card {
+      margin-top: 2.25rem;
+      width: 100%;
+      max-width: 640px;
+      background: #fafafa;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 1.15rem 1.35rem;
+      text-align: left;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .benchmark-card:hover {
+      border-color: #111111;
+      background: #ffffff;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+      transform: translateY(-1px);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
+      padding-bottom: 0.65rem;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .card-title {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.84rem;
+      color: #111827;
+      font-weight: 500;
+    }
+
+    .card-title .terminal-prompt {
+      color: #9ca3af;
+      margin-right: 0.35rem;
+    }
+
+    .card-tag {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: #6b7280;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.85rem;
+    }
+
+    .metric-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .metric-num {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .metric-num.gain {
+      color: #15803d;
+    }
+
+    .metric-label {
+      font-size: 0.78rem;
+      color: #111111;
+      font-weight: 600;
+      margin-top: 0.25rem;
+    }
+
+    .metric-sub {
+      font-size: 0.72rem;
+      color: #888888;
+      margin-top: 0.1rem;
+    }
+
+    .card-footer {
+      margin-top: 0.85rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid #f0f0f0;
+      font-size: 0.76rem;
+      color: #6b7280;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-footer-cta {
+      color: #111111;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .benchmark-card:hover .card-footer-cta {
+      text-decoration: underline;
+    }
+
     .supported-agents {
-      margin-top: 1.25rem;
+      margin-top: 1.75rem;
       font-size: 0.85rem;
       color: #9ca3af;
       letter-spacing: -0.01em;
@@ -446,6 +599,15 @@
     @media (max-width: 600px) {
       h1 { font-size: 2.75rem; }
       p.subtitle { font-size: 1.05rem; }
+      .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+      }
+      .card-footer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+      }
       .btn-group {
         flex-direction: column;
         width: 100%;
@@ -478,18 +640,26 @@
 <body>
 
   <nav>
-    <button class="btn-benchmark" onclick="openModal()">Benchmarks</button>
+    <a href="index.html" class="nav-brand">thinker</a>
+    <div class="nav-right">
+      <a href="docs.html" class="nav-link">Docs</a>
+      <button class="btn-benchmark" onclick="openModal()">Benchmarks</button>
+    </div>
   </nav>
 
   <main>
     <h1>thinker</h1>
-    <p class="subtitle">A knowledge cache for your coding agents</p>
+    <p class="subtitle">
+      A knowledge cache for your coding agents
+      <span class="subtitle-sub">Pre-seeds repo architecture &amp; conventions before each turn. Verified against code changes.</span>
+    </p>
 
     <div class="install-container">
       <!-- State 1: Action Buttons -->
       <div class="btn-group" id="btn-group">
         <button class="btn-main btn-primary" onclick="showAccessForm()">Enter access code</button>
         <button class="btn-main btn-secondary" onclick="showWaitlistForm()">Join waitlist</button>
+        <a href="docs.html" class="btn-main btn-secondary">Docs &rarr;</a>
       </div>
 
       <!-- State 2: Access Code Form -->
@@ -520,6 +690,42 @@
           <code id="cmd"></code>
           <button class="btn-copy" id="copy-btn" onclick="copyInstall()">Copy</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Benchmark Hero Card -->
+    <div class="benchmark-card" onclick="openModal()" title="View full multi-model benchmark breakdown">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="terminal-prompt">$</span> thinker benchmark report
+        </div>
+        <span class="card-tag">PR change evaluation</span>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-item">
+          <div class="metric-num gain">14% faster</div>
+          <div class="metric-label">Wall clock time</div>
+          <div class="metric-sub">2.7m &rarr; 2.3m</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-num gain">18&ndash;21% less</div>
+          <div class="metric-label">Input tokens</div>
+          <div class="metric-sub">stops context re-reads</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-num gain">17&ndash;22% fewer</div>
+          <div class="metric-label">Tool calls</div>
+          <div class="metric-sub">cuts blind exploration</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-num gain">+33% solved</div>
+          <div class="metric-label">Correctness</div>
+          <div class="metric-sub">Claude Fable pass rate</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span>Measured on real PR tasks across Claude Fable, Gemini Flash &amp; GPT-6 Astra</span>
+        <span class="card-footer-cta">View full report &rarr;</span>
       </div>
     </div>
 
