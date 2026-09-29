@@ -68,10 +68,14 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
   const summary = summarize(store, { days: 1, all });
   const kinds = {};
   let totalBytes = 0;
+  let totalNotes = summary.notes || 0;
+  let repositoriesCount = (summary.repos || []).length;
+  const coveredCheckouts = new Set();
 
   // Aggregate across all repositories on the machine
   for (const r of summary.repos || []) {
     for (const checkout of r.checkouts || []) {
+      coveredCheckouts.add(path.resolve(checkout));
       const s = new Store(checkout);
       if (!s.exists()) continue;
       try {
@@ -87,26 +91,37 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
     }
   }
 
-  // If local store has notes and wasn't covered
-  if (!summary.repos?.length && store?.exists()) {
+  // If local store has notes and wasn't covered in summary.repos
+  if (store?.exists() && (!coveredCheckouts.size || !coveredCheckouts.has(path.resolve(store.repo)))) {
     try {
-      for (const n of store.list()) {
-        const k = n.kind || 'other';
-        kinds[k] = (kinds[k] || 0) + 1;
-        totalBytes += Buffer.byteLength(n.body || '', 'utf8') + Buffer.byteLength(n.title || '', 'utf8');
+      const notes = store.list();
+      if (notes.length > 0) {
+        if (!coveredCheckouts.has(path.resolve(store.repo))) {
+          repositoriesCount++;
+          totalNotes += notes.length;
+        }
+        for (const n of notes) {
+          const k = n.kind || 'other';
+          kinds[k] = (kinds[k] || 0) + 1;
+          const bodyBytes = Buffer.byteLength(n.body || '', 'utf8');
+          const titleBytes = Buffer.byteLength(n.title || '', 'utf8');
+          totalBytes += bodyBytes + titleBytes;
+        }
+      } else if (!repositoriesCount) {
+        repositoriesCount = 1;
       }
     } catch {}
   }
 
   return {
-    totalNotes: summary.notes || 0,
+    totalNotes,
     totalBytes,
-    repositoriesCount: (summary.repos || []).length,
+    repositoriesCount,
     kinds,
   };
 }
 
-export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, all = true } = {}) {
+export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, all = true, event = 'daily' } = {}) {
   let version = 'unknown';
   try {
     const pkg = JSON.parse(fs.readFileSync(path.resolve(HERE, '..', 'package.json'), 'utf8'));
@@ -127,6 +142,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
   return {
     installId: getInstallId(home),
+    event,
     version,
     platform: process.platform,
     timestamp: new Date().toISOString(),
@@ -179,8 +195,9 @@ export async function sendTelemetry({
   fetchFn = globalThis.fetch,
   force = false,
   dryRun = false,
+  event = 'daily',
 } = {}) {
-  if (!force && !isTelemetryEnabled({ home, store })) {
+  if (!isTelemetryEnabled({ home, store })) {
     return { sent: false, reason: 'disabled' };
   }
 
@@ -194,7 +211,7 @@ export async function sendTelemetry({
     } catch {}
   }
 
-  const payload = buildTelemetryPayload(store, { home, days: 1, all: true });
+  const payload = buildTelemetryPayload(store, { home, days: 1, all: true, event });
 
   if (dryRun) {
     return { sent: true, dryRun: true, endpoint, payload };
@@ -234,12 +251,11 @@ export function maybeSendDailyTelemetryInBackground({
   cliPath = path.join(HERE, 'cli.js'),
   store,
   force = false,
+  event = 'daily',
 } = {}) {
-  if (!force) {
-    if (!isTelemetryEnabled({ home, store })) return;
-    if (process.env.THINKER_IN_LLM) return;
-    if (process.env.THINKER_BACKGROUND_UPDATE || process.env.THINKER_BACKGROUND_TELEMETRY) return;
-  }
+  if (!isTelemetryEnabled({ home, store })) return;
+  if (process.env.THINKER_IN_LLM) return;
+  if (process.env.THINKER_BACKGROUND_UPDATE || process.env.THINKER_BACKGROUND_TELEMETRY) return;
 
   const stateDir = path.join(home, 'state');
   const stampFile = path.join(stateDir, 'telemetry.last');
@@ -252,7 +268,11 @@ export function maybeSendDailyTelemetryInBackground({
   }
 
   try {
-    const child = spawn(process.execPath, [cliPath, 'telemetry', '--background', '--quiet'], {
+    const args = ['telemetry', '--background', '--quiet'];
+    if (store?.repo) args.push('--repo', store.repo);
+    if (force) args.push('--force');
+    if (event) args.push('--event', event);
+    const child = spawn(process.execPath, [cliPath, ...args], {
       detached: true,
       stdio: 'ignore',
       env: { ...process.env, THINKER_BACKGROUND_TELEMETRY: '1' },

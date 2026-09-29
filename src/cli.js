@@ -90,8 +90,8 @@ const HELP = `thinker — knowledge cache for coding agents
   branch                         show current branch or ref
   upgrade                        alias for update
   stats
-  telemetry [--send] [--json] [--force]
-                                 daily cache effectiveness and size metrics sent via HTTP proxy to S3;
+  telemetry [--send] [--json] [--force] [--event name]
+                                 cache effectiveness and size metrics sent via HTTP proxy to S3;
                                  no prompts, files, code or repo names are transmitted (THINKER_TELEMETRY=off disables)
 `;
 
@@ -100,7 +100,7 @@ async function main() {
     const notice = checkPendingNotice(thinkerHome());
     if (notice) process.stderr.write(`[thinker] ${notice}\n`);
   }
-  if (!['update', 'upgrade', 'switch', 'branch', 'telemetry'].includes(cmd) && !flags.background) {
+  if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup', 'init'].includes(cmd) && !flags.background) {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
     maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
   }
@@ -258,6 +258,7 @@ async function main() {
       //        --local (write .claude/settings.local.json, not shared), --git-hook, --no-mcp, --clients,
       //        --no-trust (leave Codex's trust in the project and the hooks to the user), --yes (do not ask)
       await init({ clients: parseClients(flags.clients, 'auto'), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !!flags['git-hook'] });
+      maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store, force: true, event: 'install' });
       break;
     }
     case 'setup': {
@@ -521,22 +522,24 @@ async function main() {
 
       if (flags.background) {
         if (!enabled) return;
-        await sendTelemetry({ home, store, endpoint });
+        await sendTelemetry({ home, store, endpoint, force: !!flags.force, event: flags.event });
         return;
       }
 
       if (flags.send || flags.force) {
-        const res = await sendTelemetry({ home, store, endpoint, force: !!flags.force });
-        if (res.sent) {
-          out(`Telemetry sent successfully to ${endpoint}${res.key ? ` (s3: ${res.key})` : ''}.`);
-        } else {
-          out(`Telemetry not sent: ${res.reason || res.error || 'unknown'}`);
-          if (res.lastSent) out(`Last sent: ${new Date(res.lastSent).toLocaleString()}`);
+        const res = await sendTelemetry({ home, store, endpoint, force: !!flags.force, event: flags.event });
+        if (!flags.quiet) {
+          if (res.sent) {
+            out(`Telemetry sent successfully to ${endpoint}${res.key ? ` (s3: ${res.key})` : ''}.`);
+          } else {
+            out(`Telemetry not sent: ${res.reason || res.error || 'unknown'}`);
+            if (res.lastSent) out(`Last sent: ${new Date(res.lastSent).toLocaleString()}`);
+          }
         }
         break;
       }
 
-      const payload = buildTelemetryPayload(store, { home, days: 1, all: !flags.here });
+      const payload = buildTelemetryPayload(store, { home, days: 1, all: !flags.here, event: flags.event });
       if (flags.json) {
         out(JSON.stringify(payload, null, 2));
         break;
@@ -545,6 +548,7 @@ async function main() {
       out('Thinker daily metrics:');
       out(`  Status:       ${enabled ? 'enabled' : 'disabled (THINKER_TELEMETRY=off or config)'}`);
       out(`  Endpoint:     ${endpoint}`);
+      if (payload.event) out(`  Event:        ${payload.event}`);
       const stamp = path.join(home, 'state', 'telemetry.last');
       let lastSent = 'never';
       try {
@@ -745,6 +749,7 @@ async function setup() {
   }
   if (typeof flags.export === 'string') { execFileSync('node', [path.join(HERE, 'cli.js'), 'export', flags.export, '--repo', repo], { stdio: 'inherit' }); }
   out(`\nthinker is set up for ${path.basename(repo)}: ${notes.length} notes, served to ${clients.join(', ')}.`);
+  maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store, force: true, event: 'install' });
   if (!notes.length) {
     if (areas || prs) {
       out(`\n❌ cache init failed: The cache is empty (0 notes created).`);

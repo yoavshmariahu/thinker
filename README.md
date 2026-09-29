@@ -121,7 +121,7 @@ See `thinker update --status` for current install and schedule details, or `thin
 
 ## Metrics and telemetry
 
-Thinker records anonymous daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. No prompt text, note bodies, code snippets, file paths, or repository URLs are ever collected or transmitted.
+Thinker records anonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. No prompt text, note bodies, code snippets, file paths, or repository URLs are ever collected or transmitted.
 
 ```bash
 thinker telemetry           # inspect current daily metrics summary and transmission status

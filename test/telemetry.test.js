@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import http from 'node:http';
+import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import {
   isTelemetryEnabled,
@@ -152,3 +154,179 @@ test('sendTelemetry handles network errors gracefully without crashing', async (
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }
 });
+
+test('computeCacheMetrics accurately counts local store notes on fresh install without prior log', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  const origHome = process.env.THINKER_HOME;
+  try {
+    process.env.THINKER_HOME = tmpHome;
+    const store = new Store(tmpRepo).init();
+    store.put({ id: 'test-note-1', kind: 'location', title: 'Route handling', body: 'router.js:handle handles requests' });
+    store.put({ id: 'test-note-2', kind: 'gotcha', title: 'Header parsing', body: 'headers.js:parse requires utf8' });
+
+    const metrics = computeCacheMetrics(store, { home: tmpHome, all: true });
+    assert.equal(metrics.totalNotes, 2, 'fresh installation must reflect local store notes');
+    assert.equal(metrics.repositoriesCount, 1, 'fresh installation must count the repository');
+    assert.equal(metrics.kinds.location, 1);
+    assert.equal(metrics.kinds.gotcha, 1);
+    assert.ok(metrics.totalBytes > 0);
+  } finally {
+    if (origHome) process.env.THINKER_HOME = origHome;
+    else delete process.env.THINKER_HOME;
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('buildTelemetryPayload and sendTelemetry tag event type (install vs daily)', async () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    const payloadDaily = buildTelemetryPayload(store, { home: tmpHome });
+    assert.equal(payloadDaily.event, 'daily');
+
+    const payloadInstall = buildTelemetryPayload(store, { home: tmpHome, event: 'install' });
+    assert.equal(payloadInstall.event, 'install');
+
+    let sentBody = null;
+    const mockFetch = async (url, opts) => {
+      sentBody = JSON.parse(opts.body);
+      return { ok: true, status: 202, json: async () => ({ status: 'accepted' }) };
+    };
+
+    const res = await sendTelemetry({ home: tmpHome, store, fetchFn: mockFetch, force: true, event: 'install' });
+    assert.equal(res.sent, true);
+    assert.equal(sentBody.event, 'install');
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('sendTelemetry respects user opt-out even when force is true', async () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    let fetchCalled = false;
+    const mockFetch = async () => {
+      fetchCalled = true;
+      return { ok: true, status: 202 };
+    };
+
+    process.env.THINKER_TELEMETRY = 'off';
+    const res = await sendTelemetry({ home: tmpHome, store, fetchFn: mockFetch, force: true, event: 'install' });
+    assert.equal(res.sent, false);
+    assert.equal(res.reason, 'disabled');
+    assert.equal(fetchCalled, false);
+  } finally {
+    delete process.env.THINKER_TELEMETRY;
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('cli init sends installation telemetry in background', async () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cli-init-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cli-init-home-'));
+  execFileSync('git', ['init', '-q'], { cwd: tmpRepo });
+
+  // Add a sample note to verify note counts
+  const store = new Store(tmpRepo).init();
+  store.put({ id: 'note-1', kind: 'location', title: 'Location note', body: 'app.js handles routes' });
+
+  const received = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try { received.push(JSON.parse(body)); } catch {}
+      res.writeHead(202, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'accepted' }));
+    });
+  });
+
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+
+  try {
+    const CLI = path.resolve('src/cli.js');
+    execFileSync('node', [CLI, 'init', '--local', '--no-mcp', '--clients', 'claude', '--repo', tmpRepo], {
+      env: {
+        ...process.env,
+        THINKER_HOME: tmpHome,
+        THINKER_TELEMETRY_URL: `http://127.0.0.1:${port}`,
+        THINKER_NO_LEARN: '',
+        THINKER_TELEMETRY: 'on',
+      },
+      stdio: 'pipe',
+    });
+
+    // Wait up to 3 seconds for background telemetry request
+    const deadline = Date.now() + 3000;
+    while (!received.length && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    assert.equal(received.length, 1, 'telemetry payload should be received');
+    assert.equal(received[0].event, 'install');
+    assert.equal(received[0].cacheSize.totalNotes, 1);
+    assert.equal(received[0].cacheSize.repositoriesCount, 1);
+    assert.ok(received[0].installId);
+  } finally {
+    server.close();
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('cli setup sends installation telemetry in background upon completion', async () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cli-setup-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cli-setup-home-'));
+  execFileSync('git', ['init', '-q'], { cwd: tmpRepo });
+
+  const received = [];
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try { received.push(JSON.parse(body)); } catch {}
+      res.writeHead(202, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'accepted' }));
+    });
+  });
+
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+
+  try {
+    const CLI = path.resolve('src/cli.js');
+    execFileSync('node', [CLI, 'setup', '--repo', tmpRepo, '--no-seed', '--no-prs', '--no-phrase', '--clients', 'claude', '--yes'], {
+      env: {
+        ...process.env,
+        THINKER_HOME: tmpHome,
+        THINKER_TELEMETRY_URL: `http://127.0.0.1:${port}`,
+        THINKER_NO_LEARN: '',
+        THINKER_TELEMETRY: 'on',
+      },
+      stdio: 'pipe',
+    });
+
+    const deadline = Date.now() + 3000;
+    while (!received.length && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    assert.equal(received.length, 1, 'telemetry payload should be received');
+    assert.equal(received[0].event, 'install');
+    assert.equal(received[0].cacheSize.repositoriesCount, 1);
+    assert.ok(received[0].installId);
+  } finally {
+    server.close();
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+

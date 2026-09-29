@@ -224,6 +224,7 @@ EOF
   say "  Remove from this repo:  $thinker uninstall --repo \"$repo\""
   say "  Update thinker:         $thinker update (auto-updates daily)"
   case ":$PATH:" in *":$home/bin:"*) ;; *) say "  Optional: add $home/bin to your PATH to run 'thinker' directly." ;; esac
+  "$thinker" telemetry --background --event install 2>/dev/null || true
 }
 
 main "$@"
