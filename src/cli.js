@@ -18,7 +18,7 @@ import { summarize, renderUsage, sessionKey, cacheHitNotice } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
-import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath } from './update.js';
+import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath, tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { runOnboarding, stepPrBenchmark } from './onboarding.js';
 
@@ -285,7 +285,16 @@ async function main() {
       const items = ['notes', 'cochange.json', 'prs.json', 'config.json'].filter(x => fs.existsSync(path.join(store.dir, x)));
       const head = gitHead(repo);
       fs.writeFileSync(path.join(store.dir, 'cache-manifest.json'), JSON.stringify({ repo: path.basename(repo), commit: head, notes: store.list().length, exportedAt: new Date().toISOString() }, null, 2));
-      execFileSync('tar', ['-czf', file, '-C', store.dir, ...items, 'cache-manifest.json']);
+      try {
+        execFileSync('tar', [...tarPackArgs(), file, '-C', store.dir, ...items, 'cache-manifest.json'], {
+          env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } catch (err) {
+        const errDetail = err.stderr ? err.stderr.toString().trim() : '';
+        out(`error exporting cache: ${errDetail || err.message}`);
+        process.exit(1);
+      }
       out(`exported ${store.list().length} notes at ${String(head).slice(0, 10)} → ${file}`);
       break;
     }
@@ -295,9 +304,28 @@ async function main() {
       fs.mkdirSync(store.dir, { recursive: true });
       let file = src;
       if (/^https?:\/\//.test(src)) { file = path.join(store.dir, 'cache-download.tgz'); execFileSync('curl', ['-fsSL', '-o', file, src]); }
-      const names = execFileSync('tar', ['-tzf', file]).toString().split('\n').filter(Boolean);
+      let names = [];
+      try {
+        names = execFileSync('tar', [...tarListArgs(), file], {
+          env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }).toString().split('\n').filter(Boolean);
+      } catch (err) {
+        const errDetail = err.stderr ? err.stderr.toString().trim() : '';
+        out(`error reading archive: ${errDetail || err.message}`);
+        process.exit(1);
+      }
       if (names.some(n => n.startsWith('/') || n.split('/').includes('..'))) { out('refusing to unpack: archive contains unsafe paths'); process.exit(1); }
-      execFileSync('tar', ['-xzf', file, '-C', store.dir]);
+      try {
+        execFileSync('tar', [...tarExtractArgs(), file, '-C', store.dir], {
+          env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } catch (err) {
+        const errDetail = err.stderr ? err.stderr.toString().trim() : '';
+        out(`error unpacking archive: ${errDetail || err.message}`);
+        process.exit(1);
+      }
       if (file.endsWith('cache-download.tgz')) fs.unlinkSync(file);
       const notes = refresh(store, store.list());
       const stale = notes.filter(n => n.status === 'stale').length;

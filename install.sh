@@ -45,6 +45,8 @@
 #
 # The script writes only to THINKER_HOME and to .thinker/ and .claude/ in this repository. No sudo.
 set -euo pipefail
+export COPYFILE_DISABLE=1
+export COPY_EXTENDED_ATTRIBUTES_DISABLE=1
 
 main() {
   local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 ref="${THINKER_REF:-main}" benchmark="" pr_target=""
@@ -132,7 +134,27 @@ main() {
     [ -n "$ghrepo" ] || die "no source configured: set THINKER_GH_REPO (owner/name) or THINKER_DIST_URL"
     gh_fetch "repos/$ghrepo/tarball/$ref" "$tmp/thinker.tgz"
   fi
-  mkdir -p "$tmp/app" && tar -xzf "$tmp/thinker.tgz" -C "$tmp/app"
+  tar_extract() {
+    local archive="$1" dest="$2"
+    local warn_opt=""
+    if tar --warning=no-unknown-keyword --version >/dev/null 2>&1; then
+      warn_opt="--warning=no-unknown-keyword"
+    fi
+    local code=0
+    local err
+    # shellcheck disable=SC2086
+    err="$(COPYFILE_DISABLE=1 COPY_EXTENDED_ATTRIBUTES_DISABLE=1 tar ${warn_opt} -xzf "$archive" -C "$dest" 2>&1)" || code=$?
+    if [ -n "$err" ]; then
+      local filtered
+      filtered="$(printf '%s\n' "$err" | grep -v "Ignoring unknown extended header keyword" || true)"
+      if [ -n "$filtered" ]; then
+        printf '%s\n' "$filtered" >&2
+      fi
+    fi
+    [ "$code" -eq 0 ] || return "$code"
+  }
+
+  mkdir -p "$tmp/app" && tar_extract "$tmp/thinker.tgz" "$tmp/app"
   # GitHub archives wrap everything in one top-level directory
   if [ ! -f "$tmp/app/src/cli.js" ]; then
     local inner; inner="$(find "$tmp/app" -mindepth 1 -maxdepth 1 -type d | head -1)"

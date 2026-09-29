@@ -23,6 +23,45 @@ export function getToken() {
   return '';
 }
 
+let _tarSupportsWarning = null;
+let _tarSupportsNoXattrs = null;
+
+export function tarSupportsFlag(flag) {
+  if (flag === '--warning') {
+    if (_tarSupportsWarning !== null) return _tarSupportsWarning;
+    try {
+      execFileSync('tar', ['--warning=no-unknown-keyword', '--version'], { stdio: ['ignore', 'ignore', 'ignore'], timeout: 5000 });
+      _tarSupportsWarning = true;
+    } catch {
+      _tarSupportsWarning = false;
+    }
+    return _tarSupportsWarning;
+  }
+  if (flag === '--no-xattrs') {
+    if (_tarSupportsNoXattrs !== null) return _tarSupportsNoXattrs;
+    try {
+      execFileSync('tar', ['--no-xattrs', '--version'], { stdio: ['ignore', 'ignore', 'ignore'], timeout: 5000 });
+      _tarSupportsNoXattrs = true;
+    } catch {
+      _tarSupportsNoXattrs = false;
+    }
+    return _tarSupportsNoXattrs;
+  }
+  return false;
+}
+
+export function tarExtractArgs() {
+  return tarSupportsFlag('--warning') ? ['--warning=no-unknown-keyword', '-xzf'] : ['-xzf'];
+}
+
+export function tarListArgs() {
+  return tarSupportsFlag('--warning') ? ['--warning=no-unknown-keyword', '-tzf'] : ['-tzf'];
+}
+
+export function tarPackArgs() {
+  return tarSupportsFlag('--no-xattrs') ? ['--no-xattrs', '-czf'] : ['-czf'];
+}
+
 export function detectInstall(rootDir = path.resolve(HERE, '..'), home = thinkerHome()) {
   const isGit = fs.existsSync(path.join(rootDir, '.git'));
   let version = 'unknown';
@@ -301,7 +340,16 @@ export async function applyUpdate(opts = {}) {
     }
 
     fs.mkdirSync(tmpApp, { recursive: true });
-    execFileSync('tar', ['-xzf', tmpTar, '-C', tmpApp], { timeout: 30_000 });
+    try {
+      execFileSync('tar', [...tarExtractArgs(), tmpTar, '-C', tmpApp], {
+        timeout: 30_000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' },
+      });
+    } catch (err) {
+      const errDetail = err.stderr ? err.stderr.toString().trim() : '';
+      throw new Error(`Failed to extract archive: ${errDetail || err.message}`);
+    }
 
     let sourceDir = tmpApp;
     if (!fs.existsSync(path.join(sourceDir, 'src', 'cli.js'))) {

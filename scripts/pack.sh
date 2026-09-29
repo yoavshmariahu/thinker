@@ -5,8 +5,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 base="${1:-}"
+export COPYFILE_DISABLE=1
+export COPY_EXTENDED_ATTRIBUTES_DISABLE=1
+tar_pack=(tar)
+if tar --no-xattrs --version >/dev/null 2>&1; then
+  tar_pack+=(--no-xattrs)
+fi
 mkdir -p dist
-tar -czf dist/thinker.tgz --exclude='*.test.js' src package.json package-lock.json README.md
+"${tar_pack[@]}" -czf dist/thinker.tgz --exclude='*.test.js' src package.json package-lock.json README.md
 if [ -n "$base" ]; then
   # self-hosted copy: install from the tarball next to it instead of GitHub
   sed -e "s#^  local dist=\"\${THINKER_DIST_URL:-}\"#  local dist=\"\${THINKER_DIST_URL:-${base%/}/thinker.tgz}\"#" install.sh > dist/install.sh

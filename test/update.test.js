@@ -13,6 +13,10 @@ import {
   scheduleDaily,
   unscheduleDaily,
   applyUpdate,
+  tarSupportsFlag,
+  tarExtractArgs,
+  tarListArgs,
+  tarPackArgs,
   DAY_MS,
 } from '../src/update.js';
 
@@ -321,3 +325,76 @@ test('applyUpdate unpacks tarball archive for standalone install', async () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('tarSupportsFlag and tar argument helpers configure safe arguments', () => {
+  const supportsWarning = tarSupportsFlag('--warning');
+  const supportsNoXattrs = tarSupportsFlag('--no-xattrs');
+  assert.equal(typeof supportsWarning, 'boolean');
+  assert.equal(typeof supportsNoXattrs, 'boolean');
+
+  const extractArgs = tarExtractArgs();
+  assert.ok(Array.isArray(extractArgs));
+  assert.ok(extractArgs.includes('-xzf'));
+  if (supportsWarning) {
+    assert.ok(extractArgs.includes('--warning=no-unknown-keyword'));
+  }
+
+  const listArgs = tarListArgs();
+  assert.ok(Array.isArray(listArgs));
+  assert.ok(listArgs.includes('-tzf'));
+  if (supportsWarning) {
+    assert.ok(listArgs.includes('--warning=no-unknown-keyword'));
+  }
+
+  const packArgs = tarPackArgs();
+  assert.ok(Array.isArray(packArgs));
+  assert.ok(packArgs.includes('-czf'));
+  if (supportsNoXattrs) {
+    assert.ok(packArgs.includes('--no-xattrs'));
+  }
+});
+
+test('applyUpdate unpacks cleanly without emitting unknown extended header keyword warnings', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-xattr-clean-'));
+  try {
+    const pkgSrc = path.join(tmp, 'pkg-src');
+    fs.mkdirSync(path.join(pkgSrc, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(pkgSrc, 'src', 'cli.js'), '#!/usr/bin/env node\nconsole.log("v3");');
+    fs.writeFileSync(path.join(pkgSrc, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.3.0' }));
+
+    // Pack archive using tarPackArgs
+    const tarball = path.join(tmp, 'dist-clean.tgz');
+    execFileSync('tar', [...tarPackArgs(), tarball, '-C', tmp, 'pkg-src'], {
+      env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' },
+    });
+
+    const appDir = path.join(tmp, 'app');
+    fs.mkdirSync(path.join(appDir, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(appDir, 'src', 'cli.js'), '#!/usr/bin/env node\nconsole.log("v2");');
+    fs.writeFileSync(path.join(appDir, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.2.0' }));
+    fs.writeFileSync(path.join(tmp, 'install.json'), JSON.stringify({
+      source: 'archive',
+      ghrepo: 'yoavshmariahu/thinker',
+      ref: 'main',
+      commit: 'c2',
+      version: '0.2.0',
+    }));
+
+    const install = detectInstall(appDir, tmp);
+    const res = await applyUpdate({
+      home: tmp,
+      rootDir: appDir,
+      install,
+      dist: `file://${tarball}`,
+      quiet: true,
+    });
+
+    assert.equal(res.updated, true);
+    assert.equal(res.version, '0.3.0');
+    const updatedPkg = JSON.parse(fs.readFileSync(path.join(tmp, 'app', 'package.json'), 'utf8'));
+    assert.equal(updatedPkg.version, '0.3.0');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
