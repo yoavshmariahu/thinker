@@ -393,24 +393,24 @@ All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3
 
 ### Symptom-only tasks on OpenAI GPT-6 Astra (`grafana-codex-gpt6-astra`)
 
-16 symptom-only tasks from `bench/tasks/grafana-hard.json` evaluated with OpenAI GPT-6 Astra (`gpt-6-astra`) using Codex CLI 0.157 in ephemeral headless mode (`codex exec`). Each task was run as a paired comparison between `nocache` (standard baseline) and `cache` (`full` arm: pre-seeded `.thinker/notes` from `grafana-v2`, `AGENTS.md` cache guide, and thinker MCP server exposing `orient` and `lookup`). 16 complete pairs (32 runs total, seed 0).
+21 symptom-only tasks from `bench/tasks/grafana-hard.json` evaluated with OpenAI GPT-6 Astra (`gpt-6-astra`) using Codex CLI 0.157 in ephemeral headless mode (`codex exec`). Each task was run as a paired comparison between `nocache` (standard baseline) and `cache` (`full` arm: pre-seeded `.thinker/notes` from `grafana-v2`, `AGENTS.md` cache guide, and thinker MCP server exposing `orient` and `lookup`). 21 complete pairs (42 runs total, seed 0).
 
-**Evaluation Standardization**: Every patch was applied to an isolated worktree and graded on acceptance criteria using Google Gemini 3.8 Flash (`gemini-3.8-flash-high`) via `bench/criteria.js`, providing strict objective verification of observable runtime behavior.
+**Evaluation Standardization**: Every patch was applied to an isolated worktree and graded on acceptance criteria using Google Gemini 3.8 Flash (`gemini-3.8-flash-high`) via `bench/criteria.js` using the standardized judging protocol in `bench/JUDGING.md`, providing strict objective verification of observable runtime behavior.
 
 | arm | n | wall clock | tool calls | fresh input tokens | total input tokens | output tokens | essential criteria | strict pass |
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| nocache | 16 | 170.7s ±16.9s | 15.4 ±1.1 | 46.3k ±2.7k | 544.6k ±57.8k | 4,847 ±468 | 89.4% | 68.8% (11/16) |
-| cache | 16 | **156.0s ±13.8s** | **12.4 ±1.0** | **41.0k ±3.9k** | **434.7k ±48.5k** | **4,258 ±384** | 83.8% | 62.5% (10/16) |
-| **change** | | **-8.6%** (-14.7s) | **-19.8%** (-3.1 calls) | **-11.4%** (-5.3k) | **-20.2%** (-109.9k) | **-12.2%** (-589) | -5.6% | -6.3% (-1 task) |
+| nocache | 21 | 151.9s ±15.8s | 14.1 ±1.0 | 44.0k ±3.4k | 473.1k ±52.0k | 4,250 ±443 | 91.9% | 76.2% (16/21) |
+| cache | 21 | **141.3s ±12.2s** | **11.6 ±0.9** | **37.9k ±3.3k** | **383.9k ±43.6k** | **3,796 ±361** | 87.6% | 71.4% (15/21) |
+| **change** | | **-7.0%** (-10.6s) | **-17.7%** (-2.5 calls) | **-13.9%** (-6.1k) | **-18.9%** (-89.2k) | **-10.7%** (-454) | -4.3% | -4.8% (-1 task) |
 
 **Paired effect of the cache**:
-- **Tool call reduction in 13 of 16 tasks (81.3%)**: Codex consistently spent fewer tool calls when oriented by the cache (only 2 tasks saw an increase, 1 parity).
-- **Reduced codebase exploration**: Total input tokens dropped by **-20.2%** (-109.9k tokens/task), and fresh uncached tokens dropped by **-11.4%** (-5.3k tokens/task).
-- **Wall latency savings**: End-to-end task time dropped by **-8.6%**, saving up to **101 seconds** on complex tasks (`PR133112-hard` -100s, `PR133335-hard` -101s, `PR133220-hard` -52s).
-- **Reversal of the PostHog trend**: On PostHog, Codex (`gpt-6-sol`) suffered tool call inflation (+50%). On Grafana, `gpt-6-astra` demonstrated effective cache adoption with an 81% win rate on tool calls across both frontend and backend tasks.
-- **Correctness parity**: 14 of 16 tasks had identical pass/fail outcomes between arms, achieving functional parity (10 vs 11 solved, a single-task difference well within the ±1.3 task single-run noise margin).
+- **Tool call reduction in 15 of 21 tasks (71.4%)**: Codex consistently spent fewer tool calls when oriented by the cache (only 4 tasks saw an increase, 2 ties).
+- **Reduced codebase exploration**: Total input tokens dropped by **-18.9%** (-89.2k tokens/task), and fresh uncached tokens dropped by **-13.9%** (-6.1k tokens/task).
+- **Wall latency savings**: End-to-end task time dropped by **-7.0%**, saving up to **101 seconds** on complex tasks (`PR133112-hard` -100s, `PR133335-hard` -101s, `PR133220-hard` -52s).
+- **Reversal of the PostHog trend**: On PostHog, Codex (`gpt-6-sol`) suffered tool call inflation (+50%). On Grafana, `gpt-6-astra` demonstrated effective cache adoption with a 71% win rate on tool calls across both frontend and backend tasks.
+- **Correctness parity**: 19 of 21 tasks had identical pass/fail outcomes between arms, achieving functional parity (15 vs 16 solved, a single-task difference well within the ±1.3 task single-run noise margin).
 
-#### Task-by-task paired results (all 16 tasks, judged by Gemini 3.8 Flash)
+#### Task-by-task paired results (all 21 tasks, judged by Gemini 3.8 Flash)
 
 | Task | Area | Tool Calls (nc → c) | Wall Clock (nc → c) | Fresh In (nc → c) | Total In (nc → c) | Pass (nc / c) | Ess Score (nc / c) |
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -430,6 +430,11 @@ All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3
 | `PR133158-hard` (Notebook telemetry scrubbing) | frontend | 15 → **14** (-1) | 216s → **196s** | 45.3k → **70.6k** | 519k → **459k** | FAIL / FAIL | 86% / 86% |
 | `PR133220-hard` (SSOSetting secret redaction) | backend | 17 → **11** (-6) | 200s → **148s** | 48.6k → **33.4k** | 664k → **352k** | PASS / PASS | 100% / 100% |
 | `PR132938-hard` (Provisioning picker scope) | frontend | 13 → **11** (-2) | 184s → **164s** | 37.5k → **35.1k** | 456k → **361k** | PASS / PASS | 100% / 100% |
+| `PR133364-hard` (Scenes dashboard variables state) | backend | 9 → **8** (-1) | 140s → **124s** | 33.7k → **26.0k** | 203k → **216k** | PASS / PASS | 100% / 100% |
+| `PR133290-hard` (Prometheus exemplar query range) | frontend | 9 → **11** (+2) | 57s → **67s** | 24.4k → **28.3k** | 160k → **187k** | PASS / PASS | 100% / 100% |
+| `PR133258-hard` (Alertmanager silences pagination) | frontend | 14 → **9** (-5) | 137s → **148s** | 83.3k → **42.8k** | 533k → **394k** | PASS / PASS | 100% / 100% |
+| `PR133253-hard` (Tempo trace search query tags) | backend | 10 → **10** (0) | 74s → **74s** | 21.9k → **23.0k** | 160k → **139k** | PASS / PASS | 100% / 100% |
+| `PR133251-hard` (Service accounts token expiration) | backend | 7 → **8** (+1) | 49s → **57s** | 19.2k → **20.3k** | 166k → **170k** | PASS / PASS | 100% / 100% |
 
 *\* Note on PR132983-hard: The code generated by both cache and no-cache arms was 100% identical and correctly delegated missing user lookup to `resolveName` (which returns typed `resourceInfo.NewNotFound`). The judge's initial grading marked criterion `c5` as unclear for the cache run because `resolveName` was outside its diff context slice; verified and corrected to met.*
 
