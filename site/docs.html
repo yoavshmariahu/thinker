@@ -371,6 +371,7 @@
     <div class="nav-links">
       <a href="index.html" class="nav-link">Home</a>
       <a href="index.html#benchmarks" class="nav-link">Benchmarks</a>
+      <a href="#team-cloud" class="nav-link">Teams</a>
       <a href="https://github.com/yoavshmariahu/thinker" target="_blank" rel="noopener" class="nav-link">GitHub ↗</a>
       <a href="index.html" class="btn-nav-install">Get Started</a>
     </div>
@@ -415,11 +416,11 @@
       </div>
 
       <div class="sidebar-group">
-        <div class="sidebar-heading">Team & CLI</div>
+        <div class="sidebar-heading">Teams &amp; Cloud</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#team-mode">Sharing with a Team</a></li>
+          <li class="sidebar-item"><a href="#team-cloud">Thinker for Teams</a></li>
           <li class="sidebar-item"><a href="#cli-reference">CLI Reference</a></li>
-          <li class="sidebar-item"><a href="#telemetry">Privacy & Telemetry</a></li>
+          <li class="sidebar-item"><a href="#telemetry">Privacy &amp; Telemetry</a></li>
         </ul>
       </div>
     </aside>
@@ -628,17 +629,43 @@ thinker benchmark report</code></pre>
         </div>
       </section>
 
-      <section id="team-mode">
-        <h2>Sharing with a Team</h2>
+      <section id="team-cloud">
+        <h2>Thinker for Teams &amp; Cloud</h2>
         <p>
-          The simplest way to share a Thinker cache with your engineering team is to commit the <code>.thinker/</code> directory to your git repository:
+          Equipping an engineering team with Thinker? <strong>Thinker Cloud</strong> provides managed team-wide knowledge synchronization, automated CI/CD background mining, and architectural governance.
         </p>
-        <pre><code>git add .thinker/notes/ .thinker/cochange.json
-git commit -m "chore: add thinker knowledge cache for repository"
-git push</code></pre>
-        <p>
-          When teammates pull the branch and run <code>thinker onboard</code>, they immediately get full cache hits without spending agent API credits to rebuild the knowledge base.
-        </p>
+
+        <div class="callout tip">
+          <strong>Private Beta for Teams:</strong> We are currently onboarding engineering organizations to the Thinker Cloud pilot. If your team runs Claude Code, Cursor, Codex, or Gemini across shared codebases, join the waitlist from the homepage or reach out for priority onboarding.
+        </div>
+
+        <div class="flow-steps">
+          <div class="step-box">
+            <div class="step-header">
+              <span class="step-badge">Sync</span>
+              <span class="step-title">Hosted Remote Knowledge Cache</span>
+            </div>
+            <p>Notes, invariants, and conventions sync across all developers automatically in real time. New teammates get instant 100% cache hits on their first prompt—no manual git commits, merge conflicts, or local rebuilding required.</p>
+          </div>
+          <div class="step-box">
+            <div class="step-header">
+              <span class="step-badge">CI / CD</span>
+              <span class="step-title">Automated PR Mining on Merge</span>
+            </div>
+            <p>A background GitHub Action automatically mines and distills every merged pull request into new verified notes using centralized pooled API keys, keeping the team's cache permanently fresh without developer intervention.</p>
+          </div>
+          <div class="step-box">
+            <div class="step-header">
+              <span class="step-badge">ROI</span>
+              <span class="step-title">Token Cost &amp; Agent Analytics</span>
+            </div>
+            <p>Engineering leadership dashboard tracking prompt token savings, tool efficiency gains, agent failure prevention, and company-wide architectural invariants across all team repositories.</p>
+          </div>
+        </div>
+
+        <div style="margin-top: 1.5rem;">
+          <a href="index.html" class="btn-nav-install" style="display: inline-block; padding: 0.55rem 1.15rem; font-size: 0.88rem;">Request Team Access &rarr;</a>
+        </div>
       </section>
 
       <section id="cli-reference">
