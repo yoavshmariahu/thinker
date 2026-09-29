@@ -1,0 +1,82 @@
+{
+  "id": "PR106672-hard-nocache-0",
+  "task": "PR106672-hard",
+  "area": "experiments",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "gemini-3.8-flash-high",
+  "session": "25301c41-1b67-46e5-a352-afdbc1f7b81a",
+  "turns": 1,
+  "timed_out": false,
+  "wall_ms": 464576,
+  "wall_sec": "464.6",
+  "usage": {
+    "input_tokens": 1197357,
+    "output_tokens": 55104,
+    "thinking_tokens": 46335,
+    "cache_read_tokens": 5933593,
+    "total_tokens": 1252461
+  },
+  "cost": 0.21758784375,
+  "tools": {
+    "calls": 76,
+    "byTool": {
+      "run_command": 44,
+      "view_file": 30,
+      "manage_task": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 30,
+    "edits": 0
+  },
+  "grade": {
+    "essential": 0,
+    "all": 0,
+    "pass": false,
+    "results": [
+      {
+        "id": "c1",
+        "verdict": "not_met",
+        "evidence": "(empty patch) - No code was added to ensure creating a shared metric stores a newly generated internal identifier and discards caller-supplied identifiers."
+      },
+      {
+        "id": "c2",
+        "verdict": "unclear",
+        "evidence": "(empty patch) - The patch contains no code for updating or editing shared metrics, so what is shown is not enough to tell whether existing internal identifiers are preserved."
+      },
+      {
+        "id": "c3",
+        "verdict": "not_met",
+        "evidence": "(empty patch) - No code was added to compare stored inline metrics against attached shared metrics and rewrite clashing inline metrics upon experiment update."
+      },
+      {
+        "id": "c4",
+        "verdict": "unclear",
+        "evidence": "(empty patch) - The patch contains no code showing how attaching non-clashing shared metrics affects stored inline metrics or their display ordering entries, so what is shown is not enough to tell."
+      },
+      {
+        "id": "c5",
+        "verdict": "not_met",
+        "evidence": "(empty patch) - No clash resolution or identifier regeneration logic was implemented, so display ordering containing both identifiers is not implemented."
+      },
+      {
+        "id": "c6",
+        "verdict": "not_met",
+        "evidence": "(empty patch) - No clash resolution logic was implemented to preserve the attached shared metric's identifier and link."
+      },
+      {
+        "id": "c7",
+        "verdict": "not_met",
+        "evidence": "(empty patch) - No changes were made to the agent-facing guidance documentation to stop recommending promoting metrics with the same identifier."
+      },
+      {
+        "id": "c8",
+        "verdict": "not_met",
+        "evidence": "(empty patch) - No code was added to assign a fresh identifier when an update resends an inline metric that clashes with an already-linked shared metric."
+      }
+    ]
+  },
+  "tests": null,
+  "diff": "",
+  "result": ""
+}

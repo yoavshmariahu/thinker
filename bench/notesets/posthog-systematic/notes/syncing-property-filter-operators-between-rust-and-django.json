@@ -46,7 +46,7 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.95,
   "status": "fresh",
-  "uses": 0,
+  "uses": 1,
   "related": [],
   "says": [
     "Feature flag targeting rules fail evaluation when using newly introduced filter operators",
@@ -54,5 +54,6 @@
     "New property filter conditions configured in the web interface are ignored during evaluation",
     "Ensure recently added filter operators work consistently when targeting feature rollout groups"
   ],
-  "saysFor": "675:syncing-property-filter-"
+  "saysFor": "675:syncing-property-filter-",
+  "lastUsed": "2026-09-29T01:43:24.400Z"
 }

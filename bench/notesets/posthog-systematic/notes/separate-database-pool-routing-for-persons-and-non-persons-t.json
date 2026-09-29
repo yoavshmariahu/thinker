@@ -66,7 +66,7 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.95,
   "status": "fresh",
-  "uses": 0,
+  "uses": 1,
   "related": [],
   "says": [
     "Feature flag evaluation crashes when fetching user identity data in split databases",
@@ -74,5 +74,6 @@
     "Route person profile queries to dedicated user database connections during flag checks",
     "Distinct user identity queries fail with missing table errors on separated instances"
   ],
-  "saysFor": "744:separate-database-pool-r"
+  "saysFor": "744:separate-database-pool-r",
+  "lastUsed": "2026-09-29T01:43:24.398Z"
 }
