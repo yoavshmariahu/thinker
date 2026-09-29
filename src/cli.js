@@ -19,6 +19,7 @@ import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath } from './update.js';
+import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendDailyTelemetryInBackground } from './telemetry.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -89,6 +90,9 @@ const HELP = `thinker — knowledge cache for coding agents
   branch                         show current branch or ref
   upgrade                        alias for update
   stats
+  telemetry [--send] [--json] [--force]
+                                 daily cache effectiveness and size metrics sent via HTTP proxy to S3;
+                                 no prompts, files, code or repo names are transmitted (THINKER_TELEMETRY=off disables)
 `;
 
 async function main() {
@@ -96,8 +100,9 @@ async function main() {
     const notice = checkPendingNotice(thinkerHome());
     if (notice) process.stderr.write(`[thinker] ${notice}\n`);
   }
-  if (!['update', 'upgrade', 'switch', 'branch'].includes(cmd) && !flags.background) {
+  if (!['update', 'upgrade', 'switch', 'branch', 'telemetry'].includes(cmd) && !flags.background) {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
+    maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
   }
 
   switch (cmd) {
@@ -507,6 +512,52 @@ async function main() {
       const days = Number(flags.days) || undefined;
       const u = summarize(store, { days, all: !flags.here });
       out(flags.json ? JSON.stringify(u, null, 2) : renderUsage(u, { days }));
+      break;
+    }
+    case 'telemetry': {
+      const home = thinkerHome();
+      const endpoint = getTelemetryEndpoint({ home });
+      const enabled = isTelemetryEnabled({ home, store });
+
+      if (flags.background) {
+        if (!enabled) return;
+        await sendTelemetry({ home, store, endpoint });
+        return;
+      }
+
+      if (flags.send || flags.force) {
+        const res = await sendTelemetry({ home, store, endpoint, force: !!flags.force });
+        if (res.sent) {
+          out(`Telemetry sent successfully to ${endpoint}${res.key ? ` (s3: ${res.key})` : ''}.`);
+        } else {
+          out(`Telemetry not sent: ${res.reason || res.error || 'unknown'}`);
+          if (res.lastSent) out(`Last sent: ${new Date(res.lastSent).toLocaleString()}`);
+        }
+        break;
+      }
+
+      const payload = buildTelemetryPayload(store, { home, days: 1, all: !flags.here });
+      if (flags.json) {
+        out(JSON.stringify(payload, null, 2));
+        break;
+      }
+
+      out('Thinker daily metrics:');
+      out(`  Status:       ${enabled ? 'enabled' : 'disabled (THINKER_TELEMETRY=off or config)'}`);
+      out(`  Endpoint:     ${endpoint}`);
+      const stamp = path.join(home, 'state', 'telemetry.last');
+      let lastSent = 'never';
+      try {
+        const st = fs.statSync(stamp);
+        lastSent = new Date(st.mtimeMs).toLocaleString();
+      } catch {}
+      out(`  Last sent:    ${lastSent}`);
+      out(`  Install ID:   ${payload.installId}`);
+      out(`  Cache size:   ${payload.cacheSize.totalNotes} notes, ${(payload.cacheSize.totalBytes / 1024).toFixed(1)} KB across ${payload.cacheSize.repositoriesCount} repositories`);
+      out(`  Effectiveness:${payload.effectiveness.requestsTotal} requests, ${payload.effectiveness.requestsAnswered} answered (${(payload.effectiveness.hitRate * 100).toFixed(1)}% hit rate)`);
+      out(`  Confirmed:    ${payload.effectiveness.assessed.confirmed} of ${(payload.effectiveness.assessed.confirmed + payload.effectiveness.assessed.contradicted + payload.effectiveness.assessed.unused)} assessed (${(payload.effectiveness.assessed.confirmationRate * 100).toFixed(1)}%)`);
+      out(`  Net tokens:   ${payload.effectiveness.estimatedSavings.netTokensSaved >= 0 ? '+' : ''}${payload.effectiveness.estimatedSavings.netTokensSaved.toLocaleString()} tokens saved (estimate)`);
+      out('\nUse `thinker telemetry --send` to transmit, or `--json` to view full payload.');
       break;
     }
     case 'benchmark': {

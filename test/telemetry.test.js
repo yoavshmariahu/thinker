@@ -1,0 +1,154 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { Store } from '../src/store.js';
+import {
+  isTelemetryEnabled,
+  getTelemetryEndpoint,
+  getInstallId,
+  computeCacheMetrics,
+  buildTelemetryPayload,
+  sendTelemetry,
+  maybeSendDailyTelemetryInBackground,
+  DEFAULT_TELEMETRY_ENDPOINT,
+} from '../src/telemetry.js';
+
+test('isTelemetryEnabled honors environment flags and config overrides', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-telem-home-'));
+  try {
+    assert.equal(isTelemetryEnabled({ home: tmpHome }), true);
+
+    process.env.THINKER_TELEMETRY = 'off';
+    assert.equal(isTelemetryEnabled({ home: tmpHome }), false);
+    delete process.env.THINKER_TELEMETRY;
+
+    process.env.THINKER_NO_TELEMETRY = '1';
+    assert.equal(isTelemetryEnabled({ home: tmpHome }), false);
+    delete process.env.THINKER_NO_TELEMETRY;
+
+    process.env.THINKER_NO_LEARN = '1';
+    assert.equal(isTelemetryEnabled({ home: tmpHome }), false);
+    delete process.env.THINKER_NO_LEARN;
+
+    // install.json override
+    fs.writeFileSync(path.join(tmpHome, 'install.json'), JSON.stringify({ telemetry: false }));
+    assert.equal(isTelemetryEnabled({ home: tmpHome }), false);
+  } finally {
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('getInstallId generates and persists a valid UUID', () => {
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-telem-id-'));
+  try {
+    const id1 = getInstallId(tmpHome);
+    assert.match(id1, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    const id2 = getInstallId(tmpHome);
+    assert.equal(id1, id2, 'Install ID should remain stable once generated');
+  } finally {
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('getTelemetryEndpoint respects environment variable and default', () => {
+  assert.equal(getTelemetryEndpoint(), DEFAULT_TELEMETRY_ENDPOINT);
+  process.env.THINKER_TELEMETRY_URL = 'https://custom-proxy.example.com/v1';
+  assert.equal(getTelemetryEndpoint(), 'https://custom-proxy.example.com/v1');
+  delete process.env.THINKER_TELEMETRY_URL;
+});
+
+test('buildTelemetryPayload constructs anonymous high-level metrics without sensitive data', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    store.put({ id: 'test-note-1', kind: 'location', title: 'Route handling', body: 'router.js:handle handles requests' });
+    store.put({ id: 'test-note-2', kind: 'gotcha', title: 'Header parsing', body: 'headers.js:parse requires utf8' });
+
+    const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
+
+    assert.ok(payload.installId);
+    assert.ok(payload.version);
+    assert.equal(payload.periodHours, 24);
+    assert.ok(payload.cacheSize.totalNotes >= 2);
+    assert.ok(payload.cacheSize.kinds.location >= 1);
+    assert.ok(payload.cacheSize.kinds.gotcha >= 1);
+
+    // Assert effectiveness structure
+    assert.equal(typeof payload.effectiveness.requestsTotal, 'number');
+    assert.equal(typeof payload.effectiveness.hitRate, 'number');
+    assert.equal(typeof payload.effectiveness.tokensServed, 'number');
+    assert.equal(typeof payload.effectiveness.estimatedSavings.netTokensSaved, 'number');
+
+    // Strict privacy guarantee: no sensitive code, file paths, or note contents
+    const jsonStr = JSON.stringify(payload);
+    assert.equal(jsonStr.includes('router.js:handle'), false);
+    assert.equal(jsonStr.includes('headers.js:parse'), false);
+    assert.equal(jsonStr.includes('Route handling'), false);
+    assert.equal(jsonStr.includes(tmpRepo), false);
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('sendTelemetry honors rate limit and mock network transmission', async () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    let sentCount = 0;
+    let lastBody = null;
+
+    const mockFetch = async (url, opts) => {
+      sentCount++;
+      lastBody = JSON.parse(opts.body);
+      return {
+        ok: true,
+        status: 202,
+        json: async () => ({ status: 'accepted', key: 'metrics/test.json' }),
+      };
+    };
+
+    // First send: should succeed
+    const res1 = await sendTelemetry({ home: tmpHome, store, fetchFn: mockFetch });
+    assert.equal(res1.sent, true);
+    assert.equal(res1.status, 202);
+    assert.equal(sentCount, 1);
+    assert.ok(lastBody.cacheSize);
+
+    // Second send immediately: should be rate-limited
+    const res2 = await sendTelemetry({ home: tmpHome, store, fetchFn: mockFetch });
+    assert.equal(res2.sent, false);
+    assert.equal(res2.reason, 'already_sent_today');
+    assert.equal(sentCount, 1);
+
+    // Force send: bypasses 24h limit
+    const res3 = await sendTelemetry({ home: tmpHome, store, fetchFn: mockFetch, force: true });
+    assert.equal(res3.sent, true);
+    assert.equal(sentCount, 2);
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('sendTelemetry handles network errors gracefully without crashing', async () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    const failingFetch = async () => {
+      throw new Error('Network offline');
+    };
+
+    const res = await sendTelemetry({ home: tmpHome, store, fetchFn: failingFetch, force: true });
+    assert.equal(res.sent, false);
+    assert.equal(res.error, 'Network offline');
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});

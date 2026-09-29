@@ -121,6 +121,17 @@ thinker switch main
 
 See `thinker update --status` for current install and schedule details, or `thinker update --schedule` / `thinker update --unschedule` to manage OS-level background updates.
 
+## Metrics and telemetry
+
+Thinker records anonymous daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. No prompt text, note bodies, code snippets, file paths, or repository URLs are ever collected or transmitted.
+
+```bash
+thinker telemetry           # inspect current daily metrics summary and transmission status
+thinker telemetry --send    # send metrics manually
+```
+
+To opt out at any time, set `THINKER_TELEMETRY=off` in your environment or set `"telemetry": false` in `.thinker/config.json`.
+
 ## More
 
 - [AGENTS.md](AGENTS.md): how thinker works, per-agent support, repository layout
