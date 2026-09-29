@@ -20,7 +20,7 @@ import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath, tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendDailyTelemetryInBackground } from './telemetry.js';
-import { runOnboarding, stepPrBenchmark, selectAndAuthenticateAgent, getAgentLoginCommand } from './onboarding.js';
+import { runOnboarding, stepPrBenchmark, selectAndAuthenticateAgent, getAgentLoginCommand, getAgentDisplayName, c } from './onboarding.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -953,49 +953,73 @@ async function seed({ areas, model, dry, prompts, agent }) {
     return { ok: 0, total: list.length, cost: 0, agent: null, failures: [{ area: 'all', error: 'no agent CLI found' }] };
   }
 
-  const getCandidateAgents = (primary) => {
-    const order = FALLBACK_ORDER;
-    const candidates = [primary];
-    for (const a of order) {
-      if (!candidates.includes(a) && available().includes(a)) candidates.push(a);
-    }
-    return candidates;
-  };
-
   let cost = 0, ok = 0;
   const failures = [];
   for (const a of list) {
     const t0 = Date.now();
     const label = (a.dir || a.prompt.slice(0, 40)).padEnd(40);
-    const candidates = getCandidateAgents(activeAgent);
-    let r = null;
-    let usedAgent = activeAgent;
-
-    for (let i = 0; i < candidates.length; i++) {
-      const ag = candidates[i];
-      usedAgent = ag;
-      r = explore(ag, a.prompt, model);
-      if (!r.error) {
-        if (ag !== activeAgent) {
-          out(`${label} switched to fallback agent ${ag}`);
-          activeAgent = ag;
-        }
-        break;
-      }
-      const next = candidates[i + 1];
-      if (next) {
-        out(`${label} ${ag} failed (${r.error}); falling back to ${next}...`);
-      }
-    }
+    let r = explore(activeAgent, a.prompt, model);
 
     if (r && r.error) {
-      out(`${label} all agents failed (${candidates.join(' -> ')}): ${r.error}`);
-      failures.push({ area: a.dir || label.trim(), error: r.error });
-      continue;
+      out(`${label} ${activeAgent} failed (${r.error})`);
+      failures.push({ area: a.dir || label.trim(), error: `${activeAgent}: ${r.error}` });
+
+      const isInteractive = Boolean(process.stdin.isTTY) && !flags?.yes;
+      const otherAgents = available().filter(ag => ag !== activeAgent && ['claude', 'gemini', 'codex', 'cursor'].includes(ag));
+
+      if (isInteractive && otherAgents.length > 0) {
+        out(`\n  ${c.red('✖')} The selected tool (${c.bold(getAgentDisplayName(activeAgent))}) had an issue:`);
+        out(`    ${c.yellow(r.error)}`);
+        out(`\n  Choose another tool or exit:`);
+        otherAgents.forEach((ag, idx) => {
+          out(`    ${idx + 1}) ${getAgentDisplayName(ag)} (${ag})`);
+        });
+        out(`    e) Exit\n`);
+
+        const rl = (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout });
+        let answer = '';
+        try {
+          answer = (await rl.question(`  Select a tool [1-${otherAgents.length}, e to exit]: `)).trim();
+        } finally {
+          rl.close();
+        }
+
+        if (answer && !/^e(xit)?$/i.test(answer)) {
+          const num = parseInt(answer, 10);
+          let chosen = null;
+          if (!isNaN(num) && num >= 1 && num <= otherAgents.length) {
+            chosen = otherAgents[num - 1];
+          } else {
+            chosen = otherAgents.find(ag => ag.toLowerCase() === answer.toLowerCase() || getAgentDisplayName(ag).toLowerCase().includes(answer.toLowerCase()));
+          }
+          if (chosen) {
+            out(`  Switched to ${c.bold(getAgentDisplayName(chosen))} (${chosen})...\n`);
+            activeAgent = chosen;
+            process.env.THINKER_LLM = activeAgent;
+            // Retry current area with the newly chosen agent
+            r = explore(activeAgent, a.prompt, model);
+            if (r && r.error) {
+              out(`${label} ${activeAgent} failed (${r.error})`);
+              failures.push({ area: a.dir || label.trim(), error: `${activeAgent}: ${r.error}` });
+              break;
+            }
+          } else {
+            out(`\n  Exploration stopped by user.`);
+            break;
+          }
+        } else {
+          out(`\n  Exploration stopped by user.`);
+          break;
+        }
+      } else {
+        out(`\n❌ Exploration stopped: The selected tool (${activeAgent}) failed: ${r.error}`);
+        out(`   Fix the issue with ${activeAgent} or re-run setup with another tool (--agent <name>).\n`);
+        break;
+      }
     }
 
     cost += r.cost || 0; ok++;
-    out(`${label} ${usedAgent}${r.turns ? ` ${r.turns} turns` : ''}${r.cost ? ` $${r.cost.toFixed(2)}` : ''} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+    out(`${label} ${activeAgent}${r.turns ? ` ${r.turns} turns` : ''}${r.cost ? ` $${r.cost.toFixed(2)}` : ''} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
     try {
       await distillFile(r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: false, incremental: false });
     } catch (e) {

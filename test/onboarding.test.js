@@ -543,7 +543,7 @@ test('selectAndAuthenticateAgent allows switching to another signed-in agent if 
     question: async (prompt) => {
       promptStep++;
       if (promptStep === 1) return 'n'; // Decline sign in to claude
-      if (promptStep === 2) return 'y'; // Accept switch to codex
+      if (promptStep === 2) return 'codex'; // Explicitly choose codex from alternatives
       return 'n';
     },
     close: () => {},
@@ -562,7 +562,7 @@ test('selectAndAuthenticateAgent allows switching to another signed-in agent if 
   assert.match(outLines.join('\n'), /Switched to Codex CLI/);
 });
 
-test('selectAndAuthenticateAgent pauses setup when user declines sign-in and alternatives', async () => {
+test('selectAndAuthenticateAgent pauses setup when user declines sign-in and chooses exit', async () => {
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
 
@@ -570,8 +570,13 @@ test('selectAndAuthenticateAgent pauses setup when user declines sign-in and alt
     return { agent, installed: true, authenticated: false, loginCmd: `${agent} login` };
   };
 
+  let promptStep = 0;
   const mockReadline = () => ({
-    question: async (prompt) => 'n',
+    question: async (prompt) => {
+      promptStep++;
+      if (promptStep === 1) return 'n'; // Decline sign in
+      return 'e'; // Choose exit
+    },
     close: () => {},
   });
 
@@ -584,8 +589,8 @@ test('selectAndAuthenticateAgent pauses setup when user declines sign-in and alt
   });
 
   assert.equal(res.ok, false);
-  assert.equal(res.error, 'unauthenticated');
-  assert.match(outLines.join('\n'), /Setup paused/);
+  assert.equal(res.error, 'cancelled');
+  assert.match(outLines.join('\n'), /Exit requested by user/);
 });
 
 test('selectAndAuthenticateAgent allows proceeding without exploration when user elects co-change only', async () => {
@@ -620,7 +625,7 @@ test('selectAndAuthenticateAgent allows proceeding without exploration when user
   assert.match(outLines.join('\n'), /Proceeding with subsystem exploration skipped/);
 });
 
-test('selectAndAuthenticateAgent non-interactive switches to authenticated alternative', async () => {
+test('selectAndAuthenticateAgent non-interactive errors instead of auto-fallback when chosen agent is unauthenticated', async () => {
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
 
@@ -636,11 +641,13 @@ test('selectAndAuthenticateAgent non-interactive switches to authenticated alter
     yes: true,
     out,
     checkAuthFn: mockCheckAuth,
+    allowSkip: false,
   });
 
-  assert.equal(res.ok, true);
-  assert.equal(res.agent, 'codex');
-  assert.match(outLines.join('\n'), /Automatically switching to authenticated agent: Codex CLI/);
+  assert.equal(res.ok, false);
+  assert.equal(res.error, 'unauthenticated');
+  assert.equal(res.agent, 'claude');
+  assert.match(outLines.join('\n'), /The selected tool \(Claude Code\) is not signed in/);
 });
 
 test('selectAndAuthenticateAgent non-interactive halts when allowSkip is false and no agent authenticated', async () => {
@@ -662,7 +669,7 @@ test('selectAndAuthenticateAgent non-interactive halts when allowSkip is false a
   assert.equal(res.ok, false);
   assert.equal(res.error, 'unauthenticated');
   assert.match(outLines.join('\n'), /Authentication required/);
-  assert.match(outLines.join('\n'), /Subsystem exploration requires an authenticated agent/);
+  assert.match(outLines.join('\n'), /The selected tool \(Claude Code\) is not signed in/);
 });
 
 test('selectAndAuthenticateAgent non-interactive skips exploration when allowSkip is true and no agent authenticated', async () => {
@@ -754,7 +761,7 @@ test('stepPrBenchmark interactive prompts user to sign in and switches to altern
     question: async () => {
       promptStep++;
       if (promptStep === 1) return 'n'; // Decline sign in to claude
-      if (promptStep === 2) return 'y'; // Accept switch to codex
+      if (promptStep === 2) return 'codex'; // Choose codex from alternatives
       return 'y';
     },
     close: () => {},

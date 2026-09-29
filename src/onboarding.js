@@ -395,20 +395,13 @@ export async function selectAndAuthenticateAgent({
   out(`    Sign-in command: ${c.cyan(auth.loginCmd)}\n`);
 
   if (!isInteractive) {
-    const otherAuthed = installedAgents.find(a => a !== selectedAgent && checkAuthFn(a).authenticated);
-    if (otherAuthed) {
-      const otherName = getAgentDisplayName(otherAuthed, findBin(BINS[otherAuthed]));
-      out(`  ${c.yellow('⚠')} Automatically switching to authenticated agent: ${c.bold(otherName)} (${otherAuthed}).\n`);
-      return { ok: true, agent: otherAuthed };
-    }
     if (allowSkip) {
       out(`  ${c.yellow('⚠')} ${agentName} is not signed in. Run '${auth.loginCmd}' to authenticate.`);
       out(`    Proceeding with ${actionName} skipped.\n`);
       return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
     }
-    out(`  ${c.red('✖')} ${c.bold('Authentication required:')} ${agentName} is not signed in.`);
-    out(`    Run '${c.cyan(auth.loginCmd)}' to authenticate, then retry.`);
-    out(`    Subsystem exploration requires an authenticated agent (or pass --no-seed to build without exploration).\n`);
+    out(`  ${c.red('✖')} ${c.bold('Authentication required:')} The selected tool (${agentName}) is not signed in.`);
+    out(`    Run '${c.cyan(auth.loginCmd)}' to authenticate, or run setup with another tool: thinker setup --agent <agent>\n`);
     return { ok: false, agent: selectedAgent, error: 'unauthenticated', loginCmd: auth.loginCmd };
   }
 
@@ -435,16 +428,74 @@ export async function selectAndAuthenticateAgent({
     }
   }
 
-  const otherAuthed = installedAgents.filter(a => a !== selectedAgent && checkAuthFn(a).authenticated);
-  if (otherAuthed.length > 0) {
+  out(`\n  ${c.red('✖')} The selected tool (${c.bold(agentName)}) could not be authenticated.`);
+
+  const otherAgents = installedAgents.filter(a => a !== selectedAgent);
+  if (otherAgents.length > 0) {
+    out(`\n  ${c.bold('Choose another tool or exit:')}`);
+    const agentStatuses = otherAgents.map(ag => {
+      const aAuth = checkAuthFn(ag);
+      const name = getAgentDisplayName(ag, findBin(BINS[ag] || []));
+      return { agent: ag, name, auth: aAuth };
+    });
+
+    agentStatuses.forEach((s, idx) => {
+      const authTag = s.auth.authenticated
+        ? c.green(`Signed in${s.auth.account ? ` (${s.auth.account})` : ''}`)
+        : c.yellow('⚠ Not signed in');
+      out(`    ${idx + 1}) ${s.name.padEnd(20)} (${s.agent}) · ${authTag}`);
+    });
+    if (allowSkip) {
+      const skipLabel = actionName === 'subsystem exploration' || actionName === 'agent exploration'
+        ? 'Proceed without agent exploration (co-change patterns only)'
+        : `Proceed without ${actionName}`;
+      out(`    s) ${skipLabel}`);
+    }
+    out(`    e) Exit\n`);
+
     const rl2 = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
-    const names = otherAuthed.map(a => getAgentDisplayName(a)).join(', ');
-    const switchAns = await rl2.question(`  Switch to a signed-in agent (${names})? [Y/n] `);
+    const promptSuffix = allowSkip ? `, s to skip, e to exit` : `, e to exit`;
+    const choice = (await rl2.question(`  Select a tool [1-${agentStatuses.length}${promptSuffix}]: `)).trim();
     rl2.close();
-    if (!/^n/i.test(switchAns.trim())) {
-      const alternative = otherAuthed[0];
-      out(`  Switched to ${c.bold(getAgentDisplayName(alternative))} (${alternative}).\n`);
-      return { ok: true, agent: alternative };
+
+    if (allowSkip && (/^s(kip)?$/i.test(choice) || /^y(es)?$/i.test(choice))) {
+      out(`  Proceeding with ${actionName} skipped.\n`);
+      return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
+    }
+
+    if (!choice || /^e(xit)?$/i.test(choice)) {
+      const pausedPrefix = purpose === 'run the benchmark' ? 'Benchmark paused.' : 'Setup paused.';
+      out(`\n  ${c.yellow('○')} ${pausedPrefix} Exit requested by user.\n`);
+      return { ok: false, agent: selectedAgent, error: 'cancelled', exit: true };
+    }
+
+    let chosen = null;
+    const num = parseInt(choice, 10);
+    if (!isNaN(num) && num >= 1 && num <= agentStatuses.length) {
+      chosen = agentStatuses[num - 1].agent;
+    } else {
+      const found = agentStatuses.find(s => s.agent.toLowerCase() === choice.toLowerCase() || s.name.toLowerCase().includes(choice.toLowerCase()));
+      if (found) chosen = found.agent;
+    }
+
+    if (chosen) {
+      out(`\n  Switched to ${c.bold(getAgentDisplayName(chosen))} (${chosen}).\n`);
+      return selectAndAuthenticateAgent({
+        requestedAgent: chosen,
+        clients,
+        yes: false,
+        out,
+        checkAuthFn,
+        execFileFn,
+        readlineFn,
+        purpose,
+        actionName,
+        allowSkip,
+      });
+    } else {
+      const pausedPrefix = purpose === 'run the benchmark' ? 'Benchmark paused.' : 'Setup paused.';
+      out(`\n  ${c.yellow('○')} ${pausedPrefix} Exit requested by user.\n`);
+      return { ok: false, agent: selectedAgent, error: 'cancelled', exit: true };
     }
   }
 
