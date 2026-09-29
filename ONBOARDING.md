@@ -28,19 +28,34 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 
 ## First-run benchmark
 
-After the cache is built or imported, use a concrete architectural question
-from the user's own repository:
+After the cache is built or imported, run this loop:
+
+1. Optionally inspect `thinker list` for workflows the cache already covers.
+2. Choose a concrete, read-only architectural question from the repository.
+3. Run the paired benchmark.
+4. Review the comparison and both saved answers before drawing a conclusion.
 
 ```bash
+# 1. Browse cached topics if you need an idea
+thinker list
+
+# 2. Run one question without and with Thinker context
 thinker benchmark run "explain how an upload is authorized and persisted"
+
+# 3. Reprint the latest result later
 thinker benchmark report
 ```
 
-The first command makes two read-only calls through the same installed agent:
+The `benchmark run` command makes two read-only calls through the same installed agent:
 one without thinker context and one with the notes selected by `orient`. It
 compares time, turns, tool calls when the agent reports them, and tokens. Both
-answers are kept in `.thinker/benchmarks/` for a human quality check. If no
-notes match the question, it exits before making either model call.
+answers are kept in `.thinker/benchmarks/` for a human quality check.
+
+If the cache does not have sufficiently relevant notes for the question,
+Thinker stops before making either agent call, confirms that no model usage was
+spent, and prints up to three replacement commands drawn from distinct cached
+topics. Copy one of the suggested commands and try again. If there are no
+usable topics yet, run `thinker setup` to build the cache first.
 
 This is a quick repository-specific signal, not a statistically conclusive
 benchmark or an automatic correctness grade. Use `--agent codex` (or

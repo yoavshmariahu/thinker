@@ -13,6 +13,21 @@ const BINS = { claude: ['claude'], codex: ['codex'], cursor: ['agent', 'cursor-a
 
 export function benchmarkDir(store) { return path.join(store.dir, 'benchmarks'); }
 
+// Turn the cache itself into an onboarding menu when the user's first question
+// is not covered. Structural notes make better read-only benchmark questions
+// than narrow rules, so prefer them, then confidence and freshness.
+export function benchmarkSuggestions(store, limit = 3) {
+  const kind = { callpath: 6, overview: 5, howto: 4, location: 3, gotcha: 2, rationale: 2, convention: 1, invariant: 1, cochange: 1, fix: 0 };
+  const seen = new Set();
+  return store.list()
+    .filter(note => note.status !== 'invalid')
+    .sort((a, b) => (kind[b.kind] || 0) - (kind[a.kind] || 0) || (b.status === 'fresh') - (a.status === 'fresh') || (b.confidence || 0) - (a.confidence || 0))
+    .map(note => [...(note.answers || []), note.title].map(text => String(text || '').trim()).find(text => text.length >= 12 && text.length <= 180) || '')
+    .filter(text => text.length >= 12 && text.length <= 180)
+    .filter(text => { const key = text.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true; })
+    .slice(0, limit);
+}
+
 export function benchmarkAgent(requested) {
   if (requested) {
     if (!BINS[requested]) throw new Error(`unknown benchmark agent: ${requested} (known: ${Object.keys(BINS).join(', ')})`);

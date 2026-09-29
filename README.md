@@ -37,18 +37,27 @@ gh api repos/yoavshmariahu/thinker/contents/install.sh -H "Accept: application/v
 Then work with your agent as usual. Notes are added to each request
 automatically.
 
-To check the value on a real question from your own repository, run the
-paired onboarding benchmark after setup:
+To check the value on your own repository after setup, pick a concrete,
+read-only workflow question and run the paired onboarding benchmark:
 
 ```bash
+# Optional: see the topics currently covered by the cache
+thinker list
+
+# Run the same question without and with Thinker context
 thinker benchmark run "explain how <a real workflow> works"
+
+# Show the latest comparison again
 thinker benchmark report
 ```
 
 It makes two read-only agent calls, without and with relevant thinker notes,
 and compares time, turns and tokens. It saves both answers under
 `.thinker/benchmarks/` so you can review quality; it does not pretend that
-speed alone is a correctness score.
+speed alone is a correctness score. If the first question is not covered well
+enough by the cache, no agent calls are made and Thinker prints alternative
+benchmark commands based on topics it can cover. Copy one of those suggestions
+and try again.
 
 Notes:
 

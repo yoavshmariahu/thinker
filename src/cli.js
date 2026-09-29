@@ -17,7 +17,7 @@ import { available, provider, findBin } from './llm.js';
 import { summarize, renderUsage, sessionKey } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
-import { benchmarkAgent, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
+import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -357,7 +357,14 @@ async function main() {
       if (!selected) { out('benchmark needs an installed agent CLI: claude, codex, cursor (agent), or gemini'); process.exitCode = 1; break; }
       const oriented = await orient(store, { task, budget: Number(flags.budget) || 1000, recordUsage: false, backgroundVerify: false });
       if (!oriented.included.length) {
-        out('No relevant notes matched that question, so a paired run would not test thinker. Try a more concrete question covered by `thinker list`, or build the cache first with `thinker setup`.');
+        const suggestions = benchmarkSuggestions(store);
+        out('Benchmark stopped: the cache does not have sufficiently relevant notes for that question. No agent calls were made, so no model usage was spent.');
+        if (suggestions.length) {
+          const quote = text => `'${text.replaceAll("'", `'"'"'`)}'`;
+          out('\nTry a question the cache can cover instead:');
+          for (const suggestion of suggestions) out(`  thinker benchmark run ${quote(suggestion)}`);
+          out('\nSee every cached topic with `thinker list`.');
+        } else out('\nThere are no usable benchmark topics in the cache yet. Build it first with `thinker setup`, then try again.');
         process.exitCode = 1; break;
       }
       const instruction = 'Read-only repository benchmark. Answer the request from the actual code. Be concrete and cite file:symbol locations. Do not edit files, run destructive commands, or change git state.';

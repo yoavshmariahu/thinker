@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Store } from '../src/store.js';
 import { createNote, orient } from '../src/ops.js';
-import { latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from '../src/benchmark.js';
+import { benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from '../src/benchmark.js';
 
 const record = dir => ({
   version: 1, createdAt: '2026-09-28T00:00:00.000Z', repo: dir,
@@ -69,4 +69,17 @@ test('benchmark orientation does not count a serving or schedule stale-note veri
   assert.equal(note.uses, 0);
   assert.equal(note.verifying, undefined);
   assert.equal(note.status, 'stale');
+});
+
+test('benchmark suggestions turn cached questions into alternative commands', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-benchmark-suggest-'));
+  fs.mkdirSync(path.join(dir, 'src'));
+  fs.writeFileSync(path.join(dir, 'src/upload.js'), 'export function upload() { return true; }\n');
+  const store = new Store(dir).init();
+  createNote(store, { title: 'Upload request path', kind: 'callpath', answers: ['How does an upload move from authorization to persistence?'], body: 'Uploads run through src/upload.js:upload.', deps: [{ path: 'src/upload.js', symbol: 'upload' }], confidence: 0.8 });
+  createNote(store, { title: 'Upload naming rule', kind: 'convention', answers: ['Which names should upload helpers use?'], body: 'The rule rests on src/upload.js:upload.', deps: [{ path: 'src/upload.js', symbol: 'upload' }], confidence: 0.9 });
+  assert.deepEqual(benchmarkSuggestions(store, 2), [
+    'How does an upload move from authorization to persistence?',
+    'Which names should upload helpers use?',
+  ]);
 });
