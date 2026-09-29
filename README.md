@@ -31,7 +31,7 @@ Works with Claude Code, Codex CLI, Gemini CLI and Cursor. Research prototype.
 From inside your repository:
 
 ```bash
-curl -fsSL https://zerotime.dev/install.sh | bash -s -- --build
+curl -fsSL https://zerotime.dev/install.sh | bash
 ```
 
 Then work with your agent as usual. Notes are added to each request

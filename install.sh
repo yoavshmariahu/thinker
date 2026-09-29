@@ -13,7 +13,8 @@
 # for the repository, pass --cache instead and nothing has to be built.
 #
 # Options
-#   --build             build the cache here (runs through an installed agent and its login; the estimate is printed first)
+#   --build             build the cache here (on by default for repositories without a cache)
+#   --no-build          do not build a cache; only wire up hooks and MCP server (thinker init)
 #   --areas <n>         with --build: source areas to explore, one agent session each (default 12)
 #   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
 #   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, all or auto
@@ -43,11 +44,12 @@
 set -euo pipefail
 
 main() {
-  local cache="" build=0 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 ref="${THINKER_REF:-main}"
+  local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 ref="${THINKER_REF:-main}"
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; shift 2 ;;
       --build) build=1; shift ;;
+      --no-build) build=0; shift ;;
       --areas) areas="${2:-}"; shift 2 ;;
       --prs) prs="${2:-}"; shift 2 ;;
       --clients) clients="${2:-}"; shift 2 ;;
