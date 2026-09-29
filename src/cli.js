@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
-import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs } from './prs.js';
+import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
+import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
 import { hashDep } from './deps.js';
@@ -342,6 +344,61 @@ async function main() {
       out(JSON.stringify({ repo, notes: notes.length, status: by, kinds, uses: notes.reduce((s, n) => s + (n.uses || 0), 0) }, null, 2));
       break;
     }
+    case 'health': {
+      const notes = store.list();
+      out(`\n=== Thinker Cache Health Report for ${path.basename(repo)} ===\n`);
+      out(`Total notes: ${notes.length}`);
+      if (!notes.length) {
+        out('The cache is empty. Run `thinker setup` to initialize.\n');
+        break;
+      }
+      const kinds = {};
+      const statusCounts = { fresh: 0, stale: 0, invalid: 0 };
+      let withSays = 0;
+      let brokenDeps = 0;
+      const subs = {};
+
+      const refreshed = refresh(store, notes, { persist: false });
+      for (const n of refreshed) {
+        kinds[n.kind] = (kinds[n.kind] || 0) + 1;
+        statusCounts[n.status] = (statusCounts[n.status] || 0) + 1;
+        if (n.says?.length) withSays++;
+        const check = (n.deps || []).some(d => d.missing);
+        if (check) brokenDeps++;
+        const sub = (n.deps && n.deps[0]) ? subsystemForFile(repo, n.deps[0].path) : 'other';
+        subs[sub] = (subs[sub] || 0) + 1;
+      }
+
+      out('\nKinds breakdown:');
+      for (const [k, count] of Object.entries(kinds).sort((a, b) => b[1] - a[1])) {
+        out(`  ${k.padEnd(14)}: ${count}`);
+      }
+
+      out('\nSubsystem coverage:');
+      for (const [s, count] of Object.entries(subs).sort((a, b) => b[1] - a[1]).slice(0, 15)) {
+        out(`  ${s.padEnd(28)}: ${count} notes`);
+      }
+
+      out('\nQuality metrics:');
+      out(`  Status:         ${statusCounts.fresh} fresh, ${statusCounts.stale} stale, ${statusCounts.invalid} invalid`);
+      out(`  Phrasing:       ${withSays}/${notes.length} (${Math.round((withSays / notes.length) * 100)}%) notes have product phrasings`);
+      out(`  Broken deps:    ${brokenDeps} notes point to missing files`);
+
+      const alerts = [];
+      if (!kinds.overview && !kinds.callpath) alerts.push('Cache lacks structural overview or callpath notes');
+      if (kinds.invariant > 10 && (kinds.callpath || 0) + (kinds.overview || 0) < 3) alerts.push('Cache is skewed towards micro-rules with few structural maps');
+      if (withSays < notes.length * 0.5) alerts.push('More than 50% of notes lack search phrasings (run `thinker phrase`)');
+      if (brokenDeps > 0) alerts.push(`${brokenDeps} notes have broken file dependencies (run \`thinker check\`)`);
+
+      if (alerts.length) {
+        out('\nHealth warnings:');
+        for (const a of alerts) out(`  ⚠ ${a}`);
+      } else {
+        out('\nHealth status: EXCELLENT (well balanced and grounded)');
+      }
+      out('');
+      break;
+    }
     default: out(HELP);
   }
 }
@@ -417,6 +474,10 @@ async function setup() {
   if (areas && canSeed) await seed({ areas, model: flags.model, agent });
   const notes = store.list();
   for (const n of notes) linkNotes(store, n, notes);
+  if (notes.length && canBuild && !flags['no-phrase']) {
+    out(`generating search phrasings for ${notes.length} notes...`);
+    try { await phraseNotes(store, notes, { model: flags.model }); } catch (e) { out(`phrasing warning: ${e.message}`); }
+  }
   if (typeof flags.export === 'string') { execFileSync('node', [path.join(HERE, 'cli.js'), 'export', flags.export, '--repo', repo], { stdio: 'inherit' }); }
   out(`\nthinker is set up for ${path.basename(repo)}: ${notes.length} notes, served to ${clients.join(', ')}.`);
   if (!notes.length) out(learnOn() ? 'The cache is empty. It fills from your own sessions as you work.' : 'The cache is empty and learning is off. Re-run setup without --no-learn, or where an agent CLI is available.');
@@ -432,17 +493,19 @@ async function mineMore({ slug, ...opts }) {
   return minePrs(slug, opts);
 }
 
-async function minePrs(slug, { before, after, again, limit, model, dry }) {
+async function minePrs(slug, { before, after, again, limit = 20, model, dry }) {
   const rec = minedPrs(store, slug);
+  const fetchLimit = Math.min(Math.max(limit * 3, 60), 250);
   // without a window: what was merged since the last run, then further back; never a PR mined before
   const listed = before || after
-    ? listMergedPrs(slug, { before: before || new Date().toISOString(), after, limit }).filter(p => again || !rec.mined.has(p.number))
-    : nextPrs(slug, rec, { limit });
+    ? listMergedPrs(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || !rec.mined.has(p.number))
+    : nextPrs(slug, rec, { limit: fetchLimit });
   if (!listed.length) { out(`no merged PRs of ${slug} left to mine (${rec.mined.size} mined so far)`); return { cost: 0, saved: 0 }; }
   const failed = new Set();
-  const prs = listed
+  const filtered = listed
     .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) && (p.body || '').length > 120 && p.additions <= 600 && p.additions >= 5);
-  out(`${prs.length} PRs to mine`);
+  const prs = stratifyPrs(filtered, limit);
+  out(`${prs.length} PRs to mine (stratified across subsystems from ${filtered.length} candidates)`);
   let cost = 0, saved = 0;
   for (const pr of prs) {
     try {
@@ -461,10 +524,7 @@ async function minePrs(slug, { before, after, again, limit, model, dry }) {
 }
 
 function sourceAreas(limit) {
-  const files = execFileSync('git', ['ls-files'], { cwd: repo, maxBuffer: 1 << 26 }).toString().split('\n').filter(f => /\.(py|ts|tsx|js|jsx|go|rs|rb|java|kt|cs|php|swift|scala|ex|exs)$/.test(f) && !/(^|\/)(node_modules|vendor|third_party|dist|build|__snapshots__|migrations)\//.test(f) && !/(^|\/)(tests?|__tests__|spec)\//.test(f) && !/\.(test|spec|stories)\.\w+$/.test(f));
-  const count = {};
-  for (const f of files) { const parts = f.split('/'); const key = parts.length > 2 ? parts.slice(0, 2).join('/') : parts.length === 2 ? parts[0] : '.'; count[key] = (count[key] || 0) + 1; }
-  return Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, limit).map(([dir, n]) => ({ dir, n }));
+  return discoverAreas(repo, { limit });
 }
 
 // One read-only exploration session with the given agent; returns the file
@@ -483,6 +543,17 @@ function explore(agent, prompt, model) {
     return transcript ? { transcript, cost: j.total_cost_usd || 0, turns: j.num_turns } : { error: 'no transcript found' };
   }
   const m = model && !['haiku', 'sonnet', 'opus', 'fable'].includes(model) ? model : process.env.THINKER_LLM_MODEL;
+  if (path.basename(bin) === 'agy') {
+    const agyArgs = ['-p', prompt, '--model', m || 'gemini-3.8-flash-high', '--output-format', 'json', '--dangerously-skip-permissions'];
+    const r = spawnSync(bin, agyArgs, { ...opts, cwd: repo });
+    let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
+    const convId = j.conversation_id;
+    if (convId) {
+      const transcript = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain', convId, '.system_generated', 'logs', 'transcript.jsonl');
+      if (fs.existsSync(transcript)) return { transcript, cost: 0, turns: j.num_turns };
+    }
+    return { error: 'agy transcript not found: ' + (r.stderr || r.stdout || '').slice(0, 200) };
+  }
   let r;
   if (agent === 'codex') r = spawnSync(bin, ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', ...(m ? ['--model', m] : []), '--cd', repo, '-'], { ...opts, input: prompt });
   else if (agent === 'cursor') r = spawnSync(bin, ['-p', '--output-format', 'stream-json', '--mode', 'ask', '--trust', ...(m ? ['--model', m] : []), '--workspace', repo, prompt], opts);
@@ -498,7 +569,19 @@ function explore(agent, prompt, model) {
 }
 
 async function seed({ areas, model, dry, prompts, agent }) {
-  const list = prompts ? JSON.parse(fs.readFileSync(prompts, 'utf8')).map(p => ({ prompt: p })) : sourceAreas(areas).map(a => ({ dir: a.dir, n: a.n, prompt: `Orient a new contributor in ${a.dir}/ (${a.n} source files): what this area is responsible for, its main entry points and how control flows into and out of it (cite file:symbol), the two or three things that must change together when extending it, local conventions a newcomer would get wrong, and how it is tested. Read the actual code; be concrete and cite file:symbol.` }));
+  const areaList = discoverAreas(repo, { limit: areas });
+  const list = prompts ? JSON.parse(fs.readFileSync(prompts, 'utf8')).map(p => ({ prompt: p })) : areaList.map(a => {
+    if (a.isFile) {
+      return {
+        dir: a.dir, n: a.n,
+        prompt: `Orient a new contributor in ${a.dir}: what this module is responsible for, its primary classes and functions (cite file:symbol), how control and data flow into and out of it, the key invariants and conventions a newcomer would get wrong, and how it is tested. Read the actual code; be concrete and cite file:symbol.`
+      };
+    }
+    return {
+      dir: a.dir, n: a.n,
+      prompt: `Orient a new contributor in ${a.dir}/ (${a.n} source files): what this subsystem is responsible for, its main entry points and how control flows into and out of it (cite file:symbol), the two or three things that must change together when extending it, local conventions a newcomer would get wrong, and how it is tested. Read the actual code; be concrete and cite file:symbol.`
+    };
+  });
   if (dry) { for (const a of list) out(`${(a.dir || '-').padEnd(40)} ${a.n || ''}`); return; }
   agent = agent || exploreAgent();
   if (!agent) { out('no agent CLI found to explore with (claude, codex, agent or gemini)'); return; }

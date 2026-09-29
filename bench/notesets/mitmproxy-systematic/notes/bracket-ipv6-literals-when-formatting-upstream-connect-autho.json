@@ -1,0 +1,47 @@
+{
+  "id": "bracket-ipv6-literals-when-formatting-upstream-connect-autho",
+  "title": "Bracket IPv6 literals when formatting upstream CONNECT authority",
+  "kind": "fix",
+  "answers": [
+    "Why does an upstream proxy reject CONNECT requests with malformed authority when targeting IPv6?",
+    "How to format IPv6 addresses in mitmproxy upstream proxy CONNECT requests and Host headers?",
+    "Why does --mode upstream fail to establish connection to an IPv6 target server?"
+  ],
+  "body": "Symptom: Upstream proxies reject HTTP CONNECT requests with malformed authority errors when mitmproxy runs in upstream mode (--mode upstream) with an IPv6 target.\nRoot cause: mitmproxy/proxy/layers/http/_upstream_proxy.py:start_handshake concatenated raw IPv6 addresses directly as host:port without RFC 3986 square brackets.\nFix pattern: Check if ipaddress.ip_address(host) is an IPv6Address and wrap the literal in square brackets (b\"[\" + host.encode() + b\"]\") before appending the port.\nConstraints: Applies when formatting HTTP authorities or Host headers for IPv6 target literals; domain names (IDNA-encoded) and IPv4 addresses must remain unbracketed.",
+  "applies": "mitmproxy upstream mode HTTP CONNECT authority and Host header generation",
+  "tags": [
+    "upstream-proxy",
+    "ipv6",
+    "http-connect",
+    "authority",
+    "rfc-3986"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/proxy/layers/http/_upstream_proxy.py",
+      "symbol": "start_handshake",
+      "hash": "sha256:c7a2b5144b137db6f7a513ad",
+      "line": 48,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8326"
+  },
+  "created": "2026-09-28T22:16:35.377Z",
+  "verified": "2026-09-28T22:16:35.377Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 3,
+  "related": [],
+  "says": [
+    "Upstream proxy rejects connection requests when forwarding traffic to an IPv6 server.",
+    "Connecting through a parent proxy fails when the target destination is an IPv6 address.",
+    "Targeting IPv6 addresses in upstream proxy mode triggers invalid request destination errors.",
+    "Allow forwarding secure connections through upstream proxies when target hosts are IPv6 literals."
+  ],
+  "saysFor": "722:bracket-ipv6-literals-wh",
+  "lastUsed": "2026-09-28T23:53:15.343Z"
+}

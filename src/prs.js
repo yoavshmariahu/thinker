@@ -56,6 +56,57 @@ export function nextPrs(slug, rec, { limit = 20, now = new Date().toISOString(),
   return out;
 }
 
+// Stratify candidate PRs across subsystems and prioritize high-signal bug fixes and invariants.
+export function stratifyPrs(prs, limit = 20) {
+  if (prs.length <= limit) return prs;
+  const groups = new Map();
+  for (const pr of prs) {
+    const files = pr.files || [];
+    let sub = 'general';
+    for (const f of files) {
+      const p = (typeof f === 'string' ? f : f.path || '').replace(/\\/g, '/');
+      const parts = p.split('/');
+      if (parts.length > 2) {
+        sub = parts.slice(0, 2).join('/');
+        break;
+      } else if (parts.length === 2) {
+        sub = parts[0];
+        break;
+      }
+    }
+    if (!groups.has(sub)) groups.set(sub, []);
+    groups.get(sub).push(pr);
+  }
+
+  for (const list of groups.values()) {
+    list.sort((a, b) => {
+      const aFix = /fix|bug|issue|resolve|crash|regression/i.test(a.title) ? 2 : 0;
+      const bFix = /fix|bug|issue|resolve|crash|regression/i.test(b.title) ? 2 : 0;
+      const aBody = (a.body || '').length > 250 ? 1 : 0;
+      const bBody = (b.body || '').length > 250 ? 1 : 0;
+      return (bFix + bBody) - (aFix + aBody) || String(b.mergedAt).localeCompare(String(a.mergedAt));
+    });
+  }
+
+  const selected = [];
+  const groupKeys = [...groups.keys()];
+  let idx = 0;
+  while (selected.length < limit && groupKeys.length > 0) {
+    const key = groupKeys[idx % groupKeys.length];
+    const group = groups.get(key);
+    if (group && group.length > 0) {
+      selected.push(group.shift());
+      if (group.length === 0) {
+        groups.delete(key);
+        groupKeys.splice(idx % groupKeys.length, 1);
+        continue;
+      }
+    }
+    idx++;
+  }
+  return selected;
+}
+
 function reviewComments(slug, n) {
   try {
     const cs = JSON.parse(gh('api', `repos/${slug}/pulls/${n}/comments?per_page=50`));

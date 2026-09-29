@@ -1,0 +1,95 @@
+{
+  "id": "event-and-hook-dispatch-flow-through-addonmanager",
+  "title": "Event and hook dispatch flow through AddonManager",
+  "kind": "callpath",
+  "answers": [
+    "How are lifecycle hooks and network events dispatched to addons?",
+    "What is the callpath from Hook instantiation to addon handler execution?",
+    "How does AddonManager handle synchronous vs asynchronous hooks?"
+  ],
+  "body": "1. Event dispatch originates with a `mitmproxy/hooks.py:Hook` subclass instance passed to `mitmproxy/addonmanager.py:AddonManager.trigger` (creates an asyncio task) or `AddonManager.trigger_event` (awaited directly).\n2. `AddonManager._iter_hooks` resolves matching methods on registered addons by comparing `event.name` to addon method names or `@hook.hook` registrations.\n3. `AddonManager.invoke_addon` (or `invoke_addon_sync`) inspects whether the addon method is an async coroutine function: coroutines are awaited in `trigger_event` or scheduled via `asyncio.create_task`, while sync functions run directly.\n4. Internal lifecycle hooks (`LoadHook`, `ConfigureHook`) are handled specifically by `AddonManager.handle_lifecycle` to pass loader or options objects.",
+  "tags": [
+    "addonmanager",
+    "hooks",
+    "lifecycle",
+    "callpath"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/hooks.py",
+      "symbol": "Hook",
+      "hash": "sha256:8e3eba4291847d9aa2adff5e",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "AddonManager",
+      "hash": "sha256:34d29a59f1409df52271937e",
+      "line": 131,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/eventsequence.py",
+      "symbol": "iterate",
+      "hash": "sha256:6e24e023449cda53e7cae34e",
+      "line": 78,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "AddonManager.trigger",
+      "hash": "sha256:3b1afc3b5605ad47b1f6f61d",
+      "line": 296,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "AddonManager.trigger_event",
+      "hash": "sha256:db74871d8e75f1b8aeed8d4f",
+      "line": 285,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "AddonManager._iter_hooks",
+      "hash": "sha256:6419d8290f54727f085bac3a",
+      "line": 243,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "AddonManager.invoke_addon",
+      "hash": "sha256:cd18102582388959e443d360",
+      "line": 264,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addonmanager.py",
+      "symbol": "AddonManager.handle_lifecycle",
+      "hash": "sha256:ed513d36fe2064f6e4151f49",
+      "line": 232,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:22:28.314Z",
+  "verified": "2026-09-28T22:22:28.314Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "addon-testing-with-taddons-context-and-tflow-helpers"
+  ],
+  "says": [
+    "Custom extension lifecycle events are not being called when requests pass through.",
+    "Async event handlers in custom plugins freeze or fail to process intercepted traffic.",
+    "Ensure plugin startup and configuration events are properly dispatched when settings change.",
+    "Extensions fail to trigger custom hook actions when specific network events occur."
+  ],
+  "saysFor": "814:event-and-hook-dispatch-"
+}

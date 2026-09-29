@@ -1,0 +1,46 @@
+{
+  "id": "premature-truncation-of-short-help-at-abbreviations",
+  "title": "Premature truncation of short help at abbreviations",
+  "kind": "fix",
+  "answers": [
+    "Why does Click command short help truncate early at abbreviations like vs. or e.g.?",
+    "How does Click determine the first sentence for default short help?",
+    "Short help message cuts off prematurely before the end of the sentence in CLI output"
+  ],
+  "body": "Symptom: CLI command short help cuts off prematurely at abbreviations like \"vs.\" or \"e.g.\" instead of showing the full sentence.\nRoot cause: src/click/utils.py:_make_default_short_help treated any word ending in a period as the end of the sentence.\nFix pattern: Terminate the sentence only when a trailing period ends the text or the subsequent word does not start lowercase, then truncate using textwrap.shorten with break_on_hyphens=False.\nConstraints: Relies on case heuristics where abbreviation continuations are lowercase; abbreviations followed by uppercase letters, digits, or symbols are still treated as sentence ends.",
+  "applies": "Short help text generation in src/click/utils.py",
+  "tags": [
+    "help",
+    "short-help",
+    "formatting",
+    "cli",
+    "textwrap"
+  ],
+  "deps": [
+    {
+      "path": "src/click/utils.py",
+      "hash": "sha256:a0ecf3298a515efdd687d4c5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3865"
+  },
+  "created": "2026-09-28T22:04:41.171Z",
+  "verified": "2026-09-28T22:04:41.171Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "Command summary text cuts off early in help listings when descriptions include common abbreviations.",
+    "Help screen prematurely truncates command descriptions at abbreviation periods instead of sentence ends.",
+    "Short command summaries should not split mid-sentence when containing abbreviations like versus or example.",
+    "Overview listing clips command descriptions in the terminal before the sentence actually finishes.",
+    "Display the full first sentence in command overviews even if abbreviations contain periods."
+  ],
+  "saysFor": "680:premature-truncation-of-",
+  "lastUsed": "2026-09-28T23:21:02.918Z"
+}

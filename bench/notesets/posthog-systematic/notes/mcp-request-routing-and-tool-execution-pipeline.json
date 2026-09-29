@@ -1,0 +1,121 @@
+{
+  "id": "mcp-request-routing-and-tool-execution-pipeline",
+  "title": "MCP request routing and tool execution pipeline",
+  "kind": "callpath",
+  "answers": [
+    "How does an MCP request flow from edge to tool execution in services/mcp?",
+    "Where are incoming MCP JSON-RPC requests authenticated, dispatched, and handled?",
+    "What is the entry point for /mcp HTTP requests?"
+  ],
+  "body": "1. `services/mcp/src/index.ts:fetch` receives incoming `/mcp` requests, validates bearer tokens (`phx_`, `pha_`, idJag), and proxies via `services/mcp/src/proxy.ts:proxyToHono` to regional Hono instances.\n2. `services/mcp/src/hono/app.ts:createApp` routes `/mcp` traffic into `services/mcp/src/hono/streamable-handler.ts:StreamableMcpHandler.fetch`.\n3. `services/mcp/src/hono/request-utils.ts:authenticateAndParse` re-validates credentials and extracts the JSON-RPC request body.\n4. `services/mcp/src/hono/dispatcher.ts:McpDispatcher.handleRequest` invokes `dispatchMethod` for JSON-RPC methods (`tools/call`, `initialize`, `server/discover`).\n5. `services/mcp/src/hono/request-state-resolver.ts:RequestStateResolver.resolve` loads org/project metadata and detects client capabilities via `services/mcp/src/lib/client-detection.ts:MCPClientProfile`.\n6. `services/mcp/src/hono/tool-executor.ts:ToolExecutor.handleToolCall` executes either the umbrella `exec` tool (`services/mcp/src/tools/exec.ts:callExecTool`) or individual handlers in `services/mcp/src/tools/generated/*` using `services/mcp/src/api/client.ts:ApiClient`.\n7. `services/mcp/src/lib/build-tool-result.ts:buildToolResultPayload` formats and estimates token size for the returned tool call payload.",
+  "tags": [
+    "mcp",
+    "routing",
+    "hono",
+    "cloudflare-workers",
+    "dispatcher",
+    "callpath"
+  ],
+  "deps": [
+    {
+      "path": "services/mcp/src/index.ts",
+      "hash": "sha256:7f791a2bb99e54fa26392bfb",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/proxy.ts",
+      "symbol": "proxyToHono",
+      "hash": "sha256:93a210d8543328f584cfd680",
+      "line": 80,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/hono/app.ts",
+      "symbol": "createApp",
+      "hash": "sha256:b0054dd05c87176193b1c03c",
+      "line": 35,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/hono/streamable-handler.ts",
+      "symbol": "StreamableMcpHandler.fetch",
+      "hash": "sha256:75e716c1571cc2a2358e3b5a",
+      "line": 26,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/hono/request-utils.ts",
+      "symbol": "authenticateAndParse",
+      "hash": "sha256:e32a75a45a049c639e916cd9",
+      "line": 92,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/hono/dispatcher.ts",
+      "symbol": "McpDispatcher.handleRequest",
+      "hash": "sha256:9a201e30f0cdc756b0559ff0",
+      "line": 173,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/hono/request-state-resolver.ts",
+      "symbol": "RequestStateResolver.resolve",
+      "hash": "sha256:e026dac2925bd92ebf67d77e",
+      "line": 146,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/hono/tool-executor.ts",
+      "symbol": "ToolExecutor.handleToolCall",
+      "hash": "sha256:cddc058cb7cf570ea30dd4e5",
+      "line": 188,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/tools/exec.ts",
+      "hash": "sha256:25e8c22bd92daf08a40c4e61",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/lib/build-tool-result.ts",
+      "symbol": "buildToolResultPayload",
+      "hash": "sha256:21a0825546dbb6ea627aac62",
+      "line": 122,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/lib/client-detection.ts",
+      "symbol": "MCPClientProfile",
+      "hash": "sha256:175750934f1cd571366534c9",
+      "line": 252,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/api/client.ts",
+      "symbol": "ApiClient",
+      "hash": "sha256:e95676268a1155f790804a6d",
+      "line": 183,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:45:21.118Z",
+  "verified": "2026-09-28T22:45:21.118Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "ui-app-metadata-wrapping-and-tool-result-branding"
+  ],
+  "says": [
+    "Connected AI assistant receives authorization errors when attempting to execute workspace tools",
+    "External assistant requests time out before reaching tool execution in our workspace",
+    "AI agent cannot invoke integrated product tools through the regional gateway",
+    "Tool calls from external chat assistants fail during authentication dispatching"
+  ],
+  "saysFor": "1310:mcp-request-routing-and-"
+}

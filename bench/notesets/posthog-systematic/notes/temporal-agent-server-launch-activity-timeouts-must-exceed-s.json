@@ -1,0 +1,59 @@
+{
+  "id": "temporal-agent-server-launch-activity-timeouts-must-exceed-s",
+  "title": "Temporal agent-server launch activity timeouts must exceed sandbox readiness budget",
+  "kind": "invariant",
+  "answers": [
+    "How long should start_to_close_timeout be for agent-server Temporal launch activities?",
+    "Why did Temporal time out during await_agent_server_ready or start_agent_server?",
+    "What is the maximum allowed wait time for sandbox health checks during task startup?"
+  ],
+  "body": "Temporal activities waiting on agent-server startup must configure a start_to_close_timeout (15 minutes) greater than the maximum sandbox health check budget (products/tasks/backend/logic/services/sandbox.py:SETUP_HOOKS_BUDGET_SECONDS).\nEnforced in products/tasks/backend/temporal/process_task/workflow.py:_start_agent_server and products/tasks/backend/temporal/process_task/workflow.py:_await_agent_server_ready.\nIf skipped, Temporal aborts the activity while the sandbox is still legitimately waiting for SessionStart hooks, causing false startup errors and conflicting sandbox retries.",
+  "applies": "Temporal workflows orchestrating agent-server startup and sandbox readiness",
+  "tags": [
+    "temporal",
+    "workflow",
+    "agent-server",
+    "timeouts"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "_start_agent_server",
+      "hash": "sha256:7c738560199e7818292b9600",
+      "line": 2414,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/temporal/process_task/workflow.py",
+      "symbol": "_await_agent_server_ready",
+      "hash": "sha256:852088b3b5653199d24c9740",
+      "line": 2472,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/sandbox.py",
+      "hash": "sha256:10f8b204ae874604742c98f8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107897"
+  },
+  "created": "2026-09-28T22:36:28.175Z",
+  "verified": "2026-09-28T22:36:28.175Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "subscription-credential-unavailable-messages-must-use-centra"
+  ],
+  "says": [
+    "Background task runner aborts while workspace environment is still running setup scripts",
+    "Cloud agent execution fails with workflow timeout on projects with heavy dependencies",
+    "Allow background workers longer wait times before aborting slow repository startup tasks",
+    "Initial workspace setup triggers premature failure notifications instead of waiting for completion"
+  ],
+  "saysFor": "672:temporal-agent-server-la"
+}

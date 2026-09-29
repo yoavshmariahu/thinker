@@ -274,8 +274,12 @@ export function attest(store, assessments, { session } = {}) {
       if (n.confidence < 0.3) { n.status = 'invalid'; n.invalidReason = 'contradicted by later sessions'; }
     } else {
       n.attest.unused++;
-      // served ≥5 times with nothing ever confirming it: slow decay towards 0.4
-      if ((n.attest.confirmed || 0) === 0 && n.attest.unused >= 5) n.confidence = Math.max(0.4, (n.confidence ?? 0.7) - 0.03);
+      // Navigational notes (callpath, location, overview) decay slowly towards 0.4 after ≥5 unconfirmed servings.
+      // Rule notes (invariant, convention, gotcha, howto, fix) represent enduring truths and do not decay on simple omission.
+      const decays = ['callpath', 'location', 'overview'].includes(n.kind);
+      if (decays && (n.attest.confirmed || 0) === 0 && n.attest.unused >= 5) {
+        n.confidence = Math.max(0.4, (n.confidence ?? 0.7) - 0.03);
+      }
     }
     store.put(n);
     applied.push({ id: n.id, verdict: a.verdict, confidence: n.confidence });

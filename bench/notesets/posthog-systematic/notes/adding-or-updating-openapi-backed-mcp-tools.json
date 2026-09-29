@@ -1,0 +1,62 @@
+{
+  "id": "adding-or-updating-openapi-backed-mcp-tools",
+  "title": "Adding or updating OpenAPI-backed MCP tools",
+  "kind": "cochange",
+  "answers": [
+    "How do I add or update an MCP tool in services/mcp?",
+    "What files must change together when exposing a new PostHog API endpoint to MCP?",
+    "How are generated tool handlers produced from OpenAPI schemas?"
+  ],
+  "body": "1. Tool configuration: add or modify endpoint operation IDs in product YAML definitions (`products/<product>/mcp/tools.yaml` or `services/mcp/definitions/*.yaml`).\n2. Schema generation: update Django backend schemas with `hogli build:openapi`, updating Orval Zod schemas in `services/mcp/src/generated/<product>/api.ts`.\n3. Tool code generation: run `services/mcp/scripts/generate-tools.ts` to regenerate handlers in `services/mcp/src/tools/generated/<product>.ts`.\n4. Catalog registration: verify generated factories are exposed through `services/mcp/src/tools/toolDefinitions.ts` and loaded by `services/mcp/src/hono/tool-catalog.ts:ToolCatalog`.\n5. Test validation: update and run schema snapshots in `services/mcp/tests/unit/tool-schema-snapshots.test.ts`.",
+  "applies": "Applies to OpenAPI-generated MCP tools; does not apply to custom manual tools in services/mcp/src/tools/ or the exec tool.",
+  "tags": [
+    "mcp",
+    "codegen",
+    "openapi",
+    "tool-definitions",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "services/mcp/scripts/generate-tools.ts",
+      "hash": "sha256:258611ce40238ce23322b46f",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/tools/toolDefinitions.ts",
+      "hash": "sha256:c3753c8588ea5e4446017780",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/hono/tool-catalog.ts",
+      "symbol": "ToolCatalog",
+      "hash": "sha256:a2698a9dfd6888392a7ea835",
+      "line": 95,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/tests/unit/tool-schema-snapshots.test.ts",
+      "hash": "sha256:afe73cbeeaaab90f319bc599",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:45:21.248Z",
+  "verified": "2026-09-28T22:45:21.248Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "The AI assistant cannot access our newly released project analytics endpoints",
+    "Add our new data export feature to the assistant tool catalog",
+    "AI agent shows outdated actions when interacting with our product workspace",
+    "Allow the connected chat assistant to trigger newly created dashboard actions"
+  ],
+  "saysFor": "804:adding-or-updating-opena",
+  "lastUsed": "2026-09-29T01:16:06.566Z"
+}

@@ -1,0 +1,53 @@
+{
+  "id": "msw-v2-export-resolution-and-fetch-polyfills-under-jest-jsdo",
+  "title": "MSW v2 export resolution and fetch polyfills under Jest JSDOM",
+  "kind": "gotcha",
+  "answers": [
+    "Why does MSW fail to resolve or intercept requests in frontend Jest tests?",
+    "Why does PostHog use a custom Jest resolver in frontend/jest.resolver.js?",
+    "Where are fetch and Web Stream polyfills loaded for Jest in frontend/?"
+  ],
+  "body": "Running MSW v2 inside Jest JSDOM breaks unless both export resolution and polyfill loading order are specifically handled:\n- Package resolution: Under JSDOM's default `browser` condition, MSW v2 and its `@mswjs/*` dependencies define Node subpath exports as `null`. `frontend/jest.resolver.js:MSW_ECOSYSTEM` intercepts package names starting with `msw` or `@mswjs/` and forces Jest's default resolver to use `conditions: ['node', 'require', 'import']`.\n- Fetch primitives: JSDOM lacks or alters spec-compliant fetch primitives. `frontend/jest.polyfills.js` must execute first in `setupFiles` to bind `ReadableStream`, `WritableStream`, `Response`, `Request`, `Headers`, and `fetch` from `undici` to `globalThis` before test suites boot.",
+  "applies": "Only for MSW v2 and packages in the `@mswjs/` ecosystem running in Jest with JSDOM; standard frontend browser packages use default JSDOM resolution.",
+  "tags": [
+    "msw",
+    "jest",
+    "polyfills",
+    "resolver",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "frontend/jest.resolver.js",
+      "symbol": "MSW_ECOSYSTEM",
+      "hash": "sha256:b787f2ab4bf874342a4ba7c7",
+      "line": 1,
+      "missing": false
+    },
+    {
+      "path": "frontend/jest.polyfills.js",
+      "hash": "sha256:42c740ab487eb2e9d9deee49",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T23:09:47.526Z",
+  "verified": "2026-09-28T23:09:47.526Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "frontend-jest-test-environment-boot-and-setup-execution-orde"
+  ],
+  "says": [
+    "Simulated network requests fail to intercept during frontend component test execution",
+    "Automated interface tests crash with missing web stream and request primitives",
+    "Frontend test runner cannot resolve network mock dependencies properly in tests",
+    "Network mocking setup causes frontend unit test suites to fail prematurely"
+  ],
+  "saysFor": "798:msw-v2-export-resolution"
+}

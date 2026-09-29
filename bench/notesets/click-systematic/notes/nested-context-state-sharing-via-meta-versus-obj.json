@@ -1,0 +1,79 @@
+{
+  "id": "nested-context-state-sharing-via-meta-versus-obj",
+  "title": "Nested context state sharing via meta versus obj",
+  "kind": "invariant",
+  "answers": [
+    "What is the difference between Context.meta and Context.obj?",
+    "How do parent groups pass state down to child subcommands?",
+    "Why is Context.meta shared across nested contexts?"
+  ],
+  "body": "In `src/click/core.py:Context`, `meta` is shared across all nested contexts in an execution tree, while `obj` is local to each context level.\n- Rule: Cross-command extensions and utilities must store shared state in `ctx.meta` using dotted namespace keys (`src/click/core.py:Context.meta`). User state passed down command trees must use `ctx.obj` and be retrieved via `src/click/core.py:Context.find_object` or `src/click/core.py:Context.ensure_object`.\n- Where enforced: `src/click/core.py:Context.__init__` sets `self._meta = parent.meta` if a parent context exists, whereas `self.obj` inherits from `parent.obj` by default but can be rebound independently per context.\n- What breaks if skipped: Writing to `ctx.meta` with un-namespaced keys causes silent collisions between nested groups or plugins. Reassigning `ctx.obj` without `find_object` hides parent state from subcommands.",
+  "applies": "Applies when threading state, configuration, or plugin metadata between parent Groups and child Commands.",
+  "tags": [
+    "core",
+    "context",
+    "state",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.__init__",
+      "hash": "sha256:a3c0bda9f3c0342070ead008",
+      "line": 336,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.meta",
+      "hash": "sha256:f8923a3a502ddc8daabb36a6",
+      "line": 602,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.find_object",
+      "hash": "sha256:7ac649c76de0e0c23257b025",
+      "line": 736,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.ensure_object",
+      "hash": "sha256:d56b8c70c6cc4a3fe7b6ce67",
+      "line": 748,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context",
+      "hash": "sha256:ff14014d8e8b54e80d7178cd",
+      "line": 204,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:11:26.853Z",
+  "verified": "2026-09-28T22:11:26.853Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cli-command-execution-and-dispatch-lifecycle",
+    "prevent-traceback-when-keyboardinterrupt-occurs-during-cli-e",
+    "parameter-type-conversion-and-validation-callpath",
+    "arity-synchronization-invariant-between-compositeparamtype-a"
+  ],
+  "says": [
+    "Child subcommands cannot access configuration options set at the root command level.",
+    "Plugin data is overwriting user configuration when nesting multiple command levels together.",
+    "Pass global connection settings down to all nested subcommands automatically without re-prompting.",
+    "Subcommands fail because parent command state is lost during nested command dispatch.",
+    "Distinguish global extension settings from command-specific inputs across the command tree."
+  ],
+  "saysFor": "932:nested-context-state-sha"
+}

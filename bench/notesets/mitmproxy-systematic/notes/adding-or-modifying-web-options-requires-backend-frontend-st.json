@@ -1,0 +1,82 @@
+{
+  "id": "adding-or-modifying-web-options-requires-backend-frontend-st",
+  "title": "Adding or modifying web options requires backend, frontend state, and menu updates",
+  "kind": "cochange",
+  "answers": [
+    "How to add a new option to mitmweb?",
+    "Where to expose a new configuration option in the mitmweb UI?",
+    "What files must change when adding a web setting like web_theme?",
+    "Why is a newly added mitmweb option missing from the options menu?"
+  ],
+  "body": "Adding or modifying a user-configurable mitmweb option requires coordinated changes across backend registration, frontend state typing, and the options menu:\n1. Register the option with type, default, and valid choices in mitmproxy/tools/web/webaddons.py:WebAddon.load.\n2. Add the field and default value to web/src/js/ducks/_options_gen.ts:OptionsState and web/src/js/ducks/_options_gen.ts:defaultState.\n3. Expose the configuration control in web/src/js/components/Header/OptionMenu.tsx:OptionMenu (wrapped in HideInStatic for non-static contexts).\n4. Validate option registration, default value, and choices in test/mitmproxy/tools/web/test_webaddons.py:test_web_theme_option.",
+  "applies": "Adding or modifying options in mitmweb",
+  "tags": [
+    "mitmweb",
+    "options",
+    "configuration",
+    "webaddons"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/web/webaddons.py",
+      "symbol": "WebAddon.load",
+      "hash": "sha256:4a902685fbbd4deea071527b",
+      "line": 89,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/_options_gen.ts",
+      "symbol": "OptionsState",
+      "hash": "sha256:5bbdb0963e6f8d6530b7937d",
+      "line": 1,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/components/Header/OptionMenu.tsx",
+      "symbol": "OptionMenu",
+      "hash": "sha256:6019639e2d5fa4b262bd96ac",
+      "line": 11,
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/tools/web/test_webaddons.py",
+      "hash": "sha256:5257e89e98c28eeb956924b1",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/_options_gen.ts",
+      "symbol": "defaultState",
+      "hash": "sha256:fe29d8f42970750d2ab97415",
+      "line": 109,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8317"
+  },
+  "created": "2026-09-28T22:18:11.873Z",
+  "verified": "2026-09-28T22:25:27.517Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8500000000000001,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "mitmweb-cli-startup-and-tornado-server-initialization-callpa",
+    "mitmweb-rest-api-authentication-and-xsrf-protection-invarian",
+    "web-column-definitions-sync-between-typescript-ui-and-python"
+  ],
+  "lastUsed": "2026-09-28T23:38:43.870Z",
+  "attest": {
+    "confirmed": 1,
+    "contradicted": 0,
+    "unused": 0
+  },
+  "says": [
+    "The new configuration setting is not showing up in the web options menu.",
+    "Add a toggle switch in the options menu to customize web interface preferences.",
+    "New web interface option does not appear anywhere in the settings dropdown menu.",
+    "User preferences changed in the options menu are missing newly created settings."
+  ],
+  "saysFor": "761:adding-or-modifying-web-"
+}

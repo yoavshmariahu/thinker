@@ -1,0 +1,62 @@
+{
+  "id": "co-changing-tool-lists-across-pyinstaller-specs-and-build-py",
+  "title": "Co-changing Tool Lists Across PyInstaller Specs and build.py",
+  "kind": "cochange",
+  "answers": [
+    "What files must change if adding, renaming, or removing a mitmproxy CLI tool?",
+    "Where are PyInstaller specifications defined for mitmproxy binaries?",
+    "How do PyInstaller spec files configure tool-specific exclusions?"
+  ],
+  "body": "The set of standalone CLI tools (`mitmproxy`, `mitmdump`, `mitmweb`) is explicitly mirrored across packaging scripts and spec files:\n1. `release/build.py:standalone_binaries`: Iterates over `tools = [\"mitmproxy\", \"mitmdump\", \"mitmweb\"]` to invoke PyInstaller.\n2. `release/specs/standalone.spec`: Loops over each tool and applies conditional exclusions (e.g., excludes `mitmproxy.tools.web` when not `mitmweb`, excludes `mitmproxy.tools.console` when not `mitmproxy`) and tool-specific options (e.g., unbuffered mode on `mitmdump`).\n3. `release/specs/onedir.spec`: Also hardcodes `tools = [\"mitmproxy\", \"mitmdump\", \"mitmweb\"]` for directory-based distribution.\n4. `pyproject.toml:[project.scripts]`: Maps each command name to its entry point function in `mitmproxy.tools.main`.",
+  "applies": "Applies when adding, renaming, or modifying entry-point CLI tools or their binary packaging options.",
+  "tags": [
+    "pyinstaller",
+    "packaging",
+    "cli",
+    "build"
+  ],
+  "deps": [
+    {
+      "path": "release/build.py",
+      "symbol": "standalone_binaries",
+      "hash": "sha256:cac6f26211b1626a92a8a280",
+      "line": 136,
+      "missing": false
+    },
+    {
+      "path": "release/specs/standalone.spec",
+      "hash": "sha256:e9012105c3dd1f76af68a084",
+      "missing": false
+    },
+    {
+      "path": "release/specs/onedir.spec",
+      "hash": "sha256:a5230b853ac31d8cff75af58",
+      "missing": false
+    },
+    {
+      "path": "pyproject.toml",
+      "hash": "sha256:38b3830011f89ac532b252b3",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:27:51.659Z",
+  "verified": "2026-09-28T22:27:51.659Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "binary-and-docker-smoke-testing-via-selftest-py-addon"
+  ],
+  "says": [
+    "The standalone desktop release bundle is missing one of the command line tools.",
+    "A newly added command line utility is not included in the downloadable installer.",
+    "Running the packaged binary for the web interface includes unnecessary console tool dependencies.",
+    "Ensure all packaged command line tools are built into the standalone release archive."
+  ],
+  "saysFor": "837:co-changing-tool-lists-a"
+}

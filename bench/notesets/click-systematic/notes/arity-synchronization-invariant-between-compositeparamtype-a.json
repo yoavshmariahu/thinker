@@ -1,0 +1,65 @@
+{
+  "id": "arity-synchronization-invariant-between-compositeparamtype-a",
+  "title": "Arity synchronization invariant between CompositeParamType and Parameter",
+  "kind": "invariant",
+  "answers": [
+    "How does Click enforce nargs for composite types like Tuple?",
+    "What causes 'nargs must be X (or None) for type Y'?",
+    "How to declare multiple-value types with fixed arity in Click?"
+  ],
+  "body": "Any composite parameter type (`src/click/types.py:CompositeParamType`, `src/click/types.py:Tuple`) must set `is_composite = True` and specify an integer `arity` attribute.\nIn `src/click/core.py:Parameter.__init__`, Click checks `if self.type.is_composite:` and either sets `nargs = self.type.arity` if `nargs` was `None`, or validates that `nargs == self.type.arity`.\nIf `nargs` is explicitly specified with a count different from `type.arity`, `Parameter.__init__` raises `TypeError: 'nargs' must be X (or None) for type Y, but it was Z`.",
+  "tags": [
+    "types",
+    "composite",
+    "nargs",
+    "core",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.__init__",
+      "hash": "sha256:5e4667b01f66ad01d7c951e7",
+      "line": 2251,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "CompositeParamType",
+      "hash": "sha256:6d7f3263faee56578afdf62f",
+      "line": 184,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "Tuple",
+      "hash": "sha256:1a6372f24e4b5ab853326572",
+      "line": 1196,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:13:24.811Z",
+  "verified": "2026-09-28T22:13:24.811Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parameter-type-conversion-and-validation-callpath",
+    "cli-command-execution-and-dispatch-lifecycle",
+    "nested-context-state-sharing-via-meta-versus-obj",
+    "idempotency-and-nullable-context-invariants-for-paramtype-co"
+  ],
+  "says": [
+    "Setting up a coordinate pair option crashes with a mismatch on expected value count.",
+    "The terminal throws an error when configuring an option that takes two values.",
+    "Allow multi-value command options without conflicting expected argument quantity settings.",
+    "Configuring fixed paired inputs displays a crash regarding mismatched argument lengths.",
+    "Why does my custom grouped field fail saying the value count is wrong?"
+  ],
+  "saysFor": "612:arity-synchronization-in"
+}

@@ -1,0 +1,50 @@
+{
+  "id": "setup-paused-operational-scouts-matched-by-mcp-activity-log-",
+  "title": "Setup-paused operational scouts matched by MCP activity log instead of null user",
+  "kind": "fix",
+  "answers": [
+    "Why are operational scouts like inbox validation still paused after running the resume command?",
+    "Why does resume_setup_paused_operational_scouts match zero rows for paused scouts?",
+    "How does PostHog identify scout pauses made by the setup flow versus manual user pauses?"
+  ],
+  "body": "Symptom: Operational scouts such as inbox validation stay paused after setup, their report checks do not run, and resume_setup_paused_operational_scouts selects zero rows.\nRoot cause: products/signals/backend/scout_harness/config_registry.py:setup_paused_operational_configs filtered for status_changed_by__isnull=True, but setup-flow pauses ran over MCP on the user's OAuth session so status_changed_by stamped the user.\nFix pattern: Identify automated setup pauses by joining ActivityLog within a 10-second window (_SETUP_PAUSE_LOG_WINDOW) of status_changed_at for client = 'mcp' instead of requiring an unassigned status_changed_by.\nConstraints: Only applies when mutations produce ActivityLog records; manual user pauses made through MCP will also match unless constrained by --max-gap-seconds.",
+  "applies": "Operational scout configuration resumption and setup-pause detection in products/signals",
+  "tags": [
+    "signals",
+    "scouts",
+    "activity-log",
+    "mcp",
+    "management-commands"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/scout_harness/config_registry.py",
+      "hash": "sha256:4d4a47610722c9b4448d1e84",
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/scout_harness/config_registry.py",
+      "hash": "sha256:4d4a47610722c9b4448d1e84",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107735"
+  },
+  "created": "2026-09-28T22:36:59.682Z",
+  "verified": "2026-09-28T22:36:59.682Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "Inbox validation scout remains paused after completing initial product setup flow",
+    "Resume command fails to unpause operational monitoring scouts configured during onboarding",
+    "Automated inspection scouts stay paused after setup wizard finishes connecting integrations",
+    "Operational health checks do not resume automatically following initial account configuration"
+  ],
+  "saysFor": "879:setup-paused-operational",
+  "lastUsed": "2026-09-29T00:49:02.768Z"
+}

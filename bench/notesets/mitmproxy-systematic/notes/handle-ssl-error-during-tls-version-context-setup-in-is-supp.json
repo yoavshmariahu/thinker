@@ -1,0 +1,46 @@
+{
+  "id": "handle-ssl-error-during-tls-version-context-setup-in-is-supp",
+  "title": "Handle SSL.Error during TLS version context setup in is_supported_version",
+  "kind": "fix",
+  "answers": [
+    "Why does mitmproxy crash with SSL.Error during TLS option validation?",
+    "How to handle OpenSSL builds rejecting removed TLS protocols at context setup?",
+    "What causes unhandled SSL.Error in is_supported_version on OpenSSL builds without SSLv3?"
+  ],
+  "body": "Symptom: Crash with unhandled SSL.Error during TLS option validation on OpenSSL environments that have dropped legacy protocol support.\nRoot cause: mitmproxy/net/tls.py:is_supported_version set protocol versions and initialized SSL.Connection outside the guarded try/except block.\nFix pattern: Move protocol-version context setters and connection initialization inside the try/except SSL.Error block so setup failures return False instead of raising.\nConstraints: Applies when probing protocol support via pyOpenSSL where removed or disabled versions fail during context configuration rather than I/O probing.",
+  "applies": "mitmproxy/net/tls.py:is_supported_version",
+  "tags": [
+    "tls",
+    "openssl",
+    "pyopenssl",
+    "ssl-error",
+    "protocol-version"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/net/tls.py",
+      "symbol": "is_supported_version",
+      "hash": "sha256:c96e7781ba99d85f59f39608",
+      "line": 74,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8294"
+  },
+  "created": "2026-09-28T22:17:06.924Z",
+  "verified": "2026-09-28T22:17:06.924Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The application crashes on startup when validating secure connection settings on newer operating systems.",
+    "Proxy terminates unexpectedly when configuring secure protocol versions on modern security libraries.",
+    "Opening TLS settings crashes if legacy encryption protocols are not supported by the system.",
+    "Prevent proxy crashes when older encryption versions are disabled on the host machine."
+  ],
+  "saysFor": "683:handle-ssl-error-during-"
+}

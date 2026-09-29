@@ -1,0 +1,49 @@
+{
+  "id": "quic-flows-hang-when-allow-hosts-or-ignore-hosts-is-enabled",
+  "title": "QUIC flows hang when allow_hosts or ignore_hosts is enabled",
+  "kind": "fix",
+  "answers": [
+    "Why do QUIC flows stall forever after TLS handshake when ignore_hosts is enabled?",
+    "Why are QUIC connections not assigned an HttpLayer or appearing in mitmweb?",
+    "How to fix NeedsMoreData bailing out next_layer on UDP streams?"
+  ],
+  "body": "Symptom: QUIC connections stall indefinitely after client handshake without assigning an HttpLayer or appearing in mitmweb when --allow-hosts or --ignore-hosts is configured.\nRoot cause: mitmproxy/addons/next_layer.py:_get_client_hello fell back unconditionally to dtls_parse_client_hello on UDP payloads, which raised NeedsMoreData on non-DTLS data.\nFix pattern: Guard protocol ClientHello parsers with heuristic format checks (_starts_like_quic, starts_like_dtls_record) and return None if neither matches.\nConstraints: Applies to speculative ClientHello sniffing on UDP in next_layer; only raise NeedsMoreData when a recognized protocol header is partially received.",
+  "applies": "mitmproxy/addons/next_layer.py UDP ClientHello detection and host filtering",
+  "tags": [
+    "quic",
+    "dtls",
+    "next-layer",
+    "ignore-hosts",
+    "allow-hosts"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "_get_client_hello",
+      "hash": "sha256:d89987596a90686862143a0f",
+      "line": 299,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8295"
+  },
+  "created": "2026-09-28T22:16:54.477Z",
+  "verified": "2026-09-28T22:16:54.477Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "handle-fragmented-quic-clienthello-in-next-layer",
+    "udp-clienthello-parsers-must-be-gated-by-heuristic-checks"
+  ],
+  "says": [
+    "Fast web traffic hangs indefinitely when domain ignore or allow filters are active.",
+    "Modern UDP connections freeze after the initial handshake and never appear in traffic list.",
+    "Web browser stalls forever loading sites when proxy filtering rules are turned on.",
+    "Fix stalled streaming connections when using domain allow lists with modern web protocols."
+  ],
+  "saysFor": "729:quic-flows-hang-when-all"
+}

@@ -1,0 +1,68 @@
+{
+  "id": "flow-response-update-properties-between-mitmweb-ui-and-rest-",
+  "title": "Flow response update properties between mitmweb UI and REST handler",
+  "kind": "cochange",
+  "answers": [
+    "Which files must change when adding or editing flow response properties in mitmweb?",
+    "How are editable flow response attributes passed from the mitmweb frontend to backend?",
+    "Where are flow update payload keys handled between mitmweb UI and Python backend?"
+  ],
+  "body": "When modifying or adding editable flow response attributes in mitmweb, changes must stay in sync across:\n1. Frontend dispatch in `web/src/js/components/FlowView/HttpMessages.tsx:ResponseLine` defining the property name under the `response` payload.\n2. Backend REST handler in `mitmproxy/tools/web/app.py:put` mapping JSON keys directly to `mitmproxy.http.Response` attributes.\n3. Test cases in `test/mitmproxy/tools/web/test_app.py:test_flow_update` verifying the payload dictionary keys.\nMismatched keys fail silently or produce unhandled attributes because update payloads are dynamically unpacked dictionaries.",
+  "applies": "mitmweb flow update payloads and endpoints",
+  "tags": [
+    "mitmweb",
+    "frontend",
+    "backend",
+    "flow-update"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "put",
+      "hash": "sha256:15bc8028b4b41c64e02b7bc6",
+      "line": 580,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/components/FlowView/HttpMessages.tsx",
+      "symbol": "ResponseLine",
+      "hash": "sha256:cf1aa07f4bfdcb0d269500ec",
+      "line": 72,
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/tools/web/test_app.py",
+      "symbol": "test_flow_update",
+      "hash": "sha256:c78858368dda744ccd1e3d20",
+      "line": 196,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8333"
+  },
+  "created": "2026-09-28T22:15:35.871Z",
+  "verified": "2026-09-28T22:25:27.517Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8500000000000001,
+  "status": "fresh",
+  "uses": 4,
+  "related": [
+    "fix-modified-reason-phrase-not-updating-in-mitmweb",
+    "mitmweb-rest-api-authentication-and-xsrf-protection-invarian"
+  ],
+  "lastUsed": "2026-09-28T23:29:50.154Z",
+  "attest": {
+    "confirmed": 1,
+    "contradicted": 0,
+    "unused": 1
+  },
+  "says": [
+    "Changes made to response fields in the web inspector fail to save properly.",
+    "Updating intercepted response properties in the web interface silently drops our edits.",
+    "Allow users to edit and submit updated response attributes from the web UI.",
+    "Modified response headers or status values are not updated in the recorded flow."
+  ],
+  "saysFor": "681:flow-response-update-pro"
+}

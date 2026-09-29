@@ -1,0 +1,60 @@
+{
+  "id": "browser-subprocess-isolation-and-resource-tracking-invariant",
+  "title": "Browser subprocess isolation and resource tracking invariant",
+  "kind": "invariant",
+  "answers": [
+    "How does the Browser addon configure proxy routing and profile isolation?",
+    "Why must browser launchers register temporary directories and subprocesses?",
+    "What flags are required when launching Chromium-based browsers in mitmproxy?"
+  ],
+  "body": "Browser launchers in mitmproxy/addons/browser.py:Browser must configure an isolated session with --user-data-dir and proxy routing via --proxy-server using ctx.options.listen_host and listen_port.\nEvery browser launch must allocate a tempfile.TemporaryDirectory appended to self.tdir and append the spawned subprocess.Popen instance to self.browser.\nEnforced in mitmproxy/addons/browser.py:Browser.launch_edge and Browser.launch_chrome.\nFailing to configure flags or track these resources leads to traffic bypassing mitmproxy and leaked temporary profile directories or orphaned processes.",
+  "applies": "mitmproxy/addons/browser.py",
+  "tags": [
+    "browser",
+    "addons",
+    "proxy",
+    "process-management",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "hash": "sha256:7d35dae4402ec54eb8399719",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "symbol": "Browser.launch_chrome",
+      "hash": "sha256:95fcbfc3e2697143ca2f1a33",
+      "line": 51,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "symbol": "Browser",
+      "hash": "sha256:cea80bacac6af369f5aa2bd1",
+      "line": 35,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8408"
+  },
+  "created": "2026-09-28T22:14:49.412Z",
+  "verified": "2026-09-28T22:14:49.412Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "browser-addon-launcher-implementation-and-test-convention"
+  ],
+  "says": [
+    "Launched browser sessions are leaking temporary profile folders and leaving background processes running.",
+    "Traffic from the spawned browser bypasses the proxy because routing flags were missed.",
+    "Closing the proxy leaves orphaned browser windows and temporary directories on disk.",
+    "Ensure launched browser instances always use a clean profile routed through the proxy."
+  ],
+  "saysFor": "650:browser-subprocess-isola"
+}

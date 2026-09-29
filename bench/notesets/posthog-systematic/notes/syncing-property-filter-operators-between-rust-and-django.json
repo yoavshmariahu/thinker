@@ -1,0 +1,58 @@
+{
+  "id": "syncing-property-filter-operators-between-rust-and-django",
+  "title": "Syncing property filter operators between Rust and Django",
+  "kind": "cochange",
+  "answers": [
+    "Where are feature flag operators defined in Rust and Python?",
+    "How do I add a new property filter operator to feature flags?",
+    "What files must change when adding a feature flag evaluation operator?"
+  ],
+  "body": "When adding or modifying feature flag property filter operators:\n1. Add the enum variant in `rust/feature-flags/src/properties/property_models.rs:OperatorType`.\n2. Implement evaluation matching in `rust/feature-flags/src/properties/property_matching.rs`.\n3. Add the operator to `FEATURE_FLAG_SUPPORTED_OPERATORS` in `products/feature_flags/backend/api/filters_schema.py`.\n4. Update the write-path serde guard in `products/feature_flags/backend/models/feature_flag.py`.\n`OperatorType` is intentionally a superset; failing to sync with Python allows the UI/API to save operators that fail or reject on evaluation/write.",
+  "applies": "When adding, removing, or modifying feature flag property filter operators. Does not apply to event filters or cohort-only operators.",
+  "tags": [
+    "feature-flags",
+    "operators",
+    "properties",
+    "cochange"
+  ],
+  "deps": [
+    {
+      "path": "rust/feature-flags/src/properties/property_models.rs",
+      "hash": "sha256:b92b3bf3ba23fd8ec4ed51dc",
+      "missing": false
+    },
+    {
+      "path": "rust/feature-flags/src/properties/property_matching.rs",
+      "hash": "sha256:40c6a09918fcd83420c51217",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/api/filters_schema.py",
+      "hash": "sha256:55d445b5b8377d9958970ad9",
+      "missing": false
+    },
+    {
+      "path": "products/feature_flags/backend/models/feature_flag.py",
+      "hash": "sha256:03c2c1db3f050868bf40e827",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:49:09.809Z",
+  "verified": "2026-09-28T22:49:09.809Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Feature flag targeting rules fail evaluation when using newly introduced filter operators",
+    "Saving a feature flag with a new matching operator gives validation error",
+    "New property filter conditions configured in the web interface are ignored during evaluation",
+    "Ensure recently added filter operators work consistently when targeting feature rollout groups"
+  ],
+  "saysFor": "675:syncing-property-filter-"
+}

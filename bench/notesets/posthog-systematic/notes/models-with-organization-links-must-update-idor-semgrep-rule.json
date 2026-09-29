@@ -1,0 +1,48 @@
+{
+  "id": "models-with-organization-links-must-update-idor-semgrep-rule",
+  "title": "Models with organization links must update IDOR Semgrep rules",
+  "kind": "cochange",
+  "answers": [
+    "Why is check-idor-model-coverage.py failing when adding a new model?",
+    "What security checks must be updated when creating an organization-linked model?",
+    "Where do new models linked to Organization need to be registered for IDOR coverage?"
+  ],
+  "body": "When adding a model with an organization link, it must be added to .semgrep/rules/security/idor-team-scoped-models.yaml.\nBoth organization-scoped rules in that file must include the new model name in their model patterns.\nIf omitted, check-idor-model-coverage.py fails in CI because all models with an organization link require IDOR coverage.\nReference: products/feature_flags/backend/models/organization_feature_flags_config.py:OrganizationFeatureFlagsConfig and .semgrep/rules/security/idor-team-scoped-models.yaml.",
+  "applies": "Adding any new Django model with an organization or team link",
+  "tags": [
+    "semgrep",
+    "security",
+    "idor",
+    "models"
+  ],
+  "deps": [
+    {
+      "path": ".semgrep/rules/security/idor-team-scoped-models.yaml",
+      "hash": "sha256:82b14ac2a1e1caa218e197f9",
+      "missing": false
+    },
+    {
+      "path": ".github/scripts/check-idor-model-coverage.py",
+      "hash": "sha256:82931b42398ad2ea175b868f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107956"
+  },
+  "created": "2026-09-28T22:33:16.805Z",
+  "verified": "2026-09-28T22:33:16.805Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Continuous integration security scans fail after introducing a new organization setting",
+    "Automated pull request checks flag missing tenant access control on new data",
+    "Security test fails because our new organization record lacks authorization inspection rules",
+    "Register new organization settings to pass automated cross tenant security checks"
+  ],
+  "saysFor": "579:models-with-organization"
+}

@@ -1,0 +1,49 @@
+{
+  "id": "flow-table-sorted-column-header-light-background-and-missing",
+  "title": "Flow table sorted column header light background and missing chevron in dark mode",
+  "kind": "fix",
+  "answers": [
+    "Why is the sort chevron invisible on the flow table in dark mode?",
+    "Why does the sorted column header keep a white background in dark theme?",
+    "How to theme the flow table sorted column header across light and dark modes?"
+  ],
+  "body": "Symptom: In dark mode, the flow table sorted column header stays near-white and the sort chevron icon is invisible.\nRoot cause: web/src/css/flowtable.less:&.sort-asc, &.sort-desc used hardcoded color literals compiled via LESS lighten() and fadeout() because LESS functions cannot operate on CSS var() tokens.\nFix pattern: Define a themeable CSS custom property under :root and [data-theme=\"dark\"] in web/src/css/global.less, and derive alpha transparency in consuming stylesheets using CSS color-mix() instead of LESS fadeout().\nConstraints: Applies when styling mitmweb components that require theme-sensitive colors with alpha blending; does not apply to unthemed static styles or non-browser contexts.",
+  "applies": "web/src/css/ flow table styling and theming in mitmweb",
+  "tags": [
+    "mitmweb",
+    "css",
+    "theming",
+    "dark-mode",
+    "flowtable"
+  ],
+  "deps": [
+    {
+      "path": "web/src/css/flowtable.less",
+      "hash": "sha256:b1375db721ff7dd2ea7a24db",
+      "missing": false
+    },
+    {
+      "path": "web/src/css/flowtable.less",
+      "hash": "sha256:b1375db721ff7dd2ea7a24db",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8336"
+  },
+  "created": "2026-09-28T22:16:15.460Z",
+  "verified": "2026-09-28T22:16:15.460Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The sorted table column header displays a glaring white background in dark mode.",
+    "The sort arrow icon in the traffic list header is invisible in dark theme.",
+    "Clicking a column header to sort creates an unreadable bright box in dark theme.",
+    "Make column sort indicators and active header backgrounds visible across all themes."
+  ],
+  "saysFor": "787:flow-table-sorted-column"
+}

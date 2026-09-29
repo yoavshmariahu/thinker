@@ -1,0 +1,46 @@
+{
+  "id": "alpha-derivation-from-css-theme-tokens-using-color-mix",
+  "title": "Alpha derivation from CSS theme tokens using color-mix",
+  "kind": "convention",
+  "answers": [
+    "How to create semi-transparent color variants of theme tokens in mitmweb?",
+    "Can LESS color functions like lighten or fadeout be used with CSS variables in mitmweb?",
+    "What is the convention for transparent overlays and masks on theme tokens?"
+  ],
+  "body": "In mitmweb stylesheets (web/src/css/), do not use LESS color manipulation functions (lighten, darken, fadeout) because they cannot operate on CSS var() tokens.\nAll theme color tokens must be defined under :root and mirrored under [data-theme=\"dark\"] in web/src/css/global.less as --mitmweb-* custom properties.\nWhen an element requires alpha transparency or tinting over a token, use native CSS color-mix(in srgb, var(...) <percentage>, transparent) as seen in web/src/css/flowtable.less:&.sort-asc:after, &.sort-desc:after.",
+  "applies": "LESS stylesheets in web/src/css/ referencing --mitmweb-* tokens",
+  "tags": [
+    "mitmweb",
+    "less",
+    "css",
+    "color-mix",
+    "theming"
+  ],
+  "deps": [
+    {
+      "path": "web/src/css/flowtable.less",
+      "hash": "sha256:b1375db721ff7dd2ea7a24db",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8336"
+  },
+  "created": "2026-09-28T22:16:15.482Z",
+  "verified": "2026-09-28T22:16:15.482Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "flow-table-sorted-column-header-light-background-and-missing"
+  ],
+  "says": [
+    "Table column sort indicators look completely opaque instead of translucent against the header.",
+    "Selection overlays and hover tints do not blend cleanly with custom theme colors.",
+    "Make transparent table highlight colors adapt properly to both light and dark themes.",
+    "Translucent badges and row hover backgrounds look solid instead of semi transparent."
+  ],
+  "saysFor": "579:alpha-derivation-from-cs"
+}

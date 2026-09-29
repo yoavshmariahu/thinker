@@ -1,0 +1,47 @@
+{
+  "id": "caller-managed-scout-suggestion-sessions-must-disable-agent-",
+  "title": "Caller-managed scout suggestion sessions must disable agent finish tool",
+  "kind": "invariant",
+  "answers": [
+    "When is the finish tool enabled for sandboxed agent sessions?",
+    "How to prevent sandboxed agents from self-terminating in caller-managed task runs?",
+    "Why is the finish tool hidden for scout_suggestions runs?"
+  ],
+  "body": "Sessions originating from scout_suggestions must keep the agent-side finish tool disabled even when endRunWhenDone is set.\nEnforced at: products/desktop/packages/harness/src/extensions/local-tools/tools/finish.ts:finishTool via the isEnabled predicate.\nWhat breaks if skipped: The agent marks the session run as terminal at the end of its turn, preventing the caller from validating output, sending follow-up turns, or saving results.",
+  "applies": "products/desktop/packages/harness/src/extensions/local-tools/tools/finish.ts",
+  "tags": [
+    "tasks",
+    "scout-suggestions",
+    "harness",
+    "session-lifecycle"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/harness/src/extensions/local-tools/tools/finish.ts",
+      "symbol": "finishTool",
+      "hash": "sha256:f6976fdf57e7c2eaf1a08644",
+      "line": 86,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107828"
+  },
+  "created": "2026-09-28T22:37:39.884Z",
+  "verified": "2026-09-28T22:37:39.884Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "scout-suggestion-run-closes-before-caller-validates-or-saves"
+  ],
+  "says": [
+    "Automated suggestions stop abruptly before we can review and save recommendations",
+    "AI scout session terminates itself before completing our verification step",
+    "Prevent automated suggestion agents from self closing before results are validated",
+    "The suggestion assistant closes the session before saving its generated review"
+  ],
+  "saysFor": "506:caller-managed-scout-sug"
+}

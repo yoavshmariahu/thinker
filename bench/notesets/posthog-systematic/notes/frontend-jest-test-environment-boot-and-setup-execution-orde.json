@@ -1,0 +1,70 @@
+{
+  "id": "frontend-jest-test-environment-boot-and-setup-execution-orde",
+  "title": "Frontend Jest test environment boot and setup execution order",
+  "kind": "callpath",
+  "answers": [
+    "What order do Jest setup files run in frontend/?",
+    "How is the Jest test environment initialized for PostHog frontend tests?",
+    "Where are global mocks and polyfills registered in frontend Jest tests?"
+  ],
+  "body": "When Jest executes frontend tests, environment initialization flows through distinct phases configured in `frontend/jest.config.ts`:\n1. Module resolution: `frontend/jest.resolver.js` routes MSW v2 packages through Node export conditions instead of JSDOM browser conditions.\n2. Polyfill setup (`setupFiles[0]`): `frontend/jest.polyfills.js` injects Undici fetch and Web Streams globals onto `globalThis` before JSDOM clobbers Node primitives.\n3. Mock & quarantine setup (`setupFiles[1..2]`): `frontend/jest.setup.ts` configures browser mocks (`matchMedia`, canvas, observers), followed by `frontend/jest.quarantine.ts` patching test globals (`it`, `test`, `describe`).\n4. Post-environment setup (`setupFilesAfterEnv`): `frontend/jest.setupAfterEnv.ts` sets `global.React = React` once the React testing environment is active.",
+  "tags": [
+    "jest",
+    "testing",
+    "frontend",
+    "test-runner"
+  ],
+  "deps": [
+    {
+      "path": "frontend/jest.config.ts",
+      "hash": "sha256:868fa9f8299d28d2ae363618",
+      "missing": false
+    },
+    {
+      "path": "frontend/jest.resolver.js",
+      "hash": "sha256:0071542b8b69c0f3ba0e560d",
+      "missing": false
+    },
+    {
+      "path": "frontend/jest.polyfills.js",
+      "hash": "sha256:42c740ab487eb2e9d9deee49",
+      "missing": false
+    },
+    {
+      "path": "frontend/jest.setup.ts",
+      "hash": "sha256:ad34197b34c5e7a44fc6179e",
+      "missing": false
+    },
+    {
+      "path": "frontend/jest.quarantine.ts",
+      "hash": "sha256:d31235ffccedf91d499b93e2",
+      "missing": false
+    },
+    {
+      "path": "frontend/jest.setupAfterEnv.ts",
+      "hash": "sha256:a53513bc53d1224681bdc1e1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T23:09:47.515Z",
+  "verified": "2026-09-28T23:09:47.515Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "frontend-jest-test-quarantine-adapter-and-execution-flow",
+    "msw-v2-export-resolution-and-fetch-polyfills-under-jest-jsdo"
+  ],
+  "says": [
+    "User interface test suite fails because web stream and fetch globals are missing",
+    "Simulated network requests fail to intercept during automated web frontend testing",
+    "Browser mocks and network simulation conflict during automated user interface test startup",
+    "Frontend unit test runner crashes before executing component test scenarios"
+  ],
+  "saysFor": "886:frontend-jest-test-envir"
+}

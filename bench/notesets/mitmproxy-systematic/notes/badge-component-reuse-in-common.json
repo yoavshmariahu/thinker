@@ -1,0 +1,44 @@
+{
+  "id": "badge-component-reuse-in-common",
+  "title": "Badge component reuse in common",
+  "kind": "convention",
+  "answers": [
+    "Where should new badge types be implemented in mitmweb?",
+    "How are method and status badges styled in the UI?",
+    "Should I create a dedicated component in common for a new badge?"
+  ],
+  "body": "Components under `web/src/js/components/common` should remain generic presentation wrappers rather than domain-specific badges.\nInstead of adding specialized badge components like `MethodBadge` to `common/`, reuse `web/src/js/components/common/Badge.tsx:Badge` and attach specialized CSS classes (e.g. `.method-badge` or `.status-badge` from `web/src/css/badges.less`).\nFlow-specific value formatting and badge color classification belong in helper functions such as `web/src/js/flow/utils.ts:statusClass` or column renderers.",
+  "applies": "web/src/js/components/common/Badge.tsx and badge styling in mitmweb",
+  "tags": [
+    "mitmweb",
+    "react",
+    "ui",
+    "badges",
+    "css"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/flow/utils.ts",
+      "hash": "sha256:d9a593320fcf64680cadb485",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8335"
+  },
+  "created": "2026-09-28T22:18:28.416Z",
+  "verified": "2026-09-28T22:18:28.416Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "HTTP method and response status tags look inconsistent across different traffic detail views.",
+    "Request method labels should share the same styling as status code pill tags.",
+    "Add consistent color coded status badges for traffic flows in the web interface.",
+    "Standardize the appearance of protocol badges and method labels across the UI."
+  ],
+  "saysFor": "558:badge-component-reuse-in"
+}

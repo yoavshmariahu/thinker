@@ -1,0 +1,51 @@
+{
+  "id": "manual-reviewers-display-generic-badge-instead-of-adding-mem",
+  "title": "Manual reviewers display generic badge instead of adding member name",
+  "kind": "fix",
+  "answers": [
+    "Why do manual reviewers only show 'Added by teammate' instead of who added them?",
+    "How is manual reviewer attribution resolved in Signals reports?",
+    "Why is the reviewer explanation missing for manually added reviewers?"
+  ],
+  "body": "Symptom: Reviewers on a report display a generic \"Added by teammate\" badge instead of showing who added them.\nRoot cause: products/signals/backend/report_generation/resolve_reviewers.py:_with_reviewer_presentation set explanation to None for manual reviewers instead of resolving adder identity.\nFix pattern: Traverse historical artefacts via products/signals/backend/report_generation/resolve_reviewers.py:trusted_manual_reviewer_adders to identify the authentic creator User and set explanation to \"Added by {name}\".\nConstraints: Applies only to reviewer entries whose reason starts with \"Added as a reviewer by \"; falls back to the generic badge if author resolution fails.",
+  "applies": "Signals report reviewer presentation and serialization in products/signals/backend",
+  "tags": [
+    "signals",
+    "reviewers",
+    "attribution",
+    "serializers"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/report_generation/resolve_reviewers.py",
+      "symbol": "_with_reviewer_presentation",
+      "hash": "sha256:1082c53d0598217ca9b2f562",
+      "line": 202,
+      "missing": false
+    },
+    {
+      "path": "products/signals/backend/report_generation/resolve_reviewers.py",
+      "hash": "sha256:0310e843375c68623e37a96a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107843"
+  },
+  "created": "2026-09-28T22:34:58.718Z",
+  "verified": "2026-09-28T22:34:58.718Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [],
+  "says": [
+    "Reviewers on our report show generic Added by teammate instead of user name",
+    "Display the actual person who invited each reviewer on the report summary",
+    "Cannot tell which team member requested my review on the signals report",
+    "Replace the generic teammate badge with the specific colleague who added them"
+  ],
+  "saysFor": "745:manual-reviewers-display",
+  "lastUsed": "2026-09-29T00:16:16.181Z"
+}

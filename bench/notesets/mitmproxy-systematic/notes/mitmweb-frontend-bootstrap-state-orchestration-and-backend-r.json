@@ -1,0 +1,89 @@
+{
+  "id": "mitmweb-frontend-bootstrap-state-orchestration-and-backend-r",
+  "title": "Mitmweb frontend bootstrap, state orchestration, and backend RPC callpath",
+  "kind": "callpath",
+  "answers": [
+    "How does the mitmweb frontend initialize and connect to the backend?",
+    "How do user actions in mitmweb trigger backend flow mutations?",
+    "How is URL routing handled without react-router in mitmweb?"
+  ],
+  "body": "1. `web/src/js/app.tsx` initializes Redux with `web/src/js/ducks/store.ts:store` and checks `window.MITMWEB_STATIC`.\n2. If static, it mounts `web/src/js/backends/static.tsx:StaticBackend`; otherwise, `web/src/js/backends/websocket.tsx:WebSocketBackend`.\n3. `WebSocketBackend` fetches initial state via `web/src/js/utils.ts:fetchApi` (`/flows`, `/options`) and listens on WebSocket for real-time events, dispatching to `web/src/js/ducks/flows/index.ts` and `web/src/js/ducks/options.ts`.\n4. UI mutations (resume, kill, duplicate) trigger actions in `web/src/js/ducks/flows/_backend_actions.ts`, issuing POST requests to `/flows/{id}/{action}` via `fetchApi`.\n5. `web/src/js/urlState.ts:useUrlState` synchronizes filter and selection state directly with the browser URL without using react-router.",
+  "tags": [
+    "architecture",
+    "control-flow",
+    "redux",
+    "websocket",
+    "mitmweb"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/app.tsx",
+      "hash": "sha256:17eff4387ad4044f28c8f636",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/backends/websocket.tsx",
+      "hash": "sha256:586ff893fe9c2965d92e7b0a",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/backends/static.tsx",
+      "symbol": "StaticBackend",
+      "hash": "sha256:87596f7959de3bb94ef162b9",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/flows/_backend_actions.ts",
+      "hash": "sha256:aee8c5e8c5dbb5fe8550c001",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/urlState.ts",
+      "hash": "sha256:97c13534a92616424ce19eba",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/utils.ts",
+      "symbol": "fetchApi",
+      "hash": "sha256:011fa4e545144345a8485995",
+      "line": 86,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/store.ts",
+      "symbol": "store",
+      "hash": "sha256:55d9f21c2d62ee033342ac74",
+      "line": 35,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/flows/index.ts",
+      "hash": "sha256:6f6b2c2195c986bc3a798b8e",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/options.ts",
+      "hash": "sha256:19bf5ba15b3d72da8e325453",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:31:42.235Z",
+  "verified": "2026-09-28T22:31:42.235Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Live traffic list stops updating in real time when connection to backend drops.",
+    "Action buttons to resume or kill intercepted requests do nothing in the web UI.",
+    "Opening the exported static report fails to load traffic flows in the browser.",
+    "Duplicating an intercepted flow from the web dashboard fails to send the action."
+  ],
+  "saysFor": "869:mitmweb-frontend-bootstr"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "session-replay-filter-template-apply-button-disabled-with-de",
+  "title": "Session replay filter template apply button disabled with default values",
+  "kind": "fix",
+  "answers": [
+    "Why is the apply button disabled for replay filter templates with default values?",
+    "How to enable applying session replay templates without modifying default variable values?",
+    "When is canApplyFilters enabled in sessionReplayTemplatesLogic?"
+  ],
+  "body": "Symptom: The apply button for a replay filter template remains disabled even when the template is pre-populated with default values.\nRoot cause: frontend/src/scenes/session-recordings/templates/sessionRecordingTemplatesLogic.tsx:sessionReplayTemplatesLogic checked an interaction flag (`areAnyVariablesTouched`) instead of filter availability.\nFix pattern: Determine filter submission readiness directly from filter existence (`hasTemplateFilters`) rather than requiring form fields to be touched.\nConstraints: Applies when templates supply valid default filter values ready to query without user interaction.",
+  "applies": "frontend/src/scenes/session-recordings/templates/sessionRecordingTemplatesLogic.tsx",
+  "tags": [
+    "session-replay",
+    "templates",
+    "filters",
+    "kea"
+  ],
+  "deps": [
+    {
+      "path": "frontend/src/scenes/session-recordings/templates/sessionRecordingTemplatesLogic.tsx",
+      "symbol": "sessionReplayTemplatesLogic",
+      "hash": "sha256:6ed9cbc00828d3e6e9bf20b9",
+      "line": 90,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107975"
+  },
+  "created": "2026-09-28T22:34:14.246Z",
+  "verified": "2026-09-28T22:34:14.246Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Apply button remains disabled when opening a preconfigured session recording filter template",
+    "Cannot apply recording filter templates without manually editing the prefilled default values",
+    "The apply button on replay templates should be active with default settings",
+    "Let users submit session replay search templates immediately using their default criteria"
+  ],
+  "saysFor": "682:session-replay-filter-te"
+}

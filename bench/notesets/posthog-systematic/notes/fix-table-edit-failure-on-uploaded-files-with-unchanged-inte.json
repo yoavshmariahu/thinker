@@ -1,0 +1,48 @@
+{
+  "id": "fix-table-edit-failure-on-uploaded-files-with-unchanged-inte",
+  "title": "Fix table edit failure on uploaded files with unchanged internal storage URL",
+  "kind": "fix",
+  "answers": [
+    "Why does editing or renaming a table uploaded from a file fail with an internal storage error?",
+    "How to fix TableSerializer rejecting PostHog internal storage URLs on table updates?",
+    "Why can't users edit data warehouse tables created from CSV, JSON, or Parquet uploads?"
+  ],
+  "body": "Symptom: Editing an uploaded CSV, JSON, or Parquet data warehouse table fails with \"This URL points to PostHog's internal storage and can't be used as a source. Enter the location of your own bucket instead.\"\nRoot cause: products/data_warehouse/backend/presentation/views/table.py:TableSerializer.validate_url_pattern checks the URL against the owned-bucket rule before verifying if an existing table has simply resubmitted its unchanged URL.\nFix pattern: Allow an existing credential-less instance to preserve its current URL by returning early when self.instance.credential_id is None and url_pattern == self.instance.url_pattern before invoking validate_warehouse_table_url_pattern.\nConstraints: Applies only to updates preserving an identical URL on credential-less tables; creating new tables or repointing existing tables to internal storage must still be rejected.",
+  "applies": "Updating data warehouse tables created from uploaded files in TableSerializer.",
+  "tags": [
+    "data-warehouse",
+    "table-serializer",
+    "file-uploads",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "products/data_warehouse/backend/presentation/views/table.py",
+      "symbol": "TableSerializer.validate_url_pattern",
+      "hash": "sha256:7162b9e7e60e696eed39734b",
+      "line": 335,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107751"
+  },
+  "created": "2026-09-28T22:37:20.115Z",
+  "verified": "2026-09-28T22:37:20.115Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "storage-url-restrictions-for-credential-less-warehouse-table"
+  ],
+  "lastUsed": "2026-09-29T01:16:06.564Z",
+  "says": [
+    "Renaming an uploaded file table in the data warehouse gives internal storage error",
+    "Cannot edit warehouse table settings for uploaded files without changing the file location",
+    "Updating an uploaded spreadsheet table claims the internal storage location is disallowed",
+    "Allow modifying table names and column details on existing uploaded warehouse datasets"
+  ],
+  "saysFor": "948:fix-table-edit-failure-o"
+}

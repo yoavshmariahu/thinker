@@ -1,0 +1,62 @@
+{
+  "id": "extend-readiness-timeout-when-agent-server-runs-repository-s",
+  "title": "Extend readiness timeout when agent-server runs repository setup hooks",
+  "kind": "fix",
+  "answers": [
+    "Why does a cloud run fail with 'Agent-server failed to start' on repos with Claude Code SessionStart hooks?",
+    "How to handle slow repository initialization hooks during agent-server startup?",
+    "What causes launch retries to fail with 'Failed to prepare agent-server launch' on slow repositories?"
+  ],
+  "body": "Symptom: Cloud runs fail with \"Agent-server failed to start\" followed by \"Failed to prepare agent-server launch\" on repositories with slow Claude Code SessionStart hooks.\nRoot cause: products/tasks/backend/logic/services/sandbox.py:build_health_check_command fixed readiness polling to 120s while products/desktop/packages/agent/src/server/agent-server.ts:AgentServer allows hooks up to 10 minutes.\nFix pattern: Poll initializationPhase from /health and dynamically extend max attempts and timeout budget when the agent reports setup_hooks.\nConstraints: Only extends the budget when /health returns initializationPhase: \"setup_hooks\"; absent or other phases retain the default 120s budget.",
+  "applies": "Agent-server health check loop and startup readiness in sandbox services",
+  "tags": [
+    "sandbox",
+    "agent-server",
+    "health-check",
+    "session-start-hooks",
+    "timeouts"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/logic/services/sandbox.py",
+      "symbol": "build_health_check_command",
+      "hash": "sha256:af69f89fbb3f3cfe01c7959c",
+      "line": 865,
+      "missing": false
+    },
+    {
+      "path": "products/desktop/packages/agent/src/server/agent-server.ts",
+      "symbol": "AgentServer",
+      "hash": "sha256:e88fcb2465755db6623064d5",
+      "line": 489,
+      "missing": false
+    },
+    {
+      "path": "products/tasks/backend/logic/services/agent_server_launcher.py",
+      "symbol": "_diagnose_startup_failure",
+      "hash": "sha256:122ba7e04ef78d8ba06a7b40",
+      "line": 379,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107897"
+  },
+  "created": "2026-09-28T22:36:28.166Z",
+  "verified": "2026-09-28T22:36:28.166Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "subscription-credential-unavailable-messages-must-use-centra"
+  ],
+  "says": [
+    "Cloud coding workspace fails to launch on repositories with slow setup scripts",
+    "Agent startup times out before initial repository preparation hooks finish executing",
+    "Allow extra startup time when project onboarding scripts require longer to run",
+    "Cloud tasks report launch failure instead of waiting for repository initialization"
+  ],
+  "saysFor": "760:extend-readiness-timeout"
+}

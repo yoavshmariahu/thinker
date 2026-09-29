@@ -1,0 +1,124 @@
+{
+  "id": "web-column-definitions-sync-between-typescript-ui-and-python",
+  "title": "Synchronizing web frontend types and columns with Python backend via web/gen",
+  "kind": "cochange",
+  "answers": [
+    "How are TypeScript types and options generated from Python in mitmweb?",
+    "What files need to change when adding or modifying mitmproxy options in web UI?",
+    "How to update frontend test fixtures after modifying Flow or BackendState in Python?",
+    "How are FlowTable columns kept in sync with mitmproxy backend?"
+  ],
+  "body": "Several TypeScript modules and test fixtures in `web/src/js/` are derived from Python models using generator scripts in `web/gen/`. Run `web/gen/all` (or individual scripts) when changing backend definitions:\n- `web/gen/options_js.py` generates `web/src/js/ducks/_options_gen.ts` from `mitmproxy.options`.\n- `web/gen/backend_consts.py` generates `web/src/js/backends/consts.ts` from mode definitions (`ReverseMode`).\n- `web/gen/state_js.py` generates mock state `web/src/js/__tests__/ducks/_tbackendState.ts`.\n- `web/gen/tflow_js.py` generates test flow fixtures `web/src/js/__tests__/ducks/_tflow.ts`.\n- `web/gen/web_columns.py` extracts table columns from `web/src/js/components/FlowTable/FlowColumns.tsx` into Python `mitmproxy/tools/web/web_columns.py`.\nIn addition, `web/src/js/flow.ts:Flow` must be manually kept in sync with serialization in `mitmproxy/tools/web/app.py`.",
+  "applies": "Applies when modifying mitmproxy options, capture mode specifications, flow schemas, or flow table columns in Python or TypeScript.",
+  "tags": [
+    "mitmweb",
+    "codegen",
+    "schema",
+    "options",
+    "typescript",
+    "python"
+  ],
+  "deps": [
+    {
+      "path": "web/gen/all",
+      "hash": "sha256:b9775ff32efdd9fe951bb962",
+      "missing": false
+    },
+    {
+      "path": "web/gen/options_js.py",
+      "hash": "sha256:70058009fd9544ba246cc01f",
+      "missing": false
+    },
+    {
+      "path": "web/gen/backend_consts.py",
+      "hash": "sha256:2bcbd2ad4ce163084bce20b1",
+      "missing": false
+    },
+    {
+      "path": "web/gen/tflow_js.py",
+      "hash": "sha256:8842a156a3c6c79c60e81bc6",
+      "missing": false
+    },
+    {
+      "path": "web/gen/web_columns.py",
+      "hash": "sha256:7265a56f09a6bb82f9d17742",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/flow.ts",
+      "symbol": "Flow",
+      "hash": "sha256:7c8ca5215838bd55c00266ec",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/components/FlowTable/FlowColumns.tsx",
+      "hash": "sha256:68201667cbc7f44dcb5abfe1",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/ducks/_options_gen.ts",
+      "hash": "sha256:faa25e0ffb943bbceca70250",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/backends/consts.ts",
+      "hash": "sha256:35a0e1c37263745d048555be",
+      "missing": false
+    },
+    {
+      "path": "web/gen/state_js.py",
+      "hash": "sha256:bd1c406e10feec1b6c85c42a",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/__tests__/ducks/_tbackendState.ts",
+      "hash": "sha256:b5682bd3b86c472d1a7742db",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/__tests__/ducks/_tflow.ts",
+      "hash": "sha256:c7a615bf9397a92e4449f286",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/web_columns.py",
+      "hash": "sha256:31e94146185c3bc080c53b5e",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "hash": "sha256:9e00b4f260263427b191c985",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:25:27.395Z",
+  "verified": "2026-09-28T22:31:42.144Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "mitmweb-rest-api-authentication-and-xsrf-protection-invarian",
+    "adding-or-modifying-web-options-requires-backend-frontend-st"
+  ],
+  "history": [
+    {
+      "at": "2026-09-28T22:31:42.151Z",
+      "reason": "merged from new session",
+      "prevBody": "When adding or modifying flow table columns in mitmweb, changes must stay in sync across:\n1. Column definitions in `web/src/js/components/FlowTable/FlowColumns.tsx`.\n2. Run generator `web/gen/web_columns.py:extract_columns` to update `mitmproxy/tools/web/web_columns.py:AVAILABLE_WEB_COLUMNS`.\n3. Verified by `test/mitmproxy/tools/web/test_app.py:test_generated_files` (which asserts `web_columns.py` matches code generator output) and `test/mitmproxy/tools/web/test_web_columns.py`."
+    }
+  ],
+  "says": [
+    "New settings and column definitions do not match between the web UI and backend.",
+    "The traffic list table is missing newly added data columns in the web dashboard.",
+    "Web interface displays outdated configuration options that do not match the current proxy capabilities.",
+    "Synchronize traffic table columns and configuration choices in the web dashboard with backend updates."
+  ],
+  "saysFor": "955:synchronizing-web-fronte",
+  "lastUsed": "2026-09-28T23:53:15.344Z"
+}

@@ -1,0 +1,53 @@
+{
+  "id": "running-and-testing-the-mitmweb-frontend",
+  "title": "Running and testing the mitmweb frontend",
+  "kind": "howto",
+  "answers": [
+    "How to run mitmweb frontend tests and linter?",
+    "How to start the mitmweb development server?",
+    "What Node version is required for mitmproxy web?"
+  ],
+  "body": "Commands must be executed from the `web/` directory:\n- Node.js >= 24 is required (`web/README.md`). Run `npm install` inside `web/`.\n- Run full test suite (lint, typecheck, coverage): `npm test` which runs `eslint . && tsc --noEmit && jest --coverage` (`web/package.json`).\n- Run a single test file: `npx jest src/js/__tests__/ducks/flows/indexSpec.tsx`.\n- Development server: Run `uv run mitmweb` in the backend terminal, then run `npm start` (starts Vite dev server configured to proxy requests).\n- Production build: `npm run ci-build-release` builds compiled assets into `mitmproxy/tools/web/static`.",
+  "tags": [
+    "testing",
+    "build",
+    "vite",
+    "npm",
+    "mitmweb"
+  ],
+  "deps": [
+    {
+      "path": "web/package.json",
+      "hash": "sha256:27f5f9f72dcd3ab6fde91d8c",
+      "missing": false
+    },
+    {
+      "path": "web/README.md",
+      "hash": "sha256:690a47e9fd5f6932fd3445b5",
+      "missing": false
+    },
+    {
+      "path": "web/jest.config.js",
+      "hash": "sha256:aeb7b552219851e779aff85e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:31:42.251Z",
+  "verified": "2026-09-28T22:31:42.251Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The local web development server fails to start or proxy API requests.",
+    "Frontend linter and automated test suite fail due to an unsupported Node version.",
+    "Add clear instructions for running and testing the web dashboard during local development.",
+    "Unable to compile production web dashboard assets when building the proxy package."
+  ],
+  "saysFor": "644:running-and-testing-the-"
+}

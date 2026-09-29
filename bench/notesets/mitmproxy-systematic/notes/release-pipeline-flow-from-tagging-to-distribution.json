@@ -1,0 +1,79 @@
+{
+  "id": "release-pipeline-flow-from-tagging-to-distribution",
+  "title": "Release Pipeline Flow from Tagging to Distribution",
+  "kind": "callpath",
+  "answers": [
+    "How does the release process work in mitmproxy?",
+    "Where are binaries, wheels, and store packages built and deployed?",
+    "What is the control flow for an automated release in mitmproxy?"
+  ],
+  "body": "The release pipeline executes in distinct stages across CI and `release/` scripts:\n1. Orchestration: `.github/workflows/release.yml` triggers `release/release.py:main`, which updates versions in `mitmproxy/version.py`, updates `CHANGELOG.md`, commits, tags, and pushes to trigger release builds.\n2. Packaging: `.github/workflows/main.yml` invokes `release/build.py:cli` commands: `wheel`, `standalone-binaries` (via PyInstaller and `release/specs/standalone.spec`), `macos-app`, `msix-installer`, and `installbuilder-installer`.\n3. Distribution: Artifacts in `release/dist` are uploaded by `release/deploy.py:main` (uploading to Cloudflare R2 `downloads.mitmproxy.org`, S3 snapshots, and PyPI via twine), while MSIX packages are submitted via `release/deploy-microsoft-store.py:main`.\n4. Verification: `release/release.py` polls live endpoints (GitHub Releases, PyPI, Docker Hub, and docs archives) to confirm deployment success.",
+  "applies": "Applies to building, packaging, and publishing official releases and snapshot builds.",
+  "tags": [
+    "release",
+    "build",
+    "deploy",
+    "ci",
+    "pyinstaller"
+  ],
+  "deps": [
+    {
+      "path": "release/release.py",
+      "hash": "sha256:dc8cc52774f77316a8d33ebc",
+      "missing": false
+    },
+    {
+      "path": "release/build.py",
+      "symbol": "cli",
+      "hash": "sha256:d42d401e187d80c9244a975b",
+      "line": 26,
+      "missing": false
+    },
+    {
+      "path": "release/deploy.py",
+      "hash": "sha256:1d275626d386bc37355325ae",
+      "missing": false
+    },
+    {
+      "path": "release/deploy-microsoft-store.py",
+      "hash": "sha256:f6a5ead5ce329af3c7682fec",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/main.yml",
+      "hash": "sha256:361a92402aa094c3b7eddbba",
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/release.yml",
+      "hash": "sha256:3de7a2cb89c03d3bb35079cd",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/version.py",
+      "hash": "sha256:99b14f9138d75b0d0b38410b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:27:51.519Z",
+  "verified": "2026-09-28T22:27:51.519Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "binary-and-docker-smoke-testing-via-selftest-py-addon",
+    "zero-third-party-dependencies-constraint-in-release-py-and-d"
+  ],
+  "says": [
+    "The automated release workflow failed to publish installers to the download portal.",
+    "New release packages are missing from the Microsoft Store after tagging a release.",
+    "Automate publishing prebuilt packages and changelog updates whenever a new version is tagged.",
+    "Official downloadable application bundles did not deploy properly during the scheduled release."
+  ],
+  "saysFor": "980:release-pipeline-flow-fr"
+}

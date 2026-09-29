@@ -1,0 +1,60 @@
+{
+  "id": "cli-command-testing-with-clirunner-and-isolated-streams",
+  "title": "CLI command testing with CliRunner and isolated streams",
+  "kind": "convention",
+  "answers": [
+    "How are Click commands invoked and verified in unit tests?",
+    "Why is an exception in a Click test not raising in pytest?",
+    "How does CliRunner capture output and exceptions during tests?"
+  ],
+  "body": "Tests invoke CLI commands using the `runner` fixture defined in `tests/conftest.py:runner`, which provides a `src/click/testing.py:CliRunner` instance.\n- Commands are executed via `runner.invoke(cli, args)`.\n- Stream and environment isolation: `src/click/testing.py:CliRunner.invoke` wraps execution in an isolated environment, mixing stdout/stderr into `result.output`.\n- Exception trapping: By default, `catch_exceptions=True` captures exceptions inside `result.exc_info` and returns exit code 1 or 2 instead of raising into pytest. To debug tracebacks or assert exceptions with `pytest.raises`, pass `catch_exceptions=False`.",
+  "applies": "Applies to all functional and integration tests invoking Click commands through pytest.",
+  "tags": [
+    "testing",
+    "clirunner",
+    "pytest",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "tests/conftest.py",
+      "symbol": "runner",
+      "hash": "sha256:74d57c39d51aa0da4b2ef27b",
+      "line": 6,
+      "missing": false
+    },
+    {
+      "path": "src/click/testing.py",
+      "symbol": "CliRunner.invoke",
+      "hash": "sha256:241afb80c432246c67e5cf41",
+      "line": 596,
+      "missing": false
+    },
+    {
+      "path": "src/click/testing.py",
+      "symbol": "CliRunner",
+      "hash": "sha256:52b41bbf7a6ea8e19b621ac5",
+      "line": 317,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:11:26.936Z",
+  "verified": "2026-09-28T22:11:26.936Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Automated tests swallow command crashes instead of showing full traceback logs on failure.",
+    "Need a way to inspect console error output in automated test assertions.",
+    "Test suite shows a failure status code without displaying what actually went wrong.",
+    "Allow command line test runs to surface exceptions directly for faster debugging.",
+    "Standard console messages and error logs are mixed together during automated runs."
+  ],
+  "saysFor": "684:cli-command-testing-with"
+}

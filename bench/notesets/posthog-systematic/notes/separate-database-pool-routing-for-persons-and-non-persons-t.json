@@ -1,0 +1,78 @@
+{
+  "id": "separate-database-pool-routing-for-persons-and-non-persons-t",
+  "title": "Separate database pool routing for persons and non-persons tables",
+  "kind": "invariant",
+  "answers": [
+    "Which database pool should be used when querying person or distinct ID tables?",
+    "Why are there separate persons and non-persons database pools in feature-flags?",
+    "Where are queries routed when persons tables are in a separate database?"
+  ],
+  "body": "Database queries must route to the correct pool depending on the table being accessed:\n- Persons tables (`posthog_persondistinctid`, `posthog_person`, `posthog_featureflaghashkeyoverride`) must query `DatabasePools.persons_reader` or `DatabasePools.persons_writer`.\n- All other tables (teams, feature flags, cohorts) must query `DatabasePools.non_persons_reader` or `DatabasePools.non_persons_writer`.\nEnforced in `rust/feature-flags/src/database/postgres_router.rs` and `rust/feature-flags/src/database_pools.rs:DatabasePools`. In split-database deployments, persons data lives on a separate cluster; querying persons tables via non-persons pools causes runtime query failures.",
+  "applies": "All SQL queries executed by feature-flags services or tests against PostgreSQL.",
+  "tags": [
+    "database",
+    "postgres",
+    "feature-flags",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "rust/feature-flags/src/database/postgres_router.rs",
+      "hash": "sha256:9af3f17a0ea84388544a8750",
+      "missing": false
+    },
+    {
+      "path": "rust/feature-flags/src/database_pools.rs",
+      "symbol": "DatabasePools",
+      "hash": "sha256:7315240172b4178b71b982d3",
+      "line": 20,
+      "missing": false
+    },
+    {
+      "path": "rust/feature-flags/src/database_pools.rs",
+      "symbol": "DatabasePools.persons_reader",
+      "hash": "sha256:6e04454c00607e6a0ff535f7",
+      "line": 207,
+      "missing": false
+    },
+    {
+      "path": "rust/feature-flags/src/database_pools.rs",
+      "symbol": "DatabasePools.persons_writer",
+      "hash": "sha256:d4e39a97ff2ab9de305db750",
+      "line": 225,
+      "missing": false
+    },
+    {
+      "path": "rust/feature-flags/src/database_pools.rs",
+      "symbol": "DatabasePools.non_persons_reader",
+      "hash": "sha256:48a998c910b0e9200a3c1548",
+      "line": 180,
+      "missing": false
+    },
+    {
+      "path": "rust/feature-flags/src/database_pools.rs",
+      "symbol": "DatabasePools.non_persons_writer",
+      "hash": "sha256:6083b5f9eda66659f46c5c57",
+      "line": 190,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:49:09.838Z",
+  "verified": "2026-09-28T22:49:09.838Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Feature flag evaluation crashes when fetching user identity data in split databases",
+    "User cohort lookups fail because queries connect to the wrong database cluster",
+    "Route person profile queries to dedicated user database connections during flag checks",
+    "Distinct user identity queries fail with missing table errors on separated instances"
+  ],
+  "saysFor": "744:separate-database-pool-r"
+}

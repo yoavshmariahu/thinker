@@ -106,6 +106,34 @@ function toolStats(transcriptFile) {
 async function gradePatch(task, patch, summary = '') {
   const judgeProvider = flags['judge-llm'] || 'gemini';
   const judgeModel = flags.judge || 'gemini-3.8-flash-high';
+  if (!task.criteria || !task.criteria.length) {
+    if (task.goldDiff) {
+      try {
+        const gold = fs.readFileSync(path.join(HERE, '..', task.goldDiff), 'utf8');
+        const system = "You grade a coding agent's patch against the patch that was merged upstream for the same request. Pass=true if the agent modified the right places and the change is functionally equivalent to the upstream patch; score 1.0. Pass=false if incomplete, wrong place, or ineffective. Reason explains your verdict.";
+        const prompt = `REQUEST:\n${task.prompt}\n\nUPSTREAM GOLD PATCH:\n${gold.slice(0, 30000)}\n\nAGENT PATCH:\n${(srcOnly(patch) || '(empty)').slice(0, 30000)}\n\nAGENT SUMMARY:\n${(summary || '').slice(0, 3000)}`;
+        process.env.THINKER_LLM = judgeProvider;
+        const res = await complete({ model: judgeModel, system, prompt, schema: { type: 'object', properties: { score: { type: 'number' }, pass: { type: 'boolean' }, reason: { type: 'string' } }, required: ['score', 'pass', 'reason'] } });
+        const sc = res.json?.score ?? (res.json?.pass ? 1 : 0);
+        return { essential: sc, all: sc, pass: !!res.json?.pass, results: [{ id: 'patch', verdict: res.json?.pass ? 'met' : 'not_met', evidence: res.json?.reason || '' }] };
+      } catch (err) {
+        return { error: err.message, essential: 0, all: 0, pass: false };
+      }
+    }
+    if (task.gold) {
+      try {
+        const system = "You grade a coding agent's answer against a reference answer. Pass=true if every key fact in reference is present; score 1.0. Pass=false if main point is missing or detail is wrong.";
+        const prompt = `REQUEST:\n${task.prompt}\n\nREFERENCE ANSWER:\n${task.gold}\n\nAGENT ANSWER:\n${(summary || patch || '').slice(0, 4000)}`;
+        process.env.THINKER_LLM = judgeProvider;
+        const res = await complete({ model: judgeModel, system, prompt, schema: { type: 'object', properties: { score: { type: 'number' }, pass: { type: 'boolean' }, reason: { type: 'string' } }, required: ['score', 'pass', 'reason'] } });
+        const sc = res.json?.score ?? (res.json?.pass ? 1 : 0);
+        return { essential: sc, all: sc, pass: !!res.json?.pass, results: [{ id: 'explanation', verdict: res.json?.pass ? 'met' : 'not_met', evidence: res.json?.reason || '' }] };
+      } catch (err) {
+        return { error: err.message, essential: 0, all: 0, pass: false };
+      }
+    }
+    return { essential: 1, all: 1, pass: true, results: [] };
+  }
   const prompt = `REQUEST:\n${task.prompt}\n\nCRITERIA:\n${task.criteria.map(c => `${c.id}${c.essential ? ' (essential)' : ''}: ${c.behavior}`).join('\n')}\n\nPATCH:\n${(srcOnly(patch) || '(empty patch)').slice(0, 40000)}\n\nAUTHOR SUMMARY:\n${(summary || '').slice(0, 3000)}`;
 
   try {

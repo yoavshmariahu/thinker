@@ -18,12 +18,12 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 const TOOL_NAMES = [
-  [/^(read|read_file|read_many_files|view|cat|readfile)$/i, 'Read'],
+  [/^(read|read_file|read_many_files|view|view_file|cat|readfile)$/i, 'Read'],
   [/^(grep|search_file_content|grep_search|rg|search|codebase_search|semanticsearch)$/i, 'Grep'],
   [/^(glob|list_directory|ls|list_dir|file_search|find)$/i, 'Glob'],
   [/^(bash|shell|run_shell_command|exec|exec_command|local_shell|run_terminal_cmd|run_command|command_execution|terminal)$/i, 'Bash'],
-  [/^(edit|replace|str_replace|strreplace|apply_patch|search_replace|multiedit|file_change|edit_file)$/i, 'Edit'],
-  [/^(write|write_file|create_file)$/i, 'Write'],
+  [/^(edit|replace|replace_file_content|str_replace|strreplace|apply_patch|search_replace|multiedit|file_change|edit_file)$/i, 'Edit'],
+  [/^(write|write_file|write_to_file|create_file)$/i, 'Write'],
 ];
 export function toolName(name) {
   const n = String(name || '');
@@ -36,14 +36,14 @@ export function toolInput(name, input) {
   if (typeof input === 'string') { try { input = JSON.parse(input); } catch { input = name === 'Bash' ? { command: input } : { input }; } }
   if (!input || typeof input !== 'object') return {};
   const out = { ...input };
-  const file = first(input, ['file_path', 'absolute_path', 'path', 'target_file', 'filePath', 'file']);
-  if (file && typeof file === 'string') out.file_path = file;
-  const cmd = first(input, ['command', 'cmd', 'script']);
-  if (cmd) out.command = Array.isArray(cmd) ? cmd.join(' ') : String(cmd);
+  const file = first(input, ['file_path', 'absolute_path', 'AbsolutePath', 'path', 'target_file', 'TargetFile', 'filePath', 'file']);
+  if (file && typeof file === 'string') out.file_path = file.replace(/^"|"$/g, '');
+  const cmd = first(input, ['command', 'CommandLine', 'cmd', 'script']);
+  if (cmd) out.command = (Array.isArray(cmd) ? cmd.join(' ') : String(cmd)).replace(/^"|"$/g, '');
   const pat = first(input, ['pattern', 'query', 'glob_pattern', 'regex']);
   if (pat) out.pattern = String(pat);
   if (name === 'Glob' && !out.pattern && file) out.pattern = file;
-  if (name === 'Edit') { out.old_string ??= first(input, ['old_string', 'old_str', 'old_text']) ?? ''; out.new_string ??= first(input, ['new_string', 'new_str', 'new_text', 'patch', 'input']) ?? ''; }
+  if (name === 'Edit') { out.old_string ??= first(input, ['old_string', 'TargetContent', 'old_str', 'old_text']) ?? ''; out.new_string ??= first(input, ['new_string', 'ReplacementContent', 'new_str', 'new_text', 'patch', 'input']) ?? ''; }
   return out;
 }
 export function textOf(v) {
@@ -69,6 +69,7 @@ export function detectFormat(text) {
   const head = text.trimStart();
   if (head.startsWith('{') && !/^\{.*\}\s*$/m.test(head.split('\n')[0])) { try { const j = JSON.parse(text); if (j && (j.messages || j.history)) return 'gemini'; } catch {} }
   for (const j of jsonLines(text.slice(0, 200_000)).filter(Boolean).slice(0, 40)) {
+    if (j.type === 'USER_INPUT' || j.type === 'PLANNER_RESPONSE') return 'agy';
     if (j.t === 'prompt' || j.t === 'say' || j.t === 'tool') return 'events';
     if (j.type === 'session_meta' || j.type === 'response_item' || j.type === 'event_msg' || j.type === 'thread.started' || /^(item|turn)\./.test(j.type || '')) return 'codex';
     if ((j.type === 'user' || j.type === 'assistant') && j.message) return 'claude';
@@ -185,6 +186,33 @@ function parseEvents(rows, fromLine) {
   return { events, cwd };
 }
 
+function parseAgy(rows, fromLine = 0) {
+  const events = [];
+  let pendingTool = null;
+  let cwd = null;
+  rows.forEach((j, i) => {
+    if (!j) return;
+    if (i < fromLine) return;
+    if (j.type === 'USER_INPUT') {
+      const clean = (j.content || '').replace(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/, '$1').replace(/<[^>]+>/g, '').trim();
+      if (clean) events.push({ t: 'prompt', text: cleanPrompt(clean) });
+    } else if (j.type === 'PLANNER_RESPONSE') {
+      if (j.content) events.push({ t: 'say', text: String(j.content) });
+      if (j.tool_calls && j.tool_calls.length) {
+        for (const tc of j.tool_calls) {
+          const ev = tool(tc.name, tc.args || {}, '');
+          events.push(ev);
+          pendingTool = ev;
+        }
+      }
+    } else if (pendingTool && j.content) {
+      pendingTool.result = String(j.content || '').slice(0, 6000);
+      pendingTool = null;
+    }
+  });
+  return { events, cwd };
+}
+
 // fromLine counts lines (or messages, for Gemini's single JSON document);
 // lineCount is where the next incremental read should start.
 export function parseTranscript(file, { fromLine = 0, format } = {}) {
@@ -193,7 +221,7 @@ export function parseTranscript(file, { fromLine = 0, format } = {}) {
   if (fmt === 'gemini') { let j = {}; try { j = JSON.parse(text); } catch {} const r = parseGemini(j, fromLine); return { events: r.events, lineCount: r.count, cwd: r.cwd, format: fmt }; }
   const lines = text.split('\n');
   const rows = jsonLines(text);
-  const r = fmt === 'codex' ? parseCodex(rows, fromLine) : fmt === 'events' ? parseEvents(rows, fromLine) : parseMessages(rows, fromLine);
+  const r = fmt === 'agy' ? parseAgy(rows, fromLine) : fmt === 'codex' ? parseCodex(rows, fromLine) : fmt === 'events' ? parseEvents(rows, fromLine) : parseMessages(rows, fromLine);
   return { ...r, lineCount: lines.length, format: fmt };
 }
 

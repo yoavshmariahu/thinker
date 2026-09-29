@@ -1,0 +1,83 @@
+{
+  "id": "binary-and-docker-smoke-testing-via-selftest-py-addon",
+  "title": "Binary and Docker Smoke Testing via selftest.py Addon",
+  "kind": "howto",
+  "answers": [
+    "How are mitmproxy standalone binaries tested after being built?",
+    "How is the Docker image validated during CI?",
+    "What does release/selftest.py do and how do you run it?"
+  ],
+  "body": "The `release/` subsystem has no unit tests in `test/`. Smoke verification is performed via `release/selftest.py`, an in-process mitmproxy addon.\nWhen `release/build.py:standalone_binaries` or `release/build.py:installbuilder_installer` builds an executable, it runs `release/build.py:_test_binaries`, which executes `{tool} -s release/selftest.py -p 0`.\nIn `release/selftest.py:load`, the server is configured to bind a random port (`listen_port = 0`). In `selftest.py:running`, an asyncio task sends an HTTPS request through the running proxy instance, validates the handshake and response, and triggers `ctx.master.shutdown()`.\nDocker images run the same test in `.github/workflows/main.yml`: `docker run --rm -v $PWD/release:/release localtesting mitmdump -s /release/selftest.py`.",
+  "applies": "Applies when verifying standalone binaries, installers, or Docker images produced by the release subsystem.",
+  "tags": [
+    "testing",
+    "selftest",
+    "docker",
+    "binaries",
+    "release"
+  ],
+  "deps": [
+    {
+      "path": "release/selftest.py",
+      "symbol": "running",
+      "hash": "sha256:a3a85d1da1069ce5fcc3887e",
+      "line": 26,
+      "missing": false
+    },
+    {
+      "path": "release/selftest.py",
+      "symbol": "load",
+      "hash": "sha256:dd103cde9b0862c55979de6d",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "release/build.py",
+      "symbol": "_test_binaries",
+      "hash": "sha256:e9fc6bd803cb47ffa00f86e8",
+      "line": 142,
+      "missing": false
+    },
+    {
+      "path": ".github/workflows/main.yml",
+      "hash": "sha256:361a92402aa094c3b7eddbba",
+      "missing": false
+    },
+    {
+      "path": "release/build.py",
+      "symbol": "standalone_binaries",
+      "hash": "sha256:cac6f26211b1626a92a8a280",
+      "line": 136,
+      "missing": false
+    },
+    {
+      "path": "release/build.py",
+      "symbol": "installbuilder_installer",
+      "hash": "sha256:1e9435f5fbf393f412a6f07c",
+      "line": 289,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:27:51.602Z",
+  "verified": "2026-09-28T22:27:51.602Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "co-changing-tool-lists-across-pyinstaller-specs-and-build-py",
+    "release-pipeline-flow-from-tagging-to-distribution",
+    "zero-third-party-dependencies-constraint-in-release-py-and-d"
+  ],
+  "says": [
+    "Standalone installer and container images should automatically verify they launch and handle traffic.",
+    "Docker container build published to registry fails basic proxy self test on startup.",
+    "Validate that downloadable binary packages can intercept secure traffic before publishing releases.",
+    "Add automated smoke tests to verify prebuilt desktop packages work after release."
+  ],
+  "saysFor": "838:binary-and-docker-smoke-"
+}

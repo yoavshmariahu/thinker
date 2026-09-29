@@ -1,0 +1,49 @@
+{
+  "id": "sentinel-members-must-preserve-singleton-identity-across-cop",
+  "title": "Sentinel members must preserve singleton identity across copy and serialization",
+  "kind": "invariant",
+  "answers": [
+    "Why must Sentinel implement custom __copy__, __deepcopy__, and __reduce_ex__?",
+    "How is UNSET sentinel identity preserved during deepcopy or pickle?",
+    "What breaks if Sentinel uses default Enum reduction or copy behavior?"
+  ],
+  "body": "Sentinel enum members used as parameter defaults must maintain singleton identity across shallow copy, deepcopy, and pickle round-trips.\nEnforced in src/click/_utils.py:Sentinel by having __copy__ and __deepcopy__ return self, and __reduce_ex__ resolve members via getattr on the enum class.\nIf skipped, deserialized Parameter, Option, or Command objects fail 'default is UNSET' identity checks and fail deepcopy on Python 3.10.",
+  "applies": "Sentinel enum implementations and parameter default handling in Click",
+  "tags": [
+    "sentinel",
+    "unset",
+    "enum",
+    "copy",
+    "pickle"
+  ],
+  "deps": [
+    {
+      "path": "src/click/_utils.py",
+      "symbol": "Sentinel",
+      "hash": "sha256:945614d116070949598f9ed8",
+      "line": 7,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3805"
+  },
+  "created": "2026-09-28T22:06:01.263Z",
+  "verified": "2026-09-28T22:06:01.263Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "fix-copy-deepcopy-and-pickle-failures-on-parameter-and-senti"
+  ],
+  "says": [
+    "Unset optional flags are mistakenly treated as filled after saving and reloading command configurations.",
+    "Cloning command settings causes default values to lose their special unset status.",
+    "Reloaded task configurations incorrectly detect default parameters as explicitly supplied by the user.",
+    "Ensure unset command options retain their default marker across duplication and background worker serialization.",
+    "Duplicated commands confuse missing inputs with provided values because default markers changed identity."
+  ],
+  "saysFor": "508:sentinel-members-must-pr"
+}

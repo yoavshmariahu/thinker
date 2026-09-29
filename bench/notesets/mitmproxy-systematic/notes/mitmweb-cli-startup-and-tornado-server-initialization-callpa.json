@@ -1,0 +1,93 @@
+{
+  "id": "mitmweb-cli-startup-and-tornado-server-initialization-callpa",
+  "title": "mitmweb CLI startup and Tornado server initialization callpath",
+  "kind": "callpath",
+  "answers": [
+    "How does mitmweb start up the Tornado web server?",
+    "What is the control flow from CLI to WebMaster in mitmweb?",
+    "Where does mitmweb initialize HTTP and WebSocket handlers?"
+  ],
+  "body": "Control flow from the mitmweb command line invocation to listening HTTP/WebSocket server:\n1. `mitmproxy/tools/main.py:mitmweb` calls `run(web.master.WebMaster, cmdline.mitmweb, args)`.\n2. `mitmproxy/tools/cmdline.py:mitmweb` sets up CLI flags and registers options via `WebAddon`.\n3. `mitmproxy/tools/web/master.py:WebMaster.__init__` registers `mitmproxy/tools/web/webaddons.py:WebAddon` into the addon manager.\n4. `mitmproxy/tools/web/master.py:WebMaster.run` instantiates `mitmproxy/tools/web/app.py:Application`, binds `tornado.httpserver.HTTPServer` to `options.web_host`/`options.web_port`, and starts the IOLoop.\n5. `mitmproxy/tools/web/webaddons.py:WebAddon.running` triggers browser launch via `webbrowser.open` when `options.web_open_browser` is true.",
+  "tags": [
+    "mitmweb",
+    "startup",
+    "webmaster",
+    "callpath"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/main.py",
+      "symbol": "mitmweb",
+      "hash": "sha256:68235c0b3f22746bd6ddf51a",
+      "line": 165,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/cmdline.py",
+      "symbol": "mitmweb",
+      "hash": "sha256:1e36c9f583660415266cc51c",
+      "line": 139,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/master.py",
+      "symbol": "WebMaster",
+      "hash": "sha256:30ce899818636853eccd4399",
+      "line": 27,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "Application",
+      "hash": "sha256:762d04ea5688e05571d5b7a4",
+      "line": 915,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/webaddons.py",
+      "symbol": "WebAddon",
+      "hash": "sha256:3da1eda0cd60bb129bb1c4d9",
+      "line": 88,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/master.py",
+      "symbol": "WebMaster.__init__",
+      "hash": "sha256:470de5da2233b0b88c598722",
+      "line": 28,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/master.py",
+      "hash": "sha256:1487351c3103b881f42de66a",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/webaddons.py",
+      "symbol": "WebAddon.running",
+      "hash": "sha256:53239835966cef9bfa9d9c7a",
+      "line": 101,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:25:27.492Z",
+  "verified": "2026-09-28T22:25:27.492Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mitmweb-rest-api-authentication-and-xsrf-protection-invarian"
+  ],
+  "says": [
+    "The web interface command line command fails to bind to the specified port.",
+    "Starting the proxy in web mode does not automatically open the browser dashboard.",
+    "Unable to access the web dashboard after starting the proxy from the terminal.",
+    "Provide options to configure custom host and port bindings for the web interface."
+  ],
+  "saysFor": "824:mitmweb-cli-startup-and-"
+}

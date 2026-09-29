@@ -1,0 +1,48 @@
+{
+  "id": "handle-fragmented-quic-clienthello-in-next-layer",
+  "title": "Handle fragmented QUIC ClientHello in next_layer",
+  "kind": "fix",
+  "answers": [
+    "Why does mitmproxy fail to read SNI or match ignore-hosts on fragmented QUIC ClientHellos?",
+    "How should next_layer handle incomplete QUIC datagrams during ClientHello parsing?",
+    "Why are QUIC connections with large ClientHellos not matching allow-hosts or ignore-hosts?"
+  ],
+  "body": "Symptom: Connections using QUIC fail to match --ignore-hosts or --allow-hosts rules when the ClientHello is fragmented across packets.\nRoot cause: mitmproxy/addons/next_layer.py:_get_client_hello treats quic_parse_client_hello_from_datagrams returning None as absence of a ClientHello instead of an incomplete datagram.\nFix pattern: In the UDP/QUIC handler, check if the parsed ClientHello is None and raise NeedsMoreData so the connection waits for additional datagram fragments.\nConstraints: Applies to protocols and parsers that return None on incomplete datagrams; invalid datagrams raising ValueError must still be caught and ignored.",
+  "applies": "mitmproxy/addons/next_layer.py",
+  "tags": [
+    "quic",
+    "next_layer",
+    "ignore_hosts",
+    "client_hello"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "_get_client_hello",
+      "hash": "sha256:d89987596a90686862143a0f",
+      "line": 299,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8296"
+  },
+  "created": "2026-09-28T22:17:41.162Z",
+  "verified": "2026-09-28T22:17:41.162Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "quic-flows-hang-when-allow-hosts-or-ignore-hosts-is-enabled",
+    "udp-clienthello-parsers-must-be-gated-by-heuristic-checks"
+  ],
+  "says": [
+    "Traffic ignore rules fail to match encrypted connections with large initial packet handshakes.",
+    "Connections using modern fast UDP protocols bypass host filter lists when packets fragment.",
+    "Domain filtering rules ignore connections when initial handshake data is split across packets.",
+    "Ensure host exclusion filters properly inspect fragmented initial connection packets from modern clients."
+  ],
+  "saysFor": "688:handle-fragmented-quic-c"
+}

@@ -1,0 +1,65 @@
+{
+  "id": "tasks-openapi-schema-changes-require-regenerating-frontend-a",
+  "title": "Tasks OpenAPI schema changes require regenerating frontend and MCP client files",
+  "kind": "cochange",
+  "answers": [
+    "Which generated files must be updated when modifying tasks API views?",
+    "What needs to be regenerated after changing OpenAPI documentation in products/tasks/backend/presentation/views/api.py?",
+    "Why are frontend or MCP task clients out of date after changing backend tasks endpoints?"
+  ],
+  "body": "When updating OpenAPI descriptions, serializers, or endpoints in products/tasks/backend/presentation/views/api.py, the generated frontend and MCP API client code must be regenerated together:\n- Frontend API client: products/tasks/frontend/generated/api.ts\n- Frontend Zod schemas: products/tasks/frontend/generated/api.zod.ts\n- MCP Tasks API client: services/mcp/src/generated/tasks/api.ts\nDo not edit these generated files manually; regenerate them so that route definitions and schema descriptions stay synchronized across backend, frontend, and MCP services.",
+  "applies": "Tasks backend API endpoints and generated frontend/MCP clients",
+  "tags": [
+    "tasks",
+    "openapi",
+    "codegen",
+    "cochange",
+    "mcp"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/presentation/views/api.py",
+      "hash": "sha256:6f320d73c523a2e8281f02e5",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/frontend/generated/api.ts",
+      "hash": "sha256:ae53c8dc3c86dd85d5f9a8b6",
+      "missing": false
+    },
+    {
+      "path": "products/tasks/frontend/generated/api.zod.ts",
+      "hash": "sha256:03d4c3cfead3dc54319370c1",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/generated/tasks/api.ts",
+      "hash": "sha256:ce948d4b7853e6118dea8359",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107814"
+  },
+  "created": "2026-09-28T22:36:03.503Z",
+  "verified": "2026-09-28T22:36:03.503Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "lastUsed": "2026-09-28T22:49:24.977Z",
+  "attest": {
+    "confirmed": 0,
+    "contradicted": 0,
+    "unused": 1
+  },
+  "says": [
+    "Task management interface does not show newly added backend fields and options",
+    "AI assistant cannot access updated options when launching background workspace tasks",
+    "The task configuration modal displays outdated parameters after recent backend updates",
+    "Automated task client fails because form fields do not match server options"
+  ],
+  "saysFor": "640:tasks-openapi-schema-cha"
+}

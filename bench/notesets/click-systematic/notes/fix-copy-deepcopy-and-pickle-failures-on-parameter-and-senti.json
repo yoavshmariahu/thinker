@@ -1,0 +1,56 @@
+{
+  "id": "fix-copy-deepcopy-and-pickle-failures-on-parameter-and-senti",
+  "title": "Fix copy, deepcopy, and pickle failures on Parameter and Sentinel",
+  "kind": "fix",
+  "answers": [
+    "Why does copy.deepcopy fail on a Click Command or Option in Python 3.10?",
+    "How do I fix pickle or deepcopy errors with Sentinel or UNSET?",
+    "Can Click Option, Argument, or Parameter instances be pickled or deepcopied?"
+  ],
+  "body": "Symptom: copy.deepcopy() on an Option, Argument, or Command fails on Python 3.10, or pickle.dumps() fails when serializing parameters.\nRoot cause: src/click/_utils.py:Sentinel is an Enum with object values lacking __deepcopy__ and using default Enum reduction.\nFix pattern: Implement __copy__ and __deepcopy__ returning self, and __reduce_ex__ returning getattr with the enum class and member name.\nConstraints: Applies to singleton Enum classes where members must retain exact identity across copy and serialization; does not apply to stateful enums.",
+  "applies": "Click Parameter, Option, and Command objects containing Sentinel defaults",
+  "tags": [
+    "sentinel",
+    "unset",
+    "copy",
+    "deepcopy",
+    "pickle",
+    "parameter"
+  ],
+  "deps": [
+    {
+      "path": "src/click/_utils.py",
+      "symbol": "Sentinel",
+      "hash": "sha256:945614d116070949598f9ed8",
+      "line": 7,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3805"
+  },
+  "created": "2026-09-28T22:06:01.259Z",
+  "verified": "2026-09-28T22:06:01.259Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "sentinel-members-must-preserve-singleton-identity-across-cop"
+  ],
+  "says": [
+    "Cloning command-line option definitions crashes when running on newer Python versions.",
+    "Cannot save and reload command configurations to disk using standard object serialization.",
+    "Duplicating argument and flag settings in memory throws an unexpected crash error.",
+    "Allow CLI command configurations to be copied safely when cloning background jobs.",
+    "Saving cached command-line parameters fails with serialization errors during background processing."
+  ],
+  "saysFor": "617:fix-copy-deepcopy-and-pi",
+  "lastUsed": "2026-09-28T23:18:20.936Z",
+  "attest": {
+    "confirmed": 0,
+    "contradicted": 0,
+    "unused": 1
+  }
+}

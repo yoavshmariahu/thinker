@@ -1,0 +1,48 @@
+{
+  "id": "PR8176-hard-nocache-0",
+  "task": "PR8176-hard",
+  "area": "startup-options",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "gemini-3.8-flash-high",
+  "session": "55a869b3-35c9-4bd6-851c-3fc125c5c4d5",
+  "turns": 1,
+  "timed_out": false,
+  "wall_ms": 203539,
+  "wall_sec": "203.5",
+  "usage": {
+    "input_tokens": 390276,
+    "output_tokens": 30367,
+    "thinking_tokens": 22465,
+    "cache_read_tokens": 2624700,
+    "total_tokens": 420643
+  },
+  "cost": 0.087593925,
+  "tools": {
+    "calls": 53,
+    "byTool": {
+      "run_command": 33,
+      "view_file": 17,
+      "replace_file_content": 2,
+      "write_to_file": 1
+    },
+    "thinkerCalls": 0,
+    "filesRead": 17,
+    "edits": 3
+  },
+  "grade": {
+    "essential": 1,
+    "all": 1,
+    "pass": true,
+    "results": [
+      {
+        "id": "patch",
+        "verdict": "met",
+        "evidence": "The agent modified the exact right place in mitmproxy/tools/main.py with code identical to the upstream patch, correctly iterating over pending script addons from scriptloader and loading them before options are dumped. It also added the matching test script fixture."
+      }
+    ]
+  },
+  "tests": null,
+  "diff": "diff --git a/mitmproxy/tools/main.py b/mitmproxy/tools/main.py\nindex 5190820a0..eabdc6c8b 100644\n--- a/mitmproxy/tools/main.py\n+++ b/mitmproxy/tools/main.py\n@@ -91,6 +91,11 @@ def run(\n             process_options(parser, opts, args)\n \n             if args.options:\n+                # Load custom addons so that their options are registered\n+                if sl := master.addons.get(\"scriptloader\"):\n+                    for s in sl.addons:\n+                        if s.ns is None:\n+                            s.loadscript()\n                 optmanager.dump_defaults(opts, sys.stdout)\n                 sys.exit(0)\n             if args.commands:\ndiff --git a/test/mitmproxy/data/addonscripts/custom_option.py b/test/mitmproxy/data/addonscripts/custom_option.py\nnew file mode 100644\nindex 000000000..f4e37f111\n--- /dev/null\n+++ b/test/mitmproxy/data/addonscripts/custom_option.py\n@@ -0,0 +1,14 @@\n+from typing import Optional\n+\n+\n+class CustomOptionAddon:\n+    def load(self, loader):\n+        loader.add_option(\n+            name=\"custom_addon_option\",\n+            typespec=Optional[int],\n+            default=None,\n+            help=\"A custom option registered by an addon.\",\n+        )\n+\n+\n+addons = [CustomOptionAddon()]\ndiff --git a/test/mitmproxy/tools/test_main.py b/test/mitmproxy/tools/test_main.py\nindex 2085db761..134fba136 100644\n--- a/test/mitmproxy/tools/test_main.py\n+++ b/test/mitmproxy/tools/test_main.py\n@@ -1,3 +1,5 @@\n+import pytest\n+\n from mitmproxy.tools import main\n \n shutdown_script = \"mitmproxy/data/addonscripts/shutdown.py\"\n@@ -28,3 +30,26 @@ def test_mitmdump(tdata):\n             \"0\",\n         ]\n     )\n+\n+\n+def test_options_includes_addon_options(tdata, capsys):\n+    \"\"\"--options should include options registered by addon scripts.\"\"\"\n+    with pytest.raises(SystemExit):\n+        main.mitmdump(\n+            [\n+                \"-s\",\n+                tdata.path(\"mitmproxy/data/addonscripts/custom_option.py\"),\n+                \"--options\",\n+            ]\n+        )\n+    output = capsys.readouterr().out\n+    assert \"custom_addon_option\" in output\n+\n+\n+def test_options_without_scripts(capsys):\n+    \"\"\"--options without any scripts should still work and list built-in options.\"\"\"\n+    with pytest.raises(SystemExit):\n+        main.mitmdump([\"--options\"])\n+    output = capsys.readouterr().out\n+    assert \"listen_port\" in output\n+    assert \"custom_addon_option\" not in output\n",
+  "result": "I have implemented the requested change to ensure pending script addons are loaded before mitmproxy dumps its options at startup.\n\n### Changes Made\n\n1\nI have implemented the requested change to ensure pending script addons are loaded before mitmproxy dumps its options at startup.\n\n### Summary of Changes\n\n1. **Load pending scripts before dumping options in [`run`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/mitmproxy/tools/main.py#L45-L100)**:\n   - In [`mitmproxy/tools/main.py`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/mitmproxy/tools/main.py#L93-L98), right before calling [`optmanager.dump_defaults(opts, sys.stdout)`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/mitmproxy/optmanager.py#L481) when `--options` is passed, we check `master.addons.get(\"scriptloader\")`.\n   - For each script managed by [`ScriptLoader`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/mitmproxy/addons/script.py#L153) where `s.ns is None` (meaning its loading was deferred and is still pending), we invoke [`s.loadscript()`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/mitmproxy/addons/script.py#L113) so that the script addon executes its `load(loader)` lifecycle event and registers any custom options before the options are dumped.\n\n2. **Added test fixture addon script**:\n   - Created [`test/mitmproxy/data/addonscripts/custom_option.py`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/test/mitmproxy/data/addonscripts/custom_option.py) which defines a [`CustomOptionAddon`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/test/mitmproxy/data/addonscripts/custom_option.py#L4) registering an option named `custom_addon_option`.\n\n3. **Added integration tests**:\n   - Added [`test_options_includes_addon_options`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/test/mitmproxy/tools/test_main.py#L35-L46) and [`test_options_without_scripts`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/test/mitmproxy/tools/test_main.py#L49-L55) to [`test/mitmproxy/tools/test_main.py`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/test/mitmproxy/tools/test_main.py) to verify that `--options` output includes options defined in `-s` scripts, while `--options` without scripts continues to output default built-in options.\n"
+}

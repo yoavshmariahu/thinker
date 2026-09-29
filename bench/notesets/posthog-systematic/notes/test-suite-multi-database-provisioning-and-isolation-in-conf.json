@@ -1,0 +1,74 @@
+{
+  "id": "test-suite-multi-database-provisioning-and-isolation-in-conf",
+  "title": "Test suite multi-database provisioning and isolation in conftest",
+  "kind": "howto",
+  "answers": [
+    "How does PostHog test setup provision PostgreSQL, Persons DB, and ClickHouse?",
+    "Why are person tables separated during pytest setup?",
+    "How are ClickHouse tables and Redis isolated between test runs?"
+  ],
+  "body": "The pytest test environment is orchestrated in `posthog/conftest.py` across multiple distinct datastores:\n- **PostgreSQL**: `posthog/conftest.py:_django_db_setup` runs standard Django migrations across default and per-product test databases.\n- **Persons DB**: Persons tables are explicitly dropped from the default test database and migrated into an isolated `test_posthog_persons` database via `posthog/conftest.py:run_persons_sqlx_migrations` using Rust sqlx migrations.\n- **ClickHouse**: `posthog/conftest.py:create_clickhouse_tables` provisions tables in parallel, while `posthog/conftest.py:reset_clickhouse_tables` truncates snapshot, DLQ, and event tables between test runs.\n- **Redis**: Test runs avoid shared cache pollution by pointing `posthog/redis.py:get_client` to `fakeredis.FakeRedis`.",
+  "applies": "Applies when running backend tests via pytest or configuring database fixtures for unit/integration tests.",
+  "tags": [
+    "testing",
+    "pytest",
+    "conftest",
+    "clickhouse",
+    "migrations"
+  ],
+  "deps": [
+    {
+      "path": "posthog/conftest.py",
+      "symbol": "_django_db_setup",
+      "hash": "sha256:2fdbd28a247574617fb47b0e",
+      "line": 295,
+      "missing": false
+    },
+    {
+      "path": "posthog/conftest.py",
+      "symbol": "run_persons_sqlx_migrations",
+      "hash": "sha256:196de95019f4b280802454b7",
+      "line": 217,
+      "missing": false
+    },
+    {
+      "path": "posthog/conftest.py",
+      "symbol": "create_clickhouse_tables",
+      "hash": "sha256:7562df3878a70acd36977a9c",
+      "line": 39,
+      "missing": false
+    },
+    {
+      "path": "posthog/conftest.py",
+      "symbol": "reset_clickhouse_tables",
+      "hash": "sha256:b3f6f853b4b7f2ee89f24f89",
+      "line": 102,
+      "missing": false
+    },
+    {
+      "path": "posthog/redis.py",
+      "symbol": "get_client",
+      "hash": "sha256:6eae78a49411f40b0c93cc8c",
+      "line": 29,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:41:46.538Z",
+  "verified": "2026-09-28T22:41:46.538Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "User identity data leaks between test cases during automated test suite execution",
+    "Local test runs fail when provisioning isolated user identity database tables",
+    "Analytics database tables are not truncated properly between separate automated test runs",
+    "Automated tests fail due to dirty state in local event datastores"
+  ],
+  "saysFor": "866:test-suite-multi-databas"
+}

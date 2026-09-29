@@ -1,0 +1,46 @@
+{
+  "id": "avoid-infinite-componentdidupdate-loop-when-scrolling-event-",
+  "title": "Avoid infinite componentDidUpdate loop when scrolling event log",
+  "kind": "fix",
+  "answers": [
+    "Why does scrolling the mitmweb event log trigger 'Maximum update depth exceeded'?",
+    "How to prevent infinite re-render loops in mitmweb virtualized lists?",
+    "What causes the event log to crash React when expanded and scrolled?"
+  ],
+  "body": "Symptom: Expanding and scrolling the mitmweb event log throws React error \"Maximum update depth exceeded\".\nRoot cause: web/src/js/components/EventLog/EventList.tsx:EventLogList.componentDidUpdate called onViewportUpdate unconditionally, causing setState to fire repeatedly when variable row heights were measured.\nFix pattern: Gate onViewportUpdate calls in componentDidUpdate behind prop equality checks (prevProps.events !== this.props.events || prevProps.rowHeight !== this.props.rowHeight).\nConstraints: Applies to virtual-scrolling components measuring dynamic row heights (such as EventLogList and FlowTable); scrolling, window resizing, and initial mounts must still handle viewport updates via dedicated listeners.",
+  "applies": "Virtual scroll components in mitmweb that measure row heights dynamically",
+  "tags": [
+    "mitmweb",
+    "react",
+    "event-log",
+    "virtual-scroll",
+    "componentdidupdate"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/components/EventLog/EventList.tsx",
+      "symbol": "EventLogList.componentDidUpdate",
+      "hash": "sha256:22ca8d1018026855dd463b68",
+      "line": 50,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8312"
+  },
+  "created": "2026-09-28T22:17:23.986Z",
+  "verified": "2026-09-28T22:17:23.986Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Scrolling through the event log panel crashes the web interface with an error.",
+    "The browser tab freezes completely whenever I expand and scroll the event log.",
+    "Expanding the event viewer and scrolling down causes the entire page to crash.",
+    "Prevent the web console from freezing when viewing long event history logs."
+  ],
+  "saysFor": "786:avoid-infinite-component"
+}

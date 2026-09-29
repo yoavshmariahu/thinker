@@ -1,0 +1,63 @@
+{
+  "id": "test-suite-execution-and-static-verification-in-services-mcp",
+  "title": "Test suite execution and static verification in services/mcp",
+  "kind": "howto",
+  "answers": [
+    "How do I run tests for services/mcp?",
+    "What test suites exist in services/mcp and which vitest configs do they use?",
+    "How do I typecheck and lint the MCP service?"
+  ],
+  "body": "1. Fast unit tests: `pnpm --filter=@posthog/mcp run test` runs Node-pool tests in `services/mcp/tests/unit/` using `services/mcp/vitest.config.mts`.\n2. Worker edge routing tests: `services/mcp/vitest.workers.config.mts` runs `services/mcp/tests/workers/` under Cloudflare's runtime via `@cloudflare/vitest-pool-workers`.\n3. Hono server tests: `pnpm --filter=@posthog/mcp run test:hono` runs dispatcher, rate limiter, and session tests in `services/mcp/tests/hono/` using `services/mcp/vitest.hono.config.mts`.\n4. Live integration tests: `pnpm --filter=@posthog/mcp run test:integration` runs `services/mcp/tests/tools/**/*.integration.test.ts` using `services/mcp/vitest.integration.config.mts` (requires `.env.test`).\n5. Typecheck & lint: `pnpm --filter=@posthog/mcp run typecheck` (`tsgo --noEmit`), `pnpm --filter=@posthog/mcp run format` (`oxfmt`), `pnpm --filter=@posthog/mcp run fix` (`oxlint` + `oxfmt`), and `pnpm --filter=@posthog/mcp run lint-tool-names`.",
+  "tags": [
+    "mcp",
+    "testing",
+    "vitest",
+    "linting",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "services/mcp/package.json",
+      "hash": "sha256:911b432f7e8f01d62f61d3da",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/vitest.config.mts",
+      "hash": "sha256:4efd59d95b25c34dcd3eea34",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/vitest.hono.config.mts",
+      "hash": "sha256:c7d3c66d2ee5faf3ccd9edc4",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/tests/README.md",
+      "hash": "sha256:722a9695f792af81ad406d37",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/AGENTS.md",
+      "hash": "sha256:95c4efd3d9c2b988d1e15a6b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:45:21.514Z",
+  "verified": "2026-09-28T22:45:21.514Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How to execute automated test suites and type checks for assistant services",
+    "Integration tests for the AI tool service fail during local test runs",
+    "Need instructions for running unit and edge worker tests on assistant tools",
+    "Verify tool dispatching and rate limits using the assistant service test runner"
+  ],
+  "saysFor": "1026:test-suite-execution-and"
+}

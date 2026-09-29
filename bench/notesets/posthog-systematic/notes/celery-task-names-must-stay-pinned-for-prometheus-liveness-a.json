@@ -1,0 +1,48 @@
+{
+  "id": "celery-task-names-must-stay-pinned-for-prometheus-liveness-a",
+  "title": "Celery task names must stay pinned for Prometheus liveness alerts",
+  "kind": "convention",
+  "answers": [
+    "Why do Celery tasks require explicit name arguments?",
+    "Where are alert-pinned Celery task names defined?",
+    "How to prevent Celery task renames from breaking production alerts?"
+  ],
+  "body": "Tasks monitored by vmalert liveness alerts (such as `FlagsCacheVerificationNotRunning`) must declare their task name constant in `posthog/celery_task_names.py` and pass it to `@shared_task(name=...)`.\nPrometheus alerts monitor `increase(posthog_celery_task_success_total{task_name=\"...\"}[window]) == 0`. Relying on Celery's default module-derived naming causes metric labels to change when moving or refactoring task functions, firing false alerts. Specifying explicit names in `posthog/celery_task_names.py` also pre-creates Prometheus counter series at worker startup via `posthog/celery.py:worker_process_init`.",
+  "applies": "Applies to periodic or critical Celery tasks that have corresponding Prometheus/vmalert liveness alerts.",
+  "tags": [
+    "celery",
+    "monitoring",
+    "prometheus",
+    "tasks"
+  ],
+  "deps": [
+    {
+      "path": "posthog/celery_task_names.py",
+      "hash": "sha256:77f38aca37c2f7eeba621709",
+      "missing": false
+    },
+    {
+      "path": "posthog/celery.py",
+      "hash": "sha256:9979508b3c3dfb9675a6109d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:41:46.544Z",
+  "verified": "2026-09-28T22:41:46.544Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Production monitoring fired false alerts that background verification jobs stopped running",
+    "Background task liveness monitors trigger alarms after routine worker updates",
+    "Prevent false alarm notifications when background maintenance tasks run normally",
+    "Monitoring dashboard shows zero activity for active feature flag cache workers"
+  ],
+  "saysFor": "680:celery-task-names-must-s"
+}

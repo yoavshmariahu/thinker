@@ -1,0 +1,62 @@
+{
+  "id": "jest-tests-fail-on-any-console-warn-or-console-error-and-req",
+  "title": "Jest tests fail on any console.warn or console.error and require UTC",
+  "kind": "gotcha",
+  "answers": [
+    "Why are Jest tests failing on React warnings in mitmweb?",
+    "How does the mitmweb test harness handle console warnings and errors?",
+    "Why do timestamp and date assertions behave differently in local Jest runs?"
+  ],
+  "body": "In `web/setup-jest.js`, `console.warn` and `console.error` are monkey-patched to throw an `Error` immediately:\n`console.warn = console.error = function () { err.apply(console, arguments); throw new Error(arguments[0]); };`\nAny unhandled React prop mismatch, missing key, or library deprecation warning will immediately fail a test. When rendering components with `web/src/js/__tests__/test-utils.tsx:render`, ensure all required props and mock stores via `web/src/js/__tests__/ducks/tutils.ts:TStore` are fully provided.\nAdditionally, `web/setup-global-jest.js` forces `process.env.TZ = \"UTC\"`; local date and time assertions must assume UTC.",
+  "applies": "Applies to all Jest tests matching `__tests__/.*Spec.(js|ts)x?$` under `web/src/js/`.",
+  "tags": [
+    "testing",
+    "jest",
+    "console-errors",
+    "mitmweb"
+  ],
+  "deps": [
+    {
+      "path": "web/setup-jest.js",
+      "hash": "sha256:ef74bd69096e7cb5ab66783b",
+      "missing": false
+    },
+    {
+      "path": "web/setup-global-jest.js",
+      "hash": "sha256:3ff37da1aa03b129b56cb248",
+      "missing": false
+    },
+    {
+      "path": "web/src/js/__tests__/test-utils.tsx",
+      "symbol": "render",
+      "hash": "sha256:345bb39f8006ffda718c853e",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/__tests__/ducks/tutils.ts",
+      "symbol": "TStore",
+      "hash": "sha256:011e57aef0c8d1fa9750363f",
+      "line": 213,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:31:42.219Z",
+  "verified": "2026-09-28T22:31:42.219Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Web interface automated tests fail whenever any component warning appears in the console.",
+    "Frontend test suite fails on developer machines located in non UTC time zones.",
+    "Date formatting tests in the web frontend break outside standard international time zones.",
+    "Component unit tests fail strictly due to deprecation warnings logged during render."
+  ],
+  "saysFor": "711:jest-tests-fail-on-any-c"
+}

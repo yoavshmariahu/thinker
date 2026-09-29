@@ -1,0 +1,53 @@
+{
+  "id": "css-and-inline-colors-must-use-mitmweb-semantic-tokens",
+  "title": "CSS and inline colors must use --mitmweb semantic tokens",
+  "kind": "convention",
+  "answers": [
+    "How are colors styled for dark theme support in mitmweb?",
+    "How to add new colors or status styles that adapt to dark mode in mitmweb?",
+    "Where are dark mode color overrides defined in mitmweb?"
+  ],
+  "body": "Colors across the mitmweb interface must use semantic CSS variables (--mitmweb-*) declared in web/src/css/global.less rather than hardcoded color literals.\nLight theme tokens are defined on :root and dark theme tokens override them under [data-theme=\"dark\"] in web/src/css/global.less.\nComponents applying inline colors or icon tints (such as web/src/js/components/FlowTable/FlowColumns.tsx:status and web/src/js/components/Header/FlowListMenu.tsx:FlowFilterInput) must reference var(--mitmweb-*) tokens.\nBecause LESS functions (like lighten and darken) cannot evaluate CSS var() expressions, colors consumed by them must remain literal or be precomputed as dedicated tokens in web/src/css/global.less.",
+  "applies": "LESS stylesheets and React UI components in web/",
+  "tags": [
+    "mitmweb",
+    "css",
+    "less",
+    "theming",
+    "dark-mode"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/components/FlowTable/FlowColumns.tsx",
+      "symbol": "status",
+      "hash": "sha256:71611ecfb1426244926823dc",
+      "line": 93,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/components/Header/FlowListMenu.tsx",
+      "symbol": "FlowFilterInput",
+      "hash": "sha256:fee3ed902d0c74c25887e52c",
+      "line": 47,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8317"
+  },
+  "created": "2026-09-28T22:18:11.861Z",
+  "verified": "2026-09-28T22:18:11.861Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Certain status labels and icons remain dark and unreadable when switching themes.",
+    "The search filter input icon has poor contrast against the dark background.",
+    "Flow table status colors should dynamically adjust when switching between light and dark.",
+    "Text and icons show hardcoded colors that do not adapt to dark mode."
+  ],
+  "saysFor": "759:css-and-inline-colors-mu"
+}

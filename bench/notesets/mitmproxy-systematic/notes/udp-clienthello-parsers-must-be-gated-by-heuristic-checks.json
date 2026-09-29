@@ -1,0 +1,48 @@
+{
+  "id": "udp-clienthello-parsers-must-be-gated-by-heuristic-checks",
+  "title": "UDP ClientHello parsers must be gated by heuristic checks",
+  "kind": "invariant",
+  "answers": [
+    "What is the requirement when adding UDP protocol detection to next_layer?",
+    "How should UDP ClientHello sniffing in _get_client_hello handle unknown or empty packets?",
+    "Where is UDP protocol discrimination enforced in next_layer?"
+  ],
+  "body": "Protocol ClientHello parsers for UDP connections must be gated by framing heuristic checks (_starts_like_quic, starts_like_dtls_record) before parsing.\nEnforced in mitmproxy/addons/next_layer.py:_get_client_hello.\nIf skipped, non-matching or empty stream data falls into parsers that raise NeedsMoreData on partial structures, stalling layer negotiation indefinitely.",
+  "applies": "mitmproxy/addons/next_layer.py UDP protocol detection",
+  "tags": [
+    "quic",
+    "dtls",
+    "next-layer",
+    "udp"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/next_layer.py",
+      "symbol": "_get_client_hello",
+      "hash": "sha256:d89987596a90686862143a0f",
+      "line": 299,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8295"
+  },
+  "created": "2026-09-28T22:16:54.501Z",
+  "verified": "2026-09-28T22:16:54.501Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "handle-fragmented-quic-clienthello-in-next-layer",
+    "quic-flows-hang-when-allow-hosts-or-ignore-hosts-is-enabled"
+  ],
+  "says": [
+    "UDP connections freeze indefinitely during handshake when unknown traffic reaches the proxy.",
+    "Non standard UDP packets cause incoming streams to stall without passing through.",
+    "The proxy hangs when inspecting unrecognized UDP streams instead of forwarding them.",
+    "Ensure unusual UDP datagrams do not block connection negotiation or pause proxy traffic."
+  ],
+  "saysFor": "425:udp-clienthello-parsers-"
+}

@@ -1,0 +1,47 @@
+{
+  "id": "PR8196-hard-nocache-0",
+  "task": "PR8196-hard",
+  "area": "utils",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "gemini-3.8-flash-high",
+  "session": "aa5ad21e-0eb1-49f1-afb7-3a08b1914a81",
+  "turns": 1,
+  "timed_out": false,
+  "wall_ms": 186947,
+  "wall_sec": "186.9",
+  "usage": {
+    "input_tokens": 295916,
+    "output_tokens": 40086,
+    "thinking_tokens": 31890,
+    "cache_read_tokens": 1156823,
+    "total_tokens": 336002
+  },
+  "cost": 0.055909931249999996,
+  "tools": {
+    "calls": 32,
+    "byTool": {
+      "run_command": 27,
+      "view_file": 3,
+      "replace_file_content": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 3,
+    "edits": 2
+  },
+  "grade": {
+    "essential": 1,
+    "all": 1,
+    "pass": true,
+    "results": [
+      {
+        "id": "patch",
+        "verdict": "met",
+        "evidence": "The agent modified the correct function and file (is_mostly_bin in mitmproxy/utils/strutils.py) and applied the exact same core fix as upstream by bounding the range lookahead with min(104, len(s)) to prevent IndexError. The minor addition of guarding the fallback cutoff when len(s) < 104 preserves UTF-8 code points at the tail and is functionally equivalent in resolving the issue without affecting normal inputs."
+      }
+    ]
+  },
+  "tests": null,
+  "diff": "diff --git a/mitmproxy/utils/strutils.py b/mitmproxy/utils/strutils.py\nindex d7ab4a8e1..76a794e1f 100644\n--- a/mitmproxy/utils/strutils.py\n+++ b/mitmproxy/utils/strutils.py\n@@ -132,14 +132,15 @@ def is_mostly_bin(s: bytes) -> bool:\n     # Cut off at ~100 chars, but do it smartly so that if the input is UTF-8, we don't\n     # chop a multibyte code point in half.\n     if len(s) > 100:\n-        for cut in range(100, 104):\n+        for cut in range(100, min(104, len(s))):\n             is_continuation_byte = (s[cut] >> 6) == 0b10\n             if not is_continuation_byte:\n                 # A new character starts here, so we cut off just before that.\n                 s = s[:cut]\n                 break\n         else:\n-            s = s[:100]\n+            if len(s) >= 104:\n+                s = s[:100]\n \n     low_bytes = sum(i < 9 or 13 < i < 32 for i in s)\n     high_bytes = sum(i > 126 for i in s)\ndiff --git a/test/mitmproxy/utils/test_strutils.py b/test/mitmproxy/utils/test_strutils.py\nindex 644e4ea0a..992414c80 100644\n--- a/test/mitmproxy/utils/test_strutils.py\n+++ b/test/mitmproxy/utils/test_strutils.py\n@@ -94,6 +94,13 @@ def test_is_mostly_bin():\n     assert not strutils.is_mostly_bin(b\"aaaaa\" + 50 * \"𐍅\".encode())\n     # only utf8 continuation chars\n     assert strutils.is_mostly_bin(150 * b\"\\x80\")\n+    assert strutils.is_mostly_bin(101 * b\"\\x80\")\n+    # short inputs near the 100-byte boundary\n+    assert not strutils.is_mostly_bin(b\"\" + 25 * \"𐍅\".encode())\n+    assert not strutils.is_mostly_bin(b\"a\" + 25 * \"𐍅\".encode())\n+    assert not strutils.is_mostly_bin(b\"aa\" + 25 * \"𐍅\".encode())\n+    assert not strutils.is_mostly_bin(b\"aaa\" + 25 * \"𐍅\".encode())\n+    assert not strutils.is_mostly_bin(b\"aaaa\" + 25 * \"𐍅\".encode())\n \n \n def test_is_xml():\n",
+  "result": "### Summary of Changes\n\n#### 1. Code Fix: [`is_mostly_bin`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/mitmproxy/utils/strutils.py#L128-L146) in [`mitmproxy/utils/strutils.py`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/mitmproxy/utils/strutils.py)\n* **Problem**: When input bytes `s` exceeded 100 bytes in length, `is_mostly_bin` scanned indices in `range(100, 104)` looking for the end of a potential multibyte UTF-8 sequence (`s[cut] >> 6 == 0b10`). For short inputs where `100 < len(s) < 104` (e.g., 101, 102, or 103 bytes) ending with continuation bytes, indexing `s[cut]` accessed indices past the end of the byte array, raising an `IndexError`.\n* **Fix**:\n  * Bound the search range with `min(104, len(s))` (`range(100, min(104, len(s)))`), preventing `cut` from exceeding the length of `s`.\n  * In the `for ... else:` block, only perform the fallback cutoff `s = s[:100]` if `len(s) >= 104`. If `len(s) < 104` and all bytes from index 100 to the end of `s` are continuation bytes, the multibyte code point completes at the end of the input, so `s` is kept intact rather than chopped in half.\n  * For normal inputs (`len(s) >= 104`), behavior remains completely unchanged.\n\n#### 2. Tests Added in [`test/mitmproxy/utils/test_strutils.py`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/test/mitmproxy/utils/test_strutils.py#L96-L104)\n* Added test cases to [`test_is_mostly_bin`](file:///Users/yoavshmariahu/src/thinker/.worktrees/systematic-cache-setup/bench/worktrees/mitmproxy-mitmproxy-flash-systematic-0/test/mitmproxy/utils/test_strutils.py#L82-L105) for inputs crossing the 100-byte boundary (100–104 bytes with 4-byte UTF-8 character `𐍅` and continuation bytes `101 * b\"\\x80\"`), verifying that no `IndexError` is raised and classification remains accurate.\n"
+}

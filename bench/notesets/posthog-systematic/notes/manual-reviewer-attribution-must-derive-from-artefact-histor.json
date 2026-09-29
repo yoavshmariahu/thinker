@@ -1,0 +1,45 @@
+{
+  "id": "manual-reviewer-attribution-must-derive-from-artefact-histor",
+  "title": "Manual reviewer attribution must derive from artefact history, not payload reason",
+  "kind": "invariant",
+  "answers": [
+    "Can reviewer reasons be forged when updating a Signals report?",
+    "Where is manual reviewer attribution verified against artefact history?",
+    "How to prevent spoofed reviewer attribution in Signals report artefacts?"
+  ],
+  "body": "Reviewer attribution must be resolved from historical artefact creators where actor_kind is USER, rather than trusting client-provided reason strings in reviewer payloads.\nEnforced in products/signals/backend/report_generation/resolve_reviewers.py:trusted_manual_reviewer_adders during reviewer enrichment.\nIf skipped, callers updating report reviewer payloads can forge arbitrary \"Added as a reviewer by <Name>\" reason strings to spoof attribution.",
+  "applies": "Signals reviewer resolution and artefact attribution in products/signals/backend",
+  "tags": [
+    "signals",
+    "security",
+    "reviewers",
+    "artefacts"
+  ],
+  "deps": [
+    {
+      "path": "products/signals/backend/report_generation/resolve_reviewers.py",
+      "hash": "sha256:0310e843375c68623e37a96a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107843"
+  },
+  "created": "2026-09-28T22:34:58.740Z",
+  "verified": "2026-09-28T22:34:58.740Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "manual-reviewers-display-generic-badge-instead-of-adding-mem"
+  ],
+  "says": [
+    "Report reviewers show forged requester names when updating review requirements",
+    "Prevent malicious modification of the person credited with assigning report reviewers",
+    "Audit history should verify who actually requested a manual report reviewer",
+    "Reviewer assignment history displays incorrect author when report payload is edited"
+  ],
+  "saysFor": "531:manual-reviewer-attribut"
+}

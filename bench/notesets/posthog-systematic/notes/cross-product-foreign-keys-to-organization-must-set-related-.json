@@ -1,0 +1,44 @@
+{
+  "id": "cross-product-foreign-keys-to-organization-must-set-related-",
+  "title": "Cross-product foreign keys to Organization must set related_name='+'",
+  "kind": "convention",
+  "answers": [
+    "Why is test_model_crossing_uses.py failing when adding a relation to Organization?",
+    "How should product models link to posthog.Organization?",
+    "What is the convention for reverse accessors on core models across product boundaries?"
+  ],
+  "body": "Models in product directories that reference core models such as posthog.Organization must set related_name='+'.\nThis convention prevents adding reverse relationship accessors to core models across product boundaries.\nIf omitted, the automated boundary test test_model_crossing_uses.py fails in CI.\nEnforced on relations like products/feature_flags/backend/models/organization_feature_flags_config.py:OrganizationFeatureFlagsConfig.organization.",
+  "applies": "Django models in products/ referencing core models like posthog.Organization",
+  "tags": [
+    "django",
+    "models",
+    "cross-product",
+    "architecture"
+  ],
+  "deps": [
+    {
+      "path": "posthog/test/repo_invariants/test_model_crossing_uses.py",
+      "hash": "sha256:71d4aadc63eba5e52966dd78",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107956"
+  },
+  "created": "2026-09-28T22:33:16.618Z",
+  "verified": "2026-09-28T22:33:16.618Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 3,
+  "related": [],
+  "lastUsed": "2026-09-29T00:16:16.185Z",
+  "says": [
+    "Pull request verification fails when connecting a new product model to organizations",
+    "Automated build checks fail after adding organization links to feature settings",
+    "Connect new feature records to organizations without triggering boundary check errors",
+    "Organization relation on our new table causes repository boundary test failures"
+  ],
+  "saysFor": "514:cross-product-foreign-ke"
+}

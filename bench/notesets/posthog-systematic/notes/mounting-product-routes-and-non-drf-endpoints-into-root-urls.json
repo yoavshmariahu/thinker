@@ -1,0 +1,57 @@
+{
+  "id": "mounting-product-routes-and-non-drf-endpoints-into-root-urls",
+  "title": "Mounting product routes and non-DRF endpoints into root URLs",
+  "kind": "callpath",
+  "answers": [
+    "How are product routes mounted into PostHog's root URL dispatcher?",
+    "Where do product-specific non-DRF plain Django URLs need to be registered?",
+    "How do product backend routes hook into posthog/urls.py?"
+  ],
+  "body": "Product viewsets and routes are dynamically wired into `posthog/urls.py:urlpatterns` using `posthog/product_urls.py:ProductRootRoutes`.\n- DRF ViewSets register on routers via `register_routes(routers)` in `products/<product>/backend/routes.py`.\n- Plain Django paths cannot register on DRF routers; products must define them in either `api_urlpatterns` or `webhook_urlpatterns` in `products/<product>/backend/routes.py`.\n- `posthog/product_urls.py:ProductRootRoutes` collects `api_urlpatterns` and `webhook_urlpatterns` across all discovered products and mounts them into `posthog/urls.py` under the product root.",
+  "applies": "When adding API routes or webhook URLs within product apps under products/<product>/backend/.",
+  "tags": [
+    "routing",
+    "django",
+    "products",
+    "urls"
+  ],
+  "deps": [
+    {
+      "path": "posthog/product_urls.py",
+      "symbol": "ProductRootRoutes",
+      "hash": "sha256:2038db65e7c151ee30f65646",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "posthog/urls.py",
+      "symbol": "urlpatterns",
+      "hash": "sha256:82359354fc6745accfc055ad",
+      "line": 101,
+      "missing": false
+    },
+    {
+      "path": "posthog/products.py",
+      "hash": "sha256:9fb273863c1b3c87766b449b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:41:46.429Z",
+  "verified": "2026-09-28T22:41:46.429Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "New product webhook endpoint returns page not found when receiving external events",
+    "Custom product API route cannot be reached after deploying the feature",
+    "Newly registered service paths fail to respond on the main application domain",
+    "Expose non standard product endpoints under the central application routing path"
+  ],
+  "saysFor": "673:mounting-product-routes-"
+}

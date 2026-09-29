@@ -1,0 +1,83 @@
+{
+  "id": "idempotency-and-nullable-context-invariants-for-paramtype-co",
+  "title": "Idempotency and nullable context invariants for ParamType.convert",
+  "kind": "invariant",
+  "answers": [
+    "What invariants must custom ParamType subclasses satisfy in Click?",
+    "Why does ParamType.convert receive None for ctx or param?",
+    "How should validation errors be raised inside ParamType.convert?"
+  ],
+  "body": "`src/click/types.py:ParamType.convert` must be idempotent: if `value` is already of the expected target type (e.g. from pre-converted defaults or chained converters), return it immediately without re-processing.\nImplementations must handle `ctx=None` and `param=None` safely because prompts (`src/click/termui.py:prompt`) and direct invocations call `convert()` outside a running command context.\nNever raise raw `ValueError` or `TypeError` directly; always call `self.fail(message, param, ctx)` so Click can attach parameter metadata and raise `src/click/exceptions.py:BadParameter`. Skipping `fail()` causes uncaught exceptions and bypasses CLI error formatting.",
+  "tags": [
+    "types",
+    "paramtype",
+    "invariant",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.convert",
+      "hash": "sha256:741f254870921b6bb5839c86",
+      "line": 121,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.fail",
+      "hash": "sha256:ec7c9a78b4de264ec203dd4f",
+      "line": 157,
+      "missing": false
+    },
+    {
+      "path": "src/click/termui.py",
+      "symbol": "prompt",
+      "hash": "sha256:9cba4c94b098d8119d5ba79b",
+      "line": 115,
+      "missing": false
+    },
+    {
+      "path": "src/click/exceptions.py",
+      "symbol": "BadParameter",
+      "hash": "sha256:f326ab2ad53d668b1d3313f7",
+      "line": 114,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "convert",
+      "hash": "sha256:741f254870921b6bb5839c86",
+      "line": 121,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "fail",
+      "hash": "sha256:ec7c9a78b4de264ec203dd4f",
+      "line": 157,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:13:24.710Z",
+  "verified": "2026-09-28T22:13:24.710Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "parameter-type-conversion-and-validation-callpath",
+    "arity-synchronization-invariant-between-compositeparamtype-a"
+  ],
+  "says": [
+    "Entering invalid input at an interactive prompt crashes instead of showing friendly guidance.",
+    "Custom input validation shows an unhandled crash rather than a clean error message.",
+    "Prevent default values from being validated and converted multiple times during execution.",
+    "Interactive console questions crash when user validation logic runs without active environment.",
+    "Format validation errors neatly on the command line instead of dumping crash logs."
+  ],
+  "saysFor": "730:idempotency-and-nullable"
+}

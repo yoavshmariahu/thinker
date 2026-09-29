@@ -1,0 +1,67 @@
+{
+  "id": "code-snippet-generators-must-emit-runnable-environment-varia",
+  "title": "Code snippet generators must emit runnable environment variable references across all tabs",
+  "kind": "convention",
+  "answers": [
+    "What format should code examples use for API key authorization headers in playground tabs?",
+    "How should code snippets in EndpointPlayground reference authentication keys?",
+    "How to test code snippet generation in EndpointPlayground?"
+  ],
+  "body": "Code example generators in products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx must generate immediately runnable code rather than placeholder markers.\nAll snippet generator functions (products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx:generateTerminalExample, products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx:generatePythonExample, and products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx:generateNodeExample) must read POSTHOG_PROJECT_SECRET_API_KEY using language-standard environment variable accessors ($VAR, os.environ, process.env).\nAll generator variants must be tested in products/endpoints/frontend/endpoint-tabs/EndpointPlayground.test.tsx across both populated payload and empty payload states to ensure consistency across tabs.",
+  "applies": "products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx",
+  "tags": [
+    "endpoints",
+    "code-snippets",
+    "testing",
+    "conventions"
+  ],
+  "deps": [
+    {
+      "path": "products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx",
+      "symbol": "generateTerminalExample",
+      "hash": "sha256:16e289e76cd9070c1f30f8ae",
+      "line": 61,
+      "missing": false
+    },
+    {
+      "path": "products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx",
+      "symbol": "generatePythonExample",
+      "hash": "sha256:21fe67f72fee702a3d3f4ebb",
+      "line": 86,
+      "missing": false
+    },
+    {
+      "path": "products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx",
+      "symbol": "generateNodeExample",
+      "hash": "sha256:56e383643d20a5c7a052236d",
+      "line": 129,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107804"
+  },
+  "created": "2026-09-28T22:33:37.798Z",
+  "verified": "2026-09-28T22:33:37.798Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "fix-endpoint-playground-code-examples-and-settings-link-to-u"
+  ],
+  "lastUsed": "2026-09-29T00:49:02.773Z",
+  "attest": {
+    "confirmed": 0,
+    "contradicted": 0,
+    "unused": 2
+  },
+  "says": [
+    "Copied code snippets from the playground fail because of placeholder tokens",
+    "Terminal and Python code examples should use copyable environment variable syntax",
+    "Make sample code in all playground tabs runnable right out of the box",
+    "Replace authentication token placeholders in playground snippets with environment variables"
+  ],
+  "saysFor": "886:code-snippet-generators-"
+}

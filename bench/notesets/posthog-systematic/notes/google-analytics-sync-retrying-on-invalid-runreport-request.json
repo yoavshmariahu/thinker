@@ -1,0 +1,45 @@
+{
+  "id": "google-analytics-sync-retrying-on-invalid-runreport-request",
+  "title": "Google Analytics sync retrying on invalid runReport request",
+  "kind": "fix",
+  "answers": [
+    "Why does Google Analytics sync keep retrying on 400 Bad Request?",
+    "How to handle invalid custom report dimensions or metrics in GA4 warehouse sync?",
+    "Why does Temporal exhaust retries on Google Analytics runReport client errors?"
+  ],
+  "body": "Symptom: Google Analytics data warehouse sync repeatedly retries and exhausts retry budget when custom reports contain invalid metric or dimension names.\nRoot cause: products/warehouse_sources/backend/temporal/data_imports/sources/google_analytics/source.py:GoogleAnalyticsSource.get_non_retryable_errors omitted 400 Bad Request for the GA4 Data API, allowing deterministic client errors to be retried.\nFix pattern: Add the host-scoped 400 error string to get_non_retryable_errors with actionable user guidance on schema requirements.\nConstraints: Applies only to deterministic client errors like schema or field misconfigurations; transient errors and quota exhaustion must remain retryable.",
+  "applies": "products/warehouse_sources/backend/temporal/data_imports/sources/google_analytics/source.py",
+  "tags": [
+    "google_analytics",
+    "warehouse_sources",
+    "temporal",
+    "error_handling"
+  ],
+  "deps": [
+    {
+      "path": "products/warehouse_sources/backend/temporal/data_imports/sources/google_analytics/source.py",
+      "symbol": "GoogleAnalyticsSource.get_non_retryable_errors",
+      "hash": "sha256:259e13eae0cc104459d91549",
+      "line": 73,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107971"
+  },
+  "created": "2026-09-28T22:34:25.961Z",
+  "verified": "2026-09-28T22:34:25.961Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Google Analytics data import gets stuck retrying when report dimensions are invalid",
+    "Warehouse synchronization with Google Analytics should fail fast on bad report schemas",
+    "Sync retry budget exhausted on custom Google Analytics report with unknown metrics",
+    "Show clear configuration error instead of endlessly retrying broken Google Analytics sync"
+  ],
+  "saysFor": "752:google-analytics-sync-re"
+}

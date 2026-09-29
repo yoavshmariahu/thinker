@@ -1,0 +1,48 @@
+{
+  "id": "scout-suggestion-run-closes-before-caller-validates-or-saves",
+  "title": "Scout suggestion run closes before caller validates or saves",
+  "kind": "fix",
+  "answers": [
+    "Why did the scout suggestions session close before saving results?",
+    "Why did the agent call finish before the caller finished validating?",
+    "How to fix background cloud agent runs terminating prematurely before caller validation?"
+  ],
+  "body": "Symptom: Scout suggestions agent session closes prematurely before the caller can validate the output or save results.\nRoot cause: products/desktop/packages/harness/src/extensions/local-tools/tools/finish.ts:finishTool enabled the finish tool for scout_suggestions, allowing the agent to mark the run terminal prematurely.\nFix pattern: Exclude caller-managed task origins from the isEnabled predicate in the harness finish tool, preserving session closure for the caller.\nConstraints: Applies to background cloud task runs where the caller controls session lifecycle across multiple turns; does not apply to standalone agent runs that must terminate themselves.",
+  "applies": "products/desktop/packages/harness/src/extensions/local-tools/tools/finish.ts",
+  "tags": [
+    "tasks",
+    "scout-suggestions",
+    "harness",
+    "tools",
+    "finish"
+  ],
+  "deps": [
+    {
+      "path": "products/desktop/packages/harness/src/extensions/local-tools/tools/finish.ts",
+      "symbol": "finishTool",
+      "hash": "sha256:f6976fdf57e7c2eaf1a08644",
+      "line": 86,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107828"
+  },
+  "created": "2026-09-28T22:37:39.905Z",
+  "verified": "2026-09-28T22:37:39.905Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "caller-managed-scout-suggestion-sessions-must-disable-agent-"
+  ],
+  "says": [
+    "Scout suggestion run closes before the system can save generated recommendations",
+    "Automated suggestions disappear because the background agent session terminates too early",
+    "Prevent background analysis sessions from closing before output validation is complete",
+    "The suggestions workflow ends prematurely without allowing our caller to follow up"
+  ],
+  "saysFor": "722:scout-suggestion-run-clo"
+}

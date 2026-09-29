@@ -1,0 +1,102 @@
+{
+  "id": "cli-command-execution-and-dispatch-lifecycle",
+  "title": "CLI command execution and dispatch lifecycle",
+  "kind": "callpath",
+  "answers": [
+    "How does control flow from Command.main to command callbacks?",
+    "What is the execution lifecycle of a Click command or group?",
+    "How are subcommands dispatched and invoked in Click?"
+  ],
+  "body": "Control flow begins at `src/click/core.py:Command.main` and dispatches via:\n`src/click/core.py:Command.main` → `src/click/core.py:Command.make_context` → `src/click/core.py:Context.scope` → `src/click/core.py:Command.invoke` → `src/click/core.py:Context.invoke`.\n- `src/click/core.py:Command.main` parses commandline arguments (`sys.argv[1:]`) and enters `src/click/core.py:Context.scope` to manage teardown via `ExitStack`.\n- `src/click/core.py:Command.invoke` parses option/argument tokens into `ctx.params` using `src/click/core.py:Parameter.handle_parse_result`.\n- For groups, `src/click/core.py:Group.invoke` calls `src/click/core.py:Group.resolve_command` to locate subcommands, builds a child `Context(parent=ctx)`, and delegates execution to `subcommand.invoke`.\n- `src/click/core.py:Context.invoke` unpacks parsed keyword arguments and executes the underlying command callback function.",
+  "applies": "Applies to all Click command and group executions, including single commands, multi-level nested groups, and chained commands.",
+  "tags": [
+    "core",
+    "lifecycle",
+    "callpath",
+    "dispatch",
+    "context"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.main",
+      "hash": "sha256:1be7083a9c79955a9edc633b",
+      "line": 1436,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.make_context",
+      "hash": "sha256:839d3845e58a887e2d50f774",
+      "line": 1280,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.scope",
+      "hash": "sha256:84b051501f5566822825dd1d",
+      "line": 564,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.invoke",
+      "hash": "sha256:051c6c08127343d6fd6bc349",
+      "line": 1353,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Group.invoke",
+      "hash": "sha256:098f1628bc057c4e9bea6604",
+      "line": 1950,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Group.resolve_command",
+      "hash": "sha256:91ee366c5d0d8a7b0c6a9907",
+      "line": 2018,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.handle_parse_result",
+      "hash": "sha256:3e8dfe3b68df93d477a3721c",
+      "line": 2677,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Context.invoke",
+      "hash": "sha256:9f15352ee7a81488d14abf27",
+      "line": 853,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:11:26.805Z",
+  "verified": "2026-09-28T22:11:26.805Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "late-interrupt-exit-code-preservation-in-command-main",
+    "nested-context-state-sharing-via-meta-versus-obj",
+    "parameter-type-conversion-and-validation-callpath",
+    "arity-synchronization-invariant-between-compositeparamtype-a"
+  ],
+  "says": [
+    "Subcommands are not receiving parsed inputs when running nested terminal commands.",
+    "Cleanup actions do not trigger properly after a command finishes running in console.",
+    "Trace how the tool parses terminal flags and passes execution to nested actions.",
+    "The application crashes during startup when resolving which nested command should execute.",
+    "Ensure teardown steps always run even when child subcommands exit unexpectedly."
+  ],
+  "saysFor": "940:cli-command-execution-an",
+  "lastUsed": "2026-09-28T23:18:20.937Z"
+}

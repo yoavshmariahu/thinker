@@ -1,0 +1,67 @@
+{
+  "id": "optmanager-transactional-rollback-on-optionserror",
+  "title": "OptManager transactional rollback on OptionsError",
+  "kind": "invariant",
+  "answers": [
+    "How does mitmproxy handle errors during options configuration?",
+    "What happens when an addon raises OptionsError during configure?",
+    "How does OptManager guarantee transactional option updates?"
+  ],
+  "body": "Option updates in `mitmproxy/optmanager.py:OptManager` are atomic and transactional across all `.changed` signal listeners (e.g. addon `configure` hooks).\n- When options are set via `OptManager.update` or attribute assignment, handlers attached to `OptManager.changed` execute.\n- If any handler raises `mitmproxy/exceptions.py:OptionsError`, `OptManager` catches it, rolls back all option values to their state prior to the transaction, suppresses the exception, and notifies `OptManager.errored`.\n- Skipping `OptionsError` and letting another exception escape will bypass rollback and leave options in a partially updated state. Option attributes must not be mutated in-place; `OptManager` returns deep copies on attribute access.",
+  "applies": "When updating options or implementing addon configure hooks",
+  "tags": [
+    "options",
+    "optmanager",
+    "error-handling",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/optmanager.py",
+      "symbol": "OptManager",
+      "hash": "sha256:a0446dccd353b4203166201f",
+      "line": 99,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/options.py",
+      "symbol": "Options",
+      "hash": "sha256:98f714c104b047dc433caf3d",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/exceptions.py",
+      "symbol": "OptionsError",
+      "hash": "sha256:aa9874cddb8849a400bbf342",
+      "line": 40,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/optmanager.py",
+      "symbol": "OptManager.update",
+      "hash": "sha256:20f17d184b723118046a0d45",
+      "line": 244,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:22:28.380Z",
+  "verified": "2026-09-28T22:22:28.380Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "says": [
+    "Applying invalid proxy settings leaves configuration in a half changed broken state.",
+    "Settings should automatically revert to previous values if an error occurs while saving.",
+    "Entering an invalid option value causes subsequent configuration changes to behave unpredictably.",
+    "Ensure configuration changes roll back cleanly when an extension rejects new options."
+  ],
+  "saysFor": "781:optmanager-transactional",
+  "lastUsed": "2026-09-28T23:45:22.836Z"
+}

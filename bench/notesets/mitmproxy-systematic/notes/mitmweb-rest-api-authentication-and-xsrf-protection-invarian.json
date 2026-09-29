@@ -1,0 +1,82 @@
+{
+  "id": "mitmweb-rest-api-authentication-and-xsrf-protection-invarian",
+  "title": "mitmweb REST API authentication and XSRF protection invariant",
+  "kind": "invariant",
+  "answers": [
+    "Where is authentication enforced for mitmweb REST and WebSocket endpoints?",
+    "How does mitmweb validate XSRF tokens on modifying requests?",
+    "How does mitmweb protect against unauthorized UI and API access?"
+  ],
+  "body": "All requests modifying state or accessing protected endpoints must pass security guards in `mitmproxy/tools/web/app.py:RequestHandler`:\n- Authentication: `RequestHandler.prepare` checks `mitmproxy/tools/web/webaddons.py:WebAuth.is_authorized`. If `options.web_user` is configured, requests must supply HTTP Basic auth matching argon2 hash/plaintext password, or a valid `?token=` query param; unauthenticated requests fail with HTTP 401.\n- XSRF Guard: `RequestHandler.check_xsrf_cookie` runs on POST, PUT, and DELETE requests. The client must supply an `X-XSRFToken` header matching the `_xsrf` cookie set by `Application.__init__`, or Tornado rejects with HTTP 403.\n- WebSockets: `ClientConnection.open` verifies token authentication before accepting the connection.",
+  "applies": "Applies to all HTTP mutation endpoints (POST/PUT/DELETE) and authenticated routes on the mitmweb Tornado server.",
+  "tags": [
+    "mitmweb",
+    "security",
+    "xsrf",
+    "auth",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "RequestHandler",
+      "hash": "sha256:5b2a9bfa2524cc3e9e046749",
+      "line": 281,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "ClientConnection",
+      "hash": "sha256:8b763c24e11c68580d6c03cc",
+      "line": 424,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/webaddons.py",
+      "symbol": "WebAuth",
+      "hash": "sha256:4acb7b100f7790001c36014f",
+      "line": 22,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/webaddons.py",
+      "hash": "sha256:83dffeb47bd48134ac8e9e79",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "RequestHandler.prepare",
+      "hash": "sha256:27472a07e476c58747cff059",
+      "line": 284,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "Application.__init__",
+      "hash": "sha256:17e052b91bdd2bdf4abc6f3e",
+      "line": 918,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:25:27.514Z",
+  "verified": "2026-09-28T22:25:27.514Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mitmweb-cli-startup-and-tornado-server-initialization-callpa",
+    "web-column-definitions-sync-between-typescript-ui-and-python"
+  ],
+  "says": [
+    "Submitting flow modifications from the web dashboard fails with permission denied errors.",
+    "Web interface should require username and password authentication before granting dashboard access.",
+    "Modifying requests through the web interface fails when security tokens are missing.",
+    "Block unauthorized users from executing proxy actions without providing valid credentials."
+  ],
+  "saysFor": "829:mitmweb-rest-api-authent"
+}

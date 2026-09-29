@@ -1,0 +1,73 @@
+{
+  "id": "ui-app-metadata-wrapping-and-tool-result-branding",
+  "title": "UI app metadata wrapping and tool result branding",
+  "kind": "convention",
+  "answers": [
+    "How should tool handlers attach UI app resources in services/mcp?",
+    "How does buildToolResultPayload prevent payload duplication for exec tools?",
+    "Can tool handlers manually construct the _meta response property?"
+  ],
+  "body": "1. When rendering interactive UI apps, wrap tool definitions with `services/mcp/src/resources/ui-apps.ts:withUiApp`; never construct `_meta` manually.\n2. `services/mcp/src/resources/ui-apps.ts:withUiApp` enforces that `appKey` matches a known entry in `services/mcp/src/resources/ui-apps.generated.ts:UiAppKey` and attaches `RESOURCE_URI_META_KEY`.\n3. In `services/mcp/src/lib/build-tool-result.ts:buildToolResultPayload`, payloads constructed by `services/mcp/src/tools/exec.ts` must be branded with `EXEC_BUILT_PAYLOAD` via `markExecPayload` to prevent double-wrapping and accidental object-rest destructuring of `content` / `structuredContent`.\n4. Primitive string responses passed to `buildToolResultPayload` are preserved as plain text rather than being destructured into character-indexed dictionary objects.",
+  "applies": "Applies to all MCP tool handlers returning UI app cards or returning results via the exec tool wrapper.",
+  "tags": [
+    "mcp",
+    "ui-apps",
+    "buildtoolresultpayload",
+    "conventions"
+  ],
+  "deps": [
+    {
+      "path": "services/mcp/src/resources/ui-apps.ts",
+      "symbol": "withUiApp",
+      "hash": "sha256:7fb65fc1d5499ff0cb16b18a",
+      "line": 9,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/lib/build-tool-result.ts",
+      "symbol": "buildToolResultPayload",
+      "hash": "sha256:21a0825546dbb6ea627aac62",
+      "line": 122,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/lib/build-tool-result.ts",
+      "symbol": "markExecPayload",
+      "hash": "sha256:606db4a7551e1782948af3f6",
+      "line": 86,
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/tools/exec.ts",
+      "hash": "sha256:25e8c22bd92daf08a40c4e61",
+      "missing": false
+    },
+    {
+      "path": "services/mcp/src/resources/ui-apps.generated.ts",
+      "symbol": "UiAppKey",
+      "hash": "sha256:b10838f99b1300b9a8fa9435",
+      "line": 37,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:45:21.469Z",
+  "verified": "2026-09-28T22:45:21.469Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mcp-request-routing-and-tool-execution-pipeline"
+  ],
+  "says": [
+    "Interactive app card fails to render inside the AI assistant chat view",
+    "Embedded dashboard widget inside assistant responses shows duplicate or corrupted content",
+    "AI assistant displays raw text instead of rendering the interactive tool interface",
+    "Tool execution response breaks when attempting to show interactive preview components"
+  ],
+  "saysFor": "864:ui-app-metadata-wrapping"
+}

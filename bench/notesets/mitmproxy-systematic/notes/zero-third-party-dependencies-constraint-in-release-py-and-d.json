@@ -1,0 +1,63 @@
+{
+  "id": "zero-third-party-dependencies-constraint-in-release-py-and-d",
+  "title": "Zero Third-Party Dependencies Constraint in release.py and deploy.py",
+  "kind": "convention",
+  "answers": [
+    "Can I add external libraries (e.g. requests, httpx) to release.py or deploy.py?",
+    "Why does release.py use http.client instead of requests?",
+    "What dependencies are allowed in release automation scripts?"
+  ],
+  "body": "Both `release/release.py` and `release/deploy.py` enforce a strict policy: `# Security: No third-party dependencies here!`.\nAll network calls in `release.py` use standard library `http.client` (e.g. `release/release.py:get`) or `urllib.request` rather than external dependencies like `requests` or `httpx` to minimize supply-chain exposure during credentialed release workflows.\nOnly Python standard library modules (`os`, `sys`, `json`, `re`, `subprocess`, `time`, `pathlib`) are permitted in these two scripts.\nIn contrast, `release/build.py` runs in build environments and permits build helpers like `click` and `cryptography.fernet`.",
+  "applies": "Applies strictly to `release/release.py` and `release/deploy.py`; does not apply to `release/build.py`.",
+  "tags": [
+    "security",
+    "dependencies",
+    "release",
+    "deploy"
+  ],
+  "deps": [
+    {
+      "path": "release/release.py",
+      "hash": "sha256:dc8cc52774f77316a8d33ebc",
+      "missing": false
+    },
+    {
+      "path": "release/deploy.py",
+      "hash": "sha256:1d275626d386bc37355325ae",
+      "missing": false
+    },
+    {
+      "path": "release/release.py",
+      "symbol": "get",
+      "hash": "sha256:2829aa386eba2baad2637681",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "release/build.py",
+      "hash": "sha256:8eeaf9658a4ae89c51088c77",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:27:51.593Z",
+  "verified": "2026-09-28T22:27:51.593Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "binary-and-docker-smoke-testing-via-selftest-py-addon",
+    "release-pipeline-flow-from-tagging-to-distribution"
+  ],
+  "says": [
+    "Release and deployment automation scripts should not depend on external third party packages.",
+    "Eliminate external package dependencies from release scripts to prevent supply chain security risks.",
+    "The package publishing workflow failed because an unauthorized external library was introduced.",
+    "Ensure the release pipeline relies strictly on built in tools for uploading distribution assets."
+  ],
+  "saysFor": "706:zero-third-party-depende"
+}

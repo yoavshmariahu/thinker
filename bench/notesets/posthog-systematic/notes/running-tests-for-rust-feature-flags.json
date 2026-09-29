@@ -1,0 +1,53 @@
+{
+  "id": "running-tests-for-rust-feature-flags",
+  "title": "Running tests for rust/feature-flags",
+  "kind": "howto",
+  "answers": [
+    "How do I run tests for rust/feature-flags?",
+    "What database setup is required before running cargo test on feature-flags?",
+    "Why are feature-flags integration tests failing with database connection errors?"
+  ],
+  "body": "Integration tests in `rust/feature-flags/tests` require a local PostgreSQL test database initialized via Django:\n1. Start Docker dependencies from root: `docker compose -f ../docker-compose.dev.yml up -d`.\n2. Initialize the test database once: `TEST=1 python manage.py setup_test_environment --only-postgres`.\n3. Run all crate tests: `cargo test --package feature-flags`.\n4. Run an individual integration test suite: `cargo test --package feature-flags --test test_flags`.\nPure unit tests can run without Postgres: `cargo test --package feature-flags --lib`.",
+  "applies": "Running unit and integration tests for the `feature-flags` Rust crate locally.",
+  "tags": [
+    "testing",
+    "cargo",
+    "feature-flags",
+    "howto"
+  ],
+  "deps": [
+    {
+      "path": "rust/feature-flags/README.md",
+      "hash": "sha256:fba01c742ee37659e2eb81a6",
+      "missing": false
+    },
+    {
+      "path": "rust/feature-flags/Cargo.toml",
+      "hash": "sha256:f638773a0268df37cf1a5141",
+      "missing": false
+    },
+    {
+      "path": "manage.py",
+      "hash": "sha256:ca9beee30900684efa049b05",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:49:09.870Z",
+  "verified": "2026-09-28T22:49:09.870Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Feature flag service integration tests fail with database connection errors locally",
+    "Need instructions for spinning up the local test database for flags",
+    "Local test run fails to connect to PostgreSQL for flag verification",
+    "How can developers run the full feature flag automated verification suite"
+  ],
+  "saysFor": "595:running-tests-for-rust-f"
+}

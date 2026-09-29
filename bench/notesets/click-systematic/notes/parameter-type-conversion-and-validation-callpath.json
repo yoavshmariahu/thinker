@@ -1,0 +1,93 @@
+{
+  "id": "parameter-type-conversion-and-validation-callpath",
+  "title": "Parameter type conversion and validation callpath",
+  "kind": "callpath",
+  "answers": [
+    "How does Click convert raw CLI argument strings into typed Python values?",
+    "What is the control flow from Parameter initialization to ParamType.convert?",
+    "How does ParamType report parsing and validation errors during command execution?"
+  ],
+  "body": "`src/click/core.py:Parameter.__init__` calls `src/click/types.py:convert_type` to convert user-specified types (native types like `int`, tuple literals, or default value fallbacks) into a `ParamType` instance.\nDuring command execution, `src/click/core.py:Parameter.type_cast_value` invokes `src/click/types.py:ParamType.__call__` with the parsed token, parameter, and context.\n`src/click/types.py:ParamType.__call__` delegates directly to `src/click/types.py:ParamType.convert` for coercion and validation.\nOn failure, `src/click/types.py:ParamType.fail` formats the error message and raises `src/click/exceptions.py:BadParameter` to stop execution and produce a CLI error message.",
+  "tags": [
+    "types",
+    "parsing",
+    "conversion",
+    "callpath"
+  ],
+  "deps": [
+    {
+      "path": "src/click/types.py",
+      "symbol": "convert_type",
+      "hash": "sha256:06870df7678c3e84d7fccfaa",
+      "line": 371,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.__call__",
+      "hash": "sha256:9931ff2763678785b1f2deff",
+      "line": 101,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.convert",
+      "hash": "sha256:741f254870921b6bb5839c86",
+      "line": 121,
+      "missing": false
+    },
+    {
+      "path": "src/click/types.py",
+      "symbol": "ParamType.fail",
+      "hash": "sha256:ec7c9a78b4de264ec203dd4f",
+      "line": 157,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.__init__",
+      "hash": "sha256:5e4667b01f66ad01d7c951e7",
+      "line": 2251,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "symbol": "Parameter.type_cast_value",
+      "hash": "sha256:eca3711b657933dc1ed2f098",
+      "line": 2476,
+      "missing": false
+    },
+    {
+      "path": "src/click/exceptions.py",
+      "symbol": "BadParameter",
+      "hash": "sha256:f326ab2ad53d668b1d3313f7",
+      "line": 114,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:13:24.650Z",
+  "verified": "2026-09-28T22:13:24.650Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 3,
+  "related": [
+    "nested-context-state-sharing-via-meta-versus-obj",
+    "prevent-traceback-when-keyboardinterrupt-occurs-during-cli-e",
+    "idempotency-and-nullable-context-invariants-for-paramtype-co",
+    "arity-synchronization-invariant-between-compositeparamtype-a"
+  ],
+  "says": [
+    "Passing non-numeric text into a number field causes unclear command line errors.",
+    "The terminal does not properly translate user input text into structured data.",
+    "Show user-friendly error messages when argument values cannot be parsed correctly.",
+    "Converting user-supplied flag arguments into expected formats fails without clear explanation.",
+    "Provide clear feedback when a supplied option value fails format validation checks."
+  ],
+  "saysFor": "731:parameter-type-conversio",
+  "lastUsed": "2026-09-28T23:23:51.909Z"
+}

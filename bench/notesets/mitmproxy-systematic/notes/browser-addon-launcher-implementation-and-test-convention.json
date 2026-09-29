@@ -1,0 +1,75 @@
+{
+  "id": "browser-addon-launcher-implementation-and-test-convention",
+  "title": "Browser addon launcher implementation and test convention",
+  "kind": "convention",
+  "answers": [
+    "How to add support for a new browser in the Browser addon?",
+    "Where should new browser launch commands and binary paths be added?",
+    "What tests are required when adding browser support to test_browser.py?"
+  ],
+  "body": "Supported browsers in mitmproxy/addons/browser.py:Browser must be dispatched from Browser.start to a dedicated launch_<browser> method.\nLaunchers must search executable paths across operating systems via find_executable_cmd with a find_flatpak_cmd fallback, logging an ALERT if no executable is found.\nIn test/mitmproxy/addons/test_browser.py, each browser launcher requires two async tests: test_browser_start_<name> (verifying subprocess.Popen execution) and test_browser_start_<name>_not_found (verifying the unsupported platform alert).",
+  "applies": "mitmproxy/addons/browser.py and test/mitmproxy/addons/test_browser.py",
+  "tags": [
+    "browser",
+    "addons",
+    "testing",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "symbol": "Browser.start",
+      "hash": "sha256:e62096489c771d841ff41511",
+      "line": 39,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "hash": "sha256:7d35dae4402ec54eb8399719",
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/addons/test_browser.py",
+      "hash": "sha256:dcb9870e5e78fe27b3ddef03",
+      "missing": false
+    },
+    {
+      "path": "test/mitmproxy/addons/test_browser.py",
+      "hash": "sha256:dcb9870e5e78fe27b3ddef03",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/addons/browser.py",
+      "symbol": "Browser",
+      "hash": "sha256:cea80bacac6af369f5aa2bd1",
+      "line": 35,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8408"
+  },
+  "created": "2026-09-28T22:14:49.346Z",
+  "verified": "2026-09-28T22:14:49.346Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "browser-subprocess-isolation-and-resource-tracking-invariant"
+  ],
+  "lastUsed": "2026-09-28T23:45:22.838Z",
+  "attest": {
+    "confirmed": 0,
+    "contradicted": 0,
+    "unused": 1
+  },
+  "says": [
+    "Add support to automatically launch an isolated session in a new web browser.",
+    "Clicking the start browser button shows an alert saying the browser was not found.",
+    "Support launching Linux Flatpak browser installations directly from the proxy interface.",
+    "The browser launcher fails to detect installed browsers on certain operating systems."
+  ],
+  "saysFor": "598:browser-addon-launcher-i"
+}

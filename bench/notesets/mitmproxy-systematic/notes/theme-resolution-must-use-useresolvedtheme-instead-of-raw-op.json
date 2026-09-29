@@ -1,0 +1,45 @@
+{
+  "id": "theme-resolution-must-use-useresolvedtheme-instead-of-raw-op",
+  "title": "Theme resolution must use useResolvedTheme instead of raw option",
+  "kind": "invariant",
+  "answers": [
+    "How to get the active dark or light theme in mitmweb components?",
+    "Why is CodeEditor or the web UI not switching to dark mode when web_theme is system?",
+    "How does mitmweb handle prefers-color-scheme OS dark theme?"
+  ],
+  "body": "Components requiring the active theme in JavaScript must consume web/src/js/components/helpers/useTheme.ts:useResolvedTheme rather than inspecting state.options.web_theme directly.\nResolution is enforced in web/src/js/components/helpers/useTheme.ts:useResolvedTheme, which resolves the \"system\" preference to \"dark\" or \"light\" via window.matchMedia(\"(prefers-color-scheme: dark)\") and tracks dynamic OS changes.\nIf skipped, components like web/src/js/components/contentviews/CodeEditor.tsx:CodeEditor receive the raw \"system\" string, failing dark-mode checks and incorrectly rendering light styles for system-dark users.\nweb/src/js/components/helpers/ThemeManager.tsx:ThemeManager relies on this resolution to apply data-theme to document.documentElement.",
+  "applies": "React components in web/ that need the active theme",
+  "tags": [
+    "mitmweb",
+    "theme",
+    "dark-mode",
+    "react"
+  ],
+  "deps": [
+    {
+      "path": "web/src/js/components/contentviews/CodeEditor.tsx",
+      "symbol": "CodeEditor",
+      "hash": "sha256:9c893cda0688a01dfcc3257e",
+      "line": 17,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8317"
+  },
+  "created": "2026-09-28T22:18:11.845Z",
+  "verified": "2026-09-28T22:18:11.845Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The code editor stays in light mode even though the operating system uses dark mode.",
+    "Setting theme preference to system fails to automatically switch to dark theme.",
+    "Traffic body editor does not respect the dark theme setting chosen by the system.",
+    "The interface should automatically mirror operating system dark mode when set to system."
+  ],
+  "saysFor": "820:theme-resolution-must-us"
+}

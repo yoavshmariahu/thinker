@@ -1,0 +1,55 @@
+{
+  "id": "fix-modified-reason-phrase-not-updating-in-mitmweb",
+  "title": "Fix modified reason phrase not updating in mitmweb",
+  "kind": "fix",
+  "answers": [
+    "Why is editing the response reason phrase in mitmweb not updating the flow?",
+    "Why is the modified reason phrase not being sent in mitmweb?",
+    "How to fix response reason phrase updates in mitmweb?"
+  ],
+  "body": "Symptom: Editing the HTTP response reason phrase in mitmweb does not update or send the modified reason phrase.\nRoot cause: `web/src/js/components/FlowView/HttpMessages.tsx:ResponseLine` sent `{ response: { msg } }` and `mitmproxy/tools/web/app.py:put` handled `\"msg\"`, but `mitmproxy.http.Response` only defines `reason`.\nFix pattern: Align frontend edit dispatch keys and backend attribute assignment with the model's attribute name (`reason`).\nConstraints: Applies to HTTP response properties edited through mitmweb's flow update endpoint; does not apply to request fields or non-HTTP protocols.",
+  "applies": "mitmweb flow editing for HTTP responses",
+  "tags": [
+    "mitmweb",
+    "http-response",
+    "reason-phrase",
+    "flow-update"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/tools/web/app.py",
+      "symbol": "put",
+      "hash": "sha256:15bc8028b4b41c64e02b7bc6",
+      "line": 580,
+      "missing": false
+    },
+    {
+      "path": "web/src/js/components/FlowView/HttpMessages.tsx",
+      "symbol": "ResponseLine",
+      "hash": "sha256:cf1aa07f4bfdcb0d269500ec",
+      "line": 72,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "mitmproxy/mitmproxy#8333"
+  },
+  "created": "2026-09-28T22:15:35.849Z",
+  "verified": "2026-09-28T22:15:35.849Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "flow-response-update-properties-between-mitmweb-ui-and-rest-",
+    "mitmweb-rest-api-authentication-and-xsrf-protection-invarian"
+  ],
+  "says": [
+    "Editing the response status text in the web interface does not save changes.",
+    "Custom response reason phrases entered in the web viewer are ignored when sent.",
+    "Changing the status message like OK or Not Found in the response fails.",
+    "The edited HTTP status description reverts back to original after modifying response details."
+  ],
+  "saysFor": "649:fix-modified-reason-phra"
+}

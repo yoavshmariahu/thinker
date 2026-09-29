@@ -1,0 +1,56 @@
+{
+  "id": "late-interrupt-exit-code-preservation-in-command-main",
+  "title": "Late interrupt exit code preservation in Command.main",
+  "kind": "invariant",
+  "answers": [
+    "How does Click ensure late interrupts do not change the command exit code?",
+    "What policy governs KeyboardInterrupt during Command.main teardown?",
+    "Where is exit code preservation enforced for late SIGINT in Click?"
+  ],
+  "body": "In src/click/core.py:Command.main, late interrupts (KeyboardInterrupt, EOFError) occurring after command completion or during reporting must preserve the intended exit code in standalone mode.\nHandlers must defer message display and termination to teardown by storing a report callable and exit_code, rather than invoking sys.exit() or output routines directly.\nEnforced in src/click/core.py:Command.main by wrapping the final report() and sys.exit(exit_code) invocation in an outer try...except block.\nWhat breaks if skipped: A second Ctrl-C during error output or an interrupt during exit after success leaks an unhandled traceback and fails to return the intended exit status.",
+  "applies": "CLI process teardown and exception handling in src/click/core.py:Command.main",
+  "tags": [
+    "cli",
+    "exit-code",
+    "keyboard-interrupt",
+    "signal-handling",
+    "lifecycle"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.main",
+      "hash": "sha256:1be7083a9c79955a9edc633b",
+      "line": 1436,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3818"
+  },
+  "created": "2026-09-28T22:04:15.927Z",
+  "verified": "2026-09-28T22:11:26.939Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8500000000000001,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "prevent-traceback-when-keyboardinterrupt-occurs-during-cli-e",
+    "cli-command-execution-and-dispatch-lifecycle"
+  ],
+  "says": [
+    "Cancelling terminal output during shutdown changes the tool's intended return exit code.",
+    "Hitting interrupt while an error displays must preserve the original failure status code.",
+    "Automated scripts miss command failures if the user presses interrupt while printing errors.",
+    "Ensure interrupting a finished command never overwrites its final exit code in scripts.",
+    "Terminal return code should not get corrupted if cancelled during the closing summary."
+  ],
+  "saysFor": "733:late-interrupt-exit-code",
+  "lastUsed": "2026-09-28T22:09:11.871Z",
+  "attest": {
+    "confirmed": 1,
+    "contradicted": 0,
+    "unused": 0
+  }
+}

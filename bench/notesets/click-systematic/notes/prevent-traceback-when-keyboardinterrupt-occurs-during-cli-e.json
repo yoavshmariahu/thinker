@@ -1,0 +1,58 @@
+{
+  "id": "prevent-traceback-when-keyboardinterrupt-occurs-during-cli-e",
+  "title": "Prevent traceback when KeyboardInterrupt occurs during CLI exit or abort",
+  "kind": "fix",
+  "answers": [
+    "Why does pressing Ctrl-C during error reporting show a traceback in Click?",
+    "How to prevent a late KeyboardInterrupt from crashing Command.main?",
+    "Why does a second Ctrl-C escape Command.main instead of exiting cleanly?"
+  ],
+  "body": "Symptom: Pressing Ctrl-C while a command is aborting, reporting an error, or exiting crashes with an unhandled KeyboardInterrupt traceback instead of exiting cleanly.\nRoot cause: src/click/core.py:Command.main executed message display (such as e.show()) and sys.exit() directly inside except blocks unprotected by interrupt handling.\nFix pattern: Collect error presentation callbacks and target exit codes inside inner handlers, defer execution to a teardown block, and wrap teardown in an outer interrupt handler that preserves the exit code.\nConstraints: Applies to standalone CLI execution; non-standalone mode (standalone_mode=False) must propagate interrupts and exceptions to the caller.",
+  "applies": "CLI execution and interrupt handling in src/click/core.py:Command.main",
+  "tags": [
+    "cli",
+    "exception-handling",
+    "keyboard-interrupt",
+    "signals",
+    "exit-code"
+  ],
+  "deps": [
+    {
+      "path": "src/click/core.py",
+      "symbol": "Command.main",
+      "hash": "sha256:1be7083a9c79955a9edc633b",
+      "line": 1436,
+      "missing": false
+    },
+    {
+      "path": "src/click/core.py",
+      "hash": "sha256:6ce6ad79d4f89e700cbd3b2d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "pallets/click#3818"
+  },
+  "created": "2026-09-28T22:04:15.908Z",
+  "verified": "2026-09-28T22:04:15.908Z",
+  "verifiedCommit": "8c1a0a7abbc1c36f70d1f65f3604acc46c5ce6ab",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "late-interrupt-exit-code-preservation-in-command-main",
+    "cli-command-execution-and-dispatch-lifecycle",
+    "nested-context-state-sharing-via-meta-versus-obj",
+    "parameter-type-conversion-and-validation-callpath"
+  ],
+  "says": [
+    "Pressing cancel while an error message prints displays an ugly crash stack trace.",
+    "Hitting interrupt a second time during command shutdown should still exit cleanly without tracebacks.",
+    "Raw crash output appears in terminal when cancelling a command that is already failing.",
+    "Ensure aborting during error reporting terminates cleanly without dumping internal program errors.",
+    "Terminal prints an unhandled crash traceback if cancelled while the tool is exiting."
+  ],
+  "saysFor": "766:prevent-traceback-when-k",
+  "lastUsed": "2026-09-28T23:23:51.905Z"
+}

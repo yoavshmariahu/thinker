@@ -1,0 +1,58 @@
+{
+  "id": "fix-endpoint-playground-code-examples-and-settings-link-to-u",
+  "title": "Fix endpoint playground code examples and settings link to use project secret API keys",
+  "kind": "fix",
+  "answers": [
+    "Why do code examples copied from the endpoint playground fail authentication?",
+    "Why does the endpoint playground API key button link to personal API keys instead of project secret keys?",
+    "How to fix authorization headers in EndpointPlayground snippet generators?"
+  ],
+  "body": "Symptom: Endpoint playground code examples fail to authenticate when copied, and the API keys button opens settings for personal API keys which endpoints do not accept.\nRoot cause: products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx:EndpointPlayground linked to personal API keys and generated Python/Node code with literal placeholder tokens.\nFix pattern: Link to products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx:PROJECT_SECRET_API_KEY_SETTINGS_SECTION and use language-standard environment variable lookups for POSTHOG_PROJECT_SECRET_API_KEY.\nConstraints: Applies to endpoint playground snippets requiring project secret keys with endpoint:read access; does not apply to features requiring personal API keys.",
+  "applies": "products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx",
+  "tags": [
+    "endpoints",
+    "playground",
+    "api-keys",
+    "authentication"
+  ],
+  "deps": [
+    {
+      "path": "products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx",
+      "symbol": "EndpointPlayground",
+      "hash": "sha256:e2e3079bda63b899619066e5",
+      "line": 182,
+      "missing": false
+    },
+    {
+      "path": "products/endpoints/frontend/endpoint-tabs/EndpointPlayground.tsx",
+      "hash": "sha256:49275216a147f76a24d19734",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107804"
+  },
+  "created": "2026-09-28T22:33:37.748Z",
+  "verified": "2026-09-28T22:33:37.748Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "code-snippet-generators-must-emit-runnable-environment-varia"
+  ],
+  "lastUsed": "2026-09-28T22:37:56.679Z",
+  "attest": {
+    "confirmed": 0,
+    "contradicted": 0,
+    "unused": 1
+  },
+  "says": [
+    "API key button in the playground links to personal keys instead of project secrets",
+    "Sample requests copied from the endpoint playground fail due to rejected authentication",
+    "Playground should direct users to secret keys needed for querying endpoints",
+    "Copied endpoint code returns unauthorized because it references the wrong key type"
+  ],
+  "saysFor": "826:fix-endpoint-playground-"
+}

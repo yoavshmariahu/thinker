@@ -1,0 +1,93 @@
+{
+  "id": "addon-testing-with-taddons-context-and-tflow-helpers",
+  "title": "Addon testing with taddons context and tflow helpers",
+  "kind": "convention",
+  "answers": [
+    "How do you test an addon that accesses mitmproxy.ctx?",
+    "What fixtures should be used to simulate flows and options in tests?",
+    "How to trigger configure hooks and lifecycle cycles in addon tests?"
+  ],
+  "body": "Addons rely on global references in `mitmproxy/ctx.py` (`ctx.master`, `ctx.options`). Tests in `test/mitmproxy/` must use the `mitmproxy/test/taddons.py:context` manager:\n- Wrap tests in `with taddons.context(addon) as tctx:` to mock master, options, and event dispatch.\n- Modify options using `tctx.configure(addon, **options)` to invoke the addon's configure hook under valid option-manager semantics.\n- Replay standard event lifecycles through an addon using `tctx.cycle(addon, flow)` (driven by `mitmproxy/eventsequence.py:iterate`).\n- Generate synthetic flows using `mitmproxy/test/tflow.py` factory functions (`tflow()`, `ttcpflow()`, `tudpflow()`, `twebsocketflow()`) rather than constructing flows manually.",
+  "applies": "When writing unit tests for addons or components relying on mitmproxy.ctx",
+  "tags": [
+    "testing",
+    "taddons",
+    "tflow",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "mitmproxy/test/taddons.py",
+      "symbol": "context",
+      "hash": "sha256:62d74c26be4742464484a262",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/test/tflow.py",
+      "hash": "sha256:cd26e146c6b4e3b8d41cbd30",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/ctx.py",
+      "hash": "sha256:524eb056cb42cb0d1ef8efab",
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/eventsequence.py",
+      "symbol": "iterate",
+      "hash": "sha256:6e24e023449cda53e7cae34e",
+      "line": 78,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/test/tflow.py",
+      "symbol": "tflow",
+      "hash": "sha256:ded026e4dff17fa1792e1521",
+      "line": 160,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/test/tflow.py",
+      "symbol": "ttcpflow",
+      "hash": "sha256:0d1488fbefb659fa8b6c105b",
+      "line": 21,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/test/tflow.py",
+      "symbol": "tudpflow",
+      "hash": "sha256:f5aa752728823cfb54337af3",
+      "line": 44,
+      "missing": false
+    },
+    {
+      "path": "mitmproxy/test/tflow.py",
+      "symbol": "twebsocketflow",
+      "hash": "sha256:9533abdb5b06b91ac5e6357d",
+      "line": 67,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:22:28.369Z",
+  "verified": "2026-09-28T22:22:28.369Z",
+  "verifiedCommit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "event-and-hook-dispatch-flow-through-addonmanager"
+  ],
+  "says": [
+    "Custom extension tests fail to simulate intercepted traffic flows and configuration changes.",
+    "Need a reliable way to test custom extension scripts with simulated requests.",
+    "Automated tests for extensions crash when trying to access active proxy settings.",
+    "Provide test helpers to easily replay sample network flows through custom extensions."
+  ],
+  "saysFor": "768:addon-testing-with-taddo",
+  "lastUsed": "2026-09-28T23:38:43.869Z"
+}

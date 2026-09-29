@@ -1,0 +1,43 @@
+{
+  "id": "metric-dynamic-labels-must-use-arc-str",
+  "title": "Metric dynamic labels must use Arc<str>",
+  "kind": "convention",
+  "answers": [
+    "How should dynamic labels be passed to metrics macros in Rust?",
+    "Why are metrics labels required to be Arc<str> instead of String?",
+    "What is the convention for metric label allocation in rust/feature-flags?"
+  ],
+  "body": "When emitting metrics with the `metrics` crate (`histogram!`, `counter!`, `gauge!`), dynamic label values (e.g. client names, method names) must be passed as `Arc<str>`, never as `String` or `.to_string()`.\nConstruct the `Arc<str>` once at the start of the function with `Arc::from(val)` and `.clone()` it into macro calls.\n`Arc::clone` is a single atomic increment without heap reallocation on hot paths.",
+  "applies": "Emitting metrics in Rust crates (`rust/`) with dynamic label values. Does not apply to static string literal labels (&'static str).",
+  "tags": [
+    "rust",
+    "metrics",
+    "performance",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "rust/AGENTS.md",
+      "hash": "sha256:af9b4b4fee893d9dc9dfa600",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T22:49:09.843Z",
+  "verified": "2026-09-28T22:49:09.843Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Feature flag evaluation service suffers high memory allocation spikes under heavy load",
+    "High latency and garbage collection pauses when tracking dynamic flag metric labels",
+    "Optimize server memory performance during high throughput feature flag checks",
+    "Reduce heap allocations caused by dynamic metric labels in flag evaluation workers"
+  ],
+  "saysFor": "445:metric-dynamic-labels-mu"
+}

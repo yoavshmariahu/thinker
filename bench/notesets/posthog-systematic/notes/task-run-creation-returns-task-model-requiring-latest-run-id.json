@@ -1,0 +1,43 @@
+{
+  "id": "task-run-creation-returns-task-model-requiring-latest-run-id",
+  "title": "Task run creation returns Task model requiring latest_run.id for run actions",
+  "kind": "invariant",
+  "answers": [
+    "Why does /runs/{taskId}/stream/ return 404 after triggering a task run?",
+    "Where is the run ID in the PostHog tasks run endpoint response?",
+    "How to get the task run ID from the tasks run API response?"
+  ],
+  "body": "The task run creation endpoint in products/tasks/backend/presentation/views/api.py responds with the parent Task object rather than the TaskRun.\nAny run-scoped operation (such as streaming task execution logs or dispatching commands) must read `latest_run.id` instead of the top-level `id`.\nEnforced in products/tasks/backend/presentation/views/api.py on the `run` action.\nIf skipped, clients pass the task ID to run-specific endpoints (e.g. `/runs/{taskId}/stream/`), resulting in silent, permanent 404 errors.",
+  "applies": "Tasks API run creation and run-scoped endpoints",
+  "tags": [
+    "tasks",
+    "api",
+    "runs",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "products/tasks/backend/presentation/views/api.py",
+      "hash": "sha256:6f320d73c523a2e8281f02e5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "PostHog/posthog#107814"
+  },
+  "created": "2026-09-28T22:36:03.479Z",
+  "verified": "2026-09-28T22:36:03.479Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Streaming task execution logs returns page not found right after triggering a run",
+    "Cannot view live console output after launching a new cloud agent run",
+    "Clicking run on a task produces broken links to the execution stream",
+    "Task details screen displays not found error when opening newly launched run"
+  ],
+  "saysFor": "588:task-run-creation-return"
+}

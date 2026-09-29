@@ -1,0 +1,73 @@
+{
+  "id": "frontend-jest-test-quarantine-adapter-and-execution-flow",
+  "title": "Frontend Jest test quarantine adapter and execution flow",
+  "kind": "callpath",
+  "answers": [
+    "How does test quarantine work in frontend Jest tests?",
+    "How does Jest handle flaky tests listed in .test_quarantine.json?",
+    "How to test changes to frontend/jest.quarantine.ts?"
+  ],
+  "body": "PostHog isolates flaky Jest tests using a runner adapter configured during Jest bootstrap:\n1. Rule parsing: `frontend/jest.quarantine.ts:parseQuarantine` reads `.test_quarantine.json` adhering to the contract defined in `tools/hogli-commands/hogli_commands/quarantine/core.py`.\n2. Matching: `frontend/jest.quarantine.ts:activeJestEntries` filters entries for `runner: \"jest\"` valid on the current date, matching test IDs formatted as `<repo-relative-file>::<full test name>`.\n3. Runtime interception: `frontend/jest.quarantine.ts:tolerateProvidesWhen` wraps test bodies (`it`, `test`) to catch failures, log `[quarantine] tolerated failure`, and prevent Jest from exiting non-zero.\n4. Verification: The quarantine adapter is tested via spawned subprocesses in `frontend/src/test/jest.quarantine.test.ts` running against fixture file `frontend/src/test/jest.quarantine.runtime.fixture.ts`.",
+  "tags": [
+    "jest",
+    "quarantine",
+    "flaky-tests",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "frontend/jest.quarantine.ts",
+      "symbol": "parseQuarantine",
+      "hash": "sha256:a2398c2f70dda557df16248b",
+      "line": 113,
+      "missing": false
+    },
+    {
+      "path": "frontend/jest.quarantine.ts",
+      "symbol": "activeJestEntries",
+      "hash": "sha256:015ea7afcfa94140c1933675",
+      "line": 136,
+      "missing": false
+    },
+    {
+      "path": "frontend/jest.quarantine.ts",
+      "symbol": "tolerateProvidesWhen",
+      "hash": "sha256:642657f45ef0ed6d0dfca513",
+      "line": 380,
+      "missing": false
+    },
+    {
+      "path": "frontend/src/test/jest.quarantine.test.ts",
+      "hash": "sha256:733c91616eba2d6c2715a344",
+      "missing": false
+    },
+    {
+      "path": "frontend/src/test/jest.quarantine.runtime.fixture.ts",
+      "hash": "sha256:6eb60695edec5a61276e53b7",
+      "missing": false
+    },
+    {
+      "path": "tools/hogli-commands/hogli_commands/quarantine/core.py",
+      "hash": "sha256:663bdb9f11e55d3e11626520",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "transcript"
+  },
+  "created": "2026-09-28T23:09:47.548Z",
+  "verified": "2026-09-28T23:09:47.548Z",
+  "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "confidence": 0.95,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Known unstable frontend tests are still breaking continuous integration pull request checks",
+    "Tolerate previously reported flaky tests so releases are not blocked unnecessarily",
+    "Quarantined web interface tests still report failure instead of continuing the build",
+    "Automated test pipeline should safely ignore quarantined test failures"
+  ],
+  "saysFor": "945:frontend-jest-test-quara"
+}
