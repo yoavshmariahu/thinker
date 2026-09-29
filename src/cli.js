@@ -690,7 +690,7 @@ async function setup() {
   out(`\nthinker is set up for ${path.basename(repo)}: ${notes.length} notes, served to ${clients.join(', ')}.`);
   if (!notes.length) {
     if (areas || prs) {
-      out(`\n❌ CACHE BUILD FAILED: The cache is empty (0 notes created).`);
+      out(`\n❌ cache init failed: The cache is empty (0 notes created).`);
       if (seedResult && seedResult.ok === 0) {
         out(`   • Area exploration failed across all attempted agents.`);
         if (seedResult.failures?.length) {
@@ -821,7 +821,7 @@ async function seed({ areas, model, dry, prompts, agent }) {
   if (dry) { for (const a of list) out(`${(a.dir || '-').padEnd(40)} ${a.n || ''}`); return; }
   let activeAgent = agent || exploreAgent();
   if (!activeAgent) {
-    out('\n❌ Cache build failed: no agent CLI found to explore with (claude, gemini, codex, or cursor).');
+    out('\n❌ cache init failed: no agent CLI found to explore with (claude, gemini, codex, or cursor).');
     process.exitCode = 1;
     return { ok: 0, total: list.length, cost: 0, agent: null, failures: [{ area: 'all', error: 'no agent CLI found' }] };
   }
@@ -879,14 +879,14 @@ async function seed({ areas, model, dry, prompts, agent }) {
   }
   out(`explored ${ok} of ${list.length} areas with ${activeAgent}${cost ? `, agent cost $${cost.toFixed(2)}` : ''}`);
   if (ok === 0 && list.length > 0) {
-    out(`\n❌ Cache build failed: 0 of ${list.length} areas were successfully explored.`);
+    out(`\n❌ cache init failed: 0 of ${list.length} areas were successfully explored.`);
     if (failures.length) {
       out(`   Failure details:\n${failures.slice(0, 3).map(f => `   • ${f.area}: ${f.error}`).join('\n')}`);
     }
     out(`   Ensure at least one agent CLI (claude, gemini, or codex) is authenticated and working.\n`);
     process.exitCode = 1;
   } else if (failures.length > 0) {
-    out(`\n⚠️  Cache build partially completed (${ok}/${list.length} areas succeeded, ${failures.length} failed).`);
+    out(`\n⚠️  cache init partially completed (${ok}/${list.length} areas succeeded, ${failures.length} failed).`);
   }
   return { ok, total: list.length, cost, agent: activeAgent, failures };
 }
