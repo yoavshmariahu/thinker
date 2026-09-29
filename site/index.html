@@ -134,6 +134,8 @@
       flex-direction: column;
       align-items: center;
       width: min(660px, 94vw);
+      max-width: 100%;
+      min-width: 0;
       min-height: 68px;
       justify-content: center;
     }
@@ -295,6 +297,7 @@
       flex-direction: column;
       align-items: center;
       width: 100%;
+      min-width: 0;
       animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
@@ -312,11 +315,13 @@
       background: #fbfbfb;
       border: 1px solid #e5e7eb;
       border-radius: 8px;
-      padding: 0.55rem 0.65rem 0.55rem 1.25rem;
+      padding: 0.5rem 0.65rem 0.5rem 1.15rem;
       width: 100%;
       max-width: 660px;
+      min-width: 0;
       box-shadow: 0 1px 3px rgba(0,0,0,0.03);
       transition: border-color 0.15s ease;
+      gap: 1rem;
     }
 
     .cmd-box:hover {
@@ -324,30 +329,39 @@
     }
 
     .cmd-box code {
-      flex: 1;
+      flex: 1 1 0%;
+      min-width: 0;
+      display: block;
       font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.96rem;
+      font-size: 0.88rem;
       color: #111827;
       text-align: left;
       white-space: nowrap;
-      overflow: visible;
+      overflow-x: auto;
+      scrollbar-width: none;
       user-select: all;
-      margin-right: 1.25rem;
+    }
+
+    .cmd-box code::-webkit-scrollbar {
+      display: none;
     }
 
     .btn-copy {
       background: #000000;
       color: #ffffff;
       border: 1px solid #000000;
-      padding: 0.5rem 1rem;
+      padding: 0.45rem 0.95rem;
       font-size: 0.82rem;
       font-weight: 500;
-      border-radius: 5px;
+      border-radius: 6px;
       cursor: pointer;
       transition: all 0.15s ease;
       white-space: nowrap;
       flex-shrink: 0;
       font-family: inherit;
+      line-height: 1.25;
+      min-width: 70px;
+      text-align: center;
     }
 
     .btn-copy:hover {
@@ -621,17 +635,18 @@
         max-width: 95vw;
       }
       .cmd-box {
-        width: 95vw;
+        width: 100%;
         max-width: 95vw;
-        padding: 0.5rem 0.5rem 0.5rem 0.85rem;
+        padding: 0.42rem 0.5rem 0.42rem 0.85rem;
+        gap: 0.65rem;
       }
       .cmd-box code {
-        font-size: 0.82rem;
-        margin-right: 0.5rem;
+        font-size: 0.80rem;
       }
       .btn-copy {
-        padding: 0.45rem 0.75rem;
+        padding: 0.4rem 0.75rem;
         font-size: 0.78rem;
+        min-width: 62px;
       }
       nav { padding: 1rem 1.25rem; }
     }
