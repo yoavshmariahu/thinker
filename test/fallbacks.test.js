@@ -141,3 +141,29 @@ test('provider() returns the primary candidate or promoted active fallback', () 
   }
 });
 
+test('complete() throws descriptive error when provider fails', async () => {
+  resetFallback();
+  const prevCmd = process.env.THINKER_LLM_CMD;
+  const prevLlm = process.env.THINKER_LLM;
+  const prevQuiet = process.env.THINKER_QUIET;
+  process.env.THINKER_QUIET = '1';
+  process.env.THINKER_LLM_CMD = 'exit 1';
+  process.env.THINKER_LLM = 'command';
+
+  try {
+    await assert.rejects(
+      async () => await complete({ prompt: 'test' }),
+      /exited 1/
+    );
+  } finally {
+    if (prevCmd !== undefined) process.env.THINKER_LLM_CMD = prevCmd;
+    else delete process.env.THINKER_LLM_CMD;
+    if (prevLlm !== undefined) process.env.THINKER_LLM = prevLlm;
+    else delete process.env.THINKER_LLM;
+    if (prevQuiet !== undefined) process.env.THINKER_QUIET = prevQuiet;
+    else delete process.env.THINKER_QUIET;
+    resetFallback();
+  }
+});
+
+

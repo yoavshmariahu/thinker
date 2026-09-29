@@ -493,7 +493,8 @@ async function main() {
     }
     case 'seed': {
       // Bootstrap coverage: one exploration session per source area, distilled.
-      await seed({ areas: Number(flags.areas) || 12, model: flags.model, dry: !!flags.dry, prompts: flags.prompts, agent: typeof flags.agent === 'string' ? flags.agent : undefined });
+      const r = await seed({ areas: Number(flags.areas) || 12, model: flags.model, dry: !!flags.dry, prompts: flags.prompts, agent: typeof flags.agent === 'string' ? flags.agent : undefined });
+      if (r && r.ok === 0 && !flags.dry) process.exitCode = 1;
       break;
     }
     case 'usage': {
@@ -676,8 +677,9 @@ async function setup() {
     if (/^n/i.test(a.trim())) { out('stopped before building; nothing was changed'); return; }
   }
   await init({ clients, hooks: true, learn: learnOn(), late: !!flags.late, shared: !!flags.shared, mcp: true, gitHook: !!flags['git-hook'] });
-  if (canMine && canBuild) await minePrs(slug, { limit: prs, model: flags.model, before: typeof flags.before === 'string' ? flags.before : undefined });
-  if (areas && canSeed) await seed({ areas, model: flags.model, agent });
+  let prsResult = null, seedResult = null;
+  if (canMine && canBuild) prsResult = await minePrs(slug, { limit: prs, model: flags.model, before: typeof flags.before === 'string' ? flags.before : undefined });
+  if (areas && canSeed) seedResult = await seed({ areas, model: flags.model, agent });
   const notes = store.list();
   for (const n of notes) linkNotes(store, n, notes);
   if (notes.length && canBuild && !flags['no-phrase']) {
@@ -686,15 +688,39 @@ async function setup() {
   }
   if (typeof flags.export === 'string') { execFileSync('node', [path.join(HERE, 'cli.js'), 'export', flags.export, '--repo', repo], { stdio: 'inherit' }); }
   out(`\nthinker is set up for ${path.basename(repo)}: ${notes.length} notes, served to ${clients.join(', ')}.`);
-  if (!notes.length) out(learnOn() ? 'The cache is empty. It fills from your own sessions as you work.' : 'The cache is empty and learning is off. Re-run setup without --no-learn, or where an agent CLI is available.');
+  if (!notes.length) {
+    if (areas || prs) {
+      out(`\n❌ CACHE BUILD FAILED: The cache is empty (0 notes created).`);
+      if (seedResult && seedResult.ok === 0) {
+        out(`   • Area exploration failed across all attempted agents.`);
+        if (seedResult.failures?.length) {
+          out(`     Latest failure: ${seedResult.failures[0].error}`);
+        }
+      } else if (!canSeed && areas) {
+        out(`   • Area exploration was skipped: no supported agent CLI found (claude, gemini, codex, cursor).`);
+      }
+      if (prsResult && prsResult.saved === 0 && prs) {
+        out(`   • PR mining produced 0 notes.`);
+      } else if (!canMine && prs) {
+        out(`   • PR mining was skipped: requires GitHub CLI (\`gh\`) logged in.`);
+      }
+      out(`\n   To resolve this:`);
+      out(`   1. Ensure at least one agent CLI is logged in (\`claude\`, \`gemini\`, or \`codex\`).`);
+      out(`   2. Retry building the cache with:`);
+      out(`        thinker seed\n`);
+      process.exitCode = 1;
+    } else {
+      out(learnOn() ? 'The cache is empty. It fills from your own sessions as you work.' : 'The cache is empty and learning is off. Re-run setup without --no-learn, or where an agent CLI is available.');
+    }
+  }
 }
 
 // mine-prs and learn --prs: the repo defaults to the GitHub origin, and what is needed is checked first
 async function mineMore({ slug, ...opts }) {
   slug = slug || githubSlug();
-  if (!slug) { out('merged PRs: origin is not a GitHub repository; name one: thinker mine-prs <owner/repo>'); return; }
-  if (!hasBin('gh')) { out('merged PRs: needs the GitHub CLI (gh), logged in'); return; }
-  if (!provider()) { out('merged PRs: needs an agent CLI (claude, codex, agent or gemini) or ANTHROPIC_API_KEY'); return; }
+  if (!slug) { out('❌ merged PRs: origin is not a GitHub repository; name one: thinker mine-prs <owner/repo>'); process.exitCode = 1; return; }
+  if (!hasBin('gh')) { out('❌ merged PRs: needs the GitHub CLI (gh), logged in'); process.exitCode = 1; return; }
+  if (!provider()) { out('❌ merged PRs: needs an agent CLI (claude, gemini, or codex) or ANTHROPIC_API_KEY'); process.exitCode = 1; return; }
   store.init();
   return minePrs(slug, opts);
 }
@@ -794,7 +820,11 @@ async function seed({ areas, model, dry, prompts, agent }) {
   });
   if (dry) { for (const a of list) out(`${(a.dir || '-').padEnd(40)} ${a.n || ''}`); return; }
   let activeAgent = agent || exploreAgent();
-  if (!activeAgent) { out('no agent CLI found to explore with (claude, gemini, codex, or cursor)'); return; }
+  if (!activeAgent) {
+    out('\n❌ Cache build failed: no agent CLI found to explore with (claude, gemini, codex, or cursor).');
+    process.exitCode = 1;
+    return { ok: 0, total: list.length, cost: 0, agent: null, failures: [{ area: 'all', error: 'no agent CLI found' }] };
+  }
 
   const getCandidateAgents = (primary) => {
     const order = FALLBACK_ORDER;
@@ -806,6 +836,7 @@ async function seed({ areas, model, dry, prompts, agent }) {
   };
 
   let cost = 0, ok = 0;
+  const failures = [];
   for (const a of list) {
     const t0 = Date.now();
     const label = (a.dir || a.prompt.slice(0, 40)).padEnd(40);
@@ -832,15 +863,32 @@ async function seed({ areas, model, dry, prompts, agent }) {
 
     if (r && r.error) {
       out(`${label} all agents failed (${candidates.join(' -> ')}): ${r.error}`);
+      failures.push({ area: a.dir || label.trim(), error: r.error });
       continue;
     }
 
     cost += r.cost || 0; ok++;
     out(`${label} ${usedAgent}${r.turns ? ` ${r.turns} turns` : ''}${r.cost ? ` $${r.cost.toFixed(2)}` : ''} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
-    try { await distillFile(r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: false, incremental: false }); } catch (e) { out(`${label} distill failed: ${String(e.message).slice(0, 160)}`); }
+    try {
+      await distillFile(r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: false, incremental: false });
+    } catch (e) {
+      out(`${label} distill failed: ${String(e.message).slice(0, 160)}`);
+      failures.push({ area: a.dir || label.trim(), error: `distill failed: ${e.message}` });
+    }
     if (r.temp) fs.rmSync(r.transcript, { force: true });
   }
   out(`explored ${ok} of ${list.length} areas with ${activeAgent}${cost ? `, agent cost $${cost.toFixed(2)}` : ''}`);
+  if (ok === 0 && list.length > 0) {
+    out(`\n❌ Cache build failed: 0 of ${list.length} areas were successfully explored.`);
+    if (failures.length) {
+      out(`   Failure details:\n${failures.slice(0, 3).map(f => `   • ${f.area}: ${f.error}`).join('\n')}`);
+    }
+    out(`   Ensure at least one agent CLI (claude, gemini, or codex) is authenticated and working.\n`);
+    process.exitCode = 1;
+  } else if (failures.length > 0) {
+    out(`\n⚠️  Cache build partially completed (${ok}/${list.length} areas succeeded, ${failures.length} failed).`);
+  }
+  return { ok, total: list.length, cost, agent: activeAgent, failures };
 }
 // the agent that explores: THINKER_LLM if it names one, else the first installed in fallback order (claude, gemini, codex, cursor)
 function exploreAgent() {

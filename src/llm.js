@@ -120,7 +120,10 @@ export async function complete(opts) {
       }
     }
   }
-  throw lastError || new Error('all model providers failed');
+  if (!process.env.THINKER_QUIET) {
+    process.stderr.write(`[thinker] ❌ All model providers failed (${providers.join(' -> ')}). Last error: ${String(lastError?.message || lastError).slice(0, 160)}\n`);
+  }
+  throw lastError || new Error(`all model providers failed (${providers.join(' -> ')})`);
 }
 
 // Find the JSON object in a model's reply (it may be fenced or have text around it).
