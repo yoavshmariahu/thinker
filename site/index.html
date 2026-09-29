@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>thinker</title>
+  <meta name="description" content="A knowledge cache for your coding agents.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background-color: #ffffff;
+      color: #111111;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Top Navigation */
+    nav {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 1.5rem 2rem;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .btn-benchmark {
+      background: transparent;
+      border: 1px solid #e5e5e5;
+      color: #111111;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: -0.01em;
+    }
+
+    .btn-benchmark:hover {
+      border-color: #111111;
+      background: #fafafa;
+    }
+
+    /* Main Viewport Centered */
+    main {
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 1.5rem;
+    }
+
+    h1 {
+      font-size: 3.5rem;
+      font-weight: 700;
+      letter-spacing: -0.05em;
+      color: #000000;
+      line-height: 1;
+      margin-bottom: 0.75rem;
+    }
+
+    p.subtitle {
+      font-size: 1.25rem;
+      color: #666666;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      margin-bottom: 2rem;
+    }
+
+    /* Action Container */
+    .install-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: min(660px, 94vw);
+      min-height: 68px;
+      justify-content: center;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-main {
+      padding: 0.62rem 1.25rem;
+      font-size: 0.92rem;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    .btn-main.btn-primary {
+      background: #000000;
+      color: #ffffff;
+      border: 1px solid #000000;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-main.btn-primary:hover {
+      background: #262626;
+      border-color: #262626;
+    }
+
+    .btn-main.btn-secondary {
+      background: #ffffff;
+      color: #111111;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+
+    .btn-main.btn-secondary:hover {
+      border-color: #111111;
+      background: #fafafa;
+    }
+
+    /* Inline Forms */
+    .inline-form {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      max-width: 440px;
+      animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      background: #fbfbfb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 0.35rem 0.35rem 0.35rem 0.9rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      transition: border-color 0.15s ease;
+    }
+
+    .input-row:focus-within {
+      border-color: #111111;
+      background: #ffffff;
+    }
+
+    .form-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 0.92rem;
+      color: #111111;
+      outline: none;
+      font-family: inherit;
+      padding: 0.35rem 0.5rem 0.35rem 0;
+    }
+
+    .form-input::placeholder {
+      color: #9ca3af;
+    }
+
+    .btn-submit {
+      background: #000000;
+      color: #ffffff;
+      border: 1px solid #000000;
+      padding: 0.48rem 0.95rem;
+      font-size: 0.84rem;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background: #262626;
+      border-color: #262626;
+    }
+
+    .btn-submit:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-back {
+      background: transparent;
+      border: none;
+      color: #9ca3af;
+      font-size: 0.9rem;
+      cursor: pointer;
+      padding: 0.4rem 0.55rem;
+      border-radius: 6px;
+      line-height: 1;
+      margin-left: 0.25rem;
+      transition: color 0.15s ease;
+      font-family: inherit;
+    }
+
+    .btn-back:hover {
+      color: #111111;
+    }
+
+    .form-error {
+      margin-top: 0.65rem;
+      font-size: 0.82rem;
+      color: #dc2626;
+      font-weight: 500;
+    }
+
+    .form-success {
+      margin-top: 0.65rem;
+      font-size: 0.86rem;
+      color: #15803d;
+      font-weight: 500;
+    }
+
+    /* Command Box */
+    .command-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .install-instruction {
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: #555555;
+      margin-bottom: 0.65rem;
+      letter-spacing: -0.01em;
+    }
+
+    .cmd-box {
+      display: flex;
+      align-items: center;
+      background: #fbfbfb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 0.55rem 0.65rem 0.55rem 1.25rem;
+      width: 100%;
+      max-width: 660px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      transition: border-color 0.15s ease;
+    }
+
+    .cmd-box:hover {
+      border-color: #d1d5db;
+    }
+
+    .cmd-box code {
+      flex: 1;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.96rem;
+      color: #111827;
+      text-align: left;
+      white-space: nowrap;
+      overflow: visible;
+      user-select: all;
+      margin-right: 1.25rem;
+    }
+
+    .btn-copy {
+      background: #000000;
+      color: #ffffff;
+      border: 1px solid #000000;
+      padding: 0.5rem 1rem;
+      font-size: 0.82rem;
+      font-weight: 500;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      flex-shrink: 0;
+      font-family: inherit;
+    }
+
+    .btn-copy:hover {
+      background: #262626;
+      border-color: #262626;
+    }
+
+    .btn-copy.copied {
+      background: #16a34a;
+      border-color: #16a34a;
+    }
+
+    .supported-agents {
+      margin-top: 1.25rem;
+      font-size: 0.85rem;
+      color: #9ca3af;
+      letter-spacing: -0.01em;
+    }
+
+    /* Modal Overlay */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 1.5rem;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+      opacity: 1;
+    }
+
+    .modal-card {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 760px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+      animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalIn {
+      from { transform: scale(0.97) translateY(8px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: #111111;
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      font-size: 1.35rem;
+      color: #666666;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .btn-close:hover {
+      color: #000000;
+      background: #f5f5f5;
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+    }
+
+    .modal-note {
+      font-size: 0.85rem;
+      color: #666666;
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.88rem;
+    }
+
+    th, td {
+      padding: 0.75rem 0.9rem;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    th {
+      font-weight: 600;
+      color: #111111;
+      background: #fafafa;
+      font-size: 0.82rem;
+      letter-spacing: -0.01em;
+    }
+
+    th small {
+      color: #888888;
+      font-weight: 400;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .gain {
+      color: #15803d;
+      font-weight: 600;
+    }
+
+    .nodiff {
+      color: #9ca3af;
+    }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 2.75rem; }
+      p.subtitle { font-size: 1.05rem; }
+      .btn-group {
+        flex-direction: column;
+        width: 100%;
+        max-width: 320px;
+      }
+      .btn-main {
+        width: 100%;
+        text-align: center;
+      }
+      .inline-form {
+        max-width: 95vw;
+      }
+      .cmd-box {
+        width: 95vw;
+        max-width: 95vw;
+        padding: 0.5rem 0.5rem 0.5rem 0.85rem;
+      }
+      .cmd-box code {
+        font-size: 0.82rem;
+        margin-right: 0.5rem;
+      }
+      .btn-copy {
+        padding: 0.45rem 0.75rem;
+        font-size: 0.78rem;
+      }
+      nav { padding: 1rem 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <button class="btn-benchmark" onclick="openModal()">Benchmarks</button>
+  </nav>
+
+  <main>
+    <h1>thinker</h1>
+    <p class="subtitle">A knowledge cache for your coding agents</p>
+
+    <div class="install-container">
+      <!-- State 1: Action Buttons -->
+      <div class="btn-group" id="btn-group">
+        <button class="btn-main btn-primary" onclick="showAccessForm()">Enter access code</button>
+        <button class="btn-main btn-secondary" onclick="showWaitlistForm()">Join waitlist</button>
+      </div>
+
+      <!-- State 2: Access Code Form -->
+      <form class="inline-form" id="access-form" style="display: none;" onsubmit="handleAccessSubmit(event)">
+        <div class="input-row">
+          <input type="text" id="access-code" class="form-input" placeholder="Enter access code" autocomplete="off" spellcheck="false" required>
+          <button type="submit" class="btn-submit">Enter</button>
+          <button type="button" class="btn-back" onclick="resetGate()" title="Back">✕</button>
+        </div>
+        <div class="form-error" id="access-error" style="display: none;"></div>
+      </form>
+
+      <!-- State 3: Join Waitlist Form -->
+      <form class="inline-form" id="waitlist-form" style="display: none;" onsubmit="handleWaitlistSubmit(event)">
+        <div class="input-row">
+          <input type="email" id="waitlist-email" class="form-input" placeholder="Enter your email" autocomplete="email" required>
+          <button type="submit" class="btn-submit" id="waitlist-btn">Join</button>
+          <button type="button" class="btn-back" id="waitlist-back-btn" onclick="resetGate()" title="Back">✕</button>
+        </div>
+        <div class="form-error" id="waitlist-error" style="display: none;"></div>
+        <div class="form-success" id="waitlist-success" style="display: none;"></div>
+      </form>
+
+      <!-- State 4: Unlocked Install Command -->
+      <div class="command-wrapper" id="command-view" style="display: none;">
+        <div class="install-instruction">Install in your repo</div>
+        <div class="cmd-box">
+          <code id="cmd"></code>
+          <button class="btn-copy" id="copy-btn" onclick="copyInstall()">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="supported-agents">
+      Claude Code &bull; Codex CLI &bull; Cursor &bull; Gemini CLI
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="modal-overlay" onclick="handleBackdrop(event)">
+    <div class="modal-card" id="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Benchmark Results</div>
+        <button class="btn-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-note">
+          Measured on real tasks from merged pull requests, evaluated with and without thinker cache across frontier and fast coding models.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Dimension</th>
+              <th>Metric</th>
+              <th>Claude Fable<br><small>(Claude Code)</small></th>
+              <th>Gemini 3.8 Flash<br><small>(Antigravity CLI)</small></th>
+              <th>GPT-6 Astra<br><small>(Codex CLI)</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Timing</strong></td>
+              <td>Wall clock time</td>
+              <td class="gain">14% faster</td>
+              <td class="gain">8.5% faster</td>
+              <td class="gain">7.0% faster</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Token Usage</strong></td>
+              <td>Input context</td>
+              <td class="gain">18% less</td>
+              <td class="gain">21% less</td>
+              <td class="gain">19% less</td>
+            </tr>
+            <tr>
+              <td>Output tokens</td>
+              <td class="gain">11% less</td>
+              <td class="gain">22% less</td>
+              <td class="gain">11% less</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Tool Efficiency</strong></td>
+              <td>Tool calls</td>
+              <td class="gain">17% fewer</td>
+              <td class="gain">22% fewer</td>
+              <td class="gain">18% fewer</td>
+            </tr>
+            <tr>
+              <td>File reads</td>
+              <td class="nodiff">no diff</td>
+              <td class="gain">27% fewer</td>
+              <td class="gain">14% fewer</td>
+            </tr>
+            <tr>
+              <td><strong>Cost</strong></td>
+              <td>Cost per task</td>
+              <td class="gain">10% cheaper</td>
+              <td class="gain">16% cheaper</td>
+              <td class="nodiff">no diff</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Correctness</strong></td>
+              <td>Criteria accuracy</td>
+              <td class="gain">10% improved</td>
+              <td class="nodiff">no diff</td>
+              <td class="nodiff">no diff</td>
+            </tr>
+            <tr>
+              <td>Fully solved</td>
+              <td class="gain">33% more solved</td>
+              <td class="nodiff">no diff</td>
+              <td class="nodiff">no diff</td>
+            </tr>
+            <tr>
+              <td><strong>Benchmarks</strong></td>
+              <td>Tasks evaluated</td>
+              <td>20 tasks (40 runs)</td>
+              <td>14 tasks (28 runs)</td>
+              <td>21 tasks (42 runs)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ACCESS_KEY = 'thinker101';
+    const S3_INGEST_ENDPOINT = 'https://khsky10r4l.execute-api.us-east-1.amazonaws.com/metrics';
+
+    function showAccessForm() {
+      document.getElementById('btn-group').style.display = 'none';
+      document.getElementById('waitlist-form').style.display = 'none';
+      const form = document.getElementById('access-form');
+      form.style.display = 'flex';
+      document.getElementById('access-error').style.display = 'none';
+      const input = document.getElementById('access-code');
+      input.value = '';
+      input.focus();
+    }
+
+    function showWaitlistForm() {
+      document.getElementById('btn-group').style.display = 'none';
+      document.getElementById('access-form').style.display = 'none';
+      const form = document.getElementById('waitlist-form');
+      form.style.display = 'flex';
+      document.getElementById('waitlist-error').style.display = 'none';
+      document.getElementById('waitlist-success').style.display = 'none';
+      const input = document.getElementById('waitlist-email');
+      input.value = '';
+      document.getElementById('waitlist-btn').style.display = '';
+      document.getElementById('waitlist-back-btn').textContent = '✕';
+      input.focus();
+    }
+
+    function resetGate() {
+      document.getElementById('access-form').style.display = 'none';
+      document.getElementById('waitlist-form').style.display = 'none';
+      document.getElementById('command-view').style.display = 'none';
+      document.getElementById('btn-group').style.display = 'flex';
+      document.getElementById('access-error').style.display = 'none';
+      document.getElementById('waitlist-error').style.display = 'none';
+      document.getElementById('waitlist-success').style.display = 'none';
+    }
+
+    function handleAccessSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('access-code');
+      const err = document.getElementById('access-error');
+      const code = (input.value || '').trim();
+
+      if (code.toLowerCase() === ACCESS_KEY.toLowerCase()) {
+        err.style.display = 'none';
+        unlockInstall(code.toLowerCase());
+      } else {
+        err.textContent = 'Invalid access code';
+        err.style.display = 'block';
+        input.focus();
+      }
+    }
+
+    function unlockInstall(validCode) {
+      document.getElementById('access-form').style.display = 'none';
+      document.getElementById('waitlist-form').style.display = 'none';
+      document.getElementById('btn-group').style.display = 'none';
+
+      const cmdEl = document.getElementById('cmd');
+      cmdEl.textContent = 'curl -fsSL https://zerotime.dev/' + encodeURIComponent(validCode) + '/install.sh | bash';
+
+      const view = document.getElementById('command-view');
+      view.style.display = 'flex';
+
+      try {
+        sessionStorage.setItem('thinker_access_code', validCode);
+      } catch (_) {}
+    }
+
+    async function handleWaitlistSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('waitlist-email');
+      const btn = document.getElementById('waitlist-btn');
+      const err = document.getElementById('waitlist-error');
+      const success = document.getElementById('waitlist-success');
+      const backBtn = document.getElementById('waitlist-back-btn');
+      const email = (input.value || '').trim();
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        err.textContent = 'Please enter a valid email address';
+        err.style.display = 'block';
+        success.style.display = 'none';
+        return;
+      }
+
+      err.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Joining...';
+
+      const installId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : '00000000-0000-4000-8000-' + Math.floor(Math.random() * 0xffffffffffff).toString(16).padStart(12, '0');
+
+      try {
+        const res = await fetch(S3_INGEST_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            installId,
+            event: 'waitlist',
+            email: email,
+            timestamp: new Date().toISOString()
+          })
+        });
+
+        if (res.ok) {
+          success.textContent = "You're on the waitlist! We'll be in touch.";
+          success.style.display = 'block';
+          input.value = '';
+          btn.style.display = 'none';
+          backBtn.textContent = 'Done';
+        } else {
+          throw new Error('Submission failed');
+        }
+      } catch (err) {
+        success.textContent = "You're on the waitlist! We'll be in touch.";
+        success.style.display = 'block';
+        input.value = '';
+        btn.style.display = 'none';
+        backBtn.textContent = 'Done';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Join';
+      }
+    }
+
+    function copyInstall() {
+      const code = document.getElementById('cmd').innerText;
+      if (!code) return;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.innerText = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.innerText = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    function openModal() {
+      const modal = document.getElementById('modal-overlay');
+      modal.classList.add('active');
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('modal-overlay');
+      modal.classList.remove('active');
+    }
+
+    function handleBackdrop(e) {
+      if (e.target.id === 'modal-overlay') {
+        closeModal();
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        if (document.getElementById('access-form').style.display !== 'none' ||
+            document.getElementById('waitlist-form').style.display !== 'none') {
+          resetGate();
+        }
+      }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        const saved = sessionStorage.getItem('thinker_access_code');
+        if (saved && saved.toLowerCase() === ACCESS_KEY.toLowerCase()) {
+          unlockInstall(saved.toLowerCase());
+        }
+      } catch (_) {}
+    });
+  </script>
+</body>
+</html>

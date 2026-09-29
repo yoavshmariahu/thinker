@@ -5,7 +5,7 @@
 # The thinker repository is private, so you need access to it and a GitHub
 # token with read access, exported as GITHUB_TOKEN:
 #
-#   curl -fsSL https://zerotime.dev/install.sh | bash -s -- --build
+#   curl -fsSL https://zerotime.dev/thinker101/install.sh | bash -s -- --build
 #
 # --build does everything for a repository that has no cache yet: installs the
 # tool, builds the cache from the code and merged pull requests, and wires it
