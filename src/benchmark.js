@@ -28,6 +28,48 @@ export function benchmarkSuggestions(store, limit = 3) {
     .slice(0, limit);
 }
 
+export function isAuthError(err) {
+  if (!err) return false;
+  if (err.isAuth) return true;
+  const msg = (err.message || String(err)).toLowerCase();
+  return (
+    msg.includes('not logged in') ||
+    msg.includes('please run /login') ||
+    msg.includes('please login') ||
+    msg.includes('please sign in') ||
+    msg.includes('unauthenticated') ||
+    msg.includes('unauthorized') ||
+    msg.includes('api_error_status":401') ||
+    msg.includes('status": 401') ||
+    msg.includes('status 401') ||
+    msg.includes('401 unauthorized') ||
+    msg.includes('invalid api key') ||
+    msg.includes('api_key_invalid') ||
+    msg.includes('oauth token has expired') ||
+    msg.includes('token expired')
+  );
+}
+
+export function cleanErrorMessage(err) {
+  if (!err) return '';
+  const msg = err.message || String(err);
+  try {
+    const resultMatch = msg.match(/"result"\s*:\s*"([^"]+)"/);
+    if (resultMatch) return resultMatch[1];
+    const errorMatch = msg.match(/"(?:error|message)"\s*:\s*"([^"]+)"/);
+    if (errorMatch) return errorMatch[1];
+    const jsonMatch = msg.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.result) return String(parsed.result);
+      if (parsed.error?.message) return String(parsed.error.message);
+      if (parsed.error) return typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error);
+      if (parsed.message) return String(parsed.message);
+    }
+  } catch {}
+  return msg;
+}
+
 export function benchmarkAgent(requested) {
   if (requested) {
     if (!BINS[requested]) throw new Error(`unknown benchmark agent: ${requested} (known: ${Object.keys(BINS).join(', ')})`);
@@ -35,6 +77,7 @@ export function benchmarkAgent(requested) {
     return requested;
   }
   if (BINS[process.env.THINKER_LLM] && findBin(BINS[process.env.THINKER_LLM])) return process.env.THINKER_LLM;
+  if (BINS[process.env.THINKER_LLM_PREFER] && findBin(BINS[process.env.THINKER_LLM_PREFER])) return process.env.THINKER_LLM_PREFER;
   return Object.keys(BINS).find(a => findBin(BINS[a])) || null;
 }
 
@@ -50,7 +93,12 @@ function exec(bin, args, { cwd, input, timeoutMs = 20 * 60_000, env = {} }) {
     child.on('close', code => {
       clearTimeout(timer);
       if (timedOut) return reject(new Error(`${path.basename(bin)} timed out`));
-      if (code !== 0) return reject(new Error(`${path.basename(bin)} exited ${code}: ${(stderr || stdout).slice(0, 500)}`));
+      if (code !== 0) {
+        const rawOutput = (stderr || stdout).slice(0, 500);
+        const err = new Error(`${path.basename(bin)} exited ${code}: ${rawOutput}`);
+        if (isAuthError(err)) err.isAuth = true;
+        return reject(err);
+      }
       resolve({ stdout, stderr, wallMs: Date.now() - started });
     });
     child.stdin.on('error', () => {});
@@ -71,14 +119,22 @@ function normalizeUsage(u = {}) {
 
 function parseClaude(stdout, wallMs) {
   const j = JSON.parse(stdout);
-  if (j.is_error) throw new Error(String(j.result || 'Claude run failed').slice(0, 500));
+  if (j.is_error) {
+    const err = new Error(String(j.result || 'Claude run failed').slice(0, 500));
+    if (isAuthError(err)) err.isAuth = true;
+    throw err;
+  }
   return { answer: j.result || '', turns: n(j.num_turns), toolCalls: null, cost: j.total_cost_usd ?? null, ...normalizeUsage(j.usage), wallMs };
 }
 
 function parseCodex(stdout, wallMs) {
   const events = lines(stdout);
   const failure = events.find(e => e.type === 'turn.failed' || e.type === 'error');
-  if (failure) throw new Error(`Codex run failed: ${JSON.stringify(failure).slice(0, 500)}`);
+  if (failure) {
+    const err = new Error(`Codex run failed: ${JSON.stringify(failure).slice(0, 500)}`);
+    if (isAuthError(err)) err.isAuth = true;
+    throw err;
+  }
   const completed = events.filter(e => e.type === 'turn.completed');
   const usage = completed.map(e => e.usage || {}).reduce((a, u) => ({
     input_tokens: a.input_tokens + n(u.input_tokens), cached_input_tokens: a.cached_input_tokens + n(u.cached_input_tokens), output_tokens: a.output_tokens + n(u.output_tokens),
@@ -90,13 +146,21 @@ function parseCodex(stdout, wallMs) {
 
 function parseCursor(stdout, wallMs) {
   const j = JSON.parse(stdout);
-  if (j.is_error) throw new Error(String(j.result || 'Cursor run failed').slice(0, 500));
+  if (j.is_error) {
+    const err = new Error(String(j.result || 'Cursor run failed').slice(0, 500));
+    if (isAuthError(err)) err.isAuth = true;
+    throw err;
+  }
   return { answer: j.result || '', turns: n(j.num_turns || j.turns) || null, toolCalls: n(j.tool_calls) || null, cost: j.total_cost_usd ?? null, ...normalizeUsage(j.usage), wallMs };
 }
 
 function parseGemini(stdout, wallMs) {
   const j = JSON.parse(stdout);
-  if (j.error) throw new Error(`Gemini run failed: ${JSON.stringify(j.error).slice(0, 500)}`);
+  if (j.error) {
+    const err = new Error(`Gemini run failed: ${JSON.stringify(j.error).slice(0, 500)}`);
+    if (isAuthError(err)) err.isAuth = true;
+    throw err;
+  }
   const usage = j.usage || (j.stats?.models ? Object.values(j.stats.models).reduce((a, m) => {
     const u = m.tokens || m.usage || m;
     a.input_tokens += n(u.input ?? u.input_tokens ?? u.prompt);

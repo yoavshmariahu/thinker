@@ -24,7 +24,9 @@ import {
   getAgentLoginArgs,
   checkAgentAuth,
   selectAndAuthenticateAgent,
+  stepPrBenchmark,
 } from '../src/onboarding.js';
+import { isAuthError, cleanErrorMessage } from '../src/benchmark.js';
 
 function createMockGitRepo() {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-test-')));
@@ -567,5 +569,154 @@ test('selectAndAuthenticateAgent non-interactive skips exploration when no agent
   assert.equal(res.ok, true);
   assert.equal(res.skipExploration, true);
   assert.match(outLines.join('\n'), /Proceeding with agent exploration skipped/);
+});
+
+test('isAuthError and cleanErrorMessage correctly identify and format auth failure messages', () => {
+  const claudeRawErr = new Error(
+    'claude exited 1: {"type":"result","subtype":"success","is_error":true,"api_error_status":null,"duration_ms":238,"duration_api_ms":0,"num_turns":1,"result":"Not logged in · Please run /login","stop_reason":"stop_sequence","session_id":"a69454ff-5796-4961-8602-2bbd52bb8b97","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation":{"ephemeral'
+  );
+  assert.equal(isAuthError(claudeRawErr), true);
+  assert.equal(cleanErrorMessage(claudeRawErr), 'Not logged in · Please run /login');
+
+  const codexErr = new Error('Codex run failed: {"error":"401 Unauthorized"}');
+  assert.equal(isAuthError(codexErr), true);
+
+  const geminiErr = new Error('Gemini run failed: {"error":{"message":"Please sign in to continue"}}');
+  assert.equal(isAuthError(geminiErr), true);
+  assert.equal(cleanErrorMessage(geminiErr), 'Please sign in to continue');
+
+  const genericErr = new Error('File not found: math.js');
+  assert.equal(isAuthError(genericErr), false);
+  assert.equal(cleanErrorMessage(genericErr), 'File not found: math.js');
+});
+
+test('stepPrBenchmark non-interactive skips benchmark when no agent authenticated without throwing error', async () => {
+  const repo = createMockGitRepo();
+  const store = new Store(repo).init();
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = () => ({
+    installed: true,
+    authenticated: false,
+    loginCmd: 'claude auth login',
+  });
+
+  try {
+    const res = await stepPrBenchmark({
+      repo,
+      store,
+      benchmarkFlag: true,
+      yes: true,
+      out,
+      checkAuthFn: mockCheckAuth,
+    });
+
+    assert.equal(res, null);
+    const fullOut = outLines.join('\n');
+    assert.match(fullOut, /is not signed in/);
+    assert.match(fullOut, /Benchmark skipped/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('stepPrBenchmark interactive prompts user to sign in and switches to alternative when declined', async () => {
+  const repo = createMockGitRepo();
+  const store = new Store(repo).init();
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => {
+    if (agent === 'codex') {
+      return { agent, installed: true, authenticated: true, account: 'dev@test.com' };
+    }
+    return { agent, installed: true, authenticated: false, loginCmd: `${agent} auth login` };
+  };
+
+  let promptStep = 0;
+  const mockReadline = () => ({
+    question: async () => {
+      promptStep++;
+      if (promptStep === 1) return 'n'; // Decline sign in to claude
+      if (promptStep === 2) return 'y'; // Accept switch to codex
+      return 'y';
+    },
+    close: () => {},
+  });
+
+  const mockRunBenchmark = async (agent) => {
+    assert.equal(agent, 'codex');
+    return {
+      wallMs: 5000,
+      turns: 2,
+      toolCalls: 3,
+      inputTokens: 1000,
+      outputTokens: 200,
+      answer: 'Mock answer',
+    };
+  };
+
+  try {
+    const res = await stepPrBenchmark({
+      repo,
+      store,
+      agent: 'claude',
+      benchmarkFlag: true,
+      yes: false,
+      out,
+      checkAuthFn: mockCheckAuth,
+      readlineFn: mockReadline,
+      runBenchmarkFn: mockRunBenchmark,
+    });
+
+    assert.ok(res);
+    assert.equal(res.agent, 'codex');
+    const fullOut = outLines.join('\n');
+    assert.match(fullOut, /Switched to Codex CLI/);
+    assert.match(fullOut, /Running paired benchmark with Codex CLI/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('stepPrBenchmark catches runtime auth errors from runBenchmarkAgent and reports actionable login command', async () => {
+  const repo = createMockGitRepo();
+  const store = new Store(repo).init();
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = () => ({
+    installed: true,
+    authenticated: true,
+    loginCmd: 'claude auth login',
+  });
+
+  const mockRunBenchmarkFailsAuth = async () => {
+    throw new Error(
+      'claude exited 1: {"type":"result","subtype":"success","is_error":true,"api_error_status":null,"duration_ms":238,"duration_api_ms":0,"num_turns":1,"result":"Not logged in · Please run /login","stop_reason":"stop_sequence","session_id":"a69454ff-5796-4961-8602-2bbd52bb8b97","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation":{"ephemeral'
+    );
+  };
+
+  try {
+    const res = await stepPrBenchmark({
+      repo,
+      store,
+      agent: 'claude',
+      benchmarkFlag: true,
+      yes: true,
+      out,
+      checkAuthFn: mockCheckAuth,
+      runBenchmarkFn: mockRunBenchmarkFailsAuth,
+    });
+
+    assert.equal(res, null); // Gracefully returns null, does not crash!
+    const fullOut = outLines.join('\n');
+    assert.match(fullOut, /Benchmark stopped: .* reported an authentication issue/);
+    assert.match(fullOut, /Not logged in · Please run \/login/);
+    assert.match(fullOut, /claude auth login/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
 });
 
