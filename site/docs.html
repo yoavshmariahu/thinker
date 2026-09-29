@@ -499,7 +499,6 @@
         <ul class="sidebar-nav">
           <li class="sidebar-item active"><a href="#what-is-thinker">What is Thinker?</a></li>
           <li class="sidebar-item"><a href="#the-mental-model">The Mental Model</a></li>
-          <li class="sidebar-item"><a href="#quickstart">Quickstart</a></li>
         </ul>
       </div>
 
@@ -582,32 +581,6 @@
             <p>Every note tracks symbol-level content hashes against your working tree. When code changes, notes are flagged stale and verified with a fast model—never serving outdated claims.</p>
           </div>
         </div>
-      </section>
-
-      <section id="quickstart">
-        <h2>Quickstart</h2>
-        <p>
-          Run the installer from inside the repository you want to equip:
-        </p>
-        <pre><code><span class="code-comment"># From inside your git repository:</span>
-curl -fsSL https://zerotime.dev/thinker101/install.sh | bash</code></pre>
-
-        <p>Requirements:</p>
-        <ul>
-          <li><strong>Git</strong>, <strong>curl</strong>, <strong>tar</strong></li>
-          <li><strong>Node.js 20+</strong></li>
-          <li>At least one installed agent CLI (<code>claude</code>, <code>codex</code>, <code>cursor</code>/<code>agent</code>, or <code>gemini</code>), already logged in.</li>
-        </ul>
-
-        <h3>The 3-Stage Onboarding Flow</h3>
-        <p>
-          When installed, Thinker executes <code>thinker onboard</code>:
-        </p>
-        <ol>
-          <li><strong>Connects Harness CLIs:</strong> Detects installed agent CLIs on your machine and configures prompt hooks and MCP tools without requiring root privileges.</li>
-          <li><strong>Builds Knowledge Cache:</strong> Mines co-change edges, distills merged PRs into fix records, and explores primary subsystems. Pre-flight estimates of time and cost are printed upfront.</li>
-          <li><strong>Runs PR Change Benchmark:</strong> Optionally runs a paired test on a recent PR change (baseline vs. with cache) so you see immediate before/after metrics.</li>
-        </ol>
       </section>
 
       <section id="supported-agents">
