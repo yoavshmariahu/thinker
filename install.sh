@@ -5,8 +5,7 @@
 # The thinker repository is private, so you need access to it and a GitHub
 # token with read access, exported as GITHUB_TOKEN:
 #
-#   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github.raw" \
-#     https://api.github.com/repos/yoavshmariahu/thinker/contents/install.sh | bash -s -- --build
+#   curl -fsSL https://zerotime.dev/install.sh | bash -s -- --build
 #
 # --build does everything for a repository that has no cache yet: installs the
 # tool, builds the cache from the code and merged pull requests, and wires it
@@ -72,7 +71,7 @@ main() {
   local home="${THINKER_HOME:-$HOME/.thinker}"
   local ghrepo="${THINKER_GH_REPO:-yoavshmariahu/thinker}"
   local ref="${ref:-${THINKER_REF:-main}}"
-  local dist="${THINKER_DIST_URL:-}"
+  local dist="${THINKER_DIST_URL:-https://zerotime.dev/dist/thinker.tgz}"
   local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
   say() { printf '%s\n' "$*"; }
   die() { printf 'thinker: %s\n' "$*" >&2; exit 1; }

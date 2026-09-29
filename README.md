@@ -31,7 +31,7 @@ Works with Claude Code, Codex CLI, Gemini CLI and Cursor. Research prototype.
 From inside your repository:
 
 ```bash
-gh api repos/yoavshmariahu/thinker/contents/install.sh -H "Accept: application/vnd.github.raw" | bash -s -- --build
+curl -fsSL https://zerotime.dev/install.sh | bash -s -- --build
 ```
 
 Then work with your agent as usual. Notes are added to each request
@@ -61,9 +61,7 @@ and try again.
 
 Notes:
 
-- **Requirements.** git, curl, tar, Node 20+, the GitHub CLI logged in (`gh auth login`)
-  with access to the thinker repository, which is private, and at least one
-  of the agents above, logged in.
+- **Requirements.** git, curl, tar, Node 20+, and at least one of the agents above, logged in.
 - **What it does.** Installs the tool under `~/.thinker`, builds a cache of
   notes from the repository's git history, merged pull requests and source
   areas, and wires it into the agents found on the machine.
