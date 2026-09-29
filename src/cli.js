@@ -6,7 +6,7 @@ import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
-import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
+import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
@@ -793,7 +793,7 @@ async function setup() {
   const num = (v, d) => v === undefined || v === true || Number.isNaN(Number(v)) ? d : Number(v);
   const areas = flags['no-seed'] ? 0 : num(flags.areas, 12);
   const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug());
-  const prs = slug ? num(flags.prs, 60) : 0;
+  const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
   const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
 
   await runOnboarding({
@@ -823,47 +823,62 @@ async function setup() {
     exportFile: typeof flags.export === 'string' ? flags.export : null,
     out,
     seedFn: async (opts) => seed(opts),
-    minePrsFn: async (slug, opts) => minePrs(slug, opts),
+    minePrsFn: async (slug, opts) => minePrs(slug, { ...opts, repo }),
   });
 }
 
 // mine-prs and learn --prs: the repo defaults to the GitHub origin, and what is needed is checked first
 async function mineMore({ slug, ...opts }) {
   slug = slug || githubSlug();
-  if (!slug) { out('❌ merged PRs: origin is not a GitHub repository; name one: thinker mine-prs <owner/repo>'); process.exitCode = 1; return; }
-  if (!hasBin('gh')) { out('❌ merged PRs: needs the GitHub CLI (gh), logged in'); process.exitCode = 1; return; }
+  if (!slug && !hasBin('gh')) {
+    out('ℹ️  GitHub remote/gh CLI unavailable; falling back to local git history...');
+  }
   if (!provider()) { out('❌ merged PRs: needs an agent CLI (claude, gemini, or codex) or ANTHROPIC_API_KEY'); process.exitCode = 1; return; }
   store.init();
-  return minePrs(slug, opts);
+  return minePrs(slug, { ...opts, repo });
 }
 
-async function minePrs(slug, { before, after, again, limit = 20, model, dry }) {
-  const rec = minedPrs(store, slug);
+async function minePrs(slug, { before, after, again, limit = 20, model, dry, repo = process.cwd() } = {}) {
+  const useGit = !slug || !hasBin('gh');
+  const recSlug = slug || 'local';
+  const rec = minedPrs(store, recSlug);
   const fetchLimit = Math.min(Math.max(limit * 3, 60), 250);
+  const listFn = useGit ? (s, o) => listMergedCommits(repo, o) : listMergedPrs;
+
   // without a window: what was merged since the last run, then further back; never a PR mined before
   const listed = before || after
-    ? listMergedPrs(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || !rec.mined.has(p.number))
-    : nextPrs(slug, rec, { limit: fetchLimit });
-  if (!listed.length) { out(`no merged PRs of ${slug} left to mine (${rec.mined.size} mined so far)`); return { cost: 0, saved: 0 }; }
+    ? listFn(slug, { before: before || new Date().toISOString(), after, limit: fetchLimit }).filter(p => again || !rec.mined.has(p.number))
+    : nextPrs(slug, rec, { limit: fetchLimit, list: listFn, repo });
+  if (!listed.length) {
+    const sourceName = useGit ? 'git history' : `merged PRs of ${slug}`;
+    out(`no ${sourceName} left to mine (${rec.mined.size} mined so far)`);
+    return { cost: 0, saved: 0 };
+  }
   const failed = new Set();
   const filtered = listed
-    .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) && (p.body || '').length > 120 && p.additions <= 600 && p.additions >= 5);
-  const prs = stratifyPrs(filtered, limit);
-  out(`${prs.length} PRs to mine (stratified across subsystems from ${filtered.length} candidates)`);
+    .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) &&
+      (p.body || '').length > (useGit ? 10 : 120) && p.additions <= 800 && p.additions >= 3);
+  const candidates = filtered.length ? filtered : listed.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
+  const prs = stratifyPrs(candidates, limit);
+  out(`${prs.length} changes to mine (${useGit ? 'from git history' : `stratified across subsystems from ${filtered.length} candidates`})`);
   let cost = 0, saved = 0;
   for (const pr of prs) {
     try {
-      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet' });
+      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo });
       cost += r.cost || 0;
-      if (dry) { out(`#${pr.number} ${pr.title.slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || '-'}`); continue; }
-      const s2 = saveNotes(store, r.notes, { source: { type: 'pr', ref: `${slug}#${pr.number}` } });
+      const refId = pr.prNumber ? `${recSlug}#${pr.prNumber}` : `${recSlug}#${pr.hash ? pr.hash.slice(0, 8) : pr.number}`;
+      if (dry) { out(`${refId} ${pr.title.slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || '-'}`); continue; }
+      const s2 = saveNotes(store, r.notes, { source: { type: 'pr', ref: refId } });
       saved += s2.saved.length + s2.merged.length;
-      out(`#${pr.number} ${pr.title.slice(0, 60)} → ${[...s2.saved, ...s2.merged].map(n => `[${n.kind}] ${n.id}`).join(', ') || '-'}${s2.skipped.length ? ` (skipped ${s2.skipped.length})` : ''}`);
+      out(`${refId} ${pr.title.slice(0, 60)} → ${[...s2.saved, ...s2.merged].map(n => `[${n.kind}] ${n.id}`).join(', ') || '-'}${s2.skipped.length ? ` (skipped ${s2.skipped.length})` : ''}`);
     } catch (e) { failed.add(pr.number); out(`#${pr.number} error ${String(e.message).slice(0, 120)}`); }
   }
   // PRs passed over by the filter are recorded too; failed ones are not, so the next run takes them again
-  if (!dry) { recordMinedPrs(store, slug, listed.filter(p => !failed.has(p.number))); store.log({ op: 'mine-prs', slug, prs: prs.length - failed.size, passed: listed.length - prs.length, saved, cost }); }
-  out(`mined ${prs.length - failed.size} PRs → ${saved} notes, cost $${cost.toFixed(2)}${rec.mined.size ? ` (${rec.mined.size} mined earlier were skipped)` : ''}`);
+  if (!dry) {
+    recordMinedPrs(store, recSlug, listed.filter(p => !failed.has(p.number)));
+    store.log({ op: 'mine-prs', slug: recSlug, prs: prs.length - failed.size, passed: listed.length - prs.length, saved, cost, source: useGit ? 'git' : 'github' });
+  }
+  out(`mined ${prs.length - failed.size} changes → ${saved} notes, cost $${cost.toFixed(2)}${rec.mined.size ? ` (${rec.mined.size} mined earlier were skipped)` : ''}`);
   return { cost, saved };
 }
 

@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { minedPrs, recordMinedPrs, nextPrs } from '../src/prs.js';
+import { minedPrs, recordMinedPrs, nextPrs, listMergedCommits } from '../src/prs.js';
 
 const day = n => `2026-01-${String(n).padStart(2, '0')}T00:00:00Z`;
 const ALL = Array.from({ length: 12 }, (_, i) => ({ number: i + 1, mergedAt: day(i + 1) }));
@@ -38,4 +39,96 @@ test('a cache built before the record existed: notes name the pull requests they
   const rec = minedPrs(s, 'o/r');
   assert.ok(rec.mined.has(12));
   assert.deepEqual(nums(nextPrs('o/r', rec, { limit: 2, now: day(13), list })), [11, 10]);
+});
+
+function createMockPrRepo() {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-git-prs-')));
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['config', 'user.name', 'Thinker Test'], { cwd: dir });
+  execFileSync('git', ['config', 'user.email', 'test@thinker.dev'], { cwd: dir });
+  execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: dir });
+  execFileSync('git', ['checkout', '-b', 'main', '-q'], { cwd: dir });
+
+  // Initial commit on main
+  fs.writeFileSync(path.join(dir, 'README.md'), '# Test Repo\n');
+  execFileSync('git', ['add', '.'], { cwd: dir });
+  execFileSync('git', ['commit', '-m', 'chore: initial commit', '-q'], { cwd: dir });
+
+  // Feature 1 on branch, merged with merge commit
+  execFileSync('git', ['checkout', '-b', 'feature-auth', '-q'], { cwd: dir });
+  fs.writeFileSync(path.join(dir, 'auth.js'), 'export function verifyToken() { return true; }\n');
+  execFileSync('git', ['add', '.'], { cwd: dir });
+  execFileSync('git', ['commit', '-m', 'feat(auth): implement token verification\n\nAdds JWT authentication guard to protect API routes.', '-q'], { cwd: dir });
+
+  execFileSync('git', ['checkout', 'main', '-q'], { cwd: dir });
+  execFileSync('git', ['merge', '--no-ff', 'feature-auth', '-m', 'Merge branch feature-auth (#101)', '-q'], { cwd: dir });
+
+  // Feature 2: direct commit on main with PR number
+  fs.writeFileSync(path.join(dir, 'db.js'), 'export function connectDb() { return null; }\n');
+  execFileSync('git', ['add', '.'], { cwd: dir });
+  execFileSync('git', ['commit', '-m', 'fix(db): add retry logic to database connection (#102)\n\nPrevents connection timeouts on startup.', '-q'], { cwd: dir });
+
+  return dir;
+}
+
+test('listMergedCommits extracts commits, merge titles, bodies, and numstats', () => {
+  const dir = createMockPrRepo();
+  try {
+    const commits = listMergedCommits(dir);
+    assert.ok(commits.length >= 3);
+
+    // 1. Direct commit #102
+    const c102 = commits.find(c => c.prNumber === 102);
+    assert.ok(c102);
+    assert.match(c102.title, /fix\(db\): add retry logic/);
+    assert.match(c102.body, /Prevents connection timeouts on startup/);
+    assert.ok(c102.additions >= 1);
+    assert.deepEqual(c102.files, ['db.js']);
+    assert.equal(c102.isGitCommit, true);
+    assert.ok(c102.hash);
+
+    // 2. Merge commit #101 should extract feature title from branch commit, not generic merge subject
+    const c101 = commits.find(c => c.prNumber === 101);
+    assert.ok(c101);
+    assert.match(c101.title, /feat\(auth\): implement token verification/);
+    assert.match(c101.body, /Adds JWT authentication guard/);
+    assert.ok(c101.additions >= 1);
+    assert.ok(c101.files.includes('auth.js'));
+
+    // 3. Initial commit
+    const initial = commits.find(c => c.title.includes('initial commit'));
+    assert.ok(initial);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('nextPrs with listMergedCommits handles git history and tracks mined commits in local store', () => {
+  const dir = createMockPrRepo();
+  const s = store();
+  try {
+    const rec = minedPrs(s, 'local');
+    const first = nextPrs('local', rec, { limit: 1, list: listMergedCommits, repo: dir });
+    assert.equal(first.length, 1);
+    assert.equal(first[0].prNumber, 102);
+
+    recordMinedPrs(s, 'local', first);
+    const updatedRec = minedPrs(s, 'local');
+    assert.ok(updatedRec.mined.has(102));
+
+    // Next query skips already mined commit
+    const second = nextPrs('local', updatedRec, { limit: 1, list: listMergedCommits, repo: dir });
+    assert.equal(second.length, 1);
+    assert.equal(second[0].prNumber, 101);
+
+    // Commit hashes can be tracked as note sources
+    fs.writeFileSync(path.join(s.notesDir, 'hash-note.json'), JSON.stringify({
+      id: 'h1', kind: 'convention', title: 't', body: 'b',
+      source: { type: 'pr', ref: 'local#abc12345' },
+    }));
+    const recWithNote = minedPrs(s, 'local');
+    assert.ok(recWithNote.mined.has('abc12345'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -14,30 +14,126 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
   return JSON.parse(gh('pr', 'list', '--repo', slug, '--state', 'merged', '--limit', String(limit), '--search', q, '--json', 'number,title,body,mergedAt,additions,files'));
 }
 
+export function listMergedCommits(repo, { before, after, limit = 100 } = {}) {
+  const args = ['log', '--first-parent', '-n', String(Math.max(limit * 2, 60)), '--format=%H%x1f%P%x1f%aI%x1f%s%x1f%b%x1e'];
+  if (before) args.push(`--before=${before}`);
+  if (after) args.push(`--after=${after}`);
+
+  let raw = '';
+  try {
+    raw = execFileSync('git', args, { cwd: repo, maxBuffer: 32 * 1024 * 1024, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch {
+    return [];
+  }
+
+  const entries = raw.split('\x1e').map(s => s.trim()).filter(Boolean);
+  const candidates = [];
+
+  for (const entry of entries) {
+    const [hash, parents = '', date = '', subject = '', body = ''] = entry.split('\x1f');
+    if (!hash || !subject) continue;
+
+    const parentList = parents.split(' ').filter(Boolean);
+    let title = subject;
+    let cleanBody = body.trim();
+
+    // If it's a merge commit, pull the subject & body from the merged branch
+    if (parentList.length > 1) {
+      try {
+        const branchLog = execFileSync('git', ['log', `${parentList[0]}..${parentList[1]}`, '--format=%s%n%b'], {
+          cwd: repo,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim();
+        if (branchLog) {
+          const lines = branchLog.split('\n').map(l => l.trim()).filter(Boolean);
+          if (lines.length) {
+            title = lines[0];
+            cleanBody = (lines.slice(1).join('\n').trim() || cleanBody);
+          }
+        }
+      } catch {}
+    }
+
+    const prMatch = subject.match(/Merge pull request #(\d+)/i) ||
+                    title.match(/\(#(\d+)\)/) ||
+                    subject.match(/\(#(\d+)\)/) ||
+                    cleanBody.match(/\(#(\d+)\)/);
+    const prNumber = prMatch ? parseInt(prMatch[1], 10) : null;
+
+    let additions = 0;
+    const files = [];
+    try {
+      const numstat = execFileSync('git', ['show', '-m', '--first-parent', '--numstat', '--format=', hash], {
+        cwd: repo,
+        maxBuffer: 16 * 1024 * 1024,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      for (const line of numstat.split('\n')) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 3) {
+          const added = parseInt(parts[0], 10);
+          if (!isNaN(added)) additions += added;
+          files.push(parts.slice(2).join(' '));
+        }
+      }
+    } catch {}
+
+    candidates.push({
+      number: prNumber || parseInt(hash.slice(0, 8), 16),
+      prNumber,
+      hash,
+      title,
+      body: cleanBody,
+      mergedAt: date,
+      additions,
+      files,
+      isGitCommit: true,
+    });
+  }
+
+  return candidates;
+}
+
 // The record of mined pull requests lives beside the notes (.thinker/prs.json) and is
 // committed with them, so a teammate's run does not distill the same ones again.
 //   { "<owner/repo>": { mined: [numbers], latest: <mergedAt>, oldest: <mergedAt> } }
 const recordFile = store => path.join(path.dirname(store.notesDir), 'prs.json');
 
 export function minedPrs(store, slug) {
+  slug = slug || 'local';
   let all = {}; try { all = JSON.parse(fs.readFileSync(recordFile(store), 'utf8')); } catch {}
   const r = all[slug] || {};
   const mined = new Set(r.mined || []);
   // caches built before the record existed: the notes name the pull request they came from
   for (const n of store.list()) for (const s of [n.source, ...(n.history || []).map(h => h.source)]) {
-    const m = s && s.type === 'pr' && String(s.ref || '').match(/^(.+)#(\d+)$/);
-    if (m && m[1] === slug) mined.add(Number(m[2]));
+    const m = s && s.type === 'pr' && String(s.ref || '').match(/^(.+)#(.+)$/);
+    if (m && m[1] === slug) {
+      const val = isNaN(Number(m[2])) ? m[2] : Number(m[2]);
+      mined.add(val);
+    }
   }
   return { mined, latest: r.latest || null, oldest: r.oldest || null };
 }
 
 export function recordMinedPrs(store, slug, prs) {
+  slug = slug || 'local';
   if (!prs.length) return;
   const f = recordFile(store);
   let all = {}; try { all = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
   const r = all[slug] || {};
   const dates = [r.latest, r.oldest, ...prs.map(p => p.mergedAt)].filter(Boolean).sort();
-  all[slug] = { mined: [...new Set([...(r.mined || []), ...prs.map(p => p.number)])].sort((a, b) => a - b), latest: dates[dates.length - 1] || null, oldest: dates[0] || null };
+  const ids = prs.map(p => p.prNumber || (p.hash ? p.hash.slice(0, 8) : p.number));
+  all[slug] = {
+    mined: [...new Set([...(r.mined || []), ...ids])].sort((a, b) => {
+      const na = Number(a), nb = Number(b);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return String(a).localeCompare(String(b));
+    }),
+    latest: dates[dates.length - 1] || null,
+    oldest: dates[0] || null,
+  };
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.writeFileSync(f, JSON.stringify(all, null, 1) + '\n');
 }
@@ -45,13 +141,14 @@ export function recordMinedPrs(store, slug, prs) {
 // The next pull requests to mine, newest first: the most recent ones that are not in the
 // record, whether merged since the last run or passed by when a busy repo outran the limit,
 // then further back in history than any run has reached.
-export function nextPrs(slug, rec, { limit = 20, now = new Date().toISOString(), list = listMergedPrs } = {}) {
-  const fresh = prs => [...prs].sort((x, y) => String(y.mergedAt).localeCompare(String(x.mergedAt))).filter(p => !rec.mined.has(p.number));
+export function nextPrs(slug, rec, { limit = 20, now = new Date().toISOString(), list = listMergedPrs, repo } = {}) {
+  const fetcher = (s, opts) => repo && list === listMergedCommits ? list(repo, opts) : list(s, opts);
+  const fresh = prs => [...prs].sort((x, y) => String(y.mergedAt).localeCompare(String(x.mergedAt))).filter(p => !rec.mined.has(p.number) && (!p.hash || !rec.mined.has(p.hash.slice(0, 8))));
   // the search limit counts pull requests already mined too, so ask for that many more (GitHub search stops at 1000)
-  const out = fresh(list(slug, { before: now, limit: Math.min(limit + rec.mined.size, 1000) })).slice(0, limit);
+  const out = fresh(fetcher(slug, { before: now, limit: Math.min(limit + rec.mined.size, 1000) })).slice(0, limit);
   if (out.length < limit && rec.oldest) {
     const have = new Set(out.map(p => p.number));
-    out.push(...fresh(list(slug, { before: rec.oldest, limit: limit - out.length })).filter(p => !have.has(p.number)).slice(0, limit - out.length));
+    out.push(...fresh(fetcher(slug, { before: rec.oldest, limit: limit - out.length })).filter(p => !have.has(p.number)).slice(0, limit - out.length));
   }
   return out;
 }
@@ -141,10 +238,27 @@ Rules:
 - applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
 - Return an empty list for dependency bumps, pure refactors, generated-file churn, or PRs with nothing reusable.`;
 
-export async function distillPr(slug, pr, { model = 'sonnet' } = {}) {
-  const diff = gh('pr', 'diff', String(pr.number), '--repo', slug).slice(0, 45000);
-  const comments = reviewComments(slug, pr.number);
-  const prompt = `PR #${pr.number}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
+export async function distillPr(slug, pr, { model = 'sonnet', repo } = {}) {
+  let diff = pr.diff || '';
+  if (!diff && repo && pr.hash) {
+    try {
+      diff = execFileSync('git', ['show', '-m', '--first-parent', '--format=', pr.hash], {
+        cwd: repo,
+        maxBuffer: 32 * 1024 * 1024,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+    } catch {}
+  }
+  if (!diff && slug && pr.number && !pr.isGitCommit) {
+    try {
+      diff = gh('pr', 'diff', String(pr.number), '--repo', slug);
+    } catch {}
+  }
+  diff = (diff || '').slice(0, 45000);
+  const comments = slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
+  const label = pr.prNumber ? `PR #${pr.prNumber}` : (pr.hash ? `Commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
+  const prompt = `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
   const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000 });
   return { notes: r.json?.notes || [], cost: r.cost };
 }

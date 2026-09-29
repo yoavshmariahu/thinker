@@ -489,7 +489,10 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
     candidateAreas = discoverAreas(repo, { limit: areas });
   } catch {}
 
-  const canMine = Boolean(slug && !noPrs && hasBin('gh') && prs > 0);
+  const canMineGh = Boolean(slug && !noPrs && hasBin('gh') && prs > 0);
+  const canMineGit = Boolean(!noPrs && commitCount > 5 && prs > 0);
+  const canMine = canMineGh || canMineGit;
+  const mineSource = canMineGh ? 'github' : (canMineGit ? 'git' : null);
   const canSeed = Boolean(!noSeed && agent && areas > 0 && candidateAreas.length > 0);
 
   // Co-change mining timing estimate
@@ -526,6 +529,7 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
     fileCount,
     candidateAreasCount: candidateAreas.length,
     canMine,
+    mineSource,
     canSeed,
     timing: {
       totalSeconds: totalSec,
@@ -700,16 +704,24 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
   const slug = githubSlug(repo);
   let minedPrCount = 0;
   if (estimates.canMine && minePrsFn) {
-    out(`  ${c.bold(`[2/4] Mining merged PRs from ${slug}...`)}`);
+    if (estimates.mineSource === 'github') {
+      out(`  ${c.bold(`[2/4] Mining merged PRs from ${slug}...`)}`);
+    } else {
+      out(`  ${c.bold(`[2/4] Mining merged changes from git history (GitHub CLI unavailable)...`)}`);
+    }
     try {
-      const res = await minePrsFn(slug, { limit: prs, model });
+      const res = await minePrsFn(slug, { limit: prs, model, repo });
       minedPrCount = res.saved || 0;
-      out(`        ${c.green('✔')} Mined pull requests → ${minedPrCount} notes created`);
+      const label = estimates.mineSource === 'github' ? 'pull requests' : 'git history changes';
+      out(`        ${c.green('✔')} Mined ${label} → ${minedPrCount} notes created`);
     } catch (e) {
       out(`        ${c.yellow('⚠')} PR mining skipped: ${e.message}`);
     }
   } else {
-    out(`  ${c.dim('[2/4] Merged PR mining · Skipped (requires GitHub repo and gh CLI)')}`);
+    const reason = noPrs
+      ? '(--no-prs requested)'
+      : (!estimates.canMine ? 'insufficient git history' : 'requires GitHub repo and gh CLI');
+    out(`  ${c.dim(`[2/4] Merged PR mining · Skipped (${reason})`)}`);
   }
 
   // Stage 3: Subsystem area exploration

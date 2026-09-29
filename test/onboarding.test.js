@@ -237,6 +237,58 @@ test('runOnboarding completes 3-step onboarding flow in clean repo', async () =>
   }
 });
 
+test('runOnboarding mines git history when GitHub origin is unavailable', async () => {
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-gitmine-')));
+  execFileSync('git', ['init', '-q', repo]);
+  execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
+  execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: repo });
+  execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: repo });
+
+  for (let i = 1; i <= 6; i++) {
+    fs.writeFileSync(path.join(repo, `file${i}.js`), `export const v${i} = ${i};\n`);
+    execFileSync('git', ['add', '.'], { cwd: repo });
+    execFileSync('git', ['commit', '-m', `commit ${i} description`, '-q'], { cwd: repo });
+  }
+
+  const est = estimateCacheBuild(repo, { prs: 10, noPrs: false, slug: null });
+  assert.equal(est.canMine, true);
+  assert.equal(est.mineSource, 'git');
+
+  const store = new Store(repo);
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+  let minedPrsArgs = null;
+
+  try {
+    await runOnboarding({
+      repo,
+      store,
+      cliPath: path.resolve('src/cli.js'),
+      mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
+      clients: ['claude'],
+      areas: 2,
+      prs: 10,
+      noSeed: true,
+      noBenchmark: true,
+      yes: true,
+      out,
+      minePrsFn: async (slug, opts) => {
+        minedPrsArgs = { slug, opts };
+        return { saved: 3 };
+      },
+    });
+
+    const fullOutput = outLines.join('\n');
+    assert.match(fullOutput, /\[2\/4\] Mining merged changes from git history \(GitHub CLI unavailable\)\.\.\./);
+    assert.match(fullOutput, /Mined git history changes → 3 notes created/);
+    assert.equal(minedPrsArgs.slug, null);
+    assert.equal(minedPrsArgs.opts.limit, 10);
+    assert.equal(minedPrsArgs.opts.repo, repo);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test('runOnboarding halts setup when agent is not installed or authenticated and --no-seed is not passed', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-onboard-halt-'));
   execFileSync('git', ['init', repo]);
