@@ -8,16 +8,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { complete } from '../src/llm.js';
+import { GRADE_SCHEMA, JUDGE_SYSTEM_PROMPT, srcOnly } from './judge-protocol.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const ji = argv.indexOf('--judge');
 const JUDGE = ji < 0 ? 'sonnet' : argv.splice(ji, 2)[1];
 const [cmd, tasksFile, ...tags] = argv;
 const spec = JSON.parse(fs.readFileSync(tasksFile, 'utf8'));
-const srcOnly = d => d.split(/^(?=diff --git )/m).filter(c => !/^diff --git a\/\S*(test_|\.test\.|\/tests?\/|__tests__|__snapshots__|\.ambr|\.snap)/.test(c)).join('');
 
 const BUILD_SCHEMA = { type: 'object', properties: { criteria: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, behavior: { type: 'string' }, essential: { type: 'boolean' } }, required: ['id', 'behavior', 'essential'] } } }, required: ['criteria'] };
-const GRADE_SCHEMA = { type: 'object', properties: { results: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, verdict: { type: 'string', enum: ['met', 'not_met', 'unclear'] }, evidence: { type: 'string' } }, required: ['id', 'verdict', 'evidence'] } } }, required: ['results'] };
 
 import { execFileSync } from 'node:child_process';
 const repo = path.join(HERE, 'repos', spec.repo);
@@ -36,12 +35,18 @@ function hunks(diff) {
   }
   return out;
 }
-function contextFrom(read, diff, pad = 45, cap = 60000) {
+function contextFrom(read, diff, pad = 80, cap = 80000) {
   const by = {}; for (const h of hunks(diff)) (by[h.file] ||= []).push([Math.max(1, h.start - pad), h.start + h.len + pad]);
   let text = '';
   for (const [file, ranges] of Object.entries(by)) {
     const src = read(file); if (src == null) continue;
-    const lines = src.split('\n'); ranges.sort((a, b) => a[0] - b[0]);
+    const lines = src.split('\n');
+    if (lines.length <= 300) {
+      text += `\n--- ${file} (full file, ${lines.length} lines after patch) ---\n${src}\n`;
+      if (text.length > cap) return text.slice(0, cap);
+      continue;
+    }
+    ranges.sort((a, b) => a[0] - b[0]);
     const merged = []; for (const r of ranges) { const last = merged[merged.length - 1]; if (last && r[0] <= last[1] + 5) last[1] = Math.max(last[1], r[1]); else merged.push([...r]); }
     for (const [a, b] of merged) { text += `\n--- ${file} lines ${a}-${Math.min(b, lines.length)} (after patch) ---\n${lines.slice(a - 1, b).join('\n')}\n`; if (text.length > cap) return text.slice(0, cap); }
   }
@@ -77,7 +82,7 @@ if (cmd === 'build') {
 } else {
   const gradePatch = async (t, patch, summary, context = '') => {
     const r = await complete({ model: JUDGE, schema: GRADE_SCHEMA,
-      system: 'You check a patch against acceptance criteria. For each criterion decide whether the code after the patch would exhibit that behaviour: met, not_met, or unclear when what you are shown is not enough to tell. You get the patch and the surrounding code as it is after the patch; behaviour that the unchanged surrounding code already provides counts as met when the criterion asks that something keeps working. Any design that produces the behaviour counts; do not require a particular file, layer or approach. The author\'s summary is a claim, not evidence. Quote the code that decides each verdict.',
+      system: JUDGE_SYSTEM_PROMPT,
       prompt: `REQUEST:\n${t.prompt}\n\nCRITERIA:\n${t.criteria.map(c => `${c.id}${c.essential ? ' (essential)' : ''}: ${c.behavior}`).join('\n')}\n\nPATCH:\n${(srcOnly(patch) || '(empty patch)').slice(0, 40000)}\n\nCODE AFTER PATCH (around each change):\n${context || '(not available)'}\n\nAUTHOR SUMMARY:\n${(summary || '').slice(0, 3000)}` });
     const res = r.json.results; const by = Object.fromEntries(res.map(x => [x.id, x.verdict]));
     const usable = t.criteria.filter(c => c.calibrated !== false);

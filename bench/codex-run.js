@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { installClient } from '../src/clients.js';
 import { CACHE_USAGE_GUIDE } from '../src/cache-guidance.js';
 import { complete } from '../src/llm.js';
+import { GRADE_SCHEMA, JUDGE_SYSTEM_PROMPT, srcOnly, computeGradeScores } from './judge-protocol.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
@@ -194,48 +195,17 @@ function getDiff(cwd) {
   return diff;
 }
 
-const GRADE_SCHEMA = {
-  type: 'object',
-  properties: {
-    results: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          verdict: { type: 'string', enum: ['met', 'not_met', 'unclear'] },
-          evidence: { type: 'string' }
-        },
-        required: ['id', 'verdict', 'evidence']
-      }
-    }
-  },
-  required: ['results']
-};
-
-const srcOnly = d => (d || '').split(/^(?=diff --git )/m).filter(c => !/^diff --git a\/\S*(test_|\.test\.|\/tests?\/|__tests__|__snapshots__|\.ambr|\.snap)/.test(c)).join('');
-
 async function gradePatch(task, patch, summary = '') {
   if (!task.criteria?.length) return null;
   const judgeProvider = flags['judge-llm'] || 'gemini';
   const judgeModel = flags.judge || 'gemini-3.8-flash-high';
-  const system = 'You check a patch against acceptance criteria. For each criterion decide whether the code after the patch would exhibit that behaviour: met, not_met, or unclear when what you are shown is not enough to tell. Any design that produces the behaviour counts; do not require a particular file, layer or approach. The author\'s summary is a claim, not evidence. Quote the code that decides each verdict.';
   const prompt = `REQUEST:\n${task.prompt}\n\nCRITERIA:\n${task.criteria.map(c => `${c.id}${c.essential ? ' (essential)' : ''}: ${c.behavior}`).join('\n')}\n\nPATCH:\n${(srcOnly(patch) || '(empty patch)').slice(0, 40000)}\n\nAUTHOR SUMMARY:\n${(summary || '').slice(0, 3000)}`;
 
   try {
     process.env.THINKER_LLM = judgeProvider;
-    const res = await complete({ model: judgeModel, system, prompt, schema: GRADE_SCHEMA });
+    const res = await complete({ model: judgeModel, system: JUDGE_SYSTEM_PROMPT, prompt, schema: GRADE_SCHEMA });
     const results = res.json?.results || [];
-    const by = Object.fromEntries(results.map(x => [x.id, x.verdict]));
-    const usable = task.criteria.filter(c => c.calibrated !== false);
-    const ess = usable.filter(c => c.essential);
-    const frac = cs => cs.length ? cs.filter(c => by[c.id] === 'met').length / cs.length : 1;
-    return {
-      essential: frac(ess),
-      all: frac(usable),
-      pass: ess.every(c => by[c.id] === 'met'),
-      results
-    };
+    return computeGradeScores(task.criteria, results);
   } catch (err) {
     return { error: err.message, essential: 0, all: 0, pass: false };
   }
