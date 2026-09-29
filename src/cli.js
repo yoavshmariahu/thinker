@@ -18,6 +18,7 @@ import { summarize, renderUsage, sessionKey } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from './benchmark.js';
+import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath } from './update.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -82,11 +83,143 @@ const HELP = `thinker — knowledge cache for coding agents
   benchmark run "<repo question>" [--agent a] [--model m] [--budget n]
                                  run a paired, read-only onboarding benchmark without and with relevant cached notes
   benchmark report              show the latest comparison (answers are saved for human quality review)
+  update [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]
+                                 update thinker CLI to the latest version; --schedule / --unschedule manages daily background updates
+  upgrade                        alias for update
   stats
 `;
 
 async function main() {
+  if (process.stderr.isTTY && !['update', 'upgrade', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
+    const notice = checkPendingNotice(thinkerHome());
+    if (notice) process.stderr.write(`[thinker] ${notice}\n`);
+  }
+  if (!['update', 'upgrade'].includes(cmd) && !flags.background) {
+    maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
+  }
+
   switch (cmd) {
+    case 'update':
+    case 'upgrade': {
+      const home = thinkerHome();
+      const install = detectInstall(path.resolve(HERE, '..'), home);
+
+      if (flags.status) {
+        out('Thinker installation:');
+        out(`  Type:         ${install.type === 'git' ? 'git checkout' : 'archive'}`);
+        out(`  Path:         ${install.path}`);
+        out(`  Version:      ${install.version}`);
+        if (install.type === 'git') {
+          out(`  Branch:       ${install.branch || 'detached'}`);
+          out(`  Commit:       ${install.commit ? install.commit.slice(0, 7) : 'unknown'}`);
+        } else {
+          out(`  Repository:   ${install.ghrepo || 'yoavshmariahu/thinker'}`);
+          out(`  Ref:          ${install.ref || 'main'}`);
+          out(`  Commit:       ${install.commit ? install.commit.slice(0, 7) : 'unknown'}`);
+        }
+        const sched = isScheduled(home);
+        out('Auto-updates:');
+        out(`  Schedule:     ${sched ? (process.platform === 'darwin' ? 'active (LaunchAgent: ' + getLaunchAgentPath() + ')' : 'active (cron)') : 'inactive'}`);
+        const stamp = path.join(home, 'state', 'update.last');
+        let lastCheck = 'never';
+        try {
+          const st = fs.statSync(stamp);
+          lastCheck = new Date(st.mtimeMs).toLocaleString();
+        } catch {}
+        out(`  Last check:   ${lastCheck}`);
+        break;
+      }
+
+      if (flags.schedule || flags.daily) {
+        try {
+          const res = scheduleDaily({ home, binPath: install.binPath });
+          out(`Scheduled daily auto-update for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
+        } catch (e) {
+          out(`Failed to schedule daily auto-update: ${e.message}`);
+          process.exit(1);
+        }
+        break;
+      }
+
+      if (flags.unschedule) {
+        const res = unscheduleDaily({ home });
+        if (res.unscheduled) out('Removed scheduled daily auto-update for thinker.');
+        else out('No scheduled daily auto-update was found.');
+        break;
+      }
+
+      if (flags.background) {
+        const lock = path.join(home, 'state', 'update.lock');
+        try {
+          if (Date.now() - fs.statSync(lock).mtimeMs < 15 * 60_000) return;
+        } catch {}
+        fs.mkdirSync(path.dirname(lock), { recursive: true });
+        fs.writeFileSync(lock, String(process.pid));
+        try {
+          const chk = await checkUpdate({ home, install });
+          if (chk.available) {
+            const res = await applyUpdate({ home, install, quiet: true, background: true });
+            if (res.updated) {
+              const noticeFile = path.join(home, 'state', 'update-notice.json');
+              fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, at: new Date().toISOString() }));
+              store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: true });
+            }
+          }
+        } catch {}
+        finally {
+          try { fs.rmSync(lock, { force: true }); } catch {}
+        }
+        break;
+      }
+
+      if (!flags.quiet) out('Checking for updates...');
+      let chk;
+      try {
+        chk = await checkUpdate({ home, install, ghrepo: flags.repo, ref: flags.ref });
+      } catch (e) {
+        out(`Update check failed: ${e.message}`);
+        process.exit(1);
+      }
+
+      if (flags.check) {
+        if (chk.available) {
+          out(`Update available: ${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'}`);
+          if (chk.commitMessage) out(`  ${chk.commitMessage}`);
+        } else {
+          out(`thinker is already up to date (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
+        }
+        break;
+      }
+
+      if (!chk.available && !flags.force) {
+        if (!flags.quiet) {
+          out(`thinker is already up to date (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
+          if (!isScheduled(home)) {
+            out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
+          }
+        }
+        break;
+      }
+
+      if (!flags.quiet) {
+        out(`Updating thinker (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'})...`);
+      }
+
+      try {
+        const res = await applyUpdate({ home, install, force: !!flags.force, quiet: !!flags.quiet, ghrepo: flags.repo, ref: flags.ref });
+        if (!flags.quiet) {
+          out(`Updated thinker to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
+          if (!isScheduled(home)) {
+            out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
+          }
+        }
+        store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: false });
+      } catch (e) {
+        out(`Update failed: ${e.message}`);
+        process.exit(1);
+      }
+      break;
+    }
     case 'init': {
       // hooks serve notes and learn from sessions by default. flags: --no-learn (serve only, for evals; --serve-only is
       //        the older name), --no-hooks (MCP server only), --late (file-keyed notes),
@@ -100,7 +233,8 @@ async function main() {
       break;
     }
     case 'uninstall': {
-      // remove hooks and MCP registration for every client; notes stay unless --purge
+      // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge
+      unscheduleDaily({ home: thinkerHome() });
       uninstallClients(repo);
       const gh = path.join(repo, '.git', 'hooks', 'post-commit');
       if (fs.existsSync(gh) && fs.readFileSync(gh, 'utf8').includes('thinker')) fs.unlinkSync(gh);

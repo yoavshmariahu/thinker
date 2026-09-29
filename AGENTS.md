@@ -43,6 +43,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/cochange.js` | co-change mining from git history |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
+| `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `test/` | unit tests (`node --test`) |

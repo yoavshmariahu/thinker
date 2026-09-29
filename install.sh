@@ -27,6 +27,8 @@
 #   --shared            write hooks to .claude/settings.json (committed) instead of settings.local.json
 #   --mcp               register the MCP server in .mcp.json (Cursor, Codex, other MCP clients)
 #   --git-hook          re-check notes against the code after every commit
+#   --update            update thinker CLI to the latest version and exit
+#   --no-auto-update    do not schedule daily background auto-updates
 #   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too)
 #
 # Environment
@@ -41,7 +43,7 @@
 set -euo pipefail
 
 main() {
-  local cache="" build=0 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0
+  local cache="" build=0 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; shift 2 ;;
@@ -55,6 +57,9 @@ main() {
       --shared) shared=1; shift ;;
       --mcp) mcp=1; shift ;;
       --git-hook) githook=1; shift ;;
+      --update) update=1; shift ;;
+      --auto-update) autoupdate=1; shift ;;
+      --no-auto-update) autoupdate=0; shift ;;
       --uninstall) uninstall=1; shift ;;
       --purge) purge=1; shift ;;
       -h|--help) say "see the header of install.sh or ONBOARDING.md for options"; exit 0 ;;
@@ -101,6 +106,11 @@ main() {
     exit 0
   fi
 
+  if [ "$update" = 1 ]; then
+    [ -x "$thinker" ] || die "thinker is not installed in $home"
+    exec "$thinker" update
+  fi
+
   # --- install the tool ----------------------------------------------------
   local tmp; tmp="$(mktemp -d)"
   # expand now: the variable is local and gone by the time the trap runs
@@ -131,6 +141,18 @@ main() {
 exec node "$home/app/src/cli.js" "\$@"
 SHIM
   chmod +x "$thinker"
+  cat > "$home/install.json" <<EOF
+{
+  "source": "archive",
+  "ghrepo": "$ghrepo",
+  "ref": "$ref",
+  "dist": "$dist",
+  "installedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+  if [ "$autoupdate" = 1 ]; then
+    "$thinker" update --schedule --quiet 2>/dev/null || true
+  fi
 
   [ "$build" = 1 ] && [ -z "$clients" ] && clients="auto"
   # Cursor is served through the MCP server, which needs its dependencies
@@ -197,6 +219,7 @@ SHIM
     say "    $thinker benchmark report --repo \"$repo\""
   fi
   say "  Remove from this repo:  $thinker uninstall --repo \"$repo\""
+  say "  Update thinker:         $thinker update (auto-updates daily)"
   case ":$PATH:" in *":$home/bin:"*) ;; *) say "  Optional: add $home/bin to your PATH to run 'thinker' directly." ;; esac
 }
 

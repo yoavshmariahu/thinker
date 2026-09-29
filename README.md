@@ -97,6 +97,16 @@ Real tasks from merged pull requests, each run with and without the cache. Evalu
 Method, uncertainty, per-task results and other models:
 [bench/RESULTS.md](bench/RESULTS.md).
 
+## Updates
+
+Thinker auto-updates daily in the background. To check or update manually at any time:
+
+```bash
+thinker update
+```
+
+See `thinker update --status` for current install and schedule details, or `thinker update --schedule` / `thinker update --unschedule` to manage OS-level background updates.
+
 ## More
 
 - [AGENTS.md](AGENTS.md): how thinker works, per-agent support, repository layout

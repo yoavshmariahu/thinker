@@ -24,6 +24,8 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--shared` | write hooks to `.claude/settings.json` so the whole team gets them on pull |
 | `--mcp` | also register the MCP server for the chosen agents (needs npm); always on for Cursor |
 | `--git-hook` | re-check notes after each commit |
+| `--update` | update the thinker CLI to the latest version and exit |
+| `--no-auto-update` | do not schedule daily background auto-updates (daily auto-update is on by default) |
 | `--uninstall [--purge]` | remove hooks; `--purge` also deletes the notes |
 
 ## First-run benchmark
