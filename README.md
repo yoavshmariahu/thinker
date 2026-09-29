@@ -6,12 +6,11 @@ short notes keyed to the code they describe, and serves the relevant ones
 into each request. When the code under a note changes, the note is flagged
 stale and re-verified.
 
-**With Claude Fable on real tasks, the cache raised the correctness score,
-lowered cost, and cut wall time.**
+**With Claude Fable on real tasks, the cache cut wall time, lowered token usage and cost, and raised the correctness score.**
 
 ```
-correctness score    without thinker  ████████████████░░░░  80%
-                     with thinker     ██████████████████░░  89%     +10% improved
+wall time            without thinker  ████████████████████  2.7 min
+                     with thinker     █████████████████░░░  2.3 min 14% faster
 
 input tokens         without thinker  ████████████████████  1.25M
                      with thinker     ████████████████░░░░  1.02M   18% less tokens
@@ -19,8 +18,8 @@ input tokens         without thinker  ██████████████
 cost per task        without thinker  ████████████████████  $2.72
                      with thinker     ██████████████████░░  $2.45   10% cheaper
 
-wall time            without thinker  ████████████████████  2.7 min
-                     with thinker     █████████████████░░░  2.3 min 14% faster
+correctness score    without thinker  ████████████████░░░░  80%
+                     with thinker     ██████████████████░░  89%     +10% improved
 ```
 
 [See the benchmark](#benchmarks).
@@ -57,21 +56,21 @@ Real tasks from merged pull requests, each run with and without the cache. Evalu
 
 | Dimension | Metric | Claude Fable (Claude Code) | Gemini 3.8 Flash (Antigravity CLI) | OpenAI GPT-6 Astra (Codex CLI) |
 |---|---|---|---|---|
-| 🎯 **Correctness** | **Criteria accuracy** | **+10% improved** | **Parity** (0% diff) | **-7% diff** |
-| | **Tasks fully solved** | **+33% more solved** | **Parity** (0% diff) | **-18% diff** |
 | ⏱️ **Timing** | **Wall clock time** | **14% faster** | **8.5% faster** | **8.6% faster** |
 | 🪙 **Token Usage** | **Input context** | **18% less tokens** | **21% less tokens** | **20% less tokens** |
 | | **Output tokens** | **11% less output** | **22% less output** | **12% less output** |
 | 🔍 **Tool Efficiency** | **Tool calls** | **17% fewer calls** | **22% fewer calls** | **20% fewer calls** (won 81% of tasks) |
 | | **File reads / exploration** | *(tracked in tool calls)* | **27% fewer file reads** | **11% less exploration** |
 | 💰 **Cost** | **Cost per task** | **10% cheaper** | **16% cheaper** | *(flat rate / subscription)* |
+| 🎯 **Correctness** | **Criteria accuracy** | **+10% improved** | **Parity** (0% diff) | **-7% diff** |
+| | **Tasks fully solved** | **+33% more solved** | **Parity** (0% diff) | **-18% diff** |
 
 ### Key Takeaways for Users
 
-- **🎯 Correctness:** On frontier models (Claude Fable), thinker boosts overall correctness by **+10%** and lifts complete task passes from **45% to 60%** (+3 tasks). Fast models (Gemini Flash) maintain strict correctness parity.
-- **🔍 Tool Efficiency:** Reduces tool calls across every evaluated agent harness — Claude Code (**-17%**), Codex CLI (**-20%**, lower in 13 of 16 tasks), and Antigravity CLI (**-22%**).
 - **⏱️ Timing:** Eliminates blind repo exploration and prevents rabbit holes, cutting wall time by **8.5% to 14%** (saving up to **100+ seconds** on complex Grafana tasks).
 - **🪙 Token Usage & Cost:** Pre-seeded architecture notes reduce input tokens and context re-reads by **18% to 21%**, directly lowering cost per task by **10% to 16%**.
+- **🔍 Tool Efficiency:** Reduces tool calls across every evaluated agent harness — Claude Code (**-17%**), Codex CLI (**-20%**, lower in 13 of 16 tasks), and Antigravity CLI (**-22%**).
+- **🎯 Correctness:** On frontier models (Claude Fable), thinker boosts overall correctness by **+10%** and lifts complete task passes from **45% to 60%** (+3 tasks). Fast models (Gemini Flash) maintain strict correctness parity.
 
 Method, uncertainty, per-task results and other models:
 [bench/RESULTS.md](bench/RESULTS.md).

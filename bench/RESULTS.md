@@ -9,12 +9,12 @@ symptom-only tasks; the sections below hold the full tables.
 
 | | without thinker | with thinker | change |
 |---|---|---|---|
-| **Correctness score** (share of essential criteria met) | 80% | **89%** | **+10%** (80.4% to 88.8%, +0.08) |
-| **Thoroughness** (share of the further criteria met) | 28% | 34% | +21% (+0.06) |
+| **Time per task** | 2.7 min | **2.3 min** | **-14%** |
 | **Input tokens per task** | 1.25M | **1.02M** | **-18%** |
 | **Cost per task** | $2.72 | **$2.45** | **-10%** |
 | **Tool calls per task** | 18.1 | **14.9** | **-17%** |
-| **Time per task** | 2.7 min | **2.3 min** | **-14%** |
+| **Correctness score** (share of essential criteria met) | 80% | **89%** | **+10%** (80.4% to 88.8%, +0.08) |
+| **Thoroughness** (share of the further criteria met) | 28% | 34% | +21% (+0.06) |
 
 - **Cheaper in 15 of 20 paired runs.** The same task and seed cost less with
   the cache three times out of four.
@@ -74,16 +74,16 @@ The same 14 tasks, run through Google's Gemini 3.8 Flash (`gemini-3.8-flash-high
 
 | per task | without thinker | with thinker | change |
 |---|---|---|---|
-| Correctness (essential criteria) | 51.8% | **52.2%** | **+0.4%** |
-| Every essential criterion met | 5 of 14 | 5 of 14 | parity |
+| **Time** | 13.1 min | **11.9 min** | **-8.5%** |
+| **Cost** | $0.416 | **$0.348** | **-16.4%** |
+| **Cached context re-read** | 15.2M | **12.1M** | **-20.7%** |
+| **Input tokens (uncached)** | 1.35M | **1.31M** | **-2.6%** |
+| **Output tokens** | 98.1k | **76.9k** | **-21.7%** |
 | **Tool calls** | 142.7 | **111.1** | **-22.2%** |
 | **File reads** | 70.3 | **51.5** | **-26.7%** |
 | **File edits** | 12.1 | **9.4** | **-22.5%** |
-| **Output tokens** | 98.1k | **76.9k** | **-21.7%** |
-| **Cached context re-read** | 15.2M | **12.1M** | **-20.7%** |
-| **Input tokens (uncached)** | 1.35M | **1.31M** | **-2.6%** |
-| **Time** | 13.1 min | **11.9 min** | **-8.5%** |
-| **Cost** | $0.416 | **$0.348** | **-16.4%** |
+| Correctness (essential criteria) | 51.8% | **52.2%** | **+0.4%** |
+| Every essential criterion met | 5 of 14 | 5 of 14 | parity |
 
 - **Substantial effort and cost reduction.** Across the 14 tasks, thinker reduced total tool calls from 1,998 to 1,555 (-443 calls, -22.2%), file reads from 984 to 721 (-263 reads, -26.7%), and total Gemini API cost from $5.82 to $4.87 (-16.4%).
 - **Less work in 8 of 14 pairs (57%).** Tool calls, file reads, wall clock time, and dollar cost were each lower in 8 of the 14 pairs.
@@ -397,11 +397,11 @@ All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3
 
 **Evaluation Standardization**: Every patch was applied to an isolated worktree and graded on acceptance criteria using Google Gemini 3.8 Flash (`gemini-3.8-flash-high`) via `bench/criteria.js`, providing strict objective verification of observable runtime behavior.
 
-| arm | n | essential criteria | strict pass | tool calls | fresh input tokens | total input tokens | output tokens | wall clock |
+| arm | n | wall clock | tool calls | fresh input tokens | total input tokens | output tokens | essential criteria | strict pass |
 |---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| nocache | 16 | 89.4% | 68.8% (11/16) | 15.4 ±1.1 | 46.3k ±2.7k | 544.6k ±57.8k | 4,847 ±468 | 170.7s ±16.9s |
-| cache | 16 | 82.5% | 56.3% (9/16) | **12.4 ±1.0** | **41.0k ±3.9k** | **434.7k ±48.5k** | **4,258 ±384** | **156.0s ±13.8s** |
-| **change** | | -6.9% | -12.5% (-2 tasks) | **-19.8%** (-3.1 calls) | **-11.4%** (-5.3k) | **-20.2%** (-109.9k) | **-12.2%** (-589) | **-8.6%** (-14.7s) |
+| nocache | 16 | 170.7s ±16.9s | 15.4 ±1.1 | 46.3k ±2.7k | 544.6k ±57.8k | 4,847 ±468 | 89.4% | 68.8% (11/16) |
+| cache | 16 | **156.0s ±13.8s** | **12.4 ±1.0** | **41.0k ±3.9k** | **434.7k ±48.5k** | **4,258 ±384** | 82.5% | 56.3% (9/16) |
+| **change** | | **-8.6%** (-14.7s) | **-19.8%** (-3.1 calls) | **-11.4%** (-5.3k) | **-20.2%** (-109.9k) | **-12.2%** (-589) | -6.9% | -12.5% (-2 tasks) |
 
 **Paired effect of the cache**:
 - **Tool call reduction in 13 of 16 tasks (81.3%)**: Codex consistently spent fewer tool calls when oriented by the cache (only 2 tasks saw an increase, 1 parity).
