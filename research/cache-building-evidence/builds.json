@@ -1,0 +1,41 @@
+[
+  {
+    "technique": "symbols",
+    "notes": 25315,
+    "bytes": 38525001,
+    "build_ms": 6605.150584,
+    "sha256": "36549347f91ebdff88d88f78472e4c07c59bb6e0793ed82975b86f615e4beac6",
+    "graph_sha256": "6d663f67b52ed7a20505f6bcb92c92428de0b544785653f7092d159a49cee6d0",
+    "indexed_files": 43962,
+    "indexed_nodes": 927722,
+    "indexed_edges": 2786826,
+    "production_files": 25315,
+    "production_cross_file_edges": 422380
+  },
+  {
+    "technique": "relationships",
+    "notes": 25315,
+    "bytes": 66874952,
+    "build_ms": 2015.7679159999989,
+    "sha256": "2652038887a0e65c52e5ead486ccb1daf8f2381ebbe3b354497aadac9901633b",
+    "graph_sha256": "6d663f67b52ed7a20505f6bcb92c92428de0b544785653f7092d159a49cee6d0",
+    "indexed_files": 43962,
+    "indexed_nodes": 927722,
+    "indexed_edges": 2786826,
+    "production_files": 25315,
+    "production_cross_file_edges": 422380
+  },
+  {
+    "technique": "evidence",
+    "notes": 25315,
+    "bytes": 88052333,
+    "build_ms": 4612.047666,
+    "sha256": "8c7895d5638aa20a9bc5dc47a389df7d339da916ab6db3723aa7fddfa3107325",
+    "graph_sha256": "6d663f67b52ed7a20505f6bcb92c92428de0b544785653f7092d159a49cee6d0",
+    "indexed_files": 43962,
+    "indexed_nodes": 927722,
+    "indexed_edges": 2786826,
+    "production_files": 25315,
+    "production_cross_file_edges": 422380
+  }
+]

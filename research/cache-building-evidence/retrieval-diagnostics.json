@@ -1,0 +1,1207 @@
+[
+  {
+    "technique": "symbols",
+    "notes": 25315,
+    "tasks": 14,
+    "covered": 13,
+    "hits": 5,
+    "served": 23,
+    "on_target": 6,
+    "misses": {
+      "gate-or-lexical": 5,
+      "coverage": 1,
+      "ranking-or-slot": 3
+    },
+    "rows": [
+      {
+        "task": "PR106936-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-0414b099f628b7ee7a0c",
+            "title": "frontend/src/scenes/settings/organization/InviteModal.tsx: EmailUnavailableForInvitesBanner, ProjectAccessSelector, InviteModal",
+            "on_target": true,
+            "primary_on_target": true
+          },
+          {
+            "id": "struct-ee6224b01b26fb6d676a",
+            "title": "frontend/src/scenes/settings/organization/Invites.tsx: InvitesTable, Invites, ProfilePictureRender",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 643,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-27f1188d355085795759",
+          "title": "frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx: OnboardingInviteTeammates, titlePrefix, likeTo",
+          "cover": 0.07594381772759146,
+          "coverQ": 0.08719477253765479,
+          "rel": 0.6003928669997358
+        }
+      },
+      {
+        "task": "PR106466-hard",
+        "covered": true,
+        "strict_first_on_target": null,
+        "loose_first_on_target": 8,
+        "served": [
+          {
+            "id": "struct-3c6c86d20050cc37752e",
+            "title": "products/workflows/frontend/Broadcasts/broadcastTestSendLogic.ts: findTestSendSkipReason, broadcastTestSendLogicValues, broadcastTestSendLogicActions",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-22a143abd58dc1506776",
+            "title": "products/workflows/frontend/Broadcasts/steps/BroadcastScheduleStep.tsx: BroadcastScheduleStep, TimezonePicker, SendingRateLimit",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 517,
+        "miss_reason": "gate-or-lexical",
+        "best_rejected_target": {
+          "id": "struct-c2d3b9742b55345caf6c",
+          "title": "products/workflows/frontend/Broadcasts/broadcastsLogic.ts: getBroadcastStatus, BroadcastStatus, BroadcastRowDetails",
+          "cover": 0.09305990277670705,
+          "coverQ": 0.10631128677939305,
+          "rel": 0.7033790178112496
+        }
+      },
+      {
+        "task": "PR106672-hard",
+        "covered": true,
+        "strict_first_on_target": null,
+        "loose_first_on_target": 51,
+        "served": [],
+        "tokens": 0,
+        "miss_reason": "gate-or-lexical",
+        "best_rejected_target": {
+          "id": "struct-7bbd002d14c309703f7f",
+          "title": "products/experiments/backend/experiment_saved_metric_service.py: update_saved_metric, create_saved_metric, ExperimentSavedMetricService",
+          "cover": 0.0695480201973613,
+          "coverQ": 0.06300904658623291,
+          "rel": 0.6501053655502378
+        }
+      },
+      {
+        "task": "PR106564-hard",
+        "covered": true,
+        "strict_first_on_target": null,
+        "loose_first_on_target": 1140,
+        "served": [
+          {
+            "id": "struct-530f2d08cd21faf9f451",
+            "title": "rust/feature-flags/src/flags/flag_service.rs: test_get_flags_from_hypercache, test_get_flags_from_hypercache_compressed_payload, verify_token_and_get_team",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-812c84f796dfac1678d1",
+            "title": "rust/feature-flags/src/flags/flag_operations.rs: test_consistent_behavior_from_both_clients, test_multivariate_flag_with_payloads, test_rollout_percentage_edge_cases",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 553,
+        "miss_reason": "gate-or-lexical",
+        "best_rejected_target": {
+          "id": "struct-a35a3c4ae7428fbc9ace",
+          "title": "common/esbuilder/utils.mjs: buildInParallel, copyIndexHtml, copySnappyWASMFile",
+          "cover": 0.06355269407894494,
+          "coverQ": 0.035258912999031854,
+          "rel": 0.3339780419127792
+        }
+      },
+      {
+        "task": "PR106613-hard",
+        "covered": false,
+        "strict_first_on_target": null,
+        "loose_first_on_target": null,
+        "served": [
+          {
+            "id": "struct-eb9d69be185ddda20182",
+            "title": "products/ai_observability/frontend/playground/PlaygroundSaveMenu.tsx: PlaygroundSaveMenu, openSaveAsNewPromptDialog, openSaveAsNewEvaluationDialog",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-a191a4b4f27492b0d009",
+            "title": "products/ml_inference/frontend/DecisionPlaygroundScene.tsx: DecisionPlaygroundScene, QuestionRow, OptionRow",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 550,
+        "miss_reason": "coverage"
+      },
+      {
+        "task": "PR107042-hard",
+        "covered": true,
+        "strict_first_on_target": null,
+        "loose_first_on_target": 12,
+        "served": [],
+        "tokens": 0,
+        "miss_reason": "gate-or-lexical",
+        "best_rejected_target": {
+          "id": "struct-9fbc5c65ed51f2324ebc",
+          "title": "products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx: SubscriptionListItem, SubscriptionEmptyState, AIPromptReportsLink",
+          "cover": 0.08370424415209285,
+          "coverQ": 0.07305955071503978,
+          "rel": 0.7605059710958624
+        }
+      },
+      {
+        "task": "PR106522-hard",
+        "covered": true,
+        "strict_first_on_target": 4,
+        "loose_first_on_target": 4,
+        "served": [
+          {
+            "id": "struct-667bfbbf701ffdb775d9",
+            "title": "products/tasks/backend/logic/services/workflow_step_resume.py: resume_workflow_step_for_run, resume_workflow_step_after_final_message, resume_workflow_step_for_run_id",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-b1b85389d9b11852fdde",
+            "title": "frontend/src/scenes/data-pipelines/event-filtering/EventFilterTestCases.tsx: EventFilterTestCases",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 519,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-407ffcf31b708d441059",
+          "title": "products/tasks/backend/temporal/process_task/activities/update_task_run_status.py: update_task_run_status, _capture_terminal_analytics, UpdateTaskRunStatusInput",
+          "cover": 0.08440120320547514,
+          "coverQ": 0.08940183219905302,
+          "rel": 0.5902759173094977
+        }
+      },
+      {
+        "task": "PR105793-hard",
+        "covered": true,
+        "strict_first_on_target": 2,
+        "loose_first_on_target": 2,
+        "served": [
+          {
+            "id": "struct-6c11f8c219c8bcd8bbe1",
+            "title": "products/slack_app/backend/services/slack_messages.py: post_slack_thread_reply, post_slack_ephemeral, context_block",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-a1171d7f0637e25e78cf",
+            "title": "products/slack_app/backend/api.py: posthog_code_interactivity_handler, resolve_slack_user, route_posthog_code_event_to_relevant_region",
+            "on_target": true,
+            "primary_on_target": true
+          }
+        ],
+        "tokens": 670,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-375189855cf5cff8c606",
+          "title": "products/slack_app/backend/models.py: SlackThreadTaskMapping, SlackUserProfileCache, SlackChannel",
+          "cover": 0.08627834733825737,
+          "coverQ": 0.11909571147901162,
+          "rel": 0.6025378239725078
+        }
+      },
+      {
+        "task": "PR105887-hard",
+        "covered": true,
+        "strict_first_on_target": null,
+        "loose_first_on_target": 13,
+        "served": [
+          {
+            "id": "struct-43fa4247ec9da632afe2",
+            "title": "products/experiments/backend/recalculation.py: request_recalculation, get_latest_recalculation, build_timeseries_cold_start_payload",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 333,
+        "miss_reason": "gate-or-lexical",
+        "best_rejected_target": {
+          "id": "struct-32c446db3869611c296a",
+          "title": "posthog/temporal/experiments/activities.py: _calculate_experiment_saved_metric_sync, _get_experiment_regular_metrics_for_hour_sync, _calculate_experiment_regular_metric_sync",
+          "cover": 0.08428048760624857,
+          "coverQ": 0.08005902992107015,
+          "rel": 0.7121302654860695
+        }
+      },
+      {
+        "task": "PR105871-hard",
+        "covered": true,
+        "strict_first_on_target": 2,
+        "loose_first_on_target": 2,
+        "served": [
+          {
+            "id": "struct-facf97a7427d12f8a275",
+            "title": "products/feature_flags/backend/management/commands/repair_replay_linked_flag_keys.py: _load_flags, rewrite, _report",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-41167d85ac2cfb86c0ec",
+            "title": "products/feature_flags/backend/temporal/health_checks/stale_flags.py: detect, render_alert, _excluded_flag_ids",
+            "on_target": true,
+            "primary_on_target": true
+          }
+        ],
+        "tokens": 723,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-e8c21c30a8a833ca1bf3",
+          "title": "products/feature_flags/backend/management/commands/audit_flag_filters.py: _emit_console, _emit_json, handle",
+          "cover": 0.09185990414869201,
+          "coverQ": 0.07780042245971328,
+          "rel": 0.6907249890457099
+        }
+      },
+      {
+        "task": "PR106917-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-6144e3681ce19979eaaf",
+            "title": "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py: mark_cdc_broken, clear_recovered_self_managed_lag, _capture",
+            "on_target": true,
+            "primary_on_target": true
+          },
+          {
+            "id": "struct-8bebd27bb15b89b974b2",
+            "title": "products/data_warehouse/backend/logic/data_load/service.py: sync_external_data_job_workflow, unpause_external_data_schedule, trigger_external_data_workflow",
+            "on_target": true,
+            "primary_on_target": true
+          }
+        ],
+        "tokens": 771,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-d9002317d59f07fcd3b5",
+          "title": "products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py: ExternalDataSourceCDCMixin, disable_cdc, _setup_cdc_resources",
+          "cover": 0.08318882202753991,
+          "coverQ": 0.0873084212699086,
+          "rel": 0.536114783951459
+        }
+      },
+      {
+        "task": "PR106579-hard",
+        "covered": true,
+        "strict_first_on_target": 9,
+        "loose_first_on_target": 13,
+        "served": [
+          {
+            "id": "struct-9be1a75a1f37e0c125ff",
+            "title": "products/error_tracking/frontend/components/ActivityDescriber.tsx: ActivityDescriber, AssigneeRenderer, describeIssueMergeOrSplit",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-95c9d4ae790ce7eb00ba",
+            "title": "products/error_tracking/backend/temporal/alerts/messages.py: build_reply_text, spike_summary, build_root_message",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 668,
+        "miss_reason": "ranking-or-slot"
+      },
+      {
+        "task": "PR106491-hard",
+        "covered": true,
+        "strict_first_on_target": 6,
+        "loose_first_on_target": 6,
+        "served": [
+          {
+            "id": "struct-822937085480c6718e86",
+            "title": "products/product_analytics/frontend/insights/trends/shared/chartErrorHandler.ts: makeChartErrorHandler",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-8ce5f22e1dbdf5f5296d",
+            "title": "products/product_analytics/frontend/insights/trends/shared/handleTrendsChartClick.tsx: handleTrendsChartClick, TrendsChartClickDeps, title",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 527,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-18f1b16a9b85171d24bc",
+          "title": "products/product_analytics/frontend/insights/chartAlternatives/chartAlternativesLogic.ts: ChartAlternativesLogicProps, ChartAlternativeSource, chartAlternativesLogicValues",
+          "cover": 0.08764160684109372,
+          "coverQ": 0.10576166977987159,
+          "rel": 0.6903596003107046
+        }
+      },
+      {
+        "task": "PR106322-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-9430f3fbe345e69d7218",
+            "title": "posthog/models/person/bulk_delete.py: resolve_persons_for_deletion, delete_persons_profile, queue_person_recording_deletion",
+            "on_target": true,
+            "primary_on_target": true
+          },
+          {
+            "id": "struct-1dffb0a41fe36c618a87",
+            "title": ".github/scripts/weekly-slow-tests-report.mjs: tableRows, buildBlocks, main",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 682,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-05963eddb31ec97bd5bf",
+          "title": "posthog/models/person/deletion.py: reset_deleted_person_distinct_ids, tombstone_orphaned_ch_persons, _set_distinct_id_version_floor_via_personhog",
+          "cover": 0.08991663094141954,
+          "coverQ": 0.07430026919925439,
+          "rel": 0.6165048787431318
+        }
+      }
+    ]
+  },
+  {
+    "technique": "relationships",
+    "notes": 25315,
+    "tasks": 14,
+    "covered": 13,
+    "hits": 6,
+    "served": 28,
+    "on_target": 8,
+    "misses": {
+      "ranking-or-slot": 5,
+      "gate-or-lexical": 2,
+      "coverage": 1
+    },
+    "rows": [
+      {
+        "task": "PR106936-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-0414b099f628b7ee7a0c",
+            "title": "frontend/src/scenes/settings/organization/InviteModal.tsx: EmailUnavailableForInvitesBanner, ProjectAccessSelector, InviteModal",
+            "on_target": true,
+            "primary_on_target": true
+          },
+          {
+            "id": "struct-ee6224b01b26fb6d676a",
+            "title": "frontend/src/scenes/settings/organization/Invites.tsx: InvitesTable, Invites, ProfilePictureRender",
+            "on_target": true,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1146,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-e49f5f5e79cd873e4406",
+          "title": "frontend/src/scenes/settings/organization/inviteLogic.ts: InviteRowState, inviteLogicValues, inviteLogicActions",
+          "cover": 0.0799365004656849,
+          "coverQ": 0.08130340615879264,
+          "rel": 0.5383808260047493
+        }
+      },
+      {
+        "task": "PR106466-hard",
+        "covered": true,
+        "strict_first_on_target": 13,
+        "loose_first_on_target": 10,
+        "served": [
+          {
+            "id": "struct-d91db20d818c62df53d0",
+            "title": "rust/cohort-stream-processor/src/consumers/seeds.rs: run_admission_cycle, disk_pressure_pauses_all_partitions_and_an_absent_sample_never_pauses, live_lag_pauses_within_a_cycle_and_resumes_held_before_fresh",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-8cf87f09811ddd12b1ef",
+            "title": "rust/personhog-leader/src/fence.rs: fenced_status, rebuild_partition_fences, snapshot",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1195,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-c2d3b9742b55345caf6c",
+          "title": "products/workflows/frontend/Broadcasts/broadcastsLogic.ts: getBroadcastStatus, BroadcastStatus, BroadcastRowDetails",
+          "cover": 0.0941418159164983,
+          "coverQ": 0.10631128677939305,
+          "rel": 0.6330476433848097
+        }
+      },
+      {
+        "task": "PR106672-hard",
+        "covered": true,
+        "strict_first_on_target": null,
+        "loose_first_on_target": 72,
+        "served": [
+          {
+            "id": "struct-6e59c47cb704bf65f14e",
+            "title": "products/tasks/backend/repository_config_analytics.py: capture_repository_config_changed, capture_space_context_changed, repositories_differ",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-f3e542c1a124e65dc320",
+            "title": "nodejs/src/common/persons/repositories/test-helpers.ts: getFirstTeam, fetchDistinctIds, fetchPersons",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1064,
+        "miss_reason": "gate-or-lexical",
+        "best_rejected_target": {
+          "id": "struct-7bbd002d14c309703f7f",
+          "title": "products/experiments/backend/experiment_saved_metric_service.py: update_saved_metric, create_saved_metric, ExperimentSavedMetricService",
+          "cover": 0.07408287170235818,
+          "coverQ": 0.06300904658623291,
+          "rel": 0.6314355863074976
+        }
+      },
+      {
+        "task": "PR106564-hard",
+        "covered": true,
+        "strict_first_on_target": null,
+        "loose_first_on_target": 103,
+        "served": [
+          {
+            "id": "struct-530f2d08cd21faf9f451",
+            "title": "rust/feature-flags/src/flags/flag_service.rs: test_get_flags_from_hypercache, test_get_flags_from_hypercache_compressed_payload, verify_token_and_get_team",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-812c84f796dfac1678d1",
+            "title": "rust/feature-flags/src/flags/flag_operations.rs: test_consistent_behavior_from_both_clients, test_multivariate_flag_with_payloads, test_rollout_percentage_edge_cases",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 989,
+        "miss_reason": "gate-or-lexical",
+        "best_rejected_target": {
+          "id": "struct-8acf956f65091bbdb90c",
+          "title": "posthog/api/instance_settings.py: update, _log_setting_change, cast_str_to_desired_type",
+          "cover": 0.074391965203892,
+          "coverQ": 0.08152586990933507,
+          "rel": 0.5452758824174684
+        }
+      },
+      {
+        "task": "PR106613-hard",
+        "covered": false,
+        "strict_first_on_target": null,
+        "loose_first_on_target": null,
+        "served": [
+          {
+            "id": "struct-eb9d69be185ddda20182",
+            "title": "products/ai_observability/frontend/playground/PlaygroundSaveMenu.tsx: PlaygroundSaveMenu, openSaveAsNewPromptDialog, openSaveAsNewEvaluationDialog",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-a191a4b4f27492b0d009",
+            "title": "products/ml_inference/frontend/DecisionPlaygroundScene.tsx: DecisionPlaygroundScene, QuestionRow, OptionRow",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1094,
+        "miss_reason": "coverage"
+      },
+      {
+        "task": "PR107042-hard",
+        "covered": true,
+        "strict_first_on_target": 4,
+        "loose_first_on_target": 9,
+        "served": [
+          {
+            "id": "struct-9c1efc38771b28020c60",
+            "title": "ee/tasks/subscriptions/teams_subscriptions.py: build_teams_subscription_card, teams_byte_size, teams_text_block",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-add29f73bbe6f409b21d",
+            "title": "products/experiments/frontend/components/CopyExperimentToProjectModal.tsx: CopyExperimentToProjectModal, fetchTargetFlags, handleNameChange",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1190,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-dc5bb10f65c7cb1bc148",
+          "title": "frontend/src/scenes/dashboard/addInsightToDashboardModal/AddInsightToDashboardModal.tsx: AddInsightToDashboardModal, handleClose, handleNewInsightClicked",
+          "cover": 0.07043036585133246,
+          "coverQ": 0.08757722443508323,
+          "rel": 0.7882608829332133
+        }
+      },
+      {
+        "task": "PR106522-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-667bfbbf701ffdb775d9",
+            "title": "products/tasks/backend/logic/services/workflow_step_resume.py: resume_workflow_step_for_run, resume_workflow_step_after_final_message, resume_workflow_step_for_run_id",
+            "on_target": true,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-35228f9c4dd469e0e34d",
+            "title": "products/replay_vision/frontend/logics/observationsDockLogic.ts: runSummary, reschedulePoll, reportTriggerFailure",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1190,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-c421fd7cef07e9d7e3d8",
+          "title": "products/tasks/backend/temporal/process_task/slack_agent_design_relay.py: agent_status_update, SlackAgentDesignRelayWorkflow, SlackAgentDesignRelayInput",
+          "cover": 0.09986058328990427,
+          "coverQ": 0.08909830439423548,
+          "rel": 0.5679542259347246
+        }
+      },
+      {
+        "task": "PR105793-hard",
+        "covered": true,
+        "strict_first_on_target": 2,
+        "loose_first_on_target": 2,
+        "served": [
+          {
+            "id": "struct-6c11f8c219c8bcd8bbe1",
+            "title": "products/slack_app/backend/services/slack_messages.py: post_slack_thread_reply, post_slack_ephemeral, context_block",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-a1171d7f0637e25e78cf",
+            "title": "products/slack_app/backend/api.py: posthog_code_interactivity_handler, resolve_slack_user, route_posthog_code_event_to_relevant_region",
+            "on_target": true,
+            "primary_on_target": true
+          }
+        ],
+        "tokens": 1125,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-375189855cf5cff8c606",
+          "title": "products/slack_app/backend/models.py: SlackThreadTaskMapping, SlackUserProfileCache, SlackChannel",
+          "cover": 0.0936804136702274,
+          "coverQ": 0.11909571147901162,
+          "rel": 0.5946672949032304
+        }
+      },
+      {
+        "task": "PR105887-hard",
+        "covered": true,
+        "strict_first_on_target": 7,
+        "loose_first_on_target": 6,
+        "served": [
+          {
+            "id": "struct-0404f29c34dd20e7b258",
+            "title": "products/experiments/stats/frequentist/tests.py: run_test, run_test, TestResult",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-43fa4247ec9da632afe2",
+            "title": "products/experiments/backend/recalculation.py: request_recalculation, get_latest_recalculation, build_timeseries_cold_start_payload",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1083,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-080fec466934f569e65c",
+          "title": "posthog/temporal/experiments/models.py: TIMESERIES_METRIC_MAX_ATTEMPTS, ExperimentRegularMetricsWorkflowInputs, ExperimentSavedMetricsWorkflowInputs",
+          "cover": 0.08687535351157795,
+          "coverQ": 0.0943288217209538,
+          "rel": 0.7455426311580482
+        }
+      },
+      {
+        "task": "PR105871-hard",
+        "covered": true,
+        "strict_first_on_target": 2,
+        "loose_first_on_target": 2,
+        "served": [
+          {
+            "id": "struct-facf97a7427d12f8a275",
+            "title": "products/feature_flags/backend/management/commands/repair_replay_linked_flag_keys.py: _load_flags, rewrite, _report",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-41167d85ac2cfb86c0ec",
+            "title": "products/feature_flags/backend/temporal/health_checks/stale_flags.py: detect, render_alert, _excluded_flag_ids",
+            "on_target": true,
+            "primary_on_target": true
+          }
+        ],
+        "tokens": 1210,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-7eb288f13c1ac7be7da4",
+          "title": "posthog/management/commands/fix_invalid_flag_property_types.py: handle, VALID_PROPERTY_TYPES, TYPE_FIXES",
+          "cover": 0.09762699485608191,
+          "coverQ": 0.10450703150141535,
+          "rel": 0.798701252100032
+        }
+      },
+      {
+        "task": "PR106917-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-6144e3681ce19979eaaf",
+            "title": "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py: mark_cdc_broken, clear_recovered_self_managed_lag, _capture",
+            "on_target": true,
+            "primary_on_target": true
+          },
+          {
+            "id": "struct-10c77b9054666e381a35",
+            "title": "products/warehouse_sources/backend/temporal/data_imports/cdc/repair.py: _repair_locked, repair_cdc_source, _resume_schedules",
+            "on_target": true,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1351,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-43deea89df7e9850b359",
+          "title": "products/warehouse_sources/backend/admin/external_data_schema_admin.py: repartition_view, _pause_save_and_resync, trigger_sync_view",
+          "cover": 0.09776863553656338,
+          "coverQ": 0.08413282034695757,
+          "rel": 0.517231628494512
+        }
+      },
+      {
+        "task": "PR106579-hard",
+        "covered": true,
+        "strict_first_on_target": 7,
+        "loose_first_on_target": 7,
+        "served": [
+          {
+            "id": "struct-9be1a75a1f37e0c125ff",
+            "title": "products/error_tracking/frontend/components/ActivityDescriber.tsx: ActivityDescriber, AssigneeRenderer, describeIssueMergeOrSplit",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-16d1b82b261aecd59197",
+            "title": "rust/cohort-stream-processor/src/partitions/rebalance.rs: test_dispatcher, unassign, assign_arm_does_not_reclaim_slices_reclamation_is_deferred_to_worker_spawn",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1256,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-1d9c6f06caa43bd65efa",
+          "title": "products/error_tracking/backend/temporal/lifecycle/issue_reopened/activities.py: emit_issue_reopened_internal_event_activity, emit_issue_reopened_signal_activity, dispatch_issue_reopened_alert_activity",
+          "cover": 0.09396018653220971,
+          "coverQ": 0.08632656027017047,
+          "rel": 0.5920434722595866
+        }
+      },
+      {
+        "task": "PR106491-hard",
+        "covered": true,
+        "strict_first_on_target": 3,
+        "loose_first_on_target": 3,
+        "served": [
+          {
+            "id": "struct-822937085480c6718e86",
+            "title": "products/product_analytics/frontend/insights/trends/shared/chartErrorHandler.ts: makeChartErrorHandler",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-8ce5f22e1dbdf5f5296d",
+            "title": "products/product_analytics/frontend/insights/trends/shared/handleTrendsChartClick.tsx: handleTrendsChartClick, TrendsChartClickDeps, title",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1255,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-298f37c640c508a516ca",
+          "title": "products/product_analytics/frontend/insights/chartAlternatives/ChartDisplayIcon.tsx: ChartDisplayIcon",
+          "cover": 0.08550752301633012,
+          "coverQ": 0.0861149020352648,
+          "rel": 0.5558689225738944
+        }
+      },
+      {
+        "task": "PR106322-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-9430f3fbe345e69d7218",
+            "title": "posthog/models/person/bulk_delete.py: resolve_persons_for_deletion, delete_persons_profile, queue_person_recording_deletion",
+            "on_target": true,
+            "primary_on_target": true
+          },
+          {
+            "id": "struct-6dfc44ce13e85c7d235d",
+            "title": "products/alerts/frontend/utils.ts: hasEffectiveResourceAccess, resolveSnoozeUntil, getActiveAlertsTab",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1191,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-54e25debe56bec075b16",
+          "title": "products/ai_training/backend/facade/api.py: queue_person_training_deletion, privacy_enabled, queue_training_deletion",
+          "cover": 0.09356390528444275,
+          "coverQ": 0.08119890997011898,
+          "rel": 0.6245803183919008
+        }
+      }
+    ]
+  },
+  {
+    "technique": "evidence",
+    "notes": 25315,
+    "tasks": 14,
+    "covered": 13,
+    "hits": 6,
+    "served": 28,
+    "on_target": 7,
+    "misses": {
+      "ranking-or-slot": 7,
+      "coverage": 1
+    },
+    "rows": [
+      {
+        "task": "PR106936-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-0414b099f628b7ee7a0c",
+            "title": "frontend/src/scenes/settings/organization/InviteModal.tsx: EmailUnavailableForInvitesBanner, ProjectAccessSelector, InviteModal",
+            "on_target": true,
+            "primary_on_target": true
+          },
+          {
+            "id": "struct-575f7a6b022598cf33c3",
+            "title": "products/signals/backend/report_generation/select_repo.py: select_repository_for_team, persisted_repo_selection, select_repository_for_report",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1043,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-2ccb30e568be7a560fc3",
+          "title": "frontend/src/lib/api-error.ts: ApiError, isAccessDeniedError, shouldReportApiFailure",
+          "cover": 0.09548479311176265,
+          "coverQ": 0.07237905034925105,
+          "rel": 0.4544580788350208
+        }
+      },
+      {
+        "task": "PR106466-hard",
+        "covered": true,
+        "strict_first_on_target": 4,
+        "loose_first_on_target": 4,
+        "served": [
+          {
+            "id": "struct-3c6c86d20050cc37752e",
+            "title": "products/workflows/frontend/Broadcasts/broadcastTestSendLogic.ts: findTestSendSkipReason, broadcastTestSendLogicValues, broadcastTestSendLogicActions",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-bc95421620751d948978",
+            "title": "products/tasks/backend/loop_service.py: sync_loop_trigger_schedule, pause_loop_schedules, delete_loop_schedules",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 953,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-6fd203dc845dc0feea34",
+          "title": "products/workflows/backend/models/hog_flow_schedule/hog_flow_schedule.py: HogFlowSchedule, SCHEDULED_TRIGGER_TYPES, Status",
+          "cover": 0.08981035881111381,
+          "coverQ": 0.08850225736737946,
+          "rel": 0.5190003073235884
+        }
+      },
+      {
+        "task": "PR106672-hard",
+        "covered": true,
+        "strict_first_on_target": 26,
+        "loose_first_on_target": 27,
+        "served": [
+          {
+            "id": "struct-cd6834bb94d8c1b6cf0c",
+            "title": "products/experiments/backend/legacy_migration.py: migrate_experiment, migrate_saved_metric, _set_metric_ordering",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-11f40c1c59f12333ff60",
+            "title": "frontend/src/lib/components/TaxonomicFilter/utils/promoteProperties.ts: promoteMatchingBy, promoteMatchingProperties",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1147,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-81719aa3fb4c4e2b35a4",
+          "title": "products/experiments/backend/hogql_queries/error_handling.py: F, capture_experiment_metric_error_event, classify_experiment_query_error",
+          "cover": 0.07496160936614456,
+          "coverQ": 0.07148724800406402,
+          "rel": 0.46802826032746425
+        }
+      },
+      {
+        "task": "PR106564-hard",
+        "covered": true,
+        "strict_first_on_target": 73,
+        "loose_first_on_target": 93,
+        "served": [
+          {
+            "id": "struct-46d1a07ede7096f5c676",
+            "title": "products/posthog_ai/evals/experiments/seeders.py: seed_running_experiment, ROLLOUT_EXPERIMENT_NAME, seed_ended_experiment_with_flag_flip",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-f90d4a395f1882492f2a",
+            "title": "products/security/backend/facade/api.py: shadow_check, decide, is_email_code_exempt",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1027,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-7ed465c380656c75be2a",
+          "title": "common/esbuilder/chunkLoader.mjs: chunkMapFileName, chunkMapFileContents, chunkLoaderScript",
+          "cover": 0.06885845476967344,
+          "coverQ": 0.06991329048554461,
+          "rel": 0.4887239389791298
+        }
+      },
+      {
+        "task": "PR106613-hard",
+        "covered": false,
+        "strict_first_on_target": null,
+        "loose_first_on_target": null,
+        "served": [
+          {
+            "id": "struct-eb9d69be185ddda20182",
+            "title": "products/ai_observability/frontend/playground/PlaygroundSaveMenu.tsx: PlaygroundSaveMenu, openSaveAsNewPromptDialog, openSaveAsNewEvaluationDialog",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-a191a4b4f27492b0d009",
+            "title": "products/ml_inference/frontend/DecisionPlaygroundScene.tsx: DecisionPlaygroundScene, QuestionRow, OptionRow",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1009,
+        "miss_reason": "coverage"
+      },
+      {
+        "task": "PR107042-hard",
+        "covered": true,
+        "strict_first_on_target": 31,
+        "loose_first_on_target": 31,
+        "served": [
+          {
+            "id": "struct-c3bae2a84842989eac74",
+            "title": "products/experiments/backend/presentation/views.py: EnterpriseExperimentsViewSet, activity, duplicate",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-458a091a2792c1fd67e9",
+            "title": "products/dashboards/backend/models/dashboard_tile.py: DashboardTile, save, dashboard_queryset",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1037,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-5823c000a6d3ac96075e",
+          "title": "frontend/src/scenes/integrations/IntegrationFullPage.tsx: IntegrationFullPage, ConnectView, ConnectedNextStep",
+          "cover": 0.09147444121276299,
+          "coverQ": 0.08681253605549474,
+          "rel": 0.6148995098359049
+        }
+      },
+      {
+        "task": "PR106522-hard",
+        "covered": true,
+        "strict_first_on_target": 6,
+        "loose_first_on_target": 6,
+        "served": [
+          {
+            "id": "struct-bf5bff7bca1a6b2c437f",
+            "title": "products/review_hog/backend/reviewer/sandbox/executor.py: end_sandbox_session, run_sandbox_review, start_sandbox_session",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-b7ccb0b0c32bc2c534a5",
+            "title": "products/error_tracking/backend/temporal/alerts/filtering.py: alert_filters_match, fetch_exception_properties, has_configured_filters",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1173,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-2574bdefe77cf54fe286",
+          "title": "products/tasks/backend/constants.py: is_same_run_resume_state, get_required_model_flag, DEV_STACK_IMAGE_NAME",
+          "cover": 0.09776643781985525,
+          "coverQ": 0.08586628623634512,
+          "rel": 0.3846533483882924
+        }
+      },
+      {
+        "task": "PR105793-hard",
+        "covered": true,
+        "strict_first_on_target": 2,
+        "loose_first_on_target": 2,
+        "served": [
+          {
+            "id": "struct-6c11f8c219c8bcd8bbe1",
+            "title": "products/slack_app/backend/services/slack_messages.py: post_slack_thread_reply, post_slack_ephemeral, context_block",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-b13618882bec33a1c71e",
+            "title": "products/slack_app/backend/services/slack_settings.py: resolve_untagged_followup_mode, AIPreferences, __all__",
+            "on_target": true,
+            "primary_on_target": true
+          }
+        ],
+        "tokens": 1004,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-77e55f99abb8cfc462f3",
+          "title": "products/slack_app/backend/views/slack_command.py: slack_app_command_handler, logger, _ephemeral_response",
+          "cover": 0.09485625870002073,
+          "coverQ": 0.07337744463429739,
+          "rel": 0.33356292217157235
+        }
+      },
+      {
+        "task": "PR105887-hard",
+        "covered": true,
+        "strict_first_on_target": 2,
+        "loose_first_on_target": 2,
+        "served": [
+          {
+            "id": "struct-43fa4247ec9da632afe2",
+            "title": "products/experiments/backend/recalculation.py: request_recalculation, get_latest_recalculation, build_timeseries_cold_start_payload",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-32c446db3869611c296a",
+            "title": "posthog/temporal/experiments/activities.py: _calculate_experiment_saved_metric_sync, _get_experiment_regular_metrics_for_hour_sync, _calculate_experiment_regular_metric_sync",
+            "on_target": true,
+            "primary_on_target": true
+          }
+        ],
+        "tokens": 1197,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-81719aa3fb4c4e2b35a4",
+          "title": "products/experiments/backend/hogql_queries/error_handling.py: F, capture_experiment_metric_error_event, classify_experiment_query_error",
+          "cover": 0.08783162029532313,
+          "coverQ": 0.08210181154075034,
+          "rel": 0.49476066654143314
+        }
+      },
+      {
+        "task": "PR105871-hard",
+        "covered": true,
+        "strict_first_on_target": 8,
+        "loose_first_on_target": 8,
+        "served": [
+          {
+            "id": "struct-facf97a7427d12f8a275",
+            "title": "products/feature_flags/backend/management/commands/repair_replay_linked_flag_keys.py: _load_flags, rewrite, _report",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-704a47191806654772fe",
+            "title": "posthog/tasks/async_migrations.py: check_async_migration_health, run_async_migration",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1104,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-144161dbbf63c424db30",
+          "title": "products/feature_flags/backend/flag_version_sync.py: _bump_flag_versions, _flags_referencing_cohort, direct_flag_dependency_ids",
+          "cover": 0.11371211008811861,
+          "coverQ": 0.03859481956091758,
+          "rel": 0.3560544648409534
+        }
+      },
+      {
+        "task": "PR106917-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-6144e3681ce19979eaaf",
+            "title": "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py: mark_cdc_broken, clear_recovered_self_managed_lag, _capture",
+            "on_target": true,
+            "primary_on_target": true
+          },
+          {
+            "id": "struct-10c77b9054666e381a35",
+            "title": "products/warehouse_sources/backend/temporal/data_imports/cdc/repair.py: _repair_locked, repair_cdc_source, _resume_schedules",
+            "on_target": true,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1248,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-322d7510cb255972fc90",
+          "title": "products/data_quality/backend/logic/schedule_service.py: update_schedule, list_schedules_with_history, schedule_with_history",
+          "cover": 0.09039401491485398,
+          "coverQ": 0.06808007982520912,
+          "rel": 0.25995550666474143
+        }
+      },
+      {
+        "task": "PR106579-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-9328f37b28f76757b779",
+            "title": "products/error_tracking/backend/notifications.py: dispatch_issue_assigned_realtime, _AssignerExcludingResolver, logger",
+            "on_target": true,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-95c9d4ae790ce7eb00ba",
+            "title": "products/error_tracking/backend/temporal/alerts/messages.py: build_reply_text, spike_summary, build_root_message",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 928,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-98b1aeea99cdb6eb12ac",
+          "title": "products/error_tracking/backend/temporal/alerts/dispatch.py: _start_one, start_alert_delivery_workflow, team_has_enabled_alerts",
+          "cover": 0.08179532247473652,
+          "coverQ": 0.05462424659798834,
+          "rel": 0.3434027109921963
+        }
+      },
+      {
+        "task": "PR106491-hard",
+        "covered": true,
+        "strict_first_on_target": 4,
+        "loose_first_on_target": 4,
+        "served": [
+          {
+            "id": "struct-8ce5f22e1dbdf5f5296d",
+            "title": "products/product_analytics/frontend/insights/trends/shared/handleTrendsChartClick.tsx: handleTrendsChartClick, TrendsChartClickDeps, title",
+            "on_target": false,
+            "primary_on_target": false
+          },
+          {
+            "id": "struct-14f9d107c23367133923",
+            "title": "products/data_warehouse/frontend/shared/components/forms/InputWithSuggestionsDropdown.tsx: InputWithSuggestionsDropdown, InputSuggestion, InputWithSuggestionsDropdownProps",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1259,
+        "miss_reason": "ranking-or-slot",
+        "best_rejected_target": {
+          "id": "struct-298f37c640c508a516ca",
+          "title": "products/product_analytics/frontend/insights/chartAlternatives/ChartDisplayIcon.tsx: ChartDisplayIcon",
+          "cover": 0.09342719600820039,
+          "coverQ": 0.08207738216715534,
+          "rel": 0.5094869724679951
+        }
+      },
+      {
+        "task": "PR106322-hard",
+        "covered": true,
+        "strict_first_on_target": 1,
+        "loose_first_on_target": 1,
+        "served": [
+          {
+            "id": "struct-9430f3fbe345e69d7218",
+            "title": "posthog/models/person/bulk_delete.py: resolve_persons_for_deletion, delete_persons_profile, queue_person_recording_deletion",
+            "on_target": true,
+            "primary_on_target": true
+          },
+          {
+            "id": "struct-06f9e346ceb844781d76",
+            "title": "products/warehouse_sources/backend/temporal/data_imports/sources/appsignal/appsignal.py: _get_windowed_rows, _iter_metric_definitions, _fetch_json",
+            "on_target": false,
+            "primary_on_target": false
+          }
+        ],
+        "tokens": 1138,
+        "miss_reason": null,
+        "best_rejected_target": {
+          "id": "struct-77486512a365035aa41c",
+          "title": "posthog/models/person/point_in_time_properties.py: get_person_and_distinct_ids_for_identifier, build_person_properties_at_time, _parse_property_json",
+          "cover": 0.07465659555032078,
+          "coverQ": 0.06173726083770486,
+          "rel": 0.43721684018632384
+        }
+      }
+    ]
+  }
+]

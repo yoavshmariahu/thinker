@@ -1,0 +1,73 @@
+{
+  "created": "2026-09-30T04:33:38.621Z",
+  "thinker_commit": "e4995487822cdf78ba34a3b563067bd7ba7761c3",
+  "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "model": "gpt-6-sol",
+  "effort": "high",
+  "order": [
+    {
+      "technique": "symbols",
+      "task": "PR106936-hard",
+      "arm": "nocache"
+    },
+    {
+      "technique": "symbols",
+      "task": "PR106936-hard",
+      "arm": "cache"
+    },
+    {
+      "technique": "symbols",
+      "task": "PR106522-hard",
+      "arm": "cache"
+    },
+    {
+      "technique": "symbols",
+      "task": "PR106522-hard",
+      "arm": "nocache"
+    },
+    {
+      "technique": "relationships",
+      "task": "PR106936-hard",
+      "arm": "cache"
+    },
+    {
+      "technique": "relationships",
+      "task": "PR106936-hard",
+      "arm": "nocache"
+    },
+    {
+      "technique": "relationships",
+      "task": "PR106522-hard",
+      "arm": "nocache"
+    },
+    {
+      "technique": "relationships",
+      "task": "PR106522-hard",
+      "arm": "cache"
+    },
+    {
+      "technique": "evidence",
+      "task": "PR106936-hard",
+      "arm": "nocache"
+    },
+    {
+      "technique": "evidence",
+      "task": "PR106936-hard",
+      "arm": "cache"
+    },
+    {
+      "technique": "evidence",
+      "task": "PR106522-hard",
+      "arm": "cache"
+    },
+    {
+      "technique": "evidence",
+      "task": "PR106522-hard",
+      "arm": "nocache"
+    }
+  ],
+  "budget": 1500,
+  "notes": 2,
+  "concurrency": 1,
+  "codegraph": "1.6.1"
+}

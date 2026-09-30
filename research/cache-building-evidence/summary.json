@@ -1,0 +1,219 @@
+{
+  "rows": [
+    {
+      "technique": "symbols",
+      "task": "PR106936-hard",
+      "arm": "nocache",
+      "id": "symbols-PR106936-hard-nocache",
+      "pending": true
+    },
+    {
+      "technique": "symbols",
+      "task": "PR106936-hard",
+      "arm": "cache",
+      "id": "symbols-PR106936-hard-cache",
+      "wall_s": 584.5154325839998,
+      "retrieval_s": 8.290952916999988,
+      "calls": 74,
+      "input": 4757532,
+      "cached_input": 4632960,
+      "fresh_input": 124572,
+      "output": 22056,
+      "served": 2,
+      "on_target": 1,
+      "essential": 0.8333333333333334,
+      "all": 0.7777777777777778,
+      "pass": false,
+      "audit": {
+        "exitCode": 0,
+        "timedOut": false,
+        "failures": [],
+        "mcpCalls": 0,
+        "suspectCommands": []
+      }
+    },
+    {
+      "technique": "symbols",
+      "task": "PR106522-hard",
+      "arm": "cache",
+      "id": "symbols-PR106522-hard-cache",
+      "wall_s": 280.43828241600005,
+      "retrieval_s": 7.9567815830002075,
+      "calls": 39,
+      "input": 2280052,
+      "cached_input": 2189056,
+      "fresh_input": 90996,
+      "output": 10748,
+      "served": 2,
+      "on_target": 0,
+      "essential": 1,
+      "all": 0.7142857142857143,
+      "pass": true,
+      "audit": {
+        "exitCode": 0,
+        "timedOut": false,
+        "failures": [],
+        "mcpCalls": 0,
+        "suspectCommands": []
+      }
+    },
+    {
+      "technique": "symbols",
+      "task": "PR106522-hard",
+      "arm": "nocache",
+      "id": "symbols-PR106522-hard-nocache",
+      "pending": true
+    },
+    {
+      "technique": "relationships",
+      "task": "PR106936-hard",
+      "arm": "cache",
+      "id": "relationships-PR106936-hard-cache",
+      "pending": true
+    },
+    {
+      "technique": "relationships",
+      "task": "PR106936-hard",
+      "arm": "nocache",
+      "id": "relationships-PR106936-hard-nocache",
+      "pending": true
+    },
+    {
+      "technique": "relationships",
+      "task": "PR106522-hard",
+      "arm": "nocache",
+      "id": "relationships-PR106522-hard-nocache",
+      "pending": true
+    },
+    {
+      "technique": "relationships",
+      "task": "PR106522-hard",
+      "arm": "cache",
+      "id": "relationships-PR106522-hard-cache",
+      "pending": true
+    },
+    {
+      "technique": "evidence",
+      "task": "PR106936-hard",
+      "arm": "nocache",
+      "id": "evidence-PR106936-hard-nocache",
+      "pending": true
+    },
+    {
+      "technique": "evidence",
+      "task": "PR106936-hard",
+      "arm": "cache",
+      "id": "evidence-PR106936-hard-cache",
+      "pending": true
+    },
+    {
+      "technique": "evidence",
+      "task": "PR106522-hard",
+      "arm": "cache",
+      "id": "evidence-PR106522-hard-cache",
+      "pending": true
+    },
+    {
+      "technique": "evidence",
+      "task": "PR106522-hard",
+      "arm": "nocache",
+      "id": "evidence-PR106522-hard-nocache",
+      "pending": true
+    }
+  ],
+  "totals": {
+    "symbols": {
+      "nocache": {
+        "n": 0,
+        "wall_s": 0,
+        "retrieval_s": 0,
+        "calls": 0,
+        "input": 0,
+        "cached_input": 0,
+        "fresh_input": 0,
+        "output": 0,
+        "served": 0,
+        "on_target": 0,
+        "essential": null,
+        "passes": 0
+      },
+      "cache": {
+        "n": 2,
+        "wall_s": 864.9537149999999,
+        "retrieval_s": 16.247734500000195,
+        "calls": 113,
+        "input": 7037584,
+        "cached_input": 6822016,
+        "fresh_input": 215568,
+        "output": 32804,
+        "served": 4,
+        "on_target": 1,
+        "essential": 0.9166666666666667,
+        "passes": 1
+      },
+      "percent_change": {}
+    },
+    "relationships": {
+      "nocache": {
+        "n": 0,
+        "wall_s": 0,
+        "retrieval_s": 0,
+        "calls": 0,
+        "input": 0,
+        "cached_input": 0,
+        "fresh_input": 0,
+        "output": 0,
+        "served": 0,
+        "on_target": 0,
+        "essential": null,
+        "passes": 0
+      },
+      "cache": {
+        "n": 0,
+        "wall_s": 0,
+        "retrieval_s": 0,
+        "calls": 0,
+        "input": 0,
+        "cached_input": 0,
+        "fresh_input": 0,
+        "output": 0,
+        "served": 0,
+        "on_target": 0,
+        "essential": null,
+        "passes": 0
+      },
+      "percent_change": {}
+    },
+    "evidence": {
+      "nocache": {
+        "n": 0,
+        "wall_s": 0,
+        "retrieval_s": 0,
+        "calls": 0,
+        "input": 0,
+        "cached_input": 0,
+        "fresh_input": 0,
+        "output": 0,
+        "served": 0,
+        "on_target": 0,
+        "essential": null,
+        "passes": 0
+      },
+      "cache": {
+        "n": 0,
+        "wall_s": 0,
+        "retrieval_s": 0,
+        "calls": 0,
+        "input": 0,
+        "cached_input": 0,
+        "fresh_input": 0,
+        "output": 0,
+        "served": 0,
+        "on_target": 0,
+        "essential": null,
+        "passes": 0
+      },
+      "percent_change": {}
+    }
+  }
+}

@@ -153,3 +153,9 @@ Average Wall Clock Time:
 
 For upcoming experiments, hypotheses, and architectural ideas (such as bootstrapping the knowledge cache with Claude Opus), see [`research/ideas.md`](file:///Users/yoavshmariahu/src/thinker/research/ideas.md).
 
+## Paused cache-construction study
+
+See [Cache construction: findings and hypotheses](cache-building-findings.md)
+for the CodeGraph-inspired experiments. Coverage alone was insufficient in the
+offline diagnostics; coding-performance comparisons remain incomplete, and
+symbol matching with selective graph expansion remains an untested hypothesis.
