@@ -123,7 +123,6 @@ main() {
 
   if [ "$update" = 1 ]; then
     [ -x "$thinker" ] || die "thinker is not installed in $home"
-    exec "$thinker" update --branch "$ref"
   fi
 
   # --- install the tool ----------------------------------------------------
@@ -164,6 +163,19 @@ main() {
     local inner; inner="$(find "$tmp/app" -mindepth 1 -maxdepth 1 -type d | head -1)"
     [ -n "$inner" ] && [ -f "$inner/src/cli.js" ] || die "downloaded archive does not look like thinker"
     mv "$inner" "$tmp/app.inner" && rm -rf "$tmp/app" && mv "$tmp/app.inner" "$tmp/app"
+  fi
+  # Use the downloaded updater to repair older clients whose update check still
+  # depends on private GitHub access. Preserve the existing home and settings.
+  if [ "$update" = 1 ]; then
+    node --input-type=module - "$tmp/app/src/update.js" "$home" "$dist" "$ref" <<'JS'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const [modulePath, home, dist, ref] = process.argv.slice(2);
+const { applyUpdate } = await import(pathToFileURL(modulePath));
+const result = await applyUpdate({ home, rootDir: path.join(home, 'app'), dist, ref });
+console.log(`Updated thinker to v${result.version}`);
+JS
+    exit 0
   fi
   # the tool needs only its source and manifest at runtime
   rm -rf "$tmp/app/bench" "$tmp/app/test" "$tmp/app/caches"

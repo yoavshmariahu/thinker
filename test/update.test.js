@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   detectInstall,
+  checkUpdate,
   checkPendingNotice,
   maybeCheckDailyUpdateInBackground,
   isScheduled,
@@ -21,6 +24,50 @@ import {
 } from '../src/update.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
+
+test('archive updates check the public manifest, verify checksum, and stop when current', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-dist-update-'));
+  const source = path.join(tmp, 'source');
+  fs.mkdirSync(path.join(source, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(source, 'src', 'cli.js'), 'console.log("updated");');
+  fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.1' }));
+  const archive = path.join(tmp, 'release.tgz');
+  execFileSync('tar', ['-czf', archive, '-C', source, '.']);
+  const bytes = fs.readFileSync(archive);
+  const release = { version: '0.1.1', commit: 'release-commit', sha256: createHash('sha256').update(bytes).digest('hex') };
+  let corrupt = false;
+  const server = http.createServer((req, res) => {
+    assert.equal(req.headers.authorization, undefined);
+    if (req.url === '/version.json') { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(release)); }
+    else if (req.url === '/thinker.tgz') res.end(corrupt ? Buffer.from('bad archive') : bytes);
+    else { res.writeHead(404); res.end(); }
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const dist = `http://127.0.0.1:${server.address().port}/thinker.tgz`;
+    const app = path.join(tmp, 'app');
+    fs.mkdirSync(app);
+    fs.writeFileSync(path.join(app, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.0' }));
+    fs.writeFileSync(path.join(tmp, 'install.json'), JSON.stringify({ source: 'archive', dist, commit: 'old-commit', telemetry: false }));
+    const install = detectInstall(app, tmp);
+    const check = await checkUpdate({ home: tmp, install, token: 'must-not-be-sent' });
+    assert.equal(check.available, true);
+    assert.equal(check.latestCommit, release.commit);
+    corrupt = true;
+    await assert.rejects(applyUpdate({ home: tmp, install }), /checksum mismatch/);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(app, 'package.json'))).version, '0.1.0');
+    corrupt = false;
+    const result = await applyUpdate({ home: tmp, install });
+    assert.equal(result.version, '0.1.1');
+    assert.equal(result.to, release.commit);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(tmp, 'install.json'))).telemetry, false);
+    assert.equal((await checkUpdate({ home: tmp, install: detectInstall(app, tmp) })).available, false);
+  } finally {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
 
 test('detectInstall detects git repo vs archive', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-detect-'));
@@ -397,4 +444,3 @@ test('applyUpdate unpacks cleanly without emitting unknown extended header keywo
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
-

@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { createHash } from 'node:crypto';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -137,6 +138,19 @@ export async function fetchLatestCommit({ ghrepo = 'yoavshmariahu/thinker', ref 
   };
 }
 
+export async function fetchDistributionRelease(dist) {
+  const url = new URL('version.json', dist);
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000), cache: 'no-store' });
+  if (!res.ok) throw new Error(`Distribution update check failed: HTTP ${res.status}`);
+  const release = await res.json();
+  if (typeof release.version !== 'string' || !release.version ||
+      typeof release.commit !== 'string' || !release.commit ||
+      (release.sha256 !== undefined && !/^[a-f0-9]{64}$/.test(release.sha256))) {
+    throw new Error('Invalid distribution version.json');
+  }
+  return release;
+}
+
 export async function checkUpdate(opts = {}) {
   const home = opts.home || thinkerHome();
   const install = opts.install || detectInstall(opts.rootDir || path.resolve(HERE, '..'), home);
@@ -210,6 +224,16 @@ export async function checkUpdate(opts = {}) {
   const ghrepo = opts.ghrepo || install.ghrepo || 'yoavshmariahu/thinker';
   const ref = opts.ref || opts.branch || install.ref || 'main';
   const switchingRef = ref !== (install.ref || 'main');
+  const dist = opts.dist || install.dist;
+  if (dist) {
+    const latest = await fetchDistributionRelease(dist);
+    return {
+      type: 'archive', available: install.version !== latest.version || install.commit !== latest.commit,
+      currentCommit: install.commit, latestCommit: latest.commit,
+      version: install.version, latestVersion: latest.version, ghrepo, ref,
+      currentRef: install.ref || 'main', targetRef: ref, switchingRef,
+    };
+  }
   const token = opts.token || getToken();
 
   const latest = await fetchLatestCommit({ ghrepo, ref, token });
@@ -236,10 +260,10 @@ export async function applyUpdate(opts = {}) {
   const install = opts.install || detectInstall(rootDir, home);
   const quiet = !!opts.quiet;
   const force = !!opts.force;
-  const token = opts.token || getToken();
   const ghrepo = opts.ghrepo || install.ghrepo || 'yoavshmariahu/thinker';
   const ref = opts.ref || opts.branch || install.ref || 'main';
   const dist = opts.dist || install.dist || '';
+  const token = opts.token || (dist ? '' : getToken());
 
   if (install.type === 'git') {
     const gitDir = install.path;
@@ -309,6 +333,8 @@ export async function applyUpdate(opts = {}) {
 
   try {
     let latestCommit = '';
+    const release = /^https?:\/\//.test(dist) ? await fetchDistributionRelease(dist) : null;
+    if (release) latestCommit = release.commit;
     if (!dist) {
       try {
         const info = await fetchLatestCommit({ ghrepo, ref, token });
@@ -339,6 +365,9 @@ export async function applyUpdate(opts = {}) {
       fs.writeFileSync(tmpTar, buf);
     }
 
+    if (release?.sha256 && createHash('sha256').update(fs.readFileSync(tmpTar)).digest('hex') !== release.sha256) {
+      throw new Error('Distribution checksum mismatch; update was not installed. Try again after the release finishes publishing.');
+    }
     fs.mkdirSync(tmpApp, { recursive: true });
     try {
       execFileSync('tar', [...tarExtractArgs(), tmpTar, '-C', tmpApp], {
@@ -377,6 +406,9 @@ export async function applyUpdate(opts = {}) {
       if (pkg.version) newVersion = pkg.version;
     } catch {}
 
+    if (release && newVersion !== release.version) {
+      throw new Error('Distribution version does not match version.json; update was not installed');
+    }
     // Atomic directory replacement
     const appOld = path.join(home, 'app.old');
     const appNew = path.join(home, 'app.new');
@@ -401,6 +433,7 @@ export async function applyUpdate(opts = {}) {
     const fromCommit = install.commit || 'unknown';
     const toCommit = latestCommit || 'latest';
     const installJson = {
+      ...install.installJson,
       source: 'archive',
       ghrepo,
       ref,
