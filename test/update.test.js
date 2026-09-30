@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   detectInstall,
@@ -305,7 +305,72 @@ test('applyUpdate can switch between git branches', async () => {
   }
 });
 
-test('scheduleDaily and unscheduleDaily manage plist file', () => {
+function runLinuxSchedule(tmp) {
+  return spawnSync(process.execPath, ['--input-type=module', '-e', `
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    process.argv = [process.execPath, ${JSON.stringify(CLI)}, 'update', '--schedule', '--quiet'];
+    await import(${JSON.stringify(CLI)});
+  `], {
+    encoding: 'utf8', cwd: tmp,
+    env: { ...process.env, PATH: tmp, THINKER_HOME: tmp, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off' },
+  });
+}
+
+test('Linux scheduling without crontab succeeds with an invocation fallback notice', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-cron-'));
+  try {
+    const result = runLinuxSchedule(tmp);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /crontab not installed/);
+    assert.match(result.stdout, /check for updates when invoked/);
+    assert.doesNotMatch(result.stdout, /Failed|Scheduled daily/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('Linux scheduling creates a missing crontab and preserves an existing one', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cron-'));
+  try {
+    const table = path.join(tmp, 'table');
+    fs.writeFileSync(path.join(tmp, 'crontab'), `#!/bin/sh
+if [ "$1" = "-l" ]; then
+  [ -f "$THINKER_HOME/table" ] || exit 1
+  /bin/cat "$THINKER_HOME/table"
+else
+  /bin/cat > "$THINKER_HOME/table"
+fi
+`, { mode: 0o755 });
+    for (const existing of ['', '15 2 * * * /usr/local/bin/other-job\n']) {
+      if (existing) fs.writeFileSync(table, existing);
+      const result = runLinuxSchedule(tmp);
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /Scheduled daily auto-update/);
+      const content = fs.readFileSync(table, 'utf8');
+      assert.ok(content.startsWith(existing));
+      assert.match(content, /0 3 \* \* \* .*thinker" update --quiet/);
+      assert.equal(runLinuxSchedule(tmp).status, 0);
+      assert.equal(fs.readFileSync(table, 'utf8'), content);
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('Linux scheduling still reports crontab write failures', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cron-error-'));
+  try {
+    fs.writeFileSync(path.join(tmp, 'crontab'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    const result = runLinuxSchedule(tmp);
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /Failed to schedule daily auto-update/);
+    assert.doesNotMatch(result.stdout, /check for updates when invoked/);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('scheduleDaily and unscheduleDaily manage plist file', { skip: process.platform !== 'darwin' }, () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-sched-'));
   try {
     const plistPath = path.join(tmp, 'test.plist');

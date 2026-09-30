@@ -525,7 +525,11 @@ export function scheduleDaily(opts = {}) {
     let crontab = '';
     try {
       crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    } catch {}
+    } catch (e) {
+      // Minimal Linux containers often have no cron installation. Updates can
+      // still run through maybeCheckDailyUpdateInBackground on CLI invocation.
+      if (e.code === 'ENOENT') return { type: 'invocation', reason: 'crontab not installed' };
+    }
 
     const line = `0 3 * * * PATH="${nodeBinDir}:$PATH:/usr/local/bin" "${binPath}" update --quiet`;
     if (!crontab.includes(line)) {

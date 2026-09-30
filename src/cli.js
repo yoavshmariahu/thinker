@@ -161,7 +161,11 @@ async function main() {
       if (flags.schedule || flags.daily) {
         try {
           const res = scheduleDaily({ home, binPath: install.binPath });
-          out(`Scheduled daily auto-update for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
+          if (res.type === 'invocation') {
+            out(`Daily OS scheduling unavailable (${res.reason}); thinker will check for updates when invoked, at most once a day, unless auto-updates are disabled.`);
+          } else {
+            out(`Scheduled daily auto-update for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
+          }
         } catch (e) {
           out(`Failed to schedule daily auto-update: ${e.message}`);
           process.exit(1);

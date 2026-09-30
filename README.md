@@ -136,6 +136,11 @@ and verify the release checksum without GitHub credentials. Git checkouts update
 Git remote. Daily updates run on invocation and, when installed, through the OS
 scheduler; they are not an immediate push to every client.
 
+Linux containers without `crontab` use the invocation check automatically.
+Pass `--no-auto-update` to the installer to skip OS scheduling. To also disable
+invocation checks, set `THINKER_NO_AUTO_UPDATE=1` when running thinker;
+`thinker update` remains available for manual updates.
+
 Clients installed before 0.1.1 may be unable to update without GitHub access.
 Refresh the updater once: sign in at [zerotime.dev](https://zerotime.dev), copy
 the private install command, and replace its final `| bash` with
