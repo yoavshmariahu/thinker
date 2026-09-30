@@ -808,7 +808,7 @@ async function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
     if (ok) for (const line of trustCodex(repo)) out(line);
     else out('Codex: not marked as trusted; Codex asks you to trust the project and review the hooks before they run (--yes does it here without asking)');
   }
-  if (clients.includes('cursor')) {
+  if (clients.includes('cursor') && mcp) {
     // Cursor loads an MCP server only once it is approved for the workspace
     const agentBin = findBin(['agent', 'cursor-agent']);
     const r = agentBin ? spawnSync(agentBin, ['mcp', 'enable', 'thinker'], { cwd: repo, encoding: 'utf8', timeout: 60_000 }) : null;
@@ -971,7 +971,7 @@ async function exploreOnce(agent, prompt, model, onUsage) {
   fs.mkdirSync(path.dirname(stream), { recursive: true });
   const m = resolveModel(agent, model);
   if (agent === 'claude') {
-    const r = await exploreCommand(bin, ['-p', '--model', m || 'sonnet', '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--disallowedTools', 'Edit,Write,NotebookEdit', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--max-turns', '40'], { ...opts, input: prompt });
+    const r = await exploreCommand(bin, ['-p', '--model', m || 'sonnet', '--output-format', 'json', '--permission-mode', 'plan', '--tools', 'Read,Glob,Grep', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--max-turns', '40'], { ...opts, input: prompt });
     if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `claude exited ${r.status}`).slice(0, 200) };
     let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
     onUsage({ usage: j.usage || j.stats || null, cost: j.total_cost_usd ?? null, model: j.model || m });
@@ -980,7 +980,7 @@ async function exploreOnce(agent, prompt, model, onUsage) {
     return transcript ? { transcript, cost: j.total_cost_usd || 0, turns: j.num_turns } : { error: 'no transcript found' };
   }
   if (path.basename(bin) === 'agy') {
-    const agyArgs = ['-p', prompt, '--model', m || 'gemini-3.8-flash-high', '--output-format', 'json', '--dangerously-skip-permissions'];
+    const agyArgs = ['-p', prompt, '--model', m || 'gemini-3.8-flash-high', '--output-format', 'json', '--mode=plan'];
     const r = await exploreCommand(bin, agyArgs, { ...opts, cwd: repo });
     if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `agy exited ${r.status}`).slice(0, 200) };
     let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
@@ -994,9 +994,9 @@ async function exploreOnce(agent, prompt, model, onUsage) {
     return { error: 'agy transcript not found: ' + (r.stderr || r.stdout || '').slice(0, 200) };
   }
   let r;
-  if (agent === 'codex') r = await exploreCommand(bin, ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', ...(m ? ['--model', m] : ['--model', 'gpt-6-luna']), '--cd', repo, '-'], { ...opts, input: prompt });
+  if (agent === 'codex') r = await exploreCommand(bin, ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only', ...(m ? ['--model', m] : ['--model', 'gpt-6-luna']), '--cd', repo, '-'], { ...opts, input: prompt });
   else if (agent === 'cursor') r = await exploreCommand(bin, ['-p', '--output-format', 'stream-json', '--mode', 'ask', '--trust', ...(m ? ['--model', m] : []), '--workspace', repo, prompt], opts);
-  else r = await exploreCommand(bin, ['--output-format', 'stream-json', ...(m ? ['-m', m] : ['-m', 'gemini-3.8-flash-high'])], { ...opts, input: prompt });
+  else r = await exploreCommand(bin, ['--output-format', 'stream-json', '--approval-mode=plan', ...(m ? ['-m', m] : ['-m', 'gemini-3.8-flash-high'])], { ...opts, input: prompt });
   if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || '').slice(0, 200) };
   onUsage(streamModelUsage(agent, r.stdout));
   // failures these CLIs report inside their output (usage limits, auth)

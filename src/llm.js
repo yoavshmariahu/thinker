@@ -205,7 +205,7 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
       const bin = findBin(BINS.gemini);
       const isAgy = path.basename(bin) === 'agy';
       if (isAgy) {
-        const args = ['--output-format', 'json', '--model', resolvedModel || 'gemini-3.8-flash-high', '--dangerously-skip-permissions', '-p', full];
+        const args = ['--output-format', 'json', '--model', resolvedModel || 'gemini-3.8-flash-high', '--mode=plan', '-p', full];
         const j = JSON.parse(await run(bin, args, { cwd, timeoutMs }));
         cost = j.total_cost_usd ?? null;
         onUsage({ usage: j.usage, cost, model: j.model || resolvedModel });

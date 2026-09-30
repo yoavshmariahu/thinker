@@ -25,16 +25,24 @@ import {
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 
+function writeReleaseManifest(archive, version, commit = 'b'.repeat(40)) {
+  fs.writeFileSync(path.join(path.dirname(archive), 'version.json'), JSON.stringify({
+    schemaVersion: 1, version, commit,
+    sha256: createHash('sha256').update(fs.readFileSync(archive)).digest('hex'),
+  }));
+}
+
 test('archive updates check the public manifest, verify checksum, and stop when current', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-dist-update-'));
   const source = path.join(tmp, 'source');
   fs.mkdirSync(path.join(source, 'src'), { recursive: true });
   fs.writeFileSync(path.join(source, 'src', 'cli.js'), 'console.log("updated");');
   fs.writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.1' }));
+  fs.writeFileSync(path.join(source, 'package-lock.json'), JSON.stringify({ name: 'thinker', version: '0.1.1', lockfileVersion: 3, requires: true, packages: { '': { name: 'thinker', version: '0.1.1' } } }));
   const archive = path.join(tmp, 'release.tgz');
   execFileSync('tar', ['-czf', archive, '-C', source, '.']);
   const bytes = fs.readFileSync(archive);
-  const release = { version: '0.1.1', commit: 'release-commit', sha256: createHash('sha256').update(bytes).digest('hex') };
+  const release = { schemaVersion: 1, version: '0.1.1', commit: 'a'.repeat(40), sha256: createHash('sha256').update(bytes).digest('hex') };
   let corrupt = false;
   const server = http.createServer((req, res) => {
     assert.equal(req.headers.authorization, undefined);
@@ -329,6 +337,7 @@ test('applyUpdate unpacks tarball archive for standalone install', async () => {
     fs.writeFileSync(path.join(pkgSrc, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.2.0' }));
     const tarball = path.join(tmp, 'dist.tgz');
     execFileSync('tar', ['-czf', tarball, '-C', tmp, 'pkg-src']);
+    writeReleaseManifest(tarball, '0.2.0');
 
     // 2. Set up initial install in tmp
     const appDir = path.join(tmp, 'app');
@@ -414,6 +423,7 @@ test('applyUpdate unpacks cleanly without emitting unknown extended header keywo
     execFileSync('tar', [...tarPackArgs(), tarball, '-C', tmp, 'pkg-src'], {
       env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' },
     });
+    writeReleaseManifest(tarball, '0.3.0');
 
     const appDir = path.join(tmp, 'app');
     fs.mkdirSync(path.join(appDir, 'src'), { recursive: true });

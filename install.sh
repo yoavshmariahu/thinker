@@ -153,10 +153,23 @@ main() {
   trap "rm -rf '$tmp'" EXIT
   say "Installing thinker into $home"
   if [ -n "$dist" ]; then
-    curl -fsSL -o "$tmp/thinker.tgz" "$dist" || die "could not download $dist"
+    case "$dist" in https://*) ;; *) die "verified distributions must be downloaded over HTTPS" ;; esac
+    curl -fsSL --proto-redir '=https' -o "$tmp/thinker.tgz" "$dist" || die "could not download $dist"
+    curl -fsSL --proto-redir '=https' -o "$tmp/version.json" "${dist%/*}/version.json" || die "could not download release manifest"
+    node --input-type=module - "$tmp/thinker.tgz" "$tmp/version.json" <<'JS'
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+const [archive, manifest] = process.argv.slice(2);
+const release = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+if (release.schemaVersion !== 1 || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(release.version || '') ||
+    !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(release.commit || '') || !/^[a-f0-9]{64}$/.test(release.sha256 || '')) {
+  throw new Error('invalid or unsupported release manifest');
+}
+const actual = crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex');
+if (actual !== release.sha256) throw new Error('release checksum mismatch; refusing to extract');
+JS
   else
-    [ -n "$ghrepo" ] || die "no source configured: set THINKER_GH_REPO (owner/name) or THINKER_DIST_URL"
-    gh_fetch "repos/$ghrepo/tarball/$ref" "$tmp/thinker.tgz"
+    die "archive installs require THINKER_DIST_URL with a version.json release manifest and SHA-256 digest"
   fi
   tar_extract() {
     local archive="$1" dest="$2"
@@ -184,6 +197,14 @@ main() {
     local inner; inner="$(find "$tmp/app" -mindepth 1 -maxdepth 1 -type d | head -1)"
     [ -n "$inner" ] && [ -f "$inner/src/cli.js" ] || die "downloaded archive does not look like thinker"
     mv "$inner" "$tmp/app.inner" && rm -rf "$tmp/app" && mv "$tmp/app.inner" "$tmp/app"
+  fi
+  if [ -n "$dist" ]; then
+    node - "$tmp/app/package.json" "$tmp/version.json" <<'JS'
+import fs from 'node:fs';
+const pkg = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const release = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+if (pkg.version !== release.version) throw new Error(`release version ${release.version} does not match archive version ${pkg.version}`);
+JS
   fi
   # Use the downloaded updater to repair older clients whose update check still
   # depends on private GitHub access. Preserve the existing home and settings.
@@ -230,7 +251,7 @@ EOF
   if [ "$mcp" = 1 ]; then
     command -v npm >/dev/null || die "--mcp needs npm to install the MCP server's dependencies"
     say "Installing MCP server dependencies"
-    (cd "$home/app" && npm install --omit=dev --no-audit --no-fund --silent)
+    (cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent)
   fi
 
   # --- the cache -------------------------------------------------------------

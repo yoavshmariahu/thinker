@@ -9,6 +9,20 @@ import crypto from 'node:crypto';
 const sha = s => 'sha256:' + crypto.createHash('sha256').update(s).digest('hex').slice(0, 24);
 const norm = s => s.replace(/[ \t]+$/gm, '').replace(/\r\n/g, '\n');
 
+// Dependency paths must stay inside the checkout, including after symlink resolution.
+export function repoFile(repo, file) {
+  const root = path.resolve(repo);
+  const candidate = path.resolve(root, file);
+  const rel = path.relative(root, candidate);
+  if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;
+  try {
+    const real = fs.realpathSync(candidate);
+    const realRel = path.relative(fs.realpathSync(root), real);
+    if (!realRel || realRel === '..' || realRel.startsWith(`..${path.sep}`) || path.isAbsolute(realRel)) return null;
+    return real;
+  } catch { return null; }
+}
+
 function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 // Returns {start, end} line indexes (end exclusive) of the symbol's definition, or null.
@@ -96,7 +110,8 @@ function blockEnd(lines, start, lang = 'auto') {
 }
 
 export function hashDep(repo, dep) {
-  const abs = path.join(repo, dep.path);
+  const abs = repoFile(repo, dep.path);
+  if (!abs) return { ...dep, hash: null, missing: true };
   let text;
   try { text = fs.readFileSync(abs, 'utf8'); } catch { return { ...dep, hash: null, missing: true }; }
   if (dep.symbol) {
@@ -127,7 +142,9 @@ export function checkNote(repo, note) {
 
 export function symbolText(repo, dep, maxLines = 200) {
   try {
-    const text = fs.readFileSync(path.join(repo, dep.path), 'utf8');
+    const abs = repoFile(repo, dep.path);
+    if (!abs) return null;
+    const text = fs.readFileSync(abs, 'utf8');
     if (dep.symbol) {
       const loc = findSymbol(text, dep.symbol, langOf(dep.path));
       if (loc) return text.split('\n').slice(loc.start, Math.min(loc.end, loc.start + maxLines)).join('\n');

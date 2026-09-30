@@ -139,16 +139,35 @@ export async function fetchLatestCommit({ ghrepo = 'yoavshmariahu/thinker', ref 
 }
 
 export async function fetchDistributionRelease(dist) {
-  const url = new URL('version.json', dist);
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000), cache: 'no-store' });
-  if (!res.ok) throw new Error(`Distribution update check failed: HTTP ${res.status}`);
-  const release = await res.json();
-  if (typeof release.version !== 'string' || !release.version ||
-      typeof release.commit !== 'string' || !release.commit ||
-      (release.sha256 !== undefined && !/^[a-f0-9]{64}$/.test(release.sha256))) {
+  let release;
+  if (dist.startsWith('file://') || fs.existsSync(dist)) {
+    const archivePath = dist.startsWith('file://') ? fileURLToPath(dist) : path.resolve(dist);
+    release = JSON.parse(fs.readFileSync(path.join(path.dirname(archivePath), 'version.json'), 'utf8'));
+  } else {
+    const url = new URL('version.json', dist);
+    const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) throw new Error('Release manifests must be fetched over HTTPS');
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000), cache: 'no-store', redirect: 'error' });
+    if (!res.ok) throw new Error(`Distribution update check failed: HTTP ${res.status}`);
+    release = await res.json();
+  }
+  if (release.schemaVersion !== 1 ||
+      typeof release.version !== 'string' || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(release.version) ||
+      typeof release.commit !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(release.commit) ||
+      typeof release.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(release.sha256)) {
     throw new Error('Invalid distribution version.json');
   }
   return release;
+}
+
+function installLockedDependencies(cwd) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'));
+  const hasDependencies = Object.keys(pkg.dependencies || {}).length > 0;
+  if (!fs.existsSync(path.join(cwd, 'package-lock.json'))) {
+    if (hasDependencies) throw new Error('package-lock.json is required before installing dependencies');
+    return;
+  }
+  execFileSync('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--silent'], { cwd, encoding: 'utf8', timeout: 60_000 });
 }
 
 export async function checkUpdate(opts = {}) {
@@ -234,24 +253,7 @@ export async function checkUpdate(opts = {}) {
       currentRef: install.ref || 'main', targetRef: ref, switchingRef,
     };
   }
-  const token = opts.token || getToken();
-
-  const latest = await fetchLatestCommit({ ghrepo, ref, token });
-  const available = switchingRef || !install.commit || (latest.sha && latest.sha !== install.commit);
-
-  return {
-    type: 'archive',
-    available,
-    switchingRef,
-    currentRef: install.ref || 'main',
-    targetRef: ref,
-    currentCommit: install.commit,
-    latestCommit: latest.sha,
-    commitMessage: latest.message,
-    version: install.version,
-    ghrepo,
-    ref,
-  };
+  return { type: 'archive', error: 'This archive install has no verified release manifest URL. Reinstall from a verified distribution before updating.', version: install.version, ghrepo, ref };
 }
 
 export async function applyUpdate(opts = {}) {
@@ -263,7 +265,6 @@ export async function applyUpdate(opts = {}) {
   const ghrepo = opts.ghrepo || install.ghrepo || 'yoavshmariahu/thinker';
   const ref = opts.ref || opts.branch || install.ref || 'main';
   const dist = opts.dist || install.dist || '';
-  const token = opts.token || (dist ? '' : getToken());
 
   if (install.type === 'git') {
     const gitDir = install.path;
@@ -309,10 +310,9 @@ export async function applyUpdate(opts = {}) {
 
     const newCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: gitDir, encoding: 'utf8' }).trim();
 
-    // Check package.json dependencies update
-    try {
-      execFileSync('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--silent'], { cwd: gitDir, encoding: 'utf8', timeout: 60_000 });
-    } catch {}
+    // Recreate locked production dependencies without running package scripts.
+    try { installLockedDependencies(gitDir); }
+    catch (e) { throw new Error(`Updated source but could not install locked dependencies: ${e.message}`); }
 
     return {
       type: 'git',
@@ -325,6 +325,7 @@ export async function applyUpdate(opts = {}) {
   }
 
   // Archive / production install (~/.thinker/app)
+  if (!dist) throw new Error('Refusing to update an archive without a verified release manifest URL. Reinstall from a verified distribution first.');
   const appDir = path.join(home, 'app');
   const binDir = path.join(home, 'bin');
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-update-'));
@@ -332,15 +333,8 @@ export async function applyUpdate(opts = {}) {
   const tmpApp = path.join(tmpBase, 'app');
 
   try {
-    let latestCommit = '';
-    const release = /^https?:\/\//.test(dist) ? await fetchDistributionRelease(dist) : null;
-    if (release) latestCommit = release.commit;
-    if (!dist) {
-      try {
-        const info = await fetchLatestCommit({ ghrepo, ref, token });
-        latestCommit = info.sha;
-      } catch {}
-    }
+    const release = await fetchDistributionRelease(dist);
+    const latestCommit = release.commit;
 
     // Download archive
     if (dist) {
@@ -350,22 +344,14 @@ export async function applyUpdate(opts = {}) {
       } else if (fs.existsSync(dist)) {
         fs.copyFileSync(dist, tmpTar);
       } else {
-        const res = await fetch(dist, { signal: AbortSignal.timeout(60_000) });
+        const res = await fetch(dist, { signal: AbortSignal.timeout(60_000), redirect: 'error' });
         if (!res.ok) throw new Error(`Failed to download distribution from ${dist}: HTTP ${res.status}`);
         const buf = Buffer.from(await res.arrayBuffer());
         fs.writeFileSync(tmpTar, buf);
       }
-    } else {
-      const url = `https://api.github.com/repos/${ghrepo}/tarball/${ref}`;
-      const headers = { 'User-Agent': 'thinker-cli', 'Accept': 'application/vnd.github.raw' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(url, { headers, signal: AbortSignal.timeout(60_000) });
-      if (!res.ok) throw new Error(`Failed to download tarball from GitHub: HTTP ${res.status} ${res.statusText}`);
-      const buf = Buffer.from(await res.arrayBuffer());
-      fs.writeFileSync(tmpTar, buf);
     }
 
-    if (release?.sha256 && createHash('sha256').update(fs.readFileSync(tmpTar)).digest('hex') !== release.sha256) {
+    if (createHash('sha256').update(fs.readFileSync(tmpTar)).digest('hex') !== release.sha256) {
       throw new Error('Distribution checksum mismatch; update was not installed. Try again after the release finishes publishing.');
     }
     fs.mkdirSync(tmpApp, { recursive: true });
@@ -395,20 +381,18 @@ export async function applyUpdate(opts = {}) {
       try { fs.rmSync(path.join(sourceDir, d), { recursive: true, force: true }); } catch {}
     }
 
-    // Install production dependencies
-    try {
-      execFileSync('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--silent'], { cwd: sourceDir, encoding: 'utf8', timeout: 60_000 });
-    } catch {}
-
     let newVersion = install.version;
     try {
       const pkg = JSON.parse(fs.readFileSync(path.join(sourceDir, 'package.json'), 'utf8'));
       if (pkg.version) newVersion = pkg.version;
     } catch {}
 
-    if (release && newVersion !== release.version) {
+    if (newVersion !== release.version) {
       throw new Error('Distribution version does not match version.json; update was not installed');
     }
+
+    // Install only the lockfile's production dependencies, without lifecycle scripts.
+    installLockedDependencies(sourceDir);
     // Atomic directory replacement
     const appOld = path.join(home, 'app.old');
     const appNew = path.join(home, 'app.new');

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
-import { hashDep, checkNote, symbolText } from './deps.js';
+import { hashDep, checkNote, symbolText, repoFile } from './deps.js';
 import { rank, pack, renderNote, renderPointers, estTokens } from './rank.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
@@ -27,7 +27,8 @@ export function resolveDeps(repo, deps) {
   const seen = new Set();
   for (const d of deps || []) {
     const p = normPath(repo, d.path);
-    if (!p || !fs.existsSync(path.join(repo, p)) || fs.statSync(path.join(repo, p)).isDirectory()) { dropped.push({ ...d, reason: 'no such file' }); continue; }
+    const abs = p && repoFile(repo, p);
+    if (!abs || !fs.existsSync(abs) || fs.statSync(abs).isDirectory()) { dropped.push({ ...d, reason: 'outside repository, symlinked outside, or no such file' }); continue; }
     const key = p + '|' + (d.symbol || '');
     if (seen.has(key)) continue;
     seen.add(key);

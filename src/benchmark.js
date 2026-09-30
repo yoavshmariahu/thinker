@@ -197,7 +197,7 @@ export async function runBenchmarkAgent(agent, { repo, prompt, model, timeoutMs 
   if (!bin) throw new Error(`the ${agent} CLI was not found`);
   let args;
   if (agent === 'claude') {
-    args = ['-p', '--output-format', 'json', '--permission-mode', 'plan', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}'];
+    args = ['-p', '--output-format', 'json', '--permission-mode', 'plan', '--tools', 'Read,Glob,Grep', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}'];
     if (model) args.push('--model', model);
   } else if (agent === 'codex') {
     args = ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only', '--cd', repo];
@@ -209,7 +209,7 @@ export async function runBenchmarkAgent(agent, { repo, prompt, model, timeoutMs 
     args.push(prompt);
   } else {
     const agy = path.basename(bin) === 'agy';
-    args = agy ? ['--output-format', 'json', '--dangerously-skip-permissions'] : ['--output-format', 'json'];
+    args = agy ? ['--output-format', 'json', '--mode=plan'] : ['--output-format', 'json', '--approval-mode=plan'];
     if (model) args.push(agy ? '--model' : '-m', model);
     if (agy) args.push('-p', prompt);
   }

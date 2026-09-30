@@ -98,10 +98,23 @@ export class Store {
     // THINKER_NOTES_DIR serves notes from elsewhere (benchmark control arms).
     this.notesDir = process.env.THINKER_NOTES_DIR || path.join(this.dir, 'notes');
   }
+  assertSafeNotesPath() {
+    try { if (fs.lstatSync(this.dir).isSymbolicLink()) throw new Error('refusing to use a symlinked .thinker directory'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    if (!process.env.THINKER_NOTES_DIR) {
+      try {
+        if (fs.lstatSync(this.notesDir).isSymbolicLink()) throw new Error('refusing to use a symlinked notes directory');
+        const root = fs.realpathSync(this.repo), real = fs.realpathSync(this.notesDir);
+        const rel = path.relative(root, real);
+        if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error('notes directory must be inside the repository');
+      } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    }
+  }
   init() {
     // Notes may live outside the repo (THINKER_NOTES_DIR). config.json still belongs in <repo>/.thinker.
+    this.assertSafeNotesPath();
     fs.mkdirSync(this.dir, { recursive: true });
     fs.mkdirSync(this.notesDir, { recursive: true });
+    this.assertSafeNotesPath();
     const cfg = path.join(this.dir, 'config.json');
     if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1, verifyModel: 'haiku', distillModel: 'sonnet' }, null, 2) + '\n');
     return this;
@@ -111,18 +124,30 @@ export class Store {
   }
   exists() { return fs.existsSync(this.notesDir); }
   list() {
+    this.assertSafeNotesPath();
     if (!this.exists()) return [];
-    return fs.readdirSync(this.notesDir).filter(f => f.endsWith('.json')).map(f => this.get(f.slice(0, -5))).filter(Boolean);
+    return fs.readdirSync(this.notesDir).filter(f => /^[a-z0-9]+(?:-[a-z0-9]+)*\.json$/.test(f)).map(f => this.get(f.slice(0, -5))).filter(Boolean);
   }
   get(id) {
-    try { return JSON.parse(fs.readFileSync(path.join(this.notesDir, id + '.json'), 'utf8')); } catch { return null; }
+    this.assertSafeNotesPath();
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(id))) return null;
+    try {
+      const n = JSON.parse(fs.readFileSync(path.join(this.notesDir, id + '.json'), 'utf8'));
+      return n?.id === id ? n : null;
+    } catch { return null; }
   }
   put(note) {
+    this.assertSafeNotesPath();
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(note?.id))) throw new Error('invalid note id');
     fs.mkdirSync(this.notesDir, { recursive: true });
-    fs.writeFileSync(path.join(this.notesDir, note.id + '.json'), JSON.stringify(note, null, 2) + '\n');
+    const file = path.join(this.notesDir, note.id + '.json');
+    try { if (fs.lstatSync(file).isSymbolicLink()) throw new Error('refusing to write through a note symlink'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+    fs.writeFileSync(file, JSON.stringify(note, null, 2) + '\n', { mode: 0o600 });
     return note;
   }
   remove(id) {
+    this.assertSafeNotesPath();
+    if (typeof id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) return false;
     try { fs.unlinkSync(path.join(this.notesDir, id + '.json')); return true; } catch { return false; }
   }
   // Append-only usage/feedback log for the machine (see logFile); one line per event, so

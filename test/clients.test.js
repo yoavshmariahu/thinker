@@ -48,6 +48,7 @@ test('Codex trust: the project and thinker\'s hooks are written to Codex\'s conf
     // a hook of someone else in front of ours moves ours to the second group
     const hf = path.join(dir, '.codex/hooks.json');
     const j = read(dir, '.codex/hooks.json'); j.hooks.UserPromptSubmit.unshift({ hooks: [{ type: 'command', command: 'other' }] });
+    j.hooks.SessionStart = [{ hooks: [{ type: 'command', command: 'echo thinker' }] }];
     fs.writeFileSync(hf, JSON.stringify(j));
     trustCodex(dir); trustCodex(dir); // idempotent
     const toml = fs.readFileSync(cfg, 'utf8');
@@ -57,6 +58,7 @@ test('Codex trust: the project and thinker\'s hooks are written to Codex\'s conf
     assert.equal(toml.split(`[hooks.state.${JSON.stringify(hf + ':user_prompt_submit:1:0')}]\ntrusted_hash = "${codexHookHash('user_prompt_submit', ours)}"`).length, 2);
     assert.ok(toml.includes(':post_tool_use:0:0"]'));
     assert.ok(!toml.includes(':user_prompt_submit:0:0"]'));
+    assert.ok(!toml.includes(':session_start:0:0"]'));
 
     uninstallClients(dir);
     const left = fs.readFileSync(cfg, 'utf8');
@@ -108,6 +110,13 @@ test('install writes each client\'s config and keeps what was there', () => {
   assert.ok(!fs.existsSync(path.join(dir, '.cursor/rules/thinker.mdc')));
   assert.ok(!fs.existsSync(path.join(dir, '.cursor/hooks.json')));
   assert.ok(!fs.existsSync(path.join(dir, '.cursor/mcp.json')) && !fs.existsSync(path.join(dir, '.mcp.json')));
+});
+
+test('Cursor MCP opt-out does not write or approve an MCP server', () => {
+  const dir = repo();
+  installClient('cursor', { ...opts(dir), mcp: false, hooks: false });
+  assert.equal(fs.existsSync(path.join(dir, '.cursor', 'mcp.json')), false);
+  assert.equal(fs.existsSync(path.join(dir, '.cursor', 'rules', 'thinker.mdc')), false);
 });
 
 test('prompt hook output matches what each client accepts', () => {

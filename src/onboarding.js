@@ -923,7 +923,7 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
       }
 
       // Special handling for Cursor MCP workspace approval
-      if (client === 'cursor') {
+      if (client === 'cursor' && mcp) {
         const agentBin = findBin(['agent', 'cursor-agent']);
         if (agentBin) {
           try {

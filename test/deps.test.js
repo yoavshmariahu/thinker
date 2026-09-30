@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { findSymbol, hashDep, checkNote } from '../src/deps.js';
+import { findSymbol, hashDep, checkNote, repoFile } from '../src/deps.js';
 import { extractDeps, createNote, refresh } from '../src/ops.js';
 import { Store } from '../src/store.js';
 import { rank, pack, tokenize } from '../src/rank.js';
@@ -53,6 +53,16 @@ test('symbol hash changes only when the symbol body changes', () => {
   assert.equal(checkNote(repo, note).changed[0].reason, 'symbol body changed');
   fs.unlinkSync(path.join(repo, 'src/a.py'));
   assert.equal(checkNote(repo, note).changed[0].reason, 'file removed');
+});
+
+test('note dependencies stay inside the repo and reject outward symlinks', () => {
+  const repo = tmpRepo();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-outside-'));
+  fs.writeFileSync(path.join(outside, 'secret.txt'), 'synthetic secret');
+  fs.symlinkSync(path.join(outside, 'secret.txt'), path.join(repo, 'secret-link.txt'));
+  assert.equal(repoFile(repo, '../' + path.basename(outside) + '/secret.txt'), null);
+  assert.equal(repoFile(repo, 'secret-link.txt'), null);
+  assert.equal(hashDep(repo, { path: 'secret-link.txt' }).missing, true);
 });
 
 test('extractDeps pulls pointers from body', () => {

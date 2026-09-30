@@ -19,6 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini'];
 
@@ -183,10 +184,18 @@ export function trustCodex(repo) {
   let text = setTomlTable(readText(file), `[projects.${tomlStr(root)}]`, ['trust_level = "trusted"']);
   const hooksFile = path.join(root, '.codex', 'hooks.json');
   let hooks = {}; try { hooks = JSON.parse(fs.readFileSync(hooksFile, 'utf8')).hooks || {}; } catch {}
+  const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
+  const defs = {
+    UserPromptSubmit: [['prompt', 15, ['', ' --record']]],
+    PostToolUse: [['tool', 10, ['', ' --late', ' --record', ' --late --record']]],
+    Stop: [['stop', 10, ['', ' --record']]],
+  };
+  const generated = (event, h) => h?.type === 'command' && (defs[event] || []).some(([what, timeout, suffixes]) =>
+    h.timeout === timeout && suffixes.some(suffix => h.command === `node "${cli}" hook ${what} --client codex --repo "${root}"${suffix}`));
   let n = 0;
   for (const [ev, groups] of Object.entries(hooks)) (groups || []).forEach((g, gi) => (g.hooks || []).forEach((h, hi) => {
-    // a matcher is part of what Codex hashes; thinker writes none
-    if (!isOurs(h) || g.matcher !== undefined) return;
+    // Trust only exact Codex hook commands this Thinker version generates.
+    if (g.matcher !== undefined || !generated(ev, h)) return;
     text = setTomlTable(text, `[hooks.state.${tomlStr(`${hooksFile}:${snake(ev)}:${gi}:${hi}`)}]`, [`trusted_hash = ${tomlStr(codexHookHash(snake(ev), h))}`]);
     n++;
   }));
@@ -276,7 +285,7 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
     if (!shared && (mcp || hooks)) excludeLocally(repo, ['.gemini/settings.json']);
   }
 
-  if (client === 'cursor') {
+  if (client === 'cursor' && mcp) {
     const generated = [];
     // Cursor cannot take context at prompt time, so the MCP server and the rule are the main route.
     mergeJson(path.join(repo, '.cursor', 'mcp.json'), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpEntry } }));
