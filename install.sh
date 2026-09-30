@@ -35,6 +35,7 @@
 #   --branch <name>     branch or tag to install (default main; --ref also accepted)
 #   --update            update thinker CLI to the latest version and exit
 #   --no-auto-update    do not schedule daily background auto-updates
+#   --no-modify-path    do not add THINKER_HOME/bin to PATH in your shell's startup file
 #   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too)
 #
 # Environment
@@ -45,13 +46,32 @@
 #   GITHUB_TOKEN        token with read access to the thinker repository (GH_TOKEN works too;
 #                       if neither is set and the GitHub CLI is logged in, its token is used)
 #
-# The script writes only to THINKER_HOME and to .thinker/ and .claude/ in this repository. No sudo.
+# The script writes to THINKER_HOME, to .thinker/ and the agents' config in this repository, and adds one
+# line putting THINKER_HOME/bin on PATH to your shell's startup file (--no-modify-path leaves it alone). No sudo.
 set -euo pipefail
 export COPYFILE_DISABLE=1
 export COPY_EXTENDED_ATTRIBUTES_DISABLE=1
 
+# add_to_path <dir>: put <dir> on PATH in the startup file of the user's shell, once.
+# Prints the file it wrote to, or nothing when it could not tell which one.
+add_to_path() {
+  local dir="$1" rc line
+  case "$(basename "${SHELL:-}")" in
+    zsh) rc="${ZDOTDIR:-$HOME}/.zshrc"; line="export PATH=\"$dir:\$PATH\"" ;;
+    bash) # macOS terminals start login shells, which read .bash_profile and not .bashrc
+      if [ "$(uname)" = Darwin ]; then rc="$HOME/.bash_profile"; else rc="$HOME/.bashrc"; fi
+      line="export PATH=\"$dir:\$PATH\"" ;;
+    fish) rc="${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/thinker.fish"; line="fish_add_path \"$dir\"" ;;
+    *) return 0 ;;
+  esac
+  if ! grep -qsF "$line" "$rc"; then
+    mkdir -p "$(dirname "$rc")" && printf '\n# thinker\n%s\n' "$line" >> "$rc" || return 0
+  fi
+  printf '%s' "$rc"
+}
+
 main() {
-  local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
+  local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; shift 2 ;;
@@ -75,6 +95,7 @@ main() {
       --update) update=1; shift ;;
       --auto-update) autoupdate=1; shift ;;
       --no-auto-update) autoupdate=0; shift ;;
+      --no-modify-path) modpath=0; shift ;;
       --uninstall) uninstall=1; shift ;;
       --purge) purge=1; shift ;;
       -h|--help) say "see the header of install.sh or ONBOARDING.md for options"; exit 0 ;;
@@ -117,7 +138,7 @@ main() {
   if [ "$uninstall" = 1 ]; then
     [ -x "$thinker" ] || die "thinker is not installed in $home"
     if [ "$purge" = 1 ]; then "$thinker" uninstall --purge --repo "$repo"; else "$thinker" uninstall --repo "$repo"; fi
-    say "To remove the tool itself: rm -rf \"$home\""
+    say "To remove the tool itself: rm -rf \"$home\", and delete the '# thinker' PATH line from your shell's startup file"
     exit 0
   fi
 
@@ -188,6 +209,8 @@ EOF
   if [ "$autoupdate" = 1 ]; then
     "$thinker" update --schedule --quiet 2>/dev/null || true
   fi
+  local rcfile=""
+  if [ "$modpath" = 1 ]; then rcfile="$(add_to_path "$home/bin")"; fi
 
   [ "$build" = 1 ] && [ -z "$clients" ] && clients="auto"
   # Cursor is served through the MCP server, which needs its dependencies
@@ -250,7 +273,11 @@ EOF
     fi
   fi
 
-  case ":$PATH:" in *":$home/bin:"*) ;; *) say "  Optional: add $home/bin to your PATH to run 'thinker' directly." ;; esac
+  case ":$PATH:" in
+    *":$home/bin:"*) ;;
+    *) if [ -n "$rcfile" ]; then say "  'thinker' is on your PATH in new terminals (added to $rcfile); in this one run: export PATH=\"$home/bin:\$PATH\""
+       else say "  Optional: add $home/bin to your PATH to run 'thinker' directly."; fi ;;
+  esac
 }
 
 main "$@"
