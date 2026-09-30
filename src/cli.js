@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn, spawnSync, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
@@ -21,6 +21,7 @@ import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkR
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath, tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { runOnboarding, stepPrBenchmark, selectAndAuthenticateAgent, getAgentLoginCommand, getAgentDisplayName, c } from './onboarding.js';
+import { batchProgress, oneLine } from './progress.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -46,7 +47,7 @@ const HELP = `thinker — knowledge cache for coding agents
   onboard [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>] [--benchmark] [--no-benchmark] [--yes]
                                  guided 3-step onboarding: connect harness CLIs, build the knowledge cache with
                                  pre-flight estimates (time, size, location), and run an optional PR change benchmark
-  setup                          alias for onboard
+  setup [--verbose]              alias for onboard; --verbose includes per-item diagnostic details
   init [--no-learn] [--no-hooks] [--late] [--local] [--git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
@@ -860,35 +861,48 @@ async function minePrs(slug, { before, after, again, limit = 20, model, dry, rep
       (p.body || '').length > (useGit ? 10 : 120) && p.additions <= 800 && p.additions >= 3);
   const candidates = filtered.length ? filtered : listed.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
   const prs = stratifyPrs(candidates, limit);
-  out(`${prs.length} changes to mine (${useGit ? 'from git history' : `stratified across subsystems from ${filtered.length} candidates`})`);
+  out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
+  const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose) });
   let cost = 0, saved = 0;
   for (const pr of prs) {
+    const refId = pr.prNumber ? `${recSlug}#${pr.prNumber}` : `${recSlug}#${pr.hash ? pr.hash.slice(0, 8) : pr.number}`;
+    progress.start(pr.hash ? `commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
     try {
       const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo });
       cost += r.cost || 0;
-      const refId = pr.prNumber ? `${recSlug}#${pr.prNumber}` : `${recSlug}#${pr.hash ? pr.hash.slice(0, 8) : pr.number}`;
-      if (dry) { out(`${refId} ${pr.title.slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || '-'}`); continue; }
+      if (dry) { out(`${oneLine(refId)} ${oneLine(pr.title).slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || 'no reusable notes'}`); progress.complete({ proposed: r.notes }); continue; }
       const s2 = saveNotes(store, r.notes, { source: { type: 'pr', ref: refId } });
       saved += s2.saved.length + s2.merged.length;
-      out(`${refId} ${pr.title.slice(0, 60)} → ${[...s2.saved, ...s2.merged].map(n => `[${n.kind}] ${n.id}`).join(', ') || '-'}${s2.skipped.length ? ` (skipped ${s2.skipped.length})` : ''}`);
-    } catch (e) { failed.add(pr.number); out(`#${pr.number} error ${String(e.message).slice(0, 120)}`); }
+      progress.complete({ ref: refId, title: pr.title, notes: [...s2.saved, ...s2.merged].map(n => n.id), skipped: s2.skipped.length });
+    } catch (e) { failed.add(pr.number); progress.complete({ ref: refId, title: pr.title, error: e.message }); }
   }
   // PRs passed over by the filter are recorded too; failed ones are not, so the next run takes them again
   if (!dry) {
     recordMinedPrs(store, recSlug, listed.filter(p => !failed.has(p.number)));
     store.log({ op: 'mine-prs', slug: recSlug, prs: prs.length - failed.size, passed: listed.length - prs.length, saved, cost, source: useGit ? 'git' : 'github' });
   }
-  out(`mined ${prs.length - failed.size} changes → ${saved} notes, cost $${cost.toFixed(2)}${rec.mined.size ? ` (${rec.mined.size} mined earlier were skipped)` : ''}`);
-  return { cost, saved };
+  progress.finish({ cost, retry: 'Failed changes remain unmarked. Retry with: thinker mine-prs' });
+  return { cost, saved, failed: failed.size, processed: prs.length };
 }
 
 function sourceAreas(limit) {
   return discoverAreas(repo, { limit });
 }
 
+// Asynchronous child collection lets progress updates continue during long explorations.
+function exploreCommand(bin, args, { input, ...opts }) {
+  return new Promise(resolve => {
+    const child = execFile(bin, args, opts, (error, stdout, stderr) => {
+      resolve({ status: error ? (error.code || 1) : 0, stdout, stderr: stderr || error?.message || '' });
+    });
+    child.stdin.on('error', () => {}); // the agent can exit before consuming stdin
+    child.stdin.end(input);
+  });
+}
+
 // One read-only exploration session with the given agent; returns the file
 // holding its transcript (the agent's own, or its streamed output).
-function explore(agent, prompt, model) {
+async function explore(agent, prompt, model) {
   const env = { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', IS_SANDBOX: '1' };
   const opts = { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, env };
   const bin = findBin(BINS[agent] || []);
@@ -897,7 +911,7 @@ function explore(agent, prompt, model) {
   fs.mkdirSync(path.dirname(stream), { recursive: true });
   const m = resolveModel(agent, model);
   if (agent === 'claude') {
-    const r = spawnSync(bin, ['-p', '--model', m || 'sonnet', '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--disallowedTools', 'Edit,Write,NotebookEdit', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--max-turns', '40'], { ...opts, input: prompt });
+    const r = await exploreCommand(bin, ['-p', '--model', m || 'sonnet', '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--disallowedTools', 'Edit,Write,NotebookEdit', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--max-turns', '40'], { ...opts, input: prompt });
     if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `claude exited ${r.status}`).slice(0, 200) };
     let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
     if (j.is_error) return { error: String(j.result || j.error || 'claude error').slice(0, 200) };
@@ -906,7 +920,7 @@ function explore(agent, prompt, model) {
   }
   if (path.basename(bin) === 'agy') {
     const agyArgs = ['-p', prompt, '--model', m || 'gemini-3.8-flash-high', '--output-format', 'json', '--dangerously-skip-permissions'];
-    const r = spawnSync(bin, agyArgs, { ...opts, cwd: repo });
+    const r = await exploreCommand(bin, agyArgs, { ...opts, cwd: repo });
     if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `agy exited ${r.status}`).slice(0, 200) };
     let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
     if (j.is_error) return { error: String(j.result || j.error || 'agy error').slice(0, 200) };
@@ -918,9 +932,9 @@ function explore(agent, prompt, model) {
     return { error: 'agy transcript not found: ' + (r.stderr || r.stdout || '').slice(0, 200) };
   }
   let r;
-  if (agent === 'codex') r = spawnSync(bin, ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', ...(m ? ['--model', m] : ['--model', 'gpt-6-luna']), '--cd', repo, '-'], { ...opts, input: prompt });
-  else if (agent === 'cursor') r = spawnSync(bin, ['-p', '--output-format', 'stream-json', '--mode', 'ask', '--trust', ...(m ? ['--model', m] : []), '--workspace', repo, prompt], opts);
-  else r = spawnSync(bin, ['--output-format', 'stream-json', ...(m ? ['-m', m] : ['-m', 'gemini-3.8-flash-high'])], { ...opts, input: prompt });
+  if (agent === 'codex') r = await exploreCommand(bin, ['exec', '--json', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', ...(m ? ['--model', m] : ['--model', 'gpt-6-luna']), '--cd', repo, '-'], { ...opts, input: prompt });
+  else if (agent === 'cursor') r = await exploreCommand(bin, ['-p', '--output-format', 'stream-json', '--mode', 'ask', '--trust', ...(m ? ['--model', m] : []), '--workspace', repo, prompt], opts);
+  else r = await exploreCommand(bin, ['--output-format', 'stream-json', ...(m ? ['-m', m] : ['-m', 'gemini-3.8-flash-high'])], { ...opts, input: prompt });
   if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || '').slice(0, 200) };
   // failures these CLIs report inside their output (usage limits, auth)
   for (const l of String(r.stdout).split('\n')) {
@@ -955,91 +969,56 @@ async function seed({ areas, model, dry, prompts, agent }) {
 
   let cost = 0, ok = 0;
   const failures = [];
+  const progress = batchProgress({ dir: store.dir, name: 'Exploration', total: list.length, out, every: 1, verbose: Boolean(flags.verbose) });
   for (const a of list) {
-    const t0 = Date.now();
-    const label = (a.dir || a.prompt.slice(0, 40)).padEnd(40);
-    let r = explore(activeAgent, a.prompt, model);
+    const label = a.dir || a.prompt.slice(0, 40);
+    progress.start(label);
+    let r = await explore(activeAgent, a.prompt, model);
 
-    if (r && r.error) {
-      out(`${label} ${activeAgent} failed (${r.error})`);
-      failures.push({ area: a.dir || label.trim(), error: `${activeAgent}: ${r.error}` });
-
-      const isInteractive = Boolean(process.stdin.isTTY) && !flags?.yes;
+    if (r.error) {
+      progress.pause();
+      progress.detail({ area: label, agent: activeAgent, error: r.error });
       const otherAgents = available().filter(ag => ag !== activeAgent && ['claude', 'gemini', 'codex', 'cursor'].includes(ag));
-
-      if (isInteractive && otherAgents.length > 0) {
-        out(`\n  ${c.red('✖')} The selected tool (${c.bold(getAgentDisplayName(activeAgent))}) had an issue:`);
-        out(`    ${c.yellow(r.error)}`);
-        out(`\n  Choose another tool or exit:`);
-        otherAgents.forEach((ag, idx) => {
-          out(`    ${idx + 1}) ${getAgentDisplayName(ag)} (${ag})`);
-        });
-        out(`    e) Exit\n`);
-
+      if (process.stdin.isTTY && !flags.yes && otherAgents.length) {
+        out(`        ${getAgentDisplayName(activeAgent)} failed: ${oneLine(cleanErrorMessage(r.error)).slice(0, 120)}`);
+        out('        Choose another agent to retry this area, or exit:');
+        otherAgents.forEach((ag, idx) => out(`        ${idx + 1}) ${getAgentDisplayName(ag)}`));
         const rl = (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout });
-        let answer = '';
-        try {
-          answer = (await rl.question(`  Select a tool [1-${otherAgents.length}, e to exit]: `)).trim();
-        } finally {
-          rl.close();
+        let answer;
+        try { answer = (await rl.question(`  Select [1-${otherAgents.length}, e to exit]: `)).trim(); }
+        finally { rl.close(); }
+        const chosen = otherAgents[Number(answer) - 1] || (answer && otherAgents.find(ag => ag === answer.toLowerCase() || getAgentDisplayName(ag).toLowerCase().includes(answer.toLowerCase())));
+        if (chosen) {
+          activeAgent = chosen;
+          process.env.THINKER_LLM = chosen;
+          out(`        Retrying with ${getAgentDisplayName(chosen)}…`);
+          progress.start(label);
+          r = await explore(activeAgent, a.prompt, model);
         }
-
-        if (answer && !/^e(xit)?$/i.test(answer)) {
-          const num = parseInt(answer, 10);
-          let chosen = null;
-          if (!isNaN(num) && num >= 1 && num <= otherAgents.length) {
-            chosen = otherAgents[num - 1];
-          } else {
-            chosen = otherAgents.find(ag => ag.toLowerCase() === answer.toLowerCase() || getAgentDisplayName(ag).toLowerCase().includes(answer.toLowerCase()));
-          }
-          if (chosen) {
-            out(`  Switched to ${c.bold(getAgentDisplayName(chosen))} (${chosen})...\n`);
-            activeAgent = chosen;
-            process.env.THINKER_LLM = activeAgent;
-            // Retry current area with the newly chosen agent
-            r = explore(activeAgent, a.prompt, model);
-            if (r && r.error) {
-              out(`${label} ${activeAgent} failed (${r.error})`);
-              failures.push({ area: a.dir || label.trim(), error: `${activeAgent}: ${r.error}` });
-              break;
-            }
-          } else {
-            out(`\n  Exploration stopped by user.`);
-            break;
-          }
-        } else {
-          out(`\n  Exploration stopped by user.`);
-          break;
-        }
-      } else {
-        out(`\n❌ Exploration stopped: The selected tool (${activeAgent}) failed: ${r.error}`);
-        out(`   Fix the issue with ${activeAgent} or re-run setup with another tool (--agent <name>).\n`);
+      }
+      if (r.error) {
+        failures.push({ area: label, error: r.error });
+        progress.complete({ error: r.error });
         break;
       }
     }
 
-    cost += r.cost || 0; ok++;
-    out(`${label} ${activeAgent}${r.turns ? ` ${r.turns} turns` : ''}${r.cost ? ` $${r.cost.toFixed(2)}` : ''} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+    cost += r.cost || 0;
     try {
-      await distillFile(r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: false, incremental: false });
+      const result = await distillFile(r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: true, incremental: false });
+      cost += result?.cost || 0;
+      ok++;
+      progress.complete({ notes: result?.notes || [], agent: activeAgent });
     } catch (e) {
-      out(`${label} distill failed: ${String(e.message).slice(0, 160)}`);
-      failures.push({ area: a.dir || label.trim(), error: `distill failed: ${e.message}` });
+      failures.push({ area: label, error: e.message });
+      progress.complete({ error: e.message });
+    } finally {
+      if (r.temp) fs.rmSync(r.transcript, { force: true });
     }
-    if (r.temp) fs.rmSync(r.transcript, { force: true });
   }
-  out(`explored ${ok} of ${list.length} areas with ${activeAgent}${cost ? `, agent cost $${cost.toFixed(2)}` : ''}`);
-  if (ok === 0 && list.length > 0) {
-    out(`\n❌ cache init failed: 0 of ${list.length} areas were successfully explored.`);
-    if (failures.length) {
-      out(`   Failure details:\n${failures.slice(0, 3).map(f => `   • ${f.area}: ${f.error}`).join('\n')}`);
-    }
-    out(`   Ensure at least one agent CLI (claude, gemini, or codex) is authenticated and working.\n`);
-    process.exitCode = 1;
-  } else if (failures.length > 0) {
-    out(`\n⚠️  cache init partially completed (${ok}/${list.length} areas succeeded, ${failures.length} failed).`);
-  }
-  return { ok, total: list.length, cost, agent: activeAgent, failures };
+  const result = progress.finish({ cost, retry: 'Check your agent login, then retry with: thinker seed (or thinker seed --agent <name>).' });
+  if (ok === 0 && list.length > 0) process.exitCode = 1;
+  return { ok, total: list.length, saved: result.saved, cost, agent: activeAgent, failures };
 }
 // the agent that explores: THINKER_LLM if it names one, else the first installed in fallback order (claude, gemini, codex, cursor)
 function exploreAgent() {
@@ -1130,6 +1109,7 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
     for (const x of s.skipped) out(`skipped ${x.title}: ${x.reason}`);
     out(`distilled ${events.length} events (${n} exploration calls) → ${s.saved.length} new, ${s.merged.length} merged${r.cost ? `; cost $${r.cost.toFixed(3)}` : ""}`);
   }
+  return { notes: [...s.saved, ...s.merged].map(n => n.id), cost: r.cost || 0 };
   }
 }
 

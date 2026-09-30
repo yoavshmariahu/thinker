@@ -25,6 +25,7 @@ import {
   checkAgentAuth,
   selectAndAuthenticateAgent,
   stepPrBenchmark,
+  stepBuildCache,
 } from '../src/onboarding.js';
 import { isAuthError, cleanErrorMessage } from '../src/benchmark.js';
 
@@ -48,6 +49,26 @@ function createMockGitRepo() {
 
   return dir;
 }
+
+test('cache build reports partial failures without a success summary', async () => {
+  const repo = createMockGitRepo();
+  try {
+    const store = new Store(repo).init(), lines = [];
+    const estimates = estimateCacheBuild(repo, { prs: 2, areas: 2, agent: 'codex' });
+    estimates.canMine = estimates.canSeed = true;
+    const result = await stepBuildCache({
+      repo, store, estimates, yes: true, noPhrase: true, agent: 'codex', out: line => lines.push(stripAnsi(line)),
+      minePrsFn: async () => ({ saved: 0, processed: 2, failed: 2 }),
+      seedFn: async () => ({ ok: 0, total: 2, saved: 0, failures: [{ area: 'src', error: 'timed out' }] }),
+    });
+    assert.equal(result.warnings, 2);
+    assert.match(lines.join('\n'), /Cache build finished with warnings/);
+    assert.match(lines.join('\n'), /0\/2 areas completed/);
+    assert.doesNotMatch(lines.join('\n'), /Knowledge cache ready|notes generated|Mined.*notes created/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
 
 test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
   const colored = c.bold(c.cyan('hello world'));
@@ -841,4 +862,3 @@ test('stepPrBenchmark catches runtime auth errors from runBenchmarkAgent and rep
     fs.rmSync(repo, { recursive: true, force: true });
   }
 });
-

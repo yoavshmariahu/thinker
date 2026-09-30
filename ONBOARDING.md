@@ -102,6 +102,13 @@ thinker setup --areas 20 --prs 100 --export /path/to/thinker/caches/<repo>.tgz
 
 `setup` runs `init` (creates `.thinker/`, mines co-change), `mine-prs` on the GitHub `origin`, `seed`, `relink` and `export`; each is also a command of its own. `thinker mine-prs` run again later mines only pull requests it has not mined before (recorded in `.thinker/prs.json`).
 
+Setup reports progress counts and notes saved, with periodic updates while an
+agent is working. A change that produces no reusable notes is normal. Failures
+are summarized with a retry command; failed changes are not marked as mined.
+Full per-item results and errors are saved under `.thinker/state/` at the path
+printed after each stage. Use `thinker setup --verbose` to also print those
+details in the terminal (`mine-prs` and `seed` accept `--verbose` too).
+
 Cost on PostHog (54k files): about $20 for 259 notes. The cache is keyed to file and symbol hashes, not to a commit, so it stays usable as their code moves: notes whose code changed are flagged stale when served and re-verified in the background if the user has the `claude` CLI.
 
 Alternative delivery: commit `.thinker/notes/` and `.thinker/cochange.json` into their repository and have users run the installer without `--cache`. For hosting outside GitHub, `scripts/pack.sh <base-url>` builds a self-contained tarball and installer.

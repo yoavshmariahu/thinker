@@ -15,6 +15,7 @@ import { available, provider, findBin, BINS } from './llm.js';
 import { benchmarkAgent, benchmarkSuggestions, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
+import { oneLine } from './progress.js';
 
 // --- Visual & ANSI Styling ---------------------------------------------------
 
@@ -722,6 +723,7 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
 // --- Step 2: Build Knowledge Cache -------------------------------------------
 
 export async function stepBuildCache({ repo, store, estimates, areas = 12, prs = 60, noSeed = false, noPrs = false, noPhrase = false, model, agent, yes = false, out = console.log, seedFn, minePrsFn }) {
+  let warnings = 0;
   out(`  ${c.bold('Pre-flight estimates for this repository:')}`);
   out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
   out(`    • ${c.bold('Estimated size:')}     ${c.cyan(estimates.size.notesRange)} ${c.dim(`(${estimates.size.bytesRange} on disk)`)}`);
@@ -748,7 +750,8 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
     const pairingsCount = Object.keys(idx.totals || {}).length;
     out(`        ${c.green('✔')} Mined ${idx.commits} commits → ${pairingsCount} files indexed in ${c.dim(estimates.storage.cochangeFile)}`);
   } catch (e) {
-    out(`        ${c.yellow('⚠')} Co-change mining skipped: ${e.message}`);
+    warnings++;
+    out(`        ${c.yellow('⚠')} Co-change mining skipped: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}`);
   }
 
   // Stage 2: Merged PR mining
@@ -764,9 +767,12 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
       const res = await minePrsFn(slug, { limit: prs, model, repo });
       minedPrCount = res.saved || 0;
       const label = estimates.mineSource === 'github' ? 'pull requests' : 'git history changes';
-      out(`        ${c.green('✔')} Mined ${label} → ${minedPrCount} notes created`);
+      if (res.failed) warnings++;
+      // The CLI miner already prints its counted summary. Keep support for other callers.
+      if (res.processed === undefined) out(`        ${c.green('✔')} Mined ${label} → ${minedPrCount} notes created`);
     } catch (e) {
-      out(`        ${c.yellow('⚠')} PR mining skipped: ${e.message}`);
+      warnings++;
+      out(`        ${c.yellow('⚠')} PR mining stopped: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry: thinker mine-prs`);
     }
   } else {
     const reason = noPrs
@@ -782,13 +788,17 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
     try {
       const res = await seedFn({ areas, model, agent });
       seedCount = res.ok || 0;
-      if (seedCount > 0) {
+      if (res.failures?.length) warnings++;
+      if (res.saved !== undefined) {
+        if (seedCount < res.total) out(`        ${c.yellow('⚠')} ${seedCount}/${res.total} areas completed. Retry unfinished exploration with: thinker seed`);
+      } else if (seedCount > 0) {
         out(`        ${c.green('✔')} Explored ${seedCount} subsystems → architectural notes generated`);
       } else {
         out(`        ${c.yellow('⚠')} Subsystem exploration produced 0 notes`);
       }
     } catch (e) {
-      out(`        ${c.yellow('⚠')} Exploration error: ${e.message}`);
+      warnings++;
+      out(`        ${c.yellow('⚠')} Exploration stopped: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry: thinker seed`);
     }
   } else {
     const reason = noSeed
@@ -805,9 +815,13 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
 
   if (notes.length && !noPhrase && provider()) {
     try {
-      await phraseNotes(store, notes, { model });
-      out(`        ${c.green('✔')} Generated user-intent search phrasings`);
-    } catch {}
+      out('        Generating search phrasings…');
+      const res = await phraseNotes(store, notes, { model });
+      out(`        ${c.green('✔')} Search phrasings generated for ${res.done.length}/${notes.length} notes`);
+    } catch (e) {
+      warnings++;
+      out(`        ${c.yellow('⚠')} Search phrasings failed: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry: thinker phrase`);
+    }
   }
 
   // Final cache stats
@@ -820,8 +834,9 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
     }
   } catch {}
 
-  out(`\n  ${c.green('✔')} ${c.bold('Knowledge cache ready:')} ${c.cyan(`${finalNotes.length} notes`)} in ${c.dim(estimates.storage.rootDir)} (${formatBytes(totalBytes)} on disk)\n`);
-  return { skipped: false, notes: finalNotes, totalBytes };
+  const status = warnings ? 'Cache build finished with warnings:' : finalNotes.length ? 'Knowledge cache ready:' : 'Cache build finished without notes:';
+  out(`\n  ${warnings || !finalNotes.length ? c.yellow('⚠') : c.green('✔')} ${c.bold(status)} ${c.cyan(`${finalNotes.length} notes`)} in ${c.dim(estimates.storage.rootDir)} (${formatBytes(totalBytes)} on disk)\n`);
+  return { skipped: false, notes: finalNotes, totalBytes, warnings };
 }
 
 // --- Step 3: Optional PR Change Benchmark ------------------------------------
@@ -1339,7 +1354,7 @@ export async function runOnboarding({
 
   // Completion footer
   out('\n' + box([
-    c.bold(c.green('✔  Thinker Onboarding Complete!')),
+    cacheRes.warnings ? c.bold(c.yellow('⚠  Thinker configured; cache build had warnings.')) : c.bold(c.green('✔  Thinker Onboarding Complete!')),
     '',
     `Start your agent (${c.bold(activeAgent || 'claude')}) in this repository as usual.`,
     'Relevant codebase knowledge will automatically be injected into prompts.',
