@@ -108,6 +108,16 @@ was seen to act on (`confirmed`), as one read per file the note rests on (at
 most 5) at the file's size (at most 6,000 tokens). It is not a measurement;
 measured effects are in `bench/RESULTS.md`.
 
+Model work is also logged as `op: "model"`, with `purpose`, `phase` (init / learning /
+maintenance), provider, resolved model, raw usage, normalized token counters and
+reported cost. Input totals include provider cache reads and writes; these are separate
+from thinker's own estimated savings. Operation summaries marked `metered` are not
+charged again. `usage --json` exposes `spending` by phase, purpose, model and repository,
+plus `saved.netAfterSpend` (estimated reading avoided minus notes injected minus reported
+model tokens). Missing counters/costs stay unknown. Legacy logs lack setup exploration
+and token counts, so this comparison is partial, not measured financial ROI. See
+`src/model-usage.js` for provider normalization.
+
 ## What a note is
 
 A note answers a recurring question, not "what this file does":

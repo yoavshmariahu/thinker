@@ -10,6 +10,7 @@
 // call, are left out. It is an estimate of reading avoided, not a measurement.
 import fs from 'node:fs';
 import path from 'node:path';
+import { emptySpend, addSpend } from './model-usage.js';
 import { estTokens } from './rank.js';
 import { Store, logFile, adoptLocalLog, repoId } from './store.js';
 
@@ -120,18 +121,34 @@ export function summarize(store, { days, all = false } = {}) {
     learned: { sessions: 0, notes: 0, merged: 0, prs: 0, prNotes: 0 },
     verified: { still_valid: 0, update: 0, invalid: 0 },
     feedback: { useful: 0, notUseful: 0 }, corrections: 0,
+    spending: { ...emptySpend(), byPurpose: {}, byPhase: {}, byModel: {}, legacyRecords: 0 },
+    distillation: { runs: 0, noNewNotes: 0, noChanges: 0 },
     spent: 0, saved: { calls: 0, tokens: 0, servings: 0 }, repos: [], top: [],
   };
   // a repository is its origin; its checkouts (clones, worktrees) are counted together
   const repos = new Map();      // origin → its line in the summary
-  const per = (origin, checkout) => { if (!repos.has(origin)) repos.set(origin, { repo: origin, checkouts: new Set(), requests: 0, served: 0, learned: 0, calls: 0, tokens: 0 }); const r = repos.get(origin); if (checkout) r.checkouts.add(checkout); return r; };
+  const per = (origin, checkout) => { if (!repos.has(origin)) repos.set(origin, { repo: origin, checkouts: new Set(), requests: 0, served: 0, learned: 0, calls: 0, tokens: 0, spending: emptySpend() }); const r = repos.get(origin); if (checkout) r.checkouts.add(checkout); return r; };
   const sessions = new Map();   // origin|session → { origin, notes: Map(note id → [calls, tokens]) }
   const verdicts = new Map();   // origin|session → Map(note id → verdict)
   const count = new Map();
   let anon = 0;
   for (const e of events) {
     const r = per(e.origin, e.repo), s = storeOf(e.repo);
-    if (typeof e.cost === 'number') u.spent += e.cost;
+    if (!e.metered && (e.op === 'model' || ['distill', 'mine-prs', 'verify', 'phrase', 'route'].includes(e.op))) {
+      const purpose = e.purpose || e.op, phase = e.phase || 'legacy';
+      const model = `${e.provider || 'unknown'}/${e.model || 'unknown'}`;
+      addSpend(u.spending, e); addSpend(r.spending, e);
+      for (const [group, key] of [['byPurpose', purpose], ['byPhase', phase], ['byModel', model]]) {
+        u.spending[group][key] ||= emptySpend();
+        addSpend(u.spending[group][key], e);
+      }
+      if (e.op !== 'model') u.spending.legacyRecords++;
+    }
+    if (e.op === 'distill') {
+      u.distillation.runs++;
+      if (!(e.saved || []).length) u.distillation.noNewNotes++;
+      if (!(e.saved || []).length && !(e.merged || []).length) u.distillation.noChanges++;
+    }
     if (e.op === 'orient' || e.op === 'late' || e.op === 'lookup') {
       const ids = e.served || [];
       if (e.op !== 'late') { u.requests++; r.requests++; if (ids.length) u.answered++; }
@@ -173,7 +190,10 @@ export function summarize(store, { days, all = false } = {}) {
   u.repos = [...repos.values()].map(r => ({ ...r, checkouts: [...r.checkouts], notes: notesOf(r) })).sort((a, b) => b.served - a.served || b.requests - a.requests);
   u.notes = u.repos.reduce((n, r) => n + r.notes, 0);
   u.saved.net = u.saved.tokens - u.tokensServed;
-  u.spent = Math.round(u.spent * 100) / 100;
+  u.spent = Math.round(u.spending.reportedCost * 100) / 100;
+  // Keep the old serving-only net for consumers; expose the full token comparison separately.
+  u.saved.netAfterSpend = u.saved.net - u.spending.totalTokens;
+  u.saved.spendComplete = u.spending.calls > 0 && u.spending.unknownTokenCalls === 0 && u.spending.legacyRecords === 0;
   u.top = [...count.values()].sort((a, b) => b.n - a.n).slice(0, 5).map(c => ({ id: c.id, repo: c.origin, served: c.n, title: storeOf(c.repo).get(c.id)?.title || '(removed)' }));
   return u;
 }
@@ -202,6 +222,21 @@ export function renderUsage(u, { days } = {}) {
   L.push(`  pull requests   ${num(u.learned.prs)} mined: ${num(u.learned.prNotes)} notes`);
   L.push(`  re-verified     ${num(u.verified.still_valid + u.verified.update + u.verified.invalid)} stale notes: ${num(u.verified.still_valid)} still valid, ${num(u.verified.update)} rewritten, ${num(u.verified.invalid)} retired`);
   L.push(`  model cost      $${u.spent.toFixed(2)} where the agent reported it`);
+  const spending = u.spending;
+  if (spending?.calls) {
+    L.push('', 'Cache build and maintenance (reported usage)');
+    const row = (label, s) => `  ${label.padEnd(18)} ${num(s.inputTokens)} input + ${num(s.outputTokens)} output; ${num(s.totalTokens)} total tokens; $${s.reportedCost.toFixed(3)} reported; ${num(s.calls)} records`;
+    L.push(row('total', spending), '  By phase:');
+    for (const [phase, s] of Object.entries(spending.byPhase)) L.push(row(phase === 'init' ? 'cache init' : phase === 'learning' ? 'ongoing learning' : phase === 'legacy' ? 'older records' : phase, s));
+    L.push('  By operation (same spending):');
+    for (const [purpose, s] of Object.entries(spending.byPurpose)) L.push(row('  ' + purpose, s));
+    L.push(`  provider caching   ${num(spending.cacheReadTokens)} read, ${num(spending.cacheWriteTokens)} written (included in input, distinct from thinker savings)`);
+    L.push(`  missing usage      ${num(spending.unknownTokenCalls)} records without complete token totals; ${num(spending.unknownCostCalls)} without dollar cost`);
+    if (spending.failed) L.push(`  failed attempts    ${num(spending.failed)} (reported spending included above)`);
+    if (spending.legacyRecords) L.push('  history            older records omit tokens and setup exploration; totals are incomplete');
+    if (u.distillation.runs) L.push(`  distillation yield ${num(u.distillation.noNewNotes)}/${num(u.distillation.runs)} runs added no new notes; ${num(u.distillation.noChanges)} also made no merges (may still assess existing notes)`);
+    L.push('  details            --json includes provider/model and per-repository spending');
+  }
   L.push('', 'Estimated saving');
   if (!u.saved.servings) L.push(`  none counted yet: only notes a session is seen to act on are counted, and none has been assessed so far`);
   else {
@@ -209,6 +244,10 @@ export function renderUsage(u, { days } = {}) {
     L.push(`  tokens          about ${num(u.saved.tokens)} of file reading avoided; ${num(Math.abs(u.saved.net))} ${u.saved.net >= 0 ? 'more than' : 'less than'} the ${num(u.tokensServed)} the notes added`);
     L.push(`  basis           ${num(u.saved.servings)} servings the agent acted on: one read per file a note rests on (at most ${MAX_FILES}),`);
     L.push(`                  at the file's size (at most ${num(FILE_CAP)} tokens). Searches and re-read context are not counted. An estimate, not a measurement.`);
+  }
+  if (spending?.calls) {
+    L.push(`  after cache work  ${num(u.saved.netAfterSpend)} tokens = estimated reading avoided − notes added − ${num(spending.totalTokens)} reported build/maintenance tokens`);
+    L.push(`                  ${u.saved.spendComplete ? 'Reported tokens only' : 'Partial accounting; unreported spending is not subtracted'}. Token balance is not dollar ROI; models and cached input have different prices.`);
   }
   if (machine) {
     const home = process.env.HOME || '';

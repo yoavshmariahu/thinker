@@ -238,7 +238,7 @@ Rules:
 - applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
 - Return an empty list for dependency bumps, pure refactors, generated-file churn, or PRs with nothing reusable.`;
 
-export async function distillPr(slug, pr, { model = 'sonnet', repo } = {}) {
+export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting } = {}) {
   let diff = pr.diff || '';
   if (!diff && repo && pr.hash) {
     try {
@@ -259,6 +259,6 @@ export async function distillPr(slug, pr, { model = 'sonnet', repo } = {}) {
   const comments = slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
   const label = pr.prNumber ? `PR #${pr.prNumber}` : (pr.hash ? `Commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
   const prompt = `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
-  const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000 });
+  const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000, accounting });
   return { notes: r.json?.notes || [], cost: r.cost };
 }

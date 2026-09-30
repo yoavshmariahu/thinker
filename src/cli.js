@@ -14,6 +14,7 @@ import { hashDep } from './deps.js';
 import { CLIENTS, parseClients, installClient, uninstallClients, trustCodex, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, parkPending, takePending } from './clients.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from './transcripts.js';
 import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
+import { logModelUsage, streamModelUsage } from './model-usage.js';
 import { summarize, renderUsage, sessionKey, cacheHitNotice } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
@@ -80,7 +81,7 @@ const HELP = `thinker — knowledge cache for coding agents
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = early injection, tool = late file-keyed injection, stop = nudge + distill
   usage [--here] [--days n] [--json]
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
-                                 did with them, what was learned, and an estimate of the tool calls and tokens saved
+                                 did with them, build/distillation tokens and reported cost, and estimated savings
                                  (--here: this repository only; history is kept in ~/.thinker/log.jsonl)
   benchmark pr [number] [--agent a] [--model m] [--budget n]
                                  run a paired benchmark on a recent PR change with vs without the cache
@@ -823,7 +824,7 @@ async function setup() {
     exportFile: typeof flags.export === 'string' ? flags.export : null,
     out,
     seedFn: async (opts) => seed(opts),
-    minePrsFn: async (slug, opts) => minePrs(slug, { ...opts, repo }),
+    minePrsFn: async (slug, opts) => minePrs(slug, { ...opts, repo, phase: 'init' }),
   });
 }
 
@@ -838,7 +839,7 @@ async function mineMore({ slug, ...opts }) {
   return minePrs(slug, { ...opts, repo });
 }
 
-async function minePrs(slug, { before, after, again, limit = 20, model, dry, repo = process.cwd() } = {}) {
+async function minePrs(slug, { before, after, again, limit = 20, model, dry, repo = process.cwd(), phase = 'maintenance' } = {}) {
   const useGit = !slug || !hasBin('gh');
   const recSlug = slug || 'local';
   const rec = minedPrs(store, recSlug);
@@ -864,7 +865,7 @@ async function minePrs(slug, { before, after, again, limit = 20, model, dry, rep
   let cost = 0, saved = 0;
   for (const pr of prs) {
     try {
-      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo });
+      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo, accounting: { store, purpose: 'mine-prs', phase, pr: pr.number, dry: !!dry } });
       cost += r.cost || 0;
       const refId = pr.prNumber ? `${recSlug}#${pr.prNumber}` : `${recSlug}#${pr.hash ? pr.hash.slice(0, 8) : pr.number}`;
       if (dry) { out(`${refId} ${pr.title.slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || '-'}`); continue; }
@@ -876,7 +877,7 @@ async function minePrs(slug, { before, after, again, limit = 20, model, dry, rep
   // PRs passed over by the filter are recorded too; failed ones are not, so the next run takes them again
   if (!dry) {
     recordMinedPrs(store, recSlug, listed.filter(p => !failed.has(p.number)));
-    store.log({ op: 'mine-prs', slug: recSlug, prs: prs.length - failed.size, passed: listed.length - prs.length, saved, cost, source: useGit ? 'git' : 'github' });
+    store.log({ op: 'mine-prs', slug: recSlug, prs: prs.length - failed.size, passed: listed.length - prs.length, saved, cost, metered: true, source: useGit ? 'git' : 'github' });
   }
   out(`mined ${prs.length - failed.size} changes → ${saved} notes, cost $${cost.toFixed(2)}${rec.mined.size ? ` (${rec.mined.size} mined earlier were skipped)` : ''}`);
   return { cost, saved };
@@ -889,6 +890,17 @@ function sourceAreas(limit) {
 // One read-only exploration session with the given agent; returns the file
 // holding its transcript (the agent's own, or its streamed output).
 function explore(agent, prompt, model) {
+  let response = { provider: agent, model: resolveModel(agent, model), usage: null, cost: null };
+  let result;
+  try {
+    result = exploreOnce(agent, prompt, model, fields => { response = { ...response, ...fields }; });
+    return result;
+  } finally {
+    logModelUsage(store, { purpose: 'explore', phase: 'init' }, { ...response, failed: !result || !!result.error });
+  }
+}
+
+function exploreOnce(agent, prompt, model, onUsage) {
   const env = { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', IS_SANDBOX: '1' };
   const opts = { cwd: repo, encoding: 'utf8', maxBuffer: 1 << 28, env };
   const bin = findBin(BINS[agent] || []);
@@ -900,6 +912,7 @@ function explore(agent, prompt, model) {
     const r = spawnSync(bin, ['-p', '--model', m || 'sonnet', '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--disallowedTools', 'Edit,Write,NotebookEdit', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--max-turns', '40'], { ...opts, input: prompt });
     if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `claude exited ${r.status}`).slice(0, 200) };
     let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
+    onUsage({ usage: j.usage || j.stats || null, cost: j.total_cost_usd ?? null, model: j.model || m });
     if (j.is_error) return { error: String(j.result || j.error || 'claude error').slice(0, 200) };
     const transcript = transcriptsFor(repo).find(f => f.includes(j.session_id));
     return transcript ? { transcript, cost: j.total_cost_usd || 0, turns: j.num_turns } : { error: 'no transcript found' };
@@ -909,6 +922,7 @@ function explore(agent, prompt, model) {
     const r = spawnSync(bin, agyArgs, { ...opts, cwd: repo });
     if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || `agy exited ${r.status}`).slice(0, 200) };
     let j; try { j = JSON.parse(r.stdout); } catch { return { error: (r.stderr || r.stdout || '').slice(0, 200) }; }
+    onUsage({ usage: j.usage || j.stats || null, cost: j.total_cost_usd ?? null, model: j.model || m });
     if (j.is_error) return { error: String(j.result || j.error || 'agy error').slice(0, 200) };
     const convId = j.conversation_id;
     if (convId) {
@@ -922,6 +936,7 @@ function explore(agent, prompt, model) {
   else if (agent === 'cursor') r = spawnSync(bin, ['-p', '--output-format', 'stream-json', '--mode', 'ask', '--trust', ...(m ? ['--model', m] : []), '--workspace', repo, prompt], opts);
   else r = spawnSync(bin, ['--output-format', 'stream-json', ...(m ? ['-m', m] : ['-m', 'gemini-3.8-flash-high'])], { ...opts, input: prompt });
   if (r.status !== 0 && !String(r.stdout).trim()) return { error: (r.stderr || '').slice(0, 200) };
+  onUsage(streamModelUsage(agent, r.stdout));
   // failures these CLIs report inside their output (usage limits, auth)
   for (const l of String(r.stdout).split('\n')) {
     let j; try { j = JSON.parse(l); } catch { continue; }
@@ -1021,7 +1036,7 @@ async function seed({ areas, model, dry, prompts, agent }) {
     cost += r.cost || 0; ok++;
     out(`${label} ${activeAgent}${r.turns ? ` ${r.turns} turns` : ''}${r.cost ? ` $${r.cost.toFixed(2)}` : ''} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
     try {
-      await distillFile(r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: false, incremental: false });
+      await distillFile(r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: false, incremental: false, phase: 'init' });
     } catch (e) {
       out(`${label} distill failed: ${String(e.message).slice(0, 160)}`);
       failures.push({ area: a.dir || label.trim(), error: `distill failed: ${e.message}` });
@@ -1092,7 +1107,7 @@ function learnInBackground(client) {
   spawn('node', [path.join(HERE, 'cli.js'), 'learn', '--quiet', '--days', '2', '--max', '5', '--repo', repo], { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } }).unref();
 }
 
-async function distillFile(file, { minExplore, dry, model, quiet, incremental, format, session }) {
+async function distillFile(file, { minExplore, dry, model, quiet, incremental, format, session, phase = 'learning' }) {
   const stateDir = path.join(store.dir, 'state');
   const stateFile = path.join(stateDir, path.basename(file).replace(/\.jsonl?$/, '') + '.json');
   let state = {}; try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch {}
@@ -1114,8 +1129,8 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   const ids = new Set(injectedIds(file, { fromLine }));
   if (session) for (const n of store.list()) if ((n.servedIn || []).includes(session)) ids.add(n.id);
   const served = [...ids].filter(id => !(incremental && (state.assessed || []).includes(id))).map(id => store.get(id)).filter(Boolean);
-  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served });
-  if (dry) { out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, cost $${(r.cost || 0).toFixed(3)}, trace ${r.traceChars} chars)`); return; }
+  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
+  if (dry) { out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, cost ${r.cost == null ? 'unknown' : '$' + r.cost.toFixed(3)}, trace ${r.traceChars} chars)`); return; }
   const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') } });
   // under the session's id, which is what servings are logged under: a transcript's file name is
   // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
@@ -1123,7 +1138,7 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   if (!quiet) for (const a of applied) out(`attest  ${a.verdict.padEnd(12)} ${a.id} → c=${Math.round(a.confidence * 100)}%`);
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(stateFile, JSON.stringify({ line: lineCount, assessed: [...new Set([...(state.assessed || []), ...served.map(n => n.id)])], at: new Date().toISOString() }));
-  store.log({ op: 'distill', transcript: path.basename(file), explore: n, saved: s.saved.map(x => x.id), merged: s.merged.map(x => x.id), skipped: s.skipped, cost: r.cost });
+  store.log({ op: 'distill', transcript: path.basename(file), explore: n, saved: s.saved.map(x => x.id), merged: s.merged.map(x => x.id), skipped: s.skipped, cost: r.cost, metered: true, phase, traceChars: r.traceChars });
   if (!quiet) {
     for (const x of s.saved) out(`saved   ${x.id}  [${x.kind}] ${x.title}`);
     for (const x of s.merged) out(`merged  ${x.id}  [${x.kind}] ${x.title}`);
