@@ -41,6 +41,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 |---|---|
 | `src/cli.js` | `thinker` command: `setup`, `init`, `distill`, `orient`, `lookup`, `check`, `verify`, `cochange`, `serve`, ... |
 | `src/mcp.js` | MCP server exposing `orient`, `lookup`, `remember`, `feedback` |
+| `src/setup.js` | the guided `setup` flow: agent selection and login check, cache build with estimates, optional PR benchmark |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI and Cursor: config files and hook formats |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
 | `src/prs.js` | mining merged pull requests into notes |

@@ -18,7 +18,7 @@ import {
   findRecentPrChange,
   buildPrBenchmarkTask,
   renderPrBenchmarkReport,
-  runOnboarding,
+  runSetup,
   BUILD_AGENTS,
   getAgentDisplayName,
   getAgentLoginCommand,
@@ -28,11 +28,11 @@ import {
   selectMenu,
   stepPrBenchmark,
   stepBuildCache,
-} from '../src/onboarding.js';
+} from '../src/setup.js';
 import { isAuthError, cleanErrorMessage } from '../src/benchmark.js';
 
 function createMockGitRepo() {
-  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-test-')));
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-setup-test-')));
   execFileSync('git', ['init', '-q'], { cwd: dir });
   execFileSync('git', ['config', 'user.name', 'Thinker Test'], { cwd: dir });
   execFileSync('git', ['config', 'user.email', 'test@thinker.dev'], { cwd: dir });
@@ -215,14 +215,14 @@ test('renderPrBenchmarkReport formats side-by-side comparison table with target 
   assert.match(report, /Net Savings:\s+7,800 tokens saved · 7s faster/);
 });
 
-test('runOnboarding completes 3-step onboarding flow in clean repo', async () => {
+test('runSetup completes 3-step setup flow in clean repo', async () => {
   const repo = createMockGitRepo();
   const store = new Store(repo);
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
 
   try {
-    await runOnboarding({
+    await runSetup({
       repo,
       store,
       cliPath: path.resolve('src/cli.js'),
@@ -248,7 +248,7 @@ test('runOnboarding completes 3-step onboarding flow in clean repo', async () =>
     assert.match(fullOutput, /Estimated build:/);
     assert.match(fullOutput, /STEP 3 OF 3 · Optional PR Change Benchmark/);
     assert.match(fullOutput, /PR change benchmark skipped/);
-    assert.match(fullOutput, /Thinker Onboarding Complete!/);
+    assert.match(fullOutput, /Thinker setup complete!/);
 
     // Verify .thinker storage on disk
     assert.ok(fs.existsSync(path.join(repo, '.thinker')));
@@ -260,8 +260,8 @@ test('runOnboarding completes 3-step onboarding flow in clean repo', async () =>
   }
 });
 
-test('runOnboarding mines git history when GitHub origin is unavailable', async () => {
-  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-gitmine-')));
+test('runSetup mines git history when GitHub origin is unavailable', async () => {
+  const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-setup-gitmine-')));
   execFileSync('git', ['init', '-q', repo]);
   execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
   execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: repo });
@@ -283,7 +283,7 @@ test('runOnboarding mines git history when GitHub origin is unavailable', async 
   let minedPrsArgs = null;
 
   try {
-    await runOnboarding({
+    await runSetup({
       repo,
       store,
       cliPath: path.resolve('src/cli.js'),
@@ -295,6 +295,8 @@ test('runOnboarding mines git history when GitHub origin is unavailable', async 
       noBenchmark: true,
       yes: true,
       out,
+      // mining needs an authenticated agent; do not depend on this machine's real login state
+      checkAuthFn: () => ({ authenticated: true, account: 'test@thinker.dev' }),
       minePrsFn: async (slug, opts) => {
         minedPrsArgs = { slug, opts };
         return { saved: 3 };
@@ -312,8 +314,8 @@ test('runOnboarding mines git history when GitHub origin is unavailable', async 
   }
 });
 
-test('runOnboarding halts setup when agent is not installed or authenticated and --no-seed is not passed', async () => {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-onboard-halt-'));
+test('runSetup halts setup when agent is not installed or authenticated and --no-seed is not passed', async () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-setup-halt-'));
   execFileSync('git', ['init', repo]);
   execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
   execFileSync('git', ['config', 'user.email', 'test@test.com'], { cwd: repo });
@@ -326,7 +328,7 @@ test('runOnboarding halts setup when agent is not installed or authenticated and
   const out = line => outLines.push(stripAnsi(line));
 
   try {
-    const res = await runOnboarding({
+    const res = await runSetup({
       repo,
       store,
       cliPath: path.resolve('src/cli.js'),

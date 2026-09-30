@@ -18,8 +18,8 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 |---|---|
 | `--cache <source>` | the cache built for this repository: `gh:caches/<repo>.tgz` (a file in the thinker repo), an https URL, or a local file; omit when `.thinker/notes` is already committed in the user's repo |
 | `--build` | build the cache on this machine: co-change, merged pull requests (`--prs n`, default 60), one exploration session per source area (`--areas n`, default 12) |
-| `--pr <number>` | target a specific PR number for the paired benchmark during onboarding |
-| `--benchmark` | run the paired PR change benchmark during onboarding |
+| `--pr <number>` | target a specific PR number for the paired benchmark during setup |
+| `--benchmark` | run the paired PR change benchmark during setup |
 | `--no-benchmark` | skip the paired PR benchmark step |
 | `--clients <list>` | agents to wire up: `claude`, `codex`, `cursor`, `gemini`, `all` or `auto` (default `auto` with `--build`, otherwise `claude`); see "Supported agents" in `AGENTS.md` |
 | `--no-learn` | do not distill the user's own sessions into new notes. Learning is on by default for every agent wired up (uses that agent's login; about $0.05 per session with Claude Sonnet); switch it off for evals |
@@ -32,9 +32,9 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--no-auto-update` | do not schedule daily background auto-updates (daily auto-update is on by default) |
 | `--uninstall [--purge]` | remove hooks; `--purge` also deletes the notes |
 
-## The 3-Stage Onboarding Flow (`thinker onboard`)
+## The 3-Stage Setup Flow (`thinker setup`)
 
-When run in a new repository (either via `curl .../install.sh` or `thinker onboard`), Thinker runs a guided, visually aesthetic 3-step onboarding flow:
+When run in a new repository (either via `curl .../install.sh` or `thinker setup`), Thinker runs a guided, visually aesthetic 3-step setup flow:
 
 ```
 [Step 1: Connect Harness CLIs] ──► [Step 2: Build Knowledge Cache] ──► [Step 3: PR Change Benchmark]
@@ -85,7 +85,7 @@ If the cache does not have sufficiently relevant notes for the question,
 Thinker stops before making either agent call, confirms that no model usage was
 spent, and prints up to three replacement commands drawn from distinct cached
 topics. Copy one of the suggested commands and try again. If there are no
-usable topics yet, run `thinker onboard` to build the cache first.
+usable topics yet, run `thinker setup` to build the cache first.
 
 This is a quick repository-specific signal, not a statistically conclusive
 benchmark or an automatic correctness grade. Use `--agent codex` (or

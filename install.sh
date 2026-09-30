@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# thinker onboarding: sets up this repository to use a knowledge cache
+# thinker setup: sets up this repository to use a knowledge cache
 # with Claude Code. Run it from inside the repository.
 #
 # The thinker repository is private, so you need access to it and a GitHub
@@ -19,7 +19,7 @@
 #   --areas <n>         with --build: source areas to explore, one agent session each (default 12)
 #   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
 #   --pr <number>       specific PR number to target for the paired benchmark
-#   --benchmark         run paired PR benchmark during onboarding
+#   --benchmark         run paired PR benchmark during setup
 #   --no-benchmark      skip the paired PR benchmark step
 #   -y, --yes           accept defaults and skip interactive confirmation prompts
 #   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, all or auto
@@ -286,9 +286,9 @@ EOF
     [ "$githook" = 1 ] && args="$args --git-hook"
     # shellcheck disable=SC2086
     if [ ! -t 0 ] && [ -r /dev/tty ]; then
-      "$thinker" onboard $args --repo "$repo" < /dev/tty
+      "$thinker" setup $args --repo "$repo" < /dev/tty
     else
-      "$thinker" onboard $args --repo "$repo"
+      "$thinker" setup $args --repo "$repo"
     fi
   else
     if [ "$learn" = 1 ]; then args=""; else args="--no-learn"; fi

@@ -21,7 +21,7 @@ import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath, tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendTelemetryInBackground, maybeSendDailyTelemetryInBackground, scheduleTelemetry, unscheduleTelemetry, isTelemetryScheduled, getTelemetryLaunchAgentPath } from './telemetry.js';
-import { runOnboarding, stepPrBenchmark, selectAndAuthenticateAgent, selectMenu, getAgentLoginCommand, getAgentDisplayName, c } from './onboarding.js';
+import { runSetup, stepPrBenchmark, selectAndAuthenticateAgent, selectMenu, getAgentLoginCommand, getAgentDisplayName, c } from './setup.js';
 import { batchProgress, oneLine } from './progress.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -45,10 +45,10 @@ const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], en
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  onboard [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>] [--benchmark] [--no-benchmark] [--yes]
-                                 guided 3-step onboarding: connect harness CLIs, build the knowledge cache with
-                                 pre-flight estimates (time, size, location), and run an optional PR change benchmark
-  setup [--verbose]              alias for onboard; --verbose includes per-item diagnostic details
+  setup [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>] [--benchmark] [--no-benchmark] [--yes] [--verbose]
+                                 guided 3-step setup: connect harness CLIs, build the knowledge cache with
+                                 pre-flight estimates (time, size, location), and run an optional PR change benchmark;
+                                 --verbose includes per-item diagnostic details
   init [--no-learn] [--no-hooks] [--late] [--local] [--git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
@@ -87,7 +87,7 @@ const HELP = `thinker — knowledge cache for coding agents
   benchmark pr [number] [--agent a] [--model m] [--budget n]
                                  run a paired benchmark on a recent PR change with vs without the cache
   benchmark [run ["<repo question>"]] [--agent a] [--model m] [--budget n]
-                                 run a paired, read-only onboarding benchmark without and with relevant cached notes;
+                                 run a paired, read-only setup benchmark without and with relevant cached notes;
                                  with no question, offers questions the cache covers (picks the first outside a terminal)
   benchmark report              show the latest comparison (answers are saved for human quality review)
   update [branch] [--branch b] [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]
@@ -267,7 +267,6 @@ async function main() {
       maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store, force: true, event: 'install' });
       break;
     }
-    case 'onboard':
     case 'setup': {
       await setup();
       break;
@@ -655,7 +654,7 @@ async function main() {
       if (!task) {
         // First run: nobody knows yet what the cache covers, so offer questions it does
         const questions = await coveredBenchmarkQuestions(store);
-        if (!questions.length) { out('There are no usable benchmark topics in the cache yet. Build it first with `thinker onboard`, then try again, or benchmark a recent PR change with `thinker benchmark pr`.'); process.exitCode = 1; break; }
+        if (!questions.length) { out('There are no usable benchmark topics in the cache yet. Build it first with `thinker setup`, then try again, or benchmark a recent PR change with `thinker benchmark pr`.'); process.exitCode = 1; break; }
         if (process.stdin.isTTY) {
           out('Benchmark thinker on a question the cache covers (two read-only agent calls: without and with thinker):\n');
           questions.forEach((q, i) => out(`  ${i + 1}. ${q}`));
@@ -847,7 +846,7 @@ async function setup() {
   const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
   const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
 
-  await runOnboarding({
+  await runSetup({
     repo,
     store,
     cliPath: path.join(HERE, 'cli.js'),

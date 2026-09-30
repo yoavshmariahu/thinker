@@ -1,4 +1,4 @@
-// Thinker onboarding flow: guided 3-step onboarding connecting harness CLIs,
+// Thinker setup flow: guided 3-step setup connecting harness CLIs,
 // estimating and building the codebase cache, and running an optional PR change benchmark.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -1471,9 +1471,9 @@ export async function stepPrBenchmark({
   return record;
 }
 
-// --- Main Guided Onboarding Orchestrator -------------------------------------
+// --- Main Guided Setup Orchestrator -------------------------------------
 
-export async function runOnboarding({
+export async function runSetup({
   repo,
   store,
   cliPath,
@@ -1501,6 +1501,7 @@ export async function runOnboarding({
   out = console.log,
   seedFn,
   minePrsFn,
+  checkAuthFn = checkAgentAuth,
 }) {
   store.init();
 
@@ -1547,6 +1548,7 @@ export async function runOnboarding({
       purpose: 'build the knowledge cache',
       actionName: 'subsystem exploration',
       allowSkip: false,
+    checkAuthFn,
     });
     if (!authResult.ok) {
       out(`\n  ${c.red('✖')} ${c.bold('Setup halted.')} Subsystem exploration requires an authenticated agent.`);
@@ -1601,14 +1603,15 @@ export async function runOnboarding({
     noBenchmark,
     yes,
     out,
-  });
+    checkAuthFn,
+});
 
   // Telemetry notification
   maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath, store, force: true, event: 'install' });
 
   // Completion footer
   out('\n' + box([
-    cacheRes.warnings ? c.bold(c.yellow('⚠  Thinker configured; cache build had warnings.')) : c.bold(c.green('✔  Thinker Onboarding Complete!')),
+    cacheRes.warnings ? c.bold(c.yellow('⚠  Thinker configured; cache build had warnings.')) : c.bold(c.green('✔  Thinker setup complete!')),
     '',
     `Start your agent (${c.bold(activeAgent || 'claude')}) in this repository as usual.`,
     'Relevant codebase knowledge will automatically be injected into prompts.',
