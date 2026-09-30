@@ -131,18 +131,16 @@ Thinker auto-updates daily in the background. To check or update manually at any
 thinker update
 ```
 
-S3/archive installs check the public distribution's `version.json` and verify
-the release checksum without GitHub credentials. Git checkouts update from their
+S3/archive installs check `version.json` beside their saved private download URL
+and verify the release checksum without GitHub credentials. Git checkouts update from their
 Git remote. Daily updates run on invocation and, when installed, through the OS
 scheduler; they are not an immediate push to every client.
 
 Clients installed before 0.1.1 may be unable to update without GitHub access.
-Refresh the updater once using the installer (this preserves the existing home
-and telemetry settings):
-
-```bash
-curl -fsSL https://zerotime.dev/dist/install.sh | bash -s -- --update
-```
+Refresh the updater once: sign in at [zerotime.dev](https://zerotime.dev), copy
+the private install command, and replace its final `| bash` with
+`| bash -s -- --update`. This preserves the existing home and telemetry settings
+and saves the private download URL for unattended updates.
 
 To test a specific branch version:
 
