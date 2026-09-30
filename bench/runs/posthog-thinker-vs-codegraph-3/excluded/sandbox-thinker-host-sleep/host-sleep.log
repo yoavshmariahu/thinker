@@ -1,0 +1,8 @@
+2026-09-29 22:12:01 -0700 Sleep               	Entering Sleep state due to 'Clamshell Sleep':TCPKeepAlive=active Using Batt (Charge:66%) 216 secs  
+2026-09-29 22:15:37 -0700 DarkWake            	DarkWake from Deep Idle [CDNP] : due to SMC.OutboxNotEmpty smc.70070000 wifibt wlan/ Using BATT (Charge:66%) 14 secs   
+2026-09-29 22:15:51 -0700 Sleep               	Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using Batt (Charge:66%) 949 secs  
+2026-09-29 22:31:40 -0700 DarkWake            	DarkWake from Deep Idle [CDNP] : due to NUB.SPMI0.SW3 nub-spmi0.0x02 rtc/SleepService Using BATT (Charge:66%) 2 secs    
+2026-09-29 22:31:42 -0700 Sleep               	Entering Sleep state due to 'Sleep Service Back to Sleep':TCPKeepAlive=active Using Batt (Charge:65%) 814 secs  
+2026-09-29 22:45:16 -0700 DarkWake            	DarkWake from Deep Idle [CDNP] : due to SMC.OutboxNotEmpty smc.70070000 wifibt wlan/ Using BATT (Charge:65%) 10 secs   
+2026-09-29 22:45:26 -0700 Sleep               	Entering Sleep state due to 'Maintenance Sleep':TCPKeepAlive=active Using Batt (Charge:65%) 118 secs  
+2026-09-29 22:47:24 -0700 Wake                	Wake from Deep Idle [CDNVA] : due to MTP.DOCK.CHANNELS.AP0.IRQ smc.70070000 lid/HID Activity Using BATT (Charge:65%)           

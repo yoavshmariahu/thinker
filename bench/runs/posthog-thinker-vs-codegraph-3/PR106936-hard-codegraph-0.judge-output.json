@@ -1,0 +1,61 @@
+{
+  "text": "{\"results\":[{\"id\":\"c1\",\"verdict\":\"met\",\"evidence\":\"In `InviteModal.tsx`, `emailCheck === 'member'` sets `emailError` to `'This email already belongs to your organization.'`, applying error styling and displaying an inline alert on the row before submission:\\n```tsx\\nconst emailError = isOwnEmail\\n    ? \\\"You can't invite yourself.\\\"\\n    : emailCheck === 'member'\\n      ? 'This email already belongs to your organization.'\\n...;\\n<LemonInput className={`error-on-blur${!invitesToSend[index]?.isValid || emailError ? ' errored' : ''}`} ... />\\n{emailError && (\\n    <div className=\\\"mt-1 text-xs text-danger\\\" role=\\\"alert\\\">\\n        {emailError}\\n    </div>\\n)}\\n```\"},{\"id\":\"c2\",\"verdict\":\"met\",\"evidence\":\"In `InviteModal.tsx`, the user's own email is detected and flags the row with error styling and an inline message:\\n```tsx\\nconst isOwnEmail = !!email && email.trim().toLowerCase() === user?.email?.trim().toLowerCase()\\nconst emailError = isOwnEmail\\n    ? \\\"You can't invite yourself.\\\"\\n...\\n<LemonInput className={`error-on-blur${!invitesToSend[index]?.isValid || emailError ? ' errored' : ''}`} ... />\\n{emailError && (\\n    <div className=\\\"mt-1 text-xs text-danger\\\" role=\\\"alert\\\">\\n        {emailError}\\n    </div>\\n)}\\n```\"},{\"id\":\"c3\",\"verdict\":\"not_met\",\"evidence\":\"In `OnboardingInviteTeammates.tsx` and `InviteModal.tsx`, `hasExistingMember` only checks `emailChecks[...] === 'member'`, while own email sets `isValid = false` and skips `checkInviteEmail`. Consequently, entering own email sets reasons to 'Please enter a valid email address' or 'Please check each email address', not indicating existing members must be removed:\\n```tsx\\n// OnboardingInviteTeammates.tsx\\nhasInvalidEmail\\n    ? 'Please enter a valid email address'\\n    : hasExistingMember\\n      ? 'Remove or change the email that already belongs to your organization'\\n\\n// InviteModal.tsx\\nhasExistingMember\\n    ? 'Remove or change the email that already belongs to your organization'\\n    : !canSubmit\\n      ? 'Please check each email address'\\n```\"},{\"id\":\"c4\",\"verdict\":\"met\",\"evidence\":\"Both client and server trim whitespace and perform case-insensitive comparison:\\n```tsx\\n// InviteModal.tsx\\nconst emailCheck = emailChecks[email.trim().toLowerCase()]\\n```\\n```python\\n# posthog/api/organization_invite.py\\nemail = EmailNormalizer.normalize(serializer.validated_data[\\\"email\\\"])\\nis_member = OrganizationInviteManager.email_belongs_to_member(self.organization_id, email)\\n# ...\\nreturn OrganizationMembership.objects.filter(\\n    organization_id=organization_id, user__email__iexact=email\\n).exists()\\n```\"},{\"id\":\"c5\",\"verdict\":\"not_met\",\"evidence\":\"The member list is not fetched when opening the invite form; instead, `checkInviteEmail` queries a newly introduced backend endpoint per email:\\n```tsx\\ncheckInviteEmail: async ({ email }) => {\\n    try {\\n        const organizationId = organizationLogic.values.currentOrganizationId\\n        const result = await api.get(\\n            `api/organizations/${organizationId}/invites/check_email/?email=${encodeURIComponent(email)}`\\n        )\\n```\"},{\"id\":\"c6\",\"verdict\":\"met\",\"evidence\":\"In `posthog/api/organization_invite.py`, the membership check was moved to serializer field validation (`validate_target_email`), which executes during `is_valid()` before any `create()` or emailing (`send_invite`) can run:\\n```python\\ndef validate_target_email(self, email: str):\\n    email = EmailNormalizer.normalize(email)\\n    reject_plus_addressed_email(email)\\n    validate_invite_target_email_domain(self.context[\\\"get_organization\\\"](), email)\\n    if OrganizationInviteManager.email_belongs_to_member(self.context[\\\"organization_id\\\"], email):\\n        raise exceptions.ValidationError(\\n            \\\"A user with this email address already belongs to the organization.\\\", code=\\\"already_member\\\"\\n        )\\n    return email\\n```\"},{\"id\":\"c7\",\"verdict\":\"met\",\"evidence\":\"In `OrganizationInviteSerializer`, raising `ValidationError` inside `validate_target_email` attributes the error to the `target_email` field with the specific error code `already_member`:\\n```python\\nif OrganizationInviteManager.email_belongs_to_member(self.context[\\\"organization_id\\\"], email):\\n    raise exceptions.ValidationError(\\n        \\\"A user with this email address already belongs to the organization.\\\", code=\\\"already_member\\\"\\n    )\\n```\"},{\"id\":\"c8\",\"verdict\":\"not_met\",\"evidence\":\"No error-tracking suppression or distinction is implemented for existing-member submission failures in `inviteLogic.ts` or `organization_invite.py`. Rejections on `api.create` in `inviteTeamMembers` remain handled identically to any other rejection:\\n```tsx\\nreturn await api.create<OrganizationInviteType[]>(\\n    `api/organizations/${organizationLogic.values.currentOrganizationId}/invites/bulk/`,\\n    payload\\n)\\n```\"},{\"id\":\"c9\",\"verdict\":\"not_met\",\"evidence\":\"In `inviteLogic.ts`, there is no listener for `inviteTeamMembersFailure` to refresh member data or update `emailChecks` when a submission fails on the server:\\n```tsx\\nlisteners(({ values, actions }) => ({\\n    checkInviteEmail: async ({ email }) => { ... },\\n    inviteTeamMembersSuccess: (): void => { ... },\\n    addProjectAccess: ({ projectId }) => { ... },\\n}))\\n```\"}]}\n",
+  "json": {
+    "results": [
+      {
+        "id": "c1",
+        "verdict": "met",
+        "evidence": "In `InviteModal.tsx`, `emailCheck === 'member'` sets `emailError` to `'This email already belongs to your organization.'`, applying error styling and displaying an inline alert on the row before submission:\n```tsx\nconst emailError = isOwnEmail\n    ? \"You can't invite yourself.\"\n    : emailCheck === 'member'\n      ? 'This email already belongs to your organization.'\n...;\n<LemonInput className={`error-on-blur${!invitesToSend[index]?.isValid || emailError ? ' errored' : ''}`} ... />\n{emailError && (\n    <div className=\"mt-1 text-xs text-danger\" role=\"alert\">\n        {emailError}\n    </div>\n)}\n```"
+      },
+      {
+        "id": "c2",
+        "verdict": "met",
+        "evidence": "In `InviteModal.tsx`, the user's own email is detected and flags the row with error styling and an inline message:\n```tsx\nconst isOwnEmail = !!email && email.trim().toLowerCase() === user?.email?.trim().toLowerCase()\nconst emailError = isOwnEmail\n    ? \"You can't invite yourself.\"\n...\n<LemonInput className={`error-on-blur${!invitesToSend[index]?.isValid || emailError ? ' errored' : ''}`} ... />\n{emailError && (\n    <div className=\"mt-1 text-xs text-danger\" role=\"alert\">\n        {emailError}\n    </div>\n)}\n```"
+      },
+      {
+        "id": "c3",
+        "verdict": "not_met",
+        "evidence": "In `OnboardingInviteTeammates.tsx` and `InviteModal.tsx`, `hasExistingMember` only checks `emailChecks[...] === 'member'`, while own email sets `isValid = false` and skips `checkInviteEmail`. Consequently, entering own email sets reasons to 'Please enter a valid email address' or 'Please check each email address', not indicating existing members must be removed:\n```tsx\n// OnboardingInviteTeammates.tsx\nhasInvalidEmail\n    ? 'Please enter a valid email address'\n    : hasExistingMember\n      ? 'Remove or change the email that already belongs to your organization'\n\n// InviteModal.tsx\nhasExistingMember\n    ? 'Remove or change the email that already belongs to your organization'\n    : !canSubmit\n      ? 'Please check each email address'\n```"
+      },
+      {
+        "id": "c4",
+        "verdict": "met",
+        "evidence": "Both client and server trim whitespace and perform case-insensitive comparison:\n```tsx\n// InviteModal.tsx\nconst emailCheck = emailChecks[email.trim().toLowerCase()]\n```\n```python\n# posthog/api/organization_invite.py\nemail = EmailNormalizer.normalize(serializer.validated_data[\"email\"])\nis_member = OrganizationInviteManager.email_belongs_to_member(self.organization_id, email)\n# ...\nreturn OrganizationMembership.objects.filter(\n    organization_id=organization_id, user__email__iexact=email\n).exists()\n```"
+      },
+      {
+        "id": "c5",
+        "verdict": "not_met",
+        "evidence": "The member list is not fetched when opening the invite form; instead, `checkInviteEmail` queries a newly introduced backend endpoint per email:\n```tsx\ncheckInviteEmail: async ({ email }) => {\n    try {\n        const organizationId = organizationLogic.values.currentOrganizationId\n        const result = await api.get(\n            `api/organizations/${organizationId}/invites/check_email/?email=${encodeURIComponent(email)}`\n        )\n```"
+      },
+      {
+        "id": "c6",
+        "verdict": "met",
+        "evidence": "In `posthog/api/organization_invite.py`, the membership check was moved to serializer field validation (`validate_target_email`), which executes during `is_valid()` before any `create()` or emailing (`send_invite`) can run:\n```python\ndef validate_target_email(self, email: str):\n    email = EmailNormalizer.normalize(email)\n    reject_plus_addressed_email(email)\n    validate_invite_target_email_domain(self.context[\"get_organization\"](), email)\n    if OrganizationInviteManager.email_belongs_to_member(self.context[\"organization_id\"], email):\n        raise exceptions.ValidationError(\n            \"A user with this email address already belongs to the organization.\", code=\"already_member\"\n        )\n    return email\n```"
+      },
+      {
+        "id": "c7",
+        "verdict": "met",
+        "evidence": "In `OrganizationInviteSerializer`, raising `ValidationError` inside `validate_target_email` attributes the error to the `target_email` field with the specific error code `already_member`:\n```python\nif OrganizationInviteManager.email_belongs_to_member(self.context[\"organization_id\"], email):\n    raise exceptions.ValidationError(\n        \"A user with this email address already belongs to the organization.\", code=\"already_member\"\n    )\n```"
+      },
+      {
+        "id": "c8",
+        "verdict": "not_met",
+        "evidence": "No error-tracking suppression or distinction is implemented for existing-member submission failures in `inviteLogic.ts` or `organization_invite.py`. Rejections on `api.create` in `inviteTeamMembers` remain handled identically to any other rejection:\n```tsx\nreturn await api.create<OrganizationInviteType[]>(\n    `api/organizations/${organizationLogic.values.currentOrganizationId}/invites/bulk/`,\n    payload\n)\n```"
+      },
+      {
+        "id": "c9",
+        "verdict": "not_met",
+        "evidence": "In `inviteLogic.ts`, there is no listener for `inviteTeamMembersFailure` to refresh member data or update `emailChecks` when a submission fails on the server:\n```tsx\nlisteners(({ values, actions }) => ({\n    checkInviteEmail: async ({ email }) => { ... },\n    inviteTeamMembersSuccess: (): void => { ... },\n    addProjectAccess: ({ projectId }) => { ... },\n}))\n```"
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 36038,
+    "output_tokens": 16543,
+    "thinking_tokens": 15208,
+    "cache_read_tokens": 0,
+    "total_tokens": 52581
+  },
+  "cost": null,
+  "provider": "gemini"
+}

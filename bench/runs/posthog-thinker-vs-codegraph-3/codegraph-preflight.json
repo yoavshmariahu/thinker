@@ -1,0 +1,66 @@
+{
+  "wall_ms": 15823,
+  "tools": [
+    "codegraph_explore"
+  ],
+  "probe": {
+    "content": [
+      {
+        "type": "text",
+        "text": "⚠️ CodeGraph cannot answer from this index:\nFreshness could not be verified within the validation budget for 44 files:\n- posthog/models/organization_invite.py\n- posthog/models/organization.py\n- posthog/api/organization.py\n- frontend/src/scenes/authentication/vercel/VercelConnect.tsx\n- posthog/api/routing.py\n- posthog/models/github_integration_base.py\n- posthog/models/user.py\n- posthog/api/organization_invite.py\n- posthog/models/utils.py\n- posthog/models/activity_logging/model_activity.py\n- posthog/admin/inlines/organization_invite_inline.py\n- posthog/api/test/test_signup.py\n- posthog/models/onboarding_delegation.py\n- posthog/email.py\n- posthog/tasks/email.py\n- posthog/models/element_group.py\n- posthog/models/integration/model.py\n- cli/src/experimental/endpoints/mod.rs\n- posthog/models/integration/gitlab.py\n- products/batch_exports/backend/debug/debugger.py\n- … 24 more (narrow the query)\nRetry after a successful codegraph sync, or narrow the query."
+      }
+    ],
+    "structuredContent": {
+      "freshness": {
+        "stale": [],
+        "unchecked": [
+          "posthog/models/organization_invite.py",
+          "posthog/models/organization.py",
+          "posthog/api/organization.py",
+          "frontend/src/scenes/authentication/vercel/VercelConnect.tsx",
+          "posthog/api/routing.py",
+          "posthog/models/github_integration_base.py",
+          "posthog/models/user.py",
+          "posthog/api/organization_invite.py",
+          "posthog/models/utils.py",
+          "posthog/models/activity_logging/model_activity.py",
+          "posthog/admin/inlines/organization_invite_inline.py",
+          "posthog/api/test/test_signup.py",
+          "posthog/models/onboarding_delegation.py",
+          "posthog/email.py",
+          "posthog/tasks/email.py",
+          "posthog/models/element_group.py",
+          "posthog/models/integration/model.py",
+          "cli/src/experimental/endpoints/mod.rs",
+          "posthog/models/integration/gitlab.py",
+          "products/batch_exports/backend/debug/debugger.py",
+          "posthog/api/dead_letter_queue.py",
+          "posthog/api/cohort.py",
+          "posthog/models/filters/mixins/utils.py",
+          "posthog/api/utils.py",
+          "posthog/rate_limit.py",
+          "posthog/permissions.py",
+          "frontend/src/lib/components/NotFound/index.tsx",
+          "products/tasks/backend/repository_resolver.py",
+          "products/tasks/backend/max_tools.py",
+          "products/canvas/backend/connectors.py",
+          "products/engineering_analytics/backend/logic/quarantine.py",
+          "products/signals/backend/tracker_issues.py",
+          "products/wizard/backend/logic/workers/repository_publisher.py",
+          "posthog/models/integration/github.py",
+          "posthog/models/user_integration.py",
+          "posthog/migration_helpers/deprecate_field.py",
+          "products/surveys/backend/api/test/test_survey.py",
+          "posthog/api/rest_router.py",
+          "posthog/event_usage.py",
+          "posthog/api/advanced_activity_logs/viewset.py",
+          "posthog/api/oauth/hogli_metadata.py",
+          "posthog/api/user.py",
+          "frontend/src/scenes/settings/organization/activityDescriptions.tsx",
+          "frontend/src/lib/components/ActivityLog/humanizeActivity.tsx"
+        ]
+      }
+    }
+  },
+  "stderr": "[CodeGraph MCP] File watcher active for /Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-codegraph — graph will auto-sync on changes\n[CodeGraph MCP] Query pool: up to 2 worker thread(s) for concurrent reads.\n[CodeGraph] File watcher disabled {\n  projectRoot: '/Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-codegraph',\n  reason: 'OS watch/file limit exhausted; auto-sync disabled. Run `codegraph sync` (or install git sync hooks) to refresh the graph after changes.',\n  error: 'Error: EMFILE: too many open files, watch'\n}\n[CodeGraph MCP] File watcher degraded — OS watch/file limit exhausted; auto-sync disabled. Run `codegraph sync` (or install git sync hooks) to refresh the graph after changes.\n[CodeGraph MCP] Catch-up reconcile still running after 3000ms; serving this tool call now and finishing the reconcile in the background (#905). Set CODEGRAPH_CATCHUP_GATE_TIMEOUT_MS=0 to always wait for it.\n"
+}

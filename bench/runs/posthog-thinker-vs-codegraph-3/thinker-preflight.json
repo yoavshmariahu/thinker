@@ -1,0 +1,18 @@
+{
+  "wall_ms": 1245,
+  "tools": [
+    "orient",
+    "lookup",
+    "remember",
+    "feedback"
+  ],
+  "probe": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Cached knowledge for this task (2 notes, ~687 tokens):\n\n### [location] Org invite validation: server vs client enforcement map  (id: org-invite-validation-server-vs-client-enforcement-map, confidence 85%)\nServer (posthog/api/organization_invite.py):\n- `OrganizationInviteSerializer.validate_target_email`: EmailNormalizer.normalize, `reject_plus_addressed_email`, `validate_invite_target_email_domain` (also used in `OrganizationInviteViewSet.delegate`).\n- `validate_first_name` -> `validate_display_name`; `validate_message` -> `validate_message_body` (posthog/helpers/email_utils.py).\n- `validate_level` raises PermissionDenied if level > inviter's; `validate_private_project_access` checks project access levels (member/admin only); model re-checks JSON shape in posthog/models/organization_invite.py.\n- `create` rejects invitee who is already a member (case-insensitive on user__email).\n- Permissions: `UserCanInvitePermission` (posthog/permissions.py) + TimeSensitiveActionPermission; throttles Burst 50/h, Sustained 200/d in `get_throttles`; max 20 per `bulk`.\n- Accept: `OrganizationInvite.validate`/`use` (expiry INVITE_DAYS_VALIDITY=3 days, email, membership).\nClient: `isEmail` in InviteRow, `canSubmit` + `inviteContainsOwnerLevel` (owner confirmation is client-only) in inviteLogic.ts, `MAX_INVITES_AT_ONCE` in InviteModal.tsx, allowedLevels filtered <= membership_level. Plus, domain, name/message content and project checks are server-only; errors surface only from the response.\n→ pointers: posthog/api/organization_invite.py:OrganizationInviteSerializer:L166, posthog/permissions.py:UserCanInvitePermission:L1360, posthog/api/organization_invite.py:OrganizationInviteSerializer.validate_target_email:L196, posthog/helpers/email_utils.py:EmailNormalizer.normalize:L247, posthog/api/organization_invite.py:OrganizationInviteViewSet.delegate:L534, posthog/models/organization_invite.py:OrganizationInvite.validate:L103 (+4 more)\n\n### [callpath] Org invite flow: modal → inviteLogic → bulk API  (id: org-invite-flow-modal-invitelogic-bulk-api, confidence 90%)\n- UI: frontend/src/scenes/settings/organization/InviteModal.tsx:InviteModal → InviteTeamMatesComponent → InviteRow per `invitesToSend` entry. Client validation is only `isEmail` in row onChange (sets \n→ posthog/api/organization_invite.py:OrganizationInviteViewSet:L395, posthog/api/organization_invite.py:OrganizationInviteViewSet.bulk:L688, frontend/src/scenes/settings/organization/inviteLogic.ts, frontend/src/scenes/settings/organization/InviteModal.tsx\n\nOther cached titles. Use lookup only if one directly answers a question still open for this task:\n- [callpath] Invite validation errors reach UI only as a global toast  (id: invite-validation-errors-reach-ui-only-as-a-global-toast)\n- [gotcha] Bulk invite partial failure semantics  (id: bulk-invite-partial-failure-semantics)\n- [invariant] Onboarding and settings invite flows share inviteLogic  (id: onboarding-and-settings-invite-flows-share-invitelogic)\n- [overview] Team/Organization/User/Project model relationships  (id: team-organization-user-project-model-relationships)"
+      }
+    ]
+  },
+  "stderr": ""
+}

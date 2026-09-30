@@ -1,0 +1,4 @@
+{
+  "reason": "Host entered clamshell sleep during run: 2026-09-29 22:12:01 PDT, normal wake 22:47:24. Run started22:06:43. 25minute cap expired during host sleep. Infrastructure interruption, excluded and replaced.",
+  "prior_grade": "Saved partial patch had 5/5 essential criteria; exclusion based on independent host sleep evidence, not grade."
+}

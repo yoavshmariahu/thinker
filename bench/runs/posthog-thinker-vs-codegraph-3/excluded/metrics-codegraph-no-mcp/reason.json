@@ -1,0 +1,4 @@
+{
+  "reason": "Assigned CodeGraph MCP tool was unavailable; no CodeGraph calls occurred. Infrastructure failure, excluded before grading.",
+  "retry_change": "Require assigned MCP startup and wait for previous direct writer to exit before resetting graph."
+}

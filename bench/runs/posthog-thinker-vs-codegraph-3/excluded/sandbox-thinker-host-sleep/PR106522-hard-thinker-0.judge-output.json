@@ -1,0 +1,51 @@
+{
+  "text": "{\"results\":[{\"id\":\"c1\",\"verdict\":\"met\",\"evidence\":\"In `products/tasks/backend/models.py`, `TaskRun.mark_failed` captures the failure event including the backend: `\\\"sandbox_backend\\\": (self.state or {}).get(\\\"sandbox_backend\\\") or \\\"modal\\\",`.\"},{\"id\":\"c2\",\"verdict\":\"met\",\"evidence\":\"In `products/tasks/backend/temporal/process_task/workflow.py`, internal failure handling in `except Exception as e` calls `await self._update_task_run_status(\\\"failed\\\", ...)` passing `sandbox_backend=self._sandbox_backend`, which in `update_task_run_status.py` executes `_capture_terminal_analytics` recording `\\\"sandbox_backend\\\": input.sandbox_backend or (task_run.state or {}).get(\\\"sandbox_backend\\\") or \\\"modal\\\",`.\"},{\"id\":\"c3\",\"verdict\":\"met\",\"evidence\":\"In `products/tasks/backend/temporal/process_task/activities/update_task_run_status.py`, line 266 of `_capture_terminal_analytics` sets `\\\"sandbox_backend\\\": input.sandbox_backend or (task_run.state or {}).get(\\\"sandbox_backend\\\") or \\\"modal\\\",`, utilizing `input.sandbox_backend` from the executing run when provided and otherwise falling back to `(task_run.state or {}).get(\\\"sandbox_backend\\\")`.\"},{\"id\":\"c4\",\"verdict\":\"met\",\"evidence\":\"In `products/tasks/backend/temporal/process_task/workflow.py`, `ResumedSandboxState` defines `sandbox_backend: str | None = None`. Line 1221 restores `self._sandbox_backend = input.resumed_sandbox.sandbox_backend if input.resumed_sandbox else None`, and lines 1223-1224 skip re-resolution when already set (`if self._sandbox_backend is None: self._sandbox_backend = self.context.sandbox_backend`). Continued inputs also preserve it: `sandbox_backend=self._sandbox_backend or self.context.sandbox_backend`.\"},{\"id\":\"c5\",\"verdict\":\"not_met\",\"evidence\":\"In `products/tasks/backend/temporal/process_task/workflow.py`, lines 1221-1224 execute `self._sandbox_backend = input.resumed_sandbox.sandbox_backend if input.resumed_sandbox else None` followed by `if self._sandbox_backend is None: self._sandbox_backend = self.context.sandbox_backend`. When a continued run reattaches without a backend value handed over, it overwrites `self._sandbox_backend` with the freshly re-resolved `self.context.sandbox_backend` rather than reading the backend recorded in the run's stored state for that sandbox or falling back to the default backend.\"},{\"id\":\"c6\",\"verdict\":\"not_met\",\"evidence\":\"In `products/tasks/backend/models.py` (`\\\"sandbox_backend\\\": (self.state or {}).get(\\\"sandbox_backend\\\") or \\\"modal\\\",`) and `products/tasks/backend/temporal/process_task/activities/update_task_run_status.py` (`\\\"sandbox_backend\\\": input.sandbox_backend or (task_run.state or {}).get(\\\"sandbox_backend\\\") or \\\"modal\\\",`), `sandbox_backend` is unconditionally included as a dictionary key and defaults to `'modal'` even when there is no sandbox associated, with no check to omit unrecognized backend identifiers.\"},{\"id\":\"c7\",\"verdict\":\"met\",\"evidence\":\"In `products/tasks/backend/models.py` (lines 3113-3117) and `update_task_run_status.py` (lines 263-271), pre-existing fields are preserved unchanged alongside `sandbox_backend`: `\\\"error_message\\\": truncate_error_message(input.error_message or task_run.error_message)`, `\\\"error_type\\\": input.error_type or \\\"unspecified\\\"`, `\\\"duration_seconds\\\": task_run._duration_seconds()`, and `\\\"termination_reason\\\": termination_reason`.\"}]}\n",
+  "json": {
+    "results": [
+      {
+        "id": "c1",
+        "verdict": "met",
+        "evidence": "In `products/tasks/backend/models.py`, `TaskRun.mark_failed` captures the failure event including the backend: `\"sandbox_backend\": (self.state or {}).get(\"sandbox_backend\") or \"modal\",`."
+      },
+      {
+        "id": "c2",
+        "verdict": "met",
+        "evidence": "In `products/tasks/backend/temporal/process_task/workflow.py`, internal failure handling in `except Exception as e` calls `await self._update_task_run_status(\"failed\", ...)` passing `sandbox_backend=self._sandbox_backend`, which in `update_task_run_status.py` executes `_capture_terminal_analytics` recording `\"sandbox_backend\": input.sandbox_backend or (task_run.state or {}).get(\"sandbox_backend\") or \"modal\",`."
+      },
+      {
+        "id": "c3",
+        "verdict": "met",
+        "evidence": "In `products/tasks/backend/temporal/process_task/activities/update_task_run_status.py`, line 266 of `_capture_terminal_analytics` sets `\"sandbox_backend\": input.sandbox_backend or (task_run.state or {}).get(\"sandbox_backend\") or \"modal\",`, utilizing `input.sandbox_backend` from the executing run when provided and otherwise falling back to `(task_run.state or {}).get(\"sandbox_backend\")`."
+      },
+      {
+        "id": "c4",
+        "verdict": "met",
+        "evidence": "In `products/tasks/backend/temporal/process_task/workflow.py`, `ResumedSandboxState` defines `sandbox_backend: str | None = None`. Line 1221 restores `self._sandbox_backend = input.resumed_sandbox.sandbox_backend if input.resumed_sandbox else None`, and lines 1223-1224 skip re-resolution when already set (`if self._sandbox_backend is None: self._sandbox_backend = self.context.sandbox_backend`). Continued inputs also preserve it: `sandbox_backend=self._sandbox_backend or self.context.sandbox_backend`."
+      },
+      {
+        "id": "c5",
+        "verdict": "not_met",
+        "evidence": "In `products/tasks/backend/temporal/process_task/workflow.py`, lines 1221-1224 execute `self._sandbox_backend = input.resumed_sandbox.sandbox_backend if input.resumed_sandbox else None` followed by `if self._sandbox_backend is None: self._sandbox_backend = self.context.sandbox_backend`. When a continued run reattaches without a backend value handed over, it overwrites `self._sandbox_backend` with the freshly re-resolved `self.context.sandbox_backend` rather than reading the backend recorded in the run's stored state for that sandbox or falling back to the default backend."
+      },
+      {
+        "id": "c6",
+        "verdict": "not_met",
+        "evidence": "In `products/tasks/backend/models.py` (`\"sandbox_backend\": (self.state or {}).get(\"sandbox_backend\") or \"modal\",`) and `products/tasks/backend/temporal/process_task/activities/update_task_run_status.py` (`\"sandbox_backend\": input.sandbox_backend or (task_run.state or {}).get(\"sandbox_backend\") or \"modal\",`), `sandbox_backend` is unconditionally included as a dictionary key and defaults to `'modal'` even when there is no sandbox associated, with no check to omit unrecognized backend identifiers."
+      },
+      {
+        "id": "c7",
+        "verdict": "met",
+        "evidence": "In `products/tasks/backend/models.py` (lines 3113-3117) and `update_task_run_status.py` (lines 263-271), pre-existing fields are preserved unchanged alongside `sandbox_backend`: `\"error_message\": truncate_error_message(input.error_message or task_run.error_message)`, `\"error_type\": input.error_type or \"unspecified\"`, `\"duration_seconds\": task_run._duration_seconds()`, and `\"termination_reason\": termination_reason`."
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 35145,
+    "output_tokens": 29930,
+    "thinking_tokens": 29060,
+    "cache_read_tokens": 0,
+    "total_tokens": 65075
+  },
+  "cost": null,
+  "provider": "gemini"
+}

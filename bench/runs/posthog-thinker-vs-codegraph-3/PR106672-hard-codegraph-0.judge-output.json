@@ -1,0 +1,56 @@
+{
+  "text": "{\"results\":[{\"id\":\"c1\",\"verdict\":\"met\",\"evidence\":\"In `products/experiments/backend/experiment_saved_metric_service.py`:\\n`normalized_query = self.normalize_query_for_write(query, fresh_uuid=True)`\\nand\\n```python\\nif fresh_uuid:\\n    normalized_query[\\\"uuid\\\"] = str(uuid4())\\n```\"},{\"id\":\"c2\",\"verdict\":\"met\",\"evidence\":\"In `products/experiments/backend/experiment_saved_metric_service.py`:\\n```python\\nexisting_uuid = saved_metric.query.get(\\\"uuid\\\") if saved_metric.query else None\\nupdate_data[\\\"query\\\"] = self.normalize_query_for_write(update_data[\\\"query\\\"], existing_uuid=existing_uuid)\\n```\\nand\\n```python\\nelif existing_uuid:\\n    if incoming_uuid and incoming_uuid != existing_uuid:\\n        raise ValidationError(\\\"Saved metric UUID cannot be changed\\\")\\n    normalized_query[\\\"uuid\\\"] = existing_uuid\\n```\"},{\"id\":\"c3\",\"verdict\":\"met\",\"evidence\":\"In `products/experiments/backend/experiment_service.py`:\\n```python\\nif \\\"saved_metrics_ids\\\" in update_data:\\n    seen_metric_uuids = self._collect_saved_metric_uuids(update_data[\\\"saved_metrics_ids\\\"])\\n    for field in (\\\"metrics\\\", \\\"metrics_secondary\\\"):\\n        stored_metrics = getattr(experiment, field) or []\\n        if field not in update_data and any(\\n            metric.get(\\\"uuid\\\") in seen_metric_uuids for metric in stored_metrics\\n        ):\\n            update_data[field] = stored_metrics\\n            repaired_metric_fields.add(field)\\n```\\nand\\n```python\\nif \\\"metrics\\\" in update_data:\\n    update_data[\\\"metrics\\\"] = self._assign_uuids_to_metrics(update_data[\\\"metrics\\\"], seen=seen_metric_uuids)\\nif \\\"metrics_secondary\\\" in update_data:\\n    update_data[\\\"metrics_secondary\\\"] = self._assign_uuids_to_metrics(\\n        update_data[\\\"metrics_secondary\\\"], seen=seen_metric_uuids\\n    )\\n```\"},{\"id\":\"c4\",\"verdict\":\"met\",\"evidence\":\"In `products/experiments/backend/experiment_service.py`:\\n```python\\nif field not in update_data and any(\\n    metric.get(\\\"uuid\\\") in seen_metric_uuids for metric in stored_metrics\\n):\\n    update_data[field] = stored_metrics\\n    repaired_metric_fields.add(field)\\n```\\nWhen no stored inline metrics clash with `seen_metric_uuids`, `update_data` is not populated with the stored metrics, leaving both inline metric arrays and their ordering completely untouched.\"},{\"id\":\"c5\",\"verdict\":\"met\",\"evidence\":\"In `products/experiments/backend/experiment_service.py`:\\n```python\\n# Regenerated dups don't need an ordering remap: the original uuid is\\n# kept on the incumbent so any ordering reference to it remains valid\\n# (including references to saved-metric uuids that happen to be inlined).\\n# _sync_ordering_with_metric_changes runs later and appends the new\\n# regenerated uuids as additions; _sync_ordering_for_saved_metrics_on_update\\n# handles saved-metric link uuids independently.\\n```\"},{\"id\":\"c6\",\"verdict\":\"met\",\"evidence\":\"In `products/experiments/backend/experiment_service.py`:\\n```python\\nseen_metric_uuids = self._collect_saved_metric_uuids(update_data[\\\"saved_metrics_ids\\\"])\\n```\\nand\\n```python\\nsaved_metrics_data: list[dict] = update_data.pop(\\\"saved_metrics_ids\\\", []) or []\\n```\\nClash resolution only modifies `update_data[\\\"metrics\\\"]` or `update_data[\\\"metrics_secondary\\\"]` via `repaired_metric_fields`; the saved metric itself and the requested `saved_metrics_ids` linking payload are not modified.\"},{\"id\":\"c7\",\"verdict\":\"not_met\",\"evidence\":\"In `products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2`:\\n```markdown\\nTo replace a one-off inline metric with a reusable shared metric, create the\\nshared metric from its `query`, then make one `experiment-update` call that\\nremoves the inline copy from the full `metrics` or `metrics_secondary` array and\\nadds the new shared metric id to the full `saved_metrics_ids` set. Omitting the\\ninline array keeps the inline copy on the experiment.\\n```\\nThe guidance instructs creating the shared metric from its `query` directly and does not instruct omitting the identifier when creating the shared metric.\"},{\"id\":\"c8\",\"verdict\":\"met\",\"evidence\":\"In `products/experiments/backend/experiment_service.py`:\\n```python\\nelse:\\n    for link in experiment.experimenttosavedmetric_set.select_related(\\\"saved_metric\\\").all():\\n        if link.saved_metric.query and (uuid := link.saved_metric.query.get(\\\"uuid\\\")):\\n            seen_metric_uuids.add(uuid)\\n```\\nand\\n```python\\nif \\\"metrics\\\" in update_data:\\n    update_data[\\\"metrics\\\"] = self._assign_uuids_to_metrics(update_data[\\\"metrics\\\"], seen=seen_metric_uuids)\\n```\\nalong with:\\n```python\\n# Regenerated dups don't need an ordering remap: the original uuid is\\n# kept on the incumbent so any ordering reference to it remains valid\\n```\"}]}\n",
+  "json": {
+    "results": [
+      {
+        "id": "c1",
+        "verdict": "met",
+        "evidence": "In `products/experiments/backend/experiment_saved_metric_service.py`:\n`normalized_query = self.normalize_query_for_write(query, fresh_uuid=True)`\nand\n```python\nif fresh_uuid:\n    normalized_query[\"uuid\"] = str(uuid4())\n```"
+      },
+      {
+        "id": "c2",
+        "verdict": "met",
+        "evidence": "In `products/experiments/backend/experiment_saved_metric_service.py`:\n```python\nexisting_uuid = saved_metric.query.get(\"uuid\") if saved_metric.query else None\nupdate_data[\"query\"] = self.normalize_query_for_write(update_data[\"query\"], existing_uuid=existing_uuid)\n```\nand\n```python\nelif existing_uuid:\n    if incoming_uuid and incoming_uuid != existing_uuid:\n        raise ValidationError(\"Saved metric UUID cannot be changed\")\n    normalized_query[\"uuid\"] = existing_uuid\n```"
+      },
+      {
+        "id": "c3",
+        "verdict": "met",
+        "evidence": "In `products/experiments/backend/experiment_service.py`:\n```python\nif \"saved_metrics_ids\" in update_data:\n    seen_metric_uuids = self._collect_saved_metric_uuids(update_data[\"saved_metrics_ids\"])\n    for field in (\"metrics\", \"metrics_secondary\"):\n        stored_metrics = getattr(experiment, field) or []\n        if field not in update_data and any(\n            metric.get(\"uuid\") in seen_metric_uuids for metric in stored_metrics\n        ):\n            update_data[field] = stored_metrics\n            repaired_metric_fields.add(field)\n```\nand\n```python\nif \"metrics\" in update_data:\n    update_data[\"metrics\"] = self._assign_uuids_to_metrics(update_data[\"metrics\"], seen=seen_metric_uuids)\nif \"metrics_secondary\" in update_data:\n    update_data[\"metrics_secondary\"] = self._assign_uuids_to_metrics(\n        update_data[\"metrics_secondary\"], seen=seen_metric_uuids\n    )\n```"
+      },
+      {
+        "id": "c4",
+        "verdict": "met",
+        "evidence": "In `products/experiments/backend/experiment_service.py`:\n```python\nif field not in update_data and any(\n    metric.get(\"uuid\") in seen_metric_uuids for metric in stored_metrics\n):\n    update_data[field] = stored_metrics\n    repaired_metric_fields.add(field)\n```\nWhen no stored inline metrics clash with `seen_metric_uuids`, `update_data` is not populated with the stored metrics, leaving both inline metric arrays and their ordering completely untouched."
+      },
+      {
+        "id": "c5",
+        "verdict": "met",
+        "evidence": "In `products/experiments/backend/experiment_service.py`:\n```python\n# Regenerated dups don't need an ordering remap: the original uuid is\n# kept on the incumbent so any ordering reference to it remains valid\n# (including references to saved-metric uuids that happen to be inlined).\n# _sync_ordering_with_metric_changes runs later and appends the new\n# regenerated uuids as additions; _sync_ordering_for_saved_metrics_on_update\n# handles saved-metric link uuids independently.\n```"
+      },
+      {
+        "id": "c6",
+        "verdict": "met",
+        "evidence": "In `products/experiments/backend/experiment_service.py`:\n```python\nseen_metric_uuids = self._collect_saved_metric_uuids(update_data[\"saved_metrics_ids\"])\n```\nand\n```python\nsaved_metrics_data: list[dict] = update_data.pop(\"saved_metrics_ids\", []) or []\n```\nClash resolution only modifies `update_data[\"metrics\"]` or `update_data[\"metrics_secondary\"]` via `repaired_metric_fields`; the saved metric itself and the requested `saved_metrics_ids` linking payload are not modified."
+      },
+      {
+        "id": "c7",
+        "verdict": "not_met",
+        "evidence": "In `products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2`:\n```markdown\nTo replace a one-off inline metric with a reusable shared metric, create the\nshared metric from its `query`, then make one `experiment-update` call that\nremoves the inline copy from the full `metrics` or `metrics_secondary` array and\nadds the new shared metric id to the full `saved_metrics_ids` set. Omitting the\ninline array keeps the inline copy on the experiment.\n```\nThe guidance instructs creating the shared metric from its `query` directly and does not instruct omitting the identifier when creating the shared metric."
+      },
+      {
+        "id": "c8",
+        "verdict": "met",
+        "evidence": "In `products/experiments/backend/experiment_service.py`:\n```python\nelse:\n    for link in experiment.experimenttosavedmetric_set.select_related(\"saved_metric\").all():\n        if link.saved_metric.query and (uuid := link.saved_metric.query.get(\"uuid\")):\n            seen_metric_uuids.add(uuid)\n```\nand\n```python\nif \"metrics\" in update_data:\n    update_data[\"metrics\"] = self._assign_uuids_to_metrics(update_data[\"metrics\"], seen=seen_metric_uuids)\n```\nalong with:\n```python\n# Regenerated dups don't need an ordering remap: the original uuid is\n# kept on the incumbent so any ordering reference to it remains valid\n```"
+      }
+    ]
+  },
+  "usage": {
+    "input_tokens": 23426,
+    "output_tokens": 16191,
+    "thinking_tokens": 14885,
+    "cache_read_tokens": 0,
+    "total_tokens": 39617
+  },
+  "cost": null,
+  "provider": "gemini"
+}
