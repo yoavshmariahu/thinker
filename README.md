@@ -129,6 +129,9 @@ thinker telemetry --send    # send metrics manually
 
 To opt out at any time, set `THINKER_TELEMETRY=off` in your environment or set `"telemetry": false` in `.thinker/config.json`.
 
+For the PostgreSQL ingestion service, S3 migration, and SQL queries, see
+[the telemetry operations guide](infra/metrics/README.md).
+
 ## More
 
 - [AGENTS.md](AGENTS.md): how thinker works, per-agent support, repository layout

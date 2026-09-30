@@ -1,0 +1,13 @@
+{
+  "profile": "yoav",
+  "region": "us-east-1",
+  "host": "codervibes.cc9u406wsj02.us-east-1.rds.amazonaws.com",
+  "vpc": "vpc-065641281fc27f26f",
+  "subnets": [
+    "subnet-04750b7f5da2effdb",
+    "subnet-00a581cf00582cd60"
+  ],
+  "databaseSecurityGroup": "sg-0646b6f9fa534f985",
+  "artifactBucket": "thinker-metrics-442899048927",
+  "apiId": "khsky10r4l"
+}

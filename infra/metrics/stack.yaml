@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Thinker telemetry HTTP writer into private PostgreSQL
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup::Id
+  DatabaseHost:
+    Type: String
+  DatabaseName:
+    Type: String
+    Default: thinker_metrics
+  DatabaseUser:
+    Type: String
+    Default: thinker_metrics_writer
+  DatabasePassword:
+    Type: String
+    NoEcho: true
+  ArtifactBucket:
+    Type: String
+  ArtifactKey:
+    Type: String
+  ApiId:
+    Type: String
+    Default: khsky10r4l
+Resources:
+  WriterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Thinker telemetry writer to PostgreSQL only
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          DestinationSecurityGroupId: !Ref DatabaseSecurityGroup
+  DatabaseIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref DatabaseSecurityGroup
+      SourceSecurityGroupId: !Ref WriterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      Description: Thinker metrics PostgreSQL writer
+  WriterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/thinker-metrics-postgres-ingest
+      RetentionInDays: 30
+  Writer:
+    Type: AWS::Lambda::Function
+    DependsOn: [DatabaseIngress, LogGroup]
+    Properties:
+      FunctionName: thinker-metrics-postgres-ingest
+      Description: Persists anonymous Thinker usage reports in PostgreSQL
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role: !GetAtt WriterRole.Arn
+      MemorySize: 128
+      Timeout: 15
+      ReservedConcurrentExecutions: 5
+      Code:
+        S3Bucket: !Ref ArtifactBucket
+        S3Key: !Ref ArtifactKey
+      VpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref WriterSecurityGroup]
+      Environment:
+        Variables:
+          PGHOST: !Ref DatabaseHost
+          PGPORT: '5432'
+          PGDATABASE: !Ref DatabaseName
+          PGUSER: !Ref DatabaseUser
+          PGPASSWORD: !Ref DatabasePassword
+          NODE_EXTRA_CA_CERTS: /var/runtime/ca-cert.pem
+  ApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Writer
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/*
+Outputs:
+  WriterArn:
+    Value: !GetAtt Writer.Arn
+  WriterSecurityGroup:
+    Value: !Ref WriterSecurityGroup
