@@ -267,12 +267,12 @@ async function verify() {
 
 async function main() {
   const command = process.argv[2] || 'start';
-  if (!['start', 'stop', 'status', 'login', 'verify'].includes(command)) throw new Error('Usage: node scripts/metrics-dashboard.mjs [start|stop|status|login|verify]');
+  if (!['start', 'stop', 'status', 'login', 'verify', 'tunnel'].includes(command)) throw new Error('Usage: node scripts/metrics-dashboard.mjs [start|stop|status|login|verify|tunnel]');
   fs.mkdirSync(work, { recursive: true, mode: 0o700 });
   fs.chmodSync(work, 0o700);
   if (fs.existsSync(stateFile)) state = JSON.parse(fs.readFileSync(stateFile));
   else {
-    if (command !== 'start') throw new Error('Dashboard has not been set up. Run start first.');
+    if (command !== 'start' && command !== 'tunnel') throw new Error('Dashboard has not been set up. Run start first.');
     state = { email: 'admin@thinker.local', password: randomBytes(24).toString('base64url') + 'aA1!',
       dbPassword: randomBytes(32).toString('hex'), encryptionKey: randomBytes(32).toString('hex') }; save();
   }
@@ -280,6 +280,11 @@ async function main() {
   if (command === 'status') { console.log(compose('ps')); return; }
   if (command === 'login') { console.log(`Email: ${state.email}\nPassword: ${state.password}`); return; }
   if (command === 'verify') { await verify(); return; }
+  if (command === 'tunnel') {
+    if (await listening()) { console.log(`Private RDS tunnel is already listening on port ${tunnelPort}.`); return; }
+    await tunnel();
+    return;
+  }
   await tunnel();
   console.log('Starting local Metabase and its dashboard storage…');
   compose('up', '-d');

@@ -89,6 +89,7 @@ credentials are encrypted by Metabase. Anonymous Metabase tracking is disabled.
 There is no additional hosted server or Metabase subscription.
 
 ```sh
+node scripts/metrics-dashboard.mjs tunnel  # opens/verifies private RDS SSM tunnel only
 node scripts/metrics-dashboard.mjs status
 node scripts/metrics-dashboard.mjs verify  # runs every saved query and checks read-only access/TLS
 node scripts/metrics-dashboard.mjs stop
