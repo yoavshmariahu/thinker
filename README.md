@@ -28,11 +28,9 @@ Works with Claude Code, Codex CLI, Gemini CLI and Cursor. Research prototype.
 
 ## Install and start
 
-From inside your repository:
-
-```bash
-curl -fsSL https://zerotime.dev/thinker101/install.sh | bash
-```
+Open [zerotime.dev](https://zerotime.dev), enter your access code, and run the
+private install command shown there from inside your repository. The same code
+unlocks the docs.
 
 Then work with your agent as usual. Notes are added to each request
 automatically.

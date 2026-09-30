@@ -1,0 +1,11 @@
+{
+  "profile": "yoav",
+  "region": "us-east-1",
+  "bucketRegion": "us-west-1",
+  "distributionId": "E2QP47JPHAN302",
+  "bucket": "zerotime-frontend",
+  "functionName": "thinker-site-access",
+  "secretId": "thinker/site/access",
+  "webAclName": "thinker-site-access",
+  "responsePolicyName": "thinker-site-private-responses"
+}
