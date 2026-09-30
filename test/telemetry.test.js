@@ -14,7 +14,13 @@ import {
   computeCacheMetrics,
   buildTelemetryPayload,
   sendTelemetry,
+  maybeSendTelemetryInBackground,
   maybeSendDailyTelemetryInBackground,
+  scheduleTelemetry,
+  unscheduleTelemetry,
+  isTelemetryScheduled,
+  getTelemetryLaunchAgentPath,
+  HOUR_MS,
   DEFAULT_TELEMETRY_ENDPOINT,
 } from '../src/telemetry.js';
 
@@ -180,10 +186,10 @@ test('sendTelemetry honors rate limit and mock network transmission', async () =
     // Second send immediately: should be rate-limited
     const res2 = await sendTelemetry({ home: tmpHome, store, fetchFn: mockFetch });
     assert.equal(res2.sent, false);
-    assert.equal(res2.reason, 'already_sent_today');
+    assert.ok(res2.reason === 'already_sent_recently' || res2.reason === 'already_sent_today');
     assert.equal(sentCount, 1);
 
-    // Force send: bypasses 24h limit
+    // Force send: bypasses rate limit
     const res3 = await sendTelemetry({ home: tmpHome, store, fetchFn: mockFetch, force: true });
     assert.equal(res3.sent, true);
     assert.equal(sentCount, 2);
@@ -235,12 +241,16 @@ test('computeCacheMetrics accurately counts local store notes on fresh install w
   }
 });
 
-test('buildTelemetryPayload and sendTelemetry tag event type (install vs daily)', async () => {
+test('buildTelemetryPayload and sendTelemetry tag event type (install vs hourly vs daily)', async () => {
   const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
   try {
     const store = new Store(tmpRepo).init();
-    const payloadDaily = buildTelemetryPayload(store, { home: tmpHome });
+    const payloadDefault = buildTelemetryPayload(store, { home: tmpHome });
+    assert.equal(payloadDefault.event, 'hourly');
+    assert.equal(payloadDefault.periodHours, 24);
+
+    const payloadDaily = buildTelemetryPayload(store, { home: tmpHome, event: 'daily' });
     assert.equal(payloadDaily.event, 'daily');
 
     const payloadInstall = buildTelemetryPayload(store, { home: tmpHome, event: 'install' });
@@ -385,3 +395,97 @@ test('cli setup sends installation telemetry in background upon completion', asy
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }
 });
+
+test('scheduleTelemetry and unscheduleTelemetry manage plist file and status', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-telem-sched-'));
+  try {
+    const plistPath = path.join(tmp, 'telemetry.plist');
+    const binPath = path.join(tmp, 'bin', 'thinker');
+
+    assert.equal(isTelemetryScheduled(tmp, { plistPath }), false);
+
+    const sched = scheduleTelemetry({ home: tmp, binPath, plistPath, skipLaunchctl: true });
+    assert.ok(fs.existsSync(plistPath));
+    const content = fs.readFileSync(plistPath, 'utf8');
+    assert.ok(content.includes('com.thinker.telemetry'));
+    assert.ok(content.includes(binPath));
+    assert.ok(content.includes('telemetry --send --quiet'));
+    assert.ok(content.includes('<key>StartInterval</key>'));
+    assert.ok(content.includes('<integer>3600</integer>'));
+
+    assert.equal(isTelemetryScheduled(tmp, { plistPath, checkFileOnly: true }), true);
+
+    const unsched = unscheduleTelemetry({ home: tmp, plistPath, skipLaunchctl: true });
+    assert.equal(unsched.unscheduled, true);
+    assert.ok(!fs.existsSync(plistPath));
+    assert.equal(isTelemetryScheduled(tmp, { plistPath }), false);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('sendTelemetry honors hourly rate limit (HOUR_MS)', async () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-hourly-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-hourly-'));
+  const stateDir = path.join(tmpHome, 'state');
+  fs.mkdirSync(stateDir, { recursive: true });
+  const stampFile = path.join(stateDir, 'telemetry.last');
+  try {
+    const store = new Store(tmpRepo).init();
+    let sentCount = 0;
+    const mockFetch = async () => {
+      sentCount++;
+      return { ok: true, status: 202, json: async () => ({ status: 'accepted' }) };
+    };
+
+    // Timestamp 15 minutes ago: rate limited under default HOUR_MS
+    const recent = new Date(Date.now() - 15 * 60 * 1000);
+    fs.writeFileSync(stampFile, recent.toISOString() + '\n');
+    fs.utimesSync(stampFile, recent, recent);
+    const res1 = await sendTelemetry({ home: tmpHome, store, fetchFn: mockFetch });
+    assert.equal(res1.sent, false);
+    assert.equal(res1.reason, 'already_sent_recently');
+    assert.equal(sentCount, 0);
+
+    // Timestamp 70 minutes ago (> 1 hour): allowed
+    const past = new Date(Date.now() - 70 * 60 * 1000);
+    fs.writeFileSync(stampFile, past.toISOString() + '\n');
+    fs.utimesSync(stampFile, past, past);
+    const res2 = await sendTelemetry({ home: tmpHome, store, fetchFn: mockFetch });
+    assert.equal(res2.sent, true);
+    assert.equal(sentCount, 1);
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('cli telemetry and telemetry --json run cleanly and show hourly event', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-cli-telem-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-cli-telem-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    const CLI = path.resolve('src/cli.js');
+    const out = execFileSync('node', [CLI, 'telemetry', '--repo', tmpRepo], {
+      encoding: 'utf8',
+      env: { ...process.env, THINKER_HOME: tmpHome, THINKER_TELEMETRY: 'off' },
+    });
+    assert.ok(out.includes('Thinker telemetry:'));
+    assert.ok(out.includes('Schedule:'));
+    assert.ok(out.includes('Event:        hourly'));
+    assert.ok(out.includes('--schedule'));
+
+    const jsonOut = execFileSync('node', [CLI, 'telemetry', '--json', '--repo', tmpRepo], {
+      encoding: 'utf8',
+      env: { ...process.env, THINKER_HOME: tmpHome, THINKER_TELEMETRY: 'off' },
+    });
+    const parsed = JSON.parse(jsonOut);
+    assert.equal(parsed.event, 'hourly');
+    assert.equal(parsed.periodHours, 24);
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+

@@ -165,8 +165,9 @@ Thinker records pseudonymous installation and daily effectiveness metrics (cache
 The device hash is independent of `THINKER_HOME`. It can change after OS reinstallation, and cloned VMs or containers may share an identifier. If the OS identifier is unavailable, the device remains unknown. Test runs allow telemetry only to local test servers; they do not send it to production.
 
 ```bash
-thinker telemetry           # inspect current daily metrics summary and transmission status
-thinker telemetry --send    # send metrics manually
+thinker telemetry              # inspect current metrics summary, schedule and transmission status
+thinker telemetry --send       # send metrics manually
+thinker telemetry --schedule   # schedule hourly background transmission (LaunchAgent / cron)
 ```
 
 To opt out at any time, set `THINKER_TELEMETRY=off` in your environment or set `"telemetry": false` in `.thinker/config.json`.

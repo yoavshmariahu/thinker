@@ -1,17 +1,18 @@
-// Daily telemetry for Thinker: collects high-level cache effectiveness and cache size metrics.
+// Hourly telemetry for Thinker: collects high-level cache effectiveness and cache size metrics.
 // Pseudonymous: no prompt text, note bodies, file paths, code symbols,
 // or repository URLs are ever collected or transmitted.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import crypto from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
 import { summarize } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
 
+export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export const DEFAULT_TELEMETRY_ENDPOINT = 'https://khsky10r4l.execute-api.us-east-1.amazonaws.com/metrics';
@@ -130,7 +131,7 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
   };
 }
 
-export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, all = true, event = 'daily' } = {}) {
+export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, all = true, event = 'hourly' } = {}) {
   let version = 'unknown';
   try {
     const pkg = JSON.parse(fs.readFileSync(path.resolve(HERE, '..', 'package.json'), 'utf8'));
@@ -221,7 +222,8 @@ export async function sendTelemetry({
   fetchFn = globalThis.fetch,
   force = false,
   dryRun = false,
-  event = 'daily',
+  event = 'hourly',
+  intervalMs = HOUR_MS,
 } = {}) {
   if (!isTelemetryEnabled({ home, store })) {
     return { sent: false, reason: 'disabled' };
@@ -234,8 +236,13 @@ export async function sendTelemetry({
   if (!force) {
     try {
       const st = fs.statSync(stampFile);
-      if (Date.now() - st.mtimeMs < DAY_MS) {
-        return { sent: false, reason: 'already_sent_today', lastSent: new Date(st.mtimeMs).toISOString() };
+      const minInterval = Math.max(0, intervalMs - 60_000);
+      if (Date.now() - st.mtimeMs < minInterval) {
+        return {
+          sent: false,
+          reason: intervalMs >= DAY_MS ? 'already_sent_today' : 'already_sent_recently',
+          lastSent: new Date(st.mtimeMs).toISOString(),
+        };
       }
     } catch {}
   }
@@ -276,12 +283,13 @@ export async function sendTelemetry({
   }
 }
 
-export function maybeSendDailyTelemetryInBackground({
+export function maybeSendTelemetryInBackground({
   home = thinkerHome(),
   cliPath = path.join(HERE, 'cli.js'),
   store,
   force = false,
-  event = 'daily',
+  event = 'hourly',
+  intervalMs = HOUR_MS,
 } = {}) {
   if (!isTelemetryEnabled({ home, store })) return;
   if (isTestTelemetryBlocked(getTelemetryEndpoint({ home }))) return;
@@ -294,7 +302,8 @@ export function maybeSendDailyTelemetryInBackground({
   if (!force) {
     try {
       const st = fs.statSync(stampFile);
-      if (Date.now() - st.mtimeMs < DAY_MS) return;
+      const minInterval = Math.max(0, intervalMs - 60_000);
+      if (Date.now() - st.mtimeMs < minInterval) return;
     } catch {}
   }
 
@@ -311,3 +320,134 @@ export function maybeSendDailyTelemetryInBackground({
     child.unref();
   } catch {}
 }
+
+export const maybeSendDailyTelemetryInBackground = maybeSendTelemetryInBackground;
+
+export function getTelemetryLaunchAgentPath(customPath) {
+  return customPath || path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.thinker.telemetry.plist');
+}
+
+export function isTelemetryScheduled(home = thinkerHome(), opts = {}) {
+  if (process.platform === 'darwin') {
+    const plist = opts.plistPath || getTelemetryLaunchAgentPath();
+    if (!fs.existsSync(plist)) return false;
+    if (opts.checkFileOnly) return true;
+    try {
+      const out = execFileSync('launchctl', ['list'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      return out.includes('com.thinker.telemetry');
+    } catch {
+      return fs.existsSync(plist);
+    }
+  } else if (process.platform === 'linux') {
+    try {
+      const crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      return crontab.includes('thinker') && crontab.includes('telemetry');
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+export function scheduleTelemetry(opts = {}) {
+  const home = opts.home || thinkerHome();
+  const binPath = opts.binPath || path.join(home, 'bin', 'thinker');
+  const nodeBinDir = path.dirname(process.execPath);
+
+  if (process.platform === 'darwin') {
+    const plistPath = opts.plistPath || getTelemetryLaunchAgentPath();
+    fs.mkdirSync(path.dirname(plistPath), { recursive: true });
+
+    if (!opts.skipLaunchctl) {
+      try { execFileSync('launchctl', ['unload', plistPath], { stdio: 'ignore' }); } catch {}
+    }
+
+    const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.thinker.telemetry</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>PATH="${nodeBinDir}:$PATH:/usr/local/bin:/opt/homebrew/bin" exec "${binPath}" telemetry --send --quiet</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    <key>StandardErrorPath</key>
+    <string>${path.join(home, 'telemetry.err')}</string>
+    <key>StandardOutPath</key>
+    <string>${path.join(home, 'telemetry.out')}</string>
+</dict>
+</plist>
+`;
+    fs.writeFileSync(plistPath, plistContent);
+
+    if (!opts.skipLaunchctl) {
+      try {
+        const uid = process.getuid ? process.getuid() : 501;
+        execFileSync('launchctl', ['bootstrap', `gui/${uid}`, plistPath], { stdio: 'ignore' });
+      } catch {
+        try {
+          execFileSync('launchctl', ['load', plistPath], { stdio: 'ignore' });
+        } catch (e) {
+          throw new Error(`Failed to register LaunchAgent: ${e.message}`);
+        }
+      }
+    }
+    return { type: 'launchd', path: plistPath };
+  } else if (process.platform === 'linux') {
+    let crontab = '';
+    try {
+      crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {}
+
+    const line = `0 * * * * PATH="${nodeBinDir}:$PATH:/usr/local/bin" "${binPath}" telemetry --send --quiet`;
+    if (!crontab.includes(line)) {
+      const newCrontab = (crontab.trim() ? crontab.trim() + '\n' : '') + line + '\n';
+      execFileSync('crontab', ['-'], { input: newCrontab, encoding: 'utf8' });
+    }
+    return { type: 'cron', line };
+  }
+
+  throw new Error(`OS scheduler not supported on platform: ${process.platform}`);
+}
+
+export function unscheduleTelemetry(opts = {}) {
+  const home = opts.home || thinkerHome();
+
+  if (process.platform === 'darwin') {
+    const plistPath = opts.plistPath || getTelemetryLaunchAgentPath();
+    if (fs.existsSync(plistPath)) {
+      if (!opts.skipLaunchctl) {
+        try {
+          const uid = process.getuid ? process.getuid() : 501;
+          execFileSync('launchctl', ['bootout', `gui/${uid}`, plistPath], { stdio: 'ignore' });
+        } catch {
+          try { execFileSync('launchctl', ['unload', plistPath], { stdio: 'ignore' }); } catch {}
+        }
+      }
+      try { fs.rmSync(plistPath, { force: true }); } catch {}
+      return { unscheduled: true, type: 'launchd' };
+    }
+    return { unscheduled: false, type: 'launchd' };
+  } else if (process.platform === 'linux') {
+    try {
+      const crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      const filtered = crontab.split('\n').filter(l => !(l.includes('thinker') && l.includes('telemetry'))).join('\n').trim();
+      if (filtered) {
+        execFileSync('crontab', ['-'], { input: filtered + '\n', encoding: 'utf8' });
+      } else {
+        execFileSync('crontab', ['-r'], { stdio: 'ignore' });
+      }
+      return { unscheduled: true, type: 'cron' };
+    } catch {
+      return { unscheduled: false, type: 'cron' };
+    }
+  }
+
+  return { unscheduled: false };
+}
+

@@ -20,7 +20,7 @@ import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath, tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
-import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendDailyTelemetryInBackground } from './telemetry.js';
+import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendTelemetryInBackground, maybeSendDailyTelemetryInBackground, scheduleTelemetry, unscheduleTelemetry, isTelemetryScheduled, getTelemetryLaunchAgentPath } from './telemetry.js';
 import { runOnboarding, stepPrBenchmark, selectAndAuthenticateAgent, getAgentLoginCommand, getAgentDisplayName, c } from './onboarding.js';
 import { batchProgress, oneLine } from './progress.js';
 
@@ -95,9 +95,9 @@ const HELP = `thinker — knowledge cache for coding agents
   branch                         show current branch or ref
   upgrade                        alias for update
   stats
-  telemetry [--send] [--json] [--force] [--event name]
+  telemetry [--send] [--json] [--force] [--event name] [--schedule] [--unschedule] [--status]
                                  cache effectiveness and size metrics sent to the metrics service;
-                                 no prompts, files, code or repo names are transmitted (THINKER_TELEMETRY=off disables)
+                                 --schedule / --unschedule manages hourly background telemetry
 `;
 
 async function main() {
@@ -107,7 +107,7 @@ async function main() {
   }
   if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup', 'init'].includes(cmd) && !flags.background) {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
-    maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
+    maybeSendTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
   }
 
   switch (cmd) {
@@ -274,6 +274,7 @@ async function main() {
     case 'uninstall': {
       // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge
       unscheduleDaily({ home: thinkerHome() });
+      unscheduleTelemetry({ home: thinkerHome() });
       uninstallClients(repo);
       const gh = path.join(repo, '.git', 'hooks', 'post-commit');
       if (fs.existsSync(gh) && fs.readFileSync(gh, 'utf8').includes('thinker')) fs.unlinkSync(gh);
@@ -554,6 +555,24 @@ async function main() {
       const endpoint = getTelemetryEndpoint({ home });
       const enabled = isTelemetryEnabled({ home, store });
 
+      if (flags.schedule || flags.hourly) {
+        const install = detectInstall(path.resolve(HERE, '..'), home);
+        try {
+          const res = scheduleTelemetry({ home, binPath: install.binPath });
+          out(`Scheduled hourly telemetry for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
+        } catch (e) {
+          out(`Failed to schedule hourly telemetry: ${e.message}`);
+        }
+        break;
+      }
+
+      if (flags.unschedule) {
+        const res = unscheduleTelemetry({ home });
+        if (res.unscheduled) out('Removed scheduled hourly telemetry for thinker.');
+        else out('No scheduled hourly telemetry was found.');
+        break;
+      }
+
       if (flags.background) {
         if (!enabled) return;
         await sendTelemetry({ home, store, endpoint, force: !!flags.force, event: flags.event });
@@ -579,8 +598,10 @@ async function main() {
         break;
       }
 
-      out('Thinker daily metrics:');
+      out('Thinker telemetry:');
       out(`  Status:       ${enabled ? 'enabled' : 'disabled (THINKER_TELEMETRY=off or config)'}`);
+      const sched = isTelemetryScheduled(home);
+      out(`  Schedule:     ${sched ? (process.platform === 'darwin' ? 'active (LaunchAgent: ' + getTelemetryLaunchAgentPath() + ')' : 'active (cron)') : 'inactive'}`);
       out(`  Endpoint:     ${endpoint}`);
       if (payload.event) out(`  Event:        ${payload.event}`);
       const stamp = path.join(home, 'state', 'telemetry.last');
@@ -595,7 +616,7 @@ async function main() {
       out(`  Effectiveness:${payload.effectiveness.requestsTotal} requests, ${payload.effectiveness.requestsAnswered} answered (${(payload.effectiveness.hitRate * 100).toFixed(1)}% hit rate)`);
       out(`  Confirmed:    ${payload.effectiveness.assessed.confirmed} of ${(payload.effectiveness.assessed.confirmed + payload.effectiveness.assessed.contradicted + payload.effectiveness.assessed.unused)} assessed (${(payload.effectiveness.assessed.confirmationRate * 100).toFixed(1)}%)`);
       out(`  Net tokens:   ${payload.effectiveness.estimatedSavings.netTokensSaved >= 0 ? '+' : ''}${payload.effectiveness.estimatedSavings.netTokensSaved.toLocaleString()} tokens saved (estimate)`);
-      out('\nUse `thinker telemetry --send` to transmit, or `--json` to view full payload.');
+      out('\nUse `thinker telemetry --send` to transmit, `--schedule` to enable hourly sending, or `--json` to view full payload.');
       break;
     }
     case 'benchmark': {
