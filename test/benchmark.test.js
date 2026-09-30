@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote, orient } from '../src/ops.js';
-import { benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from '../src/benchmark.js';
+import { benchmarkSuggestions, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark } from '../src/benchmark.js';
 
 const record = dir => ({
   version: 1, createdAt: '2026-09-28T00:00:00.000Z', repo: dir,
@@ -82,4 +84,28 @@ test('benchmark suggestions turn cached questions into alternative commands', ()
     'How does an upload move from authorization to persistence?',
     'Which names should upload helpers use?',
   ]);
+});
+
+const uploadRepo = () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-benchmark-first-'));
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  fs.mkdirSync(path.join(dir, 'src'));
+  fs.writeFileSync(path.join(dir, 'src/upload.js'), 'export function upload() { return true; }\n');
+  const store = new Store(dir).init();
+  createNote(store, { title: 'Upload request path', kind: 'callpath', answers: ['How does an upload move from authorization to persistence?'], body: 'Uploads run through src/upload.js:upload, which authorizes and persists.', deps: [{ path: 'src/upload.js', symbol: 'upload' }], confidence: 0.8 });
+  return { dir, store };
+};
+
+test('covered benchmark questions are ones orient actually serves notes for', async () => {
+  const { store } = uploadRepo();
+  assert.deepEqual(await coveredBenchmarkQuestions(store), ['How does an upload move from authorization to persistence?']);
+  assert.equal(store.list()[0].uses || 0, 0);
+});
+
+test('benchmark with no question lists ready-to-run covered questions without calling an agent', () => {
+  const { dir } = uploadRepo();
+  const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src/cli.js');
+  const text = execFileSync('node', [CLI, 'benchmark', '--repo', dir], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], env: { ...process.env, THINKER_LOG: 'off' } });
+  assert.match(text, /thinker benchmark run 'How does an upload move from authorization to persistence\?'/);
+  assert.equal(fs.existsSync(path.join(dir, '.thinker/benchmarks')), false);
 });

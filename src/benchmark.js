@@ -8,6 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { findBin } from './llm.js';
+import { orient } from './ops.js';
 
 const BINS = { claude: ['claude'], codex: ['codex'], cursor: ['agent', 'cursor-agent'], gemini: ['agy', 'gemini'] };
 
@@ -26,6 +27,19 @@ export function benchmarkSuggestions(store, limit = 3) {
     .filter(text => text.length >= 12 && text.length <= 180)
     .filter(text => { const key = text.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true; })
     .slice(0, limit);
+}
+
+// Suggestions the benchmark would actually run: orient must serve a note for
+// each, so a first-time user can pick one without guessing what is covered.
+// No reranking here: listing questions must not spend model usage.
+export async function coveredBenchmarkQuestions(store, limit = 3) {
+  const covered = [];
+  for (const question of benchmarkSuggestions(store, limit * 4)) {
+    const oriented = await orient(store, { task: question, budget: 1000, recordUsage: false, backgroundVerify: false, rerankModel: null });
+    if (oriented.included.length) covered.push(question);
+    if (covered.length >= limit) break;
+  }
+  return covered;
 }
 
 export function isAuthError(err) {
