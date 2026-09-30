@@ -1,4 +1,5 @@
 node_modules/
+.metrics-work/
 dist/
 *.log
 # benchmark scratch: cloned repos and per-run git worktrees (large, reproducible)
