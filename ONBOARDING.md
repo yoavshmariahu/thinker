@@ -63,10 +63,13 @@ When run in a new repository (either via `curl .../install.sh` or `thinker onboa
 After the cache is built or imported, you can benchmark on a recent PR change or any repository question anytime:
 
 ```bash
-# 1. Benchmark on a recent PR change
+# 1. Pick a question the cache covers (Enter takes the first), or type your own
+thinker benchmark
+
+# 2. Or benchmark a recent PR change
 thinker benchmark pr [number]
 
-# 2. Or run a question without and with Thinker context
+# Name a question directly
 thinker benchmark run "explain how an upload is authorized and persisted"
 
 # 3. Reprint the latest result later
