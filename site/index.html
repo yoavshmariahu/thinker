@@ -680,7 +680,7 @@
       <!-- State 2: Access Code Form -->
       <form class="inline-form" id="access-form" style="display: none;" onsubmit="handleAccessSubmit(event)">
         <div class="input-row">
-          <input type="text" id="access-code" class="form-input" placeholder="Enter access code" autocomplete="off" spellcheck="false" required>
+          <input type="password" id="access-code" class="form-input" placeholder="Enter access code" autocomplete="off" spellcheck="false" required>
           <button type="submit" class="btn-submit">Enter</button>
           <button type="button" class="btn-back" onclick="resetGate()" title="Back">✕</button>
         </div>
@@ -700,7 +700,7 @@
 
       <!-- State 4: Unlocked Install Command -->
       <div class="command-wrapper" id="command-view" style="display: none;">
-        <div class="install-instruction">Install in your repo</div>
+        <div class="install-instruction">Install in your repo · <a href="/docs.html">Read the docs</a></div>
         <div class="cmd-box">
           <code id="cmd"></code>
           <button class="btn-copy" id="copy-btn" onclick="copyInstall()">Copy</button>
@@ -830,7 +830,6 @@
   </div>
 
   <script>
-    const ACCESS_KEY = 'thinker101';
     const S3_INGEST_ENDPOINT = 'https://khsky10r4l.execute-api.us-east-1.amazonaws.com/metrics';
 
     function showAccessForm() {
@@ -868,36 +867,43 @@
       document.getElementById('waitlist-success').style.display = 'none';
     }
 
-    function handleAccessSubmit(e) {
+    const nextPath = new URLSearchParams(location.search).get('next');
+    const docsDestination = nextPath && /^\/docs(?:\.html|\/|$)/.test(nextPath) &&
+      !/[\\%]/.test(nextPath) && !nextPath.includes('..') ? nextPath : null;
+
+    async function handleAccessSubmit(e) {
       e.preventDefault();
       const input = document.getElementById('access-code');
       const err = document.getElementById('access-error');
-      const code = (input.value || '').trim();
-
-      if (code.toLowerCase() === ACCESS_KEY.toLowerCase()) {
-        err.style.display = 'none';
-        unlockInstall(code.toLowerCase());
-      } else {
-        err.textContent = 'Invalid access code';
+      const button = e.target.querySelector('button[type="submit"]');
+      button.disabled = true;
+      err.style.display = 'none';
+      try {
+        const res = await fetch('/access/session', {
+          headers: { 'X-Thinker-Access-Code': input.value.trim() },
+          credentials: 'same-origin', cache: 'no-store'
+        });
+        if (!res.ok) throw new Error(res.status === 401 ? 'Invalid access code' :
+          res.status === 429 ? 'Too many attempts. Please try again shortly.' : 'Unable to verify access. Please try again.');
+        const session = await res.json();
+        input.value = '';
+        if (docsDestination) location.assign(docsDestination + location.hash);
+        else unlockInstall(session.installCommand);
+      } catch (error) {
+        err.textContent = error.message || 'Unable to verify access. Please try again.';
         err.style.display = 'block';
         input.focus();
+      } finally {
+        button.disabled = false;
       }
     }
 
-    function unlockInstall(validCode) {
+    function unlockInstall(command) {
       document.getElementById('access-form').style.display = 'none';
       document.getElementById('waitlist-form').style.display = 'none';
       document.getElementById('btn-group').style.display = 'none';
-
-      const cmdEl = document.getElementById('cmd');
-      cmdEl.textContent = 'curl -fsSL https://zerotime.dev/' + encodeURIComponent(validCode) + '/install.sh | bash';
-
-      const view = document.getElementById('command-view');
-      view.style.display = 'flex';
-
-      try {
-        sessionStorage.setItem('thinker_access_code', validCode);
-      } catch (_) {}
+      document.getElementById('cmd').textContent = command;
+      document.getElementById('command-view').style.display = 'flex';
     }
 
     async function handleWaitlistSubmit(e) {
@@ -997,13 +1003,16 @@
       }
     });
 
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
+      try { sessionStorage.removeItem('thinker_access_code'); } catch (_) {}
+      if (docsDestination) showAccessForm();
       try {
-        const saved = sessionStorage.getItem('thinker_access_code');
-        if (saved && saved.toLowerCase() === ACCESS_KEY.toLowerCase()) {
-          unlockInstall(saved.toLowerCase());
-        }
-      } catch (_) {}
+        const res = await fetch('/access/session', { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) return;
+        const session = await res.json();
+        if (docsDestination) location.assign(docsDestination + location.hash);
+        else unlockInstall(session.installCommand);
+      } catch (_) { /* The access form remains available for retry. */ }
     });
   </script>
 </body>
