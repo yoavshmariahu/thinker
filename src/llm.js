@@ -145,13 +145,305 @@ export async function complete(opts) {
   throw lastError || new Error(`all model providers failed (${providers.join(' -> ')})`);
 }
 
-// Find the JSON object in a model's reply (it may be fenced or have text around it).
-export function extractJson(text) {
+// Find the JSON object in a model's reply (fenced, chatty, raw control characters, trailing commas, or truncated).
+export function extractJson(text, schema) {
   const t = String(text || '').trim();
-  const tries = [t, (t.match(/```(?:json)?\s*([\s\S]*?)```/) || [])[1]];
-  const a = t.indexOf('{'), b = t.lastIndexOf('}');
-  if (a >= 0 && b > a) tries.push(t.slice(a, b + 1));
-  for (const c of tries) { if (!c) continue; try { const j = JSON.parse(c); if (j && typeof j === 'object') return j; } catch {} }
+  if (!t) throw new Error('no JSON in the reply: (empty string)');
+
+  function postProcess(obj) {
+    if (!obj || typeof obj !== 'object') return null;
+    if (Array.isArray(obj) && schema?.properties) {
+      const keys = Object.keys(schema.properties);
+      if (keys.length === 1 && schema.properties[keys[0]]?.type === 'array') {
+        return { [keys[0]]: obj };
+      }
+      if (schema.properties.notes?.type === 'array') {
+        return { notes: obj };
+      }
+    }
+    return obj;
+  }
+
+  // 1. Direct try and standard fence/slice extraction
+  const tries = [
+    t,
+    (t.match(/```(?:json)?\s*([\s\S]*?)```/) || [])[1],
+  ];
+
+  const firstBrace = t.indexOf('{');
+  const lastBrace = t.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    tries.push(t.slice(firstBrace, lastBrace + 1));
+  }
+  const firstBracket = t.indexOf('[');
+  const lastBracket = t.lastIndexOf(']');
+  if (firstBracket !== -1 && lastBracket > firstBracket && (firstBrace === -1 || firstBracket < firstBrace)) {
+    tries.push(t.slice(firstBracket, lastBracket + 1));
+  }
+
+  for (const c of tries) {
+    if (!c) continue;
+    try {
+      const j = JSON.parse(c);
+      if (j && typeof j === 'object') return postProcess(j);
+    } catch {}
+  }
+
+  // 2. Lenient repair functions for LLM formatting quirks
+  function escapeControlsInStrings(s) {
+    let inString = false;
+    let escaped = false;
+    let out = '';
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (inString) {
+        if (escaped) { escaped = false; out += ch; }
+        else if (ch === '\\') { escaped = true; out += ch; }
+        else if (ch === '"') { inString = false; out += ch; }
+        else if (ch === '\n') { out += '\\n'; }
+        else if (ch === '\r') { out += '\\r'; }
+        else if (ch === '\t') { out += '\\t'; }
+        else {
+          const code = ch.charCodeAt(0);
+          if (code < 0x20) out += '\\u' + code.toString(16).padStart(4, '0');
+          else out += ch;
+        }
+      } else {
+        if (ch === '"') inString = true;
+        out += ch;
+      }
+    }
+    return out;
+  }
+
+  function stripComments(s) {
+    let inString = false;
+    let escaped = false;
+    let out = '';
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        out += ch;
+      } else {
+        if (ch === '"') {
+          inString = true;
+          out += ch;
+        } else if (ch === '/' && s[i + 1] === '/') {
+          i += 2;
+          while (i < s.length && s[i] !== '\n' && s[i] !== '\r') i++;
+          if (i < s.length) out += s[i];
+        } else if (ch === '/' && s[i + 1] === '*') {
+          i += 2;
+          while (i < s.length - 1 && !(s[i] === '*' && s[i + 1] === '/')) i++;
+          i++;
+        } else {
+          out += ch;
+        }
+      }
+    }
+    return out;
+  }
+
+  function stripTrailingCommas(s) {
+    let inString = false;
+    let escaped = false;
+    let out = '';
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        out += ch;
+      } else {
+        if (ch === '"') { inString = true; out += ch; }
+        else if (ch === ',') {
+          let j = i + 1;
+          while (j < s.length && /\s/.test(s[j])) j++;
+          if (j < s.length && (s[j] === '}' || s[j] === ']')) continue;
+          out += ch;
+        } else {
+          out += ch;
+        }
+      }
+    }
+    return out;
+  }
+
+  function normalizeLiterals(s) {
+    let inString = false;
+    let escaped = false;
+    let out = '';
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        out += ch;
+      } else {
+        if (ch === '"') {
+          inString = true;
+          out += ch;
+        } else if (s.slice(i, i + 4) === 'True' && !/[a-zA-Z0-9_$]/.test(s[i - 1] || '') && !/[a-zA-Z0-9_$]/.test(s[i + 4] || '')) {
+          out += 'true'; i += 3;
+        } else if (s.slice(i, i + 5) === 'False' && !/[a-zA-Z0-9_$]/.test(s[i - 1] || '') && !/[a-zA-Z0-9_$]/.test(s[i + 5] || '')) {
+          out += 'false'; i += 4;
+        } else if (s.slice(i, i + 4) === 'None' && !/[a-zA-Z0-9_$]/.test(s[i - 1] || '') && !/[a-zA-Z0-9_$]/.test(s[i + 4] || '')) {
+          out += 'null'; i += 3;
+        } else {
+          out += ch;
+        }
+      }
+    }
+    return out;
+  }
+
+  function convertSingleQuotes(s) {
+    let inDouble = false;
+    let inSingle = false;
+    let escaped = false;
+    let out = '';
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (inDouble) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inDouble = false;
+        out += ch;
+      } else if (inSingle) {
+        if (escaped) { escaped = false; out += ch; }
+        else if (ch === '\\') { escaped = true; out += ch; }
+        else if (ch === "'") { inSingle = false; out += '"'; }
+        else if (ch === '"') { out += '\\"'; }
+        else { out += ch; }
+      } else {
+        if (ch === '"') { inDouble = true; out += ch; }
+        else if (ch === "'") { inSingle = true; out += '"'; }
+        else { out += ch; }
+      }
+    }
+    return out;
+  }
+
+  function quoteKeys(s) {
+    let inString = false;
+    let escaped = false;
+    let out = '';
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+        out += ch;
+      } else {
+        if (ch === '"') {
+          inString = true;
+          out += ch;
+        } else if (ch === '{' || ch === ',') {
+          out += ch;
+          let j = i + 1;
+          while (j < s.length && /\s/.test(s[j])) { out += s[j]; j++; }
+          if (j < s.length && /[a-zA-Z0-9_$]/.test(s[j])) {
+            let k = j;
+            while (k < s.length && /[a-zA-Z0-9_$]/.test(s[k])) k++;
+            let m = k;
+            while (m < s.length && /\s/.test(s[m])) m++;
+            if (m < s.length && s[m] === ':') {
+              const key = s.slice(j, k);
+              out += '"' + key + '"' + s.slice(k, m + 1);
+              i = m;
+            }
+          }
+        } else {
+          out += ch;
+        }
+      }
+    }
+    return out;
+  }
+
+  function tryParse(s) {
+    try {
+      const j = JSON.parse(s);
+      if (j && typeof j === 'object') return postProcess(j);
+    } catch {}
+    return null;
+  }
+
+  const startIdx = firstBrace !== -1 && (firstBracket === -1 || firstBrace <= firstBracket) ? firstBrace : firstBracket;
+  const rawCandidate = startIdx !== -1 ? t.slice(startIdx) : t;
+
+  let cleaned = stripComments(rawCandidate);
+  cleaned = escapeControlsInStrings(cleaned);
+  cleaned = stripTrailingCommas(cleaned);
+  let res = tryParse(cleaned);
+  if (res) return res;
+
+  cleaned = normalizeLiterals(cleaned);
+  res = tryParse(cleaned);
+  if (res) return res;
+
+  let withQuotedKeys = quoteKeys(cleaned);
+  withQuotedKeys = stripTrailingCommas(withQuotedKeys);
+  res = tryParse(withQuotedKeys);
+  if (res) return res;
+
+  let withDoubleQuotes = convertSingleQuotes(cleaned);
+  withDoubleQuotes = stripTrailingCommas(withDoubleQuotes);
+  res = tryParse(withDoubleQuotes);
+  if (res) return res;
+
+  res = tryParse(quoteKeys(withDoubleQuotes));
+  if (res) return res;
+
+  // 3. Truncated JSON recovery
+  function tryClose(text) {
+    let inString = false;
+    let escaped = false;
+    const stack = [];
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+      } else {
+        if (ch === '"') inString = true;
+        else if (ch === '{' || ch === '[') stack.push(ch === '{' ? '}' : ']');
+        else if (ch === '}' || ch === ']') {
+          if (stack.length && stack[stack.length - 1] === ch) stack.pop();
+        }
+      }
+    }
+    let r = text;
+    if (inString) r += '"';
+    r = stripTrailingCommas(r);
+    while (stack.length) r += stack.pop();
+    return tryParse(r);
+  }
+
+  function tryRecoverCutoff(text) {
+    let lastObj = text.lastIndexOf('}');
+    while (lastObj > (startIdx !== -1 ? 0 : -1)) {
+      const sub = text.slice(0, lastObj + 1);
+      const repaired = tryClose(sub);
+      if (repaired) return repaired;
+      lastObj = text.lastIndexOf('}', lastObj - 1);
+    }
+    return null;
+  }
+
+  const trunc1 = tryClose(cleaned);
+  if (trunc1) return trunc1;
+
+  const trunc2 = tryRecoverCutoff(cleaned);
+  if (trunc2) return trunc2;
+
   throw new Error('no JSON in the reply: ' + t.slice(0, 300));
 }
 
@@ -220,7 +512,7 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
       }
     }
     onUsage({ usage, cost });
-    return { text, json: schema ? extractJson(text) : null, usage, cost, provider: p };
+    return { text, json: schema ? extractJson(text, schema) : null, usage, cost, provider: p };
   } finally { if (p !== 'cursor') try { fs.rmSync(cwd, { recursive: true, force: true }); } catch {} }
 }
 

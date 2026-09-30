@@ -131,6 +131,59 @@ test('extractJson finds the object in fenced or chatty replies', () => {
   assert.throws(() => extractJson('no json here'));
 });
 
+test('extractJson supports ambiguous and malformed data formats', () => {
+  // 1. Raw unescaped newlines and tabs inside string literals
+  const rawMultiline = '{"notes": [{"title": "Multiline note", "body": "Symptom: crash\nRoot cause: null pointer\r\nFix: add check\t(done)"}]}';
+  const parsedMultiline = extractJson(rawMultiline);
+  assert.equal(parsedMultiline.notes[0].title, 'Multiline note');
+  assert.equal(parsedMultiline.notes[0].body, 'Symptom: crash\nRoot cause: null pointer\r\nFix: add check\t(done)');
+
+  // 2. Trailing commas in objects and arrays
+  const trailingCommas = '{"notes": [{"title": "Trailing", "tags": ["a", "b",],},],}';
+  assert.deepEqual(extractJson(trailingCommas), { notes: [{ title: 'Trailing', tags: ['a', 'b'] }] });
+
+  // 3. Comments (inline and block)
+  const withComments = '{\n// Notes list\n"notes": [\n/* comment */\n{"title": "http://example.com"}\n]\n}';
+  assert.deepEqual(extractJson(withComments), { notes: [{ title: 'http://example.com' }] });
+
+  // 4. Python literals (True, False, None)
+  const pyLiterals = '{"notes": [{"title": "Pythonic", "valid": True, "stale": False, "extra": None}]}';
+  assert.deepEqual(extractJson(pyLiterals), { notes: [{ title: 'Pythonic', valid: true, stale: false, extra: null }] });
+
+  // 5. Single-quoted strings
+  const singleQuoted = "{ 'notes': [{ 'title': 'Single Quote', 'kind': 'fix' }] }";
+  assert.deepEqual(extractJson(singleQuoted), { notes: [{ title: 'Single Quote', kind: 'fix' }] });
+
+  // 6. Unquoted object keys
+  const unquotedKeys = '{ notes: [{ title: "Unquoted", kind: "invariant" }] }';
+  assert.deepEqual(extractJson(unquotedKeys), { notes: [{ title: 'Unquoted', kind: 'invariant' }] });
+
+  // 7. Truncated mid-string recovery
+  const truncatedString = '{"notes": [{"title": "Complete 1", "kind": "fix"}, {"title": "Cut off", "body": "some incomplete text';
+  const parsedTruncStr = extractJson(truncatedString);
+  assert.equal(parsedTruncStr.notes.length, 2);
+  assert.equal(parsedTruncStr.notes[0].title, 'Complete 1');
+  assert.equal(parsedTruncStr.notes[1].body, 'some incomplete text');
+
+  // 8. Truncated mid-key recovery (falls back to last complete element)
+  const truncatedKey = '{"notes": [{"title": "Complete 1", "kind": "fix"}, {"tit';
+  const parsedTruncKey = extractJson(truncatedKey);
+  assert.equal(parsedTruncKey.notes.length, 1);
+  assert.equal(parsedTruncKey.notes[0].title, 'Complete 1');
+
+  // 9. Exact real-world PR mining failure recovery
+  const prMiningError = '{"notes":[{"title":"Configurable separator for flattened keys","kind":"convention","answers":["How do I change the separator in flattened keys?","Can the flatten processor join nested keys with underscores?","Why are nested field names separated by dots?"],"body":"The separator is configured as `fla';
+  const parsedPrMining = extractJson(prMiningError);
+  assert.equal(parsedPrMining.notes[0].title, 'Configurable separator for flattened keys');
+  assert.equal(parsedPrMining.notes[0].kind, 'convention');
+  assert.equal(parsedPrMining.notes[0].body, 'The separator is configured as `fla');
+
+  // 10. Schema array post-processing
+  const rawArray = '[{"title": "Note in array", "kind": "howto"}]';
+  const parsedArray = extractJson(rawArray, { properties: { notes: { type: 'array' } } });
+  assert.deepEqual(parsedArray, { notes: [{ title: 'Note in array', kind: 'howto' }] });
+});
+
 test('findSessions finds each agent\'s sessions for the repo, and traces without a transcript', () => {
   const home = tmp(), repo = path.join(tmp(), 'my.repo');
   fs.mkdirSync(repo);
