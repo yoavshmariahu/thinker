@@ -174,8 +174,12 @@ if (mode === 'prepare') {
     aws(['s3api', 'get-object', '--bucket', config.bucket, '--key', key, save('backup-' + key.replaceAll('/', '-'), '')], config.bucketRegion);
   }
   aws(['cloudfront', 'publish-function', '--name', config.functionName, '--if-match', plan.functionEtag]);
-  if (!edgeOnly) aws(['cloudfront', 'update-distribution', '--id', config.distributionId, '--if-match', plan.distributionEtag,
-    '--distribution-config', 'file://' + path.join(work, 'distribution-after.json')]);
+  const plannedDist = JSON.parse(fs.readFileSync(path.join(work, 'distribution-after.json')));
+  if (!edgeOnly && JSON.stringify(canonical(current.DistributionConfig)) !== JSON.stringify(canonical(plannedDist))) {
+    const liveDist = aws(['cloudfront', 'get-distribution-config', '--id', config.distributionId]);
+    aws(['cloudfront', 'update-distribution', '--id', config.distributionId, '--if-match', liveDist.ETag,
+      '--distribution-config', 'file://' + path.join(work, 'distribution-after.json')]);
+  }
   if (!edgeOnly) for (const [key, file] of [['index.html', 'site/index.html'], ['docs.html', 'site/docs.html'], ['docs/index.html', 'site/docs.html']]) {
     aws(['s3api', 'put-object', '--bucket', config.bucket, '--key', key, '--body', path.join(root, file),
       '--content-type', 'text/html; charset=utf-8', '--cache-control', 'private, no-store'], config.bucketRegion);
