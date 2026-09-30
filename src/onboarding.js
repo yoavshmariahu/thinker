@@ -3,7 +3,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import readline from 'node:readline/promises';
+import readline from 'node:readline';
+import readlinePromises from 'node:readline/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { Store, gitHead } from './store.js';
 import { orient, linkNotes, phraseNotes } from './ops.js';
@@ -288,6 +289,238 @@ export function checkAgentAuth(agent, { timeout = 5000, env = process.env, spawn
   return { agent, installed: true, authenticated: false, details: 'Unknown status', loginCmd };
 }
 
+/**
+ * Interactive menu that supports navigating with arrow keys (↑/↓) and Enter to select,
+ * with graceful fallback to numbered prompt in non-TTY or test environments.
+ */
+export async function selectMenu({
+  header = '',
+  hint = 'Use ↑/↓ to navigate, Enter to select:',
+  items = [],
+  defaultIndex = 0,
+  out = console.log,
+  readlineFn = null,
+  stdin = process.stdin,
+  stdout = process.stdout,
+  clearOnSelect = true,
+} = {}) {
+  if (!items.length) return null;
+
+  const isInteractiveTTY = !readlineFn && Boolean(stdin && stdin.isTTY && stdout && (stdout.isTTY || typeof stdout.write === 'function'));
+
+  if (isInteractiveTTY) {
+    if (header) out(header);
+
+    let selectedIndex = defaultIndex >= 0 && defaultIndex < items.length ? defaultIndex : 0;
+    const initialLines = 1 + items.length;
+
+    const renderLines = () => {
+      return [
+        `  ${c.dim(hint)}`,
+        ...items.map((item, idx) => {
+          const isSelected = idx === selectedIndex;
+          if (isSelected) {
+            return `  ${c.cyan('❯')} ${c.bold(item.label)}`;
+          }
+          return `    ${item.label}`;
+        }),
+      ];
+    };
+
+    const lines = renderLines();
+    for (const l of lines) {
+      stdout.write(l + '\n');
+    }
+
+    readline.emitKeypressEvents(stdin);
+    const wasRaw = stdin.isRaw;
+    if (typeof stdin.setRawMode === 'function') {
+      try { stdin.setRawMode(true); } catch {}
+    }
+    try { stdin.resume(); } catch {}
+    try { stdout.write('\x1b[?25l'); } catch {}
+
+    let cleanedUp = false;
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      try { stdout.write('\x1b[?25h'); } catch {}
+      if (typeof stdin.setRawMode === 'function') {
+        try { stdin.setRawMode(wasRaw || false); } catch {}
+      }
+      try { stdin.pause(); } catch {}
+    };
+
+    return new Promise((resolve) => {
+      const redraw = () => {
+        try {
+          if (typeof readline.moveCursor === 'function') {
+            readline.moveCursor(stdout, 0, -initialLines);
+          } else {
+            stdout.write(`\x1b[${initialLines}A`);
+          }
+          if (typeof readline.cursorTo === 'function') {
+            readline.cursorTo(stdout, 0);
+          } else {
+            stdout.write('\x1b[1G');
+          }
+          if (typeof readline.clearScreenDown === 'function') {
+            readline.clearScreenDown(stdout);
+          } else {
+            stdout.write('\x1b[J');
+          }
+          const updatedLines = renderLines();
+          for (const l of updatedLines) {
+            stdout.write(l + '\n');
+          }
+        } catch {}
+      };
+
+      const finish = (result) => {
+        stdin.removeListener('keypress', onKeypress);
+        process.removeListener('SIGINT', sigintHandler);
+        cleanup();
+        if (clearOnSelect) {
+          try {
+            if (typeof readline.moveCursor === 'function') {
+              readline.moveCursor(stdout, 0, -initialLines);
+            } else {
+              stdout.write(`\x1b[${initialLines}A`);
+            }
+            if (typeof readline.cursorTo === 'function') {
+              readline.cursorTo(stdout, 0);
+            } else {
+              stdout.write('\x1b[1G');
+            }
+            if (typeof readline.clearScreenDown === 'function') {
+              readline.clearScreenDown(stdout);
+            } else {
+              stdout.write('\x1b[J');
+            }
+          } catch {}
+        }
+        resolve(result);
+      };
+
+      const sigintHandler = () => {
+        finish(null);
+        process.exit(130);
+      };
+      process.once('SIGINT', sigintHandler);
+
+      const onKeypress = (str, key) => {
+        if (!key) {
+          if (str === '\r' || str === '\n') {
+            return finish(items[selectedIndex]);
+          }
+          return;
+        }
+
+        if (key.ctrl && key.name === 'c') {
+          return sigintHandler();
+        }
+
+        if (key.name === 'up' || (key.name === 'k' && !items.some(it => it.key === 'k'))) {
+          selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+          redraw();
+          return;
+        }
+
+        if (key.name === 'down' || (key.name === 'j' && !items.some(it => it.key === 'j'))) {
+          selectedIndex = (selectedIndex + 1) % items.length;
+          redraw();
+          return;
+        }
+
+        if (key.name === 'return' || key.name === 'enter') {
+          return finish(items[selectedIndex]);
+        }
+
+        if (key.name === 'escape') {
+          const exitItem = items.find(it => it.key === 'e' || it.value === 'exit' || (it.value && it.value.action === 'exit'));
+          if (exitItem) return finish(exitItem);
+          return finish(null);
+        }
+
+        // Direct key shortcut matching (e.g. '1', '2', 's', 'e')
+        const char = str ? str.toLowerCase() : (key.name ? key.name.toLowerCase() : null);
+        if (char) {
+          const matchIdx = items.findIndex(it => {
+            if (it.key && it.key.toLowerCase() === char) return true;
+            if (typeof it.value === 'string' && it.value.toLowerCase() === char) return true;
+            return false;
+          });
+          if (matchIdx !== -1) {
+            selectedIndex = matchIdx;
+            redraw();
+            return finish(items[selectedIndex]);
+          }
+        }
+      };
+
+      stdin.on('keypress', onKeypress);
+    });
+  }
+
+  // Non-interactive or test fallback with readline question
+  if (header) out(header);
+  items.forEach((item, idx) => {
+    const keyPrefix = item.key ? `${item.key}) ` : `${idx + 1}) `;
+    out(`    ${keyPrefix}${item.label}`);
+  });
+  out('');
+
+  const defaultItem = defaultIndex >= 0 && defaultIndex < items.length ? items[defaultIndex] : items[0];
+  const defaultNum = (defaultIndex >= 0 ? defaultIndex : 0) + 1;
+  const promptText = `  Select [1-${items.length}, default: ${defaultNum}]: `;
+
+  const rl = readlineFn ? readlineFn() : readlinePromises.createInterface({ input: stdin, output: stdout });
+  let answer = '';
+  try {
+    answer = (await rl.question(promptText)) || '';
+  } finally {
+    rl.close();
+  }
+
+  const trimmed = answer.trim();
+  if (!trimmed) {
+    return defaultItem;
+  }
+
+  // Check numeric index
+  const num = parseInt(trimmed, 10);
+  if (!Number.isNaN(num) && num >= 1 && num <= items.length) {
+    return items[num - 1];
+  }
+
+  // Check matching key
+  const byKey = items.find(it => it.key && it.key.toLowerCase() === trimmed.toLowerCase());
+  if (byKey) return byKey;
+
+  // Check skip shortcut
+  if (/^s(kip)?$/i.test(trimmed) || /^y(es)?$/i.test(trimmed)) {
+    const skipItem = items.find(it => it.key === 's' || (it.value && it.value.action === 'skip'));
+    if (skipItem) return skipItem;
+  }
+
+  // Check exit shortcut
+  if (/^e(xit)?$/i.test(trimmed)) {
+    const exitItem = items.find(it => it.key === 'e' || it.value === 'exit' || (it.value && it.value.action === 'exit'));
+    if (exitItem) return exitItem;
+  }
+
+  // Check matching value or name
+  const byVal = items.find(it => {
+    if (typeof it.value === 'string' && it.value.toLowerCase() === trimmed.toLowerCase()) return true;
+    if (it.name && (it.name.toLowerCase() === trimmed.toLowerCase() || it.name.toLowerCase().includes(trimmed.toLowerCase()))) return true;
+    if (typeof it.value === 'object' && it.value && it.value.agent && it.value.agent.toLowerCase() === trimmed.toLowerCase()) return true;
+    return false;
+  });
+  if (byVal) return byVal;
+
+  return defaultItem;
+}
+
 export async function selectAndAuthenticateAgent({
   requestedAgent = null,
   clients = [],
@@ -296,12 +529,14 @@ export async function selectAndAuthenticateAgent({
   checkAuthFn = checkAgentAuth,
   execFileFn = execFileSync,
   readlineFn = null,
+  stdin = process.stdin,
+  stdout = process.stdout,
   purpose = 'build the knowledge cache',
   actionName = 'subsystem exploration',
   allowSkip = false,
 } = {}) {
   const installedAgents = BUILD_AGENTS.filter(ag => Boolean(findBin(BINS[ag] || [])));
-  const isInteractive = !yes && (Boolean(readlineFn) || Boolean(process.stdin.isTTY));
+  const isInteractive = !yes && (Boolean(readlineFn) || Boolean(stdin && stdin.isTTY));
 
   let selectedAgent = requestedAgent;
 
@@ -346,35 +581,34 @@ export async function selectAndAuthenticateAgent({
       selectedAgent = agentStatuses[defaultIdx].agent;
       out(`  ${c.cyan('•')} Selected agent: ${c.bold(agentStatuses[defaultIdx].name)} (${selectedAgent})`);
     } else {
-      out(`  ${c.bold(`Available agents to ${purpose}:`)}`);
-      agentStatuses.forEach((s, idx) => {
-        const num = idx + 1;
+      const items = agentStatuses.map((s, idx) => {
         const isDefault = idx === defaultIdx;
         const authTag = s.auth.authenticated
           ? c.green(`Signed in${s.auth.account ? ` (${s.auth.account})` : ''}`)
           : c.yellow('⚠ Not signed in');
         const recTag = isDefault ? c.dim(' [recommended]') : '';
-        out(`    ${num}) ${s.name.padEnd(20)} (${s.agent}) · ${authTag}${recTag}`);
+        return {
+          label: `${s.name.padEnd(20)} (${s.agent}) · ${authTag}${recTag}`,
+          value: s.agent,
+          key: String(idx + 1),
+          name: s.name,
+        };
       });
-      out('');
 
-      const rl = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
-      const promptText = `  Select an agent [1-${agentStatuses.length}, default: ${defaultIdx + 1}]: `;
-      const answer = await rl.question(promptText);
-      rl.close();
+      const selectedItem = await selectMenu({
+        header: `  ${c.bold(`Available agents to ${purpose}:`)}`,
+        hint: 'Use ↑/↓ to navigate, Enter to select:',
+        items,
+        defaultIndex: defaultIdx,
+        out,
+        readlineFn,
+        stdin,
+        stdout,
+      });
 
-      const trimmed = answer.trim();
-      let chosenIdx = defaultIdx;
-      if (trimmed) {
-        const parsedNum = parseInt(trimmed, 10);
-        if (!Number.isNaN(parsedNum) && parsedNum >= 1 && parsedNum <= agentStatuses.length) {
-          chosenIdx = parsedNum - 1;
-        } else {
-          const byName = agentStatuses.findIndex(s => s.agent.toLowerCase() === trimmed.toLowerCase() || s.name.toLowerCase().includes(trimmed.toLowerCase()));
-          if (byName !== -1) chosenIdx = byName;
-        }
-      }
-      selectedAgent = agentStatuses[chosenIdx].agent;
+      selectedAgent = selectedItem ? selectedItem.value : agentStatuses[defaultIdx].agent;
+      const chosenStatus = agentStatuses.find(s => s.agent === selectedAgent) || agentStatuses[defaultIdx];
+      out(`  ${c.cyan('•')} Selected agent: ${c.bold(chosenStatus.name)} (${selectedAgent})\n`);
     }
   }
 
@@ -407,7 +641,7 @@ export async function selectAndAuthenticateAgent({
   }
 
   // Interactive mode: ask user to sign in
-  const rl = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
+  const rl = readlineFn ? readlineFn() : readlinePromises.createInterface({ input: stdin, output: stdout });
   const askSignIn = await rl.question(`  Would you like to sign in to ${agentName} now? [Y/n] `);
   rl.close();
 
@@ -433,56 +667,73 @@ export async function selectAndAuthenticateAgent({
 
   const otherAgents = installedAgents.filter(a => a !== selectedAgent);
   if (otherAgents.length > 0) {
-    out(`\n  ${c.bold('Choose another tool or exit:')}`);
     const agentStatuses = otherAgents.map(ag => {
       const aAuth = checkAuthFn(ag);
       const name = getAgentDisplayName(ag, findBin(BINS[ag] || []));
       return { agent: ag, name, auth: aAuth };
     });
 
-    agentStatuses.forEach((s, idx) => {
-      const authTag = s.auth.authenticated
-        ? c.green(`Signed in${s.auth.account ? ` (${s.auth.account})` : ''}`)
-        : c.yellow('⚠ Not signed in');
-      out(`    ${idx + 1}) ${s.name.padEnd(20)} (${s.agent}) · ${authTag}`);
-    });
+    const items = [
+      ...agentStatuses.map((s, idx) => {
+        const authTag = s.auth.authenticated
+          ? c.green(`Signed in${s.auth.account ? ` (${s.auth.account})` : ''}`)
+          : c.yellow('⚠ Not signed in');
+        return {
+          label: `${s.name.padEnd(20)} (${s.agent}) · ${authTag}`,
+          value: { action: 'switch', agent: s.agent },
+          key: String(idx + 1),
+          name: s.name,
+        };
+      }),
+    ];
+
     if (allowSkip) {
       const skipLabel = actionName === 'subsystem exploration' || actionName === 'agent exploration'
         ? 'Proceed without agent exploration (co-change patterns only)'
         : `Proceed without ${actionName}`;
-      out(`    s) ${skipLabel}`);
+      items.push({
+        label: skipLabel,
+        value: { action: 'skip' },
+        key: 's',
+        name: skipLabel,
+      });
     }
-    out(`    e) Exit\n`);
 
-    const rl2 = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
-    const promptSuffix = allowSkip ? `, s to skip, e to exit` : `, e to exit`;
-    const choice = (await rl2.question(`  Select a tool [1-${agentStatuses.length}${promptSuffix}]: `)).trim();
-    rl2.close();
+    items.push({
+      label: 'Exit',
+      value: { action: 'exit' },
+      key: 'e',
+      name: 'Exit',
+    });
 
-    if (allowSkip && (/^s(kip)?$/i.test(choice) || /^y(es)?$/i.test(choice))) {
+    const selectedItem = await selectMenu({
+      header: `\n  ${c.bold('Choose another tool or exit:')}`,
+      hint: 'Use ↑/↓ to navigate, Enter to select:',
+      items,
+      defaultIndex: 0,
+      out,
+      readlineFn,
+      stdin,
+      stdout,
+    });
+
+    const choice = selectedItem ? selectedItem.value : { action: 'exit' };
+
+    if (choice.action === 'skip') {
       out(`  Proceeding with ${actionName} skipped.\n`);
       return { ok: true, agent: selectedAgent, skipExploration: true, skip: true };
     }
 
-    if (!choice || /^e(xit)?$/i.test(choice)) {
+    if (choice.action === 'exit') {
       const pausedPrefix = purpose === 'run the benchmark' ? 'Benchmark paused.' : 'Setup paused.';
       out(`\n  ${c.yellow('○')} ${pausedPrefix} Exit requested by user.\n`);
       return { ok: false, agent: selectedAgent, error: 'cancelled', exit: true };
     }
 
-    let chosen = null;
-    const num = parseInt(choice, 10);
-    if (!isNaN(num) && num >= 1 && num <= agentStatuses.length) {
-      chosen = agentStatuses[num - 1].agent;
-    } else {
-      const found = agentStatuses.find(s => s.agent.toLowerCase() === choice.toLowerCase() || s.name.toLowerCase().includes(choice.toLowerCase()));
-      if (found) chosen = found.agent;
-    }
-
-    if (chosen) {
-      out(`\n  Switched to ${c.bold(getAgentDisplayName(chosen))} (${chosen}).\n`);
+    if (choice.action === 'switch' && choice.agent) {
+      out(`\n  Switched to ${c.bold(getAgentDisplayName(choice.agent))} (${choice.agent}).\n`);
       return selectAndAuthenticateAgent({
-        requestedAgent: chosen,
+        requestedAgent: choice.agent,
         clients,
         yes: false,
         out,
@@ -492,6 +743,8 @@ export async function selectAndAuthenticateAgent({
         purpose,
         actionName,
         allowSkip,
+        stdin,
+        stdout,
       });
     } else {
       const pausedPrefix = purpose === 'run the benchmark' ? 'Benchmark paused.' : 'Setup paused.';
@@ -501,7 +754,7 @@ export async function selectAndAuthenticateAgent({
   }
 
   if (allowSkip) {
-    const rl3 = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
+    const rl3 = readlineFn ? readlineFn() : readlinePromises.createInterface({ input: stdin, output: stdout });
     const skipPrompt = actionName === 'subsystem exploration' || actionName === 'agent exploration'
       ? '  Proceed without agent exploration (co-change patterns only)? [Y/n] '
       : `  Proceed without ${actionName}? [Y/n] `;
@@ -547,18 +800,19 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
   const mineSource = canMineGh ? 'github' : (canMineGit ? 'git' : null);
   const canSeed = Boolean(!noSeed && agent && areas > 0 && candidateAreas.length > 0);
 
-  // Co-change mining timing estimate
-  const cochangeSec = commitCount > 500 ? 2.5 : (commitCount > 50 ? 1.5 : 0.5);
+  // Co-change mining timing estimate (~2-15s based on commit history)
+  const cochangeSec = commitCount > 2000 ? 15 : (commitCount > 500 ? 10 : (commitCount > 50 ? 5 : 2));
 
-  // PR mining timing estimate (~2s per PR)
-  const prsCount = canMine ? Math.min(prs, 40) : 0;
-  const prsSec = canMine ? Math.round(prsCount * 2.2) : 0;
+  // PR mining timing estimate (~8.5s per PR for diff fetch + LLM distillation)
+  const prsCount = canMine ? Math.min(prs, 50) : 0;
+  const prsSec = canMine ? Math.round(prsCount * 8.5) : 0;
 
-  // Area exploration timing estimate (~12s per area)
+  // Area exploration timing estimate (~55s per area for multi-turn agent exploration)
   const areasCount = canSeed ? Math.min(areas, candidateAreas.length) : 0;
-  const areasSec = canSeed ? Math.round(areasCount * 12) : 0;
+  const areasSec = canSeed ? Math.round(areasCount * 55) : 0;
 
-  const indexingSec = 3;
+  // Indexing, linking, and note phrasing timing estimate
+  const indexingSec = Math.max(8, Math.round((areasCount * 2.5 + prsCount * 1.5) * 0.25));
   const totalSec = cochangeSec + prsSec + areasSec + indexingSec;
 
   // Size estimates
@@ -657,7 +911,7 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
       if (client === 'codex' && (hooks || mcp) && !noTrust) {
         let ok = Boolean(yes);
         if (!ok && process.stdin.isTTY) {
-          const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+          const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout });
           const a = await rl.question(`  Codex: Mark repository as trusted and hooks as reviewed in ~/.codex/config.toml? [Y/n] `);
           rl.close();
           ok = !/^n/i.test(a.trim());
@@ -734,7 +988,7 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
   out('');
 
   if (!yes && estimates.timing.totalSeconds > 10 && process.stdin.isTTY) {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout });
     const a = await rl.question(`  Proceed with building the cache? [Y/n] `);
     rl.close();
     if (/^n/i.test(a.trim())) {
@@ -1115,7 +1369,7 @@ export async function stepPrBenchmark({
     if (yes) {
       shouldRun = true;
     } else if (readlineFn || process.stdin.isTTY) {
-      const rl = readlineFn ? readlineFn() : readline.createInterface({ input: process.stdin, output: process.stdout });
+      const rl = readlineFn ? readlineFn() : readlinePromises.createInterface({ input: process.stdin, output: process.stdout });
       const a = await rl.question(`  Run paired benchmark on this PR change? [Y/n] `);
       rl.close();
       shouldRun = !/^n/i.test(a.trim());

@@ -21,7 +21,7 @@ import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath, tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendTelemetryInBackground, maybeSendDailyTelemetryInBackground, scheduleTelemetry, unscheduleTelemetry, isTelemetryScheduled, getTelemetryLaunchAgentPath } from './telemetry.js';
-import { runOnboarding, stepPrBenchmark, selectAndAuthenticateAgent, getAgentLoginCommand, getAgentDisplayName, c } from './onboarding.js';
+import { runOnboarding, stepPrBenchmark, selectAndAuthenticateAgent, selectMenu, getAgentLoginCommand, getAgentDisplayName, c } from './onboarding.js';
 import { batchProgress, oneLine } from './progress.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -1017,13 +1017,28 @@ async function seed({ areas, model, dry, prompts, agent }) {
       const otherAgents = available().filter(ag => ag !== activeAgent && ['claude', 'gemini', 'codex', 'cursor'].includes(ag));
       if (process.stdin.isTTY && !flags.yes && otherAgents.length) {
         out(`        ${getAgentDisplayName(activeAgent)} failed: ${oneLine(cleanErrorMessage(r.error)).slice(0, 120)}`);
-        out('        Choose another agent to retry this area, or exit:');
-        otherAgents.forEach((ag, idx) => out(`        ${idx + 1}) ${getAgentDisplayName(ag)}`));
-        const rl = (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout });
-        let answer;
-        try { answer = (await rl.question(`  Select [1-${otherAgents.length}, e to exit]: `)).trim(); }
-        finally { rl.close(); }
-        const chosen = otherAgents[Number(answer) - 1] || (answer && otherAgents.find(ag => ag === answer.toLowerCase() || getAgentDisplayName(ag).toLowerCase().includes(answer.toLowerCase())));
+        const items = [
+          ...otherAgents.map((ag, idx) => ({
+            label: getAgentDisplayName(ag),
+            value: ag,
+            key: String(idx + 1),
+            name: getAgentDisplayName(ag),
+          })),
+          {
+            label: 'Exit',
+            value: 'exit',
+            key: 'e',
+            name: 'Exit',
+          },
+        ];
+        const selected = await selectMenu({
+          header: '        Choose another agent to retry this area, or exit:',
+          hint: 'Use ↑/↓ to navigate, Enter to select:',
+          items,
+          defaultIndex: 0,
+          out,
+        });
+        const chosen = selected && selected.value !== 'exit' ? selected.value : null;
         if (chosen) {
           activeAgent = chosen;
           process.env.THINKER_LLM = chosen;

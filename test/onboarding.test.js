@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { Store } from '../src/store.js';
 import {
   c,
@@ -24,6 +25,7 @@ import {
   getAgentLoginArgs,
   checkAgentAuth,
   selectAndAuthenticateAgent,
+  selectMenu,
   stepPrBenchmark,
   stepBuildCache,
 } from '../src/onboarding.js';
@@ -861,4 +863,149 @@ test('stepPrBenchmark catches runtime auth errors from runBenchmarkAgent and rep
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
+});
+
+class MockTTYStdin extends EventEmitter {
+  constructor() {
+    super();
+    this.isTTY = true;
+    this.isRaw = false;
+  }
+  setRawMode(v) { this.isRaw = v; }
+  resume() {}
+  pause() {}
+}
+
+class MockTTYStdout {
+  constructor() {
+    this.isTTY = true;
+    this.writes = [];
+  }
+  write(str) { this.writes.push(str); }
+}
+
+test('estimateCacheBuild calculates bigger, realistic timing estimates', () => {
+  const repo = createMockGitRepo();
+  try {
+    const est = estimateCacheBuild(repo, { areas: 12, prs: 40, agent: 'claude' });
+    // In mock repo with 1 discovered area and commitCount <= 5 (no git PR mining):
+    // 1 area * 55s + 2s cochange + 8s indexing = 65s (compared to old ~15s)
+    assert.ok(est.timing.totalSeconds >= 60, `Expected totalSeconds >= 60, got ${est.timing.totalSeconds}`);
+    assert.match(est.timing.breakdown.cochange, /s/);
+    if (est.canMine) {
+      assert.match(est.timing.breakdown.prs, /[ms]/);
+    }
+    if (est.canSeed) {
+      assert.match(est.timing.breakdown.exploration, /[ms]/);
+    }
+    assert.match(est.timing.breakdown.indexing, /s/);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('selectMenu navigates options with arrow keys and selects with Enter in TTY mode', async () => {
+  const stdin = new MockTTYStdin();
+  const stdout = new MockTTYStdout();
+
+  const promise = selectMenu({
+    header: 'Select an agent:',
+    items: [
+      { label: 'Claude Code', value: 'claude', key: '1' },
+      { label: 'Codex CLI', value: 'codex', key: '2' },
+      { label: 'Cursor Agent', value: 'cursor', key: '3' },
+    ],
+    defaultIndex: 0,
+    stdin,
+    stdout,
+  });
+
+  // Navigate down to Codex CLI, then hit Enter
+  stdin.emit('keypress', null, { name: 'down' });
+  stdin.emit('keypress', null, { name: 'return' });
+
+  const res = await promise;
+  assert.ok(res);
+  assert.equal(res.value, 'codex');
+  assert.equal(res.label, 'Codex CLI');
+});
+
+test('selectMenu wraps around when navigating up past the top or down past the bottom', async () => {
+  const stdin = new MockTTYStdin();
+  const stdout = new MockTTYStdout();
+
+  const promise = selectMenu({
+    items: [
+      { label: 'Option A', value: 'a' },
+      { label: 'Option B', value: 'b' },
+      { label: 'Option C', value: 'c' },
+    ],
+    defaultIndex: 0,
+    stdin,
+    stdout,
+  });
+
+  // Up from index 0 wraps to Option C (last item)
+  stdin.emit('keypress', null, { name: 'up' });
+  stdin.emit('keypress', null, { name: 'return' });
+
+  const res = await promise;
+  assert.ok(res);
+  assert.equal(res.value, 'c');
+});
+
+test('selectMenu supports direct shortcut keys in interactive mode', async () => {
+  const stdin = new MockTTYStdin();
+  const stdout = new MockTTYStdout();
+
+  const promise = selectMenu({
+    items: [
+      { label: 'Option A', value: 'a', key: '1' },
+      { label: 'Option B', value: 'b', key: '2' },
+      { label: 'Skip Option', value: 'skip', key: 's' },
+      { label: 'Exit Option', value: 'exit', key: 'e' },
+    ],
+    defaultIndex: 0,
+    stdin,
+    stdout,
+  });
+
+  // Pressing 's' directly selects skip
+  stdin.emit('keypress', 's', { name: 's' });
+
+  const res = await promise;
+  assert.ok(res);
+  assert.equal(res.value, 'skip');
+});
+
+test('selectAndAuthenticateAgent uses arrow key navigation when stdin is interactive TTY', async () => {
+  const stdin = new MockTTYStdin();
+  const stdout = new MockTTYStdout();
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+
+  const mockCheckAuth = (agent) => ({
+    agent,
+    installed: true,
+    authenticated: true,
+    account: 'user@example.com',
+  });
+
+  const promise = selectAndAuthenticateAgent({
+    yes: false,
+    out,
+    checkAuthFn: mockCheckAuth,
+    stdin,
+    stdout,
+  });
+
+  // Move down once to select the second installed agent
+  stdin.emit('keypress', null, { name: 'down' });
+  stdin.emit('keypress', null, { name: 'return' });
+
+  const res = await promise;
+  assert.ok(res.ok);
+  assert.ok(res.agent);
+  assert.match(outLines.join('\n'), /Available agents to build the knowledge cache:/);
+  assert.match(outLines.join('\n'), /Selected agent:/);
 });
