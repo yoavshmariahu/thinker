@@ -6,7 +6,8 @@ import os from 'node:os';
 import readline from 'node:readline';
 import readlinePromises from 'node:readline/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { Store, gitHead } from './store.js';
+import { Store, gitHead, gitHookPath } from './store.js';
+import { postCommitHook } from './maintain.js';
 import { orient, linkNotes, phraseNotes } from './ops.js';
 import { mineCochange } from './cochange.js';
 import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
@@ -868,7 +869,7 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
 
 // --- Step 1: Connect Harness CLIs --------------------------------------------
 
-export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks = true, learn = true, late = false, shared = true, mcp = true, gitHook = false, noTrust = false, yes = false, out = console.log }) {
+export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks = true, learn = true, late = false, shared = true, mcp = true, gitHook = true, noTrust = false, yes = false, out = console.log }) {
   const detected = detectClients();
   const targetClients = clients || detected;
 
@@ -960,12 +961,15 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
   }
 
   if (gitHook) {
-    const hook = path.join(repo, '.git', 'hooks', 'post-commit');
-    if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) {
+    const hook = gitHookPath(repo, 'post-commit');
+    if (!hook) {
+      out(`  ${c.yellow('⚠')} ${c.dim('Git post-commit hook skipped (not a git checkout)')}`);
+    } else if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) {
       out(`  ${c.yellow('⚠')} ${c.dim('Git post-commit hook skipped (existing hook is not ours)')}`);
     } else {
-      fs.writeFileSync(hook, `#!/bin/sh\n# thinker: re-hash note dependencies\nnohup node "${cliPath}" check --quiet --repo "${repo}" >/dev/null 2>&1 &\n`, { mode: 0o755 });
-      out(`  ${c.green('✔')} ${c.bold('Git Post-Commit'.padEnd(20))} ${c.green('Connected')} · ${c.dim('.git/hooks/post-commit')}`);
+      fs.mkdirSync(path.dirname(hook), { recursive: true });
+      fs.writeFileSync(hook, postCommitHook(cliPath, repo, learn), { mode: 0o755 });
+      out(`  ${c.green('✔')} ${c.bold('Git Post-Commit'.padEnd(20))} ${c.green('Connected')} · ${c.dim(learn ? 'maintains the cache after each commit' : 'post-commit')}`);
     }
   }
 
@@ -1495,7 +1499,7 @@ export async function runSetup({
   late = false,
   shared = true,
   mcp = true,
-  gitHook = false,
+  gitHook = true,
   noTrust = false,
   exportFile = null,
   out = console.log,

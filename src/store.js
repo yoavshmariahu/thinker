@@ -17,6 +17,15 @@ export function findRepoRoot(start = process.cwd()) {
   }
 }
 
+// The path of a git hook for this checkout; null when this is not a git checkout.
+// Worktrees keep hooks with the main repository, where `.git` is a file, not a directory.
+export function gitHookPath(repo, name) {
+  try {
+    const dir = execFileSync('git', ['rev-parse', '--git-path', 'hooks'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return path.resolve(repo, dir, name);
+  } catch { return null; }
+}
+
 export function gitHead(repo) {
   try { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); }
   catch { return null; }

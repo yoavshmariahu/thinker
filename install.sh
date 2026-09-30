@@ -31,7 +31,7 @@
 #   --late              also serve notes about files as the agent opens them
 #   --shared            write hooks to .claude/settings.json (committed) instead of settings.local.json
 #   --mcp               register the MCP server in .mcp.json (Cursor, Codex, other MCP clients)
-#   --git-hook          re-check notes against the code after every commit
+#   --no-git-hook       do not install the git post-commit hook (it re-checks and maintains notes after each commit)
 #   --branch <name>     branch or tag to install (default main; --ref also accepted)
 #   --update            update thinker CLI to the latest version and exit
 #   --no-auto-update    do not schedule daily background auto-updates
@@ -92,6 +92,7 @@ main() {
       --shared) shared=1; shift ;;
       --mcp) mcp=1; shift ;;
       --git-hook) githook=1; shift ;;
+      --no-git-hook) githook=0; shift ;;
       --update) update=1; shift ;;
       --auto-update) autoupdate=1; shift ;;
       --no-auto-update) autoupdate=0; shift ;;
@@ -283,7 +284,7 @@ EOF
     [ "$learn" = 1 ] || args="$args --no-learn"
     [ "$late" = 1 ] && args="$args --late"
     [ "$shared" = 1 ] && args="$args --shared"
-    [ "$githook" = 1 ] && args="$args --git-hook"
+    [ "$githook" = 0 ] && args="$args --no-git-hook"
     # shellcheck disable=SC2086
     if [ ! -t 0 ] && [ -r /dev/tty ]; then
       "$thinker" setup $args --repo "$repo" < /dev/tty
@@ -296,7 +297,7 @@ EOF
     [ "$late" = 1 ] && args="$args --late"
     [ "$shared" = 1 ] || args="$args --local"
     [ "$mcp" = 1 ] || args="$args --no-mcp"
-    [ "$githook" = 1 ] && args="$args --git-hook"
+    [ "$githook" = 0 ] && args="$args --no-git-hook"
     [ -n "$clients" ] && args="$args --clients $clients"
     # shellcheck disable=SC2086
     if [ ! -t 0 ] && [ -r /dev/tty ]; then

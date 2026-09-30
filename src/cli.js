@@ -4,7 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { Store, findRepoRoot, gitHead } from './store.js';
+import { Store, findRepoRoot, gitHead, gitHookPath } from './store.js';
+import { maintain, maintenanceNotice, renderMaintain, postCommitHook } from './maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
 import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
@@ -45,11 +46,11 @@ const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], en
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>] [--benchmark] [--no-benchmark] [--yes] [--verbose]
+  setup [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>] [--benchmark] [--no-benchmark] [--no-git-hook] [--yes] [--verbose]
                                  guided 3-step setup: connect harness CLIs, build the knowledge cache with
                                  pre-flight estimates (time, size, location), and run an optional PR change benchmark;
                                  --verbose includes per-item diagnostic details
-  init [--no-learn] [--no-hooks] [--late] [--local] [--git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
+  init [--no-learn] [--no-hooks] [--late] [--local] [--no-git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
   export [file.tgz]              pack this repo's cache for delivery
@@ -65,11 +66,13 @@ const HELP = `thinker — knowledge cache for coding agents
   cochange [file]                mine co-change edges from git history / show partners of a file
   relink                         recompute cross-note links
   verify [ids...] [--model m]    re-verify stale notes with a small model
+  maintain [--dry]               one background maintenance run: re-verify stale notes, phrase new ones, refresh
+                                 co-change, distill newly merged PRs; runs by itself from the hooks, under a daily cap
   phrase [ids...] [--model m] [--force]
                                  add to each note how a user would put it, in the words of the product (for retrieval)
   distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--dry] [--model m]
                                  turn a session into notes; reads any of these agents' transcripts, or a plain event trace
-  learn [--days n] [--max n] [--idle-min n] [--prs [n]] [--dry]
+  learn [--days n] [--max n] [--idle-min n] [--prs [n]] [--maintain] [--dry]
                                  distill every session any supported agent ran in this repo that has not been distilled yet;
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
@@ -261,9 +264,9 @@ async function main() {
     case 'init': {
       // hooks serve notes and learn from sessions by default. flags: --no-learn (serve only, for evals; --serve-only is
       //        the older name), --no-hooks (MCP server only), --late (file-keyed notes),
-      //        --local (write .claude/settings.local.json, not shared), --git-hook, --no-mcp, --clients,
+      //        --local (write .claude/settings.local.json, not shared), --no-git-hook, --no-mcp, --clients,
       //        --no-trust (leave Codex's trust in the project and the hooks to the user), --yes (do not ask)
-      await init({ clients: parseClients(flags.clients, 'auto'), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !!flags['git-hook'] });
+      await init({ clients: parseClients(flags.clients, 'auto'), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !flags['no-git-hook'] });
       maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store, force: true, event: 'install' });
       break;
     }
@@ -276,8 +279,8 @@ async function main() {
       unscheduleDaily({ home: thinkerHome() });
       unscheduleTelemetry({ home: thinkerHome() });
       uninstallClients(repo);
-      const gh = path.join(repo, '.git', 'hooks', 'post-commit');
-      if (fs.existsSync(gh) && fs.readFileSync(gh, 'utf8').includes('thinker')) fs.unlinkSync(gh);
+      const gh = gitHookPath(repo, 'post-commit');
+      if (gh && fs.existsSync(gh) && fs.readFileSync(gh, 'utf8').includes('thinker')) fs.unlinkSync(gh);
       if (flags.purge) fs.rmSync(store.dir, { recursive: true, force: true });
       out(`removed thinker hooks and MCP registration from ${repo}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
       break;
@@ -497,7 +500,10 @@ async function main() {
         if (client === 'cursor') out('{}');
         // what the turn's servings saved, for the user; the ids are cleared so the next turn starts from none
         const served = takeTurn(store, session !== 'unknown' ? session : null);
-        if (served.length && noticeOn(store)) { const o = stopOutput(client, turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean))); if (o) out(o); }
+        if (noticeOn(store)) {
+          const notice = [served.length ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
+          const o = stopOutput(client, notice); if (o) out(o);
+        }
         // Claude Code: its transcript. Other agents: the trace the hooks recorded,
         // plus the agent's closing message from the hook input or its transcript.
         let source = ev.transcript_path;
@@ -519,6 +525,12 @@ async function main() {
     case 'learn': {
       await learn({ days: Number(flags.days) || 14, idleMin: flags['idle-min'] === undefined ? 2 : Number(flags['idle-min']), max: Number(flags.max) || 50, dry: !!flags.dry, quiet: !!flags.quiet });
       if (flags.prs) await mineMore({ limit: flags.prs === true ? 20 : Number(flags.prs) || 20, model: flags.model, dry: !!flags.dry });
+      if (flags.maintain) await runMaintain({ quiet: !!flags.quiet, dry: !!flags.dry });
+      break;
+    }
+    case 'maintain': {
+      // one run of what the hooks do in the background; --dry counts without model calls
+      await runMaintain({ quiet: !!flags.quiet, dry: !!flags.dry });
       break;
     }
     case 'record': {
@@ -816,9 +828,10 @@ async function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
     else out('Cursor: approve the thinker MCP server when Cursor asks (Settings → MCP), or run: agent mcp enable thinker');
   }
   if (gitHook) {
-    const hook = path.join(repo, '.git', 'hooks', 'post-commit');
-    if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) out(`skipped git hook: ${hook} already exists and is not ours`);
-    else { fs.writeFileSync(hook, `#!/bin/sh\n# thinker: re-hash note dependencies${learn ? ' and re-verify stale notes' : ''} in the background\nnohup node "${path.join(HERE, 'cli.js')}" check --quiet${learn ? ' --verify' : ''} --repo "${repo}" >/dev/null 2>&1 &\n`, { mode: 0o755 }); out('installed git post-commit hook'); }
+    const hook = gitHookPath(repo, 'post-commit');
+    if (!hook) out('skipped git hook: not a git checkout');
+    else if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) out(`skipped git hook: ${hook} already exists and is not ours`);
+    else { fs.mkdirSync(path.dirname(hook), { recursive: true }); fs.writeFileSync(hook, postCommitHook(path.join(HERE, 'cli.js'), repo, learn), { mode: 0o755 }); out(`installed git post-commit hook${learn ? ' (re-checks and maintains notes in the background)' : ''}`); }
   }
   if (!fs.existsSync(path.join(store.dir, 'cochange.json'))) { try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {} }
   const gi = path.join(repo, '.thinker', '.gitignore');
@@ -868,7 +881,7 @@ async function setup() {
     late: Boolean(flags.late),
     shared: Boolean(flags.shared),
     mcp: !flags['no-mcp'],
-    gitHook: Boolean(flags['git-hook']),
+    gitHook: !flags['no-git-hook'],
     noTrust: Boolean(flags['no-trust']),
     exportFile: typeof flags.export === 'string' ? flags.export : null,
     out,
@@ -1104,6 +1117,18 @@ function exploreAgent() {
   return agents.includes(process.env.THINKER_LLM) ? process.env.THINKER_LLM : agents[0] || null;
 }
 
+// One maintenance run, with PR mining wired to this repository's origin.
+async function runMaintain({ quiet, dry }) {
+  if (NO_LEARN) { if (!quiet) out('maintenance is switched off (THINKER_NO_LEARN)'); return; }
+  if (!store.exists()) return;
+  const slug = githubSlug();
+  const canMine = provider() && (slug ? hasBin('gh') : true);
+  const r = await maintain(store, repo, { dry, fns: {
+    minePrs: canMine ? ({ after, limit }) => minePrs(slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance' }) : undefined,
+  } });
+  if (!quiet) out(renderMaintain(r));
+}
+
 async function verifyAll(notes) {
   let cost = 0;
   for (const n of notes) {
@@ -1146,7 +1171,7 @@ function learnInBackground(client) {
   const mark = path.join(store.dir, 'state', 'learn.last');
   try { if (Date.now() - fs.statSync(mark).mtimeMs < 10 * 60_000) return; } catch {}
   fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, '');
-  spawn('node', [path.join(HERE, 'cli.js'), 'learn', '--quiet', '--days', '2', '--max', '5', '--repo', repo], { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } }).unref();
+  spawn('node', [path.join(HERE, 'cli.js'), 'learn', '--quiet', '--days', '2', '--max', '5', '--maintain', '--repo', repo], { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } }).unref();
 }
 
 async function distillFile(file, { minExplore, dry, model, quiet, incremental, format, session, phase = 'learning' }) {

@@ -50,6 +50,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/cochange.js` | co-change mining from git history |
+| `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, refresh co-change, distill newly merged PRs, under a daily cap |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens |
@@ -88,8 +89,9 @@ To mine more pull requests later, run `thinker mine-prs` (or `thinker learn
 GitHub `origin`, mines what was merged since the last run and then goes
 further back in history, 20 at a time (`--limit n`). Every pull request it
 has looked at is recorded in `.thinker/prs.json`, which is committed with the
-notes, so none is distilled twice, by you or by a teammate. Nothing runs this
-automatically.
+notes, so none is distilled twice, by you or by a teammate. Pull requests merged
+after thinker was set up are distilled by background maintenance (see [The
+learning loop](#the-learning-loop)); `mine-prs` is for history before that.
 
 ## Usage history
 
@@ -161,8 +163,7 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
   Stale notes are ranked lower and served with a `⚠ STALE` banner listing
   exactly which deps changed and how (symbol body changed / file removed /
   symbol not found).
-- `thinker check` (wired to `post-commit` by `thinker init --git-hook`)
-  persists statuses; `thinker verify` sends each stale note, the git diff of
+- `thinker check` persists statuses; `thinker verify` sends each stale note, the git diff of
   its changed deps since `verifiedCommit`, and the current text of every dep
   to a small model (Haiku by default) which answers `still_valid` (re-hash,
   bump confidence), `update` (rewrite body, keep history) or `invalid`
@@ -201,6 +202,22 @@ Each session both consumes and improves the cache:
    `orient` appends "X usually changes with Y (80%, n=12)" lines for the
    files the served notes point at, so co-change rules do not depend on an
    agent having traced them.
+
+5. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
+   the prompt hooks start at most every ten minutes ends with one maintenance
+   run, and so does the git `post-commit` hook that `setup`, `init` and the
+   installer put in place (`--no-git-hook` leaves it out). A run refreshes the
+   co-change index when `HEAD` moved, re-verifies up to 10 stale notes (the
+   most served first), writes phrasings for up to 8 notes that lack them, and
+   distills up to 3 pull requests merged since maintenance first ran in the
+   repository (older ones are `thinker mine-prs`). Reported model cost of
+   learning and maintenance is summed from the machine's log and a run stops
+   at `dailyCap` (default $1 a day). `maintain` in `.thinker/config.json`
+   overrides `enabled`, `dailyCap`, `verifyPerRun`, `phrasePerRun`, `prs`,
+   `prsPerRun`. What a run did is shown once at the end of the next turn
+   (`maintain.js:maintenanceNotice`), through the same channel as the
+   cache-hit notice. `thinker maintain [--dry]` is one run by hand;
+   `THINKER_NO_LEARN=1` switches it off with the rest of learning.
 
 Learning is on by default in `setup`, `init` and the installer. Evals keep
 the cache fixed with `--no-learn` at install time, or `THINKER_NO_LEARN=1` in

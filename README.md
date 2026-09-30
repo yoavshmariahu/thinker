@@ -4,7 +4,8 @@ Coding agents re-orient in a repo every session: grep, read, trace imports,
 figure out how X flows from A to B. `thinker` caches that understanding as
 short notes keyed to the code they describe, and serves the relevant ones
 into each request. When the code under a note changes, the note is flagged
-stale and re-verified.
+stale and re-verified in the background; the cache maintains itself, under a
+daily spend cap, without anyone running commands.
 
 **With Claude Fable on real tasks, the cache cut wall time, lowered token usage and cost, and raised the correctness score.**
 

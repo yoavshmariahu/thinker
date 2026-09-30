@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { gitHead } from './store.js';
 
 const SKIP = /(^|\/)(CHANGELOG|CHANGES|HISTORY|NEWS)|\.lock$|package-lock\.json$|(^|\/)(docs?|\.github)\//i;
 
@@ -18,7 +19,7 @@ export function mineCochange(repo, { commits = 800, maxFiles = 15 } = {}) {
     for (const f of files) totals[f] = (totals[f] || 0) + 1;
     for (const a of files) for (const b of files) if (a !== b) (pairs[a] ||= {})[b] = (pairs[a][b] || 0) + 1;
   }
-  const index = { minedAt: new Date().toISOString(), commits: n, totals, pairs };
+  const index = { minedAt: new Date().toISOString(), head: gitHead(repo), commits: n, totals, pairs };
   fs.mkdirSync(path.join(repo, '.thinker'), { recursive: true });
   fs.writeFileSync(path.join(repo, '.thinker', 'cochange.json'), JSON.stringify(index));
   return index;
