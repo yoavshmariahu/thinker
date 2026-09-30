@@ -11,6 +11,7 @@ import { thinkerHome, DAY_MS } from './update.js';
 import { summarize } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
+import { detectClients } from './clients.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -77,10 +78,39 @@ export function getInstallId(home = thinkerHome()) {
 export function computeCacheMetrics(store, { home = thinkerHome(), all = true } = {}) {
   const summary = summarize(store, { days: 1, all });
   const kinds = {};
+  const statuses = { fresh: 0, stale: 0, invalid: 0 };
+  const sources = {};
+  const confidenceBuckets = { high: 0, medium: 0, low: 0 };
+  let totalDeps = 0;
+  let symbolDeps = 0;
   let totalBytes = 0;
   let totalNotes = summary.notes || 0;
   let repositoriesCount = (summary.repos || []).length;
   const coveredCheckouts = new Set();
+
+  const recordNote = n => {
+    const k = n.kind || 'other';
+    kinds[k] = (kinds[k] || 0) + 1;
+    const bodyBytes = Buffer.byteLength(n.body || '', 'utf8');
+    const titleBytes = Buffer.byteLength(n.title || '', 'utf8');
+    totalBytes += bodyBytes + titleBytes;
+
+    const st = n.status || 'fresh';
+    statuses[st] = (statuses[st] || 0) + 1;
+
+    const src = n.source?.type || 'unknown';
+    sources[src] = (sources[src] || 0) + 1;
+
+    const conf = typeof n.confidence === 'number' ? n.confidence : 0.8;
+    if (conf >= 0.8) confidenceBuckets.high++;
+    else if (conf >= 0.5) confidenceBuckets.medium++;
+    else confidenceBuckets.low++;
+
+    for (const d of n.deps || []) {
+      totalDeps++;
+      if (d.symbol) symbolDeps++;
+    }
+  };
 
   // Aggregate across all repositories on the machine
   for (const r of summary.repos || []) {
@@ -90,13 +120,7 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
       if (!s.exists()) continue;
       try {
         const notes = s.list();
-        for (const n of notes) {
-          const k = n.kind || 'other';
-          kinds[k] = (kinds[k] || 0) + 1;
-          const bodyBytes = Buffer.byteLength(n.body || '', 'utf8');
-          const titleBytes = Buffer.byteLength(n.title || '', 'utf8');
-          totalBytes += bodyBytes + titleBytes;
-        }
+        for (const n of notes) recordNote(n);
       } catch {}
     }
   }
@@ -110,13 +134,7 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
           repositoriesCount++;
           totalNotes += notes.length;
         }
-        for (const n of notes) {
-          const k = n.kind || 'other';
-          kinds[k] = (kinds[k] || 0) + 1;
-          const bodyBytes = Buffer.byteLength(n.body || '', 'utf8');
-          const titleBytes = Buffer.byteLength(n.title || '', 'utf8');
-          totalBytes += bodyBytes + titleBytes;
-        }
+        for (const n of notes) recordNote(n);
       } else if (!repositoriesCount) {
         repositoriesCount = 1;
       }
@@ -128,6 +146,10 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
     totalBytes,
     repositoriesCount,
     kinds,
+    statuses,
+    sources,
+    confidenceBuckets,
+    symbolDepRatio: totalDeps > 0 ? Math.round((symbolDeps / totalDeps) * 1000) / 1000 : 0,
   };
 }
 
@@ -141,6 +163,8 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
   const u = summarize(store, { days, all });
   const cacheSize = computeCacheMetrics(store, { home, all });
   const d = u.distillationPerformance, spend = d.spending;
+  const cls = u.clients || {};
+  const ret = u.retrieval || {};
 
   const totalAssessed = (u.assessed.confirmed || 0) + (u.assessed.contradicted || 0) + (u.assessed.unused || 0);
   const confirmationRate = totalAssessed > 0
@@ -175,6 +199,33 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
       costKnownCalls: spend.calls - spend.unknownCostCalls, costUnknownCalls: spend.unknownCostCalls,
       reportedTokens: spend.calls > 0 && spend.calls === spend.unknownTokenCalls ? null : spend.totalTokens,
       tokenKnownCalls: spend.calls - spend.unknownTokenCalls, tokenUnknownCalls: spend.unknownTokenCalls,
+    },
+
+    clients: {
+      schemaVersion: 1,
+      detected: detectClients(),
+      activeRequests: cls.active || {},
+      servings: cls.servings || {},
+      sessions: cls.sessions || {},
+    },
+
+    retrieval: {
+      schemaVersion: 1,
+      requestsTotal: u.requests,
+      requestsAnswered: u.answered,
+      hitRate,
+      emptyRequests: Math.max(0, u.requests - u.answered),
+      staleNotesServed: ret.staleServed || 0,
+      freshNotesServed: ret.freshServed || 0,
+      staleServingRate: ret.staleRate || 0,
+      guardTriggeredCount: ret.guardTriggered || 0,
+      guardUncoveredTerms: ret.guardUncoveredTerms || 0,
+      durationMs: ret.durationMs || 0,
+      durationSamples: ret.durationSamples || 0,
+      averageDurationMs: (ret.durationSamples || 0) > 0
+        ? Math.round(ret.durationMs / ret.durationSamples)
+        : null,
+      servedByKind: ret.servedByKind || {},
     },
 
     effectiveness: {

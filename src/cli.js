@@ -342,12 +342,12 @@ async function main() {
       break;
     }
     case 'orient': {
-      const r = await orient(store, { task: pos.join(' '), file: flags.file, budget: Number(flags.budget) || 1000 });
+      const r = await orient(store, { task: pos.join(' '), file: flags.file, client: flags.client || 'cli', budget: Number(flags.budget) || 1000 });
       out(r.included.length ? r.text : '(no matching notes)');
       break;
     }
     case 'lookup': {
-      const r = lookup(store, { query: pos.join(' '), budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3 });
+      const r = lookup(store, { query: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3 });
       out(r.included.length ? r.text : '(nothing cached about that)');
       break;
     }
@@ -444,7 +444,7 @@ async function main() {
         // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
         if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
         if (session !== 'unknown') rememberTask(store, session, ev.prompt);
-        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, budget: Number(flags.budget) || HOOK_BUDGET });
+        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET });
         if (!r.included.length) break;
         let notice = '';
         if (process.env.THINKER_NOTICE !== 'off' && store.config().notice !== false && store.config().notice !== 'off') {
@@ -474,7 +474,7 @@ async function main() {
           const turn = path.join(store.dir, 'state', `oriented-${String(ev.generation_id || session).replace(/[^\w.-]/g, '_')}`);
           if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && store.list().length) {
             const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-            if (task) { const r = await orient(store, { task, session, budget: Number(flags.budget) || HOOK_BUDGET }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
+            if (task) { const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
           }
           fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '');
           if (p && !mcpCall) parts.push(p);
@@ -483,7 +483,7 @@ async function main() {
           const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
           // an edit tool, or a shell command that writes a file in place
           const edited = name === 'Edit' || name === 'Write' || (name === 'Bash' && /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/.test(command));
-          const r = lateNotes(store, { session, files: toolFiles(ev, repo), edited });
+          const r = lateNotes(store, { session, client, files: toolFiles(ev, repo), edited });
           if (r.text) parts.push(r.text);
         }
         if (parts.length) out(toolOutput(client, parts.join('\n\n')));
@@ -616,6 +616,13 @@ async function main() {
       out(`  Effectiveness:${payload.effectiveness.requestsTotal} requests, ${payload.effectiveness.requestsAnswered} answered (${(payload.effectiveness.hitRate * 100).toFixed(1)}% hit rate)`);
       out(`  Confirmed:    ${payload.effectiveness.assessed.confirmed} of ${(payload.effectiveness.assessed.confirmed + payload.effectiveness.assessed.contradicted + payload.effectiveness.assessed.unused)} assessed (${(payload.effectiveness.assessed.confirmationRate * 100).toFixed(1)}%)`);
       out(`  Net tokens:   ${payload.effectiveness.estimatedSavings.netTokensSaved >= 0 ? '+' : ''}${payload.effectiveness.estimatedSavings.netTokensSaved.toLocaleString()} tokens saved (estimate)`);
+      if (payload.clients?.detected?.length) {
+        const activeSummary = Object.entries(payload.clients.activeRequests || {}).filter(([_, n]) => n > 0).map(([c, n]) => `${c}:${n}`).join(', ') || 'none';
+        out(`  Clients:      detected: ${payload.clients.detected.join(', ')}; active requests: ${activeSummary}`);
+      }
+      if (payload.retrieval) {
+        out(`  Retrieval:    ${payload.retrieval.staleNotesServed} stale served, ${payload.retrieval.guardTriggeredCount} guard triggers${payload.retrieval.averageDurationMs ? `, ${payload.retrieval.averageDurationMs}ms avg latency` : ''}`);
+      }
       out('\nUse `thinker telemetry --send` to transmit, `--schedule` to enable hourly sending, or `--json` to view full payload.');
       break;
     }

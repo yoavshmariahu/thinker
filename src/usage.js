@@ -88,6 +88,20 @@ export function sessionKey(s) {
   return (codex ? codex[1] : s).replace(/[^\w.-]/g, '_');
 }
 
+export function normalizeClient(client, session = '') {
+  if (client) {
+    const c = String(client).toLowerCase();
+    if (['claude', 'codex', 'cursor', 'gemini', 'mcp', 'cli'].includes(c)) return c;
+    if (c.startsWith('cursor')) return 'cursor';
+    if (c.startsWith('claude')) return 'claude';
+    if (c.startsWith('codex')) return 'codex';
+    if (c.startsWith('gemini') || c.startsWith('agy')) return 'gemini';
+  }
+  const s = String(session || '');
+  if (/^rollout-/i.test(s)) return 'codex';
+  return 'other';
+}
+
 // fields added to a serving's log line
 export const servedFields = (store, notes, text) => ({ tokens: estTokens(text || ''), est: notes.map(n => { const s = savingOf(store.repo, n); return [s.calls, s.tokens]; }) });
 
@@ -124,12 +138,27 @@ export function summarize(store, { days, all = false } = {}) {
     spending: { ...emptySpend(), byPurpose: {}, byPhase: {}, byModel: {}, legacyRecords: 0 },
     distillation: { runs: 0, noNewNotes: 0, noChanges: 0 },
     distillationPerformance: { attempts: 0, succeeded: 0, failed: 0, durationMs: 0, durationSamples: 0, spending: emptySpend() },
+    clients: {
+      active: { claude: 0, codex: 0, cursor: 0, gemini: 0, mcp: 0, cli: 0, other: 0 },
+      servings: { claude: 0, codex: 0, cursor: 0, gemini: 0, mcp: 0, cli: 0, other: 0 },
+      sessions: { claude: 0, codex: 0, cursor: 0, gemini: 0, mcp: 0, cli: 0, other: 0 },
+    },
+    retrieval: {
+      staleServed: 0,
+      freshServed: 0,
+      staleRate: 0,
+      guardTriggered: 0,
+      guardUncoveredTerms: 0,
+      durationMs: 0,
+      durationSamples: 0,
+      servedByKind: {},
+    },
     spent: 0, saved: { calls: 0, tokens: 0, servings: 0 }, repos: [], top: [],
   };
   // a repository is its origin; its checkouts (clones, worktrees) are counted together
   const repos = new Map();      // origin → its line in the summary
   const per = (origin, checkout) => { if (!repos.has(origin)) repos.set(origin, { repo: origin, checkouts: new Set(), requests: 0, served: 0, learned: 0, calls: 0, tokens: 0, spending: emptySpend() }); const r = repos.get(origin); if (checkout) r.checkouts.add(checkout); return r; };
-  const sessions = new Map();   // origin|session → { origin, notes: Map(note id → [calls, tokens]) }
+  const sessions = new Map();   // origin|session → { origin, named, client, notes: Map(note id → [calls, tokens]) }
   const verdicts = new Map();   // origin|session → Map(note id → verdict)
   const count = new Map();
   let anon = 0;
@@ -160,15 +189,41 @@ export function summarize(store, { days, all = false } = {}) {
       if (!(e.saved || []).length && !(e.merged || []).length) u.distillation.noChanges++;
     }
     if (e.op === 'orient' || e.op === 'late' || e.op === 'lookup') {
+      const cl = normalizeClient(e.client, e.session);
       const ids = e.served || [];
-      if (e.op !== 'late') { u.requests++; r.requests++; if (ids.length) u.answered++; }
+      if (e.op !== 'late') {
+        u.requests++;
+        r.requests++;
+        u.clients.active[cl] = (u.clients.active[cl] || 0) + 1;
+        if (ids.length) u.answered++;
+      }
+      if (typeof e.durationMs === 'number' && Number.isFinite(e.durationMs) && e.durationMs >= 0) {
+        u.retrieval.durationMs += e.durationMs;
+        u.retrieval.durationSamples++;
+      }
+      if (e.op === 'orient' && Array.isArray(e.uncovered) && e.uncovered.length > 0) {
+        u.retrieval.guardTriggered++;
+        u.retrieval.guardUncoveredTerms += e.uncovered.length;
+      }
       if (!ids.length) continue;
-      u.servings[e.op === 'orient' ? 'prompt' : e.op === 'late' ? 'file' : 'lookup'] += ids.length; r.served += ids.length;
+      u.servings[e.op === 'orient' ? 'prompt' : e.op === 'late' ? 'file' : 'lookup'] += ids.length;
+      r.served += ids.length;
+      u.clients.servings[cl] = (u.clients.servings[cl] || 0) + ids.length;
+
+      const staleCount = Array.isArray(e.stale) ? e.stale.length : 0;
+      u.retrieval.staleServed += staleCount;
+      u.retrieval.freshServed += Math.max(0, ids.length - staleCount);
+
+      for (const id of ids) {
+        const k = s.get(id)?.kind || 'other';
+        u.retrieval.servedByKind[k] = (u.retrieval.servedByKind[k] || 0) + 1;
+      }
+
       // lines written before the estimate was recorded: the note's text and files as they are now
       u.tokensServed += typeof e.tokens === 'number' ? e.tokens : ids.reduce((n, id) => n + estTokens(s.get(id)?.body || ''), 0);
       const named = e.session && e.session !== 'unknown';
       const key = `${e.origin}|${named ? sessionKey(e.session) : `?${anon++}`}`;
-      if (!sessions.has(key)) sessions.set(key, { origin: e.origin, named, notes: new Map() });
+      if (!sessions.has(key)) sessions.set(key, { origin: e.origin, named, client: cl, notes: new Map() });
       ids.forEach((id, i) => {
         const k = `${e.origin}|${id}`; count.set(k, { origin: e.origin, repo: e.repo, id, n: (count.get(k)?.n || 0) + 1 });
         if (!sessions.get(key).notes.has(id)) sessions.get(key).notes.set(id, e.est?.[i] || Object.values(savingOf(e.repo, s.get(id))));
@@ -183,7 +238,16 @@ export function summarize(store, { days, all = false } = {}) {
     else if (e.op === 'feedback') u.feedback[e.useful ? 'useful' : 'notUseful']++;
     else if (e.op === 'outcome' && !e.positive) u.corrections++;
   }
-  u.sessions = [...sessions.values()].filter(x => x.named).length;
+  const namedSessions = [...sessions.values()].filter(x => x.named);
+  u.sessions = namedSessions.length;
+  for (const x of namedSessions) {
+    const cl = x.client || 'other';
+    u.clients.sessions[cl] = (u.clients.sessions[cl] || 0) + 1;
+  }
+  const totalServed = u.servings.prompt + u.servings.file + u.servings.lookup;
+  u.retrieval.staleRate = totalServed > 0
+    ? Math.round((u.retrieval.staleServed / totalServed) * 1000) / 1000
+    : 0;
   const distinct = new Set();
   for (const [key, x] of sessions) for (const [id, est] of x.notes) {
     distinct.add(`${x.origin}|${id}`);

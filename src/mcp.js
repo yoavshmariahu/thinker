@@ -37,7 +37,7 @@ register('orient', {
 }, async ({ task = '', file, budget }) => {
   if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
   // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
-  const r = await orient(store, { task, file, budget: budget || 1000, ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
+  const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
   if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Explore normally, then call remember with what you learn.`);
   const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
   const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
@@ -53,7 +53,7 @@ register('lookup', {
     maxNotes: z.number().int().min(1).max(10).optional().describe('Maximum number of notes to return (default 3)'),
   },
 }, async ({ query, budget, maxNotes }) => {
-  const r = lookup(store, { query, budget: budget || 2500, maxNotes: maxNotes || 3 });
+  const r = lookup(store, { query, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3 });
   if (!r.included.length) return text(emptyCache() || 'Nothing cached about that. Try fewer or different words, or an identifier from the code.');
   return text(r.text);
 });

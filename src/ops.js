@@ -195,7 +195,8 @@ export const HOOK_BUDGET = 750;
 // 'auto' (full when the request names code that exists, else pointers), 'none'.
 // maxNotes/relFloor: the prompt hooks serve two notes; a caller that names its own budget (the MCP
 // tool) passes a higher maxNotes, and notes past the second must then reach relFloor of the best hit.
-export async function orient(store, { task, file, session, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
+  const start = Date.now();
   if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
   const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
   if (early === 'auto' || early === 'router') early = specificity(store.repo, task) >= 1 ? 'full' : 'pointers'; // heuristic, also the router's fallback
@@ -211,7 +212,7 @@ export async function orient(store, { task, file, session, budget = HOOK_BUDGET,
     try {
       const loose = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', loose: true });
       routed = await route(store, loose, task, file, routerModel);
-      if (routed.mode === 'none') { store.log({ op: 'orient', session, task: String(task).slice(0, 200), served: [], routed: 'none' }); return { text: '', included: [], omitted: [], tokens: 0, mode: 'none', routed }; }
+      if (routed.mode === 'none') { store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), served: [], routed: 'none', durationMs: Date.now() - start }); return { text: '', included: [], omitted: [], tokens: 0, mode: 'none', routed }; }
       ranked = routed.picked.map(r => ({ ...r, rel: Math.max(r.rel, 0.5) })); early = routed.mode;
     } catch (e) { store.log({ op: 'route-error', error: String(e.message).slice(0, 200) }); }
   }
@@ -251,7 +252,7 @@ export async function orient(store, { task, file, session, budget = HOOK_BUDGET,
   if (packed.included.length && process.env.THINKER_NO_GUARD !== '1') {
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: process.env.THINKER_GUARD_PHRASES !== '1', max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
-  if (recordUsage) store.log({ op: 'orient', session, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
@@ -318,13 +319,13 @@ export function rememberTask(store, session, task) {
   if (!session || !String(task || '').trim() || !store.exists()) return;
   locked(store, session, () => { const { st, save } = sessionState(store, session); st.task = String(task).slice(0, 2000); save(); });
 }
-export function lateNotes(store, { session, files, edited = false, on = process.env.THINKER_LATE === 'read' ? 'read' : 'edit', perEvent = 2, perSession = on === 'read' ? 5 : 3, minRel = 0.35 }) {
+export function lateNotes(store, { session, client, files, edited = false, on = process.env.THINKER_LATE === 'read' ? 'read' : 'edit', perEvent = 2, perSession = on === 'read' ? 5 : 3, minRel = 0.35 }) {
   if (on === 'edit' && !edited) return { text: '', included: [] };
   const rel = [...new Set((files || []).map(f => normPath(store.repo, f)).filter(Boolean))];
   if (!rel.length) return { text: '', included: [] };
-  return locked(store, session, () => lateLocked(store, { session, rel, on, perEvent, perSession, minRel }));
+  return locked(store, session, () => lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }));
 }
-function lateLocked(store, { session, rel, on, perEvent, perSession, minRel }) {
+function lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }) {
   const { st, save } = sessionState(store, session);
   if (st.late.length >= perSession) return { text: '', included: [] };
   let notes = store.list().filter(n => n.status !== 'invalid' && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
@@ -343,7 +344,7 @@ function lateLocked(store, { session, rel, on, perEvent, perSession, minRel }) {
     ? `Rules from previous sessions about code you are changing (${rel.join(', ')}). Check the change against them; they do not call for more reading.`
     : `Cached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.`;
   const text = `<thinker-cache>\n${intro}\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>`;
-  store.log({ op: 'late', on, session, files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
+  store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
   return { included: pick, text };
 }
 
@@ -425,14 +426,15 @@ export function scheduleVerify(store, notes) {
   } catch (e) { store.log({ op: 'bg-verify-error', error: String(e.message) }); }
 }
 
-export function lookup(store, { query, budget = 2500, maxNotes = 3 } = {}) {
+export function lookup(store, { query, client, budget = 2500, maxNotes = 3 } = {}) {
+  const start = Date.now();
   const notes = NAIVE ? store.list().map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; }) : refresh(store, store.list());
   // a note id (as listed by orient) returns that note
   const byId = notes.find(n => n.id === String(query).trim());
   const ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : rank(notes, { query, mode: 'lookup' });
   const candidates = byId ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
   const packed = pack(candidates, budget, { minRel: 0.15 });
-  store.log({ op: 'lookup', query: String(query).slice(0, 200), served: packed.included.map(n => n.id), ...servedFields(store, packed.included, packed.text) });
+  store.log({ op: 'lookup', client: client || 'cli', query: String(query).slice(0, 200), served: packed.included.map(n => n.id), durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 

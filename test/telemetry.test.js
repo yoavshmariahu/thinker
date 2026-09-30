@@ -482,6 +482,137 @@ test('cli telemetry and telemetry --json run cleanly and show hourly event', () 
     const parsed = JSON.parse(jsonOut);
     assert.equal(parsed.event, 'hourly');
     assert.equal(parsed.periodHours, 24);
+    assert.ok(parsed.clients);
+    assert.equal(parsed.clients.schemaVersion, 1);
+    assert.ok(Array.isArray(parsed.clients.detected));
+    assert.ok(parsed.retrieval);
+    assert.equal(parsed.retrieval.schemaVersion, 1);
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('telemetry payload captures client adoption breakdown and detected clients', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-clients-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-clients-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    store.put({ id: 'note-1', kind: 'location', title: 'Location note', body: 'body' });
+    store.put({ id: 'note-2', kind: 'howto', title: 'Howto note', body: 'body' });
+
+    store.log({ op: 'orient', client: 'claude', session: 'sess-claude', served: ['note-1'] });
+    store.log({ op: 'orient', client: 'cursor', session: 'sess-cursor', served: ['note-1', 'note-2'] });
+    store.log({ op: 'orient', session: 'rollout-12345678-1234-1234-1234-123456789012', served: ['note-1'] });
+    store.log({ op: 'orient', client: 'gemini', session: 'sess-gemini', served: [] });
+    store.log({ op: 'lookup', client: 'mcp', served: ['note-1'] });
+    store.log({ op: 'late', client: 'claude', session: 'sess-claude', served: ['note-2'] });
+
+    const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
+
+    assert.equal(payload.clients.schemaVersion, 1);
+    assert.ok(Array.isArray(payload.clients.detected));
+    assert.equal(payload.clients.activeRequests.claude, 1);
+    assert.equal(payload.clients.activeRequests.cursor, 1);
+    assert.equal(payload.clients.activeRequests.codex, 1);
+    assert.equal(payload.clients.activeRequests.gemini, 1);
+    assert.equal(payload.clients.activeRequests.mcp, 1);
+
+    assert.equal(payload.clients.servings.claude, 2);
+    assert.equal(payload.clients.servings.cursor, 2);
+    assert.equal(payload.clients.servings.codex, 1);
+    assert.equal(payload.clients.servings.gemini, 0);
+    assert.equal(payload.clients.servings.mcp, 1);
+
+    assert.equal(payload.clients.sessions.claude, 1);
+    assert.equal(payload.clients.sessions.cursor, 1);
+    assert.equal(payload.clients.sessions.codex, 1);
+    assert.equal(payload.clients.sessions.gemini, 0);
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('telemetry payload captures retrieval quality metrics, staleness, and guard triggers', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-retrieval-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-retrieval-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    store.put({ id: 'n1', kind: 'callpath', title: 'Callpath note', body: 'body', status: 'stale' });
+    store.put({ id: 'n2', kind: 'gotcha', title: 'Gotcha note', body: 'body', status: 'fresh' });
+
+    // Request 1: 2 served (1 stale, 1 fresh), 2 uncovered terms, duration 45ms
+    store.log({ op: 'orient', client: 'claude', session: 's1', served: ['n1', 'n2'], stale: ['n1'], uncovered: ['foo_bar', 'baz_qux'], durationMs: 45 });
+    // Request 2: empty (0 notes served), duration 15ms
+    store.log({ op: 'orient', client: 'claude', session: 's2', served: [], durationMs: 15 });
+    // Request 3: lookup, 1 served fresh, duration 30ms
+    store.log({ op: 'lookup', client: 'mcp', served: ['n2'], durationMs: 30 });
+
+    const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
+
+    assert.equal(payload.retrieval.schemaVersion, 1);
+    assert.equal(payload.retrieval.requestsTotal, 3);
+    assert.equal(payload.retrieval.requestsAnswered, 2);
+    assert.equal(payload.retrieval.emptyRequests, 1);
+    assert.equal(payload.retrieval.hitRate, 0.667);
+
+    assert.equal(payload.retrieval.staleNotesServed, 1);
+    assert.equal(payload.retrieval.freshNotesServed, 2);
+    assert.equal(payload.retrieval.staleServingRate, 0.333);
+
+    assert.equal(payload.retrieval.guardTriggeredCount, 1);
+    assert.equal(payload.retrieval.guardUncoveredTerms, 2);
+
+    assert.equal(payload.retrieval.durationMs, 90);
+    assert.equal(payload.retrieval.durationSamples, 3);
+    assert.equal(payload.retrieval.averageDurationMs, 30);
+
+    assert.equal(payload.retrieval.servedByKind.callpath, 1);
+    assert.equal(payload.retrieval.servedByKind.gotcha, 2);
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true });
+    fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
+
+test('cache topology metrics aggregate statuses, sources, and dependency granularity', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-topology-repo-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-topology-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    store.put({
+      id: 'note-agent',
+      kind: 'location',
+      title: 'Agent note',
+      body: 'body',
+      status: 'fresh',
+      source: { type: 'agent' },
+      confidence: 0.9,
+      deps: [{ path: 'foo.js', symbol: 'func' }, { path: 'bar.js' }],
+    });
+    store.put({
+      id: 'note-pr',
+      kind: 'gotcha',
+      title: 'PR note',
+      body: 'body',
+      status: 'stale',
+      source: { type: 'pr' },
+      confidence: 0.6,
+      deps: [{ path: 'baz.js' }],
+    });
+
+    const metrics = computeCacheMetrics(store, { home: tmpHome, all: false });
+
+    assert.equal(metrics.totalNotes, 2);
+    assert.equal(metrics.statuses.fresh, 1);
+    assert.equal(metrics.statuses.stale, 1);
+    assert.equal(metrics.sources.agent, 1);
+    assert.equal(metrics.sources.pr, 1);
+    assert.equal(metrics.confidenceBuckets.high, 1);
+    assert.equal(metrics.confidenceBuckets.medium, 1);
+    assert.equal(metrics.confidenceBuckets.low, 0);
+    assert.equal(metrics.symbolDepRatio, 0.333); // 1 symbol dep out of 3 total deps
   } finally {
     fs.rmSync(tmpRepo, { recursive: true, force: true });
     fs.rmSync(tmpHome, { recursive: true, force: true });
