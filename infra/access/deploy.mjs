@@ -65,8 +65,11 @@ if (mode === 'prepare') {
     aws(['secretsmanager', 'create-secret', '--name', config.secretId, '--secret-string', fileArg('secret.json', secret)]);
   }
   if (!secret.accessCode || !/^[a-f0-9]{64}$/.test(secret.signingKey)) throw new Error('Invalid access secret');
+  if (secret.additionalAccessCodes !== undefined && !Array.isArray(secret.additionalAccessCodes)) throw new Error('Invalid additional access codes');
+  const accessCodes = [secret.accessCode, ...(secret.additionalAccessCodes || [])];
+  if (accessCodes.some(value => typeof value !== 'string' || !value.trim() || value !== value.trim() || value.length > 256)) throw new Error('Invalid access code');
   const code = fs.readFileSync(path.join(root, 'infra/access/gateway.js'), 'utf8').replace('__ACCESS_CONFIG__', JSON.stringify({
-    codeHash: hash(secret.accessCode), signingKey: secret.signingKey, legacyDownloadsUntil: config.legacyDownloadsUntil
+    codeHashes: [...new Set(accessCodes.map(hash))], signingKey: secret.signingKey, legacyDownloadsUntil: config.legacyDownloadsUntil
   }));
   if (Buffer.byteLength(code) > 10240) throw new Error('CloudFront function exceeds 10 KB');
   const codePath = save('gateway.js', code);
@@ -92,7 +95,12 @@ if (mode === 'prepare') {
   for (const [name, request, expected] of [
     ['docs-denied', event('/docs.html'), 302], ['legacy-download', event('/dist/thinker.tgz'), Date.now() < Date.parse(config.legacyDownloadsUntil) ? null : 403],
     ['other-download-denied', event('/dist/releases/old/thinker.tgz'), 403],
-    ['login-denied', event('/access/session'), 401], ['login-valid', goodLogin, 200], ['docs-valid', goodDocs, null]
+    ['login-denied', event('/access/session'), 401], ['login-valid', goodLogin, 200], ['docs-valid', goodDocs, null],
+    ...accessCodes.slice(1).map((value, index) => {
+      const request = event('/access/session');
+      request.request.headers['x-thinker-access-code'] = { value };
+      return [`login-additional-${index}`, request, 200];
+    })
   ]) {
     const result = aws(['cloudfront', 'test-function', '--name', config.functionName, '--if-match', prepared.ETag,
       '--stage', 'DEVELOPMENT', '--event-object', 'fileb://' + save(`test-${name}.json`, request)]).TestResult;

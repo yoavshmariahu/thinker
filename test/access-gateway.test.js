@@ -18,6 +18,25 @@ function login() {
   return result;
 }
 
+test('multiple codes grant sessions while invalid and duplicate headers fail closed', () => {
+  const additional = 'test-additional-code';
+  const multi = vm.createContext({ require: () => crypto, Date });
+  vm.runInContext(source.replace('__ACCESS_CONFIG__', JSON.stringify({
+    ...config, codeHashes: [code, additional].map(value => crypto.createHash('sha256').update(value).digest('hex'))
+  })), multi);
+  const attempt = header => multi.handler({ request: { uri: '/access/session', method: 'GET',
+    headers: { 'x-thinker-access-code': header }, cookies: {} } });
+  for (const value of [code, additional, ` ${additional} `]) {
+    const result = attempt({ value });
+    assert.equal(result.statusCode, 200);
+    assert.equal(call('/docs.html', { cookies: result.cookies }).uri, '/docs.html');
+  }
+  for (const value of ['', 'wrong', additional.toUpperCase(), 'x'.repeat(257)]) {
+    assert.equal(attempt({ value }).statusCode, 401);
+  }
+  assert.equal(attempt({ value: additional, multiValue: [{ value: additional }, { value: code }] }).statusCode, 401);
+});
+
 test('all docs aliases and distribution URLs enforce access before returning content', () => {
   for (const path of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) {
     const result = call(path);

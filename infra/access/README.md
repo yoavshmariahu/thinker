@@ -36,7 +36,7 @@ are preserved. Thinker's `/metrics` endpoint is also unchanged.
 - S3 blocks public access and allows reads only from this CloudFront distribution.
   This prevents bypassing the gateway through an S3 object URL.
 
-The old publicly visible access code is retired. Existing installations with
+Existing installations with
 `https://zerotime.dev/dist/thinker.tgz` in `~/.thinker/install.json` must obtain the
 new install command to retain downloads/updates after the temporary window.
 The window does not repair the GitHub lookup in old updaters or give clients a
@@ -46,7 +46,8 @@ that people previously downloaded.
 ## Credentials and deployment
 
 The `thinker/site/access` secret in AWS Secrets Manager, us-east-1, contains
-`accessCode` and `signingKey`. The code is case-sensitive. IAM operators with
+`accessCode`, `signingKey`, and an optional `additionalAccessCodes` array. All
+configured codes are accepted and are case-sensitive. IAM operators with
 secret/function read access are trusted. Do not commit the rendered function,
 private URLs, test cookies or `.access-work/` files.
 
@@ -77,7 +78,9 @@ in `.access-work/` with learning, telemetry, builds and scheduled updates disabl
 It verifies that future downloads retain the private distribution URL. Run
 `--install` from a terminal: the existing installer opens `/dev/tty` when piped.
 
-To rotate the access code, edit `accessCode` in Secrets Manager and run
+To add a code while retaining the existing one, append it to
+`additionalAccessCodes` in Secrets Manager and run `prepare`/`apply --edge-only`.
+To rotate the primary access code, edit `accessCode` in Secrets Manager and run
 `prepare`/`apply`. To revoke existing sessions **and** download credentials, also
 replace `signingKey` with a new cryptographically random 32-byte key encoded as
 64 hex characters. Code-only rotation does not revoke existing sessions/downloads.

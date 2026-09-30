@@ -13,6 +13,13 @@ function equal(a, b) {
 function sign(value) {
     return crypto.createHmac('sha256', CONFIG.signingKey).update(value).digest('hex');
 }
+function codeValid(value) {
+    var hash = crypto.createHash('sha256').update(value.trim()).digest('hex');
+    var hashes = CONFIG.codeHashes || [CONFIG.codeHash];
+    var matched = false;
+    for (var i = 0; i < hashes.length; i++) matched = equal(hash, hashes[i]) || matched;
+    return matched;
+}
 function response(status, body, type) {
     return { statusCode: status, headers: {
         'cache-control': { value: 'private, no-store' },
@@ -61,9 +68,8 @@ function handler(event) {
             (fetchSite && fetchSite.value !== 'same-origin' && fetchSite.value !== 'none')) return response(403);
         var code = request.headers['x-thinker-access-code'];
         if (code) {
-            if (code.multiValue || code.value.length > 256 || !equal(
-                crypto.createHash('sha256').update(code.value.trim()).digest('hex'), CONFIG.codeHash
-            )) return response(401, '{"error":"Invalid access code"}');
+            if (code.multiValue || code.value.length > 256 || !codeValid(code.value))
+                return response(401, '{"error":"Invalid access code"}');
             authorized = true;
         }
         if (!authorized) return response(401, '{"error":"Access code required"}');

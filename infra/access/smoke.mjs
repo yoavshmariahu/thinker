@@ -12,6 +12,13 @@ const publicPage = await request('/');
 assert.equal(publicPage.status, 200);
 const html = await publicPage.text();
 assert.ok(!html.includes(secret.accessCode));
+for (const code of secret.additionalAccessCodes || []) {
+  assert.ok(!html.includes(code));
+  const login = await request('/access/session', { headers: { 'X-Thinker-Access-Code': code } });
+  assert.equal(login.status, 200, 'additional access code');
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  assert.equal((await request('/docs.html', { headers: { Cookie: cookie } })).status, 200);
+}
 assert.ok(!html.includes('const ACCESS_KEY'));
 assert.ok(html.includes("fetch('/access/session'"));
 for (const url of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) {
