@@ -141,6 +141,30 @@ test('prompt hook output matches what each client accepts', () => {
   assert.equal(hook(dir, 'prompt', 'gemini', { session_id: 's3', prompt: 'hello' }), '');
 });
 
+test('stop hook tells the user what the turn saved, once, where the client can show it', () => {
+  const dir = repo();
+  const noLearn = ['--no-distill'];
+  assert.equal(hook(dir, 'stop', 'claude', { session_id: 't0', cwd: dir }, noLearn), '', 'nothing served: nothing said');
+
+  hook(dir, 'prompt', 'claude', { session_id: 't1', prompt: PROMPT, cwd: dir });
+  const claude = JSON.parse(hook(dir, 'stop', 'claude', { session_id: 't1', cwd: dir }, noLearn));
+  assert.match(claude.systemMessage, /^🧠 thinker: 1 cache hit this turn \(~\d+k? tokens, ~\d+s of 1 read saved\)$/);
+  assert.equal(Object.keys(claude).join(), 'systemMessage', 'no decision: the agent stops as it meant to');
+  assert.equal(hook(dir, 'stop', 'claude', { session_id: 't1', cwd: dir }, noLearn), '', 'the next turn starts from none');
+
+  hook(dir, 'prompt', 'gemini', { session_id: 't2', prompt: PROMPT, cwd: dir });
+  assert.match(JSON.parse(hook(dir, 'stop', 'gemini', { session_id: 't2', cwd: dir }, noLearn)).systemMessage, /cache hit this turn/);
+
+  // Codex has no channel to the user from a stop hook; its stdout stays empty
+  hook(dir, 'prompt', 'codex', { session_id: 't3', prompt: PROMPT, cwd: dir });
+  assert.equal(hook(dir, 'stop', 'codex', { session_id: 't3', cwd: dir }, noLearn), '');
+
+  // turned off
+  hook(dir, 'prompt', 'claude', { session_id: 't4', prompt: PROMPT, cwd: dir });
+  const off = execFileSync('node', [CLI, 'hook', 'stop', '--client', 'claude', '--repo', dir, ...noLearn], { input: JSON.stringify({ session_id: 't4', cwd: dir }), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_NOTICE: 'off' } }).trim();
+  assert.equal(off, '');
+});
+
 test('cursor gets the bundle on the first tool call, once', () => {
   const dir = repo();
   const first = hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', prompt: PROMPT, workspace_roots: [dir], cursor_version: '3.0' });

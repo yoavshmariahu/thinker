@@ -5,17 +5,17 @@ import os from 'node:os';
 import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
-import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge } from './ops.js';
+import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
 import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
 import { hashDep } from './deps.js';
-import { CLIENTS, parseClients, installClient, uninstallClients, trustCodex, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, parkPending, takePending } from './clients.js';
+import { CLIENTS, parseClients, installClient, uninstallClients, trustCodex, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from './clients.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from './transcripts.js';
 import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
 import { logModelUsage, streamModelUsage } from './model-usage.js';
-import { summarize, renderUsage, sessionKey, cacheHitNotice } from './usage.js';
+import { summarize, renderUsage, sessionKey, cacheHitNotice, turnNotice } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
@@ -428,6 +428,8 @@ async function main() {
       break;
     }
     case 'hook': {
+      // the user-facing notice on cache hits: 'compact', 'creative', or null when turned off (THINKER_NOTICE, config.notice)
+      const noticeStyle = s => process.env.THINKER_NOTICE === 'off' || s.config().notice === false || s.config().notice === 'off' ? null : (process.env.THINKER_NOTICE === 'creative' || s.config().notice === 'creative' ? 'creative' : 'compact');
       // model calls made by thinker run agents too; their hooks must do nothing
       if (process.env.THINKER_IN_LLM) break;
       const ev = JSON.parse(readStdin() || '{}');
@@ -447,11 +449,8 @@ async function main() {
         if (session !== 'unknown') rememberTask(store, session, ev.prompt);
         const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET });
         if (!r.included.length) break;
-        let notice = '';
-        if (process.env.THINKER_NOTICE !== 'off' && store.config().notice !== false && store.config().notice !== 'off') {
-          const style = process.env.THINKER_NOTICE === 'creative' || store.config().notice === 'creative' ? 'creative' : 'compact';
-          notice = cacheHitNotice(store.repo, r.included, { style, seed: session !== 'unknown' ? session : ev.prompt });
-        }
+        const style = noticeStyle(store);
+        const notice = style ? cacheHitNotice(store.repo, r.included, { style, seed: session !== 'unknown' ? session : ev.prompt }) : '';
         const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
         const noticeHeader = notice ? `${notice}\n\n` : '';
         const text = `<thinker-cache>\n${noticeHeader}Notes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify.\n\n${r.text}${more}\n</thinker-cache>`;
@@ -498,6 +497,9 @@ async function main() {
           if (n.text) { out(JSON.stringify({ decision: 'block', reason: n.text })); break; }
         }
         if (client === 'cursor') out('{}');
+        // what the turn's servings saved, for the user; the ids are cleared so the next turn starts from none
+        const served = takeTurn(store, session !== 'unknown' ? session : null), style = noticeStyle(store);
+        if (served.length && style) { const notice = turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean), { style, seed: session }); const o = stopOutput(client, notice); if (o) out(o); }
         // Claude Code: its transcript. Other agents: the trace the hooks recorded,
         // plus the agent's closing message from the hook input or its transcript.
         let source = ev.transcript_path;

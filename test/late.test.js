@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store } from '../src/store.js';
-import { createNote, lateNotes, rememberTask, completenessNudge, orient, lookup } from '../src/ops.js';
+import { createNote, lateNotes, rememberTask, completenessNudge, orient, lookup, takeTurn } from '../src/ops.js';
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-late-'));
@@ -26,6 +26,21 @@ test('late notes on read: file-keyed, rules first, once per session', () => {
   assert.equal(lateNotes(store, { on: 'read', session: 's1', files: ['src/a.py'] }).included.length, 0);
   assert.equal(lateNotes(store, { on: 'read', session: 's1', files: ['src/b.py'] }).included.length, 0);
   assert.equal(lateNotes(store, { on: 'read', session: 's2', files: ['src/a.py'] }).included.length, 2);
+});
+
+test('a turn collects what orient and the late hook served, and is emptied when taken', async () => {
+  const { store, inv, cp } = setup();
+  assert.deepEqual(takeTurn(store, 'u1'), []);
+  const r = await orient(store, { task: 'how does launch work', session: 'u1', backgroundVerify: false });
+  assert.ok(r.included.length);
+  lateNotes(store, { on: 'read', session: 'u1', files: ['src/a.py'] });
+  const ids = takeTurn(store, 'u1');
+  assert.deepEqual(ids.sort(), [inv.id, cp.id].sort(), 'each once, from both paths');
+  assert.deepEqual(takeTurn(store, 'u1'), [], 'taken');
+  assert.deepEqual(takeTurn(store, null), []);
+  // servings without a session or usage recording are not a turn's
+  await orient(store, { task: 'how does launch work', backgroundVerify: false });
+  assert.deepEqual(takeTurn(store, 'u1'), []);
 });
 
 test('late notes on edit: rules only, when the file is edited and the rule bears on the request', () => {

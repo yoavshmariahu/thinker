@@ -239,6 +239,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // relevant notes that were not served, so the caller can name them and the agent can ask for one
   packed.more = ranked.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, 6).map(r => r.note);
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
+  if (recordUsage && session) trackTurn(store, session, packed.included.map(n => n.id));
   if (!NAIVE && backgroundVerify) scheduleVerify(store, packed.included.filter(n => n.status === 'stale'));
   // co-change edges for the files the served notes (and the current file) point at
   // co-change lines are carried through every later model call, so they are
@@ -300,8 +301,17 @@ const RULE_KINDS = ['invariant', 'gotcha', 'convention', 'cochange'];
 const LATE_PRIORITY = { invariant: 0, gotcha: 1, convention: 2, cochange: 3, fix: 4, rationale: 5, howto: 6, callpath: 7, location: 8, overview: 9 };
 function sessionState(store, session) {
   const f = path.join(store.dir, 'state', `session-${String(session).replace(/[^\w-]/g, '')}.json`);
-  let st = { late: [], nudged: false }; try { st = { ...st, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch {}
+  let st = { late: [], turn: [], nudged: false }; try { st = { ...st, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch {}
   return { st, save: () => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(st)); } };
+}
+// The notes served since the turn's stop hook last ran, for the summary it shows the user.
+export function trackTurn(store, session, ids) {
+  if (!session || !ids?.length || !store.exists()) return;
+  locked(store, session, () => { const { st, save } = sessionState(store, session); st.turn = [...new Set([...(st.turn || []), ...ids])]; save(); });
+}
+export function takeTurn(store, session) {
+  if (!session || !store.exists()) return [];
+  return locked(store, session, () => { const { st, save } = sessionState(store, session); const ids = st.turn || []; if (!ids.length) return []; st.turn = []; save(); return ids; });
 }
 // Hooks of one session can run at the same moment. Unlocked, two of them read the same
 // state and both serve, which is how a session got past its limit of late notes.
@@ -340,6 +350,7 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   const pick = notes.slice(0, Math.min(perEvent, perSession - st.late.length));
   if (!pick.length) return { text: '', included: [] };
   for (const n of pick) { st.late.push(n.id); n.uses = (n.uses || 0) + 1; n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
+  st.turn = [...new Set([...(st.turn || []), ...pick.map(n => n.id)])];
   save();
   const intro = on === 'edit'
     ? `Rules from previous sessions about code you are changing (${rel.join(', ')}). Check the change against them; they do not call for more reading.`

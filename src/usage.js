@@ -16,6 +16,10 @@ import { Store, logFile, adoptLocalLog, repoId } from './store.js';
 
 const FILE_CAP = 6000;   // tokens one read of a large file returns (about 2000 lines)
 const MAX_FILES = 5;
+// Wall clock of one avoided read: the model turn that issues it and takes in the result.
+// bench/RESULTS.md measured 2 to 4.5 seconds of wall clock per tool call (click: 15 s over
+// 3.4 calls; PostHog: 1.1 min less over 31.6 fewer calls), so this too is an estimate.
+export const SECONDS_PER_READ = 4;
 
 export function savingOf(repo, note) {
   let calls = 0, tokens = 0;
@@ -43,13 +47,20 @@ export function cacheHitSavings(repo, notes) {
   if (!tokens && notes?.length) {
     tokens = notes.reduce((sum, n) => sum + Math.max(Math.ceil((n.body || '').length / 3.6) * 4, 300), 0);
   }
-  return { calls, tokens };
+  // a note whose files are not on disk still stands for at least one read
+  const seconds = Math.max(calls, notes?.length ? 1 : 0) * SECONDS_PER_READ;
+  return { calls, tokens, seconds };
 }
 
 export function formatTokens(n) {
   if (n >= 10000) return `${Math.round(n / 1000)}k`;
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
   return `${Math.round(n)}`;
+}
+
+export function formatSeconds(s) {
+  if (s >= 60) return `${(s / 60).toFixed(1).replace(/\.0$/, '')}min`;
+  return `${Math.round(s)}s`;
 }
 
 export const PUNCHLINES = [
@@ -61,22 +72,39 @@ export const PUNCHLINES = [
   'fast-forward engaged ⏩',
 ];
 
+const punchlineFor = seed => {
+  let hash = 0;
+  const s = String(seed);
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  return PUNCHLINES[hash % PUNCHLINES.length];
+};
+
+// What the user sees when notes are served: hits, and the reading and time they stand for.
 export function cacheHitNotice(repo, notes, { style = 'compact', seed = 0 } = {}) {
   const hits = (notes || []).length;
   if (!hits) return '';
-  const { tokens } = cacheHitSavings(repo, notes);
+  const { tokens, seconds } = cacheHitSavings(repo, notes);
   const hitStr = hits === 1 ? 'cache hit' : 'cache hits';
-  const tokStr = formatTokens(tokens);
+  const tokStr = formatTokens(tokens), secStr = formatSeconds(seconds);
   if (style === 'creative') {
-    let hash = 0;
-    const s = String(seed);
-    for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
-    const punchline = PUNCHLINES[hash % PUNCHLINES.length];
-    const tokPart = tokens > 0 ? `Saved ~${tokStr} tokens` : 'Saved exploration tokens';
-    return `✨ thinker: ${hits} ${hitStr}! ${tokPart} — ${punchline}`;
+    const tokPart = tokens > 0 ? `Saved ~${tokStr} tokens and ~${secStr}` : `Saved exploration tokens and ~${secStr}`;
+    return `✨ thinker: ${hits} ${hitStr}! ${tokPart} — ${punchlineFor(seed)}`;
   }
-  const tokPart = tokens > 0 ? ` (~${tokStr} tokens saved)` : '';
-  return `🧠 thinker: ${hits} ${hitStr}${tokPart}`;
+  const tokPart = tokens > 0 ? `~${tokStr} tokens, ` : '';
+  return `🧠 thinker: ${hits} ${hitStr} (${tokPart}~${secStr} saved)`;
+}
+
+// What the user sees at the end of a turn: everything served in it, at the prompt and
+// while the agent read and edited files.
+export function turnNotice(repo, notes, { style = 'compact', seed = 0 } = {}) {
+  const hits = (notes || []).length;
+  if (!hits) return '';
+  const { calls, tokens, seconds } = cacheHitSavings(repo, notes);
+  const hitStr = hits === 1 ? 'cache hit' : 'cache hits';
+  const readStr = calls ? `${calls} ${calls === 1 ? 'read' : 'reads'}` : 'exploration';
+  const tokStr = formatTokens(tokens), secStr = formatSeconds(seconds);
+  if (style === 'creative') return `✨ thinker: ${hits} ${hitStr} this turn! Skipped ${readStr}, ~${tokStr} tokens and ~${secStr} — ${punchlineFor(seed)}`;
+  return `🧠 thinker: ${hits} ${hitStr} this turn (~${tokStr} tokens, ~${secStr} of ${readStr} saved)`;
 }
 
 

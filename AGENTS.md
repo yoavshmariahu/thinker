@@ -225,7 +225,15 @@ queries; `0,0` turns them off).
   `THINKER_ORIENT_GUIDE` names a file whose text
   is put above the notes `orient` returns (per-model guidance).
 - Prompt-time hook: injects the orientation bundle into every prompt
-  automatically (no tool call needed). See [Supported agents](#supported-agents).
+ automatically (no tool call needed). See [Supported agents](#supported-agents).
+- What the user sees: the prompt hook shows the hits and what they stand for
+ (`🧠 thinker: 2 cache hits (~7k tokens, ~8s saved)`), and the stop hook sums
+ the turn, prompt-time and late notes together (`usage.js:cacheHitNotice`,
+ `usage.js:turnNotice`). Tokens are one read per file a note rests on, time
+ is `usage.js:SECONDS_PER_READ` per read; both are estimates, not
+ measurements. Shown through `systemMessage` in Claude Code and Gemini CLI;
+ Codex and Cursor have no channel for it from a stop hook. `THINKER_NOTICE`
+ or `notice` in `.thinker/config.json`: `off`, or `creative` for a punchline.
 - Ranking: BM25 over title/answers/tags/deps/body with identifier splitting,
   plus path affinity to the current file, kind priors for orientation,
   confidence, and a stale penalty; greedy packing into the token budget

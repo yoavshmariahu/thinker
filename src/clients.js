@@ -99,6 +99,13 @@ export function promptOutput(client, text, notice = '') {
   }
   return text;
 }
+// What the stop hook prints so the client shows `notice` to the user. Claude Code and
+// Gemini CLI show `systemMessage` for every hook event; Codex and Cursor have no channel
+// to the user from a stop hook, so nothing is printed for them.
+export function stopOutput(client, notice) {
+  if (!notice || !['claude', 'gemini'].includes(client)) return '';
+  return JSON.stringify({ systemMessage: notice });
+}
 export function toolOutput(client, text) {
   if (client === 'cursor') return JSON.stringify({ additional_context: text });
   return JSON.stringify({ hookSpecificOutput: { hookEventName: client === 'gemini' ? 'AfterTool' : 'PostToolUse', additionalContext: text } });

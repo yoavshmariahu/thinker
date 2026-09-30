@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store, logFile } from '../src/store.js';
-import { summarize, renderUsage, savingOf, cacheHitSavings, formatTokens, cacheHitNotice, PUNCHLINES } from '../src/usage.js';
+import { summarize, renderUsage, savingOf, cacheHitSavings, formatTokens, formatSeconds, cacheHitNotice, turnNotice, PUNCHLINES, SECONDS_PER_READ } from '../src/usage.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 // run with the environment set as given (undefined removes a variable), then put it back
@@ -169,26 +169,40 @@ test('assessments are logged under the session id, and older ones under a file n
   });
 });
 
-test('cache hit notice formats brief friendly one-liner with quantified token savings', () => {
+test('cache hit notice formats brief friendly one-liner with quantified token and time savings', () => {
   assert.equal(formatTokens(450), '450');
   assert.equal(formatTokens(1500), '1.5k');
   assert.equal(formatTokens(10000), '10k');
   assert.equal(formatTokens(24500), '25k');
+  assert.equal(formatSeconds(8), '8s');
+  assert.equal(formatSeconds(60), '1min');
+  assert.equal(formatSeconds(90), '1.5min');
 
   const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
-  assert.deepEqual(cacheHitSavings(one.repo, [one.get('n1'), one.get('n2')]), { calls: 2, tokens: 7000 });
+  assert.deepEqual(cacheHitSavings(one.repo, [one.get('n1'), one.get('n2')]), { calls: 2, tokens: 7000, seconds: 2 * SECONDS_PER_READ });
+  // a note whose files are missing still stands for one read's worth of time
+  assert.equal(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]).seconds, SECONDS_PER_READ);
 
   assert.equal(cacheHitNotice(one.repo, []), '');
 
   const single = cacheHitNotice(one.repo, [one.get('n2')]);
-  assert.equal(single, '🧠 thinker: 1 cache hit (~1k tokens saved)');
+  assert.equal(single, `🧠 thinker: 1 cache hit (~1k tokens, ~${SECONDS_PER_READ}s saved)`);
 
   const multi = cacheHitNotice(one.repo, [one.get('n1'), one.get('n2')]);
-  assert.equal(multi, '🧠 thinker: 2 cache hits (~7k tokens saved)');
+  assert.equal(multi, `🧠 thinker: 2 cache hits (~7k tokens, ~${2 * SECONDS_PER_READ}s saved)`);
 
   const creative = cacheHitNotice(one.repo, [one.get('n1'), one.get('n2')], { style: 'creative', seed: 42 });
-  assert.ok(creative.startsWith('✨ thinker: 2 cache hits! Saved ~7k tokens — '));
+  assert.ok(creative.startsWith(`✨ thinker: 2 cache hits! Saved ~7k tokens and ~${2 * SECONDS_PER_READ}s — `));
   assert.equal(creative.split('\n').length, 1);
   assert.ok(PUNCHLINES.some(p => creative.endsWith(p)));
 });
 
+test('turn notice sums what the whole turn served', () => {
+  const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
+  assert.equal(turnNotice(one.repo, []), '');
+  assert.equal(turnNotice(one.repo, [one.get('n1'), one.get('n2')]), `🧠 thinker: 2 cache hits this turn (~7k tokens, ~${2 * SECONDS_PER_READ}s of 2 reads saved)`);
+  assert.equal(turnNotice(one.repo, [one.get('n2')]), `🧠 thinker: 1 cache hit this turn (~1k tokens, ~${SECONDS_PER_READ}s of 1 read saved)`);
+  const creative = turnNotice(one.repo, [one.get('n1')], { style: 'creative', seed: 's1' });
+  assert.ok(creative.startsWith(`✨ thinker: 1 cache hit this turn! Skipped 2 reads, ~7k tokens and ~${2 * SECONDS_PER_READ}s — `));
+  assert.ok(PUNCHLINES.some(p => creative.endsWith(p)));
+});
