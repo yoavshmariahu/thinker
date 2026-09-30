@@ -292,15 +292,17 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
     if (!shared && (mcp || hooks)) excludeLocally(repo, ['.gemini/settings.json']);
   }
 
-  if (client === 'cursor' && mcp) {
+  if (client === 'cursor') {
     const generated = [];
-    // Cursor cannot take context at prompt time, so the MCP server and the rule are the main route.
-    mergeJson(path.join(repo, '.cursor', 'mcp.json'), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpEntry } }));
-    const rule = path.join(repo, '.cursor', 'rules', 'thinker.mdc');
-    fs.mkdirSync(path.dirname(rule), { recursive: true });
-    fs.writeFileSync(rule, CURSOR_RULE);
-    done.push('Cursor: registered MCP server in .cursor/mcp.json and added the rule .cursor/rules/thinker.mdc');
-    generated.push('.cursor/mcp.json', '.cursor/rules/thinker.mdc');
+    // Cursor cannot take context at prompt time, so MCP is the primary route when enabled.
+    if (mcp) {
+      mergeJson(path.join(repo, '.cursor', 'mcp.json'), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpEntry } }));
+      const rule = path.join(repo, '.cursor', 'rules', 'thinker.mdc');
+      fs.mkdirSync(path.dirname(rule), { recursive: true });
+      fs.writeFileSync(rule, CURSOR_RULE);
+      done.push('Cursor: registered MCP server in .cursor/mcp.json and added the rule .cursor/rules/thinker.mdc');
+      generated.push('.cursor/mcp.json', '.cursor/rules/thinker.mdc');
+    }
     if (hooks) {
       const file = path.join(repo, '.cursor', 'hooks.json');
       const entries = [

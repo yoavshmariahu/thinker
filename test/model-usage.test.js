@@ -81,7 +81,7 @@ test('seed and distill persist provider usage, including empty yields and dry ru
   execFileSync('git', ['init', '-q', dir]);
   fs.writeFileSync(path.join(bin, 'codex'), `#!${process.execPath}
 process.stdin.resume(); process.stdin.on('end', () => {
- const distill = process.argv.includes('--ignore-user-config');
+ const distill = !process.argv.includes('--cd');
  const events = distill ? [
   {type:'item.completed',item:{type:'agent_message',text:'{"notes":[]}'}},
   {type:'turn.completed',usage:{input_tokens:100,cached_input_tokens:40,output_tokens:20}}

@@ -126,7 +126,14 @@ export class Store {
   list() {
     this.assertSafeNotesPath();
     if (!this.exists()) return [];
-    return fs.readdirSync(this.notesDir).filter(f => /^[a-z0-9]+(?:-[a-z0-9]+)*\.json$/.test(f)).map(f => this.get(f.slice(0, -5))).filter(Boolean);
+    return fs.readdirSync(this.notesDir).filter(f => /^[a-z0-9]+(?:-[a-z0-9]+)*\.json$/.test(f)).flatMap(f => {
+      const file = path.join(this.notesDir, f);
+      try {
+        if (fs.lstatSync(file).isSymbolicLink()) return [];
+        const note = JSON.parse(fs.readFileSync(file, 'utf8'));
+        return typeof note?.id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(note.id) ? [note] : [];
+      } catch { return []; }
+    });
   }
   get(id) {
     this.assertSafeNotesPath();
