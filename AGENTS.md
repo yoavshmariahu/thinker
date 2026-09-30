@@ -16,6 +16,13 @@ agent session ──► distill ──► .thinker/notes/*.json ──► orient
 
 Requires Node 20+. Tests: `npm test` (`node --test test/*.test.js`).
 
+**No telemetry from tests or benchmarks (MANDATORY RULE):**
+Always set `THINKER_TELEMETRY=off` when running tests, benchmarks, evaluation
+harnesses, scratch experiments, or their setup/install steps. Ensure every child
+process inherits it. Never send these runs to the production telemetry endpoint
+or count them as real usage. Telemetry-specific tests may use mocked requests or
+an isolated loopback server only; they must never contact production.
+
 **Agent concurrency and worktrees (MANDATORY RULE):**
 All agents working on this repository MUST perform code changes, scratch experiments, and benchmark runs in isolated git worktrees to avoid collisions with other active agents or running benchmark jobs. Never edit directly in the primary working tree.
 - **Create a worktree:** `git worktree add -b agent/<task-name> .worktrees/<task-name> HEAD` (or in `bench/worktrees/`; both are gitignored).

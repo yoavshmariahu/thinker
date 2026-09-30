@@ -1,0 +1,41 @@
+services:
+  dashboard-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: metabase
+      POSTGRES_USER: metabase
+      POSTGRES_PASSWORD: ${DASHBOARD_DB_PASSWORD}
+    volumes:
+      - dashboard-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U metabase"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  metabase:
+    image: metabase/metabase:v0.63.18
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3030:3000"
+    extra_hosts:
+      - "codervibes.cc9u406wsj02.us-east-1.rds.amazonaws.com:host-gateway"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: dashboard-db
+      MB_DB_PORT: 5432
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: metabase
+      MB_DB_PASS: ${DASHBOARD_DB_PASSWORD}
+      MB_ENCRYPTION_SECRET_KEY: ${DASHBOARD_ENCRYPTION_KEY}
+      MB_ANON_TRACKING_ENABLED: "false"
+      MB_CHECK_FOR_UPDATES: "false"
+      MB_SITE_URL: http://localhost:3030
+    volumes:
+      - dashboard-certs:/certs
+    depends_on:
+      dashboard-db:
+        condition: service_healthy
+volumes:
+  dashboard-data:
+  dashboard-certs:

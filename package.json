@@ -1,13 +1,13 @@
 {
   "name": "thinker",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Knowledge cache for coding agents: dependency-keyed notes served over MCP",
   "type": "module",
   "bin": {
     "thinker": "./src/cli.js"
   },
   "scripts": {
-    "test": "THINKER_TEST=1 THINKER_LOG=local node --test test/*.test.js"
+    "test": "THINKER_TELEMETRY=off THINKER_TEST=1 THINKER_LOG=local node --test test/*.test.js"
   },
   "license": "MIT",
   "dependencies": {

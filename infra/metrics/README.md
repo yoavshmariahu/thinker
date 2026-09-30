@@ -59,6 +59,88 @@ PostgreSQL query tool below for current data.
 
 ## Accessing private RDS
 
+### Local SQL dashboard (Metabase)
+
+Requires Docker (OrbStack or Docker Desktop), Node 20+, AWS CLI with the `yoav`
+profile logged in, and the Session Manager plugin. From the checkout root:
+
+```sh
+node scripts/metrics-dashboard.mjs start
+node scripts/metrics-dashboard.mjs login
+```
+
+Open **http://localhost:3030** and use the printed login. The **Thinker metrics**
+collection contains **Cache & distillation performance**, **Telemetry diagnostics**,
+and **Waitlist** dashboards with saved SQL queries. Choose
+**New → SQL query → Thinker telemetry (read-only)** to write your own SQL, save
+results, chart them, or export CSV. `start` prints the direct dashboard URLs.
+All dashboards have platform, version, device ID, and report-type filters.
+`start` refreshes dropdown choices as new devices and versions appear; existing
+chart layouts are preserved. Performance filters apply to each installation's
+latest snapshot, while diagnostics and waitlist queries can examine all uploads.
+Use **Unknown** for a missing device ID or untyped historical upload.
+
+Metabase Open Source v0.63.18 runs locally, bound only to `127.0.0.1:3030`.
+It uses the existing `thinker/metrics/reader` account through the private SSM
+tunnel on port 15432, with TLS and full RDS certificate/hostname verification.
+The production database receives no schema changes. Saved questions, dashboards,
+and accounts live in a separate local Postgres 17 Docker volume. Database
+credentials are encrypted by Metabase. Anonymous Metabase tracking is disabled.
+There is no additional hosted server or Metabase subscription.
+
+```sh
+node scripts/metrics-dashboard.mjs status
+node scripts/metrics-dashboard.mjs verify  # runs every saved query and checks read-only access/TLS
+node scripts/metrics-dashboard.mjs stop
+```
+
+Run `start` again after restarting your Mac or an expired AWS session. It reuses
+the dashboard and saved queries and opens a new tunnel when needed. `stop` stops
+both Docker containers without deleting data; it leaves the shared database
+tunnel available for other query tools. A newly opened tunnel logs to
+`.metrics-work/dashboard/tunnel.log`. If AWS login expired, run
+`aws login --profile yoav` and retry.
+
+Keep `.metrics-work/dashboard/state.json` private and backed up: it contains the
+local login, application database password, and encryption key. Back up the
+`thinker-dashboard_dashboard-data` Docker volume too. Do not delete that volume
+or lose the encryption key; recreating containers alone preserves your dashboard.
+If you change the local admin password in Metabase, update `password` in the
+private state file so the launcher can continue configuring the connection.
+
+The starter dashboard distinguishes installation IDs from devices/people and
+labels report arrivals separately from usage. Historical reports may include
+test telemetry; the snapshot-pattern query helps inspect it. Device coverage is
+partial, and usage fields are rolling snapshots, so raw report sums are not
+reliable totals of real users or cumulative savings.
+
+### Distillation performance (client 0.1.2+)
+
+The optional `raw_json.distillation` block (`schemaVersion: 1`) carries whole-run
+attempts, successes, failures, summed duration in milliseconds, timing sample
+count, legacy completions without outcome instrumentation, and provider-reported
+model costs/tokens with known/unknown coverage counts. It also carries model
+attempt failures and counts of completed runs without new notes or merges.
+The existing JSONB ingestion path preserves this block without a schema migration.
+Old uploads remain missing these measurements; they are never backfilled as zero.
+
+`distill-run` log records time the model invocation, retries/fallbacks, note
+persistence and assessments. Skipped sessions and dry runs do not enter the
+performance counters. A handled error is a failed whole run; provider retries
+that eventually succeed only increase failed model attempts. Abrupt process kills
+cannot emit an outcome. Mean duration is summed duration / measured run count;
+failure rate is failed / instrumented attempts, excluding uninstrumented history.
+Cost includes provider-reported spending on distillation attempts, including
+failed ones. Providers that do not report prices stay unknown. Partial known cost
+is shown with missing-cost counts, rather than claimed as a complete bill.
+
+The **Waitlist** dashboard lists submitted email addresses and first/latest signup
+times, deduplicated by the stored email string. Its table can be exported as CSV.
+The `event` field distinguishes `install`, `daily`, `waitlist`, and missing types
+(displayed as **Unknown**). An upload is a snapshot, not a distinct user or action.
+
+### Command-line access
+
 The `thinker_metrics` database runs on the private `codervibes` RDS instance.
 Start a tunnel with the AWS CLI and Session Manager plugin:
 

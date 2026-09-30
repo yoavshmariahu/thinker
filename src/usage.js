@@ -123,6 +123,7 @@ export function summarize(store, { days, all = false } = {}) {
     feedback: { useful: 0, notUseful: 0 }, corrections: 0,
     spending: { ...emptySpend(), byPurpose: {}, byPhase: {}, byModel: {}, legacyRecords: 0 },
     distillation: { runs: 0, noNewNotes: 0, noChanges: 0 },
+    distillationPerformance: { attempts: 0, succeeded: 0, failed: 0, durationMs: 0, durationSamples: 0, spending: emptySpend() },
     spent: 0, saved: { calls: 0, tokens: 0, servings: 0 }, repos: [], top: [],
   };
   // a repository is its origin; its checkouts (clones, worktrees) are counted together
@@ -134,6 +135,15 @@ export function summarize(store, { days, all = false } = {}) {
   let anon = 0;
   for (const e of events) {
     const r = per(e.origin, e.repo), s = storeOf(e.repo);
+    const d = u.distillationPerformance;
+    if (e.op === 'distill-run' && !e.dry) {
+      d.attempts++;
+      if (e.failed) d.failed++; else d.succeeded++;
+      if (typeof e.durationMs === 'number' && Number.isFinite(e.durationMs) && e.durationMs >= 0) {
+        d.durationMs += e.durationMs; d.durationSamples++;
+      }
+    }
+    if (!e.dry && !e.metered && ((e.op === 'model' && e.purpose === 'distill') || e.op === 'distill')) addSpend(d.spending, e);
     if (!e.metered && (e.op === 'model' || ['distill', 'mine-prs', 'verify', 'phrase', 'route'].includes(e.op))) {
       const purpose = e.purpose || e.op, phase = e.phase || 'legacy';
       const model = `${e.provider || 'unknown'}/${e.model || 'unknown'}`;

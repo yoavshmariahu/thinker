@@ -1108,8 +1108,11 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   const ids = new Set(injectedIds(file, { fromLine }));
   if (session) for (const n of store.list()) if ((n.servedIn || []).includes(session)) ids.add(n.id);
   const served = [...ids].filter(id => !(incremental && (state.assessed || []).includes(id))).map(id => store.get(id)).filter(Boolean);
+  const started = performance.now();
+  let failed = true;
+  try {
   const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
-  if (dry) { out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, cost ${r.cost == null ? 'unknown' : '$' + r.cost.toFixed(3)}, trace ${r.traceChars} chars)`); return; }
+  if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, cost ${r.cost == null ? 'unknown' : '$' + r.cost.toFixed(3)}, trace ${r.traceChars} chars)`); return; }
   const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') } });
   // under the session's id, which is what servings are logged under: a transcript's file name is
   // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
@@ -1124,7 +1127,14 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
     for (const x of s.skipped) out(`skipped ${x.title}: ${x.reason}`);
     out(`distilled ${events.length} events (${n} exploration calls) → ${s.saved.length} new, ${s.merged.length} merged${r.cost ? `; cost $${r.cost.toFixed(3)}` : ""}`);
   }
+  failed = false;
   return { notes: [...s.saved, ...s.merged].map(n => n.id), cost: r.cost || 0 };
+  } finally {
+    // One outcome for the whole run, including retries/fallbacks and persistence.
+    // Skipped sessions never reach this block. Abrupt process kills remain unknown.
+    store.log({ op: 'distill-run', phase, dry: !!dry, failed,
+      durationMs: Math.max(0, Math.round(performance.now() - started)) });
+  }
   }
 }
 

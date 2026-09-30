@@ -110,6 +110,18 @@ process.stdin.resume(); process.stdin.on('end', () => {
   assert.equal(u.spending.byPhase.learning.totalTokens, 120);
   assert.equal(u.spending.calls, 3);
   assert.equal(u.distillation.runs, 1); // dry run costs count, but it saved nothing
+  assert.equal(u.distillationPerformance.attempts, 1);
+  assert.equal(u.distillationPerformance.succeeded, 1);
+  assert.equal(u.distillationPerformance.failed, 0);
+  assert.equal(u.distillationPerformance.durationSamples, 1);
+  assert.ok(u.distillationPerformance.durationMs >= 0);
+  assert.equal(u.distillationPerformance.spending.calls, 1); // dry-run calls excluded
+  fs.writeFileSync(path.join(bin, 'codex'), `#!${process.execPath}\nprocess.stdin.resume();process.stdin.on('end',()=>{console.log(JSON.stringify({type:'turn.failed',error:{message:'synthetic failure'}}));process.exitCode=1;});`);
+  assert.throws(() => run('distill', trace));
+  u = JSON.parse(run('usage', '--here', '--json'));
+  assert.equal(u.distillationPerformance.attempts, 2);
+  assert.equal(u.distillationPerformance.failed, 1);
+  assert.equal(u.distillationPerformance.durationSamples, 2);
 });
 
 test('invalid model answers still retain reported tokens and cost', async () => {

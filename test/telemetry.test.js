@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,6 +17,40 @@ import {
   maybeSendDailyTelemetryInBackground,
   DEFAULT_TELEMETRY_ENDPOINT,
 } from '../src/telemetry.js';
+
+// Only this module exercises telemetry opt-in using mocks/loopback. The inherited
+// test guard still forbids production requests, including child processes.
+const originalTelemetry = process.env.THINKER_TELEMETRY;
+beforeEach(() => { process.env.THINKER_TEST = '1'; delete process.env.THINKER_TELEMETRY; });
+afterEach(() => {
+  if (originalTelemetry === undefined) delete process.env.THINKER_TELEMETRY;
+  else process.env.THINKER_TELEMETRY = originalTelemetry;
+});
+
+test('distillation telemetry preserves measured outcomes and unknown provider cost', () => {
+  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-distillation-metrics-'));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-distillation-home-'));
+  try {
+    const store = new Store(tmpRepo).init();
+    store.log({ op: 'distill-run', failed: false, durationMs: 200 });
+    store.log({ op: 'distill-run', failed: true, durationMs: 800 });
+    store.log({ op: 'distill-run', failed: true, durationMs: 9999, dry: true });
+    store.log({ op: 'distill', saved: [], merged: [], metered: true });
+    store.log({ op: 'model', purpose: 'distill', cost: null, failed: true, usage: null });
+    const d = buildTelemetryPayload(store, { home: tmpHome, all: false }).distillation;
+    assert.equal(d.attempts, 2); assert.equal(d.failed, 1); assert.equal(d.succeeded, 1);
+    assert.equal(d.durationMs, 1000); assert.equal(d.durationSamples, 2);
+    assert.equal(d.reportedCostUsd, null); assert.equal(d.costUnknownCalls, 1);
+    assert.equal(d.reportedTokens, null); assert.equal(d.noChanges, 1);
+    store.log({ op: 'model', purpose: 'distill', cost: 0.03, usage: { input_tokens: 10, output_tokens: 5 } });
+    const partial = buildTelemetryPayload(store, { home: tmpHome, all: false }).distillation;
+    assert.equal(partial.reportedCostUsd, 0.03); assert.equal(partial.costKnownCalls, 1);
+    assert.equal(partial.costUnknownCalls, 1); assert.equal(partial.reportedTokens, 15);
+    assert.equal(partial.tokenUnknownCalls, 1);
+  } finally {
+    fs.rmSync(tmpRepo, { recursive: true, force: true }); fs.rmSync(tmpHome, { recursive: true, force: true });
+  }
+});
 
 test('isTelemetryEnabled honors environment flags and config overrides', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-telem-home-'));

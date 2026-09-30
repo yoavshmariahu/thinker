@@ -139,6 +139,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
   const u = summarize(store, { days, all });
   const cacheSize = computeCacheMetrics(store, { home, all });
+  const d = u.distillationPerformance, spend = d.spending;
 
   const totalAssessed = (u.assessed.confirmed || 0) + (u.assessed.contradicted || 0) + (u.assessed.unused || 0);
   const confirmationRate = totalAssessed > 0
@@ -159,6 +160,21 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     periodHours: (days || 1) * 24,
 
     cacheSize,
+
+    // Explicit coverage keeps old logs and unsupported provider costs unknown.
+    // SQL dashboards read this versioned block from reports.raw_json.
+    distillation: {
+      schemaVersion: 1,
+      attempts: d.attempts, succeeded: d.succeeded, failed: d.failed,
+      durationMs: d.durationMs, durationSamples: d.durationSamples,
+      legacySuccessfulRuns: Math.max(0, u.distillation.runs - d.succeeded),
+      noNewNotes: u.distillation.noNewNotes, noChanges: u.distillation.noChanges,
+      modelCalls: spend.calls, modelFailedCalls: spend.failed,
+      reportedCostUsd: spend.calls > 0 && spend.calls === spend.unknownCostCalls ? null : spend.reportedCost,
+      costKnownCalls: spend.calls - spend.unknownCostCalls, costUnknownCalls: spend.unknownCostCalls,
+      reportedTokens: spend.calls > 0 && spend.calls === spend.unknownTokenCalls ? null : spend.totalTokens,
+      tokenKnownCalls: spend.calls - spend.unknownTokenCalls, tokenUnknownCalls: spend.unknownTokenCalls,
+    },
 
     effectiveness: {
       requestsTotal: u.requests,
