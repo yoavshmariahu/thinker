@@ -1,0 +1,110 @@
+{
+  "metadata": [
+    {
+      "key": "indexed_at_commit",
+      "value": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+      "updated_at": 1790740916164
+    },
+    {
+      "key": "indexed_dirty_paths",
+      "value": "{\"commit\":\"a3b3c3685bcffcf273f0d27ffb6a669239200e30\",\"paths\":[]}",
+      "updated_at": 1790740916164
+    },
+    {
+      "key": "index_state",
+      "value": "complete",
+      "updated_at": 1790740916164
+    },
+    {
+      "key": "indexed_with_version",
+      "value": "1.6.1",
+      "updated_at": 1790740915720
+    },
+    {
+      "key": "indexed_with_extraction_version",
+      "value": "27",
+      "updated_at": 1790740915733
+    },
+    {
+      "key": "index_files_discovered",
+      "value": "43962",
+      "updated_at": 1790740916164
+    },
+    {
+      "key": "index_files_accounted",
+      "value": "43962",
+      "updated_at": 1790740916164
+    }
+  ],
+  "files": {
+    "n": 43962
+  },
+  "nodes": {
+    "n": 927722
+  },
+  "edges": {
+    "n": 2786826
+  },
+  "fileErrors": [
+    {
+      "path": ".github/scripts/fixtures/jest-timings-real-run/junit-results-nodejs-1/junit-results/junit-nodejs-1.xml",
+      "errors": "[{\"message\":\"File exceeds max size (1093414 > 1048576)\",\"filePath\":\".github/scripts/fixtures/jest-timings-real-run/junit-results-nodejs-1/junit-results/junit-nodejs-1.xml\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": ".github/scripts/fixtures/jest-timings-real-run/junit-results-nodejs-2/junit-results/junit-nodejs-2.xml",
+      "errors": "[{\"message\":\"File exceeds max size (1640864 > 1048576)\",\"filePath\":\".github/scripts/fixtures/jest-timings-real-run/junit-results-nodejs-2/junit-results/junit-nodejs-2.xml\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": ".github/scripts/fixtures/jest-timings-real-run/junit-results-nodejs-3/junit-results/junit-nodejs-3.xml",
+      "errors": "[{\"message\":\"File exceeds max size (1123657 > 1048576)\",\"filePath\":\".github/scripts/fixtures/jest-timings-real-run/junit-results-nodejs-3/junit-results/junit-nodejs-3.xml\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "frontend/snapshots.yml",
+      "errors": "[{\"message\":\"File exceeds max size (1276905 > 1048576)\",\"filePath\":\"frontend/snapshots.yml\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "errors": "[{\"message\":\"File exceeds max size (1653945 > 1048576)\",\"filePath\":\"pnpm-lock.yaml\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "posthog/schema.py",
+      "errors": "[{\"message\":\"File exceeds max size (1403481 > 1048576)\",\"filePath\":\"posthog/schema.py\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "posthog/test_video_segments.yaml",
+      "errors": "[{\"message\":\"File exceeds max size (3131228 > 1048576)\",\"filePath\":\"posthog/test_video_segments.yaml\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "products/desktop/pnpm-lock.yaml",
+      "errors": "[{\"message\":\"File exceeds max size (1218582 > 1048576)\",\"filePath\":\"products/desktop/pnpm-lock.yaml\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "products/product_analytics/frontend/insights/trends/WorldMap/countryVectors.tsx",
+      "errors": "[{\"message\":\"File exceeds max size (1132279 > 1048576)\",\"filePath\":\"products/product_analytics/frontend/insights/trends/WorldMap/countryVectors.tsx\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "rust/cymbal/tests/static/chunk-PGUQKT6S-no-map.js",
+      "errors": "[{\"message\":\"File exceeds max size (2333991 > 1048576)\",\"filePath\":\"rust/cymbal/tests/static/chunk-PGUQKT6S-no-map.js\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "rust/cymbal/tests/static/chunk-PGUQKT6S.js",
+      "errors": "[{\"message\":\"File exceeds max size (2334332 > 1048576)\",\"filePath\":\"rust/cymbal/tests/static/chunk-PGUQKT6S.js\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "rust/cymbal/tests/static/sourcemaps/1234.js",
+      "errors": "[{\"message\":\"File exceeds max size (2334327 > 1048576)\",\"filePath\":\"rust/cymbal/tests/static/sourcemaps/1234.js\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "services/mcp/src/api/generated.ts",
+      "errors": "[{\"message\":\"File exceeds max size (4709318 > 1048576)\",\"filePath\":\"services/mcp/src/api/generated.ts\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "services/mcp/src/generated/experiments/api.ts",
+      "errors": "[{\"message\":\"File exceeds max size (1408282 > 1048576)\",\"filePath\":\"services/mcp/src/generated/experiments/api.ts\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    },
+    {
+      "path": "services/mcp/src/generated/marketing_analytics/api.ts",
+      "errors": "[{\"message\":\"File exceeds max size (1412267 > 1048576)\",\"filePath\":\"services/mcp/src/generated/marketing_analytics/api.ts\",\"severity\":\"warning\",\"code\":\"size_exceeded\"}]"
+    }
+  ]
+}

@@ -1,0 +1,294 @@
+{
+  "protocol": {
+    "created": "2026-09-30T04:06:19.804Z",
+    "thinkerCommit": "6faff5627539905d6b813d878d1aa8f5b24d383e",
+    "codegraphVersion": "1.6.1",
+    "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+    "model": "gpt-6-sol",
+    "effort": "high",
+    "tasks": [
+      "PR106936-hard",
+      "PR106672-hard",
+      "PR106522-hard"
+    ],
+    "repetitions": 1,
+    "concurrency": 1,
+    "judge": "gemini-3.8-flash-high",
+    "notes": 259,
+    "notes_sha256": "90d04536d247f00891a460dac7435194508a3d5c0d2af1e2afd2001a3f9b73f4",
+    "order": [
+      {
+        "task": "PR106936-hard",
+        "arm": "thinker"
+      },
+      {
+        "task": "PR106936-hard",
+        "arm": "codegraph"
+      },
+      {
+        "task": "PR106672-hard",
+        "arm": "codegraph"
+      },
+      {
+        "task": "PR106672-hard",
+        "arm": "thinker"
+      },
+      {
+        "task": "PR106522-hard",
+        "arm": "thinker"
+      },
+      {
+        "task": "PR106522-hard",
+        "arm": "codegraph"
+      }
+    ],
+    "controls": [
+      "same task prompts and source base",
+      "isolated Codex homes; only assigned MCP",
+      "Thinker prompt+late hooks, orient/lookup, frozen v2 notes",
+      "CodeGraph pinned release; pristine prebuilt graph per task; live watcher; direct MCP mode",
+      "shipped tool guidance, CodeGraph shell alternative removed",
+      "no dependencies or task test suite",
+      "blinded grading with same calibrated criteria and post-patch context",
+      "indexing and grading excluded from task wall time",
+      "no model cost estimate: Codex CLI does not report dollars",
+      "Both arms run with ulimit -n 65536; CodeGraph waits for initial catch-up with CODEGRAPH_CATCHUP_GATE_TIMEOUT_MS=0"
+    ],
+    "planned_judge": "claude-fable-5-1",
+    "judge_change_reason": "Fable weekly usage limit; no Fable grades were produced. All six patches use the same Gemini judge.",
+    "observed_thinker_delivery": "All observed Thinker retrieval through MCP; project hooks registered but no prompt/late serving recorded",
+    "infrastructure_retry": {
+      "task": "PR106672-hard",
+      "arm": "codegraph",
+      "excluded": "excluded/metrics-codegraph-no-mcp",
+      "reason": "Assigned graph MCP unavailable; no graph calls",
+      "changes": [
+        "required assigned MCP startup via Codex config",
+        "wait for prior direct writer process before graph replacement"
+      ],
+      "root_cause": "not established"
+    },
+    "task_timeout_seconds": 1500,
+    "timeout_policy": "Retain and count measured timeout, grade saved partial patch separately, mark token usage unavailable when no turn.completed usage arrives. Do not rerun for outcome.",
+    "host_sleep_retry": {
+      "task": "PR106522-hard",
+      "arm": "thinker",
+      "excluded": "excluded/sandbox-thinker-host-sleep",
+      "evidence": "pmset host power log confirms sleep overlapping run",
+      "mitigation": "caffeinate idle-sleep assertion for remaining runs; lid closure can still interrupt"
+    },
+    "observed_valid_order": [
+      {
+        "task": "PR106936-hard",
+        "arm": "thinker"
+      },
+      {
+        "task": "PR106936-hard",
+        "arm": "codegraph"
+      },
+      {
+        "task": "PR106672-hard",
+        "arm": "codegraph"
+      },
+      {
+        "task": "PR106672-hard",
+        "arm": "thinker"
+      }
+    ],
+    "observed_valid_order_note": "User stopped before final pair completed. No replacement Thinker sandbox run was started.",
+    "stopped_by_user": true,
+    "completed_pairs": 2
+  },
+  "rows": [
+    {
+      "task": "PR106936-hard",
+      "arm": "thinker",
+      "model": "gpt-6-sol",
+      "effort": "high",
+      "wall_s": 688.094,
+      "calls": 134,
+      "mcp_calls": 2,
+      "status": "completed",
+      "input_tokens": 5975790,
+      "cached_tokens": 5850624,
+      "fresh_input_tokens": 125166,
+      "output_tokens": 28626,
+      "essential": 1,
+      "essential_met": 6,
+      "essential_total": 6,
+      "all": 0.7777777777777778,
+      "pass": true,
+      "patch_chars": 24019,
+      "mcp_response_chars": 4749,
+      "audit": {
+        "wrongTool": [],
+        "suspectCommands": [],
+        "thinkerServings": 2,
+        "thinkerNoteIds": [
+          "onboarding-and-settings-invite-flows-share-invitelogic",
+          "bulk-invite-partial-failure-semantics",
+          "invite-validation-errors-reach-ui-only-as-a-global-toast"
+        ],
+        "exitCode": 0,
+        "failures": [],
+        "timedOut": false,
+        "mcpErrors": [],
+        "watcherDegraded": false,
+        "forbiddenCommands": []
+      }
+    },
+    {
+      "task": "PR106936-hard",
+      "arm": "codegraph",
+      "model": "gpt-6-sol",
+      "effort": "high",
+      "wall_s": 806.478,
+      "calls": 66,
+      "mcp_calls": 27,
+      "status": "completed",
+      "input_tokens": 6934453,
+      "cached_tokens": 6788352,
+      "fresh_input_tokens": 146101,
+      "output_tokens": 25468,
+      "essential": 0.6666666666666666,
+      "essential_met": 4,
+      "essential_total": 6,
+      "all": 0.5555555555555556,
+      "pass": false,
+      "patch_chars": 24002,
+      "mcp_response_chars": 555830,
+      "audit": {
+        "wrongTool": [],
+        "suspectCommands": [],
+        "thinkerServings": 0,
+        "thinkerNoteIds": [],
+        "exitCode": 0,
+        "failures": [],
+        "timedOut": false,
+        "mcpErrors": [],
+        "watcherDegraded": false,
+        "forbiddenCommands": []
+      }
+    },
+    {
+      "task": "PR106672-hard",
+      "arm": "codegraph",
+      "model": "gpt-6-sol",
+      "effort": "high",
+      "wall_s": 507.232,
+      "calls": 47,
+      "mcp_calls": 37,
+      "status": "completed",
+      "input_tokens": 4271195,
+      "cached_tokens": 4114816,
+      "fresh_input_tokens": 156379,
+      "output_tokens": 14668,
+      "essential": 0.8571428571428571,
+      "essential_met": 6,
+      "essential_total": 7,
+      "all": 0.875,
+      "pass": false,
+      "patch_chars": 13302,
+      "mcp_response_chars": 695161,
+      "audit": {
+        "wrongTool": [],
+        "suspectCommands": [],
+        "thinkerServings": 0,
+        "thinkerNoteIds": [],
+        "exitCode": 0,
+        "failures": [],
+        "timedOut": false,
+        "mcpErrors": [],
+        "watcherDegraded": false,
+        "forbiddenCommands": []
+      }
+    },
+    {
+      "task": "PR106672-hard",
+      "arm": "thinker",
+      "model": "gpt-6-sol",
+      "effort": "high",
+      "wall_s": 318.058,
+      "calls": 50,
+      "mcp_calls": 2,
+      "status": "completed",
+      "input_tokens": 2271597,
+      "cached_tokens": 2194944,
+      "fresh_input_tokens": 76653,
+      "output_tokens": 11533,
+      "essential": 0.8571428571428571,
+      "essential_met": 6,
+      "essential_total": 7,
+      "all": 0.875,
+      "pass": false,
+      "patch_chars": 10381,
+      "mcp_response_chars": 5353,
+      "audit": {
+        "wrongTool": [],
+        "suspectCommands": [],
+        "thinkerServings": 2,
+        "thinkerNoteIds": [
+          "shared-metrics-must-go-through-enrichsharedmetric-to-merge-l",
+          "adding-a-setup-context-response-field-files-that-must-change",
+          "experiment-metric-uuid-assignment-and-resolution"
+        ],
+        "exitCode": 0,
+        "failures": [],
+        "timedOut": false,
+        "mcpErrors": [],
+        "watcherDegraded": false,
+        "forbiddenCommands": []
+      }
+    },
+    {
+      "task": "PR106522-hard",
+      "arm": "thinker",
+      "pending": false,
+      "stopped": true
+    },
+    {
+      "task": "PR106522-hard",
+      "arm": "codegraph",
+      "pending": false,
+      "stopped": true
+    }
+  ],
+  "totals": {
+    "thinker": {
+      "n": 2,
+      "completed": 2,
+      "timeouts": 0,
+      "wall_s": 1006.152,
+      "calls": 184,
+      "mcp_calls": 4,
+      "input_tokens": 8247387,
+      "cached_tokens": 8045568,
+      "fresh_input_tokens": 201819,
+      "output_tokens": 40159,
+      "mcp_response_chars": 10102,
+      "mean_essential": 0.9285714285714286,
+      "strict_passes": 1,
+      "patches_passing_essential": 1,
+      "essential_met": 12,
+      "essential_total": 13
+    },
+    "codegraph": {
+      "n": 2,
+      "completed": 2,
+      "timeouts": 0,
+      "wall_s": 1313.71,
+      "calls": 113,
+      "mcp_calls": 64,
+      "input_tokens": 11205648,
+      "cached_tokens": 10903168,
+      "fresh_input_tokens": 302480,
+      "output_tokens": 40136,
+      "mcp_response_chars": 1250991,
+      "mean_essential": 0.7619047619047619,
+      "strict_passes": 0,
+      "patches_passing_essential": 0,
+      "essential_met": 10,
+      "essential_total": 13
+    }
+  }
+}

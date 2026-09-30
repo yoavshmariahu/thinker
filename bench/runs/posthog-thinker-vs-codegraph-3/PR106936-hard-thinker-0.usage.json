@@ -1,0 +1,42 @@
+[
+  {
+    "t": "2026-09-30T04:12:07.811Z",
+    "repo": "/Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-thinker",
+    "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-thinker",
+    "op": "orient",
+    "task": "Implement invite-row validation for existing organization members and self in onboarding and organization settings; prevalidate batch on backend before creating/emailing invites, and avoid reporting t",
+    "served": [
+      "onboarding-and-settings-invite-flows-share-invitelogic",
+      "bulk-invite-partial-failure-semantics"
+    ],
+    "stale": [],
+    "tokens": 714,
+    "est": [
+      [
+        4,
+        17460
+      ],
+      [
+        2,
+        10177
+      ]
+    ]
+  },
+  {
+    "t": "2026-09-30T04:12:11.017Z",
+    "repo": "/Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-thinker",
+    "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-thinker",
+    "op": "lookup",
+    "query": "invite-validation-errors-reach-ui-only-as-a-global-toast",
+    "served": [
+      "invite-validation-errors-reach-ui-only-as-a-global-toast"
+    ],
+    "tokens": 423,
+    "est": [
+      [
+        5,
+        26798
+      ]
+    ]
+  }
+]

@@ -1,0 +1,100 @@
+{
+  "created": "2026-09-30T04:06:19.804Z",
+  "thinkerCommit": "6faff5627539905d6b813d878d1aa8f5b24d383e",
+  "codegraphVersion": "1.6.1",
+  "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "model": "gpt-6-sol",
+  "effort": "high",
+  "tasks": [
+    "PR106936-hard",
+    "PR106672-hard",
+    "PR106522-hard"
+  ],
+  "repetitions": 1,
+  "concurrency": 1,
+  "judge": "gemini-3.8-flash-high",
+  "notes": 259,
+  "notes_sha256": "90d04536d247f00891a460dac7435194508a3d5c0d2af1e2afd2001a3f9b73f4",
+  "order": [
+    {
+      "task": "PR106936-hard",
+      "arm": "thinker"
+    },
+    {
+      "task": "PR106936-hard",
+      "arm": "codegraph"
+    },
+    {
+      "task": "PR106672-hard",
+      "arm": "codegraph"
+    },
+    {
+      "task": "PR106672-hard",
+      "arm": "thinker"
+    },
+    {
+      "task": "PR106522-hard",
+      "arm": "thinker"
+    },
+    {
+      "task": "PR106522-hard",
+      "arm": "codegraph"
+    }
+  ],
+  "controls": [
+    "same task prompts and source base",
+    "isolated Codex homes; only assigned MCP",
+    "Thinker prompt+late hooks, orient/lookup, frozen v2 notes",
+    "CodeGraph pinned release; pristine prebuilt graph per task; live watcher; direct MCP mode",
+    "shipped tool guidance, CodeGraph shell alternative removed",
+    "no dependencies or task test suite",
+    "blinded grading with same calibrated criteria and post-patch context",
+    "indexing and grading excluded from task wall time",
+    "no model cost estimate: Codex CLI does not report dollars",
+    "Both arms run with ulimit -n 65536; CodeGraph waits for initial catch-up with CODEGRAPH_CATCHUP_GATE_TIMEOUT_MS=0"
+  ],
+  "planned_judge": "claude-fable-5-1",
+  "judge_change_reason": "Fable weekly usage limit; no Fable grades were produced. All six patches use the same Gemini judge.",
+  "observed_thinker_delivery": "All observed Thinker retrieval through MCP; project hooks registered but no prompt/late serving recorded",
+  "infrastructure_retry": {
+    "task": "PR106672-hard",
+    "arm": "codegraph",
+    "excluded": "excluded/metrics-codegraph-no-mcp",
+    "reason": "Assigned graph MCP unavailable; no graph calls",
+    "changes": [
+      "required assigned MCP startup via Codex config",
+      "wait for prior direct writer process before graph replacement"
+    ],
+    "root_cause": "not established"
+  },
+  "task_timeout_seconds": 1500,
+  "timeout_policy": "Retain and count measured timeout, grade saved partial patch separately, mark token usage unavailable when no turn.completed usage arrives. Do not rerun for outcome.",
+  "host_sleep_retry": {
+    "task": "PR106522-hard",
+    "arm": "thinker",
+    "excluded": "excluded/sandbox-thinker-host-sleep",
+    "evidence": "pmset host power log confirms sleep overlapping run",
+    "mitigation": "caffeinate idle-sleep assertion for remaining runs; lid closure can still interrupt"
+  },
+  "observed_valid_order": [
+    {
+      "task": "PR106936-hard",
+      "arm": "thinker"
+    },
+    {
+      "task": "PR106936-hard",
+      "arm": "codegraph"
+    },
+    {
+      "task": "PR106672-hard",
+      "arm": "codegraph"
+    },
+    {
+      "task": "PR106672-hard",
+      "arm": "thinker"
+    }
+  ],
+  "observed_valid_order_note": "User stopped before final pair completed. No replacement Thinker sandbox run was started.",
+  "stopped_by_user": true,
+  "completed_pairs": 2
+}

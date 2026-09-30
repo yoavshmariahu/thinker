@@ -1,0 +1,42 @@
+[
+  {
+    "t": "2026-09-30T05:01:44.571Z",
+    "repo": "/Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-thinker",
+    "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-thinker",
+    "op": "orient",
+    "task": "Fix experiment metric identifier collisions when promoting an inline metric to a shared metric and when updating only attached shared metrics; update agent analytics setup guidance, and add focused te",
+    "served": [
+      "shared-metrics-must-go-through-enrichsharedmetric-to-merge-l",
+      "adding-a-setup-context-response-field-files-that-must-change"
+    ],
+    "stale": [],
+    "tokens": 804,
+    "est": [
+      [
+        2,
+        12000
+      ],
+      [
+        5,
+        28061
+      ]
+    ]
+  },
+  {
+    "t": "2026-09-30T05:01:47.651Z",
+    "repo": "/Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-thinker",
+    "origin": "/Users/yoavshmariahu/src/thinker/.worktrees/codegraph-posthog-eval/bench/worktrees/posthog-thinker",
+    "op": "lookup",
+    "query": "experiment-metric-uuid-assignment-and-resolution",
+    "served": [
+      "experiment-metric-uuid-assignment-and-resolution"
+    ],
+    "tokens": 397,
+    "est": [
+      [
+        3,
+        8967
+      ]
+    ]
+  }
+]

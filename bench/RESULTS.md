@@ -1,5 +1,8 @@
 # Benchmark results
 
+Additional comparison: [Thinker versus CodeGraph on PostHog](../research/codegraph-posthog/README.md)
+— two completed task pairs, with raw traces, grades, and excluded attempts.
+
 ## Headline results and how to read them
 
 The numbers shown in the README, with their explanation. PostHog,
