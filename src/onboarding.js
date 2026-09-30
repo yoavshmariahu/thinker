@@ -1098,7 +1098,7 @@ export async function stepPrBenchmark({
 
   if (!pr) {
     out(`  ${c.gray('○')} No recent PR or multi-file change found to benchmark.`);
-    out(`    ${c.dim('You can benchmark any question later: thinker benchmark run "<repo question>"')}`);
+    out(`    ${c.dim('You can benchmark a question the cache covers later: thinker benchmark')}`);
     return null;
   }
 
@@ -1361,6 +1361,7 @@ export async function runOnboarding({
     '',
     `Try searching cache:    ${c.cyan('thinker lookup "<query>"')}`,
     `Test prompt retrieval:  ${c.cyan('thinker orient "<task you want to work on>"')}`,
+    `Benchmark a question:   ${c.cyan('thinker benchmark')}`,
     `Run PR benchmark:       ${c.cyan('thinker benchmark pr')}`,
   ], { width: 74, borderColor: 'green' }) + '\n');
 }

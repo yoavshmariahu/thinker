@@ -37,14 +37,14 @@ curl -fsSL https://zerotime.dev/thinker101/install.sh | bash
 Then work with your agent as usual. Notes are added to each request
 automatically.
 
-To check the value on your own repository after setup, run the paired onboarding benchmark on a recent PR change or specific workflow question:
+To check the value on your own repository after setup, run the paired onboarding benchmark on a question the cache covers or a recent PR change:
 
 ```bash
-# Benchmark on a recent PR change (compares efficiency & target file location)
-thinker benchmark pr [number]
+# Pick a question the cache covers (Enter takes the first), or type your own
+thinker benchmark
 
-# Or benchmark a specific question without and with Thinker context
-thinker benchmark run "explain how <a real workflow> works"
+# Or benchmark a recent PR change (compares efficiency & target file location)
+thinker benchmark pr [number]
 
 # Show the latest comparison again
 thinker benchmark report
@@ -53,10 +53,9 @@ thinker benchmark report
 It makes two read-only agent calls, without and with relevant thinker notes,
 and compares time, turns and tokens. It saves both answers under
 `.thinker/benchmarks/` so you can review quality; it does not pretend that
-speed alone is a correctness score. If the first question is not covered well
-enough by the cache, no agent calls are made and Thinker prints alternative
-benchmark commands based on topics it can cover. Copy one of those suggestions
-and try again.
+speed alone is a correctness score. `thinker benchmark run "<question>"` runs
+a question directly; if the cache does not cover it well enough, no agent
+calls are made and Thinker offers questions it does cover.
 
 Notes:
 

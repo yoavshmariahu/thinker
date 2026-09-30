@@ -18,7 +18,7 @@ import { logModelUsage, streamModelUsage } from './model-usage.js';
 import { summarize, renderUsage, sessionKey, cacheHitNotice } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
-import { benchmarkAgent, benchmarkSuggestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
+import { benchmarkAgent, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath, tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendDailyTelemetryInBackground } from './telemetry.js';
 import { runOnboarding, stepPrBenchmark, selectAndAuthenticateAgent, getAgentLoginCommand, getAgentDisplayName, c } from './onboarding.js';
@@ -86,8 +86,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  (--here: this repository only; history is kept in ~/.thinker/log.jsonl)
   benchmark pr [number] [--agent a] [--model m] [--budget n]
                                  run a paired benchmark on a recent PR change with vs without the cache
-  benchmark run "<repo question>" [--agent a] [--model m] [--budget n]
-                                 run a paired, read-only onboarding benchmark without and with relevant cached notes
+  benchmark [run ["<repo question>"]] [--agent a] [--model m] [--budget n]
+                                 run a paired, read-only onboarding benchmark without and with relevant cached notes;
+                                 with no question, offers questions the cache covers (picks the first outside a terminal)
   benchmark report              show the latest comparison (answers are saved for human quality review)
   update [branch] [--branch b] [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]
                                  update thinker CLI or switch to a branch version; --schedule / --unschedule manages daily background updates
@@ -619,12 +620,31 @@ async function main() {
         });
         break;
       }
-      if (sub !== 'run') {
-        out('Run a benchmark in this repository:\n  thinker benchmark pr [number]           paired benchmark on a recent PR change\n  thinker benchmark run "<repo question>" paired benchmark on a specific question\n  thinker benchmark report                 show the latest benchmark result\n\nEach benchmark makes two read-only agent calls; answers are saved for review.');
-        break;
+      // `thinker benchmark "<question>"` is taken as `run`
+      if (sub && sub !== 'run') pos.unshift(sub);
+      let task = pos.join(' ').trim();
+      if (!task) {
+        // First run: nobody knows yet what the cache covers, so offer questions it does
+        const questions = await coveredBenchmarkQuestions(store);
+        if (!questions.length) { out('There are no usable benchmark topics in the cache yet. Build it first with `thinker onboard`, then try again, or benchmark a recent PR change with `thinker benchmark pr`.'); process.exitCode = 1; break; }
+        if (process.stdin.isTTY) {
+          out('Benchmark thinker on a question the cache covers (two read-only agent calls: without and with thinker):\n');
+          questions.forEach((q, i) => out(`  ${i + 1}. ${q}`));
+          const rl = (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout });
+          const a = await rl.question(`\nPick 1-${questions.length}, type your own question, or q to quit [1]: `).then(x => x.trim(), () => 'q'); rl.close(); // Ctrl-D quits
+          if (/^q(uit)?$/i.test(a)) { out('To benchmark a recent PR change instead: thinker benchmark pr [number]'); break; }
+          task = !a ? questions[0] : /^\d+$/.test(a) && questions[Number(a) - 1] ? questions[Number(a) - 1] : a;
+        } else if (sub === 'run') {
+          task = questions[0];
+          out(`No question given; using one the cache covers: ${task}`);
+        } else {
+          const quote = text => `'${text.replaceAll("'", `'"'"'`)}'`;
+          out('Run a benchmark in this repository on a question the cache covers:');
+          for (const q of questions) out(`  thinker benchmark run ${quote(q)}`);
+          out('\nOther benchmarks:\n  thinker benchmark pr [number]   paired benchmark on a recent PR change\n  thinker benchmark report        show the latest benchmark result\n\n`thinker benchmark run` with no question uses the first above. Each benchmark makes two read-only agent calls; answers are saved for review.');
+          break;
+        }
       }
-      const task = pos.join(' ').trim();
-      if (!task) { out('usage: thinker benchmark run "<repo question>" [--agent claude|codex|cursor|gemini] [--model m]'); process.exitCode = 1; break; }
       const authRes = await selectAndAuthenticateAgent({
         requestedAgent: typeof flags.agent === 'string' ? flags.agent : undefined,
         yes: Boolean(flags.yes),
@@ -640,7 +660,7 @@ async function main() {
       const selected = authRes.agent;
       const oriented = await orient(store, { task, budget: Number(flags.budget) || 1000, recordUsage: false, backgroundVerify: false });
       if (!oriented.included.length) {
-        const suggestions = benchmarkSuggestions(store);
+        const suggestions = await coveredBenchmarkQuestions(store);
         out('Benchmark stopped: the cache does not have sufficiently relevant notes for that question. No agent calls were made, so no model usage was spent.');
         if (suggestions.length) {
           const quote = text => `'${text.replaceAll("'", `'"'"'`)}'`;
