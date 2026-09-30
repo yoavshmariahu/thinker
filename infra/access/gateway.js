@@ -31,7 +31,10 @@ function sessionValid(request) {
     return expires > now && expires <= now + SESSION_SECONDS && equal(parts[1], sign('session:' + parts[0]));
 }
 function publicPath(uri) {
-    return uri === '/' || uri === '/index.html' ||
+    // Fixed deadline checked on every request, before cache lookup.
+    var legacyDownload = /^\/dist\/(thinker\.tgz|install\.sh|version\.json)$/.test(uri) &&
+        Date.now() < Date.parse(CONFIG.legacyDownloadsUntil || '');
+    return legacyDownload || uri === '/' || uri === '/index.html' ||
         /^\/(favicon(?:-16x16|-32x32)?\.(?:ico|png|svg)|apple-touch-icon.png)$/.test(uri) ||
         uri === '/gokce-bday' || uri.indexOf('/gokce-bday/') === 0;
 }

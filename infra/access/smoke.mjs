@@ -21,7 +21,10 @@ for (const url of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) {
   assert.ok(!(await response.text()).includes('thinker documentation'));
 }
 for (const url of ['/dist/thinker.tgz', '/dist/install.sh', '/dist/version.json', '/thinker101/install.sh', '/Thinker101/install.sh']) {
-  assert.equal((await request(url)).status, 403, url);
+  const temporaryPublic = url.startsWith('/dist/') && Date.now() < Date.parse(config.legacyDownloadsUntil);
+  const response = await request(url, { method: 'HEAD' });
+  assert.equal(response.status, temporaryPublic ? 200 : 403, url);
+  assert.match(response.headers.get('cache-control'), /no-store/);
 }
 assert.equal((await request('/access/session', { headers: { 'X-Thinker-Access-Code': 'invalid-code' } })).status, 401);
 assert.equal((await request('/docs.html', { headers: { Cookie: '__Host-thinker_session=true' } })).status, 302);
@@ -64,7 +67,7 @@ assert.equal((await request('/access/download/' + '0'.repeat(64) + '/thinker.tgz
 assert.equal((await request('https://d377du4vqz6ixi.cloudfront.net/docs.html')).status, 302);
 assert.equal((await request('https://www.zerotime.dev/docs.html')).headers.get('location'), 'https://zerotime.dev/docs.html');
 assert.equal((await request('https://zerotime-frontend.s3.us-west-1.amazonaws.com/docs.html')).status, 403);
-console.log('PASS: anonymous/invalid/forged access blocked; every docs alias protected before and after cache hits; secure session restored; authenticated installer and archive served; S3/CDN bypasses blocked.');
+console.log('PASS: legacy download deadline honored; invalid/forged access blocked; every docs alias protected before and after cache hits; secure session restored; authenticated installer and archive served; S3/CDN bypasses blocked.');
 if (process.argv.includes('--install')) {
   const work = path.resolve(import.meta.dirname, '../../.access-work');
   const repo = fs.mkdtempSync(path.join(work, 'install-smoke-'));

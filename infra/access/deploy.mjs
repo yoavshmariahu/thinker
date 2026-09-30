@@ -66,7 +66,7 @@ if (mode === 'prepare') {
   }
   if (!secret.accessCode || !/^[a-f0-9]{64}$/.test(secret.signingKey)) throw new Error('Invalid access secret');
   const code = fs.readFileSync(path.join(root, 'infra/access/gateway.js'), 'utf8').replace('__ACCESS_CONFIG__', JSON.stringify({
-    codeHash: hash(secret.accessCode), signingKey: secret.signingKey
+    codeHash: hash(secret.accessCode), signingKey: secret.signingKey, legacyDownloadsUntil: config.legacyDownloadsUntil
   }));
   if (Buffer.byteLength(code) > 10240) throw new Error('CloudFront function exceeds 10 KB');
   const codePath = save('gateway.js', code);
@@ -90,14 +90,15 @@ if (mode === 'prepare') {
   const cookies = context.handler(goodLogin).cookies;
   const goodDocs = event('/docs.html'); goodDocs.request.cookies = { '__Host-thinker_session': { value: cookies['__Host-thinker_session'].value } };
   for (const [name, request, expected] of [
-    ['docs-denied', event('/docs.html'), 302], ['download-denied', event('/dist/thinker.tgz'), 403],
+    ['docs-denied', event('/docs.html'), 302], ['legacy-download', event('/dist/thinker.tgz'), Date.now() < Date.parse(config.legacyDownloadsUntil) ? null : 403],
+    ['other-download-denied', event('/dist/releases/old/thinker.tgz'), 403],
     ['login-denied', event('/access/session'), 401], ['login-valid', goodLogin, 200], ['docs-valid', goodDocs, null]
   ]) {
     const result = aws(['cloudfront', 'test-function', '--name', config.functionName, '--if-match', prepared.ETag,
       '--stage', 'DEVELOPMENT', '--event-object', 'fileb://' + save(`test-${name}.json`, request)]).TestResult;
     const parsed = JSON.parse(result.FunctionOutput || '{}');
     const output = parsed.response || parsed.request || parsed;
-    if (result.FunctionErrorMessage || (expected ? output.statusCode !== expected : output.uri !== '/docs.html')) throw new Error(`Edge runtime test failed: ${name}`);
+    if (result.FunctionErrorMessage || (expected ? output.statusCode !== expected : output.uri !== request.request.uri)) throw new Error(`Edge runtime test failed: ${name}`);
     console.log(`Edge runtime: ${name} passed (compute ${result.ComputeUtilization}%)`);
   }
   const responseConfig = { Name: config.responsePolicyName, Comment: 'Prevent private pages and credentials from persisting in browsers',
@@ -110,7 +111,12 @@ if (mode === 'prepare') {
   if (existingPolicy) {
     responsePolicyId = existingPolicy.ResponseHeadersPolicy.Id;
     const current = aws(['cloudfront', 'get-response-headers-policy', '--id', responsePolicyId]);
-    if (JSON.stringify(canonical(current.ResponseHeadersPolicy.ResponseHeadersPolicyConfig)) !== JSON.stringify(canonical(responseConfig))) {
+    const actual = current.ResponseHeadersPolicy.ResponseHeadersPolicyConfig;
+    // AWS returns unset security headers as empty objects on subsequent reads.
+    for (const [name, value] of Object.entries(actual.SecurityHeadersConfig || {})) {
+      if (value && Object.keys(value).length === 0) delete actual.SecurityHeadersConfig[name];
+    }
+    if (JSON.stringify(canonical(actual)) !== JSON.stringify(canonical(responseConfig))) {
       throw new Error('Existing response policy differs; reconcile before changing a policy already in use');
     }
   } else {
@@ -150,14 +156,19 @@ if (mode === 'prepare') {
   if (hash(fs.readFileSync(path.join(work, 'gateway.js'))) !== plan.codeHash) throw new Error('Gateway code changed since prepare');
   const current = aws(['cloudfront', 'get-distribution-config', '--id', config.distributionId]);
   if (current.ETag !== plan.distributionEtag) throw new Error('Live distribution changed since prepare; reconcile first');
+  const edgeOnly = process.argv.includes('--edge-only');
+  if (edgeOnly && JSON.stringify(canonical(current.DistributionConfig)) !==
+      JSON.stringify(canonical(JSON.parse(fs.readFileSync(path.join(work, 'distribution-after.json')))))) {
+    throw new Error('Edge-only deployment requires an unchanged distribution configuration');
+  }
   // Save the old objects for rollback before writing anything public.
-  for (const key of ['index.html', 'docs.html', 'docs/index.html']) {
+  if (!edgeOnly) for (const key of ['index.html', 'docs.html', 'docs/index.html']) {
     aws(['s3api', 'get-object', '--bucket', config.bucket, '--key', key, save('backup-' + key.replaceAll('/', '-'), '')], config.bucketRegion);
   }
   aws(['cloudfront', 'publish-function', '--name', config.functionName, '--if-match', plan.functionEtag]);
-  aws(['cloudfront', 'update-distribution', '--id', config.distributionId, '--if-match', plan.distributionEtag,
+  if (!edgeOnly) aws(['cloudfront', 'update-distribution', '--id', config.distributionId, '--if-match', plan.distributionEtag,
     '--distribution-config', 'file://' + path.join(work, 'distribution-after.json')]);
-  for (const [key, file] of [['index.html', 'site/index.html'], ['docs.html', 'site/docs.html'], ['docs/index.html', 'site/docs.html']]) {
+  if (!edgeOnly) for (const [key, file] of [['index.html', 'site/index.html'], ['docs.html', 'site/docs.html'], ['docs/index.html', 'site/docs.html']]) {
     aws(['s3api', 'put-object', '--bucket', config.bucket, '--key', key, '--body', path.join(root, file),
       '--content-type', 'text/html; charset=utf-8', '--cache-control', 'private, no-store'], config.bucketRegion);
   }
@@ -166,5 +177,5 @@ if (mode === 'prepare') {
   save('invalidation.json', invalidation);
   console.log('Deployment submitted. Verify propagation and run smoke.mjs before declaring it complete.');
 } else {
-  throw new Error('Usage: node infra/access/deploy.mjs prepare|apply');
+  throw new Error('Usage: node infra/access/deploy.mjs prepare|apply [--edge-only]');
 }

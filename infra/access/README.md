@@ -10,7 +10,11 @@ are preserved. Thinker's `/metrics` endpoint is also unchanged.
 
 - The landing page, icons and existing `/gokce-bday` site remain public. Other
   static paths require authorization, including all docs aliases, `/dist/*`,
-  legacy code-in-path installers and future static objects.
+  legacy code-in-path installers and future static objects. A temporary exception
+  allows exactly `/dist/thinker.tgz`, `/dist/install.sh`, and `/dist/version.json`
+  until **2026-10-02 06:30:25 UTC** (October 1, 11:30:25 p.m. Pacific).
+  `production.json:legacyDownloadsUntil` is a fixed deadline checked before every
+  cache lookup; access automatically closes at the deadline without redeployment.
 - `GET /access/session` accepts the code in `X-Thinker-Access-Code`. The gateway
   compares its SHA-256 hash with the private configuration, then sets a signed
   seven-day `__Host-thinker_session` cookie (`Secure; HttpOnly; SameSite=Strict`).
@@ -34,7 +38,9 @@ are preserved. Thinker's `/metrics` endpoint is also unchanged.
 
 The old publicly visible access code is retired. Existing installations with
 `https://zerotime.dev/dist/thinker.tgz` in `~/.thinker/install.json` must obtain the
-new install command to restore downloads/updates. This gate cannot retract files
+new install command to retain downloads/updates after the temporary window.
+The window does not repair the GitHub lookup in old updaters or give clients a
+private URL. This gate cannot retract files
 that people previously downloaded.
 
 ## Credentials and deployment
@@ -60,6 +66,9 @@ snapshot ETag and page hashes, saves previous pages, publishes the function,
 updates the distribution, uploads the pages and invalidates cached routes.
 Neither command rebuilds or replaces the current CLI archive. The deployment
 uses the existing `/dist/install.sh` and `/dist/thinker.tgz` objects.
+For function-only changes, `apply --edge-only` requires the distribution config
+to be unchanged, then publishes the function and invalidates caches without
+rewriting website pages.
 
 The smoke test checks anonymous/invalid/forged access, every docs alias before and
 after an authenticated cache hit, cookie attributes and restoration, the installer

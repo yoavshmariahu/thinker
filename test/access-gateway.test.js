@@ -153,3 +153,33 @@ test('failed verification cannot reveal downloads; submission can be retried', a
   await p.ready();
   assert.equal(p.element('cmd').textContent, undefined);
 });
+
+
+test('legacy download grace period expires at the fixed deadline and exposes only three exact paths', () => {
+  const deadline = '2026-10-02T06:30:25Z';
+  let now = Date.parse(deadline) - 1;
+  const clock = class extends Date { static now() { return now; } };
+  const grace = vm.createContext({ require: () => crypto, Date: clock });
+  vm.runInContext(source.replace('__ACCESS_CONFIG__', JSON.stringify({ ...config, legacyDownloadsUntil: deadline })), grace);
+  const request = (uri, method = 'GET') => grace.handler({ request: { uri, method,
+    headers: { host: { value: 'zerotime.dev' } }, cookies: {}, querystring: {} } });
+  const paths = ['/dist/thinker.tgz', '/dist/install.sh', '/dist/version.json'];
+  for (const uri of paths) {
+    assert.equal(request(uri).uri, uri);
+    assert.equal(request(uri, 'HEAD').uri, uri);
+    assert.equal(request(uri, 'POST').statusCode, 405);
+  }
+  assert.equal(request('/docs.html').statusCode, 302);
+  for (const uri of ['/dist/other.json', '/dist/releases/old/thinker.tgz', '/dist/thinker.tgz/extra', '/thinker101/install.sh']) {
+    assert.equal(request(uri).statusCode, 403, uri);
+  }
+  for (const uri of ['/dist/%74hinker.tgz', '/dist/../docs.html', '/dist//thinker.tgz']) {
+    assert.equal(request(uri).statusCode, 400, uri);
+  }
+  for (const offset of [0, 1, 86400000]) {
+    now = Date.parse(deadline) + offset;
+    for (const uri of paths) for (const method of ['GET', 'HEAD']) assert.equal(request(uri, method).statusCode, 403);
+  }
+  const token = crypto.createHmac('sha256', config.signingKey).update('download').digest('hex');
+  assert.equal(request('/access/download/' + token + '/thinker.tgz').uri, '/dist/thinker.tgz');
+});
