@@ -42,9 +42,13 @@ export function normalizeReport(key, data, receivedAt) {
   }
   const row = {
     file_key: key, install_id: data.installId, event: data.event ?? 'undefined',
+    device_id: data.deviceId ?? null,
     version: data.version ?? 'unknown', platform: data.platform ?? 'unknown',
     timestamp: new Date(timestamp).toISOString(), period_hours: data.periodHours ?? 24,
   };
+  if (row.device_id !== null && (typeof row.device_id !== 'string' || !/^v1:[a-f0-9]{64}$/.test(row.device_id))) {
+    throw new InvalidReport('Invalid deviceId');
+  }
   for (const field of ['event', 'version', 'platform']) {
     if (typeof row[field] !== 'string' || row[field].length > 256) throw new InvalidReport(`Invalid ${field}`);
   }

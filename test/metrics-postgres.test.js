@@ -36,6 +36,16 @@ test('invalid telemetry is rejected before writing to PostgreSQL', () => {
   }
 });
 
+test('PostgreSQL accepts versioned device hashes and keeps older clients unknown', () => {
+  const deviceId = 'v1:' + 'a'.repeat(64);
+  assert.equal(normalizeReport('new', { ...payload, deviceId }).device_id, deviceId);
+  assert.equal(normalizeReport('old', payload).device_id, null);
+  assert.equal(normalizeReport('unknown', { ...payload, deviceId: null }).device_id, null);
+  for (const invalid of ['raw-machine-uuid', 'v1:short', 'v2:' + 'a'.repeat(64), {}, 42]) {
+    assert.throws(() => normalizeReport('bad', { ...payload, deviceId: invalid }), /Invalid deviceId/);
+  }
+});
+
 test('writer parameterizes reports and rejects key collisions with differing payloads', async () => {
   const calls = [];
   const db = { query: async (sql, values) => {

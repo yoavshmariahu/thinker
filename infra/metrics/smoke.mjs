@@ -18,6 +18,7 @@ const admin = new pg.Client(connectionOptions({ ...options, secret: options['adm
 const writer = new pg.Client(connectionOptions({ ...options, secret: 'thinker/metrics/writer' }));
 const id = `migration-smoke-${randomUUID()}`;
 const payload = { installId: id, timestamp: new Date().toISOString(), event: 'migration-smoke',
+  deviceId: 'v1:' + randomUUID().replaceAll('-', '').repeat(2),
   cacheSize: { totalNotes: 3, kinds: { location: 2, gotcha: 1 } },
   effectiveness: { requestsTotal: 5, requestsAnswered: 2, hitRate: 0.4,
     estimatedSavings: { netTokensSaved: -10 } } };
@@ -26,12 +27,12 @@ fs.mkdirSync(scratch, { recursive: true });
 const eventFile = new URL(`${id}.event.json`, scratch);
 const resultFile = new URL(`${id}.result.json`, scratch);
 const keys = new Set();
-async function invoke(body) {
+async function invoke(body, requestId = id) {
   if (options.endpoint) {
     const response = await fetch(options.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: AbortSignal.timeout(20000) });
     return { statusCode: response.status, body: await response.text() };
   }
-  fs.writeFileSync(eventFile, JSON.stringify({ requestContext: { requestId: id, http: { method: 'POST' } }, body }));
+  fs.writeFileSync(eventFile, JSON.stringify({ requestContext: { requestId, http: { method: 'POST' } }, body }));
   const metadata = JSON.parse(aws(['lambda', 'invoke', '--function-name', 'thinker-metrics-postgres-ingest',
     '--payload', `fileb://${eventFile.pathname}`, resultFile.pathname], options));
   assert.equal(metadata.FunctionError, undefined, 'Lambda execution must succeed');
@@ -55,16 +56,29 @@ try {
   // different API Gateway IDs and intentionally represent distinct receipts.
   const { rows } = await reader.query('SELECT count(*)::int AS count FROM reports WHERE install_id = $1', [id]);
   assert.equal(rows[0].count, options.endpoint ? 2 : 1);
-  for (const view of ['v_latest_installs', 'v_active_installs', 'v_hourly_volume', 'v_kind_distribution']) {
+  assert.equal((await invoke(JSON.stringify({ ...payload, deviceId: 'raw-machine-id' }))).statusCode, 422);
+  const otherInstall = { ...payload, installId: `${id}-second` };
+  const otherResponse = await invoke(JSON.stringify(otherInstall), `${id}-second`);
+  assert.equal(otherResponse.statusCode, 202, otherResponse.body);
+  await verifyReports(reader, [{ key: JSON.parse(otherResponse.body).key, data: otherInstall }]);
+  const deviceInstalls = await reader.query('SELECT count(DISTINCT install_id)::int AS count FROM reports WHERE device_id = $1', [payload.deviceId]);
+  assert.equal(deviceInstalls.rows[0].count, 2);
+  const devices = await reader.query('SELECT count(*)::int AS count FROM v_latest_devices WHERE device_id = $1', [payload.deviceId]);
+  assert.equal(devices.rows[0].count, 1);
+  const { deviceId, ...legacy } = { ...payload, installId: `${id}-legacy` };
+  const legacyResponse = await invoke(JSON.stringify(legacy), `${id}-legacy`);
+  assert.equal(legacyResponse.statusCode, 202, legacyResponse.body);
+  await verifyReports(reader, [{ key: JSON.parse(legacyResponse.body).key, data: legacy }]);
+  for (const view of ['v_latest_installs', 'v_active_installs', 'v_latest_devices', 'v_hourly_volume', 'v_kind_distribution']) {
     await reader.query(`SELECT * FROM ${view} LIMIT 1`);
   }
   console.log(JSON.stringify({ target: options.endpoint || 'candidate Lambda', persistence: 'verified',
-    repeatedRequests: rows[0].count, permissions: 'verified', views: 'verified', keys: [...keys] }));
+    repeatedRequests: rows[0].count, permissions: 'verified', views: 'verified', deviceGrouping: '2 installations, 1 device', legacyClient: 'verified', keys: [...keys] }));
 } finally {
   try {
     // The exact generated install ID also catches a committed write whose HTTP
     // response was lost before its key could be added to the set above.
-    await admin.query('DELETE FROM reports WHERE install_id = $1 AND event = $2', [id, 'migration-smoke']);
+    await admin.query('DELETE FROM reports WHERE install_id = ANY($1::text[]) AND event = $2', [[id, `${id}-second`, `${id}-legacy`], 'migration-smoke']);
   } finally {
     await Promise.allSettled([reader.end(), admin.end(), writer.end()]);
     fs.rmSync(eventFile, { force: true }); fs.rmSync(resultFile, { force: true });

@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS reports (
       raw_json JSONB NOT NULL,
       received_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Append so CREATE OR REPLACE VIEW can extend existing SELECT * views safely.
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS device_id TEXT
+  CHECK (device_id IS NULL OR device_id ~ '^v1:[a-f0-9]{64}$');
+CREATE INDEX IF NOT EXISTS idx_reports_device_ts ON reports (device_id, timestamp DESC)
+  WHERE device_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_reports_install_ts ON reports (install_id, timestamp DESC, file_key);
 CREATE INDEX IF NOT EXISTS idx_reports_ts ON reports (timestamp);
 CREATE INDEX IF NOT EXISTS idx_reports_event ON reports (event);
@@ -49,6 +54,11 @@ ORDER BY install_id, timestamp DESC, file_key DESC;
 CREATE OR REPLACE VIEW v_active_installs AS
 SELECT * FROM v_latest_installs
 WHERE requests_total > 0 OR cache_total_notes > 0 OR sessions_distilled > 0;
+
+CREATE OR REPLACE VIEW v_latest_devices AS
+SELECT DISTINCT ON (device_id) * FROM reports
+WHERE device_id IS NOT NULL
+ORDER BY device_id, timestamp DESC, file_key DESC;
 
 CREATE OR REPLACE VIEW v_hourly_volume AS
 SELECT date_trunc('hour', timestamp AT TIME ZONE 'UTC') AS hour_utc,

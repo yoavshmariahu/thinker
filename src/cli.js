@@ -96,7 +96,7 @@ const HELP = `thinker — knowledge cache for coding agents
   upgrade                        alias for update
   stats
   telemetry [--send] [--json] [--force] [--event name]
-                                 cache effectiveness and size metrics sent via HTTP proxy to S3;
+                                 cache effectiveness and size metrics sent to the metrics service;
                                  no prompts, files, code or repo names are transmitted (THINKER_TELEMETRY=off disables)
 `;
 

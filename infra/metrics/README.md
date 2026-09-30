@@ -8,6 +8,11 @@ repeat import inserted zero rows and verified all 399 again. Direct Lambda and
 HTTP integration checks passed, and their synthetic reports were removed.
 The original S3 objects and original Lambda are retained for rollback.
 
+The optional device-ID column and ingestion update were deployed on 2026-09-30
+UTC. Live checks verified that two installation IDs group into one device and
+that legacy clients remain accepted. The new client code must be distributed
+before ordinary reports begin carrying device IDs; no historical IDs were inferred.
+
 The PostgreSQL writer accepts the existing telemetry JSON over the existing HTTP
 API. It acknowledges a report only after PostgreSQL commits it. `reports` has
 typed columns for metrics and the entire payload in `raw_json` (`jsonb`).
@@ -15,6 +20,32 @@ typed columns for metrics and the entire payload in `raw_json` (`jsonb`).
 new reports use the API Gateway request ID. Repeated imports and repeated Lambda
 invocations for the same API request cannot duplicate a report. Separate client
 requests are separate snapshots, even if their contents happen to match.
+
+Updated clients send `deviceId`, stored in the nullable `reports.device_id`
+column. It is `v1:` followed by a Thinker-specific HMAC-SHA256 hash of the OS
+machine identifier (macOS IOPlatformUUID, Linux machine-id, Windows MachineGuid).
+The raw identifier never leaves the device. It is independent of installation
+directories, but is an OS identity, not a guaranteed unique physical machine or
+person: reinstallation can change it and cloned systems may share it.
+Unavailable IDs and historical reports remain NULL; they cannot be backfilled
+from installation IDs alone. Device counts cover only clients that have updated.
+
+```sql
+SELECT count(DISTINCT device_id) AS known_devices,
+       count(DISTINCT install_id) FILTER (WHERE device_id IS NULL) AS installations_without_device_id
+FROM v_latest_installs;
+
+SELECT device_id, count(DISTINCT install_id) AS installations
+FROM reports WHERE device_id IS NOT NULL GROUP BY device_id;
+
+SELECT platform, count(*) AS devices FROM v_latest_devices GROUP BY platform;
+```
+
+`v_latest_devices` provides one latest snapshot per known device; it excludes
+unknown devices. Reports are rolling snapshots, so adding every installation's
+values on a shared device can still double-count usage. `npm test` sets
+`THINKER_TEST=1`; this and Node's inherited `NODE_TEST_CONTEXT` block network
+telemetry except to loopback test servers. Background jobs obey the same guard.
 
 Install the operator/Lambda dependencies separately from the Thinker CLI:
 

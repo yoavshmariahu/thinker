@@ -151,7 +151,9 @@ See `thinker update --status` for current install and schedule details, or `thin
 
 ## Metrics and telemetry
 
-Thinker records anonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. No prompt text, note bodies, code snippets, file paths, or repository URLs are ever collected or transmitted.
+Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. No prompt text, note bodies, code snippets, file paths, or repository URLs are collected or transmitted.
+
+The device hash is independent of `THINKER_HOME`. It can change after OS reinstallation, and cloned VMs or containers may share an identifier. If the OS identifier is unavailable, the device remains unknown. Test runs allow telemetry only to local test servers; they do not send it to production.
 
 ```bash
 thinker telemetry           # inspect current daily metrics summary and transmission status

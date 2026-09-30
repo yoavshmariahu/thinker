@@ -1,5 +1,5 @@
 // Daily telemetry for Thinker: collects high-level cache effectiveness and cache size metrics.
-// Anonymous and privacy-preserving: no prompt text, note bodies, file paths, code symbols,
+// Pseudonymous: no prompt text, note bodies, file paths, code symbols,
 // or repository URLs are ever collected or transmitted.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -10,10 +10,19 @@ import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
 import { summarize } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
+import { getDeviceId } from './device.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export const DEFAULT_TELEMETRY_ENDPOINT = 'https://khsky10r4l.execute-api.us-east-1.amazonaws.com/metrics';
+
+export function isTestTelemetryBlocked(endpoint, env = process.env) {
+  if (env.THINKER_TEST !== '1' && !env.NODE_TEST_CONTEXT) return false;
+  try {
+    const url = new URL(endpoint);
+    return !['http:', 'https:'].includes(url.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  } catch { return true; }
+}
 
 export function isTelemetryEnabled({ home = thinkerHome(), store } = {}) {
   const envVal = (process.env.THINKER_TELEMETRY || '').toLowerCase();
@@ -142,6 +151,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
   return {
     installId: getInstallId(home),
+    deviceId: getDeviceId(),
     event,
     version,
     platform: process.platform,
@@ -200,6 +210,9 @@ export async function sendTelemetry({
   if (!isTelemetryEnabled({ home, store })) {
     return { sent: false, reason: 'disabled' };
   }
+  if (!dryRun && fetchFn === globalThis.fetch && isTestTelemetryBlocked(endpoint)) {
+    return { sent: false, reason: 'test_environment' };
+  }
 
   const stampFile = path.join(home, 'state', 'telemetry.last');
   if (!force) {
@@ -220,6 +233,7 @@ export async function sendTelemetry({
   try {
     const res = await fetchFn(endpoint, {
       method: 'POST',
+      redirect: 'error',
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': 'thinker-cli',
@@ -254,6 +268,7 @@ export function maybeSendDailyTelemetryInBackground({
   event = 'daily',
 } = {}) {
   if (!isTelemetryEnabled({ home, store })) return;
+  if (isTestTelemetryBlocked(getTelemetryEndpoint({ home }))) return;
   if (process.env.THINKER_IN_LLM) return;
   if (process.env.THINKER_BACKGROUND_UPDATE || process.env.THINKER_BACKGROUND_TELEMETRY) return;
 

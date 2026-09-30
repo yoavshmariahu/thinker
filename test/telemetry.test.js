@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import {
   isTelemetryEnabled,
+  isTestTelemetryBlocked,
   getTelemetryEndpoint,
   getInstallId,
   computeCacheMetrics,
@@ -72,6 +73,7 @@ test('buildTelemetryPayload constructs anonymous high-level metrics without sens
     const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
 
     assert.ok(payload.installId);
+    assert.ok(payload.deviceId === null || /^v1:[a-f0-9]{64}$/.test(payload.deviceId));
     assert.ok(payload.version);
     assert.equal(payload.periodHours, 24);
     assert.ok(payload.cacheSize.totalNotes >= 2);
@@ -94,6 +96,26 @@ test('buildTelemetryPayload constructs anonymous high-level metrics without sens
     fs.rmSync(tmpRepo, { recursive: true, force: true });
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }
+});
+
+test('test telemetry can reach loopback only, including in inherited subprocess environments', async (t) => {
+  for (const env of [{ THINKER_TEST: '1' }, { NODE_TEST_CONTEXT: 'child-v8' }]) {
+    assert.equal(isTestTelemetryBlocked(DEFAULT_TELEMETRY_ENDPOINT, env), true);
+    assert.equal(isTestTelemetryBlocked('https://localhost.example.com', env), true);
+    assert.equal(isTestTelemetryBlocked('http://localhost:1234', env), false);
+    assert.equal(isTestTelemetryBlocked('http://127.0.0.1:1234', env), false);
+    assert.equal(isTestTelemetryBlocked('http://[::1]:1234', env), false);
+  }
+  assert.equal(isTestTelemetryBlocked(DEFAULT_TELEMETRY_ENDPOINT, {}), false);
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-network-'));
+  let calls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { calls++; throw new Error('should not send'); });
+  try {
+    const result = await sendTelemetry({ home, endpoint: DEFAULT_TELEMETRY_ENDPOINT, force: true });
+    assert.equal(result.reason, 'test_environment');
+    assert.equal(calls, 0);
+    assert.equal(fs.existsSync(path.join(home, 'state', 'install-id')), false);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
 test('sendTelemetry honors rate limit and mock network transmission', async () => {
@@ -329,4 +351,3 @@ test('cli setup sends installation telemetry in background upon completion', asy
     fs.rmSync(tmpHome, { recursive: true, force: true });
   }
 });
-
