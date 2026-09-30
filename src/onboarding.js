@@ -816,7 +816,7 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
   if (notes.length && !noPhrase && provider()) {
     try {
       out('        Generating search phrasings…');
-      const res = await phraseNotes(store, notes, { model });
+      const res = await phraseNotes(store, notes, { model, phase: 'init' });
       out(`        ${c.green('✔')} Search phrasings generated for ${res.done.length}/${notes.length} notes`);
     } catch (e) {
       warnings++;

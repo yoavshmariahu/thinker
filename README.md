@@ -69,6 +69,37 @@ Notes:
 - **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
   See [ONBOARDING.md](ONBOARDING.md) for all options.
 
+## Cache cost and savings
+
+Run `thinker usage --here` to compare this repository's cache spending with its
+estimated savings, or `thinker usage` for every repository on the machine.
+`--days 7` limits the period; `--json` includes spending by operation, provider/model,
+and repository.
+
+The report separates cache initialization (exploration, PR mining, seed distillation
+and phrasings), ongoing session distillation, and maintenance. It records reported
+input/output tokens, provider prompt-cache reads/writes, dollar cost when available,
+and missing usage. Model calls that produce no notes, dry-run distillations, and
+failed attempts count too. Tokens reported before an invalid model answer are retained;
+failures without counters remain unknown. No model pricing is guessed, and CLI dollar
+figures are provider-reported usage costs, not necessarily an extra subscription charge.
+
+The token balance subtracts both injected notes and reported build/maintenance tokens
+from estimated file-reading tokens avoided. Savings still require a session assessment
+that the note was used. This is a token comparison, not measured dollar ROI: models and
+cached inputs have different prices. Older logs omitted tokens and setup exploration,
+so historical totals cannot establish full payback. A limited date range also excludes
+setup spending outside that period.
+
+To evaluate a less expensive distillation approach, compare the same transcripts with
+`thinker distill <transcript> --dry --model <model>`, then inspect usage and note quality.
+`--dry` still calls a model and records its usage, but does not save notes. The existing
+`distillModel` setting in `.thinker/config.json` chooses the default distiller for session
+learning and PR mining; an explicit `--model` or `THINKER_LLM_MODEL` takes precedence.
+The report's no-new-note/no-merge counts help identify low-yield runs, though those runs
+may still assess existing notes. Keep quality and downstream task correctness in the
+comparison, not just note count.
+
 ## Benchmarks
 
 Real tasks from merged pull requests, each run with and without the cache. Evaluated on Claude Fable (20 pairs via Claude Code), Gemini 3.8 Flash (14 pairs via Antigravity CLI), and OpenAI GPT-6 Astra (21 pairs via Codex CLI), all independently graded on calibrated acceptance criteria.

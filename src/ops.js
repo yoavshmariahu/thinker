@@ -138,12 +138,12 @@ const RERANK_SCHEMA = { type: 'object', properties: { useful: { type: 'array', i
 
 // Ask a small model which candidate notes would actually save work on this
 // task. Returns the subset of ranked entries it picked (order preserved).
-async function rerank(ranked, task, file, model) {
+async function rerank(store, ranked, task, file, model) {
   const cands = ranked.slice(0, 8);
   // a single candidate is judged too: the best of a poor lot is still poor
   if (!cands.length) return cands;
   const list = cands.map((r, i) => `[${i + 1}] id=${r.note.id} kind=${r.note.kind}\n    title: ${r.note.title}\n    answers: ${(r.note.answers || []).join(' | ')}\n    body: ${r.note.body.slice(0, 350).replace(/\n/g, ' ')}`).join('\n');
-  const res = await complete({ model, schema: RERANK_SCHEMA, maxTokens: 300,
+  const res = await complete({ model, accounting: { store, purpose: 'rerank' }, schema: RERANK_SCHEMA, maxTokens: 300,
     system: 'You gate which cached notes about a codebase get injected into a coding agent\'s context at the start of a task. Injecting an irrelevant note costs tokens and misdirects the agent; injecting a relevant one saves it from re-exploring. Pick only notes whose content directly bears on what the task must touch or understand. Prefer one precise note over several loosely related ones. Picking none is correct when nothing applies.',
     prompt: `TASK: ${task}${file ? `\nCURRENT FILE: ${file}` : ''}\n\nCANDIDATE NOTES:\n${list}\n\nReturn the ids of the notes worth injecting (0-3).` });
   const pick = new Set((res.json?.useful || []).map(x => String(x).replace(/^\[?(\d+)\]?$/, (_, i) => cands[Number(i) - 1]?.note.id || x).replace(/^id=/, '')));
@@ -163,7 +163,7 @@ export async function route(store, ranked, task, file, model) {
   const cands = ranked.slice(0, 8);
   if (!cands.length) return { mode: 'none', picked: [], reason: 'no candidates' };
   const list = cands.map((r, i) => `[${i + 1}] id=${r.note.id} kind=${r.note.kind} confidence=${Math.round((r.note.confidence ?? 0.7) * 100)}%${r.note.status === 'stale' ? ' STALE' : ''}\n    title: ${r.note.title}\n    answers: ${(r.note.answers || []).slice(0, 3).join(' | ')}\n    first lines: ${r.note.body.slice(0, 260).replace(/\n/g, ' ')}`).join('\n');
-  const res = await complete({ model, schema: ROUTE_SCHEMA, maxTokens: 400,
+  const res = await complete({ model, accounting: { store, purpose: 'route' }, schema: ROUTE_SCHEMA, maxTokens: 400,
     system: `You decide what a cache of notes about a codebase injects into a coding agent's context at the start of a task. Evidence from experiments you must apply:
 - Notes with explanatory prose save the agent work when the request already says WHAT to change (it names code, components or the exact behavior change). Then mode=full.
 - When the request only describes a symptom or a wish in product words, prose makes the agent commit to a narrower fix than it would have designed on its own. Locations alone still shorten the search. Then mode=pointers.
@@ -176,7 +176,7 @@ Classify the request (specified / symptom / question / other), choose the mode, 
   const ids = (j.ids || []).map(norm);
   const picked = ids.map(id => cands.find(c => c.note.id === id)).filter(Boolean).slice(0, 3);
   const mode = picked.length ? (j.mode === 'none' ? 'pointers' : j.mode) : 'none';
-  store.log({ op: 'route', type: j.request_type, mode, ids: picked.map(p => p.note.id), reason: String(j.reason || '').slice(0, 200), cost: res.cost });
+  store.log({ op: 'route', type: j.request_type, mode, ids: picked.map(p => p.note.id), reason: String(j.reason || '').slice(0, 200), cost: res.cost, metered: true });
   return { mode, picked, type: j.request_type, reason: j.reason };
 }
 
@@ -205,7 +205,7 @@ export async function orient(store, { task, file, session, budget = HOOK_BUDGET,
   let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient' });
   if (process.env.THINKER_FORCE === '1') ranked = rank(notes, { query: '', mode: 'orient' }).map(r => ({ ...r, rel: 1 })); // control arm: inject regardless of relevance
   let chosen = false;
-  if (process.env.THINKER_FORCE !== '1' && rerankModel && ranked.length) { try { ranked = await rerank(ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
+  if (process.env.THINKER_FORCE !== '1' && rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
   let routed = null;
   if (routerModel && process.env.THINKER_FORCE !== '1') {
     try {
@@ -442,10 +442,10 @@ export function lookup(store, { query, budget = 2500, maxNotes = 3 } = {}) {
 // few lines of how a user would put it. They come from the note alone, never from a request.
 const PHRASE_SCHEMA = { type: 'object', properties: { notes: { type: 'array', items: { type: 'object', properties: { n: { type: 'number' }, says: { type: 'array', items: { type: 'string' } } }, required: ['n', 'says'] } } }, required: ['notes'] };
 export const phraseKey = n => `${n.title}\n${n.body}`.length + ':' + slugify(n.title).slice(0, 24);
-export async function phraseNotes(store, notes, { model, max = 5 } = {}) {
+export async function phraseNotes(store, notes, { model, max = 5, phase = 'maintenance' } = {}) {
   model = model || store.config().phraseModel || 'haiku';
   const list = notes.map((n, i) => `[${i + 1}] kind=${n.kind}\n    title: ${n.title}\n    answers: ${(n.answers || []).slice(0, 4).join(' | ')}\n    files: ${(n.deps || []).slice(0, 5).map(d => d.path + (d.symbol ? ':' + d.symbol : '')).join(', ')}\n    body: ${String(n.body).slice(0, 700).replace(/\n/g, ' ')}`).join('\n\n');
-  const res = await complete({ model, schema: PHRASE_SCHEMA, maxTokens: 2500,
+  const res = await complete({ model, accounting: { store, purpose: 'phrase', phase }, schema: PHRASE_SCHEMA, maxTokens: 2500,
     system: `You write search phrasings for notes about a codebase. Each note is written in the words of the code (function, file and type names). The people who will need it describe their problem in the words of the product: what they see on screen, what they clicked, what went wrong, what they want instead. For each note write up to ${max} short lines, each one a way a user or a product manager could report the fault or ask for the change that this note bears on.\nRules: plain product language, no identifiers, no file names; name the feature, screen or control as a user would call it; use different words in each line (synonyms, the symptom, the wish); 6 to 16 words per line; only what the note is really about, nothing generic such as "it does not work".`,
     prompt: `NOTES:\n\n${list}\n\nReturn one entry per note, with its number as n.` });
   const done = [];
@@ -457,7 +457,7 @@ export async function phraseNotes(store, notes, { model, max = 5 } = {}) {
     store.put({ ...cur, says, saysFor: phraseKey(cur) });
     done.push(n.id);
   }
-  store.log({ op: 'phrase', ids: done, cost: res.cost });
+  store.log({ op: 'phrase', ids: done, cost: res.cost, metered: true });
   return { done, cost: res.cost };
 }
 
@@ -490,7 +490,7 @@ export async function verifyNote(store, note, { model } = {}) {
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
   const system = 'You verify cached notes about a codebase after the code changed. Be strict: a note that is subtly wrong is worse than no note. Only answer still_valid when every concrete claim in the note (file paths, symbol names, call order, what must change together, commands) is still true given the current code shown. Answer update if the note is mostly right but some claim needs correction, and give the full corrected body (keep it as short as the original, keep file:symbol pointers). Answer invalid if the thing the note describes no longer exists or the approach changed fundamentally.';
   const prompt = `NOTE (kind=${note.kind}) "${note.title}"\n${note.body}\n\nDEPENDENCIES THAT CHANGED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'unknown'}\n\nGIT DIFF SINCE THE NOTE WAS VERIFIED (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE OF EACH DEPENDENCY:\n${current.slice(0, 40000)}`;
-  const res = await complete({ system, prompt, model, schema: VERIFY_SCHEMA });
+  const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA });
   const v = res.json;
   const now = new Date().toISOString();
   let next;
@@ -507,7 +507,7 @@ export async function verifyNote(store, note, { model } = {}) {
   next.deps = (next.deps || []).filter(d => !d.missing);
   delete next.verifying;
   store.put(next);
-  store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost });
+  store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost, metered: true });
   return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost };
 }
 

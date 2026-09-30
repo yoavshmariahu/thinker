@@ -131,7 +131,7 @@ ASSESSING INJECTED NOTES: the session started with cached notes injected (listed
 - unused: the note played no visible role.
 Be strict about "contradicted": only when the trace shows evidence, not when the note was merely incomplete for this task.`;
 
-export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [] } = {}) {
+export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], accounting } = {}) {
   const trace = condense(events);
   let prompt = `Repository: ${repoHint}\n\nSESSION TRACE (tool calls with truncated results):\n\n${trace}`;
   let system = DISTILL_SYSTEM, schema = NOTE_SCHEMA;
@@ -140,7 +140,7 @@ export async function distillEvents(events, { model = 'sonnet', repoHint = '', s
     prompt += `\n\nINJECTED NOTES TO ASSESS:\n` + served.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body}`).join('\n\n');
     prompt += `\n\nProduce the notes JSON (new notes for reusable understanding this session established that the injected notes do not already cover) and one assessment per injected note.`;
   } else prompt += `\n\nProduce the notes JSON.`;
-  const res = await complete({ system, prompt, model, schema, maxTokens: 12000 });
+  const res = await complete({ system, prompt, model, schema, maxTokens: 12000, accounting });
   return { notes: res.json?.notes || [], assessments: res.json?.assessments || [], cost: res.cost, usage: res.usage, traceChars: trace.length };
 }
 
