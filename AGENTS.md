@@ -232,8 +232,8 @@ queries; `0,0` turns them off).
  `usage.js:turnNotice`). Tokens are one read per file a note rests on, time
  is `usage.js:SECONDS_PER_READ` per read; both are estimates, not
  measurements. Shown through `systemMessage` in Claude Code and Gemini CLI;
- Codex and Cursor have no channel for it from a stop hook. `THINKER_NOTICE`
- or `notice` in `.thinker/config.json`: `off`, or `creative` for a punchline.
+ Codex and Cursor have no channel for it from a stop hook. `THINKER_NOTICE=off`
+ or `notice: false` in `.thinker/config.json` turns it off.
 - Ranking: BM25 over title/answers/tags/deps/body with identifier splitting,
   plus path affinity to the current file, kind priors for orientation,
   confidence, and a stale penalty; greedy packing into the token budget

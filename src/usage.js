@@ -63,48 +63,25 @@ export function formatSeconds(s) {
   return `${Math.round(s)}s`;
 }
 
-export const PUNCHLINES = [
-  'your context window thanks you! 🚀',
-  'cache to the rescue! 🪄',
-  'earlier sessions doing the heavy lifting 🏋️',
-  'bypassed the file-hunting grind ✨',
-  'smooth sailing ahead ⛵',
-  'fast-forward engaged ⏩',
-];
-
-const punchlineFor = seed => {
-  let hash = 0;
-  const s = String(seed);
-  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
-  return PUNCHLINES[hash % PUNCHLINES.length];
-};
-
 // What the user sees when notes are served: hits, and the reading and time they stand for.
-export function cacheHitNotice(repo, notes, { style = 'compact', seed = 0 } = {}) {
+export function cacheHitNotice(repo, notes) {
   const hits = (notes || []).length;
   if (!hits) return '';
   const { tokens, seconds } = cacheHitSavings(repo, notes);
   const hitStr = hits === 1 ? 'cache hit' : 'cache hits';
-  const tokStr = formatTokens(tokens), secStr = formatSeconds(seconds);
-  if (style === 'creative') {
-    const tokPart = tokens > 0 ? `Saved ~${tokStr} tokens and ~${secStr}` : `Saved exploration tokens and ~${secStr}`;
-    return `✨ thinker: ${hits} ${hitStr}! ${tokPart} — ${punchlineFor(seed)}`;
-  }
-  const tokPart = tokens > 0 ? `~${tokStr} tokens, ` : '';
-  return `🧠 thinker: ${hits} ${hitStr} (${tokPart}~${secStr} saved)`;
+  const tokPart = tokens > 0 ? `~${formatTokens(tokens)} tokens, ` : '';
+  return `🧠 thinker: ${hits} ${hitStr} (${tokPart}~${formatSeconds(seconds)} saved)`;
 }
 
 // What the user sees at the end of a turn: everything served in it, at the prompt and
 // while the agent read and edited files.
-export function turnNotice(repo, notes, { style = 'compact', seed = 0 } = {}) {
+export function turnNotice(repo, notes) {
   const hits = (notes || []).length;
   if (!hits) return '';
   const { calls, tokens, seconds } = cacheHitSavings(repo, notes);
   const hitStr = hits === 1 ? 'cache hit' : 'cache hits';
   const readStr = calls ? `${calls} ${calls === 1 ? 'read' : 'reads'}` : 'exploration';
-  const tokStr = formatTokens(tokens), secStr = formatSeconds(seconds);
-  if (style === 'creative') return `✨ thinker: ${hits} ${hitStr} this turn! Skipped ${readStr}, ~${tokStr} tokens and ~${secStr} — ${punchlineFor(seed)}`;
-  return `🧠 thinker: ${hits} ${hitStr} this turn (~${tokStr} tokens, ~${secStr} of ${readStr} saved)`;
+  return `🧠 thinker: ${hits} ${hitStr} this turn (~${formatTokens(tokens)} tokens, ~${formatSeconds(seconds)} of ${readStr} saved)`;
 }
 
 
