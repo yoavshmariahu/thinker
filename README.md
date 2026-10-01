@@ -67,6 +67,67 @@ Notes:
 - **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
   See [ONBOARDING.md](ONBOARDING.md) for all options.
 
+## Share a cache with your team
+
+Sessions learn into `.thinker/local/notes/`, which ignores itself in git. The
+repo cache lives in `.thinker/notes/` and is shared through ordinary commits
+and pull requests. Both caches are served together. Usage, staleness, confidence
+changes and pending corrections to shared notes stay local, so serving notes
+does not change committed files.
+
+```bash
+thinker share --dry       # review eligible notes and reasons others are skipped
+thinker share             # write eligible notes into .thinker/notes/
+git diff -- .thinker/notes/
+git add .thinker/notes/
+# Commit and open your normal pull request.
+```
+
+A note must be fresh, have matching dependencies and pass content checks. Notes
+from a person, documentation or a merged PR are eligible; agent notes need at
+least one confirming session assessment. `thinker share <id>…` or `--all` skips
+only that trust gate. Near-duplicates, machine home paths, common secret patterns,
+missing dependencies and bodies over 12,000 bytes are rejected. Review the result
+before committing. Pending corrections are shared by the same command; a shared
+note retired locally is removed from the repo cache when shared.
+
+Maintenance gives a one-time notice when new notes are ready in a repository
+with a shared cache. Set `"share": true` in `.thinker/config.json` to enable
+notices before sharing the first note. `thinker list` labels notes `local` or `repo`.
+
+Run `thinker init` to install the git hooks in an existing checkout. The
+`pre-push` hook validates note content and dependency hashes against each commit
+being pushed. Changed invalid notes block the push; unchanged shared notes made
+stale by code changes only warn (`--strict` makes them errors). Legacy local
+fields in shared files warn until `thinker share` cleans them up. Hook failures
+or a missing thinker installation do not block pushes. Existing custom hooks
+are preserved; invoke the command from those hooks yourself if needed.
+
+After a commit or merge, the `post-commit` and `post-merge` hooks check the cache
+in the background and run maintenance with learning enabled. `THINKER_NO_LEARN=1`
+disables these background hooks. Corrections stay local until explicitly shared.
+Re-verification can therefore run on each teammate's machine until a fix is shared.
+
+For CI, fetch the target branch and validate the committed cache (replace
+`main` with your default branch):
+
+```bash
+git fetch origin main
+THINKER_TELEMETRY=off thinker share --check --base origin/main
+```
+
+`--ref <commit>` selects a commit other than `HEAD`. Without `--base`, validation
+uses the merge-base with the cached remote default branch. New-branch pushes do
+the same; fetch/set `origin/HEAD` if that reference is unavailable. Validation
+returns 2 for note errors and 1 for an operational failure (CI should fail on
+either). The hook only blocks on 2.
+
+On first use, untracked notes from the old `.thinker/notes/` layout move into the
+local cache; tracked notes stay shared. No tracked file is rewritten by migration.
+`thinker export` packs the effective notes from both caches, including local state;
+`thinker import` loads an archive locally, with updates to shared IDs kept as
+pending corrections. Review archives before distributing them.
+
 ## Cache cost and savings
 
 Run `thinker usage --here` to compare this repository's cache spending with its

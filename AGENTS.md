@@ -5,7 +5,9 @@ user-facing summary is in `README.md`; benchmark results are in
 `bench/RESULTS.md`.
 
 ```
-agent session ──► distill ──► .thinker/notes/*.json ──► orient / lookup (MCP)
+agent session ──► distill ──► .thinker/local/notes/*.json ──► orient / lookup (MCP)
+                                   │ explicit share             ▲
+                                   └──► .thinker/notes/*.json ───┘
                                    │
                           deps + content hashes
                                    │
@@ -224,7 +226,7 @@ Each session both consumes and improves the cache:
 
 5. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
    the prompt hooks start at most every ten minutes ends with one maintenance
-   run, and so does the git `post-commit` hook that `setup`, `init` and the
+   run, and so do the git `post-commit` and `post-merge` hooks that `setup`, `init` and the
    installer put in place (`--no-git-hook` leaves it out). A run refreshes the
    co-change index when `HEAD` moved, re-verifies up to 10 stale notes (the
    most served first), writes phrasings for up to 8 notes that lack them, and
@@ -349,7 +351,32 @@ queries; `0,0` turns them off).
   Through an agent's CLI a call took 8 to 13 seconds and about $0.02, which
   is close to the 15 seconds a prompt hook is given, so it is off by default;
   with `ANTHROPIC_API_KEY` the call goes to the API directly.
-- Team mode: notes are plain JSON under `.thinker/notes/`; commit them.
+- Team mode: `.thinker/local/notes/` holds learned notes and ignores itself in git.
+  `.thinker/notes/` holds committed content, written only by explicit `thinker share`
+  (or `rm` / manual edits). `.thinker/local/shared/` holds per-checkout state and pending
+  corrections for shared notes, tied to a content digest; pulled content supersedes old
+  corrections and staleness. `Store.list/get` serve their union; shared IDs win.
+  Untracked legacy notes migrate to local on first use; tracked files are left unchanged.
+  `THINKER_NOTES_DIR` retains a flat store for benchmarks. Inventory of other checkouts
+  uses `new Store(repo, { readonly: true })` and never migrates them.
+- `thinker share [ids…] [--all] [--dry]` promotes fresh, valid notes from trusted sources
+  (pr/human/doc or a confirmed session), pending updates, and locally retired shared notes.
+  IDs / `--all` bypass only trust. Near-duplicates, invalid deps, common secret patterns,
+  home paths and bodies over 12,000 bytes are rejected. Serving and assessment never
+  rewrite shared files. Maintenance reconciles local duplicates and reports new ready
+  notes once, only with a shared cache or `share: true` in config.
+- `thinker share --check --base origin/main` validates notes and dependency hashes at HEAD
+  for CI; `--ref` selects another commit. `--pre-push` reads Git's ref lines and validates
+  each pushed commit against the old remote tip (new branches use the remote-default
+  merge-base). Changed invalid notes fail (exit 2); unchanged stale notes and legacy
+  local fields warn. `--strict` makes stale/invalid unchanged notes errors. Operational
+  errors exit 1, but the pre-push hook fails open except for validation errors.
+  `init`/`setup` install pre-push, post-merge and post-commit through `git-hooks.js`,
+  preserving custom hooks; uninstall removes only thinker hooks. `THINKER_NO_LEARN=1`
+  disables background hooks and maintenance. Rebase is covered by prompt catch-up.
+- `share.js` owns promotion and commit validation; `deps.js:hashText/hashDepAt` reuse
+  symbol hashing and parser/regex compatibility on commit content. `transfer.js` exports
+  both effective caches and imports through the local store without touching shared files.
 - Benchmark arm `live` runs the whole loop: the cache grows and
   self-corrects between tasks (`bench/RESULTS.md`, "Live loop").
 

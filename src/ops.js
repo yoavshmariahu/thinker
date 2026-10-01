@@ -91,14 +91,14 @@ function findFile(repo, p, files) {
   return null;
 }
 
-export function createNote(store, input, { source = { type: 'agent' } } = {}) {
+export function createNote(store, input, { source = { type: 'agent' }, reuseId = false } = {}) {
   const repo = store.repo;
   const extra = extractDeps(repo, String(input.body || ''), input.deps || []);
   const { deps: resolved, dropped } = resolveDeps(repo, [...(input.deps || []), ...extra]);
   if (!resolved.length) return { error: 'no resolvable dependencies; a note must point at at least one existing file', dropped };
   const deps = annotateFanout(repo, resolved); // blast radius of each symbol pointer, shown beside it when served
   const kind = KINDS.includes(input.kind) ? input.kind : 'location';
-  const id = input.id && !store.get(input.id) ? slugify(input.id) : uniqueId(store, slugify(input.title));
+  const id = reuseId && input.id ? input.id : input.id && !store.get(input.id) ? slugify(input.id) : uniqueId(store, slugify(input.title));
   const now = new Date().toISOString();
   const note = {
     id, title: String(input.title).trim(), kind,

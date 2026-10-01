@@ -4,8 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { Store, findRepoRoot, gitHead, gitHookPath } from './store.js';
-import { maintain, maintenanceNotice, renderMaintain, postCommitHook } from './maintain.js';
+import { Store, findRepoRoot, gitHead } from './store.js';
+import { maintain, maintenanceNotice, renderMaintain } from './maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
@@ -23,17 +23,20 @@ import { summarize, renderUsage, sessionKey, cacheHitNotice, turnNotice } from '
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
-import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath, tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
+import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath } from './update.js';
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendTelemetryInBackground, maybeSendDailyTelemetryInBackground, scheduleTelemetry, unscheduleTelemetry, isTelemetryScheduled, getTelemetryLaunchAgentPath } from './telemetry.js';
 import { runSetup, stepPrBenchmark, selectAndAuthenticateAgent, selectMenu, getAgentLoginCommand, getAgentDisplayName, c } from './setup.js';
 import { batchProgress, oneLine } from './progress.js';
+import { installGitHooks, uninstallGitHooks } from './git-hooks.js';
+import { share, validateShare, validatePush } from './share.js';
+import { exportCache, importCache } from './transfer.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const v = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push'].includes(k); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -56,6 +59,9 @@ const HELP = `thinker — knowledge cache for coding agents
   init [--no-learn] [--no-hooks] [--late] [--local] [--no-git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
+  share [ids…] [--all] [--dry]    promote eligible local notes for review and commit
+  share --check [--base ref]      validate committed notes; --strict also fails on stale notes
+                                 --ref commit (default HEAD); --pre-push reads git stdin
   export [file.tgz]              pack this repo's cache for delivery
   import <file.tgz|url>          unpack a delivered cache and check it against this checkout
   serve                          run the MCP server (stdio)
@@ -121,7 +127,7 @@ async function main() {
     const notice = checkPendingNotice(thinkerHome());
     if (notice) process.stderr.write(`[thinker] ${notice}\n`);
   }
-  if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup', 'init'].includes(cmd) && !flags.background) {
+  if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup', 'init', 'share'].includes(cmd) && !flags.background) {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
     maybeSendTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
   }
@@ -342,64 +348,40 @@ async function main() {
       unscheduleDaily({ home: thinkerHome() });
       unscheduleTelemetry({ home: thinkerHome() });
       uninstallClients(repo);
-      const gh = gitHookPath(repo, 'post-commit');
-      if (gh && fs.existsSync(gh) && fs.readFileSync(gh, 'utf8').includes('thinker')) fs.unlinkSync(gh);
+      uninstallGitHooks(repo);
       if (flags.purge) fs.rmSync(store.dir, { recursive: true, force: true });
       out(`removed thinker hooks and MCP registration from ${repo}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
       break;
     }
-    case 'export': {
-      // pack this repo's cache (notes, co-change index, record of mined PRs, config) for delivery
-      const file = path.resolve(pos[0] || `thinker-cache-${path.basename(repo)}.tgz`);
-      const items = ['notes', 'cochange.json', 'prs.json', 'config.json'].filter(x => fs.existsSync(path.join(store.dir, x)));
-      const head = gitHead(repo);
-      fs.writeFileSync(path.join(store.dir, 'cache-manifest.json'), JSON.stringify({ repo: path.basename(repo), commit: head, notes: store.list().length, exportedAt: new Date().toISOString() }, null, 2));
-      try {
-        execFileSync('tar', [...tarPackArgs(), file, '-C', store.dir, ...items, 'cache-manifest.json'], {
-          env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' },
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
-      } catch (err) {
-        const errDetail = err.stderr ? err.stderr.toString().trim() : '';
-        out(`error exporting cache: ${errDetail || err.message}`);
-        process.exit(1);
+    case 'share': {
+      if (flags.check || flags['pre-push']) {
+        const opts = { base: typeof flags.base === 'string' ? flags.base : undefined, ref: flags.ref || 'HEAD', strict: !!flags.strict, remote: flags.remote || 'origin' };
+        const results = flags['pre-push'] ? validatePush(repo, readStdin(), opts) : [validateShare(repo, opts)];
+        for (const r of results) {
+          for (const w of r.warnings) out(`warning ${w.id}: ${w.message}`);
+          for (const e of r.errors) out(`error ${e.id}: ${e.message}`);
+          out(`checked ${r.checked} shared notes at ${r.ref.slice(0, 10)}: ${r.errors.length} errors, ${r.warnings.length} warnings`);
+        }
+        if (results.some(r => r.errors.length)) process.exitCode = 2;
+      } else {
+        const result = share(store, { ids: pos, all: !!flags.all, dry: !!flags.dry });
+        for (const r of result.ready) out(`${flags.dry ? 'would ' : ''}${r.action} ${r.id}`);
+        for (const r of result.skipped) out(`skip ${r.id}: ${r.reasons.join('; ')}`);
+        out(`${result.ready.length} notes ${flags.dry ? 'ready to share' : 'shared; review and commit .thinker/notes/'}`);
       }
-      out(`exported ${store.list().length} notes at ${String(head).slice(0, 10)} → ${file}`);
+      break;
+    }
+    case 'export': {
+      const file = path.resolve(pos[0] || `thinker-cache-${path.basename(repo)}.tgz`);
+      const result = exportCache(store, file);
+      out(`exported ${result.notes} notes → ${file}`);
       break;
     }
     case 'import': {
-      // unpack a delivered cache into .thinker/ and check it against this checkout
-      const src = pos[0]; if (!src) { out('usage: thinker import <file.tgz | https://…>'); process.exit(1); }
-      fs.mkdirSync(store.dir, { recursive: true });
-      let file = src;
-      if (/^https?:\/\//.test(src)) { file = path.join(store.dir, 'cache-download.tgz'); execFileSync('curl', ['-fsSL', '-o', file, src]); }
-      let names = [];
-      try {
-        names = execFileSync('tar', [...tarListArgs(), file], {
-          env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' },
-          stdio: ['ignore', 'pipe', 'pipe'],
-        }).toString().split('\n').filter(Boolean);
-      } catch (err) {
-        const errDetail = err.stderr ? err.stderr.toString().trim() : '';
-        out(`error reading archive: ${errDetail || err.message}`);
-        process.exit(1);
-      }
-      if (names.some(n => n.startsWith('/') || n.split('/').includes('..'))) { out('refusing to unpack: archive contains unsafe paths'); process.exit(1); }
-      try {
-        execFileSync('tar', [...tarExtractArgs(), file, '-C', store.dir], {
-          env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' },
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
-      } catch (err) {
-        const errDetail = err.stderr ? err.stderr.toString().trim() : '';
-        out(`error unpacking archive: ${errDetail || err.message}`);
-        process.exit(1);
-      }
-      if (file.endsWith('cache-download.tgz')) fs.unlinkSync(file);
+      if (!pos[0]) throw new Error('usage: thinker import <file.tgz | https://…>');
+      const result = importCache(store, pos[0]);
       const notes = refresh(store, store.list());
-      const stale = notes.filter(n => n.status === 'stale').length;
-      let man = {}; try { man = JSON.parse(fs.readFileSync(path.join(store.dir, 'cache-manifest.json'), 'utf8')); } catch {}
-      out(`imported ${notes.length} notes${man.commit ? ` built at ${String(man.commit).slice(0, 10)}` : ''}; ${stale} are stale against this checkout (they are served with a warning and re-verified in the background)`);
+      out(`imported ${result.notes} notes into the local cache; ${notes.filter(n => n.status === 'stale').length} are stale against this checkout`);
       break;
     }
     case 'serve': {
@@ -421,7 +403,7 @@ async function main() {
       let notes = refresh(store, store.list());
       if (flags.stale) notes = notes.filter(n => n.status === 'stale');
       if (!flags.all) notes = notes.filter(n => n.status !== 'invalid');
-      for (const n of notes) out(`${n.status.padEnd(7)} ${String(n.kind).padEnd(10)} ${n.id.padEnd(45)} c=${Math.round((n.confidence ?? 0.7) * 100)}% uses=${n.uses || 0}  ${n.title}`);
+      for (const n of notes) out(`${(store.isShared(n.id) ? 'repo' : 'local').padEnd(5)} ${n.status.padEnd(7)} ${String(n.kind).padEnd(10)} ${n.id.padEnd(45)} c=${Math.round((n.confidence ?? 0.7) * 100)}% uses=${n.uses || 0}  ${n.title}`);
       out(`${notes.length} notes`);
       break;
     }
@@ -890,12 +872,7 @@ async function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
     if (r && r.status === 0) out('Cursor: approved the thinker MCP server for this workspace');
     else out('Cursor: approve the thinker MCP server when Cursor asks (Settings → MCP), or run: agent mcp enable thinker');
   }
-  if (gitHook) {
-    const hook = gitHookPath(repo, 'post-commit');
-    if (!hook) out('skipped git hook: not a git checkout');
-    else if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) out(`skipped git hook: ${hook} already exists and is not ours`);
-    else { fs.mkdirSync(path.dirname(hook), { recursive: true }); fs.writeFileSync(hook, postCommitHook(path.join(HERE, 'cli.js'), repo, learn), { mode: 0o755 }); out(`installed git post-commit hook${learn ? ' (re-checks and maintains notes in the background)' : ''}`); }
-  }
+  if (gitHook) installGitHooks(repo, path.join(HERE, 'cli.js'), learn, out);
   if (!fs.existsSync(path.join(store.dir, 'cochange.json'))) { try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {} }
   const gi = path.join(repo, '.thinker', '.gitignore');
   const ignored = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';
@@ -1289,4 +1266,8 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   }
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch(e => {
+  const prePush = cmd === 'share' && flags['pre-push'];
+  console.error(prePush ? `thinker: validation unavailable; allowing push (${e.message || e})` : e);
+  process.exit(prePush ? 0 : 1);
+});

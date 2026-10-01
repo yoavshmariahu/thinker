@@ -116,7 +116,7 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
   for (const r of summary.repos || []) {
     for (const checkout of r.checkouts || []) {
       coveredCheckouts.add(path.resolve(checkout));
-      const s = new Store(checkout);
+      const s = new Store(checkout, { readonly: true });
       if (!s.exists()) continue;
       try {
         const notes = s.list();

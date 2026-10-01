@@ -6,8 +6,8 @@ import os from 'node:os';
 import readline from 'node:readline';
 import readlinePromises from 'node:readline/promises';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { Store, gitHead, gitHookPath } from './store.js';
-import { postCommitHook } from './maintain.js';
+import { Store, gitHead } from './store.js';
+import { installGitHooks } from './git-hooks.js';
 import { orient, linkNotes, phraseNotes } from './ops.js';
 import { mineCochange } from './cochange.js';
 import { listMergedPrs, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
@@ -858,7 +858,7 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
     },
     storage: {
       rootDir: path.relative(process.cwd(), storeDir) || '.thinker/',
-      notesDir: path.relative(process.cwd(), path.join(storeDir, 'notes')) || '.thinker/notes/',
+      notesDir: path.relative(process.cwd(), path.join(storeDir, 'local', 'notes')) || '.thinker/local/notes/',
       cochangeFile: path.relative(process.cwd(), path.join(storeDir, 'cochange.json')) || '.thinker/cochange.json',
       prsFile: path.relative(process.cwd(), path.join(storeDir, 'prs.json')) || '.thinker/prs.json',
       stateDir: path.relative(process.cwd(), path.join(storeDir, 'state')) || '.thinker/state/',
@@ -960,18 +960,7 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
     }
   }
 
-  if (gitHook) {
-    const hook = gitHookPath(repo, 'post-commit');
-    if (!hook) {
-      out(`  ${c.yellow('⚠')} ${c.dim('Git post-commit hook skipped (not a git checkout)')}`);
-    } else if (fs.existsSync(hook) && !fs.readFileSync(hook, 'utf8').includes('thinker')) {
-      out(`  ${c.yellow('⚠')} ${c.dim('Git post-commit hook skipped (existing hook is not ours)')}`);
-    } else {
-      fs.mkdirSync(path.dirname(hook), { recursive: true });
-      fs.writeFileSync(hook, postCommitHook(cliPath, repo, learn), { mode: 0o755 });
-      out(`  ${c.green('✔')} ${c.bold('Git Post-Commit'.padEnd(20))} ${c.green('Connected')} · ${c.dim(learn ? 'maintains the cache after each commit' : 'post-commit')}`);
-    }
-  }
+  if (gitHook) installGitHooks(repo, cliPath, learn, out);
 
   const connectedCount = results.filter(r => r.status === 'connected').length;
   out(`\n  ${c.cyan('Summary:')} ${c.bold(connectedCount)} of ${CLIENTS.length} harness CLIs connected and configured.`);
@@ -1084,13 +1073,7 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
 
   // Final cache stats
   const finalNotes = store.list();
-  let totalBytes = 0;
-  try {
-    const noteFiles = fs.readdirSync(store.notesDir);
-    for (const f of noteFiles) {
-      totalBytes += fs.statSync(path.join(store.notesDir, f)).size;
-    }
-  } catch {}
+  const totalBytes = store.size();
 
   const status = warnings ? 'Cache build finished with warnings:' : finalNotes.length ? 'Knowledge cache ready:' : 'Cache build finished without notes:';
   out(`\n  ${warnings || !finalNotes.length ? c.yellow('⚠') : c.green('✔')} ${c.bold(status)} ${c.cyan(`${finalNotes.length} notes`)} in ${c.dim(estimates.storage.rootDir)} (${formatBytes(totalBytes)} on disk)\n`);

@@ -125,7 +125,8 @@ test('spentToday sums reported learning and maintenance model cost since local m
 
 test('postCommitHook maintains with learning on and only re-checks with it off', () => {
   const on = postCommitHook('/x/cli.js', '/r', true), off = postCommitHook('/x/cli.js', '/r', false);
-  assert.match(on, /nohup node "\/x\/cli.js" maintain --quiet --repo "\$repo"/);
-  assert.match(on, /git rev-parse --show-toplevel 2>\/dev\/null \|\| echo "\/r"/);
-  assert.match(off, /nohup node "\/x\/cli.js" check --quiet --repo "\$repo"/);
+  assert.match(on, /nohup node '\/x\/cli.js' maintain --quiet --repo "\$repo"/);
+  assert.match(on, /git rev-parse --show-toplevel/);
+  assert.match(on, /THINKER_NO_LEARN/);
+  assert.match(off, /nohup node '\/x\/cli.js' check --quiet --repo "\$repo"/);
 });

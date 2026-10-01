@@ -26,7 +26,7 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--late` | also serve notes about files as the agent opens them |
 | `--shared` | write hooks to `.claude/settings.json` so the whole team gets them on pull |
 | `--mcp` | also register the MCP server for the chosen agents (needs npm); always on for Cursor |
-| `--no-git-hook` | do not install the git post-commit hook; by default it re-checks and maintains notes in the background after each commit |
+| `--no-git-hook` | do not install git hooks; by default post-commit/post-merge check and maintain notes in the background, and pre-push validates the committed shared cache |
 | `--branch <name>` | install a specific branch or tag version (default `main`; `--ref also accepted) |
 | `--update` | update the thinker CLI to the latest version and exit |
 | `--no-auto-update` | do not schedule daily background auto-updates (daily auto-update is on by default) |
@@ -46,7 +46,7 @@ When run in a new repository (either via `curl .../install.sh` or `thinker setup
 
 2. **Step 2: Build Knowledge Cache**
    Computes pre-flight estimates upfront:
-   - **Target storage location:** `.thinker/` (notes in `.thinker/notes/`, co-change in `.thinker/cochange.json`)
+   - **Target storage location:** `.thinker/` (local notes in `.thinker/local/notes/`, shared notes in `.thinker/notes/`, co-change in `.thinker/cochange.json`)
    - **Estimated size:** notes count and disk footprint (typically 50–120 notes, ~120–220 KB on disk)
    - **Estimated build time:** broken down across co-change mining, PR distillation, and exploration
    Then mines git co-change history, distills merged PRs into fix and invariant notes, explores key subsystems, and generates search phrasings.
@@ -114,6 +114,8 @@ details in the terminal (`mine-prs` and `seed` accept `--verbose` too).
 
 Cost on PostHog (54k files): about $20 for 259 notes. The cache is keyed to file and symbol hashes, not to a commit, so it stays usable as their code moves: notes whose code changed are flagged stale when served and re-verified in the background if the user has the `claude` CLI.
 
-Alternative delivery: commit `.thinker/notes/` and `.thinker/cochange.json` into their repository and have users run the installer without `--cache`. For hosting outside GitHub, `scripts/pack.sh <base-url>` builds a self-contained tarball and installer.
+Alternative delivery: run `thinker share --dry`, then `thinker share` and review and commit `.thinker/notes/` and `.thinker/cochange.json` into their repository and have users run the installer without `--cache`. For hosting outside GitHub, `scripts/pack.sh <base-url>` builds a self-contained tarball and installer.
 
 Example caches in this repository: `caches/click.tgz` (16 notes), `caches/posthog.tgz` (259 notes, built at the benchmark's base commit).
+
+See [team sharing and CI validation](README.md#share-a-cache-with-your-team) for promotion gates, migration, and the `thinker share --check --base origin/main` CI command. Imported and newly built notes stay local until explicitly shared.

@@ -130,7 +130,7 @@ export function summarize(store, { days, all = false } = {}) {
   const since = days ? new Date(Date.now() - days * 86400_000).toISOString() : '';
   const events = readLog(store, { all }).filter(e => e.t >= since);
   const stores = new Map([[store.repo, store]]);
-  const storeOf = repo => { if (!stores.has(repo)) stores.set(repo, new Store(repo)); return stores.get(repo); };
+  const storeOf = repo => { if (!stores.has(repo)) stores.set(repo, new Store(repo, { readonly: true })); return stores.get(repo); };
   const u = {
     scope: all ? 'machine' : repoId(store.repo),
     from: events[0]?.t || null, to: events[events.length - 1]?.t || null, events: events.length,

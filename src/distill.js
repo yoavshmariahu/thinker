@@ -159,8 +159,7 @@ export function saveNotes(store, notes, { source }) {
     const dup = existing.find(e => jaccard(key, tokenize(e.title + ' ' + (e.answers || []).join(' '))) >= 0.5 && e.kind === n.kind);
     if (dup) {
       if ((n.confidence ?? 0.7) >= (dup.confidence ?? 0.7) - 0.1 || dup.status !== 'fresh') {
-        store.remove(dup.id);
-        const r = createNote(store, { ...n, id: dup.id }, { source });
+        const r = createNote(store, { ...n, id: dup.id }, { source, reuseId: true });
         if (r.error) { skipped.push({ title: n.title, reason: r.error }); store.put(dup); continue; }
         r.note.uses = dup.uses || 0; r.note.created = dup.created; r.note.history = [...(dup.history || []), { at: new Date().toISOString(), reason: 'merged from new session', prevBody: dup.body }].slice(-5);
         store.put(r.note); merged.push(r.note);

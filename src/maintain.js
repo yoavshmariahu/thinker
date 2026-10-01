@@ -12,6 +12,7 @@ import { refresh, verifyNote, phraseNotes, phraseKey } from './ops.js';
 import { mineCochange, loadCochange } from './cochange.js';
 import { cbmProject, cbmIndex } from './cbm.js';
 import { readLog } from './usage.js';
+import { reconcileLocal, readyToShareNotice } from './share.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
@@ -45,7 +46,7 @@ function readState(store) { try { return JSON.parse(fs.readFileSync(stateFile(st
 // One run. `fns` lets the CLI pass PR mining in and tests pass everything in.
 export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   const cfg = maintainConfig(store);
-  if (!cfg.enabled) return { skipped: 'disabled' };
+  if (!cfg.enabled || /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '')) return { skipped: 'disabled' };
   const stateDir = path.join(store.init().dir, 'state');
   fs.mkdirSync(stateDir, { recursive: true });
   const lock = path.join(stateDir, 'maintain.lock');
@@ -57,6 +58,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   const budget = cfg.dailyCap - spent;
   const afford = () => budget - r.cost > 0;
   try {
+    if (!dry) reconcileLocal(store);
     // 1. co-change: free, so redo it whenever HEAD moved
     const head = gitHead(repo);
     const idx = loadCochange(repo);
@@ -67,9 +69,9 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     if (head && state.graphHead !== head && (fns.graphIndexed || cbmProject)(repo)) {
       try { const g = dry ? {} : (fns.graphIndex || cbmIndex)(repo); if (!g.error) { r.graph = true; state.graphHead = head; } else r.errors++; } catch { r.errors++; }
     }
-    // 2. stale notes, the ones served most recently first
+    // 2. Re-hashing is free, even when the model budget is exhausted.
+    const notes = (fns.refresh || refresh)(store, store.list());
     if (afford()) {
-      const notes = (fns.refresh || refresh)(store, store.list());
       const stale = notes
         .filter(n => n.status === 'stale' && !(n.verifying && Date.now() - Date.parse(n.verifying) < 10 * 60_000))
         .sort((a, b) => (b.uses || 0) - (a.uses || 0))
@@ -101,6 +103,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
       } else r.capped = true;
     }
     const u = state.unreported || {};
+    if (!dry) { const notice = readyToShareNotice(store); if (notice) u.share = notice; }
     for (const k of ['verified', 'updated', 'retired', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
     u.cochange = !!(u.cochange || r.cochange);
     u.graph = !!(u.graph || r.graph);
@@ -125,6 +128,7 @@ export function maintenanceNotice(store) {
   if (u.prs) parts.push(`${u.prs} ${u.prs === 1 ? 'note' : 'notes'} from merged pull requests`);
   if (u.cochange) parts.push('co-change index refreshed');
   if (u.graph) parts.push('code graph re-indexed');
+  if (u.share) parts.push(u.share);
   if (!parts.length) return '';
   delete state.unreported;
   try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
@@ -135,9 +139,12 @@ export function maintenanceNotice(store) {
 // Worktrees share the main repository's hooks, so the checkout is the one being committed
 // in, not the one the hook was installed from.
 export function postCommitHook(cli, repo, learn) {
+  const quote = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
   return `#!/bin/sh\n# thinker: re-hash note dependencies${learn ? ' and maintain the cache' : ''} in the background\n` +
-    `repo="$(git rev-parse --show-toplevel 2>/dev/null || echo "${repo}")"\n` +
-    `nohup node "${cli}" ${learn ? 'maintain' : 'check'} --quiet --repo "$repo" >/dev/null 2>&1 &\n`;
+    `case "$THINKER_NO_LEARN" in 1|true|yes) exit 0 ;; esac\n` +
+    `repo="$(git rev-parse --show-toplevel 2>/dev/null)"\n` +
+    `[ -n "$repo" ] || repo=${quote(repo)}\n` +
+    `nohup node ${quote(cli)} ${learn ? 'maintain' : 'check'} --quiet --repo "$repo" >/dev/null 2>&1 &\n`;
 }
 
 export function renderMaintain(r) {

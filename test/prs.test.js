@@ -122,7 +122,7 @@ test('nextPrs with listMergedCommits handles git history and tracks mined commit
     assert.equal(second[0].prNumber, 101);
 
     // Commit hashes can be tracked as note sources
-    fs.writeFileSync(path.join(s.notesDir, 'hash-note.json'), JSON.stringify({
+    fs.writeFileSync(path.join(s.notesDir, 'h1.json'), JSON.stringify({
       id: 'h1', kind: 'convention', title: 't', body: 'b',
       source: { type: 'pr', ref: 'local#abc12345' },
     }));

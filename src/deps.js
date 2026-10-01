@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { astFindSymbol, astReady, extendUp } from './ast.js';
 
 const sha = s => 'sha256:' + crypto.createHash('sha256').update(s).digest('hex').slice(0, 24);
@@ -132,6 +133,13 @@ export function hashDep(repo, dep, { engine } = {}) {
   if (!abs) return { ...dep, hash: null, missing: true };
   let text;
   try { text = fs.readFileSync(abs, 'utf8'); } catch { return { ...dep, hash: null, missing: true }; }
+  return hashText(text, dep, { engine });
+}
+
+// Shared by working-tree and commit validation; no filesystem reads.
+export function hashText(text, dep, { engine } = {}) {
+  dep = { ...dep };
+  delete dep.symbolMissing;
   if (dep.symbol) {
     const loc = locateSymbol(text, dep.symbol, dep.path, { engine });
     if (loc) {
@@ -152,14 +160,32 @@ export function hashDep(repo, dep, { engine } = {}) {
   const out = { ...dep, hash: sha(norm(text)), missing: false }; delete out.engine; delete out.hashRegex; return out;
 }
 
+// Git paths are repository-relative, never filesystem paths or revision expressions.
+export function validDepPath(file) {
+  return typeof file === 'string' && !!file && !file.startsWith('/') &&
+    !file.includes('\\') && !file.includes('\0') && !/^[A-Za-z]:/.test(file) &&
+    !file.split('/').some(p => !p || p === '.' || p === '..');
+}
+
+export function hashDepAt(repo, dep, ref, opts = {}) {
+  if (!validDepPath(dep.path)) return { ...dep, hash: null, missing: true };
+  try {
+    // Reject symlinks: git show would otherwise hash the link target as file content.
+    const entry = execFileSync('git', ['ls-tree', ref, '--', dep.path], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    if (!/^100(?:644|755) blob /.test(entry)) return { ...dep, hash: null, missing: true };
+    const text = execFileSync('git', ['show', `${ref}:${dep.path}`], { cwd: repo, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+    return hashText(text, dep, opts);
+  } catch { return { ...dep, hash: null, missing: true }; }
+}
+
 // Re-hash all deps of a note against the working tree. Returns
 // {changed: [{path, symbol, reason}], deps: freshDeps, upgraded}; upgraded is set when a dep hashed
 // by the regex was re-hashed by the parser with its block unchanged (the note should be saved).
-export function checkNote(repo, note) {
+export function checkNote(repo, note, { ref } = {}) {
   const changed = [];
   let upgraded = false;
   const deps = (note.deps || []).map(d => {
-    let now = hashDep(repo, d);
+    let now = ref ? hashDepAt(repo, d, ref) : hashDep(repo, d);
     if (now.missing) changed.push({ path: d.path, symbol: d.symbol, reason: 'file removed' });
     else if (now.symbolMissing && !d.symbolMissing) changed.push({ path: d.path, symbol: d.symbol, reason: 'symbol not found' });
     else if (d.hash && now.hash !== d.hash) {
