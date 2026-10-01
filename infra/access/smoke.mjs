@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 const config = JSON.parse(fs.readFileSync(new URL('./production.json', import.meta.url)));
-const secret = JSON.parse(JSON.parse(execFileSync('aws', ['--profile', config.profile, '--region', config.region,
+const profile = process.env.AWS_PROFILE || config.profile;
+const secret = JSON.parse(JSON.parse(execFileSync('aws', ['--profile', profile, '--region', config.region,
   'secretsmanager', 'get-secret-value', '--secret-id', config.secretId, '--output', 'json'], { encoding: 'utf8' })).SecretString);
 const base = 'https://zerotime.dev';
 const request = (url, options = {}) => fetch(new URL(url, base), { redirect: 'manual', signal: AbortSignal.timeout(20000), ...options });

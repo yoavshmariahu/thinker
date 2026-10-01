@@ -19,7 +19,8 @@ function save(name, data) {
 }
 function aws(args, region = config.region) {
   try {
-    const text = execFileSync('aws', ['--profile', config.profile, '--region', region, ...args, '--output', 'json'], {
+    const profile = process.env.AWS_PROFILE || config.profile;
+    const text = execFileSync('aws', ['--profile', profile, '--region', region, ...args, '--output', 'json'], {
       encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe']
     });
     return text.trim() ? JSON.parse(text) : {};
