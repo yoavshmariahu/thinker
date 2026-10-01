@@ -6,7 +6,9 @@ import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead, gitHookPath } from './store.js';
 import { maintain, maintenanceNotice, renderMaintain, postCommitHook } from './maintain.js';
-import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
+import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
+import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
+import { annotateFanout } from './codegraph.js';
 import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
@@ -56,13 +58,18 @@ const HELP = `thinker — knowledge cache for coding agents
   export [file.tgz]              pack this repo's cache for delivery
   import <file.tgz|url>          unpack a delivered cache and check it against this checkout
   serve                          run the MCP server (stdio)
-  orient "<task>" [--file f] [--budget n]
-  lookup "<query>"
+  orient "<task>" [--file f] [--budget n] [--snippets]
+  lookup "<query>" [--snippets]  (--snippets: inline the code behind the pointers, as the MCP tools do)
+  drilldown <path:Symbol|path|Symbol> [--budget n]
+                                 the definition with its lines, one hop of callers and callees, and the notes on it
+  ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
+                                 web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
   list [--stale] [--all]         list notes
   show <id>                      print a note
   rm <id>
   add [file.json]                add a human-written note (JSON on stdin or file)
   check                          re-hash dependencies, mark stale notes
+  rehash [--fanout]              re-baseline every note's hashes without verification (--fanout: count references again)
   cochange [file]                mine co-change edges from git history / show partners of a file
   relink                         recompute cross-note links
   verify [ids...] [--model m]    re-verify stale notes with a small model
@@ -113,8 +120,33 @@ async function main() {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
     maybeSendTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
   }
+  // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();
 
   switch (cmd) {
+    case 'ast': {
+      const dir = flags.dir || process.env.THINKER_AST_DIR || path.join(thinkerHome(), 'ast');
+      if (pos[0] === 'install') {
+        fs.mkdirSync(dir, { recursive: true });
+        if (!fs.existsSync(path.join(dir, 'package.json'))) fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'thinker-ast', private: true, description: 'tree-sitter parser and grammars for thinker' }, null, 2) + '\n');
+        out(`installing ${AST_PACKAGES.join(' and ')} into ${dir} (about 55 MB)…`);
+        const r = spawnSync('npm', ['install', '--no-audit', '--no-fund', '--silent', '--ignore-scripts', ...AST_PACKAGES], { cwd: dir, stdio: 'inherit' });
+        if (r.status !== 0) { out('npm install failed'); process.exit(1); }
+        const st = await initAst({ dir });
+        if (!st.available) { out(`installed, but the parser did not load: ${st.error || 'unknown error'}`); process.exit(1); }
+        out(`tree-sitter ready: ${st.grammars.join(', ')}. Symbol hashes are upgraded in place as notes are served; \`thinker rehash\` does them all now.`);
+        break;
+      }
+      const st = await initAst();
+      out(st.available ? `tree-sitter: on (${st.dir}); grammars: ${st.grammars.join(', ')}` : `tree-sitter: off (regex heuristics in use)${st.error ? `: ${st.error}` : ''}\nlooked in: ${astDirs().join(', ')}\ninstall with: thinker ast install   (grammars: ${GRAMMAR_NAMES.join(', ')})`);
+      break;
+    }
+    case 'drilldown': {
+      const r = drilldown(store, { pointer: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 1500 });
+      if (r.error) { out('error: ' + r.error); process.exit(1); }
+      out(r.text);
+      break;
+    }
     case 'switch':
     case 'branch':
     case 'update':
@@ -349,12 +381,12 @@ async function main() {
       break;
     }
     case 'orient': {
-      const r = await orient(store, { task: pos.join(' '), file: flags.file, client: flags.client || 'cli', budget: Number(flags.budget) || 1000 });
+      const r = await orient(store, { task: pos.join(' '), file: flags.file, client: flags.client || 'cli', budget: Number(flags.budget) || 1000, snippets: !!flags.snippets });
       out(r.included.length ? r.text : '(no matching notes)');
       break;
     }
     case 'lookup': {
-      const r = lookup(store, { query: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3 });
+      const r = lookup(store, { query: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3, snippets: !!flags.snippets });
       out(r.included.length ? r.text : '(nothing cached about that)');
       break;
     }
@@ -390,8 +422,8 @@ async function main() {
       // Re-baseline every note's dependency hashes against the current tree
       // without LLM verification (use after upgrading thinker's hashing).
       let n = 0;
-      for (const note of store.list()) { note.deps = (note.deps || []).map(d => hashDep(store.repo, d)).filter(d => !d.missing); note.status = note.status === 'invalid' ? 'invalid' : 'fresh'; delete note.stale; delete note.verifying; store.put(note); n++; }
-      out(`rehashed ${n} notes`);
+      for (const note of store.list()) { note.deps = (note.deps || []).map(d => ({ ...hashDep(store.repo, d), ...(d.fanout ? { fanout: d.fanout } : {}) })).filter(d => !d.missing); if (flags.fanout) note.deps = annotateFanout(store.repo, note.deps, { max: 12 }); note.status = note.status === 'invalid' ? 'invalid' : 'fresh'; delete note.stale; delete note.verifying; store.put(note); n++; }
+      out(`rehashed ${n} notes${flags.fanout ? ' and counted their references' : ''}`);
       break;
     }
     case 'check': {

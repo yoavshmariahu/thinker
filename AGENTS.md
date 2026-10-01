@@ -40,13 +40,15 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | path | contents |
 |---|---|
 | `src/cli.js` | `thinker` command: `setup`, `init`, `distill`, `orient`, `lookup`, `check`, `verify`, `cochange`, `serve`, ... |
-| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `remember`, `feedback` |
+| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `drilldown`, `remember`, `feedback` |
 | `src/setup.js` | the guided `setup` flow: agent selection and login check, cache build with estimates, optional PR benchmark |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI and Cursor: config files and hook formats |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
 | `src/prs.js` | mining merged pull requests into notes |
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
+| `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust) when its grammars are installed (`thinker ast install`); `deps.js` falls back to regex heuristics |
+| `src/codegraph.js` | one hop of the call graph from `git grep`: references and blast radius of a symbol (`fanout`), callees, definitions; behind `drilldown` and the `[n call sites in m files]` tags on pointers |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/cochange.js` | co-change mining from git history |
@@ -151,10 +153,26 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 ## Dependency-keyed invalidation
 
 - A dep is `{path, symbol?}`. With a symbol, thinker hashes just that
-  definition's block (found by a language-agnostic definition regex + brace
-  or indentation block matching); without, the whole file. A note about
+  definition's block; without, the whole file. A note about
   `Command.invoke` does not go stale because an unrelated function in the
   same file changed.
+- The block is found by tree-sitter when its grammars are installed
+  (`ast.js`; Python, JavaScript, TypeScript, Go, Rust) and otherwise by a
+  language-agnostic definition regex with brace or indentation matching
+  (`deps.js:findSymbol`). The regex is thrown off by braces in strings and
+  regex literals and by `return foo(` lines; on this repository's own notes
+  the two disagreed on 5% of symbol deps, the regex wrong each time. The
+  parser is not a dependency (55 MB of wasm): `thinker ast install` puts
+  `web-tree-sitter` and `tree-sitter-wasms` under `~/.thinker/ast`
+  (`THINKER_AST_DIR` names another place; `thinker ast` shows which is in
+  use; `THINKER_AST=off` disables it). A dep hashed by the parser carries
+  `engine: "ast"` and, beside its hash, the regex hash of the same symbol
+  (`hashRegex`). So the two kinds of checkout agree (`deps.js:checkNote`):
+  where the parser arrives, a dep the regex hashed is not stale if the regex
+  block is unchanged, and the parser's record replaces it (`upgraded`);
+  where there is no parser, a dep a teammate's parser hashed is not stale if
+  its `hashRegex` still matches, and the record is kept as it is. Installing
+  the parser, or lacking it, marks no note stale.
 - Pointers written in the body (`core.py:Command.main`, `Foo.bar`,
   `types.convert_type`) are extracted automatically and added as deps, so
   the tracked set matches what the note actually claims.
@@ -233,8 +251,30 @@ queries; `0,0` turns them off).
 ## Serving
 
 - MCP server (`thinker serve`, registered in `.mcp.json` by `thinker init`)
-  with tools `orient(task, file?, budget?)`, `lookup(query)`, `remember(...)`,
-  `feedback(id, useful, correction?)`.
+  with tools `orient(task, file?, budget?)`, `lookup(query)`, `drilldown(pointer)`,
+  `remember(...)`, `feedback(id, useful, correction?)`.
+- Code behind the pointers: the MCP `orient` and `lookup` end with the
+  definitions the served notes point at (`ops.js:codeSnippets`: up to two per
+  note and four in all, each cut to 30 lines), in what is left of the note
+  budget plus `SNIPPET_BUDGET` (600 tokens; `THINKER_SNIPPET_BUDGET`). The
+  hooks do not add them (`thinker orient --snippets` does). `THINKER_SNIPPETS=off`
+  or `snippets: false` in `.thinker/config.json` turns them off. Measured
+  against Qartez on click, the agent spent its advantage on reading whole
+  files after orienting; this is what the snippets are for.
+- `drilldown(pointer)` takes one `path:Symbol` (or a path, or a bare name,
+  resolved through the notes' pointers and then the code) and returns the
+  definition with its lines, one hop of callers (every reference, calls
+  first) and callees (names the body calls that are defined in the
+  repository), and the notes resting on that symbol or file
+  (`ops.js:drilldown`, `codegraph.js`). Everything comes from `git grep`
+  over the language family of the file, so there is no index to build or
+  keep; outside a git checkout it says so.
+- Blast radius: a symbol pointer is served as `path:Sym:L12 [6 call sites in
+  3 files]`. The count is made when the note is created and again for the
+  symbols a verification found changed (`codegraph.js:annotateFanout`;
+  `thinker rehash --fanout` redoes all), stored on the dep as `fanout`, and
+  not made for names under four characters or common ones (`main`, `get`).
+  `THINKER_FANOUT=off` skips both the counting and the tag.
 - The prompt hooks serve two notes. When an agent calls `orient` with its own
   `budget`, up to five are served (past the second, a note must reach 0.7 of
   the best hit's relevance), a linked note is added instead of replacing a

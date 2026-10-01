@@ -133,6 +133,7 @@ This repository has a cache of verified notes from earlier sessions, served by t
 - Follow the file:symbol pointers it returns instead of re-deriving them; search only to fill gaps.
 - \`orient\` takes a \`budget\` and lists the relevant notes it did not show. Before searching for something one of those titles covers, call \`lookup\` with its id.
 - Use \`lookup\` for a specific question mid-task. Treat notes marked STALE as unverified.
+- To see the code behind a pointer, call \`drilldown\` with it (\`path:Symbol\`): the definition with its lines, callers and callees, and the notes on it, instead of reading the file and grepping for the name.
 - Context wrapped in \`<thinker-cache>\` comes from the same cache.
 `;
 

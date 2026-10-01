@@ -2,9 +2,15 @@
 // symbol's definition block when we can find it, else the whole file, so a
 // note about `authenticate()` does not go stale when an unrelated function in
 // the same file changes.
+//
+// The block is found by tree-sitter when its grammars are installed (ast.js; `thinker ast install`)
+// and by the regex heuristics below otherwise. A dep hashed by the parser carries `engine: "ast"`;
+// one without it was hashed by the regex, and checkNote upgrades it in place when the regex block
+// is unchanged, so installing the parser does not mark every note stale.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { astFindSymbol, astReady, extendUp } from './ast.js';
 
 const sha = s => 'sha256:' + crypto.createHash('sha256').update(s).digest('hex').slice(0, 24);
 const norm = s => s.replace(/[ \t]+$/gm, '').replace(/\r\n/g, '\n');
@@ -33,8 +39,10 @@ export function findSymbol(text, symbol, lang = 'auto') {
   const lines = text.split('\n');
   const name = symbol.includes('.') ? symbol.split('.').pop() : symbol;
   const n = esc(name);
+  // a line that starts with a keyword is a use, not a definition: `return foo(` is not a C-like `Type foo(`
   const defRe = new RegExp(
-    `^\\s*(?:export\\s+(?:default\\s+)?)?(?:async\\s+)?(?:` +
+    `^(?!\\s*(?:return|await|yield|throw|new|else|case|if|elif|while|for|with|not|and|or|in|is|raise|assert|del|lambda|print|switch|typeof|delete|void|do|try|catch|finally|import|from|as|pass|break|continue|match|echo|unless|until|when|then)\\b)` +
+    `\\s*(?:export\\s+(?:default\\s+)?)?(?:async\\s+)?(?:` +
     `(?:def|class|function\\*?|interface|type|enum|struct|trait|impl|fn|func|module)\\s+${n}\\b` +      // py/js/ts/rs/go/rb
     `|(?:const|let|var)\\s+${n}\\s*[=:]` +                                                            // js/ts consts
     `|func\\s*\\([^)]*\\)\\s*${n}\\s*\\(` +                                                            // go methods
@@ -68,9 +76,18 @@ export function findSymbol(text, symbol, lang = 'auto') {
     start = c;
   }
   // Include decorators / doc comments directly above.
-  let s = start;
-  while (s > 0 && /^\s*(@|#\[|\/\/|\/\*|\*)/.test(lines[s - 1])) s--;
-  return { start: s, end: blockEnd(lines, start, lang) };
+  return { start: extendUp(lines, start), end: blockEnd(lines, start, lang) };
+}
+
+// findSymbol with the parser when it is loaded for the file's language, the regex otherwise (also
+// when the parser does not find the name: object properties and the like). Adds `engine`.
+export function locateSymbol(text, symbol, file, { engine } = {}) {
+  if (engine !== 'regex' && file && astReady(file)) {
+    const loc = astFindSymbol(text, symbol, file);
+    if (loc) return { ...loc, engine: 'ast' };
+  }
+  const loc = findSymbol(text, symbol, langOf(file));
+  return loc ? { ...loc, engine: 'regex' } : null;
 }
 
 function blockEnd(lines, start, lang = 'auto') {
@@ -109,46 +126,73 @@ function blockEnd(lines, start, lang = 'auto') {
   return i;
 }
 
-export function hashDep(repo, dep) {
+// engine: 'regex' forces the heuristics (to compare against a dep hashed before the parser was installed).
+export function hashDep(repo, dep, { engine } = {}) {
   const abs = repoFile(repo, dep.path);
   if (!abs) return { ...dep, hash: null, missing: true };
   let text;
   try { text = fs.readFileSync(abs, 'utf8'); } catch { return { ...dep, hash: null, missing: true }; }
   if (dep.symbol) {
-    const loc = findSymbol(text, dep.symbol, langOf(dep.path));
+    const loc = locateSymbol(text, dep.symbol, dep.path, { engine });
     if (loc) {
-      const block = text.split('\n').slice(loc.start, loc.end).join('\n');
-      return { ...dep, hash: sha(norm(block)), line: loc.start + 1, missing: false };
+      const lines = text.split('\n');
+      const out = { ...dep, hash: sha(norm(lines.slice(loc.start, loc.end).join('\n'))), line: loc.start + 1, missing: false };
+      delete out.engine; delete out.hashRegex;
+      if (loc.engine === 'ast') {
+        // the regex hash too, so a checkout without the parser can tell this block unchanged (checkNote)
+        out.engine = 'ast';
+        const rx = findSymbol(text, dep.symbol, langOf(dep.path));
+        if (rx) out.hashRegex = sha(norm(lines.slice(rx.start, rx.end).join('\n')));
+      }
+      return out;
     }
     // symbol not found: hash the file and flag so verification can decide.
-    return { ...dep, hash: sha(norm(text)), symbolMissing: true, missing: false };
+    const out = { ...dep, hash: sha(norm(text)), symbolMissing: true, missing: false }; delete out.engine; delete out.hashRegex; return out;
   }
-  return { ...dep, hash: sha(norm(text)), missing: false };
+  const out = { ...dep, hash: sha(norm(text)), missing: false }; delete out.engine; delete out.hashRegex; return out;
 }
 
 // Re-hash all deps of a note against the working tree. Returns
-// {changed: [{path, symbol, reason}], deps: freshDeps}.
+// {changed: [{path, symbol, reason}], deps: freshDeps, upgraded}; upgraded is set when a dep hashed
+// by the regex was re-hashed by the parser with its block unchanged (the note should be saved).
 export function checkNote(repo, note) {
   const changed = [];
+  let upgraded = false;
   const deps = (note.deps || []).map(d => {
-    const now = hashDep(repo, d);
+    let now = hashDep(repo, d);
     if (now.missing) changed.push({ path: d.path, symbol: d.symbol, reason: 'file removed' });
     else if (now.symbolMissing && !d.symbolMissing) changed.push({ path: d.path, symbol: d.symbol, reason: 'symbol not found' });
-    else if (d.hash && now.hash !== d.hash) changed.push({ path: d.path, symbol: d.symbol, reason: d.symbol && !now.symbolMissing ? 'symbol body changed' : 'file changed' });
+    else if (d.hash && now.hash !== d.hash) {
+      // the parser and the regex cut different blocks; the block is unchanged when the regex hashes agree
+      if (d.symbol && now.engine === 'ast' && !d.engine && now.hashRegex === d.hash) upgraded = true; // the parser arrived here: store its hash
+      else if (d.symbol && !now.engine && d.engine === 'ast' && d.hashRegex === now.hash) now = { ...d }; // no parser here: keep the record of the checkout that has one
+      else changed.push({ path: d.path, symbol: d.symbol, reason: d.symbol && !now.symbolMissing ? 'symbol body changed' : 'file changed' });
+    }
+    if (d.fanout) now.fanout = d.fanout; // reference counts (codegraph.js) are kept until the note is re-verified
     return now;
   });
-  return { changed, deps };
+  return { changed, deps, upgraded };
 }
 
-export function symbolText(repo, dep, maxLines = 200) {
+// The definition behind a dep, with its place in the file: {text, start, end, total, truncated}
+// (lines are 1-based, end inclusive). A file-level dep gives the head of the file.
+export function symbolBlock(repo, dep, maxLines = 200) {
   try {
     const abs = repoFile(repo, dep.path);
     if (!abs) return null;
     const text = fs.readFileSync(abs, 'utf8');
-    if (dep.symbol) {
-      const loc = findSymbol(text, dep.symbol, langOf(dep.path));
-      if (loc) return text.split('\n').slice(loc.start, Math.min(loc.end, loc.start + maxLines)).join('\n');
-    }
-    return text.split('\n').slice(0, maxLines).join('\n');
+    const lines = text.split('\n');
+    let loc = dep.symbol ? locateSymbol(text, dep.symbol, dep.path) : null;
+    if (dep.symbol && !loc) return null;
+    if (!loc) loc = { start: 0, end: lines.length };
+    const end = Math.min(loc.end, loc.start + maxLines);
+    return { text: lines.slice(loc.start, end).join('\n'), start: loc.start + 1, end, total: loc.end - loc.start, truncated: end < loc.end, engine: loc.engine };
   } catch { return null; }
+}
+
+export function symbolText(repo, dep, maxLines = 200) {
+  const b = symbolBlock(repo, dep, maxLines);
+  if (b) return b.text;
+  // symbol not found: the head of the file, as before
+  return symbolBlock(repo, { path: dep.path }, maxLines)?.text ?? null;
 }

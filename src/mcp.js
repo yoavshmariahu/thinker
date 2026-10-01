@@ -5,7 +5,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import fs from 'node:fs';
 import { Store, findRepoRoot } from './store.js';
-import { orient, lookup, createNote, feedback, KINDS } from './ops.js';
+import { orient, lookup, drilldown, createNote, feedback, snippetsOn, KINDS } from './ops.js';
+import { initAst } from './ast.js';
 import { CACHE_USAGE_GUIDE, CACHE_LEARNING_GUIDE, MORE_NOTES_INTRO } from './cache-guidance.js';
 
 const repo = findRepoRoot(process.env.THINKER_REPO || process.cwd());
@@ -13,6 +14,7 @@ const repo = findRepoRoot(process.env.THINKER_REPO || process.cwd());
 // benchmark when the agent's MCP registration is machine-wide and cannot be left out for one run.
 const off = process.env.THINKER_MCP === 'off';
 const store = off ? null : new Store(repo).init();
+if (!off) await initAst(); // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
 
 const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : {
   instructions: `thinker is a cache of notes about this repository (${repo}) from earlier sessions and humans.\n\n${CACHE_USAGE_GUIDE}\n\n${CACHE_LEARNING_GUIDE}`,
@@ -28,16 +30,16 @@ const guide = (() => { try { return process.env.THINKER_ORIENT_GUIDE ? fs.readFi
 
 register('orient', {
   title: 'Orient in this repo',
-  description: 'Call once at the start of a task unless a thinker-cache bundle for this request is already present. Returns notes with file:symbol pointers. Call again only for a distinct task part the first result missed; confirm STALE claims against code.',
+  description: 'Call once at the start of a task unless a thinker-cache bundle for this request is already present. Returns notes with file:symbol pointers (each with its blast radius) and the code behind the main pointers, so the files need not be read for that. Call again only for a distinct task part the first result missed; confirm STALE claims against code.',
   inputSchema: {
     task: z.string().optional().default('').describe('What you are about to do, in one or two sentences (the user request is fine).'),
     file: z.string().optional().describe('Path of the file you are currently in or about to edit, if known.'),
-    budget: z.number().int().min(200).max(8000).optional().describe('Max tokens of notes to return (default 1000).'),
+    budget: z.number().int().min(200).max(8000).optional().describe('Max tokens of notes to return (default 1000); the code behind the pointers may add up to about 600.'),
   },
 }, async ({ task = '', file, budget }) => {
   if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
   // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
-  const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
+  const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
   if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Explore normally, then call remember with what you learn.`);
   const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
   const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
@@ -53,9 +55,21 @@ register('lookup', {
     maxNotes: z.number().int().min(1).max(10).optional().describe('Maximum number of notes to return (default 3)'),
   },
 }, async ({ query, budget, maxNotes }) => {
-  const r = lookup(store, { query, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3 });
+  const r = lookup(store, { query, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
   if (!r.included.length) return text(emptyCache() || 'Nothing cached about that. Try fewer or different words, or an identifier from the code.');
   return text(r.text);
+});
+
+register('drilldown', {
+  title: 'Drill into one code pointer',
+  description: 'Takes one pointer as orient and lookup print them (path:Symbol, path:Symbol:L12), a path, or a bare symbol name. Returns the definition with its exact lines, one hop of callers and callees, and the cached notes resting on it. Use it instead of reading the whole file and grepping for the name; a path alone lists what the file defines.',
+  inputSchema: {
+    pointer: z.string().describe('path:Symbol, path, or Symbol'),
+    budget: z.number().int().min(300).max(8000).optional().describe('Max tokens to return (default 1500); the code gets about two thirds of it.'),
+  },
+}, async ({ pointer, budget }) => {
+  const r = drilldown(store, { pointer, client: 'mcp', budget: budget || 1500 });
+  return text(r.error ? r.error : r.text);
 });
 
 register('remember', {

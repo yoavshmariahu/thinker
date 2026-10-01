@@ -131,9 +131,17 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
 
 export const estTokens = s => Math.ceil(String(s).length / 3.6);
 
+// A pointer: path:Symbol:L12, with the blast radius when it was counted (codegraph.js:fanout) and
+// not switched off (THINKER_FANOUT=off): `path:Sym:L12 [6 call sites in 3 files]`.
+export function renderPointer(d) {
+  const f = d.fanout && process.env.THINKER_FANOUT !== 'off' ? ` [${renderFanout(d.fanout)}]` : '';
+  return `${d.path}${d.symbol ? ':' + d.symbol : ''}${d.line ? ':L' + d.line : ''}${f}`;
+}
+export const renderFanout = f => f.files === 0 ? 'no references' : `${f.sites || f.refs} ${f.sites ? 'call site' : 'reference'}${(f.sites || f.refs) === 1 ? '' : 's'} in ${f.files} file${f.files === 1 ? '' : 's'}`;
+
 // Pointers-only rendering: where to look, without prose that could be read as the whole picture.
 export function renderPointers(n) {
-  const deps = [...(n.deps || []).filter(d => d.symbol), ...(n.deps || []).filter(d => !d.symbol)].slice(0, Number(process.env.THINKER_MAX_POINTERS) || 6).map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''}${d.line ? ':L' + d.line : ''}`).join(', ');
+  const deps = [...(n.deps || []).filter(d => d.symbol), ...(n.deps || []).filter(d => !d.symbol)].slice(0, Number(process.env.THINKER_MAX_POINTERS) || 6).map(renderPointer).join(', ');
   const stale = n.status === 'stale' ? ' (STALE: confirm)' : '';
   return `- [${n.kind}] ${n.title}${stale}  (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%)\n  → ${deps}`;
 }
@@ -146,7 +154,7 @@ export function renderNote(n, { full = true } = {}) {
   const all = (n.deps || []);
   // symbol-level pointers first: they are the precise ones
   const shown = [...all.filter(d => d.symbol), ...all.filter(d => !d.symbol)].slice(0, maxPtr);
-  const deps = shown.map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''}${d.line ? ':L' + d.line : ''}`).join(', ') + (all.length > shown.length ? ` (+${all.length - shown.length} more)` : '');
+  const deps = shown.map(renderPointer).join(', ') + (all.length > shown.length ? ` (+${all.length - shown.length} more)` : '');
   const head = `### [${n.kind}] ${n.title}  (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%)`;
   if (!full) return `${head}${flag}\n${(n.body || '').split('\n')[0].slice(0, 200)}\n→ ${deps}`;
   const applies = n.applies ? `\nApplies: ${n.applies}` : '';

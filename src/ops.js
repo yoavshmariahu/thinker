@@ -3,8 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
-import { hashDep, checkNote, symbolText, repoFile } from './deps.js';
+import { hashDep, checkNote, symbolText, symbolBlock, repoFile } from './deps.js';
 import { rank, pack, renderNote, renderPointers, estTokens } from './rank.js';
+import { annotateFanout, fanout, callees, references, findDefinitions, outline, renderFanout } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
 import { loadCochange, renderCochange } from './cochange.js';
@@ -93,8 +94,9 @@ function findFile(repo, p, files) {
 export function createNote(store, input, { source = { type: 'agent' } } = {}) {
   const repo = store.repo;
   const extra = extractDeps(repo, String(input.body || ''), input.deps || []);
-  const { deps, dropped } = resolveDeps(repo, [...(input.deps || []), ...extra]);
-  if (!deps.length) return { error: 'no resolvable dependencies; a note must point at at least one existing file', dropped };
+  const { deps: resolved, dropped } = resolveDeps(repo, [...(input.deps || []), ...extra]);
+  if (!resolved.length) return { error: 'no resolvable dependencies; a note must point at at least one existing file', dropped };
+  const deps = annotateFanout(repo, resolved); // blast radius of each symbol pointer, shown beside it when served
   const kind = KINDS.includes(input.kind) ? input.kind : 'location';
   const id = input.id && !store.get(input.id) ? slugify(input.id) : uniqueId(store, slugify(input.title));
   const now = new Date().toISOString();
@@ -118,7 +120,7 @@ export function createNote(store, input, { source = { type: 'agent' } } = {}) {
 export function refresh(store, notes = store.list(), { persist = true } = {}) {
   return notes.map(n => {
     if (n.status === 'invalid') return n;
-    const { changed } = checkNote(store.repo, n);
+    const { changed, deps, upgraded } = checkNote(store.repo, n);
     const wasStale = n.status === 'stale';
     if (changed.length) {
       const stale = { since: n.stale?.since || new Date().toISOString(), changed };
@@ -126,7 +128,9 @@ export function refresh(store, notes = store.list(), { persist = true } = {}) {
       if (persist && (!wasStale || JSON.stringify(n.stale?.changed) !== JSON.stringify(changed))) store.put(next);
       return next;
     }
-    if (wasStale) { const next = { ...n, status: 'fresh' }; delete next.stale; if (persist) store.put(next); return next; }
+    if (wasStale) { const next = { ...n, status: 'fresh', deps }; delete next.stale; if (persist) store.put(next); return next; }
+    // the parser now hashes a dep the regex hashed, and both see the same block: keep the parser's hash
+    if (upgraded) { const next = { ...n, deps }; if (persist) store.put(next); return next; }
     return n;
   });
 }
@@ -192,11 +196,48 @@ export function specificity(repo, task) {
 // pointers; on PostHog two long notes need about 1500 to be served in full.
 export const HOOK_BUDGET = 750;
 
+// --- code behind the pointers ----------------------------------------------------------------------
+// The definitions the served notes point at, inlined after the notes, so the agent does not open a
+// 1,000-line file to see a 20-line function (the "file-read tax" the Qartez comparison measured).
+// Per note the symbol-level pointers in order, at most `perNote` of them and `max` in all, each cut to
+// `maxLines`; a snippet is added only when it fits the budget whole. Returns {text, tokens, shown}.
+export const SNIPPET_BUDGET = Number(process.env.THINKER_SNIPPET_BUDGET) || 600;
+export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLines = 30, minLines = 8 } = {}) {
+  const parts = [], shown = [], seen = new Set();
+  let used = 0;
+  for (const n of notes) {
+    let k = 0;
+    for (const d of (n.deps || []).filter(d => d.symbol && !d.missing && !d.symbolMissing)) {
+      if (k >= perNote || shown.length >= max) break;
+      const key = `${d.path}|${d.symbol}`; if (seen.has(key)) continue;
+      const b = symbolBlock(repo, d, maxLines); if (!b) continue;
+      seen.add(key);
+      let lines = b.text.split('\n'); let text, t;
+      // cut further when it does not fit, down to minLines; then skip it
+      for (;;) {
+        const cut = lines.length < b.total;
+        const range = `L${b.start}–L${b.start + lines.length - 1}${cut ? ` of L${b.start}–L${b.start + b.total - 1}` : ''}`;
+        text = `${d.path}:${d.symbol} (${range})\n\`\`\`\n${lines.join('\n')}${cut ? '\n…' : ''}\n\`\`\``;
+        t = estTokens(text);
+        if (used + t <= budget) break;
+        if (lines.length <= minLines) { text = null; break; }
+        lines = lines.slice(0, Math.max(minLines, Math.floor(lines.length / 2)));
+      }
+      if (!text) continue;
+      parts.push(text); used += t; shown.push({ id: n.id, path: d.path, symbol: d.symbol }); k++;
+    }
+  }
+  if (!parts.length) return { text: '', tokens: 0, shown };
+  return { text: `### Code behind the pointers\n${parts.join('\n\n')}`, tokens: used, shown };
+}
+
 // early: 'full' (notes with prose), 'pointers' (titles + anchors only),
 // 'auto' (full when the request names code that exists, else pointers), 'none'.
 // maxNotes/relFloor: the prompt hooks serve two notes; a caller that names its own budget (the MCP
 // tool) passes a higher maxNotes, and notes past the second must then reach relFloor of the best hit.
-export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full' }) {
+// snippets: inline the code behind the served pointers (codeSnippets) in what is left of the budget
+// plus `snippets.budget` tokens (SNIPPET_BUDGET); the MCP tools pass it, the hooks do not.
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full', snippets = false }) {
   const start = Date.now();
   if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
   const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
@@ -254,8 +295,21 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   if (packed.included.length && process.env.THINKER_NO_GUARD !== '1') {
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: process.env.THINKER_GUARD_PHRASES !== '1', max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
-  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  addSnippets(store, packed, budget, snippets, early === 'pointers');
+  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
+}
+
+// THINKER_SNIPPETS=off or `snippets: false` in .thinker/config.json leaves the code out everywhere.
+export function snippetsOn(store) { return process.env.THINKER_SNIPPETS !== 'off' && store.config().snippets !== false; }
+function addSnippets(store, packed, budget, snippets, pointersOnly) {
+  if (!snippets || !packed.included.length || !snippetsOn(store)) return;
+  const extra = typeof snippets === 'object' && snippets.budget != null ? snippets.budget : SNIPPET_BUDGET;
+  const left = Math.max(0, budget - packed.tokens) + extra;
+  // in pointers mode the notes are stubs; the code is then most of what is served, so fewer pieces
+  const s = codeSnippets(store.repo, packed.included, left, pointersOnly ? { perNote: 1, max: 3 } : {});
+  if (!s.text) return;
+  packed.text += '\n\n' + s.text; packed.tokens += s.tokens; packed.snippets = s.shown;
 }
 
 // --- implicit feedback ---------------------------------------------------
@@ -438,7 +492,7 @@ export function scheduleVerify(store, notes) {
   } catch (e) { store.log({ op: 'bg-verify-error', error: String(e.message) }); }
 }
 
-export function lookup(store, { query, client, budget = 2500, maxNotes = 3 } = {}) {
+export function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false } = {}) {
   const start = Date.now();
   const notes = NAIVE ? store.list().map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; }) : refresh(store, store.list());
   // a note id (as listed by orient) returns that note
@@ -446,8 +500,85 @@ export function lookup(store, { query, client, budget = 2500, maxNotes = 3 } = {
   const ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : rank(notes, { query, mode: 'lookup' });
   const candidates = byId ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
   const packed = pack(candidates, budget, { minRel: 0.15 });
-  store.log({ op: 'lookup', client: client || 'cli', query: String(query).slice(0, 200), served: packed.included.map(n => n.id), durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  addSnippets(store, packed, budget, snippets, false);
+  store.log({ op: 'lookup', client: client || 'cli', query: String(query).slice(0, 200), served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
+}
+
+// --- drilldown: one pointer, everything around it ---------------------------------------------------
+// `path:Symbol` (as orient and lookup print it; `:L12` may follow), `path` alone, or a bare `Symbol`
+// found in the notes' pointers or in the code. Returns the definition with its lines, one hop of
+// callers and callees from git grep, and the notes that rest on it: what the agent would otherwise
+// collect with a read of the whole file and two or three greps.
+export function parsePointer(raw) {
+  const [p, ...rest] = String(raw).split(':');
+  const out = { path: p, symbol: null, line: null };
+  for (const r of rest) { if (/^L?\d+$/.test(r)) out.line = Number(r.replace(/^L/, '')); else if (/^[A-Za-z_$][\w.$]*$/.test(r) && !out.symbol) out.symbol = r; else return null; }
+  return out;
+}
+export function drilldown(store, { pointer, client, budget = 1500 } = {}) {
+  const start = Date.now(); const repo = store.repo;
+  const raw = String(pointer || '').trim().replace(/^[`'"]|[`'"]$/g, '');
+  if (!raw) return { error: 'drilldown needs a pointer: path:Symbol, a path, or a symbol name' };
+  const notes = store.list().filter(n => n.status !== 'invalid');
+  let file = null, symbol = null, others = null;
+  const m = parsePointer(raw);
+  if (m && /[/.]/.test(m.path) && repoFile(repo, normPath(repo, m.path)) && !fs.statSync(repoFile(repo, normPath(repo, m.path))).isDirectory()) { file = normPath(repo, m.path); symbol = m.symbol; }
+  else if (/^[A-Za-z_$][\w.$]*$/.test(raw)) {
+    symbol = raw;
+    // the notes' pointers first (the most used note's), then the definitions in the code
+    const byUse = notes.flatMap(n => (n.deps || []).filter(d => d.symbol === raw || d.symbol?.endsWith('.' + raw)).map(d => ({ d, uses: n.uses || 0 }))).sort((a, b) => b.uses - a.uses);
+    if (byUse.length) { file = byUse[0].d.path; symbol = byUse[0].d.symbol; }
+    else {
+      const defs = findDefinitions(repo, raw.split('.').pop());
+      if (defs === null) return { error: 'cannot search this checkout (not a git repository?); give the pointer as path:Symbol' };
+      if (!defs.length) return { error: `no definition of ${raw} in the repository` };
+      file = defs[0].path;
+      if (defs.length > 1) others = defs.slice(1, 6).map(d => `${d.path}:L${d.line}`);
+    }
+  } else return { error: `not a pointer: ${raw}` };
+  const dep = { path: file, symbol: symbol || undefined };
+  const parts = [];
+  let used = 0; const add = s => { parts.push(s); used += estTokens(s); };
+  if (symbol) {
+    const block = symbolBlock(repo, dep, 400);
+    if (!block) {
+      const defs = findDefinitions(repo, symbol.split('.').pop()) || [];
+      return { error: `${symbol} is not defined in ${file}${defs.length ? `; defined in ${defs.slice(0, 4).map(d => `${d.path}:L${d.line}`).join(', ')}` : ''}` };
+    }
+    const fo = fanout(repo, dep);
+    const code = block.text.split('\n'); const room = Math.max(10, Math.floor(budget * 0.65 * 3.6 / 40)); // ~40 chars a line
+    const lines = code.slice(0, room); const cut = lines.length < block.total;
+    add(`${file}:${symbol} (L${block.start}–L${block.start + block.total - 1}, ${block.total} lines${fo ? `; ${renderFanout(fo)}` : ''})\n\`\`\`\n${lines.join('\n')}${cut ? `\n… (${block.total - lines.length} more lines)` : ''}\n\`\`\``);
+    const refs = references(repo, symbol.split('.').pop(), { file, limit: 400 });
+    if (refs) {
+      const callers = refs.lines.filter(l => !l.def && !(l.path === file && l.line >= block.start && l.line < block.start + block.total)).sort((a, b) => (b.call - a.call) || (a.test - b.test));
+      const show = callers.slice(0, 10).map(l => `- ${l.path}:L${l.line}  ${l.text.trim().slice(0, 100)}`);
+      const nf = new Set(callers.map(l => l.path)).size; add(`Callers and other references${callers.length ? ` (${callers.length}${refs.truncated ? '+' : ''} in ${nf} file${nf === 1 ? '' : 's'}):\n${show.join('\n')}` : ': none'}${callers.length > show.length ? `\n- … ${callers.length - show.length} more (git grep -nw ${symbol.split('.').pop()})` : ''}`);
+    }
+    const ce = callees(repo, dep, { limit: 12 });
+    if (ce?.length) add(`Calls into this repository: ${ce.map(c => `${c.name} (${c.defs.map(d => `${d.path}:L${d.line}`).join(', ')})`).join(', ')}`);
+  } else {
+    const o = outline(repo, file);
+    if (!o) return { error: `cannot read ${file}` };
+    add(`${file}: ${o.length} definitions\n${o.slice(0, 60).map(d => `- L${d.line} ${d.kind} ${d.parent ? d.parent + '.' : ''}${d.name}`).join('\n')}${o.length > 60 ? `\n- … ${o.length - 60} more` : ''}`);
+  }
+  // notes resting on the symbol, then on the file; the best one in full when the budget allows
+  const name = symbol ? symbol.split('.').pop() : null;
+  const onSym = symbol ? notes.filter(n => (n.deps || []).some(d => d.path === file && d.symbol && d.symbol.split('.').pop() === name)) : [];
+  const onFile = notes.filter(n => !onSym.includes(n) && (n.deps || []).some(d => d.path === file));
+  const rel = [...onSym, ...onFile].sort((a, b) => (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).slice(0, 6);
+  if (rel.length) {
+    const first = renderNote(rel[0]);
+    const list = rel.slice(1).map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n');
+    const full = used + estTokens(first) + estTokens(list) <= budget;
+    add(`Cached notes about this code (lookup takes an id):\n${full ? first : `- [${rel[0].kind}] ${rel[0].title}  (id: ${rel[0].id})`}${list ? '\n' + list : ''}`);
+    if (full) { rel[0].uses = (rel[0].uses || 0) + 1; rel[0].lastUsed = new Date().toISOString(); store.put(rel[0]); }
+  } else add('No cached notes rest on this code.');
+  if (others) add(`Also defined in: ${others.join(', ')} (pass path:Symbol to pick one).`);
+  const text = parts.join('\n\n');
+  store.log({ op: 'drilldown', client: client || 'cli', pointer: raw.slice(0, 200), file, symbol, notes: rel.map(n => n.id), durationMs: Date.now() - start, tokens: estTokens(text) });
+  return { text, file, symbol, notes: rel, tokens: estTokens(text) };
 }
 
 // --- phrasings ------------------------------------------------------------------
@@ -517,8 +648,9 @@ export async function verifyNote(store, note, { model } = {}) {
   } else {
     next = { ...note, status: 'invalid', invalidReason: v.reason, verified: now };
   }
-  // drop deps whose files disappeared
+  // drop deps whose files disappeared; count references again for the symbols that changed
   next.deps = (next.deps || []).filter(d => !d.missing);
+  if (v.verdict !== 'invalid') { const ch = new Set(changed.map(c => `${c.path}|${c.symbol || ''}`)); next.deps = next.deps.map(d => ch.has(`${d.path}|${d.symbol || ''}`) ? annotateFanout(repo, [d], { max: 1 })[0] : d); }
   delete next.verifying;
   store.put(next);
   store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost, metered: true });
