@@ -9,7 +9,7 @@ import { maintain, maintenanceNotice, renderMaintain, postCommitHook } from './m
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
-import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, cbmCandidates, CBM_VERSION } from './cbm.js';
+import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, CBM_VERSION } from './cbm.js';
 import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
@@ -164,7 +164,7 @@ async function main() {
       }
       if (pos[0] === 'forget') { const r = cbmForget(store.repo); out(r.error ? 'error: ' + r.error : 'index removed; git grep answers again'); break; }
       const st = cbmStatus(store.repo);
-      if (!st.bin) out(`codebase-memory-mcp: not installed (git grep answers)\nlooked in: ${cbmCandidates().slice(0, 3).join(', ')}, PATH\ninstall with: thinker cbm install`);
+      if (!st.bin) out(`codebase-memory-mcp: not installed (git grep answers)\nlooked in: THINKER_CBM_BIN, ~/.local/bin, PATH, ${cbmDir()}\ninstall with: thinker cbm install`);
       else out(`codebase-memory-mcp ${st.version || '?'} at ${st.bin}\nthis checkout: ${st.project ? `indexed as ${st.project}` : 'not indexed (thinker cbm index)'}; ${st.projects ?? '?'} project${st.projects === 1 ? '' : 's'} indexed on this machine\nengine for drilldown and fanout: ${st.engine}${process.env.THINKER_CODEGRAPH ? ` (THINKER_CODEGRAPH=${process.env.THINKER_CODEGRAPH})` : ''}`);
       break;
     }
