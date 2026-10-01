@@ -154,22 +154,8 @@ if (mode === 'prepare') {
   distribution.DefaultCacheBehavior.FunctionAssociations = { Quantity: 1, Items: [{ EventType: 'viewer-request', FunctionARN: functionArn }] };
   distribution.DefaultCacheBehavior.ResponseHeadersPolicyId = responsePolicyId;
   save('distribution-after.json', distribution);
-  const siteAssets = [
-    ['favicon.svg', 'site/favicon.svg', 'image/svg+xml'],
-    ['favicon-16x16.png', 'site/favicon-16x16.png', 'image/png'],
-    ['favicon-32x32.png', 'site/favicon-32x32.png', 'image/png'],
-    ['favicon-48x48.png', 'site/favicon-48x48.png', 'image/png'],
-    ['apple-touch-icon.png', 'site/apple-touch-icon.png', 'image/png'],
-    ['icon-192.png', 'site/icon-192.png', 'image/png'],
-    ['icon-512.png', 'site/icon-512.png', 'image/png'],
-    ['favicon.ico', 'site/favicon.ico', 'image/x-icon'],
-    ['site.webmanifest', 'site/site.webmanifest', 'application/manifest+json'],
-    ['og-image.png', 'site/og-image.png', 'image/png']
-  ];
   const fileHashes = {};
-  for (const file of ['site/index.html', 'site/docs.html', ...siteAssets.map(a => a[1])]) {
-    if (fs.existsSync(path.join(root, file))) fileHashes[file] = hash(fs.readFileSync(path.join(root, file)));
-  }
+  for (const file of ['site/index.html', 'site/docs.html']) fileHashes[file] = hash(fs.readFileSync(path.join(root, file)));
   save('plan.json', { distributionEtag: snapshot.ETag, functionEtag: prepared.ETag, functionArn, codeHash: hash(code), fileHashes });
   console.log('Prepared: signed 7-day browser sessions, private durable download URLs, private/no-store responses, 30 access requests/IP/5 minutes.');
   console.log(`Credentials stored in Secrets Manager: ${config.secretId}. Plan: .access-work/distribution-after.json`);
@@ -195,34 +181,12 @@ if (mode === 'prepare') {
     aws(['cloudfront', 'update-distribution', '--id', config.distributionId, '--if-match', liveDist.ETag,
       '--distribution-config', 'file://' + path.join(work, 'distribution-after.json')]);
   }
-  if (!edgeOnly) {
-    for (const [key, file] of [['index.html', 'site/index.html'], ['docs.html', 'site/docs.html'], ['docs/index.html', 'site/docs.html']]) {
-      aws(['s3api', 'put-object', '--bucket', config.bucket, '--key', key, '--body', path.join(root, file),
-        '--content-type', 'text/html; charset=utf-8', '--cache-control', 'private, no-store'], config.bucketRegion);
-    }
-    const siteAssets = [
-      ['favicon.svg', 'site/favicon.svg', 'image/svg+xml'],
-      ['favicon-16x16.png', 'site/favicon-16x16.png', 'image/png'],
-      ['favicon-32x32.png', 'site/favicon-32x32.png', 'image/png'],
-      ['favicon-48x48.png', 'site/favicon-48x48.png', 'image/png'],
-      ['apple-touch-icon.png', 'site/apple-touch-icon.png', 'image/png'],
-      ['icon-192.png', 'site/icon-192.png', 'image/png'],
-      ['icon-512.png', 'site/icon-512.png', 'image/png'],
-      ['favicon.ico', 'site/favicon.ico', 'image/x-icon'],
-      ['site.webmanifest', 'site/site.webmanifest', 'application/manifest+json'],
-      ['og-image.png', 'site/og-image.png', 'image/png']
-    ];
-    for (const [key, file, type] of siteAssets) {
-      const full = path.join(root, file);
-      if (fs.existsSync(full)) {
-        aws(['s3api', 'put-object', '--bucket', config.bucket, '--key', key, '--body', full,
-          '--content-type', type, '--cache-control', 'public, max-age=86400'], config.bucketRegion);
-      }
-    }
+  if (!edgeOnly) for (const [key, file] of [['index.html', 'site/index.html'], ['docs.html', 'site/docs.html'], ['docs/index.html', 'site/docs.html']]) {
+    aws(['s3api', 'put-object', '--bucket', config.bucket, '--key', key, '--body', path.join(root, file),
+      '--content-type', 'text/html; charset=utf-8', '--cache-control', 'private, no-store'], config.bucketRegion);
   }
   const invalidation = aws(['cloudfront', 'create-invalidation', '--distribution-id', config.distributionId,
-    '--paths', '/', '/index.html', '/docs*', '/dist/*', '/thinker101/*', '/Thinker101/*', '/access/*',
-    '/favicon*', '/apple-touch-icon.png', '/icon-*', '/og-image.png', '/site.webmanifest']);
+    '--paths', '/', '/index.html', '/docs*', '/dist/*', '/thinker101/*', '/Thinker101/*', '/access/*']);
   save('invalidation.json', invalidation);
   console.log('Deployment submitted. Verify propagation and run smoke.mjs before declaring it complete.');
 } else {

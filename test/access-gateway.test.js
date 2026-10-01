@@ -52,7 +52,7 @@ test('all docs aliases and distribution URLs enforce access before returning con
 });
 
 test('public pages and existing directory routing remain available', () => {
-  for (const path of ['/', '/index.html', '/favicon.svg', '/favicon-32x32.png', '/favicon.ico', '/apple-touch-icon.png', '/icon-192.png', '/og-image.png', '/site.webmanifest']) assert.equal(call(path).uri, path);
+  for (const path of ['/', '/index.html', '/favicon.svg', '/apple-touch-icon.png']) assert.equal(call(path).uri, path);
   assert.equal(call('/gokce-bday').uri, '/gokce-bday/index.html');
   assert.equal(call('/gokce-bday/movie/').uri, '/gokce-bday/movie/index.html');
   assert.equal(call('/docs.html', { headers: { host: { value: 'www.zerotime.dev' } } }).headers.location.value, 'https://zerotime.dev/docs.html');

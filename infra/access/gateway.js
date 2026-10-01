@@ -42,7 +42,7 @@ function publicPath(uri) {
     var legacyDownload = /^\/dist\/(thinker\.tgz|install\.sh|version\.json)$/.test(uri) &&
         Date.now() < Date.parse(CONFIG.legacyDownloadsUntil || '');
     return legacyDownload || uri === '/' || uri === '/index.html' ||
-        /^\/(favicon(?:-(?:16x16|32x32|48x48))?\.(?:ico|png|svg)|apple-touch-icon\.png|icon-(?:192|512)\.png|og-image\.png|site\.webmanifest)$/.test(uri) ||
+        /^\/(favicon(?:-16x16|-32x32)?\.(?:ico|png|svg)|apple-touch-icon.png)$/.test(uri) ||
         uri === '/gokce-bday' || uri.indexOf('/gokce-bday/') === 0;
 }
 function handler(event) {
