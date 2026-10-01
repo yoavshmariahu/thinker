@@ -1,0 +1,44 @@
+{
+  "essential": 0,
+  "all": 0,
+  "pass": false,
+  "results": [
+    {
+      "id": "c1",
+      "verdict": "not_met",
+      "evidence": "The PATCH section is empty and no 'CODE AFTER PATCH' was provided. There is no code change to inspect, so there is no evidence that the agent-reported failure path emits an event with a sandbox backend property."
+    },
+    {
+      "id": "c2",
+      "verdict": "not_met",
+      "evidence": "No patch/code was provided. There is no visible code implementing internal failure handling that adds a backend identifier to the emitted analytics event."
+    },
+    {
+      "id": "c3",
+      "verdict": "not_met",
+      "evidence": "No patch/code was provided. There is no status-update code shown that resolves backend from the current run or falls back to stored state."
+    },
+    {
+      "id": "c4",
+      "verdict": "not_met",
+      "evidence": "No patch/code was provided. There is no evidence of backend propagation logic across continuation segments."
+    },
+    {
+      "id": "c5",
+      "verdict": "not_met",
+      "evidence": "No patch/code was provided. There is no evidence of fallback-to-stored-backend or default-backend-for-legacy-sandbox logic."
+    },
+    {
+      "id": "c6",
+      "verdict": "not_met",
+      "evidence": "No patch/code was provided. There is no evidence that the backend property is conditionally omitted for sandbox-less runs or unrecognized backend values."
+    },
+    {
+      "id": "c7",
+      "verdict": "not_met",
+      "evidence": "No patch/code was provided. There is no code to verify that pre-existing failure event fields (truncated error message, error type, duration, run status) are preserved unchanged."
+    }
+  ],
+  "cost_usd": 0.040315199999999995,
+  "model": "claude-sonnet-5"
+}

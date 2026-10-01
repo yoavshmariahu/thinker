@@ -1,0 +1,53 @@
+{
+  "id": "PR106522-hard-qartez-0",
+  "task": "PR106522-hard",
+  "arm": "qartez",
+  "wall_ms": 274815,
+  "duration_api_ms": 427369,
+  "turns": 36,
+  "cost_usd": 2.164741100000001,
+  "usage": {
+    "input_tokens": 70,
+    "cache_creation_input_tokens": 145100,
+    "cache_read_input_tokens": 3944805,
+    "output_tokens": 23284,
+    "output_tokens_details": {
+      "thinking_tokens": 16234
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 35606,
+      "ephemeral_5m_input_tokens": 109494
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tools": {
+    "calls": 59,
+    "byTool": {
+      "ToolSearch": 1,
+      "mcp__qartez__qartez_grep": 20,
+      "Agent": 1,
+      "mcp__qartez__qartez_read": 12,
+      "mcp__qartez__qartez_refs": 1,
+      "mcp__qartez__qartez_outline": 1,
+      "Bash": 23
+    },
+    "thinkerCalls": 0,
+    "qartezCalls": 34,
+    "filesRead": 0,
+    "edits": 0,
+    "greps": 23,
+    "bash": 23
+  },
+  "diff": "",
+  "context": "",
+  "summary": "",
+  "session_id": "1de67f1c-371d-415e-a383-9872c6a86269"
+}

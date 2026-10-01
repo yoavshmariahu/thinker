@@ -1,0 +1,19 @@
+{
+  "created": "2026-10-01T19:51:12.199Z",
+  "thinkerCommit": "dd6326f6bb0e2ceb25193b590f1f1789dec4a44e",
+  "qartezVersion": "0.11.0",
+  "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "model": "claude-sonnet-5",
+  "tasks": [
+    "PR106936-hard",
+    "PR106672-hard",
+    "PR106522-hard"
+  ],
+  "controls": [
+    "Identical symptom-only task prompts from PostHog hard set",
+    "Base clone at pinned commit a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+    "Thinker frozen posthog-v2 noteset; Qartez pre-indexed offline graph",
+    "Both arms run with claude-sonnet-5 and strict MCP config",
+    "Double-blind LLM judge using standardized calibrated acceptance criteria"
+  ]
+}

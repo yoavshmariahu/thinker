@@ -1,0 +1,49 @@
+{
+  "essential": 0.8571428571428571,
+  "all": 0.875,
+  "pass": false,
+  "results": [
+    {
+      "id": "c1",
+      "verdict": "met",
+      "evidence": "In create_saved_metric, normalize_query_for_write(query) is called without existing_uuid, so existing_uuid=None. In normalize_query_for_write: 'if existing_uuid: ... else: normalized_query[\"uuid\"] = str(uuid4())'. Since existing_uuid is always None/falsy for a brand-new metric, the else branch always runs regardless of whether incoming_uuid (caller-supplied) was set, discarding it and generating a fresh uuid4(). The rest of the dict is preserved via 'normalized_query = dict(query)'."
+    },
+    {
+      "id": "c2",
+      "verdict": "met",
+      "evidence": "In update_saved_metric: 'existing_uuid = saved_metric.query.get(\"uuid\") if saved_metric.query else None' then 'update_data[\"query\"] = self.normalize_query_for_write(update_data[\"query\"], existing_uuid=existing_uuid)'. Inside normalize_query_for_write, 'if existing_uuid: normalized_query[\"uuid\"] = existing_uuid' preserves the metric's current identifier instead of generating a new one."
+    },
+    {
+      "id": "c3",
+      "verdict": "met",
+      "evidence": "'if \"saved_metrics_ids\" in update_data: ... seen_metric_uuids |= self._collect_saved_metric_uuids(update_data[\"saved_metrics_ids\"])' collects the uuids of shared metrics being linked, then: 'if \"metrics\" not in update_data and any(metric.get(\"uuid\") in seen_metric_uuids for metric in experiment.metrics or []): update_data[\"metrics\"] = self._assign_uuids_to_metrics(experiment.metrics, seen=seen_metric_uuids)' and the parallel block for metrics_secondary — both compare stored inline metrics against the shared-metric uuids and regenerate on clash, for both primary and secondary collections."
+    },
+    {
+      "id": "c4",
+      "verdict": "met",
+      "evidence": "The regeneration only triggers 'if ... any(metric.get(\"uuid\") in seen_metric_uuids ...)'. When no stored inline metric's uuid is in seen_metric_uuids, this condition is False, so update_data[\"metrics\"]/[\"metrics_secondary\"] are never set, leaving the stored inline metrics (and thus their ordering, since ordering sync is driven off update_data keys) completely untouched."
+    },
+    {
+      "id": "c5",
+      "verdict": "met",
+      "evidence": "Code comment explains the invariant relied upon: 'the original uuid is kept on the incumbent so any ordering reference to it remains valid... _sync_ordering_with_metric_changes runs later and appends the new regenerated uuids as additions.' This is the same pre-existing ordering mechanism used for the earlier inline/inline clash fix (_assign_uuids_to_metrics), reused here unchanged, so per repository-contract delegation it preserves the original identifier in ordering while adding the new inline identifier."
+    },
+    {
+      "id": "c6",
+      "verdict": "met",
+      "evidence": "The clash-resolution block only reassigns update_data[\"metrics\"]/[\"metrics_secondary\"]; it never touches saved_metrics_data or the ExperimentToSavedMetric link-sync code ('saved_metrics_data: list[dict] = update_data.pop(\"saved_metrics_ids\", []) or []'), which is unchanged pre-existing logic that applies the requested link set exactly and leaves the saved metric's own query/uuid untouched."
+    },
+    {
+      "id": "c7",
+      "verdict": "not_met",
+      "evidence": "The updated doc still reads: 'call `experiment-saved-metrics-create` with the same `query` (the `ExperimentMetric` object), attach it via `saved_metrics_ids` as above, **and remove the original entry from the experiment's inline `metrics`/`metrics_secondary` array**...'. This adds the instruction to remove the inline copy, but never instructs omitting the identifier when creating the shared metric — it still says to use 'the same query' object with no mention of stripping the uuid field, so the second half of the criterion is not satisfied."
+    },
+    {
+      "id": "c8",
+      "verdict": "met",
+      "evidence": "Pre-existing logic (shown in context, not newly added) populates seen_metric_uuids from current saved-metric links when saved_metrics_ids isn't being updated: 'for link in experiment.experimenttosavedmetric_set... seen_metric_uuids.add(uuid)', and then 'if \"metrics\" in update_data: update_data[\"metrics\"] = self._assign_uuids_to_metrics(update_data[\"metrics\"], seen=seen_metric_uuids)' regenerates any resent inline metric uuid clashing with an already-linked shared metric, while the shared metric's uuid (and its ordering entry) stays untouched since only the inline list is modified."
+    }
+  ],
+  "cost_usd": 0.1565272,
+  "model": "claude-sonnet-5"
+}

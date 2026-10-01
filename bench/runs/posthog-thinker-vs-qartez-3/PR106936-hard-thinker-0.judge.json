@@ -1,0 +1,54 @@
+{
+  "essential": 0,
+  "all": 0,
+  "pass": false,
+  "results": [
+    {
+      "id": "c1",
+      "verdict": "not_met",
+      "evidence": "The patch is empty and no code after patch is provided. There is no implementation of inline email validation flagging existing members on the invite row in the organization settings invite dialog."
+    },
+    {
+      "id": "c2",
+      "verdict": "not_met",
+      "evidence": "No code changes exist; there is no logic comparing the entered email to the signed-in user's own email for flagging purposes."
+    },
+    {
+      "id": "c3",
+      "verdict": "not_met",
+      "evidence": "No code changes exist; there is no disabling of the batch submit control or per-row send controls, and no messaging about removing existing members."
+    },
+    {
+      "id": "c4",
+      "verdict": "not_met",
+      "evidence": "No code changes exist; there is no case-insensitive/whitespace-trimmed comparison logic implemented anywhere."
+    },
+    {
+      "id": "c5",
+      "verdict": "not_met",
+      "evidence": "No code changes exist; there is no fetch of the organization's member list triggered when the invite form opens."
+    },
+    {
+      "id": "c6",
+      "verdict": "not_met",
+      "evidence": "No code changes exist; there is no server-side validation that rejects a bulk invite request up front when an existing member's email is present in any row."
+    },
+    {
+      "id": "c7",
+      "verdict": "not_met",
+      "evidence": "No code changes exist; there is no field-level validation error with a stable distinguishable code for the existing-member case."
+    },
+    {
+      "id": "c8",
+      "verdict": "not_met",
+      "evidence": "No code changes exist; there is no exclusion of existing-member rejections from error tracking/exception logging."
+    },
+    {
+      "id": "c9",
+      "verdict": "not_met",
+      "evidence": "No code changes exist; there is no refresh-of-member-data logic triggered after a server-side existing-member rejection."
+    }
+  ],
+  "cost_usd": 0.056984,
+  "model": "claude-sonnet-5"
+}

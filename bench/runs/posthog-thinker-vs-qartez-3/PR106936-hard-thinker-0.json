@@ -1,0 +1,52 @@
+{
+  "id": "PR106936-hard-thinker-0",
+  "task": "PR106936-hard",
+  "arm": "thinker",
+  "wall_ms": 356110,
+  "duration_api_ms": 347309,
+  "turns": 36,
+  "cost_usd": 1.3905436,
+  "usage": {
+    "input_tokens": 70,
+    "cache_creation_input_tokens": 138645,
+    "cache_read_input_tokens": 3877393,
+    "output_tokens": 20841,
+    "output_tokens_details": {
+      "thinking_tokens": 15630
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 39935,
+      "ephemeral_5m_input_tokens": 98710
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "tools": {
+    "calls": 38,
+    "byTool": {
+      "ToolSearch": 1,
+      "mcp__thinker__orient": 1,
+      "mcp__thinker__lookup": 3,
+      "Read": 13,
+      "Skill": 2,
+      "Bash": 18
+    },
+    "thinkerCalls": 4,
+    "qartezCalls": 0,
+    "filesRead": 13,
+    "edits": 0,
+    "greps": 18,
+    "bash": 18
+  },
+  "diff": "",
+  "context": "",
+  "summary": "",
+  "session_id": "08118fd3-3637-4d29-8690-4a9953640a4e"
+}

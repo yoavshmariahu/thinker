@@ -1,0 +1,54 @@
+{
+  "essential": 0,
+  "all": 0,
+  "pass": false,
+  "results": [
+    {
+      "id": "c1",
+      "verdict": "not_met",
+      "evidence": "Patch is empty; no code changes were provided to inspect. There is no inline error/error styling implementation visible anywhere in the given context."
+    },
+    {
+      "id": "c2",
+      "verdict": "not_met",
+      "evidence": "No code exists to compare the signed-in user's own email against anything; the patch contains no changes."
+    },
+    {
+      "id": "c3",
+      "verdict": "not_met",
+      "evidence": "No submit control logic, disabled state, or messaging is present in the (empty) patch/code after patch."
+    },
+    {
+      "id": "c4",
+      "verdict": "not_met",
+      "evidence": "No matching/normalization logic (case-insensitive, trimmed) is present anywhere in the provided code."
+    },
+    {
+      "id": "c5",
+      "verdict": "not_met",
+      "evidence": "No fetch-on-open logic for organization members is present in the provided code."
+    },
+    {
+      "id": "c6",
+      "verdict": "not_met",
+      "evidence": "No server-side bulk invite validation code is shown; nothing rejects a batch before creating/emailing invites."
+    },
+    {
+      "id": "c7",
+      "verdict": "not_met",
+      "evidence": "No field-level validation error or error code is defined anywhere in the empty patch."
+    },
+    {
+      "id": "c8",
+      "verdict": "not_met",
+      "evidence": "No error-tracking integration or exception-filtering logic is present in the provided code."
+    },
+    {
+      "id": "c9",
+      "verdict": "not_met",
+      "evidence": "No refresh-on-rejection logic is present in the provided code."
+    }
+  ],
+  "cost_usd": 0.0405692,
+  "model": "claude-sonnet-5"
+}

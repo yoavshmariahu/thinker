@@ -1,0 +1,44 @@
+{
+  "essential": 0,
+  "all": 0,
+  "pass": false,
+  "results": [
+    {
+      "id": "c1",
+      "verdict": "not_met",
+      "evidence": "The PATCH section is empty and no 'CODE AFTER PATCH' content was provided. There is no code implementing an external run-update/agent-reported failure path that attaches a sandbox backend property to an analytics event, so this criterion cannot be satisfied."
+    },
+    {
+      "id": "c2",
+      "verdict": "not_met",
+      "evidence": "No code was supplied (PATCH and CODE AFTER PATCH are both empty). There is no internal failure-handling/cleanup code shown that emits a failure analytics event with a backend property."
+    },
+    {
+      "id": "c3",
+      "verdict": "not_met",
+      "evidence": "No status-update code is present in the given patch/code. There is no implementation showing a fallback from the executing run's backend to the stored run-state backend."
+    },
+    {
+      "id": "c4",
+      "verdict": "not_met",
+      "evidence": "No code demonstrating carry-over of backend across a continuation step is present; the patch is empty."
+    },
+    {
+      "id": "c5",
+      "verdict": "not_met",
+      "evidence": "No reattachment/backend-lookup logic or default-backend fallback code is shown anywhere in the (empty) patch."
+    },
+    {
+      "id": "c6",
+      "verdict": "not_met",
+      "evidence": "No event-construction code is shown that conditionally omits the backend property for missing-sandbox or unrecognized-backend cases."
+    },
+    {
+      "id": "c7",
+      "verdict": "not_met",
+      "evidence": "No failure-event construction code (truncated error message, error type, duration, run status) is present in the supplied patch/code to verify preservation of these fields."
+    }
+  ],
+  "cost_usd": 0.046213199999999996,
+  "model": "claude-sonnet-5"
+}

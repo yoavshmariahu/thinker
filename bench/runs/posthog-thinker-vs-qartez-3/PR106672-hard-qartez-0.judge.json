@@ -1,0 +1,49 @@
+{
+  "essential": 0.7142857142857143,
+  "all": 0.75,
+  "pass": false,
+  "results": [
+    {
+      "id": "c1",
+      "verdict": "not_met",
+      "evidence": "The provided patch contains no changes to any shared-metric creation code path (e.g. a create_saved_metric/serializer function) that would discard a caller-supplied identifier and force generation of a new one. The only backend diff shown is inside ExperimentService.update_experiment's saved_metrics_ids-only handling, which does not touch metric creation at all. This is confirmed by the updated guidance text itself, which still states as fact: 'The saved metric is created with the same `uuid` as the inline metric it was copied from' — i.e. creation still reuses the supplied identifier rather than discarding it."
+    },
+    {
+      "id": "c2",
+      "verdict": "met",
+      "evidence": "No code touching the edit/update path for an existing saved metric's identifier was modified by this patch, and the task does not claim this behavior was broken. Per unchanged-code rule, the pre-existing preservation of an existing saved metric's identifier on edit continues to hold since nothing in the diff alters that path."
+    },
+    {
+      "id": "c3",
+      "verdict": "met",
+      "evidence": "`no_inline_lists_in_payload = \"metrics\" not in update_data and \"metrics_secondary\" not in update_data`\n`if \"saved_metrics_ids\" in update_data and no_inline_lists_in_payload:`\n`    regenerated_metrics = self._assign_uuids_to_metrics(experiment.metrics, seen=seen_metric_uuids)` ... `regenerated_secondary = self._assign_uuids_to_metrics(experiment.metrics_secondary, seen=seen_metric_uuids)`. `seen_metric_uuids` is seeded from `self._collect_saved_metric_uuids(update_data[\"saved_metrics_ids\"])` when `saved_metrics_ids` is present, so both stored inline lists (primary and secondary) are checked against the newly attached shared metrics' identifiers and regenerated on clash."
+    },
+    {
+      "id": "c4",
+      "verdict": "met",
+      "evidence": "`if regenerated_metrics != experiment.metrics: update_data[\"metrics\"] = regenerated_metrics` and the analogous check for `metrics_secondary` — when `_assign_uuids_to_metrics` produces no change (no clash), the key is never added to `update_data`, so the stored inline metrics (and their ordering, which is only touched by downstream sync keyed off `update_data` changes) remain completely untouched."
+    },
+    {
+      "id": "c5",
+      "verdict": "met",
+      "evidence": "The adjacent comment preserved/relied upon in the diff states: 'Regenerated dups don't need an ordering remap: the original uuid is kept on the incumbent so any ordering reference to it remains valid... _sync_ordering_with_metric_changes runs later and appends the new regenerated uuids as additions.' This establishes that regeneration is additive to the ordering list rather than removing the original identifier, per the established contract of `_sync_ordering_with_metric_changes` (delegated helper, not shown but referenced consistently)."
+    },
+    {
+      "id": "c6",
+      "verdict": "met",
+      "evidence": "The new block only assigns to `update_data[\"metrics\"]`/`update_data[\"metrics_secondary\"]`; it never mutates `update_data[\"saved_metrics_ids\"]` or `seen_metric_uuids` itself. `saved_metrics_data` is popped and processed independently later (`saved_metrics_data: list[dict] = update_data.pop(\"saved_metrics_ids\", []) or []`), so the shared metric and its links are unaffected by the inline-regeneration logic."
+    },
+    {
+      "id": "c7",
+      "verdict": "not_met",
+      "evidence": "The updated guidance still reads: 'call `experiment-saved-metrics-create` with the same `query` (the `ExperimentMetric` object)... The saved metric is created with the same `uuid` as the inline metric it was copied from.' It never instructs omitting the identifier when creating the shared metric; it only adds an instruction to remove the inline copy, and even that is phrased as 'in the same `experiment-update` call (or an immediately following one)', not strictly as part of the same update."
+    },
+    {
+      "id": "c8",
+      "verdict": "met",
+      "evidence": "This scenario (resent `metrics` list clashing with an already-linked shared metric, no `saved_metrics_ids` in payload) is handled by pre-existing, unmodified code shown in context: the `else` branch populates `seen_metric_uuids` from `experiment.experimenttosavedmetric_set...` and `if \"metrics\" in update_data: update_data[\"metrics\"] = self._assign_uuids_to_metrics(update_data[\"metrics\"], seen=seen_metric_uuids)` regenerates any clashing uuid, consistent with the 'earlier fix' referenced in the task description and left untouched by this patch."
+    }
+  ],
+  "cost_usd": 0.1700872,
+  "model": "claude-sonnet-5"
+}
