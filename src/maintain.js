@@ -10,6 +10,7 @@ import path from 'node:path';
 import { gitHead } from './store.js';
 import { refresh, verifyNote, phraseNotes, phraseKey } from './ops.js';
 import { mineCochange, loadCochange } from './cochange.js';
+import { cbmProject, cbmIndex } from './cbm.js';
 import { readLog } from './usage.js';
 
 export const DEFAULTS = {
@@ -51,7 +52,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   const state = readState(store);
-  const r = { verified: 0, updated: 0, retired: 0, phrased: 0, prs: 0, cochange: false, cost: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, phrased: 0, prs: 0, cochange: false, graph: false, cost: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const budget = cfg.dailyCap - spent;
   const afford = () => budget - r.cost > 0;
@@ -61,6 +62,10 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     const idx = loadCochange(repo);
     if (head && (!idx || idx.head !== head)) {
       try { if (!dry) (fns.cochange || mineCochange)(repo); r.cochange = true; } catch { r.errors++; }
+    }
+    // 1b. the code graph (cbm.js), when this checkout has one: free too, re-indexed when HEAD moved
+    if (head && state.graphHead !== head && (fns.graphIndexed || cbmProject)(repo)) {
+      try { const g = dry ? {} : (fns.graphIndex || cbmIndex)(repo); if (!g.error) { r.graph = true; state.graphHead = head; } else r.errors++; } catch { r.errors++; }
     }
     // 2. stale notes, the ones served most recently first
     if (afford()) {
@@ -98,6 +103,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     const u = state.unreported || {};
     for (const k of ['verified', 'updated', 'retired', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
     u.cochange = !!(u.cochange || r.cochange);
+    u.graph = !!(u.graph || r.graph);
     state.unreported = u; state.at = new Date().toISOString(); state.last = r;
     if (!dry) fs.writeFileSync(stateFile(store), JSON.stringify(state));
     store.log({ op: 'maintain', ...r, spentBefore: spent, cap: cfg.dailyCap, dry });
@@ -118,6 +124,7 @@ export function maintenanceNotice(store) {
   if (u.phrased) parts.push(`${u.phrased} ${u.phrased === 1 ? 'note' : 'notes'} phrased`);
   if (u.prs) parts.push(`${u.prs} ${u.prs === 1 ? 'note' : 'notes'} from merged pull requests`);
   if (u.cochange) parts.push('co-change index refreshed');
+  if (u.graph) parts.push('code graph re-indexed');
   if (!parts.length) return '';
   delete state.unreported;
   try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
@@ -139,5 +146,6 @@ export function renderMaintain(r) {
   if (r.updated) bits.push(`${r.updated} updated`);
   if (r.retired) bits.push(`${r.retired} retired`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`, `co-change ${r.cochange ? 'refreshed' : 'unchanged'}`);
+  if (r.graph) bits.push('code graph re-indexed');
   return `maintained: ${bits.join(', ')}${r.cost ? ` ($${r.cost.toFixed(3)})` : ''}${r.capped ? '; daily cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
 }

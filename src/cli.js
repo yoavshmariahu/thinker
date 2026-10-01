@@ -9,6 +9,7 @@ import { maintain, maintenanceNotice, renderMaintain, postCommitHook } from './m
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
+import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, cbmCandidates, CBM_VERSION } from './cbm.js';
 import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
@@ -64,6 +65,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  the definition with its lines, one hop of callers and callees, and the notes on it
   ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
                                  web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
+  cbm [status|install|index|forget]
+                                 codebase-memory-mcp as the code graph behind drilldown and the blast-radius counts:
+                                 install puts the binary (~40 MB) under ~/.thinker/cbm, index builds its graph of this
+                                 checkout (and maintenance keeps it current); without it, git grep answers
   list [--stale] [--all]         list notes
   show <id>                      print a note
   rm <id>
@@ -121,7 +126,7 @@ async function main() {
     maybeSendTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'cbm', 'usage', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();
 
   switch (cmd) {
     case 'ast': {
@@ -139,6 +144,28 @@ async function main() {
       }
       const st = await initAst();
       out(st.available ? `tree-sitter: on (${st.dir}); grammars: ${st.grammars.join(', ')}` : `tree-sitter: off (regex heuristics in use)${st.error ? `: ${st.error}` : ''}\nlooked in: ${astDirs().join(', ')}\ninstall with: thinker ast install   (grammars: ${GRAMMAR_NAMES.join(', ')})`);
+      break;
+    }
+    case 'cbm': {
+      if (pos[0] === 'install') {
+        const have = cbmBin();
+        if (have && !have.startsWith(flags.dir || cbmDir()) && !flags.force) { out(`codebase-memory-mcp is already installed at ${have}; thinker uses it (a second copy would compete for its daemon). --force installs anyway.`); break; }
+        const bin = await installCbm({ dir: flags.dir || undefined, log: out });
+        out(`codebase-memory-mcp ${CBM_VERSION} installed at ${bin}. Next: thinker cbm index`);
+        break;
+      }
+      if (pos[0] === 'index') {
+        if (!cbmBin()) { out('codebase-memory-mcp is not installed: thinker cbm install'); process.exit(1); }
+        out(`indexing ${store.repo} with codebase-memory-mcp…`);
+        const r = cbmIndex(store.repo, { name: flags.name, stdio: ['ignore', 'pipe', 'inherit'] });
+        if (r.error) { out('error: ' + r.error); process.exit(1); }
+        out(`indexed as ${r.project}: ${r.nodes} nodes, ${r.edges} edges${r.parse_partial_count ? ` (${r.parse_partial_count} files parsed partially)` : ''}. drilldown and fanout now come from the graph; maintenance re-indexes when HEAD moves.`);
+        break;
+      }
+      if (pos[0] === 'forget') { const r = cbmForget(store.repo); out(r.error ? 'error: ' + r.error : 'index removed; git grep answers again'); break; }
+      const st = cbmStatus(store.repo);
+      if (!st.bin) out(`codebase-memory-mcp: not installed (git grep answers)\nlooked in: ${cbmCandidates().slice(0, 3).join(', ')}, PATH\ninstall with: thinker cbm install`);
+      else out(`codebase-memory-mcp ${st.version || '?'} at ${st.bin}\nthis checkout: ${st.project ? `indexed as ${st.project}` : 'not indexed (thinker cbm index)'}; ${st.projects ?? '?'} project${st.projects === 1 ? '' : 's'} indexed on this machine\nengine for drilldown and fanout: ${st.engine}${process.env.THINKER_CODEGRAPH ? ` (THINKER_CODEGRAPH=${process.env.THINKER_CODEGRAPH})` : ''}`);
       break;
     }
     case 'drilldown': {

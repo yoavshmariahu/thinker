@@ -1,11 +1,20 @@
-// One hop of the call graph around a symbol, from `git grep` rather than an index: where a name is
-// referenced (callers, blast radius) and which repository symbols a definition calls (callees).
-// Approximate by design, word matches on the language family of the file, and good enough to say
-// "referenced from 3 files, 6 call sites" next to a pointer and to spare the agent its own greps.
+// One hop of the call graph around a symbol: where a name is referenced (callers, blast radius)
+// and which repository symbols a definition calls (callees). Two engines answer, chosen per call
+// by cbm.js:codegraphEngine: the graph of codebase-memory-mcp when the checkout is indexed
+// (resolved calls, no false hits), else `git grep` without an index: approximate by design, word
+// matches on the language family of the file, and good enough to say "6 call sites in 3 files"
+// next to a pointer and to spare the agent its own greps.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { repoFile, symbolBlock } from './deps.js';
 import { definitions, astReady } from './ast.js';
+import { codegraphEngine, cbmProject, cbmNeighbors, cbmSearch, cbmOutline } from './cbm.js';
+
+// The CBM project to ask, 'git' to grep instead, or null when CBM was demanded but has no index.
+function graph(repo) {
+  if (codegraphEngine(repo) !== 'cbm') return 'git';
+  return cbmProject(repo) || (process.env.THINKER_CODEGRAPH === 'cbm' ? null : 'git');
+}
 
 const FAMILY = {
   py: ['py', 'pyi'], pyi: ['py', 'pyi'],
@@ -59,12 +68,27 @@ export function references(repo, name, { file, limit = 400, excludeTests = false
 // beyond the definition. Short or very common names are not counted (too many false hits to mean anything).
 export function fanout(repo, dep) {
   if (!dep.symbol) return null;
+  const g = graph(repo); if (g === null) return null;
+  if (g !== 'git') {
+    // resolved callers from the graph; a symbol it knows but sees no caller of (a method called on
+    // an instance the resolver did not type, say) is counted by text below rather than as unused
+    const c = callers(repo, dep);
+    if (c?.length) return { files: new Set(c.map(x => x.path || x.qn.split('.').slice(0, -1).join('.'))).size, sites: c.length, refs: c.length, callers: true };
+  }
   const name = dep.symbol.split('.').pop();
   if (name.length < 4 || COMMON.has(name)) return null;
   const r = references(repo, name, { file: dep.path, limit: 2000 });
   if (!r) return null;
   const refs = r.lines.filter(l => !l.def && !(l.path === dep.path && l.import));
   return { files: new Set(refs.map(l => l.path)).size, sites: refs.filter(l => l.call).length, refs: refs.length };
+}
+
+// The functions that call a symbol, from the graph: [{name, qn, path?, line?}], [] when the graph
+// knows the symbol and sees no caller, null without a graph (or when it does not know the symbol).
+export function callers(repo, dep) {
+  const g = graph(repo); if (!g || g === 'git' || !dep.symbol) return null;
+  const n = cbmNeighbors(g, dep, { repo });
+  return n ? n.callers : null;
 }
 const COMMON = new Set(['main', 'init', 'test', 'setup', 'run', 'get', 'set', 'name', 'data', 'value', 'type', 'index', 'list', 'item', 'items', 'config', 'default', 'update', 'create', 'delete', 'remove', 'handle', 'handler', 'render', 'load', 'save', 'open', 'close', 'read', 'write', 'start', 'stop', 'send', 'call', 'apply', 'self', 'this', 'super', 'props', 'state', 'error', 'result', 'response', 'request', 'options', 'params', 'args', 'constructor', 'toString', 'length']);
 
@@ -87,6 +111,11 @@ const KEYWORDS = new Set(`if for while switch return function def class catch pr
 // Identifiers the definition calls that are defined in this repository, resolved by one git grep
 // for definition lines: [{name, path, line}], in order of first call, at most `limit`.
 export function callees(repo, dep, { limit = 12 } = {}) {
+  const g = graph(repo); if (g === null) return null;
+  if (g !== 'git') {
+    const n = cbmNeighbors(g, dep, { repo });
+    if (n) return n.callees.filter(c => c.path).slice(0, limit).map(c => ({ name: c.name, defs: [{ path: c.path, line: c.line }] }));
+  }
   const b = symbolBlock(repo, dep, 400);
   if (!b) return null;
   const self = (dep.symbol || '').split('.').pop();
@@ -122,17 +151,25 @@ export function callees(repo, dep, { limit = 12 } = {}) {
 
 // Definitions of a bare name anywhere in the repository: [{path, line, text}], for a pointer without a file.
 export function findDefinitions(repo, name, { limit = 10 } = {}) {
+  const g = graph(repo); if (g === null) return null;
+  if (g !== 'git') {
+    const hits = cbmSearch(g, `^${esc(name)}$`, { limit: Math.max(limit, 20) });
+    if (hits) return hits.filter(h => h.line).slice(0, limit).map(h => ({ path: h.path, line: h.line, text: `${h.label.toLowerCase()} ${h.qn.split('.').slice(-2).join('.')}` }));
+  }
   const sp = '[[:space:]]';
   const raw = gitGrep(repo, ['-E', '-e', `(def|class|function|fn|func|type|interface|struct|trait|enum|impl)${sp}+${esc(name)}[^[:alnum:]_]`, '-e', `(const|let|var)${sp}+${esc(name)}${sp}*[=:]`, '-e', `func${sp}*\\([^)]*\\)${sp}*${esc(name)}${sp}*\\(`, '--', '.', ':(exclude).thinker', ':(exclude)*.md', ':(exclude)*.json']);
   if (!raw) return null;
   return raw.map(parseLine).filter(Boolean).slice(0, limit);
 }
 
-// The definitions a file holds: [{name, parent, kind, line, end}], by the parser when loaded, else by regex.
+// The definitions a file holds: [{name, parent, kind, line, end}], by the parser when loaded (it
+// reads the working tree, so it is exact), else from the graph, else by regex.
 export function outline(repo, file, { limit = 80 } = {}) {
   const abs = repoFile(repo, file); if (!abs) return null;
   let text; try { text = fs.readFileSync(abs, 'utf8'); } catch { return null; }
   if (astReady(file)) { const d = definitions(text, file); if (d) return d.slice(0, limit).map(x => ({ name: x.name, parent: x.parent, kind: x.kind, line: x.start + 1, end: x.end })); }
+  const g = graph(repo);
+  if (g && g !== 'git') { const o = cbmOutline(g, file, { limit }); if (o?.length) return o; }
   const out = []; const lines = text.split('\n');
   const re = new RegExp(`^(\\s*)(?:export\\s+(?:default\\s+)?)?(?:pub(?:\\([^)]*\\))?\\s+)?(?:async\\s+)?(?:(${DEF_WORDS})\\s+([A-Za-z_]\\w*)|(?:const|let|var)\\s+([A-Za-z_]\\w*)\\s*[=:]\\s*(?:async\\s*)?(?:\\([^)]*\\)\\s*=>|function\\b|class\\b)|func\\s*\\([^)]*\\)\\s*([A-Za-z_]\\w*)\\s*\\()`);
   const parents = []; // [{name, indent}] for Python-style nesting

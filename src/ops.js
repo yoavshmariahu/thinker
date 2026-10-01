@@ -5,7 +5,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile } from './deps.js';
 import { rank, pack, renderNote, renderPointers, estTokens } from './rank.js';
-import { annotateFanout, fanout, callees, references, findDefinitions, outline, renderFanout } from './codegraph.js';
+import { annotateFanout, fanout, callers, callees, references, findDefinitions, outline, renderFanout } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
 import { loadCochange, renderCochange } from './cochange.js';
@@ -508,8 +508,9 @@ export function lookup(store, { query, client, budget = 2500, maxNotes = 3, snip
 // --- drilldown: one pointer, everything around it ---------------------------------------------------
 // `path:Symbol` (as orient and lookup print it; `:L12` may follow), `path` alone, or a bare `Symbol`
 // found in the notes' pointers or in the code. Returns the definition with its lines, one hop of
-// callers and callees from git grep, and the notes that rest on it: what the agent would otherwise
-// collect with a read of the whole file and two or three greps.
+// callers and callees (codegraph.js: the code graph when the checkout is indexed, else git grep),
+// and the notes that rest on it: what the agent would otherwise collect with a read of the whole
+// file and two or three greps.
 export function parsePointer(raw) {
   const [p, ...rest] = String(raw).split(':');
   const out = { path: p, symbol: null, line: null };
@@ -550,8 +551,13 @@ export function drilldown(store, { pointer, client, budget = 1500 } = {}) {
     const code = block.text.split('\n'); const room = Math.max(10, Math.floor(budget * 0.65 * 3.6 / 40)); // ~40 chars a line
     const lines = code.slice(0, room); const cut = lines.length < block.total;
     add(`${file}:${symbol} (L${block.start}–L${block.start + block.total - 1}, ${block.total} lines${fo ? `; ${renderFanout(fo)}` : ''})\n\`\`\`\n${lines.join('\n')}${cut ? `\n… (${block.total - lines.length} more lines)` : ''}\n\`\`\``);
-    const refs = references(repo, symbol.split('.').pop(), { file, limit: 400 });
-    if (refs) {
+    const known = callers(repo, dep); // resolved by the graph when the checkout is indexed (cbm.js)
+    const refs = known?.length ? null : references(repo, symbol.split('.').pop(), { file, limit: 400 });
+    if (known?.length) {
+      const nf = new Set(known.map(c => c.path || c.qn)).size;
+      const show = known.slice(0, 12).map(c => `- ${c.path ? `${c.path}${c.line ? `:${c.name}:L${c.line}` : ` ${c.name}`}` : c.qn}`);
+      add(`Callers (${known.length} in ${nf} file${nf === 1 ? '' : 's'}):\n${show.join('\n')}${known.length > show.length ? `\n- … ${known.length - show.length} more` : ''}`);
+    } else if (refs) {
       const callers = refs.lines.filter(l => !l.def && !(l.path === file && l.line >= block.start && l.line < block.start + block.total)).sort((a, b) => (b.call - a.call) || (a.test - b.test));
       const show = callers.slice(0, 10).map(l => `- ${l.path}:L${l.line}  ${l.text.trim().slice(0, 100)}`);
       const nf = new Set(callers.map(l => l.path)).size; add(`Callers and other references${callers.length ? ` (${callers.length}${refs.truncated ? '+' : ''} in ${nf} file${nf === 1 ? '' : 's'}):\n${show.join('\n')}` : ': none'}${callers.length > show.length ? `\n- … ${callers.length - show.length} more (git grep -nw ${symbol.split('.').pop()})` : ''}`);

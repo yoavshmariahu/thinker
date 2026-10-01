@@ -48,7 +48,8 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
 | `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust) when its grammars are installed (`thinker ast install`); `deps.js` falls back to regex heuristics |
-| `src/codegraph.js` | one hop of the call graph from `git grep`: references and blast radius of a symbol (`fanout`), callees, definitions; behind `drilldown` and the `[n call sites in m files]` tags on pointers |
+| `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines; behind `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
+| `src/cbm.js`, `src/cbm-worker.js` | codebase-memory-mcp as the code-graph engine: install, index, and a synchronous bridge to the binary run as a child MCP server (`thinker cbm`) |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/cochange.js` | co-change mining from git history |
@@ -266,15 +267,46 @@ queries; `0,0` turns them off).
   definition with its lines, one hop of callers (every reference, calls
   first) and callees (names the body calls that are defined in the
   repository), and the notes resting on that symbol or file
-  (`ops.js:drilldown`, `codegraph.js`). Everything comes from `git grep`
-  over the language family of the file, so there is no index to build or
-  keep; outside a git checkout it says so.
+  (`ops.js:drilldown`, `codegraph.js`). Two engines answer, chosen per call
+  by `cbm.js:codegraphEngine`: the code graph of codebase-memory-mcp when
+  the checkout is indexed (below), else `git grep` over the language family
+  of the file, which needs no index and is approximate; outside a git
+  checkout it says so.
 - Blast radius: a symbol pointer is served as `path:Sym:L12 [6 call sites in
-  3 files]`. The count is made when the note is created and again for the
-  symbols a verification found changed (`codegraph.js:annotateFanout`;
-  `thinker rehash --fanout` redoes all), stored on the dep as `fanout`, and
-  not made for names under four characters or common ones (`main`, `get`).
-  `THINKER_FANOUT=off` skips both the counting and the tag.
+  3 files]` (`[5 callers in 3 files]` from the graph). The count is made when
+  the note is created and again for the symbols a verification found changed
+  (`codegraph.js:annotateFanout`; `thinker rehash --fanout` redoes all),
+  stored on the dep as `fanout`, and by `git grep` not made for names under
+  four characters or common ones (`main`, `get`). `THINKER_FANOUT=off` skips
+  both the counting and the tag.
+- The code graph: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
+  (CBM) is a single binary that indexes a repository with tree-sitter into a
+  SQLite graph (`~/.cache/codebase-memory-mcp/`) and answers over MCP.
+  `thinker cbm install` downloads the pinned release (`cbm.js:CBM_VERSION`,
+  ~40 MB) into `~/.thinker/cbm` after checking its published SHA-256, and
+  touches no agent configuration (CBM's own installer would); a binary on
+  `PATH`, in `~/.local/bin` or named by `THINKER_CBM_BIN` is used too.
+  `thinker cbm index` builds the graph of the checkout (CBM keys projects by
+  real path, so a worktree is indexed on its own); maintenance re-indexes
+  when `HEAD` moved (`maintain.js`, "code graph re-indexed"). `thinker cbm
+  status` says which engine answers; `thinker cbm forget` drops the index.
+  thinker runs the binary once per process as a child MCP server held by a
+  worker thread and waits on it synchronously (`cbm.js:cbmCall`,
+  `cbm-worker.js`), so `codegraph.js` keeps its synchronous API: the first
+  question costs the binary's start (~2.5 s), later ones milliseconds. Asked
+  of it: `search_graph` to resolve a pointer to a qualified name in its file,
+  `trace_path` one hop both ways, `get_file_outline`; hashing, staleness and
+  snippets stay on thinker's own parser or regex, which read the working
+  tree. A symbol the graph knows but sees no caller of (a method called on an
+  untyped instance, say) is counted by `git grep` instead. Controls:
+  `THINKER_CODEGRAPH=git|cbm|auto` (auto: the graph when the checkout is
+  indexed; `cbm` answers unknown rather than grep when it is not),
+  `THINKER_CBM=off`. The live test needs `THINKER_CBM_TEST=1` and
+  `THINKER_CBM_BIN` (it writes to CBM's index and removes its project after).
+  `bench/cbm-compare.js`, `bench/cbm-pr-compare.js` and `bench/cbm-preflight.js`
+  compare the arms `thinker` (notes, git grep), `cbm` (the graph alone, as the
+  agent's MCP server) and `both` (notes with the graph as engine); the
+  earlier comparison against Qartez is in `research/qartez-comparison/`.
 - The prompt hooks serve two notes. When an agent calls `orient` with its own
   `budget`, up to five are served (past the second, a note must reach 0.7 of
   the best hit's relevance), a linked note is added instead of replacing a

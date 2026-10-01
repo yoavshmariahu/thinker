@@ -7,7 +7,7 @@
     "thinker": "./src/cli.js"
   },
   "scripts": {
-    "test": "THINKER_TELEMETRY=off THINKER_TEST=1 THINKER_LOG=local node --test test/*.test.js"
+    "test": "THINKER_TELEMETRY=off THINKER_TEST=1 THINKER_LOG=local THINKER_CODEGRAPH=git node --test test/*.test.js"
   },
   "license": "MIT",
   "dependencies": {

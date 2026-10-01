@@ -137,7 +137,7 @@ export function renderPointer(d) {
   const f = d.fanout && process.env.THINKER_FANOUT !== 'off' ? ` [${renderFanout(d.fanout)}]` : '';
   return `${d.path}${d.symbol ? ':' + d.symbol : ''}${d.line ? ':L' + d.line : ''}${f}`;
 }
-export const renderFanout = f => f.files === 0 ? 'no references' : `${f.sites || f.refs} ${f.sites ? 'call site' : 'reference'}${(f.sites || f.refs) === 1 ? '' : 's'} in ${f.files} file${f.files === 1 ? '' : 's'}`;
+export const renderFanout = f => f.files === 0 ? 'no references' : `${f.sites || f.refs} ${f.callers ? 'caller' : f.sites ? 'call site' : 'reference'}${(f.sites || f.refs) === 1 ? '' : 's'} in ${f.files} file${f.files === 1 ? '' : 's'}`;
 
 // Pointers-only rendering: where to look, without prose that could be read as the whole picture.
 export function renderPointers(n) {
