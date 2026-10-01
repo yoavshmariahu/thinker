@@ -1,0 +1,19 @@
+{
+  "created": "2026-10-01T19:15:49.796Z",
+  "thinkerCommit": "4e0593b79b7e24e6b357cfd6f969f07aec083017",
+  "qartezVersion": "0.11.0",
+  "model": "claude-sonnet-5",
+  "tasks": [
+    "E1-flag-parsing",
+    "E2-option-kwarg",
+    "E5-runner-exit"
+  ],
+  "repetitions": 1,
+  "controls": [
+    "Identical task prompts and clean git worktrees for Click",
+    "Thinker frozen click-systematic noteset; Qartez pre-indexed offline",
+    "Both arms executed with claude -p --model sonnet --strict-mcp-config",
+    "Disallowed edit tools to ensure fair code comprehension focus",
+    "Double-blind LLM judge using expert gold reference answers"
+  ]
+}

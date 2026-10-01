@@ -6,6 +6,7 @@ dist/
 bench/repos/
 bench/worktrees/
 .worktrees/
+eval-support/
 bench/runs/empty-notes/
 
 # private gateway deployment snapshots and credentials
