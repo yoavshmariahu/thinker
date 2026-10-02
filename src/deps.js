@@ -178,14 +178,26 @@ export function hashDepAt(repo, dep, ref, opts = {}) {
   } catch { return { ...dep, hash: null, missing: true }; }
 }
 
+// Read the index rather than the working tree: a pre-commit hook must validate
+// exactly the code being committed, including partially staged files.
+export function hashDepAtIndex(repo, dep, opts = {}) {
+  if (!validDepPath(dep.path)) return { ...dep, hash: null, missing: true };
+  try {
+    const entry = execFileSync('git', ['ls-files', '--stage', '--', dep.path], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    if (!/^100(?:644|755) [a-f0-9]+ 0\t/.test(entry) || entry.trim().split('\n').length !== 1) return { ...dep, hash: null, missing: true };
+    const text = execFileSync('git', ['show', `:${dep.path}`], { cwd: repo, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+    return hashText(text, dep, opts);
+  } catch { return { ...dep, hash: null, missing: true }; }
+}
+
 // Re-hash all deps of a note against the working tree. Returns
 // {changed: [{path, symbol, reason}], deps: freshDeps, upgraded}; upgraded is set when a dep hashed
 // by the regex was re-hashed by the parser with its block unchanged (the note should be saved).
-export function checkNote(repo, note, { ref } = {}) {
+export function checkNote(repo, note, { ref, index = false } = {}) {
   const changed = [];
   let upgraded = false;
   const deps = (note.deps || []).map(d => {
-    let now = ref ? hashDepAt(repo, d, ref) : hashDep(repo, d);
+    let now = index ? hashDepAtIndex(repo, d) : ref ? hashDepAt(repo, d, ref) : hashDep(repo, d);
     if (now.missing) changed.push({ path: d.path, symbol: d.symbol, reason: 'file removed' });
     else if (now.symbolMissing && !d.symbolMissing) changed.push({ path: d.path, symbol: d.symbol, reason: 'symbol not found' });
     else if (d.hash && now.hash !== d.hash) {

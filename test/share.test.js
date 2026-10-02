@@ -9,8 +9,10 @@ import { Store, sharedContent } from '../src/store.js';
 import { hashDep, hashDepAt } from '../src/deps.js';
 import { planShare, share, validateShare, validatePush, reconcileLocal, readyToShareNotice, contentErrors } from '../src/share.js';
 import { saveNotes } from '../src/distill.js';
-import { installGitHooks, uninstallGitHooks, prePushHook } from '../src/git-hooks.js';
+import { installGitHooks, uninstallGitHooks, prePushHook, preCommitHook } from '../src/git-hooks.js';
 import { exportCache, importCache } from '../src/transfer.js';
+import { repairStaged } from '../src/share-repair.js';
+import { checkNote } from '../src/deps.js';
 
 const cli = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 function fixture(t) {
@@ -181,24 +183,29 @@ test('pre-push validates every ref, handles deletions and new branches against r
   assert.equal(result[0].base, base);
 });
 
-test('hooks preserve custom hooks, uninstall only ours, and only validation failures block pushes', t => {
+test('hooks preserve custom hooks and never block commits or pushes', t => {
   const { repo } = fixture(t);
   const hooks = path.join(repo, '.git', 'hooks');
   fs.writeFileSync(path.join(hooks, 'post-commit'), '#!/bin/sh\n# custom hook mentioning thinker\n');
   installGitHooks(repo, cli, true);
   assert.match(fs.readFileSync(path.join(hooks, 'post-commit'), 'utf8'), /custom/);
   assert.match(fs.readFileSync(path.join(hooks, 'post-merge'), 'utf8'), /maintain/);
+  assert.match(fs.readFileSync(path.join(hooks, 'pre-commit'), 'utf8'), /repair-staged/);
   const fake = path.join(repo, "fake ' cli.cjs");
   const hook = path.join(hooks, 'pre-push');
   fs.writeFileSync(hook, prePushHook(fake));
   const run = () => spawnSync('sh', [hook, 'origin'], { cwd: repo, encoding: 'utf8' }).status;
   assert.equal(run(), 0); // missing CLI
   fs.writeFileSync(fake, "throw new Error('broken');"); assert.equal(run(), 0);
-  fs.writeFileSync(fake, 'process.exit(2);'); assert.equal(run(), 1);
+  fs.writeFileSync(fake, 'process.exit(2);'); assert.equal(run(), 0);
+  fs.writeFileSync(path.join(hooks, 'pre-commit'), preCommitHook(fake));
+  const commitHook = () => spawnSync('sh', [path.join(hooks, 'pre-commit')], { cwd: repo, encoding: 'utf8' }).status;
+  assert.equal(commitHook(), 0);
   fs.writeFileSync(fake, 'process.exit(0);'); assert.equal(run(), 0);
   uninstallGitHooks(repo);
   assert.equal(fs.existsSync(path.join(hooks, 'post-commit')), true);
   assert.equal(fs.existsSync(path.join(hooks, 'post-merge')), false);
+  assert.equal(fs.existsSync(path.join(hooks, 'pre-commit')), false);
   assert.equal(fs.existsSync(hook), false);
 });
 
@@ -237,7 +244,7 @@ test('archives round-trip both caches through local storage without touching com
   assert.equal(fs.readFileSync(path.join(store.notesDir, 'value.json'), 'utf8'), before);
 });
 
-test('CLI handles flags before IDs, validates without touching the checkout, and returns validation exit codes', t => {
+test('CLI handles flags before IDs, reports by default and gates only with explicit strict', t => {
   const { repo, store, note, git, commit } = fixture(t);
   const base = git('rev-parse', 'HEAD');
   store.put(note('value', { source: { type: 'agent' } }));
@@ -255,11 +262,12 @@ test('CLI handles flags before IDs, validates without touching the checkout, and
   const result = run(['share', '--check', '--base', base, '--ref', good]);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(git('status', '--porcelain'), before);
-  assert.equal(run(['share', '--check', '--base', base, '--ref', bad]).status, 2);
+  assert.equal(run(['share', '--check', '--base', base, '--ref', bad]).status, 0);
+  assert.equal(run(['share', '--check', '--base', base, '--ref', bad, '--strict']).status, 2);
   const warning = run(['share', '--check', '--base', good, '--ref', bad]);
   assert.equal(warning.status, 0); assert.match(warning.stdout, /warning/);
   assert.equal(run(['share', '--check', '--base', good, '--strict']).status, 2);
-  assert.equal(run(['share', '--check', '--pre-push'], `refs/heads/a ${bad} refs/heads/a ${base}\n`).status, 2);
+  assert.equal(run(['share', '--check', '--pre-push'], `refs/heads/a ${bad} refs/heads/a ${base}\n`).status, 0);
 });
 
 test('legacy trailing-hyphen IDs stay readable and flat benchmark stores remain unchanged', t => {
@@ -316,4 +324,113 @@ test('imports reject archive symlinks before modifying a receiver', t => {
   const before = store.sharedFile('value');
   assert.throws(() => importCache(store, archive), /links or special files/);
   assert.deepEqual(store.sharedFile('value'), before);
+});
+
+
+test('pre-commit repairs dependency hashes from staged code and preserves the original', async t => {
+  const { repo, store, note, git, commit } = fixture(t);
+  store.put(note()); share(store); commit();
+  const before = fs.readFileSync(path.join(store.notesDir, 'value.json'), 'utf8');
+  fs.writeFileSync(path.join(repo, 'code.js'), 'export function value() { return 2; }\n');
+  git('add', 'code.js');
+  fs.writeFileSync(path.join(repo, 'code.js'), 'export function value() { return 99; }\n'); // unstaged code must not affect the repair
+  const actions = await repairStaged(store, { decide: async () => ({ verdict: 'still_valid', reason: 'behavior unchanged', body: '', deps: [] }) });
+  assert.deepEqual(actions.map(a => a.action), ['update']);
+  const staged = JSON.parse(git('show', ':.thinker/notes/value.json'));
+  assert.equal(checkNote(repo, staged, { index: true }).changed.length, 0);
+  assert.notEqual(staged.deps[0].hash, JSON.parse(before).deps[0].hash);
+  assert.equal(fs.readFileSync(path.join(store.notesDir, 'value.json'), 'utf8'), git('show', ':.thinker/notes/value.json') + '\n');
+  assert.equal(fs.readdirSync(path.join(store.localDir, 'quarantine')).length, 1);
+});
+
+test('pre-commit removes malformed and unnecessary staged notes, with local backups', async t => {
+  const { repo, store, note, git, commit } = fixture(t);
+  store.put(note()); share(store); commit();
+  fs.writeFileSync(path.join(store.notesDir, 'broken.json'), '{');
+  fs.writeFileSync(path.join(store.notesDir, 'duplicate.json'), JSON.stringify(sharedContent(note('duplicate'))));
+  git('add', '.thinker/notes/broken.json', '.thinker/notes/duplicate.json');
+  const actions = await repairStaged(store);
+  assert.deepEqual(actions.map(a => a.action), ['remove', 'remove']);
+  assert.equal(git('ls-files', '.thinker/notes/broken.json'), '');
+  assert.equal(git('ls-files', '.thinker/notes/duplicate.json'), '');
+  assert.equal(fs.readdirSync(path.join(store.localDir, 'quarantine')).length, 2);
+  assert.equal(fs.existsSync(path.join(store.notesDir, 'broken.json')), false);
+  assert.equal(fs.existsSync(path.join(store.notesDir, 'duplicate.json')), false);
+});
+
+test('pre-commit applies a corrected body or retires a note when verification says invalid', async t => {
+  const { repo, store, note, git, commit } = fixture(t);
+  store.put(note()); share(store); commit();
+  fs.writeFileSync(path.join(repo, 'code.js'), 'export function value() { return 3; }\n');
+  git('add', 'code.js');
+  let actions = await repairStaged(store, { decide: async () => ({ verdict: 'update', reason: 'new behavior', body: 'Call code.js:value for three.', deps: [] }) });
+  assert.equal(actions[0].action, 'update');
+  assert.equal(JSON.parse(git('show', ':.thinker/notes/value.json')).body, 'Call code.js:value for three.');
+  git('commit', '-qm', 'corrected note');
+  fs.writeFileSync(path.join(repo, 'code.js'), 'export function value() { return 4; }\n');
+  git('add', 'code.js');
+  actions = await repairStaged(store, { decide: async () => ({ verdict: 'invalid', reason: 'obsolete', body: '', deps: [] }) });
+  assert.equal(actions[0].action, 'remove');
+  assert.equal(git('ls-files', '.thinker/notes/value.json'), '');
+});
+
+test('pre-commit reads the index and does not overwrite unstaged note edits', async t => {
+  const { repo, store, note, git } = fixture(t);
+  const file = path.join(store.notesDir, 'value.json');
+  fs.writeFileSync(file, JSON.stringify(sharedContent(note('value', { body: 'sk-ant-' + 'a'.repeat(30) }))));
+  git('add', '.thinker/notes/value.json');
+  const unstaged = JSON.stringify(sharedContent(note('value', { body: 'Safe unstaged revision.' })));
+  fs.writeFileSync(file, unstaged);
+  const actions = await repairStaged(store);
+  assert.equal(actions[0].action, 'remove');
+  assert.equal(git('ls-files', '.thinker/notes/value.json'), '');
+  assert.equal(fs.readFileSync(file, 'utf8'), unstaged);
+});
+
+test('pre-commit hook repairs invalid staged notes without blocking a real commit', t => {
+  const { repo, store, note, git } = fixture(t);
+  const file = path.join(store.notesDir, 'value.json');
+  fs.writeFileSync(file, '{');
+  git('add', '.thinker/notes/value.json');
+  const hook = path.join(repo, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, preCommitHook(cli), { mode: 0o755 });
+  const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_TEST: '1', THINKER_LOG: 'local', THINKER_NO_AUTO_UPDATE: '1', THINKER_AST: 'off', THINKER_HOME: path.join(repo, 'home') };
+  const commit = spawnSync('git', ['commit', '-qm', 'with auto repair'], { cwd: repo, encoding: 'utf8', env });
+  assert.equal(commit.status, 0, commit.stderr);
+  assert.equal(git('ls-files', '.thinker/notes/value.json'), '');
+  assert.equal(fs.readdirSync(path.join(store.localDir, 'quarantine')).length, 1);
+});
+
+
+test('pre-commit repairs a missing dependency hash after verification', async t => {
+  const { store, note, git } = fixture(t);
+  const n = sharedContent(note());
+  delete n.deps[0].hash;
+  fs.writeFileSync(path.join(store.notesDir, 'value.json'), JSON.stringify(n));
+  git('add', '.thinker/notes/value.json');
+  const actions = await repairStaged(store, { decide: async () => ({ verdict: 'still_valid', reason: 'matches code', body: '', deps: [] }) });
+  assert.equal(actions[0].action, 'update');
+  assert.match(JSON.parse(git('show', ':.thinker/notes/value.json')).deps[0].hash, /^sha256:/);
+});
+
+test('pre-commit removes an explicitly retired shared note', async t => {
+  const { store, note, git } = fixture(t);
+  fs.writeFileSync(path.join(store.notesDir, 'value.json'), JSON.stringify(note('value', { status: 'invalid' })));
+  git('add', '.thinker/notes/value.json');
+  const actions = await repairStaged(store);
+  assert.equal(actions[0].action, 'remove');
+  assert.equal(git('ls-files', '.thinker/notes/value.json'), '');
+});
+
+test('pre-commit removes invalid note paths and staged symlinks', async t => {
+  const { repo, store, git } = fixture(t);
+  fs.mkdirSync(path.join(store.notesDir, 'nested'));
+  fs.writeFileSync(path.join(store.notesDir, 'nested', 'bad.json'), '{}');
+  fs.symlinkSync('nested/bad.json', path.join(store.notesDir, 'link.json'));
+  git('add', '.thinker/notes/nested/bad.json', '.thinker/notes/link.json');
+  const actions = await repairStaged(store);
+  assert.deepEqual(actions.map(a => a.action), ['remove', 'remove']);
+  assert.equal(git('ls-files', '.thinker/notes/nested/bad.json'), '');
+  assert.equal(git('ls-files', '.thinker/notes/link.json'), '');
+  assert.equal(fs.readdirSync(path.join(store.localDir, 'quarantine')).length, 2);
 });

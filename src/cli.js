@@ -29,6 +29,7 @@ import { runSetup, stepPrBenchmark, selectAndAuthenticateAgent, selectMenu, getA
 import { batchProgress, oneLine } from './progress.js';
 import { installGitHooks, uninstallGitHooks } from './git-hooks.js';
 import { share, validateShare, validatePush } from './share.js';
+import { repairStaged } from './share-repair.js';
 import { exportCache, importCache } from './transfer.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -36,7 +37,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push'].includes(k); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -60,7 +61,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
   share [ids…] [--all] [--dry]    promote eligible local notes for review and commit
-  share --check [--base ref]      validate committed notes; --strict also fails on stale notes
+  share --check [--base ref]      report issues in committed notes (exit 0)
+  share --repair-staged           repair or remove invalid staged notes before commit
+                                 --strict makes manual/CI checks fail on issues
                                  --ref commit (default HEAD); --pre-push reads git stdin
   export [file.tgz]              pack this repo's cache for delivery
   import <file.tgz|url>          unpack a delivered cache and check it against this checkout
@@ -354,15 +357,19 @@ async function main() {
       break;
     }
     case 'share': {
-      if (flags.check || flags['pre-push']) {
+      if (flags['repair-staged']) {
+        const actions = await repairStaged(store, { dry: !!flags.dry, model: flags.model });
+        for (const a of actions) out(`${flags.dry ? 'would ' : ''}${a.action} ${a.id}: ${a.reason}`);
+        if (actions.length) out(`thinker: ${actions.filter(a => a.action === 'update').length} corrected, ${actions.filter(a => a.action === 'remove').length} removed from this commit; originals saved locally`);
+      } else if (flags.check || flags['pre-push']) {
         const opts = { base: typeof flags.base === 'string' ? flags.base : undefined, ref: flags.ref || 'HEAD', strict: !!flags.strict, remote: flags.remote || 'origin' };
         const results = flags['pre-push'] ? validatePush(repo, readStdin(), opts) : [validateShare(repo, opts)];
         for (const r of results) {
           for (const w of r.warnings) out(`warning ${w.id}: ${w.message}`);
-          for (const e of r.errors) out(`error ${e.id}: ${e.message}`);
-          out(`checked ${r.checked} shared notes at ${r.ref.slice(0, 10)}: ${r.errors.length} errors, ${r.warnings.length} warnings`);
+          for (const e of r.errors) out(`${flags.strict && !flags['pre-push'] ? 'error' : 'warning'} ${e.id}: ${e.message}`);
+          out(`checked ${r.checked} shared notes at ${r.ref.slice(0, 10)}: ${r.errors.length} issues, ${r.warnings.length} other warnings${flags['pre-push'] ? '; push allowed' : ''}`);
         }
-        if (results.some(r => r.errors.length)) process.exitCode = 2;
+        if (flags.strict && !flags['pre-push'] && results.some(r => r.errors.length)) process.exitCode = 2;
       } else {
         const result = share(store, { ids: pos, all: !!flags.all, dry: !!flags.dry });
         for (const r of result.ready) out(`${flags.dry ? 'would ' : ''}${r.action} ${r.id}`);
@@ -1267,7 +1274,7 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
 }
 
 main().catch(e => {
-  const prePush = cmd === 'share' && flags['pre-push'];
-  console.error(prePush ? `thinker: validation unavailable; allowing push (${e.message || e})` : e);
-  process.exit(prePush ? 0 : 1);
+  const hook = cmd === 'share' && (flags['pre-push'] || flags['repair-staged']);
+  console.error(hook ? `thinker: note check unavailable; Git can continue (${e.message || e})` : e);
+  process.exit(hook ? 0 : 1);
 });

@@ -365,15 +365,19 @@ queries; `0,0` turns them off).
   home paths and bodies over 12,000 bytes are rejected. Serving and assessment never
   rewrite shared files. Maintenance reconciles local duplicates and reports new ready
   notes once, only with a shared cache or `share: true` in config.
-- `thinker share --check --base origin/main` validates notes and dependency hashes at HEAD
-  for CI; `--ref` selects another commit. `--pre-push` reads Git's ref lines and validates
-  each pushed commit against the old remote tip (new branches use the remote-default
-  merge-base). Changed invalid notes fail (exit 2); unchanged stale notes and legacy
-  local fields warn. `--strict` makes stale/invalid unchanged notes errors. Operational
-  errors exit 1, but the pre-push hook fails open except for validation errors.
-  `init`/`setup` install pre-push, post-merge and post-commit through `git-hooks.js`,
-  preserving custom hooks; uninstall removes only thinker hooks. `THINKER_NO_LEARN=1`
-  disables background hooks and maintenance. Rebase is covered by prompt catch-up.
+- `thinker share --check --base origin/main` reports note and dependency issues at
+  HEAD for CI; `--ref` selects another commit. The command exits 0 by default;
+  `--strict` opts into exit 2 for validation errors. `--pre-push` reads Git's
+  ref lines and always exits 0 so no push is blocked. Git's pre-push snapshot
+  cannot be rewritten safely, so the new `pre-commit` hook runs
+  `thinker share --repair-staged` first. It reads code and notes from the index,
+  fixes metadata, asks a small model about notes whose deps changed, and updates
+  or removes bad notes in the index. Original bytes go to
+  `.thinker/local/quarantine/`; unstaged working-copy edits are preserved.
+  `init`/`setup` install pre-commit, pre-push, post-merge and post-commit through
+  `git-hooks.js`, preserving custom hooks; uninstall removes only thinker hooks.
+  `THINKER_NO_LEARN=1` disables background and pre-commit hooks for fixed-cache
+  experiments. Rebase is covered by prompt catch-up.
 - `share.js` owns promotion and commit validation; `deps.js:hashText/hashDepAt` reuse
   symbol hashing and parser/regex compatibility on commit content. `transfer.js` exports
   both effective caches and imports through the local store without touching shared files.

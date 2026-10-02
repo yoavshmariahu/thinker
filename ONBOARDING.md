@@ -26,7 +26,7 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--late` | also serve notes about files as the agent opens them |
 | `--shared` | write hooks to `.claude/settings.json` so the whole team gets them on pull |
 | `--mcp` | also register the MCP server for the chosen agents (needs npm); always on for Cursor |
-| `--no-git-hook` | do not install git hooks; by default post-commit/post-merge check and maintain notes in the background, and pre-push validates the committed shared cache |
+| `--no-git-hook` | do not install git hooks; by default pre-commit repairs staged shared notes, post-commit/post-merge maintain the cache, and pre-push reports issues without blocking |
 | `--branch <name>` | install a specific branch or tag version (default `main`; `--ref also accepted) |
 | `--update` | update the thinker CLI to the latest version and exit |
 | `--no-auto-update` | do not schedule daily background auto-updates (daily auto-update is on by default) |

@@ -4,12 +4,19 @@ import { gitHookPath } from './store.js';
 import { postCommitHook } from './maintain.js';
 
 const quote = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
-export const HOOKS = ['post-commit', 'post-merge', 'pre-push'];
+export const HOOKS = ['pre-commit', 'post-commit', 'post-merge', 'pre-push'];
+export function preCommitHook(cli) {
+  return `#!/bin/sh\n# thinker: repair staged shared notes before commit\n` +
+    `case "$THINKER_NO_LEARN" in 1|true|yes) exit 0 ;; esac\n` +
+    `repo="$(git rev-parse --show-toplevel 2>/dev/null)"\n` +
+    `node ${quote(cli)} share --repair-staged --repo "$repo"\n` +
+    `exit 0\n`;
+}
 export function prePushHook(cli) {
-  // Exit 2 means validation errors. Missing node/CLI and unexpected failures fail open.
-  return `#!/bin/sh\n# thinker: validate shared notes in the commits being pushed\n` +
+  // A pushed commit is already fixed in Git's ref list; this hook only reports.
+  return `#!/bin/sh\n# thinker: report shared-note issues without blocking a push\n` +
     `node ${quote(cli)} share --check --pre-push --remote "$1"\n` +
-    `result=$?\n[ "$result" -eq 2 ] && exit 1\nexit 0\n`;
+    `exit 0\n`;
 }
 export function installGitHooks(repo, cli, learn, out = () => {}) {
   for (const name of HOOKS) {
@@ -19,7 +26,7 @@ export function installGitHooks(repo, cli, learn, out = () => {}) {
       out(`skipped git ${name} hook: existing hook is not ours`); continue;
     }
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, name === 'pre-push' ? prePushHook(cli) : postCommitHook(cli, repo, learn), { mode: 0o755 });
+    fs.writeFileSync(file, name === 'pre-push' ? prePushHook(cli) : name === 'pre-commit' ? preCommitHook(cli) : postCommitHook(cli, repo, learn), { mode: 0o755 });
     fs.chmodSync(file, 0o755);
     out(`installed git ${name} hook`);
   }
