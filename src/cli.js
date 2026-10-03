@@ -383,6 +383,8 @@ async function main() {
         const result = share(store, { ids: pos, all: !!flags.all, dry: !!flags.dry });
         for (const r of result.ready) out(`${flags.dry ? 'would ' : ''}${r.action} ${r.id}`);
         for (const r of result.skipped) out(`skip ${r.id}: ${r.reasons.join('; ')}`);
+        for (const r of result.superseded) out(`superseded ${r.id}: a pull replaced this note while a change to it (${r.fields.join(', ')}) was unshared here; thinker show ${r.id} prints it`);
+        for (const u of result.unreadable) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
         out(`${result.ready.length} notes ${flags.dry ? 'ready to share' : 'shared; review and commit .thinker/notes/'}`);
       }
       break;
@@ -420,12 +422,15 @@ async function main() {
       if (flags.stale) notes = notes.filter(n => n.status === 'stale');
       if (!flags.all) notes = notes.filter(n => n.status !== 'invalid');
       for (const n of notes) out(`${(store.isShared(n.id) ? 'repo' : 'local').padEnd(5)} ${n.status.padEnd(7)} ${String(n.kind).padEnd(10)} ${n.id.padEnd(45)} c=${Math.round((n.confidence ?? 0.7) * 100)}% uses=${n.uses || 0}  ${n.title}`);
+      for (const u of store.unreadable()) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
       out(`${notes.length} notes`);
       break;
     }
     case 'show': {
       const n = store.get(pos[0]); if (!n) { out('no such note'); process.exit(1); }
       out(flags.json ? JSON.stringify(n, null, 2) : renderNote(n) + `\nsource: ${JSON.stringify(n.source)}  verified: ${n.verified}  status: ${n.status}  attest: ${JSON.stringify(n.attest || {})}  related: ${(n.related || []).join(', ') || '-'}`);
+      const sup = store.superseded(pos[0]);
+      if (sup && !flags.json) out(`\nsuperseded: a pull replaced this note while this checkout had an unshared change to it (${Object.keys(sup.pending).join(', ')}). Kept in .thinker/local/shared/${pos[0]}.json; put it back with feedback or remember if it still holds.` + (sup.pending.body ? `\n--- unshared body ---\n${sup.pending.body}` : ''));
       break;
     }
     case 'rm': { out(store.remove(pos[0]) ? 'removed' : 'no such note'); break; }
@@ -456,6 +461,7 @@ async function main() {
       const stale = notes.filter(n => n.status === 'stale');
       if (!flags.quiet) {
         for (const n of stale) out(`stale  ${n.id}: ${n.stale.changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ')}`);
+        for (const u of store.unreadable()) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
         out(`${stale.length}/${notes.length} notes stale`);
       }
       if (flags.verify && stale.length) await verifyAll(stale);

@@ -408,6 +408,13 @@ queries; `0,0` turns them off).
   corrections for shared notes, tied to a content digest; pulled content supersedes old
   corrections and staleness. `Store.list/get` serve their union; shared IDs win.
   Untracked legacy notes migrate to local on first use; tracked files are left unchanged.
+  A change pending here when a pull replaces the note is not dropped: it is kept in the overlay
+  as `superseded` (`Store.superseded`), named by `thinker share [--dry]`, `thinker show` and the
+  maintenance notice, and cleared when the note is shared again from here. Note files that
+  cannot be read (a merge conflict, invalid JSON, an id that does not match the file name) are
+  skipped by the store and named by `list`, `check` and `share` (`Store.unreadable`), so a
+  conflicted note does not just vanish. Maintenance removes overlays of shared notes that no
+  longer exist unless they hold unshared content (`Store.sweepOverlays`).
   `THINKER_NOTES_DIR` retains a flat store for benchmarks. Inventory of other checkouts
   uses `new Store(repo, { readonly: true })` and never migrates them.
 - `thinker share [ids…] [--all] [--dry]` promotes fresh, valid notes from trusted sources

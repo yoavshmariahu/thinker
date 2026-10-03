@@ -66,9 +66,12 @@ export function planShare(store, { ids = [], all = false } = {}) {
   const sharedIds = new Set(shared.map(n => n.id));
   const selected = new Set(ids), ready = [], skipped = [];
   for (const id of ids) if (!notes.some(n => n.id === id)) skipped.push({ id, reasons: ['no such note'] });
+  const superseded = [], unreadable = store.unreadable();
   for (const note of notes) {
     if (selected.size && !selected.has(note.id)) continue;
     const isShared = sharedIds.has(note.id);
+    const sup = isShared ? store.superseded(note.id) : null;
+    if (sup) superseded.push({ id: note.id, fields: Object.keys(sup.pending), at: sup.at });
     if (isShared && note.status === 'invalid') { ready.push({ id: note.id, action: 'remove', note }); continue; }
     const legacy = isShared && LOCAL_FIELDS.some(k => k in store.sharedFile(note.id));
     if (isShared && !legacy && !Object.keys(store.pending(note.id)).length) continue;
@@ -82,7 +85,7 @@ export function planShare(store, { ids = [], all = false } = {}) {
     if (reasons.length) skipped.push({ id: note.id, reasons });
     else ready.push({ id: note.id, action: isShared ? 'update' : 'add', note });
   }
-  return { ready, skipped };
+  return { ready, skipped, superseded, unreadable };
 }
 
 export function share(store, opts = {}) {
@@ -182,22 +185,30 @@ export function reconcileLocal(store) {
     store.removeLocal(local.id);
     removed.push({ id: local.id, shared: match.id });
   }
-  if (removed.length) store.log({ op: 'share-reconcile', removed });
+  const swept = store.sweepOverlays();
+  if (removed.length || swept.length) store.log({ op: 'share-reconcile', removed, swept });
   return removed;
 }
 
 export function readyToShareNotice(store) {
-  if (!store.tiered || (!store.config().share && !store.list().some(n => store.isShared(n.id)))) return '';
+  if (!store.tiered) return '';
+  const plan = planShare(store), ready = plan.ready;
+  // only with a shared cache: a shared note that is listed, or one whose file cannot be read
+  if (!store.config().share && !store.list().some(n => store.isShared(n.id)) && !plan.unreadable.some(u => u.tier === 'shared')) return '';
   const file = path.join(store.localDir, 'share-notice.json');
   let seen = []; try { seen = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-  const ready = planShare(store).ready;
-  const keys = ready.map(r => {
+  const extra = [...plan.superseded.map(r => `${r.id}:superseded:${r.at || ''}`), ...plan.unreadable.map(u => `${u.file}:unreadable:${u.reason}`)];
+  const keys = [...extra, ...ready.map(r => {
     const content = sharedContent(r.note);
     for (const k of ['confidence', 'verified', 'related']) delete content[k];
     return `${r.id}:${r.action}:${crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex')}`;
-  });
+  })];
   fs.mkdirSync(store.localDir, { recursive: true });
   fs.writeFileSync(file, JSON.stringify(keys));
   if (!keys.some(k => !seen.includes(k))) return '';
-  return `${ready.length} ${ready.length === 1 ? 'note is' : 'notes are'} ready to share; run thinker share --dry`;
+  const parts = [];
+  if (ready.length) parts.push(`${ready.length} ${ready.length === 1 ? 'note is' : 'notes are'} ready to share`);
+  if (plan.superseded.length) parts.push(`${plan.superseded.length} unshared ${plan.superseded.length === 1 ? 'correction was' : 'corrections were'} superseded by a pull (${plan.superseded.map(r => r.id).slice(0, 2).join(', ')})`);
+  if (plan.unreadable.length) parts.push(`${plan.unreadable.length} note ${plan.unreadable.length === 1 ? 'file is' : 'files are'} unreadable (${plan.unreadable[0].reason})`);
+  return parts.length ? `${parts.join('; ')}; run thinker share --dry` : '';
 }
