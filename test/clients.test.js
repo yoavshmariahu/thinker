@@ -199,7 +199,7 @@ test('init learns from sessions by default; --no-learn and THINKER_NO_LEARN swit
   const run = (args, env = {}) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-learn-'));
     execFileSync('git', ['init', '-q'], { cwd: dir });
-    execFileSync('node', [CLI, 'init', '--local', '--no-mcp', '--clients', 'claude', '--repo', dir, ...args], { env: { ...process.env, THINKER_NO_LEARN: '', THINKER_TELEMETRY: 'off', ...env }, stdio: 'pipe' });
+    execFileSync('node', [CLI, 'setup', '--no-build', '--no-mcp', '--clients', 'claude', '--repo', dir, ...args], { env: { ...process.env, THINKER_NO_LEARN: '', THINKER_TELEMETRY: 'off', ...env }, stdio: 'pipe' });
     const f = path.join(dir, '.claude', 'settings.local.json');
     return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')).hooks || {} : null;
   };

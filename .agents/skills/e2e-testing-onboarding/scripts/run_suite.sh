@@ -77,12 +77,12 @@ git commit -qm "feat: initial commit with math and server modules"
 pass "Trivial repo created with 2 code files and committed to git."
 
 # -------------------------------------------------------------
-# STEP 3: Onboard with Thinker (thinker init)
+# STEP 3: Onboard with Thinker (thinker setup)
 # -------------------------------------------------------------
-info "Step 3: Running thinker init..."
+info "Step 3: Running thinker setup..."
 CLI_JS="/thinker/src/cli.js"
 
-INIT_OUT=$(node "$CLI_JS" init --yes 2>&1)
+INIT_OUT=$(node "$CLI_JS" setup --no-build --yes 2>&1)
 echo "$INIT_OUT"
 
 [ -f ".mcp.json" ] && pass "Found .mcp.json" || fail ".mcp.json missing"

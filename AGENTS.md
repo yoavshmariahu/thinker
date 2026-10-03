@@ -41,7 +41,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 
 | path | contents |
 |---|---|
-| `src/cli.js` | `thinker` command: `setup`, `init`, `distill`, `orient`, `lookup`, `check`, `verify`, `cochange`, `serve`, ... |
+| `src/cli.js` | `thinker` command: `setup`, `distill`, `orient`, `lookup`, `check`, `verify`, `cochange`, `serve`, ... |
 | `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
 | `src/setup.js` | the guided `setup` flow: agent selection and login check, cache build with estimates, optional PR benchmark |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI and Cursor: config files and hook formats |
@@ -79,14 +79,25 @@ into `bench/repos/<name>` first.
 
 The installer (`install.sh`) installs the tool wherever it is run. Inside a git
 repository it also sets that repository up (below); anywhere else it says to
-run `thinker init` inside a repository. A repository where neither `init` nor
-`setup` has run has no `.thinker/`, and the cache is not used there: the CLI's
-cache commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP server
-offers no tools and says so in its instructions, and the hooks are quiet. Only
-the commands that build a cache (`init`, `setup`, `seed`, `mine-prs`, `import`,
-`add`, `record`, `distill`) create one.
+run `thinker setup` inside a repository. `setup` is the only command that sets
+a repository up: `thinker init` was removed and says so. A repository where
+`setup` has not run has no `.thinker/`, and the cache is not used there: the
+CLI's cache commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP
+server offers no tools and says so in its instructions, and the hooks are
+quiet. Only the commands that build a cache (`setup`, `seed`, `mine-prs`,
+`import`, `add`, `record`, `distill`) create one.
 
-`thinker setup` (or the installer with `--build`):
+`thinker setup` wires the repository into the agents on this machine (hooks,
+MCP server, git hooks, `.thinker/`, co-change), and then asks whether to build
+the cache from the code and the merged pull requests, since that is the only
+step that spends anything (`setup.js:confirmCacheBuild`). The question defaults
+to no; `--build` answers yes without asking (so does `--yes`, or naming
+`--areas`/`--prs`/`--pr`), `--no-build` answers no and leaves a repository that
+is set up and learns from sessions. Outside a terminal the answer is no.
+Declining, or having no authenticated agent, no longer stops setup: step 1 has
+already run and the footer says how to build later.
+
+The build itself (`thinker setup --build`, or the installer with `--build`):
 
 1. mines co-change edges from git history;
 2. distills up to 60 merged pull requests of the GitHub `origin` into fix
@@ -275,7 +286,7 @@ Each session both consumes and improves the cache:
 
 5. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
    the prompt hooks start at most every ten minutes ends with one maintenance
-   run, and so do the git `post-commit` and `post-merge` hooks that `setup`, `init` and the
+   run, and so do the git `post-commit` and `post-merge` hooks that `setup` and the
    installer put in place (`--no-git-hook` leaves it out). A run refreshes the
    co-change index when `HEAD` moved, re-verifies up to 10 stale notes, writes
    phrasings for up to 8 notes that lack them, and distills up to 3 pull
@@ -297,7 +308,7 @@ Each session both consumes and improves the cache:
    cache-hit notice. `thinker maintain [--dry]` is one run by hand;
    `THINKER_NO_LEARN=1` switches it off with the rest of learning.
 
-Learning is on by default in `setup`, `init` and the installer. Evals keep
+Learning is on by default in `setup` and the installer. Evals keep
 the cache fixed with `--no-learn` at install time, or `THINKER_NO_LEARN=1` in
 the environment, which also silences hooks that are already installed.
 `learn: {"sessions": false}` in `.thinker/config.json` switches off learning
@@ -317,7 +328,7 @@ queries; `0,0` turns them off).
 
 ## Serving
 
-- MCP server (`thinker serve`, registered in `.mcp.json` by `thinker init`)
+- MCP server (`thinker serve`, registered in `.mcp.json` by `thinker setup`)
   with tools `orient(task, file?, budget?)`, `lookup(query)`, `find(query, path?)`, `drilldown(pointer)`,
   `remember(...)`, `feedback(id, useful, correction?)`.
 - Code behind the pointers: the MCP `orient` and `lookup` end with the
@@ -504,7 +515,7 @@ queries; `0,0` turns them off).
   agent's CLI before the commit went through), and updates
   or removes bad notes in the index. Original bytes go to
   `.thinker/local/quarantine/`; unstaged working-copy edits are preserved.
-  `init`/`setup` install pre-commit, pre-push, post-merge and post-commit through
+  `setup` installs pre-commit, pre-push, post-merge and post-commit through
   `git-hooks.js`, preserving custom hooks; uninstall removes only thinker hooks.
   `THINKER_NO_LEARN=1` disables background and pre-commit hooks for fixed-cache
   experiments. Rebase is covered by prompt catch-up.
@@ -684,7 +695,7 @@ tool `review` is the same for an agent before it commits.
   entry; two copies wired into one checkout (an install left behind, a smoke-test
   copy, hooks in both of Claude Code's settings files) both fire on every prompt,
   serve the notes twice and bring the old copy's notice and state format back.
-  `init` and `setup` take every other copy's hooks out of the files of the client
+  `setup` takes every other copy's hooks out of the files of the client
   they install and point its MCP entry at the new copy; for Claude Code the hooks
   live in one settings file, so installing `--local` empties the shared one and
   the other way round. The prompt hook does the same on every prompt for copies
@@ -698,7 +709,7 @@ tool `review` is the same for an agent before it commits.
   tool result. An always-applied rule also tells the agent to call `orient`.
 - Codex reads a project's `.codex/` only once the project is trusted, runs a
   hook only once it is reviewed, and asks before each MCP tool call. `setup`
-  and `init` take care of all three: the MCP server is registered with
+  takes care of all three: the MCP server is registered with
   `default_tools_approval_mode = "approve"`, and the project and thinker's
   hooks are marked as trusted in Codex's own `config.toml` (`CODEX_HOME`,
   `~/.codex`). In a terminal they ask first; `--yes` skips the question,
@@ -706,8 +717,8 @@ tool `review` is the same for an agent before it commits.
   unless `--yes` is given. The hook entry is the hash Codex 0.157 stores
   (see [What Codex stores as trust](#what-codex-stores-as-trust)); if a later
   Codex changes it, Codex asks for the review as before. `uninstall` takes the hook entries out again.
-- Cursor loads an MCP server only once it is approved; `setup` and `init`
-  do that through Cursor's CLI when it is installed.
+- Cursor loads an MCP server only once it is approved; `setup` does that
+  through Cursor's CLI when it is installed.
 - Gemini CLI also drives agent mode in Gemini Code Assist, which reads the
   same MCP configuration. Google AI Studio is a web app and cannot run local
   hooks or MCP servers, so it is not supported.
@@ -747,7 +758,7 @@ trusted_hash = "sha256:6118…1471"
   ```
 
   So any change to the command or the timeout makes the entry void, and
-  Codex asks for a review again; `init` writes new entries when it is rerun.
+  Codex asks for a review again; `setup` writes new entries when it is rerun.
 - Checked: handlers of type `command` with a `timeout` and no `matcher`,
   which is what thinker writes, for `UserPromptSubmit`, `PostToolUse` and
   `Stop`. Not known: how a `matcher`, a `statusMessage` or a missing
@@ -805,7 +816,7 @@ constructed input only. Seen in the live runs:
 - Codex did not run hooks from a project's `.codex/hooks.json` in
   `codex exec` with only the project marked trusted, but ran the same hooks
   from the user-level `hooks.json`. With the hooks marked as reviewed too
-  (what `setup` and `init` now write), `codex exec` 0.157.1 loaded the
+  (what `setup` now writes), `codex exec` 0.157.1 loaded the
   project's MCP server, called `orient` without asking and ran the project's
   hooks.
 - Cursor's CLI (`agent -p`) fires `sessionStart`, `postToolUse`,

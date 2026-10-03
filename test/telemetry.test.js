@@ -294,7 +294,7 @@ test('sendTelemetry respects user opt-out even when force is true', async () => 
   }
 });
 
-test('cli init sends installation telemetry in background', async () => {
+test('cli setup sends installation telemetry in background', async () => {
   const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cli-init-repo-'));
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cli-init-home-'));
   execFileSync('git', ['init', '-q'], { cwd: tmpRepo });
@@ -319,7 +319,7 @@ test('cli init sends installation telemetry in background', async () => {
 
   try {
     const CLI = path.resolve('src/cli.js');
-    execFileSync('node', [CLI, 'init', '--local', '--no-mcp', '--clients', 'claude', '--repo', tmpRepo], {
+    execFileSync('node', [CLI, 'setup', '--no-build', '--no-mcp', '--no-git-hook', '--clients', 'claude', '--repo', tmpRepo], {
       env: {
         ...process.env,
         THINKER_HOME: tmpHome,

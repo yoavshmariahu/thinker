@@ -15,7 +15,7 @@ import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
 import { hashDep } from './deps.js';
-import { CLIENTS, parseClients, installClient, uninstallClients, pruneInstalls, prunedLines, trustCodex, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from './clients.js';
+import { CLIENTS, parseClients, uninstallClients, pruneInstalls, prunedLines, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from './clients.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from './transcripts.js';
 import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
 import { logModelUsage, streamModelUsage } from './model-usage.js';
@@ -27,7 +27,7 @@ import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, un
 import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, maybeSendTelemetryInBackground, maybeSendDailyTelemetryInBackground, scheduleTelemetry, unscheduleTelemetry, isTelemetryScheduled, getTelemetryLaunchAgentPath } from './telemetry.js';
 import { runSetup, stepPrBenchmark, selectAndAuthenticateAgent, selectMenu, getAgentLoginCommand, getAgentDisplayName, c } from './setup.js';
 import { batchProgress, oneLine } from './progress.js';
-import { installGitHooks, uninstallGitHooks } from './git-hooks.js';
+import { uninstallGitHooks } from './git-hooks.js';
 import { share, validateShare, validatePush } from './share.js';
 import { repairStaged } from './share-repair.js';
 import { exportCache, importCache } from './transfer.js';
@@ -61,12 +61,14 @@ const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], en
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>] [--benchmark] [--no-benchmark] [--no-git-hook] [--yes] [--verbose]
-                                 guided 3-step setup: connect harness CLIs, build the knowledge cache with
-                                 pre-flight estimates (time, size, location), and run an optional PR change benchmark;
-                                 --verbose includes per-item diagnostic details
-  init [--no-learn] [--no-hooks] [--no-late] [--local] [--no-git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
-                                 set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
+  setup [--build | --no-build] [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>]
+        [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--shared] [--no-mcp] [--no-git-hook]
+        [--no-trust] [--yes] [--verbose]
+                                 the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
+                                 server, clients claude, codex, cursor, gemini; default auto), then offer to build the
+                                 knowledge cache from the code and merged pull requests with pre-flight estimates, and
+                                 an optional PR change benchmark. --build builds without asking, --no-build only wires
+                                 things up and lets the cache grow from your sessions; --verbose adds per-item details
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
   share [ids…] [--all] [--dry]    promote eligible local notes for review and commit
   share --check [--base ref]      report issues in committed notes (exit 0)
@@ -154,7 +156,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --schedule / --unschedule manages hourly background telemetry
 `;
 
-// Commands that read or maintain an existing cache. Not `init`, `setup`, `seed`, `mine-prs`, `import`,
+// Commands that read or maintain an existing cache. Not `setup`, `seed`, `mine-prs`, `import`,
 // `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
 const CACHE_COMMANDS = ['orient', 'lookup', 'list', 'show', 'rm', 'check', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'cochange', 'relink', 'rehash', 'outcome'];
 
@@ -163,14 +165,14 @@ async function main() {
     const notice = checkPendingNotice(thinkerHome());
     if (notice) process.stderr.write(`[thinker] ${notice}\n`);
   }
-  if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup', 'init', 'share'].includes(cmd) && !flags.background) {
+  if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup', 'share'].includes(cmd) && !flags.background) {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
     maybeSendTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
   }
-  // the cache is used only where `thinker init` (or `setup`) has run: a repository without .thinker/
+  // the cache is used only where `thinker setup` has run: a repository without .thinker/
   // is served nothing and learns nothing. Commands that build or add to a cache create it themselves.
   if (CACHE_COMMANDS.includes(cmd) && !store.exists()) {
-    process.stderr.write(`thinker: not set up in this repository (${repo}). Run \`thinker init\` there to set it up and build its knowledge cache.\n`);
+    process.stderr.write(`thinker: not set up in this repository (${repo}). Run \`thinker setup\` there to set it up.\n`);
     process.exit(1);
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
@@ -379,17 +381,12 @@ async function main() {
       break;
     }
     case 'init': {
-      if (!fs.existsSync(path.join(repo, '.git'))) { process.stderr.write(`thinker: ${repo} is not a git repository. Run \`thinker init\` from inside the repository to set up.\n`); process.exit(1); }
-      // hooks serve notes and learn from sessions by default. flags: --no-learn (serve only, for evals; --serve-only is
-      //        the older name), --no-hooks (MCP server only), --late (file-keyed notes),
-      //        --local (write .claude/settings.local.json, not shared), --no-git-hook, --no-mcp, --clients,
-      //        --no-trust (leave Codex's trust in the project and the hooks to the user), --yes (do not ask)
-      await init({ clients: parseClients(flags.clients, 'auto'), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !flags['no-late'], shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !flags['no-git-hook'] });
-      maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store, force: true, event: 'install' });
-      break;
+      // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
+      process.stderr.write('thinker: `thinker init` was replaced by `thinker setup`, the one command that sets a repository up.\n  thinker setup              wire up the agents, then offer to build the cache from the code\n  thinker setup --no-build   wire up the agents only (what `init` did)\n');
+      process.exit(1);
     }
     case 'setup': {
-      if (!fs.existsSync(path.join(repo, '.git'))) { process.stderr.write(`thinker: ${repo} is not a git repository. Run \`thinker setup\` from inside the repository to set up.\n`); process.exit(1); }
+      if (!fs.existsSync(path.join(repo, '.git'))) { process.stderr.write(`thinker: ${repo} is not a git repository. Run \`thinker setup\` from inside the repository to set it up.\n`); process.exit(1); }
       await setup();
       break;
     }
@@ -943,36 +940,6 @@ async function main() {
   }
 }
 
-async function init({ clients, hooks, learn, late, shared, mcp, gitHook }) {
-  store.init();
-  out(`initialized ${store.dir}`);
-  for (const c of clients) for (const line of installClient(c, { repo, cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), hooks, learn, late, shared, mcp })) out(line);
-  if (clients.includes('codex') && (hooks || mcp) && !flags['no-trust']) {
-    // Codex reads a project's .codex/ only once the project is trusted, and runs a hook only once it is reviewed
-    let ok = !!flags.yes;
-    if (!ok && process.stdin.isTTY) {
-      const rl = (await import('node:readline/promises')).createInterface({ input: process.stdin, output: process.stdout });
-      const a = await rl.question(`Codex: mark this repository as trusted${hooks ? " and thinker's hooks as reviewed" : ''} in your Codex config, so Codex uses them without asking? [Y/n] `); rl.close();
-      ok = !/^n/i.test(a.trim());
-    }
-    if (ok) for (const line of trustCodex(repo)) out(line);
-    else out('Codex: not marked as trusted; Codex asks you to trust the project and review the hooks before they run (--yes does it here without asking)');
-  }
-  if (clients.includes('cursor') && mcp) {
-    // Cursor loads an MCP server only once it is approved for the workspace
-    const agentBin = findBin(['agent', 'cursor-agent']);
-    const r = agentBin ? spawnSync(agentBin, ['mcp', 'enable', 'thinker'], { cwd: repo, encoding: 'utf8', timeout: 60_000 }) : null;
-    if (r && r.status === 0) out('Cursor: approved the thinker MCP server for this workspace');
-    else out('Cursor: approve the thinker MCP server when Cursor asks (Settings → MCP), or run: agent mcp enable thinker');
-  }
-  if (gitHook) installGitHooks(repo, path.join(HERE, 'cli.js'), learn, out);
-  if (!fs.existsSync(path.join(store.dir, 'cochange.json'))) { try { const idx = mineCochange(repo); out(`mined co-change edges from ${idx.commits} commits`); } catch {} }
-  const gi = path.join(repo, '.thinker', '.gitignore');
-  const ignored = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';
-  const missing = ['log.jsonl', 'state/', 'benchmarks/'].filter(line => !ignored.split('\n').includes(line));
-  if (missing.length) fs.writeFileSync(gi, ignored + (ignored && !ignored.endsWith('\n') ? '\n' : '') + missing.join('\n') + '\n');
-}
-
 // owner/name of the GitHub repository behind `origin`, or null
 function githubSlug() {
   try {
@@ -983,7 +950,9 @@ function githubSlug() {
 }
 const hasBin = b => { try { execFileSync(b, ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } };
 
-// One step for a new repo: build the cache, then wire it into the clients.
+// The one command that sets a repository up: wire it into the agents, then offer to build the
+// cache from its code and merged pull requests. The offer is the only step that spends anything,
+// so it is a question (--build answers yes, --no-build answers no and leaves the wiring alone).
 async function setup() {
   const clients = parseClients(flags.clients, parseClients('auto'));
   const num = (v, d) => v === undefined || v === true || Number.isNaN(Number(v)) ? d : Number(v);
@@ -991,6 +960,9 @@ async function setup() {
   const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug());
   const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
   const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
+  // asking for a size is asking for the build; --no-build (or both --no-seed and --no-prs) is a no
+  const askedToBuild = Boolean(flags.build) || flags.areas !== undefined || flags.prs !== undefined;
+  const build = flags['no-build'] || (flags['no-seed'] && flags['no-prs']) ? false : (askedToBuild ? true : null);
 
   await runSetup({
     repo,
@@ -1001,16 +973,17 @@ async function setup() {
     areas,
     prs,
     prNumber: flags.pr ? Number(flags.pr) : null,
+    build,
     benchmark: Boolean(flags.benchmark),
     noBenchmark: Boolean(flags['no-benchmark']),
-    noSeed: Boolean(flags['no-seed']),
-    noPrs: Boolean(flags['no-prs']),
+    noSeed: Boolean(flags['no-seed']) || build === false,
+    noPrs: Boolean(flags['no-prs']) || build === false,
     noPhrase: Boolean(flags['no-phrase']),
     model: flags.model,
     agent,
     yes: Boolean(flags.yes),
     hooks: !flags['no-hooks'],
-    learn: learnOn(),
+    learn: !flags['no-hooks'] && learnOn(),
     late: !flags['no-late'],
     shared: Boolean(flags.shared),
     mcp: !flags['no-mcp'],

@@ -231,10 +231,11 @@ test('runSetup completes 3-step setup flow in clean repo', async () => {
       areas: 2,
       prs: 2,
       noSeed: true,
-      noPrs: true,
       noBenchmark: true,
       yes: true,
       out,
+      checkAuthFn: () => ({ authenticated: true, account: 'test@thinker.dev' }),
+      minePrsFn: async () => ({ saved: 0, processed: 0 }),
     });
 
     const fullOutput = outLines.join('\n');
@@ -314,7 +315,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
   }
 });
 
-test('runSetup halts setup when agent is not installed or authenticated and --no-seed is not passed', async () => {
+test('runSetup wires the repository up and leaves the cache unbuilt when no agent is authenticated', async () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-setup-halt-'));
   execFileSync('git', ['init', repo]);
   execFileSync('git', ['config', 'user.name', 'test'], { cwd: repo });
@@ -344,10 +345,49 @@ test('runSetup halts setup when agent is not installed or authenticated and --no
       out,
     });
 
-    assert.equal(res.skipped, true);
+    assert.equal(res.built, false);
     assert.ok(res.error);
     const fullOut = outLines.join('\n');
     assert.match(fullOut, /Requested agent "nonexistent-agent" is not installed/);
+    // the repository is set up either way: the wiring is done and the footer is reached
+    assert.match(fullOut, /Cache not built here/);
+    assert.match(fullOut, /thinker setup --build/);
+    assert.match(fullOut, /Thinker setup complete!/);
+    assert.ok(fs.existsSync(path.join(repo, '.thinker', 'cochange.json')));
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('setup offers the cache build and takes no for an answer outside a terminal', async () => {
+  const repo = createMockGitRepo();
+  const store = new Store(repo);
+  const outLines = [];
+  const out = line => outLines.push(stripAnsi(line));
+  try {
+    const res = await runSetup({
+      repo,
+      store,
+      cliPath: path.resolve('src/cli.js'),
+      mcpEntry: { command: 'node', args: ['/path/to/mcp.js'] },
+      clients: ['claude'],
+      areas: 2,
+      prs: 2,
+      noBenchmark: true,
+      out,
+      // no `build` and no `yes`: the question is asked, and tests are not a terminal
+      seedFn: async () => { throw new Error('must not explore without an answer'); },
+      minePrsFn: async () => { throw new Error('must not mine without an answer'); },
+      checkAuthFn: () => { throw new Error('must not ask for a login for a build nobody asked for'); },
+    });
+    const fullOut = outLines.join('\n');
+    assert.equal(res.built, false);
+    assert.match(fullOut, /Build the cache from this repository now\?/);
+    assert.match(fullOut, /Not a terminal/);
+    assert.match(fullOut, /Thinker setup complete!/);
+    // wiring and the free part of the cache still happened
+    assert.ok(fs.existsSync(path.join(repo, '.claude', 'settings.local.json')) || fs.existsSync(path.join(repo, '.claude', 'settings.json')));
+    assert.ok(fs.existsSync(path.join(repo, '.thinker', 'cochange.json')));
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

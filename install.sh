@@ -2,7 +2,7 @@
 # thinker setup: installs the thinker tool and, when run from inside a
 # repository, sets that repository up to use a knowledge cache with the coding
 # agents on this machine. Run anywhere else, it installs the tool alone; then
-# run `thinker init` inside a repository to build its knowledge cache.
+# run `thinker setup` inside a repository to set that repository up.
 #
 # The thinker repository is private, so you need access to it and a GitHub
 # token with read access, exported as GITHUB_TOKEN:
@@ -15,8 +15,8 @@
 # for the repository, pass --cache instead and nothing has to be built.
 #
 # Options
-#   --build             build the cache here (on by default for repositories without a cache)
-#   --no-build          do not build a cache; only wire up hooks and MCP server (thinker init)
+#   --build             build the cache here without asking (otherwise `thinker setup` offers it, with an estimate)
+#   --no-build          do not build a cache; only wire up the hooks and the MCP server
 #   --no-seed           with --build: skip architectural subsystem exploration
 #   --areas <n>         with --build: source areas to explore, one agent session each (default 12)
 #   --prs <n>           with --build: merged pull requests to mine (default 60; skipped without the gh CLI)
@@ -82,10 +82,10 @@ path_hint() {
 }
 
 main() {
-  local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
+  local cache="" build="" areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
   while [ $# -gt 0 ]; do
     case "$1" in
-      --cache) cache="${2:-}"; shift 2 ;;
+      --cache) cache="${2:-}"; build=0; shift 2 ;;
       --build) build=1; shift ;;
       --no-build) build=0; shift ;;
       --no-seed) no_seed=1; shift ;;
@@ -142,7 +142,7 @@ main() {
   command -v tar >/dev/null || die "tar is required"
   local nodemajor; nodemajor="$(node -p 'process.versions.node.split(".")[0]')"
   [ "$nodemajor" -ge 20 ] || die "Node.js 20 or newer is required (found $(node -v))"
-  # outside a git repository only the tool is installed; `thinker init` sets up a repository later
+  # outside a git repository only the tool is installed; `thinker setup` sets a repository up later
   local repo; repo="$(git rev-parse --show-toplevel 2>/dev/null)" || repo=""
   [ -n "$repo" ] && cd "$repo"
   [ -n "$cache" ] && [ -z "$repo" ] && die "--cache needs a repository to put the cache in: run this from inside it"
@@ -260,10 +260,11 @@ EOF
   local rcfile=""
   if [ "$modpath" = 1 ]; then rcfile="$(add_to_path "$home/bin")"; fi
 
-  [ "$build" = 1 ] && [ -z "$clients" ] && clients="auto"
+  # every path but a bare --no-build wires up whatever agents are on this machine
+  if [ -z "$clients" ] && { [ "$build" != 0 ] || [ -n "$cache" ]; }; then clients="auto"; fi
   # Cursor is served through the MCP server, which needs its dependencies
   case "$clients" in *cursor*|all|auto) mcp=1 ;; esac
-  # outside a repository, nothing is set up here; `thinker init` registers the MCP server, so its dependencies are installed now
+  # outside a repository, nothing is set up here; `thinker setup` registers the MCP server, so its dependencies are installed now
   [ -z "$repo" ] && mcp=1
   if [ "$mcp" = 1 ] && [ -z "$repo" ] && ! command -v npm >/dev/null; then
     say "npm was not found: the MCP server's dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev to install them later)"; mcp=0
@@ -277,8 +278,8 @@ EOF
   if [ -z "$repo" ]; then
     say "Installed thinker v$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?') into $home."
     say "This is not a git repository, so nothing was set up here. Inside a repository, run:"
-    say "  thinker init     to set it up and build its knowledge cache from your sessions"
-    say "  thinker setup    to also build the cache from its code and merged pull requests first"
+    say ""
+    say "  thinker setup"
     path_hint
     exit 0
   fi
@@ -289,50 +290,42 @@ EOF
       gh:*) gh_fetch "repos/$ghrepo/contents/${cache#gh:}?ref=$ref" "$tmp/cache.tgz"; "$thinker" import "$tmp/cache.tgz" --repo "$repo" ;;
       *) "$thinker" import "$cache" --repo "$repo" ;;
     esac
-  elif [ "$build" = 1 ]; then
+  elif [ "$build" != 0 ]; then
     :
   elif [ -d "$repo/.thinker/notes" ] && ls "$repo/.thinker/notes"/*.json >/dev/null 2>&1; then
     say "Using the cache already in this repository (.thinker/notes)"
   else
-    say "No cache found for this repository. Re-run with --build to build one here,"
-    say "or with --cache <url> if one was built for you. Without either, the cache grows from your own sessions."
+    say "No cache was built for this repository: it will grow from your own sessions."
+    say "To build one from the code and the merged pull requests, run: thinker setup --build"
   fi
 
   # --- wire it into this repository -------------------------------------------
+  # one command sets a repository up: `thinker setup`. Without --build or --no-build it asks
+  # before building the cache, since that is the only step that spends anything.
   local args=""
-  if [ "$build" = 1 ]; then
-    args="--clients $clients"
-    [ "$yes" = 1 ] && args="$args --yes"
+  [ -n "$clients" ] && args="$args --clients $clients"
+  [ "$yes" = 1 ] && args="$args --yes"
+  [ "$learn" = 1 ] || args="$args --no-learn"
+  [ "$late" = 1 ] && args="$args --late"
+  [ "$shared" = 1 ] && args="$args --shared"
+  [ "$githook" = 0 ] && args="$args --no-git-hook"
+  if [ "$build" = 0 ]; then
+    args="$args --no-build"
+    [ "$mcp" = 1 ] || args="$args --no-mcp"
+  else
+    [ "$build" = 1 ] && args="$args --build"
     [ "$no_seed" = 1 ] && args="$args --no-seed"
     [ -n "$areas" ] && args="$args --areas $areas"
     [ -n "$prs" ] && args="$args --prs $prs"
     [ -n "$pr_target" ] && args="$args --pr $pr_target"
     [ "$benchmark" = 1 ] && args="$args --benchmark"
     [ "$benchmark" = 0 ] && args="$args --no-benchmark"
-    [ "$learn" = 1 ] || args="$args --no-learn"
-    [ "$late" = 1 ] && args="$args --late"
-    [ "$shared" = 1 ] && args="$args --shared"
-    [ "$githook" = 0 ] && args="$args --no-git-hook"
-    # shellcheck disable=SC2086
-    if [ ! -t 0 ] && [ -r /dev/tty ]; then
-      "$thinker" setup $args --repo "$repo" < /dev/tty
-    else
-      "$thinker" setup $args --repo "$repo"
-    fi
+  fi
+  # shellcheck disable=SC2086
+  if [ ! -t 0 ] && [ -r /dev/tty ]; then
+    "$thinker" setup $args --repo "$repo" < /dev/tty
   else
-    if [ "$learn" = 1 ]; then args=""; else args="--no-learn"; fi
-    [ "$yes" = 1 ] && args="$args --yes"
-    [ "$late" = 1 ] && args="$args --late"
-    [ "$shared" = 1 ] || args="$args --local"
-    [ "$mcp" = 1 ] || args="$args --no-mcp"
-    [ "$githook" = 0 ] && args="$args --no-git-hook"
-    [ -n "$clients" ] && args="$args --clients $clients"
-    # shellcheck disable=SC2086
-    if [ ! -t 0 ] && [ -r /dev/tty ]; then
-      "$thinker" init $args --repo "$repo" < /dev/tty
-    else
-      "$thinker" init $args --repo "$repo"
-    fi
+    "$thinker" setup $args --repo "$repo"
   fi
 
   path_hint

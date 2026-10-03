@@ -2,7 +2,7 @@
 
 ## What the user runs
 
-The repository is private. Users need access to it and a GitHub token with read access, exported as `GITHUB_TOKEN`. From inside their own repository (anywhere else, the tool is installed alone and the script says to run `thinker init` inside a repository):
+The repository is private. Users need access to it and a GitHub token with read access, exported as `GITHUB_TOKEN`. From inside their own repository (anywhere else, the tool is installed alone and the script says to run `thinker setup` inside a repository, the one command that sets a repository up):
 
 ```bash
 export GITHUB_TOKEN=<token>
@@ -10,18 +10,19 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.
   https://api.github.com/repos/yoavshmariahu/thinker/contents/install.sh | bash -s -- --cache gh:caches/<repo>.tgz
 ```
 
-If no cache was built for their repository, `--build` in place of `--cache …` builds one on their machine in the same step (about $9 of their Claude usage with the defaults; the estimate is printed first).
+If no cache was built for their repository, `--build` in place of `--cache …` builds one on their machine in the same step (about $9 of their Claude usage with the defaults; the estimate is printed first). With neither flag, the installer still sets the repository up and `thinker setup` asks whether to build the cache, defaulting to no.
 
 That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in the repository, checks every note against their checkout, and adds Claude Code hooks in `.claude/settings.local.json` that inject relevant notes into each request and distill each session into new notes when it ends (`--no-learn` leaves that out). Nothing else is changed and no `sudo` is used. Requirements: git, curl, tar, Node.js 20+.
 
 | option | effect |
 |---|---|
 | `--cache <source>` | the cache built for this repository: `gh:caches/<repo>.tgz` (a file in the thinker repo), an https URL, or a local file; omit when `.thinker/notes` is already committed in the user's repo |
-| `--build` | build the cache on this machine: co-change, merged pull requests (`--prs n`, default 60), one exploration session per source area (`--areas n`, default 12) |
+| `--build` | build the cache on this machine without asking: co-change, merged pull requests (`--prs n`, default 60), one exploration session per source area (`--areas n`, default 12) |
+| `--no-build` | wire the repository up and ask nothing: the cache grows from the user's own sessions (`thinker setup --build` builds it later) |
 | `--pr <number>` | target a specific PR number for the paired benchmark during setup |
 | `--benchmark` | run the paired PR change benchmark during setup |
 | `--no-benchmark` | skip the paired PR benchmark step |
-| `--clients <list>` | agents to wire up: `claude`, `codex`, `cursor`, `gemini`, `all` or `auto` (default `auto` with `--build`, otherwise `claude`); see "Supported agents" in `AGENTS.md` |
+| `--clients <list>` | agents to wire up: `claude`, `codex`, `cursor`, `gemini`, `all` or `auto` (default `auto`, except with `--no-build`); see "Supported agents" in `AGENTS.md` |
 | `--no-learn` | do not distill the user's own sessions into new notes. Learning is on by default for every agent wired up (uses that agent's login; about $0.05 per session with Claude Sonnet); switch it off for evals |
 | `--late` | also serve notes about files as the agent opens them |
 | `--shared` | write hooks to `.claude/settings.json` so the whole team gets them on pull |
@@ -103,7 +104,7 @@ thinker setup --areas 20 --prs 100 --export /path/to/thinker/caches/<repo>.tgz
 # commit and push caches/<repo>.tgz in the thinker repository
 ```
 
-`setup` runs `init` (creates `.thinker/`, mines co-change), `mine-prs` on the GitHub `origin`, `seed`, `relink` and `export`; each is also a command of its own. `thinker mine-prs` run again later mines only pull requests it has not mined before (recorded in `.thinker/prs.json`).
+`setup` creates `.thinker/`, wires up the agents' hooks and MCP server, mines co-change, and — once the build is confirmed — runs `mine-prs` on the GitHub `origin`, `seed`, `relink` and `export`; each of those is also a command of its own. `thinker mine-prs` run again later mines only pull requests it has not mined before (recorded in `.thinker/prs.json`).
 
 Setup reports progress counts and notes saved, with periodic updates while an
 agent is working. A change that produces no reusable notes is normal. Failures

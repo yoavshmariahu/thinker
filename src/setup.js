@@ -967,28 +967,34 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
   return results;
 }
 
+// Machine-local state in .thinker/ that no checkout should commit.
+export function ignoreLocalState(dir) {
+  const gi = path.join(dir, '.gitignore');
+  const ignored = fs.existsSync(gi) ? fs.readFileSync(gi, 'utf8') : '';
+  const missing = ['log.jsonl', 'state/', 'benchmarks/'].filter(line => !ignored.split('\n').includes(line));
+  if (missing.length) fs.writeFileSync(gi, ignored + (ignored && !ignored.endsWith('\n') ? '\n' : '') + missing.join('\n') + '\n');
+}
+
 // --- Step 2: Build Knowledge Cache -------------------------------------------
 
-export async function stepBuildCache({ repo, store, estimates, areas = 12, prs = 60, noSeed = false, noPrs = false, noPhrase = false, model, agent, yes = false, out = console.log, seedFn, minePrsFn }) {
+export async function stepBuildCache({ repo, store, estimates, areas = 12, prs = 60, noSeed = false, noPrs = false, noPhrase = false, model, agent, out = console.log, seedFn, minePrsFn }) {
   let warnings = 0;
-  out(`  ${c.bold('Pre-flight estimates for this repository:')}`);
-  out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
-  out(`    • ${c.bold('Estimated size:')}     ${c.cyan(estimates.size.notesRange)} ${c.dim(`(${estimates.size.bytesRange} on disk)`)}`);
-  out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)} ${c.dim(`(co-change ${estimates.timing.breakdown.cochange}, PRs ${estimates.timing.breakdown.prs}, explore ${estimates.timing.breakdown.exploration})`)}`);
-  if (estimates.costEstimate > 0) {
-    out(`    • ${c.bold('Model usage:')}       ${c.dim(`~$${estimates.costEstimate.toFixed(2)} via your ${agent || provider()} login`)}`);
+  // with neither pull requests nor exploration there is nothing to estimate: what is left
+  // (co-change, linking) is free and local, and the notes come from the sessions to come
+  const building = !(noSeed && noPrs);
+  if (building) {
+    out(`  ${c.bold('Pre-flight estimates for this repository:')}`);
+    out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
+    out(`    • ${c.bold('Estimated size:')}     ${c.cyan(estimates.size.notesRange)} ${c.dim(`(${estimates.size.bytesRange} on disk)`)}`);
+    out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)} ${c.dim(`(co-change ${estimates.timing.breakdown.cochange}, PRs ${estimates.timing.breakdown.prs}, explore ${estimates.timing.breakdown.exploration})`)}`);
+    if (estimates.costEstimate > 0) {
+      out(`    • ${c.bold('Model usage:')}       ${c.dim(`~$${estimates.costEstimate.toFixed(2)} via your ${agent || provider()} login`)}`);
+    }
+  } else {
+    out(`  ${c.bold('Not reading the code or the pull requests now.')} ${c.dim('thinker setup --build does that.')}`);
+    out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
   }
   out('');
-
-  if (!yes && estimates.timing.totalSeconds > 10 && process.stdin.isTTY) {
-    const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout });
-    const a = await rl.question(`  Proceed with building the cache? [Y/n] `);
-    rl.close();
-    if (/^n/i.test(a.trim())) {
-      out(`  ${c.yellow('○')} Cache build skipped by user.`);
-      return { skipped: true, notes: store.list() };
-    }
-  }
 
   // Stage 1: Co-change mining
   out(`  ${c.bold('[1/4] Mining co-change patterns from git history...')}`);
@@ -1022,8 +1028,9 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
       out(`        ${c.yellow('⚠')} PR mining stopped: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry: thinker mine-prs`);
     }
   } else {
-    const reason = noPrs
-      ? '(--no-prs requested)'
+    const reason = !building
+      ? 'not building the cache now'
+      : noPrs ? '--no-prs requested'
       : (!estimates.canMine ? 'insufficient git history' : 'requires GitHub repo and gh CLI');
     out(`  ${c.dim(`[2/4] Merged PR mining · Skipped (${reason})`)}`);
   }
@@ -1048,10 +1055,11 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
       out(`        ${c.yellow('⚠')} Exploration stopped: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}. Retry: thinker seed`);
     }
   } else {
-    const reason = noSeed
-      ? '(--no-seed flag passed)'
-      : (!agent ? '(no authenticated agent available)' : '(run `thinker seed` anytime)');
-    out(`  ${c.dim(`[3/4] Subsystem exploration · Skipped ${reason}`)}`);
+    const reason = !building
+      ? 'not building the cache now'
+      : noSeed ? '--no-seed requested'
+      : (!agent ? 'no authenticated agent available' : 'run `thinker seed` any time');
+    out(`  ${c.dim(`[3/4] Subsystem exploration · Skipped (${reason})`)}`);
   }
 
   // Stage 4: Cross-note linking and phrasings
@@ -1075,9 +1083,38 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
   const finalNotes = store.list();
   const totalBytes = store.size();
 
-  const status = warnings ? 'Cache build finished with warnings:' : finalNotes.length ? 'Knowledge cache ready:' : 'Cache build finished without notes:';
-  out(`\n  ${warnings || !finalNotes.length ? c.yellow('⚠') : c.green('✔')} ${c.bold(status)} ${c.cyan(`${finalNotes.length} notes`)} in ${c.dim(estimates.storage.rootDir)} (${formatBytes(totalBytes)} on disk)\n`);
+  const status = !building
+    ? (finalNotes.length ? 'Cache left as it is:' : 'Set up with an empty cache, which grows from your sessions:')
+    : warnings ? 'Cache build finished with warnings:' : finalNotes.length ? 'Knowledge cache ready:' : 'Cache build finished without notes:';
+  const bad = building && (warnings || !finalNotes.length);
+  out(`\n  ${bad ? c.yellow('⚠') : c.green('✔')} ${c.bold(status)} ${c.cyan(`${finalNotes.length} notes`)} in ${c.dim(estimates.storage.rootDir)} (${formatBytes(totalBytes)} on disk)\n`);
   return { skipped: false, notes: finalNotes, totalBytes, warnings };
+}
+
+// The one question in `thinker setup` that can cost money: whether to read the repository's
+// merged pull requests and explore its code now. Everything else setup does is free, and
+// declining leaves a working install whose cache grows from the user's own sessions.
+// Asked before the agent login flow, so nobody logs in for a step they did not want.
+export async function confirmCacheBuild({ estimates, agent, out = console.log }) {
+  const cost = estimates.costEstimate > 0 ? `, about ${c.cyan(`$${estimates.costEstimate.toFixed(2)}`)} of your ${agent || 'agent'} usage` : '';
+  out(`  ${c.bold('Build the cache from this repository now?')} ${c.dim('— optional, and the only step that spends anything')}`);
+  out(`    • Mines merged pull requests and explores the code with ${c.bold(agent || 'your agent')}: ${c.cyan(estimates.timing.formatted)}${cost}`);
+  out(`    • ${c.dim('Without it thinker is still set up and working: the cache grows from your own sessions.')}`);
+  out(`    • ${c.dim('You can build it any time with: thinker setup --build')}`);
+  if (!process.stdin.isTTY) {
+    out(`\n  ${c.yellow('○')} ${c.dim('Not a terminal, so the cache was not built (thinker setup --build builds it, --no-build asks nothing).')}`);
+    return false;
+  }
+  const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const a = await rl.question(`\n  Build it now? [y/N] `);
+    return /^y/i.test(a.trim());
+  } catch {
+    out(`\n  ${c.yellow('○')} ${c.dim('No answer, so the cache was not built.')}`);
+    return false; // Ctrl+D or a stdin that closed under us: not an answer to spend money on
+  } finally {
+    rl.close();
+  }
 }
 
 // --- Step 3: Optional PR Change Benchmark ------------------------------------
@@ -1322,6 +1359,7 @@ export async function stepPrBenchmark({
   budget = 1500,
   benchmarkFlag = false,
   noBenchmark = false,
+  skipReason = '--no-benchmark',
   yes = false,
   out = console.log,
   checkAuthFn = checkAgentAuth,
@@ -1330,7 +1368,7 @@ export async function stepPrBenchmark({
   runBenchmarkFn = runBenchmarkAgent,
 }) {
   if (noBenchmark) {
-    out(`  ${c.gray('○')} PR change benchmark skipped (--no-benchmark).`);
+    out(`  ${c.gray('○')} PR change benchmark skipped (${skipReason}).`);
     return null;
   }
 
@@ -1471,6 +1509,7 @@ export async function runSetup({
   prNumber = null,
   benchmark = false,
   noBenchmark = false,
+  build = null,
   noSeed = false,
   noPrs = false,
   noPhrase = false,
@@ -1491,6 +1530,7 @@ export async function runSetup({
   checkAuthFn = checkAgentAuth,
 }) {
   store.init();
+  ignoreLocalState(store.dir);
 
   // Header Banner
   out('\n' + banner() + '\n');
@@ -1522,11 +1562,24 @@ export async function runSetup({
 
   out(stepBanner(2, 3, 'Build Knowledge Cache', 'Mine co-change patterns, PR invariants, and explore codebase topology'));
 
-  let activeAgent = agent || null;
-  let effectiveNoSeed = noSeed;
+  let activeAgent = agent || exploreAgent();
   let agentAuthed = false;
+  let buildError = null;
 
-  if (!noSeed || !noPrs) {
+  // --no-seed --no-prs leaves nothing to spend on, so there is nothing to ask about
+  let building = (noSeed && noPrs) ? false : build;
+  if (building === null) {
+    building = yes || await confirmCacheBuild({
+      estimates: estimateCacheBuild(repo, { areas, prs, noSeed, noPrs, slug, agent: activeAgent }),
+      agent: activeAgent,
+      out,
+    });
+    if (building) out('');
+  }
+  let effectiveNoSeed = noSeed || !building;
+  let effectiveNoPrs = noPrs || !building;
+
+  if (!effectiveNoSeed || !effectiveNoPrs) {
     const authResult = await selectAndAuthenticateAgent({
       requestedAgent: agent || null,
       clients,
@@ -1538,15 +1591,17 @@ export async function runSetup({
     checkAuthFn,
     });
     if (!authResult.ok) {
-      out(`\n  ${c.red('✖')} ${c.bold('Setup halted.')} Subsystem exploration requires an authenticated agent.`);
-      out(`    Run '${c.cyan(authResult.loginCmd || 'claude auth login')}' to authenticate, then re-run setup.`);
-      out(`    ${c.dim('Tip: To build a basic cache without agent exploration, use: thinker setup --no-seed')}\n`);
-      return { skipped: true, error: authResult.error };
+      // the repository is already wired up by step 1: say what was not built, and go on
+      out(`\n  ${c.yellow('○')} ${c.bold('Cache not built here:')} reading the code and the merged pull requests needs an authenticated agent.`);
+      out(`    Run '${c.cyan(authResult.loginCmd || 'claude auth login')}', then: ${c.cyan('thinker setup --build')}`);
+      out(`    ${c.dim('thinker is set up either way; without a built cache it grows from your own sessions.')}\n`);
+      buildError = authResult.error;
+      building = false;
+      effectiveNoSeed = effectiveNoPrs = true;
+    } else {
+      activeAgent = authResult.agent;
+      agentAuthed = true;
     }
-    activeAgent = authResult.agent;
-    agentAuthed = true;
-  } else {
-    activeAgent = activeAgent || exploreAgent();
   }
 
   if (activeAgent && agentAuthed) {
@@ -1554,7 +1609,7 @@ export async function runSetup({
     process.env.THINKER_LLM = activeAgent;
   }
 
-  const estimates = estimateCacheBuild(repo, { areas, prs, noSeed: effectiveNoSeed, noPrs, slug, agent: activeAgent });
+  const estimates = estimateCacheBuild(repo, { areas, prs, noSeed: effectiveNoSeed, noPrs: effectiveNoPrs, slug, agent: activeAgent });
 
   const cacheRes = await stepBuildCache({
     repo,
@@ -1563,11 +1618,10 @@ export async function runSetup({
     areas,
     prs,
     noSeed: effectiveNoSeed,
-    noPrs,
+    noPrs: effectiveNoPrs,
     noPhrase,
     model,
     agent: activeAgent,
-    yes,
     out,
     seedFn,
     minePrsFn,
@@ -1587,7 +1641,10 @@ export async function runSetup({
     model,
     budget: 1500,
     benchmarkFlag: benchmark,
-    noBenchmark,
+    // the benchmark compares an agent with and without the cache, so an unbuilt cache has
+    // nothing to show — unless this run was asked for a benchmark by name
+    noBenchmark: noBenchmark || (!building && !benchmark && !prNumber),
+    skipReason: !noBenchmark && !building ? 'nothing to compare until the cache is built' : '--no-benchmark',
     yes,
     out,
     checkAuthFn,
@@ -1602,10 +1659,13 @@ export async function runSetup({
     '',
     `Start your agent (${c.bold(activeAgent || 'claude')}) in this repository as usual.`,
     'Relevant codebase knowledge will automatically be injected into prompts.',
+    ...(building ? [] : ['', `Build the cache from the code now: ${c.cyan('thinker setup --build')}`]),
     '',
     `Try searching cache:    ${c.cyan('thinker lookup "<query>"')}`,
     `Test prompt retrieval:  ${c.cyan('thinker orient "<task you want to work on>"')}`,
     `Benchmark a question:   ${c.cyan('thinker benchmark')}`,
     `Run PR benchmark:       ${c.cyan('thinker benchmark pr')}`,
   ], { width: 74, borderColor: 'green' }) + '\n');
+
+  return { built: building, warnings: cacheRes.warnings || 0, error: buildError };
 }

@@ -22,15 +22,15 @@ test('a repository without .thinker is served nothing by the CLI and nothing is 
   for (const cmd of [['orient', 'how do I run tests'], ['lookup', 'tests'], ['list'], ['check'], ['maintain', '--dry']]) {
     const r = spawnSync(process.execPath, [CLI, ...cmd, '--repo', dir], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });
     assert.equal(r.status, 1, cmd.join(' '));
-    assert.match(r.stderr, /not set up in this repository .*thinker init/);
+    assert.match(r.stderr, /not set up in this repository .*thinker setup/);
   }
   assert.ok(!fs.existsSync(path.join(dir, '.thinker')));
 });
 
-test('after init the same commands answer', t => {
+test('after setup the same commands answer', t => {
   const dir = fresh(t);
   const home = path.join(dir, 'home');
-  execFileSync(process.execPath, [CLI, 'init', '--repo', dir, '--clients', 'claude', '--no-mcp', '--no-git-hook', '--local'], { env: { ...env, THINKER_HOME: home }, encoding: 'utf8' });
+  execFileSync(process.execPath, [CLI, 'setup', '--no-build', '--repo', dir, '--clients', 'claude', '--no-mcp', '--no-git-hook'], { env: { ...env, THINKER_HOME: home }, encoding: 'utf8' });
   const r = spawnSync(process.execPath, [CLI, 'orient', 'how do I run tests', '--repo', dir], { env: { ...env, THINKER_HOME: home }, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /no matching notes/);
@@ -46,16 +46,16 @@ test('the MCP server offers no tools in a repository without .thinker and create
   });
   const lines = r.stdout.split('\n').filter(Boolean).map(l => JSON.parse(l));
   const init = lines.find(l => l.id === 1), tools = lines.find(l => l.id === 2);
-  assert.match(init.result.instructions, /not set up for this repository[\s\S]*thinker init/);
+  assert.match(init.result.instructions, /not set up for this repository[\s\S]*thinker setup/);
   // no tools registered: like THINKER_MCP=off, the server has no tools capability, so tools/list is "Method not found"
   assert.deepEqual(tools.result?.tools ?? [], []);
   assert.ok(!init.result.capabilities.tools);
   assert.ok(!fs.existsSync(path.join(dir, '.thinker')));
 });
 
-// install.sh outside a git repository: the tool is installed and the user is told to run `thinker init`.
+// install.sh outside a git repository: the tool is installed and the user is told to run `thinker setup`.
 // A fake tarball and manifest stand in for the release, served from a file URL rewritten to https by a curl stub.
-test('the installer installs the tool outside a repository and points at thinker init', t => {
+test('the installer installs the tool outside a repository and points at thinker setup', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-install-norepo-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const home = path.join(dir, 'home'), bin = path.join(dir, 'bin'), work = path.join(dir, 'work'), dist = path.join(dir, 'dist');
@@ -73,7 +73,7 @@ test('the installer installs the tool outside a repository and points at thinker
   });
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.match(r.stdout, /not a git repository, so nothing was set up here/);
-  assert.match(r.stdout, /thinker init/);
+  assert.match(r.stdout, /thinker setup/);
   assert.ok(fs.existsSync(path.join(home, 'bin', 'thinker')));
   assert.ok(!fs.existsSync(path.join(work, '.thinker')));
   assert.deepEqual(fs.readdirSync(work), []);

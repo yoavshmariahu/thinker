@@ -32,10 +32,12 @@ Works with Claude Code, Codex CLI, Gemini CLI and Cursor. Research prototype.
 Open [zerotime.dev](https://zerotime.dev), enter your access code, and run the
 private install command shown there. The same code unlocks the docs. Run from
 inside a repository, it also sets that repository up; run anywhere else, it
-installs the tool alone, and `thinker init` inside a repository sets it up
-later (`thinker setup` also builds the cache from its code and merged pull
-requests). A repository that has not been set up is served nothing and learns
-nothing.
+installs the tool alone, and `thinker setup` inside a repository sets it up
+later. That one command wires thinker into the agents on this machine and then
+offers to build the cache from the repository's code and merged pull requests
+(`--build` says yes without asking, `--no-build` says no; without it the cache
+grows from your own sessions). A repository that has not been set up is served
+nothing and learns nothing.
 
 Then work with your agent as usual. Notes are added to each request
 automatically.
@@ -99,7 +101,7 @@ Maintenance gives a one-time notice when new notes are ready in a repository
 with a shared cache. Set `"share": true` in `.thinker/config.json` to enable
 notices before sharing the first note. `thinker list` labels notes `local` or `repo`.
 
-Run `thinker init` to install the git hooks in an existing checkout. Before a
+Run `thinker setup` to install the git hooks in an existing checkout. Before a
 commit, `pre-commit` checks shared notes against **staged** code. It corrects
 safe metadata issues, asks the configured small model whether notes affected by
 code changes remain valid, and rewrites or removes notes that cannot be kept

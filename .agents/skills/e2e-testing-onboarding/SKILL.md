@@ -36,8 +36,8 @@ Initialize a clean git repository representing a realistic codebase:
 - Create domain logic files (e.g. `math.js`) and orchestration files (e.g. `server.js`).
 - Commit all code to git to establish initial content hashes.
 
-### Stage 3: Thinker Onboarding (`thinker init`)
-Run `thinker init --yes` in the repository root.
+### Stage 3: Thinker Onboarding (`thinker setup`)
+Run `thinker setup --no-build --yes` in the repository root.
 - **Client Auto-Detection**: Checks PATH for all installed agents (`claude`, `codex`, `cursor`, `gemini`/`agy`).
 - **Configuration & Hooks**:
   - **Claude Code**: Registers MCP in `.mcp.json` and prompt hooks in `.claude/settings.json` (or `.claude/settings.local.json`).
