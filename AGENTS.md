@@ -60,6 +60,10 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
+| `src/sync.js` | a checkout's side of the central cache: pull and push notes, stream sessions; from the hooks and maintenance once `thinker sync login` has run |
+| `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that distills streamed sessions and CI pull requests and maintains each cache (`worker.js`) |
+| `action/` | GitHub Action that sends a merged pull request to the server |
+| `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
@@ -383,6 +387,82 @@ queries; `0,0` turns them off).
   both effective caches and imports through the local store without touching shared files.
 - Benchmark arm `live` runs the whole loop: the cache grows and
   self-corrects between tasks (`bench/RESULTS.md`, "Live loop").
+
+## The central cache (`thinker-server`)
+
+Committing notes shares them at the pace of pull requests. A team that wants
+every checkout to learn from every session runs `thinker-server`
+(`src/server/`), one process with a data directory, and points checkouts at it
+with `thinker sync login <url> --token <t>`. The url goes in
+`.thinker/config.json` (`sync.url`, committable), the token in
+`~/.thinker/sync.json` (`THINKER_HOME`) or `THINKER_SYNC_TOKEN`. A repository is
+named by its origin (`store.js:repoId`, `github.com/owner/repo`), so clones and
+worktrees sync as one; `sync.repo` in the config overrides it.
+
+Server side, a repository is a directory (`repos.js:Repo`): a clone of the
+repository under `checkout/` with the notes in its `.thinker/` through the
+ordinary `Store` (committed notes of the repository count as shared there too),
+a numbered journal of every note change, the sessions clients streamed, the pull
+requests CI sent. The clone is what anchors notes: `createNote` resolves deps
+against it, `refresh` re-hashes against it, and maintenance (`maintain.js`) runs
+on it when its default branch moved. Private repositories need
+`THINKER_SERVER_GIT_TOKEN` (a fine-grained read token); without a clone the
+server stores what clients push and sessions wait. Model calls go through
+`llm.js`, which on a server means `ANTHROPIC_API_KEY` (the SDK is installed
+beside the release by `infra/sync/bootstrap.sh`); the worker stops for the day
+at `THINKER_SERVER_DAILY_CAP` dollars (default 5), summed from the repositories'
+logs (`THINKER_LOG=local` on the server).
+
+Three flows (`sync.js`), all automatic once logged in:
+
+- **Pull.** `GET /v1/repos/:repo/notes?since=<cursor>` returns the notes touched
+  since the cursor and tombstones. They land in the checkout's local tier with a
+  `sync: {digest, seq}` marker (a `LOCAL_FIELDS` entry, never shared or pushed);
+  this checkout's own state (uses, servedIn, staleness against its tree) is kept;
+  a note the repository commits in `.thinker/notes/` wins over the pulled copy.
+  The prompt hook pulls in the background at most every five minutes
+  (`cli.js:pullInBackground`), maintenance pulls on every run.
+- **Push.** Local notes that pass the trust gate of `thinker share` (fresh,
+  from a person, PR or doc, or confirmed by a session; `sync.pushAll` in config
+  or `thinker sync --all` lifts it) and content checks go up; so do synced notes
+  whose content changed here (a verification, a correction, a retirement), with
+  the digest they were pulled at as `base`. The server (`repos.js:upsert`) takes
+  an update only if `base` is its current digest; otherwise it answers
+  `conflict` and the client takes the server's version. New notes that repeat
+  one on the server (`share.js:nearDuplicate`) are rejected, and the client
+  stops offering that content. What travels (`repos.js:syncContent`) is
+  `sharedContent` plus `attest` and `history`, and `status` only as
+  fresh/invalid; `prepareContent` strips transcript paths first.
+- **Sessions.** The stop hook, and the catch-up `learn` run, send a session's
+  new events (prompt, tool call with clipped result, agent message, as
+  `transcripts.js` reads them from any agent's transcript or a recorded trace)
+  to `POST /v1/repos/:repo/sessions/:session`, with the ids of the notes served in
+  it (`{t: "served"}`) and `{t: "end"}` when it ends. The server distills a session
+  once it ended or went quiet for three minutes (`worker.js:distillSession`): the
+  same `distillEvents`, `saveNotes` and `attest` as locally, so served notes are
+  confirmed or contradicted on the server and every checkout sees the result on
+  its next pull. A checkout that syncs does not distill locally unless the
+  server cannot (no clone or no model; `sync.js:streamingPlan`, from the
+  `distills` flag in the server's answers). Local PR mining is off for a synced
+  repository; merged pull requests arrive through CI instead.
+
+CI: the composite action in `action/` runs on `pull_request: closed`, gathers
+the merged pull request's description, files, diff and review comments with the
+workflow's own `GITHUB_TOKEN` and posts them to `POST /v1/repos/:repo/prs`; the
+server distills them with `prs.js:distillPr` against the merge commit and
+records them in its `.thinker/prs.json`, so nothing is distilled twice. The
+model key never enters the workflow. `action/README.md` has the workflow.
+
+Tokens (`auth.js`): the admin token (`THINKER_SERVER_ADMIN_TOKEN`, or generated
+into `<data>/admin-token`) mints tokens with scopes `read`, `write`, `admin` and
+a list of repositories or `*`, stored hashed in `<data>/tokens.json`. A CI token
+is `write` on one repository. Everything but `/health` needs a token.
+
+Deployment to EC2 is `infra/sync/` (`deploy.mjs`, `stack.yaml`, `bootstrap.sh`,
+`README.md`): Amazon Linux 2023, Caddy for TLS at `sync.zerotime.dev`, secrets
+in Secrets Manager, releases in S3, updates through Systems Manager. Tests:
+`test/sync.test.js` runs the server in-process against temporary checkouts,
+with the model mocked.
 
 ## Supported agents
 

@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: thinker-server, the team's central thinker cache, on one EC2 instance behind Caddy (TLS)
+Parameters:
+  Hostname:
+    Type: String
+    Description: DNS name clients use; Caddy obtains its certificate for it
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: A public subnet (the instance gets an Elastic IP)
+  InstanceType:
+    Type: String
+    Default: t4g.small
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+  ArtifactBucket:
+    Type: String
+    Description: Bucket holding deployments/sync/{bootstrap.sh,current,<hash>.tgz}
+  SecretArn:
+    Type: String
+    Description: Secrets Manager secret with adminToken, anthropicApiKey, gitToken
+  VolumeGb:
+    Type: Number
+    Default: 40
+Resources:
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: thinker-server; HTTPS and HTTP (ACME) from anywhere, no SSH (Session Manager)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIpv6: "::/0" }
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIpv6: "::/0" }
+      SecurityGroupEgress:
+        - { IpProtocol: "-1", CidrIp: 0.0.0.0/0 }
+      Tags: [{ Key: Name, Value: thinker-sync }]
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: thinker-sync-host
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject]
+                Resource: !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}/deployments/sync/*
+              - Effect: Allow
+                Action: [s3:ListBucket]
+                Resource: !Sub arn:${AWS::Partition}:s3:::${ArtifactBucket}
+                Condition: { StringLike: { "s3:prefix": ["deployments/sync/*"] } }
+              - Effect: Allow
+                Action: [secretsmanager:GetSecretValue]
+                Resource: !Ref SecretArn
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref Role]
+  Eip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags: [{ Key: Name, Value: thinker-sync }]
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds: [!Ref SecurityGroup]
+      IamInstanceProfile: !Ref InstanceProfile
+      Monitoring: false
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: !Ref VolumeGb, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true }
+      MetadataOptions: { HttpTokens: required, HttpEndpoint: enabled }
+      Tags: [{ Key: Name, Value: thinker-sync }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euo pipefail
+          mkdir -p /etc/thinker-sync
+          cat > /etc/thinker-sync/deploy.env <<EOF
+          REGION=${AWS::Region}
+          BUCKET=${ArtifactBucket}
+          SECRET_ARN=${SecretArn}
+          HOSTNAME=${Hostname}
+          EOF
+          chmod 600 /etc/thinker-sync/deploy.env
+          aws s3 cp "s3://${ArtifactBucket}/deployments/sync/bootstrap.sh" /usr/local/sbin/thinker-sync-bootstrap --region ${AWS::Region}
+          chmod 755 /usr/local/sbin/thinker-sync-bootstrap
+          /usr/local/sbin/thinker-sync-bootstrap >> /var/log/thinker-sync-bootstrap.log 2>&1
+  EipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt Eip.AllocationId
+      InstanceId: !Ref Instance
+  Dns:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref Hostname
+      Type: A
+      TTL: '60'
+      ResourceRecords: [!Ref Eip]
+Outputs:
+  Url:
+    Value: !Sub https://${Hostname}
+  InstanceId:
+    Value: !Ref Instance
+  PublicIp:
+    Value: !Ref Eip

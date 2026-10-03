@@ -1,0 +1,12 @@
+{
+  "profile": "yoav",
+  "region": "us-east-1",
+  "stackName": "thinker-sync",
+  "hostname": "sync.zerotime.dev",
+  "hostedZoneId": "Z04156391HJ5BZ15Y94V7",
+  "vpc": "vpc-065641281fc27f26f",
+  "subnet": "subnet-07d7e2b0e516da3eb",
+  "instanceType": "t4g.small",
+  "artifactBucket": "thinker-metrics-442899048927",
+  "secretName": "thinker/sync/server"
+}

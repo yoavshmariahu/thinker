@@ -31,6 +31,7 @@ import { installGitHooks, uninstallGitHooks } from './git-hooks.js';
 import { share, validateShare, validatePush } from './share.js';
 import { repairStaged } from './share-repair.js';
 import { exportCache, importCache } from './transfer.js';
+import { syncConfig, syncNotes, pull as syncPull, push as syncPush, pushSessions, streamingPlan, pullDue, login as syncLogin, logout as syncLogout, status as syncStatus, renderStatus as renderSyncStatus, syncState } from './sync.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -67,6 +68,13 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --ref commit (default HEAD); --pre-push reads git stdin
   export [file.tgz]              pack this repo's cache for delivery
   import <file.tgz|url>          unpack a delivered cache and check it against this checkout
+  sync login <url> --token <t> [--repo id]
+                                 sync this checkout with the team's central cache (thinker-server);
+                                 the url goes in .thinker/config.json, the token in ~/.thinker/sync.json
+  sync [--pull] [--push] [--sessions] [--dry] [--all]
+                                 one round now (default pull and push; hooks and maintenance do this
+                                 by themselves); --all pushes unconfirmed notes too
+  sync status | sync logout
   serve                          run the MCP server (stdio)
   orient "<task>" [--file f] [--budget n] [--snippets]
   lookup "<query>" [--snippets]  (--snippets: inline the code behind the pointers, as the MCP tools do)
@@ -391,6 +399,24 @@ async function main() {
       out(`imported ${result.notes} notes into the local cache; ${notes.filter(n => n.status === 'stale').length} are stale against this checkout`);
       break;
     }
+    case 'sync': {
+      if (pos[0] === 'login') { const c = syncLogin(store, { url: pos[1] || flags.url, token: typeof flags.token === 'string' ? flags.token : undefined, repo: typeof flags.repo === 'string' ? flags.repo : undefined }); out(c ? `syncing ${c.repo} with ${c.url}` : 'url saved; a token is still needed: thinker sync login <url> --token <t>'); if (c) { const r = await syncNotes(store, c); out(`pulled ${r.pulled}, pushed ${r.pushed}${r.distills ? '' : '; the server cannot distill this repository yet (no checkout or model there)'}`); } break; }
+      if (pos[0] === 'logout') { syncLogout(store); out('sync switched off for this checkout'); break; }
+      if (pos[0] === 'status') { out(renderSyncStatus(await syncStatus(store))); break; }
+      const cfg = syncConfig(store);
+      if (!cfg) { out(renderSyncStatus(await syncStatus(store))); process.exitCode = 1; break; }
+      if (flags.all) cfg.pushAll = true;
+      const only = flags.pull || flags.push || flags.sessions;
+      const dry = !!flags.dry, quiet = !!flags.quiet;
+      if (!only || flags.pull) { const r = await syncPull(store, cfg, { save: !dry }); if (!quiet) out(`pulled ${r.applied} ${r.applied === 1 ? 'note' : 'notes'}${r.deleted ? `, ${r.deleted} removed` : ''} (cursor ${r.seq})`); }
+      if (!only || flags.push) { const r = await syncPush(store, cfg, { dry }); if (!quiet) { out(`${dry ? 'would push' : 'pushed'} ${dry ? r.planned : r.pushed}${r.retired ? `, retired ${r.retired}` : ''}${r.conflicts ? `, ${r.conflicts} taken from the server instead` : ''}${r.rejected ? `, ${r.rejected} rejected` : ''}`); if (flags.verbose) for (const s of r.skipped) out(`  held back ${s.id}: ${s.reasons.join('; ')}`); } }
+      if (flags.sessions) {
+        const sessions = typeof flags.transcript === 'string' ? [{ file: flags.transcript, session: typeof flags.session === 'string' ? flags.session : path.basename(flags.transcript).replace(/\.jsonl?$/, ''), client: typeof flags.client === 'string' ? flags.client : 'claude' }] : undefined;
+        const r = await pushSessions(store, cfg, { sessions, end: !!flags.end, dry, days: Number(flags.days) || 2, idleMin: flags['idle-min'] === undefined ? 0 : Number(flags['idle-min']), max: Number(flags.max) || 20 });
+        if (!quiet) out(`${dry ? 'would stream' : 'streamed'} ${r.events} events of ${r.sessions} ${r.sessions === 1 ? 'session' : 'sessions'}${r.distills === false ? ' (the server cannot distill them yet)' : ''}`);
+      }
+      break;
+    }
     case 'serve': {
       const p = spawn('node', [path.join(HERE, 'mcp.js')], { stdio: 'inherit', env: { ...process.env, THINKER_REPO: repo } });
       p.on('exit', c => process.exit(c || 0));
@@ -497,6 +523,7 @@ async function main() {
       if (pos[0] === 'prompt') {
         if (client === 'cursor') out(JSON.stringify({ continue: true })); // cannot add context here; see clients.js
         if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(client); }
+        if (store.exists()) pullInBackground();
         if (!store.exists() || !store.list().length) break;
         // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
         if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
@@ -568,6 +595,11 @@ async function main() {
         }
         if (flags['no-distill'] || NO_LEARN) break;
         if (!source || !fs.existsSync(source)) break;
+        // a checkout that syncs with the team cache streams the session there, where it is distilled;
+        // it is distilled here as well only while the server cannot (no checkout or model there)
+        const plan = streamingPlan(store);
+        if (plan.stream) spawn('node', [path.join(HERE, 'cli.js'), 'sync', '--sessions', '--end', '--quiet', '--transcript', source, '--session', session, '--client', client, '--repo', repo], { detached: true, stdio: 'ignore', env: process.env }).unref();
+        if (!plan.local) break;
         const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo],
           { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } });
         child.unref();
@@ -1170,8 +1202,11 @@ async function runMaintain({ quiet, dry }) {
   if (!store.exists()) return;
   const slug = githubSlug();
   const canMine = provider() && (slug ? hasBin('gh') : true);
+  const sc = syncConfig(store);
   const r = await maintain(store, repo, { dry, fns: {
-    minePrs: canMine ? ({ after, limit }) => minePrs(slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance' }) : undefined,
+    // merged pull requests reach a synced repository through its CI (action/), not from here
+    minePrs: canMine && !sc ? ({ after, limit }) => minePrs(slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance' }) : undefined,
+    sync: sc && !dry ? () => syncNotes(store, sc) : undefined,
   } });
   if (!quiet) out(renderMaintain(r));
 }
@@ -1198,6 +1233,12 @@ async function learn({ days, idleMin, max, dry, quiet }) {
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   try {
     const sessions = findSessions(repo, { sinceMs: days * 86400_000, storeDir: store.dir }).filter(s => Date.now() - s.mtime >= idleMin * 60_000);
+    // synced with the team cache: the sessions go there to be distilled; here too only while the server cannot
+    const plan = streamingPlan(store);
+    if (plan.stream) {
+      try { const r = await pushSessions(store, plan.cfg, { sessions, dry, max }); if (!quiet) out(`streamed ${r.events} events of ${r.sessions} sessions to ${plan.cfg.url}`); } catch (e) { if (!quiet) out(`streaming failed: ${String(e.message).slice(0, 160)}`); }
+      if (!plan.local) return;
+    }
     let done = 0;
     for (const s of sessions) {
       let state = {}; try { state = JSON.parse(fs.readFileSync(path.join(store.dir, 'state', path.basename(s.file).replace(/\.jsonl?$/, '') + '.json'), 'utf8')); } catch {}
@@ -1211,6 +1252,14 @@ async function learn({ days, idleMin, max, dry, quiet }) {
     }
     if (!quiet && !dry) out(`learned from ${done} of ${sessions.length} sessions`);
   } finally { if (!dry) fs.rmSync(lock, { force: true }); }
+}
+// From the prompt hook: take what the team cache learned since, at most every five minutes, in the
+// background, so the next prompt is served from it. Nothing when this checkout does not sync.
+function pullInBackground() {
+  if (!syncConfig(store) || !pullDue(store)) return;
+  const state = syncState(store); state.pulledAt = new Date().toISOString(); // claim the slot before the pull returns
+  try { fs.mkdirSync(store.localDir, { recursive: true }); fs.writeFileSync(path.join(store.localDir, 'sync.json'), JSON.stringify(state)); } catch {}
+  spawn('node', [path.join(HERE, 'cli.js'), 'sync', '--pull', '--quiet', '--repo', repo], { detached: true, stdio: 'ignore', env: process.env }).unref();
 }
 // From a hook: start catch-up in the background, at most every ten minutes.
 function learnInBackground(client) {

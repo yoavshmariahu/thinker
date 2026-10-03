@@ -256,7 +256,8 @@ export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting }
     } catch {}
   }
   diff = (diff || '').slice(0, 45000);
-  const comments = slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
+  // review comments: as given (CI sends them with the diff), else from GitHub
+  const comments = Array.isArray(pr.comments) ? pr.comments : slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
   const label = pr.prNumber ? `PR #${pr.prNumber}` : (pr.hash ? `Commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
   const prompt = `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
   const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000, accounting });

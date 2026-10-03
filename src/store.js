@@ -110,7 +110,7 @@ export function adoptLocalLog(store) {
 //                        and content it changed and has not shared yet (`pending`). So serving,
 //                        assessing and re-verifying a shared note never touches the committed file.
 // With THINKER_NOTES_DIR (benchmark arms) there is one directory of whole notes, as before.
-export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'servedIn', 'attest', 'outcomes', 'history'];
+export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'servedIn', 'attest', 'outcomes', 'history', 'sync'];
 // Shared fields a checkout holds its own value of, without that being a change worth sharing.
 const OVERRIDE_FIELDS = ['confidence', 'verified', 'related'];
 const CONTENT_ORDER = ['id', 'title', 'kind', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'saysFor', 'related'];

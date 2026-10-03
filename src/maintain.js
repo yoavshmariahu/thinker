@@ -53,12 +53,14 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   const state = readState(store);
-  const r = { verified: 0, updated: 0, retired: 0, phrased: 0, prs: 0, cochange: false, graph: false, cost: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, phrased: 0, prs: 0, cochange: false, graph: false, sync: null, cost: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const budget = cfg.dailyCap - spent;
   const afford = () => budget - r.cost > 0;
   try {
     if (!dry) reconcileLocal(store);
+    // 0. the team's central cache, when this checkout syncs with one (sync.js): free, network only
+    if (fns.sync) { try { r.sync = await fns.sync(); } catch { r.errors++; } }
     // 1. co-change: free, so redo it whenever HEAD moved
     const head = gitHead(repo);
     const idx = loadCochange(repo);
@@ -105,6 +107,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     const u = state.unreported || {};
     if (!dry) { const notice = readyToShareNotice(store); if (notice) u.share = notice; }
     for (const k of ['verified', 'updated', 'retired', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
+    if (r.sync && !r.sync.skipped) { u.pulled = (u.pulled || 0) + (r.sync.pulled || 0) + (r.sync.deleted || 0); u.pushed = (u.pushed || 0) + (r.sync.pushed || 0) + (r.sync.retired || 0); }
     u.cochange = !!(u.cochange || r.cochange);
     u.graph = !!(u.graph || r.graph);
     state.unreported = u; state.at = new Date().toISOString(); state.last = r;
@@ -128,6 +131,7 @@ export function maintenanceNotice(store) {
   if (u.prs) parts.push(`${u.prs} ${u.prs === 1 ? 'note' : 'notes'} from merged pull requests`);
   if (u.cochange) parts.push('co-change index refreshed');
   if (u.graph) parts.push('code graph re-indexed');
+  if (u.pulled || u.pushed) parts.push(`team cache: ${[u.pulled ? `${u.pulled} ${u.pulled === 1 ? 'note' : 'notes'} pulled` : '', u.pushed ? `${u.pushed} pushed` : ''].filter(Boolean).join(', ')}`);
   if (u.share) parts.push(u.share);
   if (!parts.length) return '';
   delete state.unreported;
@@ -154,5 +158,6 @@ export function renderMaintain(r) {
   if (r.retired) bits.push(`${r.retired} retired`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`, `co-change ${r.cochange ? 'refreshed' : 'unchanged'}`);
   if (r.graph) bits.push('code graph re-indexed');
+  if (r.sync && !r.sync.skipped) bits.push(`team cache ${r.sync.pulled + (r.sync.deleted || 0)}↓ ${r.sync.pushed + (r.sync.retired || 0)}↑`);
   return `maintained: ${bits.join(', ')}${r.cost ? ` ($${r.cost.toFixed(3)})` : ''}${r.capped ? '; daily cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
 }
