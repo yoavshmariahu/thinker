@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# thinker setup: sets up this repository to use a knowledge cache
-# with Claude Code. Run it from inside the repository.
+# thinker setup: installs the thinker tool and, when run from inside a
+# repository, sets that repository up to use a knowledge cache with the coding
+# agents on this machine. Run anywhere else, it installs the tool alone; then
+# run `thinker init` inside a repository to build its knowledge cache.
 #
 # The thinker repository is private, so you need access to it and a GitHub
 # token with read access, exported as GITHUB_TOKEN:
@@ -70,6 +72,15 @@ add_to_path() {
   printf '%s' "$rc"
 }
 
+# path_hint: how to reach `thinker` from this shell; reads main's $home and $rcfile
+path_hint() {
+  case ":$PATH:" in
+    *":$home/bin:"*) ;;
+    *) if [ -n "$rcfile" ]; then say "  'thinker' is on your PATH in new terminals (added to $rcfile); in this one run: export PATH=\"$home/bin:\$PATH\""
+       else say "  Optional: add $home/bin to your PATH to run 'thinker' directly."; fi ;;
+  esac
+}
+
 main() {
   local cache="" build=1 areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
   while [ $# -gt 0 ]; do
@@ -131,13 +142,16 @@ main() {
   command -v tar >/dev/null || die "tar is required"
   local nodemajor; nodemajor="$(node -p 'process.versions.node.split(".")[0]')"
   [ "$nodemajor" -ge 20 ] || die "Node.js 20 or newer is required (found $(node -v))"
-  local repo; repo="$(git rev-parse --show-toplevel 2>/dev/null)" || die "run this from inside a git repository"
-  cd "$repo"
+  # outside a git repository only the tool is installed; `thinker init` sets up a repository later
+  local repo; repo="$(git rev-parse --show-toplevel 2>/dev/null)" || repo=""
+  [ -n "$repo" ] && cd "$repo"
+  [ -n "$cache" ] && [ -z "$repo" ] && die "--cache needs a repository to put the cache in: run this from inside it"
 
   local thinker="$home/bin/thinker"
 
   if [ "$uninstall" = 1 ]; then
     [ -x "$thinker" ] || die "thinker is not installed in $home"
+    [ -n "$repo" ] || die "run --uninstall from inside the repository to unwire; to remove the tool itself: rm -rf \"$home\", and delete the '# thinker' PATH line from your shell's startup file"
     if [ "$purge" = 1 ]; then "$thinker" uninstall --purge --repo "$repo"; else "$thinker" uninstall --repo "$repo"; fi
     say "To remove the tool itself: rm -rf \"$home\", and delete the '# thinker' PATH line from your shell's startup file"
     exit 0
@@ -249,10 +263,24 @@ EOF
   [ "$build" = 1 ] && [ -z "$clients" ] && clients="auto"
   # Cursor is served through the MCP server, which needs its dependencies
   case "$clients" in *cursor*|all|auto) mcp=1 ;; esac
+  # outside a repository, nothing is set up here; `thinker init` registers the MCP server, so its dependencies are installed now
+  [ -z "$repo" ] && mcp=1
+  if [ "$mcp" = 1 ] && [ -z "$repo" ] && ! command -v npm >/dev/null; then
+    say "npm was not found: the MCP server's dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev to install them later)"; mcp=0
+  fi
   if [ "$mcp" = 1 ]; then
     command -v npm >/dev/null || die "--mcp needs npm to install the MCP server's dependencies"
     say "Installing MCP server dependencies"
     (cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent)
+  fi
+
+  if [ -z "$repo" ]; then
+    say "Installed thinker v$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?') into $home."
+    say "This is not a git repository, so nothing was set up here. Inside a repository, run:"
+    say "  thinker init     to set it up and build its knowledge cache from your sessions"
+    say "  thinker setup    to also build the cache from its code and merged pull requests first"
+    path_hint
+    exit 0
   fi
 
   # --- the cache -------------------------------------------------------------
@@ -307,11 +335,7 @@ EOF
     fi
   fi
 
-  case ":$PATH:" in
-    *":$home/bin:"*) ;;
-    *) if [ -n "$rcfile" ]; then say "  'thinker' is on your PATH in new terminals (added to $rcfile); in this one run: export PATH=\"$home/bin:\$PATH\""
-       else say "  Optional: add $home/bin to your PATH to run 'thinker' directly."; fi ;;
-  esac
+  path_hint
 }
 
 main "$@"

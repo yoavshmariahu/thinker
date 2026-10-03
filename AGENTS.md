@@ -77,6 +77,15 @@ into `bench/repos/<name>` first.
 
 ## What `setup` does
 
+The installer (`install.sh`) installs the tool wherever it is run. Inside a git
+repository it also sets that repository up (below); anywhere else it says to
+run `thinker init` inside a repository. A repository where neither `init` nor
+`setup` has run has no `.thinker/`, and the cache is not used there: the CLI's
+cache commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP server
+offers no tools and says so in its instructions, and the hooks are quiet. Only
+the commands that build a cache (`init`, `setup`, `seed`, `mine-prs`, `import`,
+`add`, `record`, `distill`) create one.
+
 `thinker setup` (or the installer with `--build`):
 
 1. mines co-change edges from git history;

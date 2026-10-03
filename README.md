@@ -30,8 +30,12 @@ Works with Claude Code, Codex CLI, Gemini CLI and Cursor. Research prototype.
 ## Install and start
 
 Open [zerotime.dev](https://zerotime.dev), enter your access code, and run the
-private install command shown there from inside your repository. The same code
-unlocks the docs.
+private install command shown there. The same code unlocks the docs. Run from
+inside a repository, it also sets that repository up; run anywhere else, it
+installs the tool alone, and `thinker init` inside a repository sets it up
+later (`thinker setup` also builds the cache from its code and merged pull
+requests). A repository that has not been set up is served nothing and learns
+nothing.
 
 Then work with your agent as usual. Notes are added to each request
 automatically.

@@ -2,7 +2,7 @@
 
 ## What the user runs
 
-The repository is private. Users need access to it and a GitHub token with read access, exported as `GITHUB_TOKEN`. From inside their own repository:
+The repository is private. Users need access to it and a GitHub token with read access, exported as `GITHUB_TOKEN`. From inside their own repository (anywhere else, the tool is installed alone and the script says to run `thinker init` inside a repository):
 
 ```bash
 export GITHUB_TOKEN=<token>
