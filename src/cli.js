@@ -19,7 +19,7 @@ import { CLIENTS, parseClients, installClient, uninstallClients, trustCodex, hoo
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from './transcripts.js';
 import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
 import { logModelUsage, streamModelUsage } from './model-usage.js';
-import { summarize, renderUsage, sessionKey, cacheHitNotice, turnNotice } from './usage.js';
+import { summarize, renderUsage, sessionKey, turnNotice } from './usage.js';
 import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
@@ -550,7 +550,7 @@ async function main() {
       break;
     }
     case 'hook': {
-      // the user-facing notice on cache hits; THINKER_NOTICE=off or `notice: false` in the config turns it off
+      // the user-facing notice at the end of a turn; THINKER_NOTICE=off or `notice: false` in the config turns it off
       const noticeOn = s => process.env.THINKER_NOTICE !== 'off' && s.config().notice !== false && s.config().notice !== 'off';
       // model calls made by thinker run agents too; their hooks must do nothing
       if (process.env.THINKER_IN_LLM) break;
@@ -572,12 +572,10 @@ async function main() {
         if (session !== 'unknown') rememberTask(store, session, ev.prompt);
         const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true });
         if (!r.included.length) break;
-        const notice = noticeOn(store) ? cacheHitNotice(store.repo, r.included) : '';
         const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
-        const noticeHeader = notice ? `${notice}\n\n` : '';
-        const text = `<thinker-cache>\n${noticeHeader}Notes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify.\n\n${r.text}${more}\n</thinker-cache>`;
+        const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify.\n\n${r.text}${more}\n</thinker-cache>`;
         if (client === 'cursor') parkPending(store.dir, session, text);
-        else out(promptOutput(client, text, notice));
+        else out(promptOutput(client, text));
       } else if (pos[0] === 'tool') {
         // After a tool call: the agent opened files; serve notes anchored to them, once each.
         if (!store.exists()) break;

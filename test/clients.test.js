@@ -123,19 +123,15 @@ test('prompt hook output matches what each client accepts', () => {
   const dir = repo();
   const codex = hook(dir, 'prompt', 'codex', { session_id: 's1', prompt: PROMPT, cwd: dir });
   assert.ok(codex.startsWith('<thinker-cache>') && codex.includes('RateLimiter.allow'));
-  assert.ok(codex.includes('🧠 thinker: 1 note'));
+  assert.ok(!codex.includes('🧠'), 'the prompt hook says nothing to the user; the stop hook sums the turn');
 
   const gem = JSON.parse(hook(dir, 'prompt', 'gemini', { session_id: 's2', prompt: PROMPT, cwd: dir }));
   assert.ok(gem.hookSpecificOutput.additionalContext.includes('RateLimiter.allow'));
-  assert.ok(gem.systemMessage.includes('🧠 thinker: 1 note'));
-  assert.ok(gem.injectSteps[0].ephemeralMessage.includes('🧠 thinker: 1 note'));
+  assert.equal(Object.keys(gem).join(), 'hookSpecificOutput', 'no systemMessage at prompt time');
 
-  const claude = JSON.parse(hook(dir, 'prompt', 'claude', { session_id: 's4', prompt: PROMPT, cwd: dir }));
-  assert.ok(claude.hookSpecificOutput.additionalContext.includes('RateLimiter.allow'));
-  assert.ok(claude.systemMessage.includes('🧠 thinker: 1 note'));
-
-  const off = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--repo', dir], { input: JSON.stringify({ session_id: 's5', prompt: PROMPT }), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_NOTICE: 'off' } }).trim();
-  assert.ok(off.startsWith('<thinker-cache>') && !off.includes('thinker:'));
+  // Claude Code takes the bundle as plain stdout; no JSON, no systemMessage
+  const claude = hook(dir, 'prompt', 'claude', { session_id: 's4', prompt: PROMPT, cwd: dir });
+  assert.ok(claude.startsWith('<thinker-cache>') && claude.includes('RateLimiter.allow') && !claude.includes('🧠'));
 
   // nothing relevant: Gemini must get no stray text on stdout
   assert.equal(hook(dir, 'prompt', 'gemini', { session_id: 's3', prompt: 'hello' }), '');

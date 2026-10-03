@@ -78,25 +78,10 @@ export function toolFiles(ev, repo) {
   return files.map(f => path.isAbsolute(f) ? path.relative(repo, f) : f).filter(f => f && !f.startsWith('..'));
 }
 
-// What the hook prints so the client adds `text` to the model's context.
-export function promptOutput(client, text, notice = '') {
-  if (client === 'gemini') {
-    const res = { hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: text } };
-    if (notice) {
-      res.systemMessage = notice;
-      res.injectSteps = [{ ephemeralMessage: notice }];
-    }
-    return JSON.stringify(res);
-  }
-  if (client === 'claude') {
-    if (notice) {
-      return JSON.stringify({
-        systemMessage: notice,
-        hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text }
-      });
-    }
-    return text;
-  }
+// What the prompt hook prints: the bundle as context for the agent, and nothing for the
+// user. A line at every prompt was noise; the stop hook names what the turn served once.
+export function promptOutput(client, text) {
+  if (client === 'gemini') return JSON.stringify({ hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: text } });
   return text;
 }
 // What the stop hook prints so the client shows `notice` to the user. Claude Code and

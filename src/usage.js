@@ -65,19 +65,12 @@ export function formatSeconds(s) {
   return `${Math.round(s)}s`;
 }
 
-// What the user sees when notes are served: how many, and the size of the code they point at.
-// Nothing is known yet about whether the agent will act on them, so the notice describes the
-// notes and does not say "saved"; in a week on this repository about 30% of servings were acted
-// on. What was saved is counted after the session is assessed (summarize, `thinker usage`).
-export function cacheHitNotice(repo, notes) {
-  const hits = (notes || []).length;
-  if (!hits) return '';
-  const { tokens } = cacheHitSavings(repo, notes);
-  return `🧠 thinker: ${hits} ${hits === 1 ? 'note' : 'notes'}${tokens > 0 ? ` (pointing at ~${formatTokens(tokens)} tokens of code)` : ''}`;
-}
-
 // What the user sees at the end of a turn: everything served in it, at the prompt and
-// while the agent read and edited files.
+// while the agent read and edited files. Nothing is known yet about whether the agent acted
+// on them, so the notice describes the notes and does not say "saved"; in a week on this
+// repository about 30% of servings were acted on. What was saved is counted after the
+// session is assessed (summarize, `thinker usage`). The prompt hook says nothing: a line at
+// every prompt was noise.
 export function turnNotice(repo, notes) {
   const hits = (notes || []).length;
   if (!hits) return '';
