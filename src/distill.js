@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { complete } from './llm.js';
-import { createNote, KINDS } from './ops.js';
+import { createNote, KINDS, looksLikeCorrection } from './ops.js';
 import { tokenize } from './rank.js';
 
 const EXPLORE_TOOLS = new Set(['Grep', 'Glob', 'Read', 'Bash', 'Agent', 'Task', 'LS', 'WebFetch']);
@@ -20,6 +20,33 @@ export function injectedIds(file, { fromLine = 0 } = {}) {
 
 export function exploreCount(events) {
   return events.filter(e => e.t === 'tool' && EXPLORE_TOOLS.has(e.name)).length;
+}
+
+// What a session put at stake: edits made, tool calls that failed, prompts that corrected the
+// agent. A session with none of these and little exploration is a question answered, and in a
+// week on this repository distilling such sessions was a model call (about 10¢ with Sonnet) that
+// in 30% of runs saved no note; with nothing served in it there is no assessment to make either.
+// The hooks skip it below QUIET_MIN_EXPLORE exploration calls (`learn.quietExplore` in the
+// config; 0 distills every session as before).
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'apply_patch']);
+const WRITES_FILE = /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/;
+const FAILED = /\b(\w*error\w*|exception|traceback|failed|failing|fatal|cannot|denied)\b|not found|✖/i;
+export const QUIET_MIN_EXPLORE = 8;
+export function sessionStakes(events) {
+  const s = { edits: 0, failures: 0, corrections: 0 };
+  let prompts = 0;
+  for (const e of events) {
+    if (e.t === 'prompt') { if (prompts++ && looksLikeCorrection(e.text)) s.corrections++; continue; }
+    if (e.t !== 'tool') continue;
+    if (EDIT_TOOLS.has(e.name) || (e.name === 'Bash' && WRITES_FILE.test(String(e.input?.command || '')))) s.edits++;
+    if (FAILED.test(String(e.result || '').slice(0, 400))) s.failures++;
+  }
+  s.any = s.edits + s.failures + s.corrections > 0;
+  return s;
+}
+export function quietSession(events, { served = 0, minExplore = QUIET_MIN_EXPLORE } = {}) {
+  if (served || minExplore <= 0) return false;
+  return exploreCount(events) < minExplore && !sessionStakes(events).any;
 }
 
 function short(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + `…[+${s.length - n} chars]` : s; }
@@ -161,10 +188,21 @@ export function relatedNotes(store, events, { max = 12 } = {}) {
     .slice(0, max).map(x => x.n);
 }
 
-export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], existing = [], accounting } = {}) {
+// kinds: what the distiller may produce. The caller leaves out the kinds this checkout archives
+// (ops.js:archiveConfig): a note of a kind that is never served is a model call for nothing, and
+// what location and cochange notes would say is found by code search and git history.
+export function distillSpec({ kinds = KINDS } = {}) {
+  const left = KINDS.filter(k => !kinds.includes(k));
+  if (!left.length) return { system: DISTILL_SYSTEM, schema: NOTE_SCHEMA };
+  const schema = JSON.parse(JSON.stringify(NOTE_SCHEMA));
+  schema.properties.notes.items.properties.kind.enum = KINDS.filter(k => kinds.includes(k));
+  const system = DISTILL_SYSTEM + `\n\nDo not produce notes of these kinds: ${left.join(', ')}. This repository does not serve them (code search and git history answer what they would say); fold anything of theirs that matters into a note of another kind, or leave it out.`;
+  return { system, schema };
+}
+export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], existing = [], kinds = KINDS, accounting } = {}) {
   const trace = condense(events);
   let prompt = `Repository: ${repoHint}\n\nSESSION TRACE (tool calls with truncated results):\n\n${trace}`;
-  let system = DISTILL_SYSTEM, schema = NOTE_SCHEMA;
+  let { system, schema } = distillSpec({ kinds });
   const servedIds = new Set(served.map(n => n.id));
   const shown = existing.filter(n => !servedIds.has(n.id));
   if (shown.length) {
@@ -172,7 +210,7 @@ export async function distillEvents(events, { model = 'sonnet', repoHint = '', s
     prompt += `\n\nEXISTING NOTES ON THE FILES THIS SESSION TOUCHED:\n` + shown.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${(n.body || '').split('\n').slice(0, 3).join('\n').slice(0, 400)}`).join('\n\n');
   }
   if (served.length) {
-    system += ASSESS_RULES; schema = ASSESS_SCHEMA;
+    system += ASSESS_RULES; schema = { ...ASSESS_SCHEMA, properties: { ...ASSESS_SCHEMA.properties, notes: schema.properties.notes } };
     prompt += `\n\nINJECTED NOTES TO ASSESS:\n` + served.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body}`).join('\n\n');
     prompt += `\n\nProduce the notes JSON (new notes for reusable understanding this session established that the injected notes do not already cover) and one assessment per injected note.`;
   } else prompt += `\n\nProduce the notes JSON.`;
@@ -199,10 +237,11 @@ export function cochangeMechanism(n) {
 }
 
 // Save distilled notes, merging near-duplicates (same topic → keep higher confidence, refresh deps).
-export function saveNotes(store, notes, { source }) {
+export function saveNotes(store, notes, { source, kinds = KINDS }) {
   const existing = store.list();
   const saved = [], merged = [], skipped = [];
   for (const n of notes) {
+    if (KINDS.includes(n.kind) && !kinds.includes(n.kind)) { skipped.push({ title: n.title, reason: `kind ${n.kind} is not served in this repository (archived by thinker archive)` }); continue; }
     if (!cochangeMechanism(n)) { skipped.push({ title: n.title, reason: 'co-change without a mechanism: git history already records which files changed together' }); continue; }
     const key = tokenize(n.title + ' ' + (n.answers || []).join(' '));
     const named = n.extends && existing.find(e => e.id === n.extends);

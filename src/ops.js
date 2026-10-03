@@ -734,16 +734,20 @@ function gitDiffFor(repo, fromCommit, paths) {
   } catch { return ''; }
 }
 
-const VERIFY_SCHEMA = {
+// The answer is a verdict and one sentence; a body only when the note is rewritten. The verify
+// calls of a week on this repository averaged 2,900 output tokens for what is mostly
+// `still_valid`: the schema and the system prompt now ask for less, and the call is capped.
+export const VERIFY_SCHEMA = {
   type: 'object',
   properties: {
     verdict: { type: 'string', enum: ['still_valid', 'update', 'invalid'] },
-    reason: { type: 'string' },
-    body: { type: 'string', description: 'revised note body when verdict=update; else empty' },
-    confidence: { type: 'number' },
+    reason: { type: 'string', description: 'one sentence' },
+    body: { type: 'string', description: 'only when verdict=update: the revised note body, as short as the original, keeping file:symbol pointers' },
+    confidence: { type: 'number', description: 'only when verdict=update' },
   },
-  required: ['verdict', 'reason', 'body', 'confidence'],
+  required: ['verdict', 'reason'],
 };
+export const VERIFY_MAX_TOKENS = 1500;
 
 // Re-verify a stale note with a small model, using the diff of its changed
 // dependencies plus the current text of each dependency symbol.
@@ -754,10 +758,10 @@ export async function verifyNote(store, note, { model } = {}) {
   const paths = [...new Set(changed.map(c => c.path))];
   const diff = gitDiffFor(repo, note.verifiedCommit, paths);
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
-  const system = 'You verify cached notes about a codebase after the code changed. Be strict: a note that is subtly wrong is worse than no note. Only answer still_valid when every concrete claim in the note (file paths, symbol names, call order, what must change together, commands) is still true given the current code shown. Answer update if the note is mostly right but some claim needs correction, and give the full corrected body (keep it as short as the original, keep file:symbol pointers). Answer invalid if the thing the note describes no longer exists or the approach changed fundamentally.';
+  const system = 'You verify cached notes about a codebase after the code changed. Be strict: a note that is subtly wrong is worse than no note. Only answer still_valid when every concrete claim in the note (file paths, symbol names, call order, what must change together, commands) is still true given the current code shown. Answer update if the note is mostly right but some claim needs correction, and give the full corrected body (keep it as short as the original, keep file:symbol pointers). Answer invalid if the thing the note describes no longer exists or the approach changed fundamentally. Answer with the JSON alone: the verdict, one sentence of reason, and a body only for update.';
   const prompt = `NOTE (kind=${note.kind}) "${note.title}"\n${note.body}\n\nDEPENDENCIES THAT CHANGED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'unknown'}\n\nGIT DIFF SINCE THE NOTE WAS VERIFIED (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE OF EACH DEPENDENCY:\n${current.slice(0, 40000)}`;
-  const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA });
-  const v = res.json;
+  const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
+  const v = res.json || {};
   const now = new Date().toISOString();
   let next;
   if (v.verdict === 'still_valid') {
@@ -823,6 +827,14 @@ export function holdoutSession(store, session) {
 // state is this checkout's (`archived` is a LOCAL_FIELDS entry), never shared or pushed.
 // `archive` in .thinker/config.json: `{ kinds: [...], unservedDays: 30 }`, or false.
 export const ARCHIVE_DEFAULTS = { kinds: ['location', 'fix', 'cochange', 'convention'], unservedDays: 30 };
+// The kinds `thinker review` reasons with (review.js:KIND_WEIGHT): rules, traps, past fixes and
+// why. An archived kind among them is still worth distilling, since review reads the archive;
+// an archived kind outside them (location: `find` answers it) is not worth a note at all.
+export const REVIEW_KINDS = ['gotcha', 'invariant', 'convention', 'fix', 'cochange', 'rationale'];
+export function distillKinds(store) {
+  const arch = archiveConfig(store);
+  return arch.enabled ? KINDS.filter(k => !arch.kinds.includes(k) || REVIEW_KINDS.includes(k)) : [...KINDS];
+}
 export function archiveConfig(store) {
   const c = store.config().archive;
   if (c === false) return { ...ARCHIVE_DEFAULTS, enabled: false };

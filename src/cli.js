@@ -6,7 +6,7 @@ import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
 import { maintain, maintenanceNotice, renderMaintain, reportPruned, withinDailyCap, reportCapped } from './maintain.js';
-import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, archiveNotes, archiveConfig } from './ops.js';
+import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, archiveNotes, archiveConfig, distillKinds } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
 import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, codegraphEngine, CBM_VERSION } from './cbm.js';
@@ -20,7 +20,7 @@ import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } fr
 import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
 import { logModelUsage, streamModelUsage } from './model-usage.js';
 import { summarize, renderUsage, sessionKey, turnNotice } from './usage.js';
-import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes } from './distill.js';
+import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, quietSession, QUIET_MIN_EXPLORE } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath } from './update.js';
@@ -1356,12 +1356,22 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   const ids = new Set(injectedIds(file, { fromLine }));
   if (session) for (const n of store.list()) if ((n.servedIn || []).includes(session)) ids.add(n.id);
   const served = [...ids].filter(id => !(incremental && (state.assessed || []).includes(id))).map(id => store.get(id)).filter(Boolean);
+  // a quiet session: nothing served to assess, no edit, no failure, no correction, little exploration.
+  // Distilling it is a model call that rarely yields; the hooks skip it (learn.quietExplore: 0 keeps all)
+  const quietAt = store.config().learn?.quietExplore ?? QUIET_MIN_EXPLORE;
+  if (incremental && quietSession(events, { served: served.length, minExplore: quietAt })) {
+    store.log({ op: 'distill-skipped', reason: 'quiet', transcript: path.basename(file), explore: n, session });
+    if (!quiet) out(`quiet session (${n} exploration calls, nothing edited, failed or corrected, nothing served); nothing to distill`);
+    return;
+  }
+  // the kinds worth a note here: what is served, and what review reads from the archive (ops.js:distillKinds)
+  const kinds = distillKinds(store);
   const started = performance.now();
   let failed = true;
   try {
-  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, existing: relatedNotes(store, events), accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
+  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, existing: relatedNotes(store, events), kinds, accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
   if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, cost ${r.cost == null ? 'unknown' : '$' + r.cost.toFixed(3)}, trace ${r.traceChars} chars)`); return; }
-  const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') } });
+  const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') }, kinds });
   // under the session's id, which is what servings are logged under: a transcript's file name is
   // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
   // with the session's model, so the reading its confirmed notes saved can be priced (usage.js)
