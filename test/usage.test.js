@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store, logFile } from '../src/store.js';
-import { summarize, renderUsage, savingOf, cacheHitSavings, formatTokens, formatSeconds, cacheHitNotice, turnNotice, SECONDS_PER_READ } from '../src/usage.js';
+import { summarize, renderUsage, savingOf, cacheHitSavings, formatTokens, formatSeconds, turnNotice, SECONDS_PER_READ } from '../src/usage.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 // run with the environment set as given (undefined removes a variable), then put it back
@@ -183,11 +183,8 @@ test('the notice names the notes and the code they point at, not a saving', () =
   // a note whose files are missing still stands for one read's worth of time
   assert.equal(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]).seconds, SECONDS_PER_READ);
 
-  assert.equal(cacheHitNotice(one.repo, []), '');
 
-  assert.equal(cacheHitNotice(one.repo, [one.get('n2')]), '🧠 thinker: 1 note (pointing at ~1k tokens of code)');
-  assert.equal(cacheHitNotice(one.repo, [one.get('n1'), one.get('n2')]), '🧠 thinker: 2 notes (pointing at ~7k tokens of code)');
-  for (const text of [cacheHitNotice(one.repo, [one.get('n1')]), turnNotice(one.repo, [one.get('n1')])]) assert.doesNotMatch(text, /saved|hit/, 'nothing is known to be saved when a note is served');
+  assert.doesNotMatch(turnNotice(one.repo, [one.get('n1')]), /saved|hit/, 'nothing is known to be saved when a note is served');
 });
 
 test('turn notice sums what the whole turn served', () => {

@@ -398,11 +398,10 @@ queries; `0,0` turns them off).
   is put above the notes `orient` returns (per-model guidance).
 - Prompt-time hook: injects the orientation bundle into every prompt
  automatically (no tool call needed). See [Supported agents](#supported-agents).
-- What the user sees: the prompt hook names the notes and the size of the
- code they point at (`🧠 thinker: 2 notes (pointing at ~7k tokens of code)`),
- and the stop hook sums the turn, prompt-time and late notes together
- (`usage.js:cacheHitNotice`, `usage.js:turnNotice`). Tokens are one read per
- file a note rests on. The notice does not say "saved": at serve time nothing
+- What the user sees: the stop hook sums the turn, prompt-time and late notes
+ together (`🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of
+ code)`, `usage.js:turnNotice`). The prompt hook says nothing to the user: a
+ line at every prompt was noise. Tokens are one read per file a note rests on. The notice does not say "saved": at serve time nothing
  is known about whether the agent will act on a note, and in a week on this
  repository about 30% of servings were; what was saved is counted once the
  session is assessed, in `thinker usage`. Shown through `systemMessage` in Claude Code and Gemini CLI;
