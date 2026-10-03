@@ -46,6 +46,8 @@ export const STRATEGIES = {
   'holistic-haiku': { mode: 'holistic', model: 'haiku' },
   'holistic-opus': { mode: 'holistic', model: 'opus' },
   ensemble: { mode: 'ensemble' },
+  'ensemble-chunked': { mode: 'ensemble', chunks: 4 },
+  'ensemble-chunked-verify': { mode: 'ensemble', chunks: 4, verify: true },
   'ensemble-verify': { mode: 'ensemble', verify: true },
   'holistic-verify': { mode: 'holistic', verify: true },
   'notes-verify': { verify: true },

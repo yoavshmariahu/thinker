@@ -29,7 +29,9 @@ import { complete } from './llm.js';
 //   triage    ask a small model first whether a note bears on the change at all
 //   ensemble  (mode) the nocache call and the holistic call, findings of both
 //   verify    re-check every error and warning with a second call before reporting it
-export const DEFAULT_STRATEGY = { mode: 'per-note', related: true, callers: false, triage: false, triageModel: 'haiku', verify: false };
+//   chunks    for a change larger than one call can show: one call per chunk of files (at most this many), the
+//             files the notes rest on first; 0 or 1 is one call with the diff cut to fit
+export const DEFAULT_STRATEGY = { mode: 'per-note', related: true, callers: false, triage: false, triageModel: 'haiku', verify: false, chunks: 1 };
 
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const CODE_EXT = /\.(py|pyi|js|jsx|mjs|cjs|ts|tsx|mts|cts|go|rs|rb|java|kt|cs|php|c|h|cc|cpp|hpp|swift|scala|ex|exs|sh|bash|vue|svelte|sql|dart|lua|zig)$/i;
@@ -273,6 +275,41 @@ ${lines.map(l => `  ${l.path}:${l.line}: ${l.text.trim().slice(0, 160)}`).join('
   return out.join('\n\n');
 }
 
+// Every file in the change, with status and size: what the model needs to judge "X is not in this
+// change" when the hunks shown are not all of them.
+export function changeInventory(change, { max = 300 } = {}) {
+  const f = change.files;
+  return `FILES IN THE CHANGE (${f.length}): ${f.slice(0, max).map(x => `${x.path} (${x.status}${x.added || x.removed ? `, +${x.added} -${x.removed}` : ''})`).join(', ')}${f.length > max ? ` (+${f.length - max} more)` : ''}`;
+}
+
+// The diff within a character budget: the files in `priority` first, then the rest; says what was
+// left out rather than cutting a hunk mid-way. Returns {text, shown, total}.
+export function renderChange(change, { priority = new Set(), max = 16000 } = {}) {
+  const order = [...change.files.filter(f => priority.has(f.path)), ...change.files.filter(f => !priority.has(f.path))];
+  const parts = []; let used = 0, shown = 0;
+  for (const f of order) {
+    const t = renderFileDiff(f);
+    if (used + t.length > max) { if (!shown) { parts.push(t.slice(0, max)); shown++; } break; }
+    parts.push(t); used += t.length; shown++;
+  }
+  const left = order.slice(shown).map(f => f.path);
+  return { text: parts.join('\n') + (left.length ? `\n\n(diff truncated: ${shown} of ${order.length} files shown; also in this change, not shown: ${left.slice(0, 40).join(', ')}${left.length > 40 ? ` (+${left.length - 40} more)` : ''})` : ''), shown, total: order.length };
+}
+
+// The change split into chunks of files that fit a call each, priority files first; at most
+// `maxChunks`, the rest left to the inventory line.
+function chunkChange(change, { priority = new Set(), size = 24000, maxChunks = 3 } = {}) {
+  const order = [...change.files.filter(f => priority.has(f.path)), ...change.files.filter(f => !priority.has(f.path))];
+  const chunks = []; let cur = [], used = 0;
+  for (const f of order) {
+    const t = renderFileDiff(f);
+    if (cur.length && used + t.length > size) { chunks.push(cur); cur = []; used = 0; }
+    cur.push(f); used += t.length;
+  }
+  if (cur.length) chunks.push(cur);
+  return chunks.slice(0, maxChunks).map(files => ({ ...change, files, text: files.map(renderFileDiff).join('\n') }));
+}
+
 // The code after the change of every definition the change touched (for the nocache baseline).
 function changedCode(symbols, reader, { maxSymbols = 10, maxLines = 80 } = {}) {
   const parts = [];
@@ -401,8 +438,10 @@ export async function assessHolistic(store, notes, exposures, change, reader, { 
     if (!exposures.get(n.id).touched.some(t => depKey(t) === depKey(d)) || seen.has(depKey(d)) || code.length >= 12) continue;
     seen.add(depKey(d)); code.push(`--- ${ptr(d)} ---\n${codeOf(reader.after(d.path), d, 80)}`);
   }
-  const prompt = `NOTES FROM THE CACHE (each may be out of date; the code is the ground truth):\n\n${shown.join('\n\n')}\n\nTHE CHANGE:\n${change.text.slice(0, 16000) || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEPENDENCIES IT ALTERED:\n${code.join('\n\n').slice(0, 30000)}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
-  const system = SYSTEM.replace('against one note from a cache', 'against the notes from a cache').replace('Give one verdict:', 'For each finding name the note it rests on (or none). Report under `outdated` every note the code shows to be wrong, whether or not the change is at fault; such a note is not a finding against the change. The verdicts, per note, are:');
+  const priority = new Set(notes.flatMap(n => (n.deps || []).map(d => d.path)));
+  const diff = renderChange(change, { priority, max: 16000 });
+  const prompt = `NOTES FROM THE CACHE (each may be out of date; the code is the ground truth):\n\n${shown.join('\n\n')}\n\n${changeInventory(change)}\n\nTHE CHANGE:\n${diff.text || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEPENDENCIES IT ALTERED:\n${code.join('\n\n').slice(0, 30000)}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
+  const system = SYSTEM.replace('against one note from a cache', 'against the notes from a cache').replace('Give one verdict:', 'For each finding name the note it rests on (or none). Report under `outdated` every note the code shows to be wrong, whether or not the change is at fault; such a note is not a finding against the change. The list of files in the change is complete even where the diff shown is not: never report a file as missing from the change when it is in that list. The verdicts, per note, are:');
   const res = await complete({ system, prompt, model, maxTokens: 4000, accounting: { store, purpose: 'review', phase: 'review' }, schema: HOLISTIC_SCHEMA });
   const v = res.json || {};
   const outdated = (Array.isArray(v.outdated) ? v.outdated : []).filter(o => o && notes.some(n => n.id === o.id)).map(o => ({ id: o.id, reason: String(o.reason || '').trim(), correction: '' }));
@@ -412,8 +451,9 @@ export async function assessHolistic(store, notes, exposures, change, reader, { 
 
 // No notes: the diff and the code of what it touched, as any reviewer without the cache would see it.
 export async function assessNoCache(store, change, symbols, reader, { model, callers = '' } = {}) {
-  const system = `You review a code change for bugs: a wrong call order, a broken invariant visible in the code shown, a name or field that no longer exists, a condition inverted or dropped, a changed contract whose callers were not updated. Report each as a finding with the file and line after the change, the evidence quoted from the code or diff, and a confidence between 0 and 1. Report only what the code shown supports; prefer no finding over a speculative one. Everything you need is in this message: do not use tools or read files.`;
-  const prompt = `THE CHANGE:\n${change.text.slice(0, 16000) || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEFINITIONS IT TOUCHED:\n${changedCode(symbols, reader) || '(none)'}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
+  const system = `You review a code change for bugs: a wrong call order, a broken invariant visible in the code shown, a name or field that no longer exists, a condition inverted or dropped, a changed contract whose callers were not updated. The list of files in the change is complete even where the diff shown is not: never report a file as missing from the change when it is in that list. Report each as a finding with the file and line after the change, the evidence quoted from the code or diff, and a confidence between 0 and 1. Report only what the code shown supports; prefer no finding over a speculative one. Everything you need is in this message: do not use tools or read files.`;
+  const diff = renderChange(change, { priority: new Set(symbols.filter(s => s.changed.length).map(s => s.path)), max: 16000 });
+  const prompt = `${changeInventory(change)}\n\nTHE CHANGE:\n${diff.text || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEFINITIONS IT TOUCHED:\n${changedCode(symbols, reader) || '(none)'}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
   const res = await complete({ system, prompt, model, maxTokens: 4000, accounting: { store, purpose: 'review', phase: 'review' }, schema: NOCACHE_SCHEMA });
   const v = res.json || {};
   return { id: 'nocache', verdict: 'nocache', reason: String(v.summary || '').trim(), findings: shapeFindings(v.findings, change, reader, { category: 'bug' }), noteCorrection: '', cost: res.cost || 0, model: `${res.provider}/${res.model}` };
@@ -428,8 +468,8 @@ export async function verifyFinding(store, f, change, reader, { model } = {}) {
   const around = text && f.line ? text.split('\n').map((l, i) => `${i + 1}: ${l}`).slice(Math.max(0, f.line - 40), f.line + 40).join('\n').slice(0, 8000) : '(no code)';
   const res = await complete({ model, maxTokens: 600, accounting: { store, purpose: 'review-verify', phase: 'review' },
     schema: { type: 'object', properties: { real: { type: 'boolean' }, severity: { type: 'string', enum: ['error', 'warning', 'info'] }, reason: { type: 'string' } }, required: ['real', 'severity', 'reason'] },
-    system: 'You check one finding from a code review against the code. Confirm it (real=true) only when the code shown has the problem the finding describes; a finding that rests on a claim the code does not show, describes a pre-existing condition the change did not cause, or restates a comment rather than a defect is not real. Give the severity the code supports. Everything you need is in this message: do not use tools or read files.',
-    prompt: `FINDING (${f.severity}) at ${f.file}:${f.line}:\n${f.message}\nEvidence given: ${f.evidence || '(none)'}\n\nTHE CHANGE TO THAT FILE:\n${hunks}\n\nCODE AFTER THE CHANGE AROUND THE LINE:\n${around}` });
+    system: 'You check one finding from a code review against the code. Confirm it (real=true) only when the code shown has the problem the finding describes; a finding that rests on a claim the code does not show, describes a pre-existing condition the change did not cause, claims a file is missing from the change although the list of files in the change names it, or restates a comment rather than a defect is not real. Give the severity the code supports. Everything you need is in this message: do not use tools or read files.',
+    prompt: `FINDING (${f.severity}) at ${f.file}:${f.line}:\n${f.message}\nEvidence given: ${f.evidence || '(none)'}\n\n${changeInventory(change)}\n\nTHE CHANGE TO THAT FILE:\n${hunks}\n\nCODE AFTER THE CHANGE AROUND THE LINE:\n${around}` });
   const v = res.json || {};
   return { real: v.real !== false, severity: SEV[v.severity] !== undefined ? v.severity : f.severity, reason: String(v.reason || '').trim(), cost: res.cost || 0 };
 }
@@ -479,12 +519,17 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
   report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}` : 'shares identifiers with the change' }));
   if (!dry) {
     const results = [];
+    // a change too large for one call is taken in chunks of files, the files the notes rest on first
+    const priority = new Set(queue.flatMap(n => (n.deps || []).map(d => d.path)));
+    const pieces = (strat.chunks || 1) > 1 && change.text.length > 24000 ? chunkChange(change, { priority, maxChunks: strat.chunks }) : [change];
+    report.chunks = pieces.length;
+    const symbolsOf = piece => piece === change ? symbols : symbols.filter(s => piece.files.some(f => f.path === s.path));
     if (strat.mode === 'nocache' || strat.mode === 'ensemble') {
-      try { results.push(await assessNoCache(store, change, symbols, reader, { model: report.model, callers })); }
+      for (const piece of pieces) try { results.push(await assessNoCache(store, piece, symbolsOf(piece), reader, { model: report.model, callers })); }
       catch (e) { report.errors.push({ id: 'nocache', error: String(e.message || e).slice(0, 200) }); }
     }
     if (strat.mode === 'holistic' || strat.mode === 'ensemble') {
-      if (queue.length) try { results.push(await assessHolistic(store, queue, exposures, change, reader, { model: report.model, callers })); }
+      if (queue.length) for (const piece of pieces) try { results.push(await assessHolistic(store, queue, exposures, piece, reader, { model: report.model, callers })); }
       catch (e) { report.errors.push({ id: 'holistic', error: String(e.message || e).slice(0, 200) }); }
     } else {
       if (strat.triage) report.triage = [];

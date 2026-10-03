@@ -430,9 +430,36 @@ tool `review` is the same for an agent before it commits.
   that re-checks it. The deletions of a diff are mapped to the line that now
   follows them (`parseDiff`: `removedAt`), and a deletion sitting at a
   definition's first line is not a change of that definition.
+- Several notes often see the same problem at nearby lines of one function:
+  findings in the same file within eight lines become one
+  (`review.js:clusterFindings`), with the surest wording, the highest severity
+  and every note named.
+- Strategies (`review.js:DEFAULT_STRATEGY`; CLI `--mode per-note|holistic|nocache`,
+  `--no-related`, `--callers`, `--triage`, and `verify` in code): `holistic` is
+  one call with every consulted note, `nocache` is the same model with no
+  notes (the baseline), `ensemble` is both, `callers` adds one hop of callers
+  of the touched definitions by text search, `triage` asks a small model
+  whether a note bears on the change before the expensive call, `verify`
+  re-checks every error and warning with a second call and drops what is not
+  confirmed. Which is the default follows from the evaluation below.
+- Evaluation: `bench/review-eval.js run --repo <checkout> --cases <json>
+  --strategies a,b [--notes <noteset dir>] --out <dir>` reviews every case under
+  every strategy and `report` tabulates hits, false positives, findings per
+  review, cost and time. Cases (`bench/review-eval-cases*.json`): bugs planted
+  by one-line edits, real fixes reverted onto the base (only fixes that are
+  ancestors of the base apply; a fix merged after the base is already absent),
+  behaviour-preserving refactors and real commits as controls. A hit is an
+  error or warning within six lines of the bug; a hit resting on a note mined
+  from the very PR being reverted is marked (`fromFixNote`): the cache
+  remembering a fix, not reasoning about code. The harness pins
+  `THINKER_LLM=claude`: after one provider failure `llm.js` keeps the fallback
+  provider for the rest of the process, and a run labelled sonnet was otherwise
+  answered mostly by Gemini (kept under `bench/runs/review-eval/*-mixed-provider`,
+  not used). Each row records the provider and model that answered (`models`).
 - Fixed along the way: `deps.js:findSymbol` no longer reads an indented Python
   call (`validate(ctx)`) as a C-like method definition; the C-like alternative
-  is left out for indentation-based languages.
+  is left out for indentation-based languages. `llm.js:viaCli` retries at once
+  when `claude -p` stops with `tool_use` although no tool is offered.
 
 ## Supported agents
 
