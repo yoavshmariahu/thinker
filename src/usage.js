@@ -23,21 +23,33 @@ const MAX_FILES = 5;
 // 3.4 calls; PostHog: 1.1 min less over 31.6 fewer calls), so this too is an estimate.
 export const SECONDS_PER_READ = 4;
 
+// Deps that are not code a session would have read: the agents' own configuration, git's
+// internals, thinker's own state, and build or run output. Every note must anchor to an
+// existing file (ops.js:createNote), so a note about the permission classifier or about
+// duplicate hooks anchors to .claude/settings.local.json for want of anywhere better. Nobody
+// learns those rules by reading that file: what such a note saves is a wrong action, not a
+// read. This estimate only counts reading, so it counts them as nothing rather than crediting
+// a read no session would have made. The notes keep their anchors and are served as before.
+const NOT_READING = /^(\.claude|\.codex|\.cursor|\.gemini|\.vscode|\.idea|\.git|\.thinker|node_modules|dist|coverage)\/|^\.mcp\.json$|^bench\/runs\/|\.log$/;
+export const countsAsReading = f => !NOT_READING.test(String(f || ''));
+
 export function savingOf(repo, note) {
   let calls = 0, tokens = 0;
   for (const f of [...new Set((note?.deps || []).map(d => d.path).filter(Boolean))].slice(0, MAX_FILES)) {
+    if (!countsAsReading(f)) continue;
     try { const st = fs.statSync(path.join(repo, f)); if (!st.isFile()) continue; calls++; tokens += Math.min(Math.ceil(st.size / 3.6), FILE_CAP); } catch {}
   }
   return { calls, tokens };
 }
 
 export function cacheHitSavings(repo, notes) {
-  let calls = 0, tokens = 0;
+  let calls = 0, tokens = 0, uncounted = 0;
   const seenFiles = new Set();
   for (const n of notes || []) {
     for (const f of [...new Set((n?.deps || []).map(d => d.path).filter(Boolean))].slice(0, MAX_FILES)) {
       if (seenFiles.has(f)) continue;
       seenFiles.add(f);
+      if (!countsAsReading(f)) { uncounted++; continue; }
       try {
         const st = fs.statSync(path.join(repo, f));
         if (!st.isFile()) continue;
@@ -46,12 +58,14 @@ export function cacheHitSavings(repo, notes) {
       } catch {}
     }
   }
-  if (!tokens && notes?.length) {
+  // A note whose files are not on disk still stands for at least one read. A note anchored
+  // only to configuration stands for none, so the floor is not given to it: the answer is
+  // nothing counted, not a guess from the note's own length.
+  if (!tokens && !uncounted && notes?.length) {
     tokens = notes.reduce((sum, n) => sum + Math.max(Math.ceil((n.body || '').length / 3.6) * 4, 300), 0);
   }
-  // a note whose files are not on disk still stands for at least one read
-  const seconds = Math.max(calls, notes?.length ? 1 : 0) * SECONDS_PER_READ;
-  return { calls, tokens, seconds };
+  const seconds = Math.max(calls, tokens ? 1 : 0) * SECONDS_PER_READ;
+  return { calls, tokens, uncounted, seconds };
 }
 
 export function formatTokens(n) {
@@ -75,8 +89,12 @@ export function turnNotice(repo, notes) {
   const hits = (notes || []).length;
   if (!hits) return '';
   const { calls, tokens } = cacheHitSavings(repo, notes);
+  const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} this turn`;
+  // Notes that rest only on configuration point at no code to read: say how many there were
+  // and stop, rather than print `~0 tokens of code` or a figure the note's length invented.
+  if (!tokens) return `🧠 thinker: ${noun}`;
   const files = calls ? `${calls} ${calls === 1 ? 'file' : 'files'}, ` : '';
-  return `🧠 thinker: ${hits} ${hits === 1 ? 'note' : 'notes'} this turn (pointing at ${files}~${formatTokens(tokens)} tokens of code)`;
+  return `🧠 thinker: ${noun} (pointing at ${files}~${formatTokens(tokens)} tokens of code)`;
 }
 
 

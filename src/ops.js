@@ -22,7 +22,16 @@ function normPath(repo, p) {
   return r.replace(/:\d+(:\d+)?$/, '');
 }
 
-// Resolve user/agent-provided deps: normalize paths, drop nonexistent files,
+// Output of a build or of a run: it is rewritten or removed by the next one, so a note anchored
+// to it is stale or orphaned within the day and says nothing about the code either way. One
+// served note here rested on nothing but a 223-byte benchmark log that git ignores. thinker's own
+// state is excluded for the same reason. The agents' configuration (.claude/, .codex/, .cursor/,
+// .gemini/, .mcp.json) is NOT: a note about hooks or about the permission classifier has nowhere
+// better to rest, and those notes are worth keeping. They are excluded from the saving estimate
+// instead (usage.js:countsAsReading), not from the cache.
+const TRANSIENT = /(^|\/)(node_modules|dist|coverage|\.next|__pycache__)\/|^bench\/runs\/|^\.thinker\/|\.log$|\.tmp$/;
+
+// Resolve user/agent-provided deps: normalize paths, drop nonexistent files and build output,
 // downgrade unknown symbols to file-level deps. Returns {deps, dropped}.
 export function resolveDeps(repo, deps) {
   const out = [], dropped = [];
@@ -31,6 +40,7 @@ export function resolveDeps(repo, deps) {
     const p = normPath(repo, d.path);
     const abs = p && repoFile(repo, p);
     if (!abs || !fs.existsSync(abs) || fs.statSync(abs).isDirectory()) { dropped.push({ ...d, reason: 'outside repository, symlinked outside, or no such file' }); continue; }
+    if (TRANSIENT.test(p)) { dropped.push({ ...d, reason: 'build or run output; point at the code that produces it' }); continue; }
     const key = p + '|' + (d.symbol || '');
     if (seen.has(key)) continue;
     seen.add(key);

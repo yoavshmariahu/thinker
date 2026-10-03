@@ -149,6 +149,33 @@ was seen to act on (`confirmed`), as one read per file the note rests on (at
 most 5) at the file's size (at most 6,000 tokens). It is not a measurement;
 measured effects are in `bench/RESULTS.md`.
 
+A dep that is not code a session would have read counts as nothing
+(`usage.js:countsAsReading`): the agents' own configuration (`.claude/`,
+`.codex/`, `.cursor/`, `.gemini/`, `.mcp.json`), git's internals, `.thinker/`
+itself, and build or run output. Every note must rest on an existing file
+(`ops.js:createNote`), so a note about the permission classifier or about
+duplicate hooks rests on `.claude/settings.local.json` for want of anywhere
+better; what it saves is a wrong action, not a read, and crediting it with the
+size of that file made the turn notice claim reading nobody would have done.
+Such notes keep their anchors and are ranked and served exactly as before —
+only the estimate ignores them, and `cacheHitSavings` reports how many deps it
+passed over as `uncounted`. The floor that gives a note whose files are missing
+one read's worth is not applied when every dep was passed over this way, and
+the turn notice then names the notes and stops rather than printing `~0 tokens
+of code`. On this repository 29 of 754 deps stopped counting. The limit is that
+nothing distinguishes a note *about* a file from a note about the behaviour
+around it: a gotcha resting on a real 525-token script still counts as that
+script's size.
+
+Build and run output is refused as an anchor outright
+(`ops.js:TRANSIENT`: `node_modules/`, `dist/`, `coverage/`, `.next/`,
+`__pycache__/`, `bench/runs/`, `.thinker/`, `*.log`, `*.tmp`), since the next
+run rewrites or removes it. One served note here rested on nothing but a
+223-byte benchmark log that git ignores. The check is at creation only, so
+notes already stored keep their deps; a note left with no other anchor is
+refused with `no resolvable dependencies`. Agent configuration is deliberately
+not refused — those notes are worth keeping.
+
 Model work is also logged as `op: "model"`, with `purpose`, `phase` (init / learning /
 maintenance), provider, resolved model, raw usage, normalized token counters and
 reported cost. Input totals include provider cache reads and writes; these are separate
