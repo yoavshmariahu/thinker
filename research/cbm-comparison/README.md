@@ -111,3 +111,32 @@ our tooling."
 - click is 27k lines of Python; `find`'s 5 s on PostHog is the cost to watch on large checkouts.
 - The PostHog pull-request comparison (`bench/cbm-pr-compare.js`, thinker vs cbm, Fable judge) is
   in `bench/runs/posthog-thinker-vs-cbm`; see the section below once complete.
+
+## PostHog pull-request tasks (thinker v2 vs cbm)
+
+`bench/cbm-pr-compare.js`: the three `posthog-hard` tasks of the Qartez study (symptom-only
+prompts, base `a3b3c36`), Sonnet with edit tools, 60-turn cap, one run per task and arm, patches
+graded by Fable on the calibrated acceptance criteria (`bench/judge-protocol.js`). thinker served
+the frozen `posthog-v2` noteset (259 notes) with `find` and whole-definition `drilldown`; cbm had its
+graph of the base (736k nodes, indexed in 229 s). Run: `bench/runs/posthog-thinker-vs-cbm`.
+
+| task | arm | turns | calls | MCP | Reads | shell | edits | cost $ | essential met | all met |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| PR106936 invite validation | thinker | 61 (cap) | 64 | 12 | 14 | 19 | 14 | 2.56 | 4/8 (50%) | 44% |
+| | cbm | 61 (cap) | 63 | 1 | 20 | 23 | 19 | 2.57 | 5/6 (83%) | 67% |
+| PR106672 metric uuids | thinker | 39 | 38 | 6 | 12 | 14 | 5 | 1.28 | 5/7 (71%) | 75% |
+| | cbm | 53 | 52 | 6 | 20 | 21 | 4 | 1.73 | 5/7 (71%) | 75% |
+| PR106522 sandbox errors | thinker | 59 | 57 | 13 | 12 | 23 | 7 | 1.94 | 2/5 (40%) | 29% |
+| | cbm | 61 (cap) | 67 | 20 | 12 | 26 | 8 | 2.04 | 3/5 (60%) | 43% |
+
+No run passed every criterion. cbm met more essential criteria on two tasks and the same on the
+third; thinker was cheaper on all three ($5.78 vs $6.34 in all) and 14 turns shorter on PR106672.
+Three of the six runs ended at the turn cap, so their patches are what was on disk when the cap hit.
+On PR106936 the cbm agent called its graph once and otherwise read and grepped (1 MCP call, 20
+Reads), so the 83% vs 50% there is not an effect of the graph; on PR106672 both arms met and missed
+the same criteria (c1, c7). The thinker agent used `find` 2 to 5 times and `drilldown` 1 to 4
+times a task alongside 12 to 14 Reads and 14 to 23 shell calls: on a 44k-file repository the new
+tools are part of its exploration, not a replacement for it as on click. With one run per cell and
+Sonnet at the cap, these three pairs say the two are in the same range on change tasks and that
+neither tool shortens the design and editing work that dominates them (see `bench/RESULTS.md`,
+PostHog symptom tasks); they do not rank the two.
