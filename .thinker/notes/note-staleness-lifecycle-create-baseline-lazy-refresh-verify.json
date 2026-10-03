@@ -129,13 +129,33 @@
   "verifiedCommit": null,
   "confidence": 0.85,
   "status": "stale",
-  "uses": 0,
+  "uses": 1,
   "stale": {
     "since": "2026-09-27T10:33:53.463Z",
     "changed": [
       {
         "path": "src/ops.js",
+        "symbol": "refresh",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "src/ops.js",
+        "symbol": "verifyNote",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "src/ops.js",
         "symbol": "createNote",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "src/deps.js",
+        "symbol": "checkNote",
+        "reason": "symbol body changed"
+      },
+      {
+        "path": "src/deps.js",
+        "symbol": "hashDep",
         "reason": "symbol body changed"
       },
       {
@@ -158,6 +178,11 @@
         "reason": "symbol body changed"
       },
       {
+        "path": "src/store.js",
+        "symbol": "Store.put",
+        "reason": "symbol body changed"
+      },
+      {
         "path": "src/ops.js",
         "symbol": "orient",
         "reason": "symbol body changed"
@@ -166,7 +191,17 @@
         "path": "src/ops.js",
         "symbol": "lookup",
         "reason": "symbol body changed"
+      },
+      {
+        "path": "src/deps.js",
+        "symbol": "symbolText",
+        "reason": "symbol body changed"
       }
     ]
-  }
+  },
+  "lastUsed": "2026-10-03T07:03:14.379Z",
+  "servedIn": [
+    "5888f66d-1c1e-4e02-9d4f-1f1ea507bef1"
+  ],
+  "verifying": "2026-10-03T07:03:14.380Z"
 }

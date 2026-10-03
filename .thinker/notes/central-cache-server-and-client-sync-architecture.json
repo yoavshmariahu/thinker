@@ -1,0 +1,96 @@
+{
+  "id": "central-cache-server-and-client-sync-architecture",
+  "title": "Central cache server and client sync architecture",
+  "kind": "overview",
+  "answers": [
+    "How does thinker sync work end to end?",
+    "Where is the sync server code?",
+    "How do agent sessions get streamed to the central cache?",
+    "Where is the GitHub Action for PR ingestion?",
+    "How does deployment of the sync server work?"
+  ],
+  "body": "Server lives in `src/server/` (bin `thinker-server`): `index.js` is the HTTP API (notes pull by cursor, note push with conflict detection, session streaming, PR ingest, repos/tokens); `repos.js` holds one `Store` + git clone + numbered change journal per repository; `worker.js` runs background distill/maintain on a daily spend cap; `auth.js` hashes tokens and scopes them by repo and read/write/admin. Client side is `src/sync.js` (`thinker sync login/pull/push`, stream session) wired into `src/cli.js` (`sync` subcommand, prompt-hook background pull every 5min, stop-hook streams session instead of local distill) and `src/maintain.js` (pulls/pushes each maintenance run; disables local PR mining once synced). CI ingestion is `action/ingest.mjs` + `action/action.yml`, posting PR diff/comments to the server; `src/prs.js` reads comments from the payload when CI supplies them instead of calling `gh`. Deployment is `infra/sync/{stack.yaml,deploy.mjs,bootstrap.sh,production.json}` — CloudFormation + EC2 (t4g.small, Caddy, SSM) — never auto-run by the agent.",
+  "tags": [
+    "sync",
+    "server",
+    "architecture",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "src/server/index.js",
+      "hash": "sha256:672ac4eb7415f5e38833b7b1",
+      "missing": false
+    },
+    {
+      "path": "src/server/repos.js",
+      "hash": "sha256:f9e8e9be75f934400f8f5181",
+      "missing": false
+    },
+    {
+      "path": "src/server/worker.js",
+      "hash": "sha256:e0c146d924370fab22f1e694",
+      "missing": false
+    },
+    {
+      "path": "src/server/auth.js",
+      "hash": "sha256:444d521bd8202787cfc5b8df",
+      "missing": false
+    },
+    {
+      "path": "src/sync.js",
+      "hash": "sha256:63fd2f7b501e9f30cf6af13f",
+      "missing": false
+    },
+    {
+      "path": "src/cli.js",
+      "hash": "sha256:d3ed7845afd75c7a31ecc30a",
+      "missing": false
+    },
+    {
+      "path": "src/maintain.js",
+      "hash": "sha256:33479ed5f86dbc3b3f023943",
+      "missing": false
+    },
+    {
+      "path": "src/prs.js",
+      "hash": "sha256:7ee142f92f00db73f4b2e693",
+      "missing": false
+    },
+    {
+      "path": "action/ingest.mjs",
+      "hash": "sha256:500aaec5c9fe8cd13023acdb",
+      "missing": false
+    },
+    {
+      "path": "action/action.yml",
+      "hash": "sha256:380b517fc4737a37d9b6e81b",
+      "missing": false
+    },
+    {
+      "path": "infra/sync/deploy.mjs",
+      "hash": "sha256:0828c0eb86e28d64da8f903b",
+      "missing": false
+    },
+    {
+      "path": "infra/sync/stack.yaml",
+      "hash": "sha256:967a9905b27416dc4326260d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "5888f66d-1c1e-4e02-9d4f-1f1ea507bef1"
+  },
+  "created": "2026-10-03T06:37:50.164Z",
+  "verified": "2026-10-03T07:03:50.848Z",
+  "verifiedCommit": "a35ec3bfc80df76bd1bf41b5d2fa0eeaf2cceb32",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 1,
+  "related": [],
+  "lastUsed": "2026-10-03T07:03:14.379Z",
+  "servedIn": [
+    "5888f66d-1c1e-4e02-9d4f-1f1ea507bef1"
+  ]
+}

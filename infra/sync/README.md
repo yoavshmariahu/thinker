@@ -33,6 +33,27 @@ with `GET https://sync.zerotime.dev/health`.
   checkouts then keep distilling locally (`sync status` says which). Without a clone
   it stores what clients push but cannot anchor new notes, so sessions wait.
 
+## Running it locally in a container
+
+`infra/sync/Dockerfile` builds the same server (Node 22 on Alpine, git for the
+clones). Data lives in the `/data` volume. From the repository root:
+
+```sh
+docker build -f infra/sync/Dockerfile -t thinker-sync-server .
+docker run -d --name thinker-sync-server -p 127.0.0.1:8787:8787 -v thinker-sync-data:/data \
+  -e THINKER_SERVER_ADMIN_TOKEN=tk_... -e ANTHROPIC_API_KEY=sk-ant-... thinker-sync-server
+curl -s http://127.0.0.1:8787/health
+```
+
+Then register a repository and mint a token through the API with the admin
+token, or with the server's CLI inside the container
+(`docker exec thinker-sync-server node src/server/cli.js repo add github.com/owner/repo`,
+`... token create team`), and in a checkout: `thinker sync login http://127.0.0.1:8787 --token <t>`.
+A repository the container cannot reach over the network can be mounted and
+registered with a `file://` clone url. For an end-to-end run without a model key,
+`-e THINKER_LLM_CMD='node /srv/mock-llm.mjs' -v $PWD/test/fixtures/mock-llm.mjs:/srv/mock-llm.mjs:ro`
+answers every model call with fixed notes.
+
 ## Operating
 
 ```sh

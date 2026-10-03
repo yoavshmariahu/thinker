@@ -68,9 +68,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --ref commit (default HEAD); --pre-push reads git stdin
   export [file.tgz]              pack this repo's cache for delivery
   import <file.tgz|url>          unpack a delivered cache and check it against this checkout
-  sync login <url> --token <t> [--repo id]
+  sync login <url> --token <t> [--as github.com/owner/repo]
                                  sync this checkout with the team's central cache (thinker-server);
-                                 the url goes in .thinker/config.json, the token in ~/.thinker/sync.json
+                                 the url goes in .thinker/config.json, the token in ~/.thinker/sync.json;
+                                 --as names the repository when it is not the GitHub origin
   sync [--pull] [--push] [--sessions] [--dry] [--all]
                                  one round now (default pull and push; hooks and maintenance do this
                                  by themselves); --all pushes unconfirmed notes too
@@ -400,7 +401,7 @@ async function main() {
       break;
     }
     case 'sync': {
-      if (pos[0] === 'login') { const c = syncLogin(store, { url: pos[1] || flags.url, token: typeof flags.token === 'string' ? flags.token : undefined, repo: typeof flags.repo === 'string' ? flags.repo : undefined }); out(c ? `syncing ${c.repo} with ${c.url}` : 'url saved; a token is still needed: thinker sync login <url> --token <t>'); if (c) { const r = await syncNotes(store, c); out(`pulled ${r.pulled}, pushed ${r.pushed}${r.distills ? '' : '; the server cannot distill this repository yet (no checkout or model there)'}`); } break; }
+      if (pos[0] === 'login') { const c = syncLogin(store, { url: pos[1] || flags.url, token: typeof flags.token === 'string' ? flags.token : undefined, repo: typeof flags.as === 'string' ? flags.as : undefined }); out(c ? `syncing ${c.repo} with ${c.url}` : 'url saved; a token is still needed: thinker sync login <url> --token <t>'); if (c) { const r = await syncNotes(store, c); out(`pulled ${r.pulled}, pushed ${r.pushed}${r.distills ? '' : '; the server cannot distill this repository yet (no checkout or model there)'}`); } break; }
       if (pos[0] === 'logout') { syncLogout(store); out('sync switched off for this checkout'); break; }
       if (pos[0] === 'status') { out(renderSyncStatus(await syncStatus(store))); break; }
       const cfg = syncConfig(store);

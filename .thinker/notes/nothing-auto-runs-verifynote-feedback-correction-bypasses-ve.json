@@ -49,6 +49,11 @@
     "since": "2026-09-27T10:33:53.467Z",
     "changed": [
       {
+        "path": "src/ops.js",
+        "symbol": "verifyNote",
+        "reason": "symbol body changed"
+      },
+      {
         "path": "src/cli.js",
         "reason": "file changed"
       }
