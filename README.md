@@ -131,6 +131,53 @@ local cache; tracked notes stay shared. No tracked file is rewritten by migratio
 `thinker import` loads an archive locally, with updates to shared IDs kept as
 pending corrections. Review archives before distributing them.
 
+## Review a change against the cache
+
+```bash
+thinker review                      # the working tree against HEAD
+thinker review --staged             # what is about to be committed
+thinker review --base origin/main   # the branch since its merge base
+thinker review --ref <commit>       # one commit, read from git alone
+thinker review --state src/auth/    # no change: the current code against the notes on it
+```
+
+A review finds the notes resting on the changed code, and the notes that bear
+on it by the identifiers it writes (a convention written against other files,
+say). Each is checked by a model against the change and the code after it, and
+every finding carries a file, a line, the evidence it rests on and the note it
+came from:
+
+```
+thinker review: working tree against HEAD, 2 files; 3 notes consulted (2 on the changed code, 1 related), 3 assessed with sonnet ($0.31)
+
+Findings: 1 error, 1 warning, 0 info
+  error    src/core.py:5  Command.invoke no longer calls validate(ctx); main dereferences ctx  [note validate-before-main, 90%]
+           evidence: -        validate(ctx) | return self.main(ctx)
+  warning  src/core.py  src/cli.py changed together with src/core.py in 80% of its commits (n=12) and is not in this change  [git history]
+
+Cache state:
+  - 1 consulted note was already stale before this change (its claims were weighed accordingly): cli-and-core-change-together (src/cli.py:entry: symbol body changed)
+  - re-check it: thinker verify cli-and-core-change-together
+  - no cached knowledge rests on: src/new_module.py; the review is blind there beyond git history
+```
+
+The cache is treated as evidence, not truth. Before anything is assessed, each
+consulted note is re-hashed against the code **before** the change: a note that
+already disagreed with the code is reported as drift of the cache, the model is
+told so, and a note the model finds wrong comes back as `note_outdated` instead
+of a finding against the change. Two checks need no model and run even when no
+provider is available or with `--dry`: a file that the git history says changes
+along with a changed file and is missing from the change, and a definition the
+change removes that the rest of the checkout still refers to. Nothing in the
+cache is rewritten by a review; the change under review may never be merged.
+
+`--max n` caps the notes assessed (default 12, the ones on the changed code
+first), `--model` picks the model (`reviewModel` in `.thinker/config.json`,
+default `sonnet`; about $0.10 a note through Claude Code's CLI, less through
+`ANTHROPIC_API_KEY`), `--json` gives the report as data, and `--strict` exits 2
+on an error-severity finding, for CI. Agents have the same review as the MCP
+tool `review`, for a check before they commit.
+
 ## Cache cost and savings
 
 Run `thinker usage --here` to compare this repository's cache spending with its

@@ -60,6 +60,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
+| `src/review.js` | `thinker review` and the MCP `review` tool: a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; co-change partners missing from the change, removed symbols still referenced |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
@@ -383,6 +384,55 @@ queries; `0,0` turns them off).
   both effective caches and imports through the local store without touching shared files.
 - Benchmark arm `live` runs the whole loop: the cache grows and
   self-corrects between tasks (`bench/RESULTS.md`, "Live loop").
+
+## Reviewing a change against the cache
+
+`thinker review` (`review.js`) turns the cache around: instead of serving notes
+to an agent about to make a change, it checks a change against them. The MCP
+tool `review` is the same for an agent before it commits.
+
+- **Scope** (`review.js:resolveScope`): the working tree against HEAD (default,
+  untracked code files included as additions), the index (`--staged`), the
+  branch since its merge base (`--base ref`), one commit (`--ref`, read from
+  git alone), or `--state`: no change, the current code of the given paths
+  against the notes resting on it. One reader per scope (`makeReader`) gives
+  the text of a file before and after, so a review of a commit never looks at
+  the working tree. `.thinker/` is never part of the change.
+- **Exposure** (`noteExposure`): each dep of a note is hashed on both sides with
+  `deps.js:hashText`. A dep whose hash differs between the sides is `touched`
+  by the change; a dep whose stored hash already differs from the code
+  *before* the change is `staleBefore`: drift of the cache, reported under
+  "Cache state" and said to the model, never charged to the change. Notes with
+  a touched dep are `direct`; up to six more are `related` by BM25 over the
+  changed paths, the definitions touched (`changedSymbols`, by
+  `codegraph.js:outlineText` on either side's text) and the most frequent
+  identifiers in the added lines, needing two discriminative terms on the
+  question side or three on the body side. Rules and traps weigh more than
+  maps (`KIND_WEIGHT`).
+- **Without a model** (`deterministicFindings`): a co-change partner (confidence
+  ≥ 0.5, support ≥ 3) of a changed file that exists and is not in the change;
+  a definition the change removes that is defined nowhere else and still
+  referenced (`codegraph.js:references`; working tree and index only, since a
+  commit cannot be grepped; a method's name is a warning, a top-level name an
+  error).
+- **With a model** (`assessNote`, one call per note, up to `--max`, four at a
+  time): the note with its cache state, the diff of the files it rests on (the
+  whole diff for a related note), and the code after the change behind each
+  dep. The verdict is `violation` (findings with file, line, evidence and
+  confidence), `note_outdated` (with a corrected body, reported, not applied),
+  `consistent` or `unrelated`. Findings under 0.5 confidence are dropped;
+  `category` is `violation` for a finding under a violation verdict, `bug`
+  otherwise. The model is `reviewModel` in config, else `sonnet`; accounted as
+  `purpose: review`, `phase: review`. Measured once on this repository through
+  Claude Code's CLI: about $0.12 a note.
+- **Nothing is written** to the cache by a review except the `review` log line;
+  a note found outdated or stale is listed with the `thinker verify` command
+  that re-checks it. The deletions of a diff are mapped to the line that now
+  follows them (`parseDiff`: `removedAt`), and a deletion sitting at a
+  definition's first line is not a change of that definition.
+- Fixed along the way: `deps.js:findSymbol` no longer reads an indented Python
+  call (`validate(ctx)`) as a C-like method definition; the C-like alternative
+  is left out for indentation-based languages.
 
 ## Supported agents
 

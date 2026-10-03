@@ -76,7 +76,7 @@ export function fanout(repo, dep) {
     if (c?.length) return { files: new Set(c.map(x => x.path || x.qn.split('.').slice(0, -1).join('.'))).size, sites: c.length, refs: c.length, callers: true };
   }
   const name = dep.symbol.split('.').pop();
-  if (name.length < 4 || COMMON.has(name)) return null;
+  if (!countable(name)) return null;
   const r = references(repo, name, { file: dep.path, limit: 2000 });
   if (!r) return null;
   const refs = r.lines.filter(l => !l.def && !(l.path === dep.path && l.import));
@@ -167,9 +167,16 @@ export function findDefinitions(repo, name, { limit = 10 } = {}) {
 export function outline(repo, file, { limit = 80 } = {}) {
   const abs = repoFile(repo, file); if (!abs) return null;
   let text; try { text = fs.readFileSync(abs, 'utf8'); } catch { return null; }
-  if (astReady(file)) { const d = definitions(text, file); if (d) return d.slice(0, limit).map(x => ({ name: x.name, parent: x.parent, kind: x.kind, line: x.start + 1, end: x.end })); }
+  if (astReady(file)) { const d = outlineText(text, file, { limit }); if (d) return d; }
   const g = graph(repo);
   if (g && g !== 'git') { const o = cbmOutline(g, file, { limit }); if (o?.length) return o; }
+  return outlineText(text, file, { limit });
+}
+
+// The same over a text that is not (or not yet) in the working tree: the parser when loaded for
+// the file's language, else the regex. `end` (inclusive, 1-based) is only known from the parser.
+export function outlineText(text, file, { limit = 80 } = {}) {
+  if (astReady(file)) { const d = definitions(text, file); if (d) return d.slice(0, limit).map(x => ({ name: x.name, parent: x.parent, kind: x.kind, line: x.start + 1, end: x.end })); }
   const out = []; const lines = text.split('\n');
   const re = new RegExp(`^(\\s*)(?:export\\s+(?:default\\s+)?)?(?:pub(?:\\([^)]*\\))?\\s+)?(?:async\\s+)?(?:(${DEF_WORDS})\\s+([A-Za-z_]\\w*)|(?:const|let|var)\\s+([A-Za-z_]\\w*)\\s*[=:]\\s*(?:async\\s*)?(?:\\([^)]*\\)\\s*=>|function\\b|class\\b)|func\\s*\\([^)]*\\)\\s*([A-Za-z_]\\w*)\\s*\\()`);
   const parents = []; // [{name, indent}] for Python-style nesting
@@ -182,3 +189,6 @@ export function outline(repo, file, { limit = 80 } = {}) {
   }
   return out;
 }
+
+// Whether a name is worth counting references of: short or very common ones hit too much to mean anything.
+export function countable(name) { return typeof name === 'string' && name.length >= 4 && !COMMON.has(name); }
