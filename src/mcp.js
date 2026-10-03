@@ -5,7 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import fs from 'node:fs';
 import { Store, findRepoRoot } from './store.js';
-import { orient, lookup, drilldown, createNote, feedback, snippetsOn, KINDS } from './ops.js';
+import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS } from './ops.js';
 import { initAst } from './ast.js';
 import { CACHE_USAGE_GUIDE, CACHE_LEARNING_GUIDE, MORE_NOTES_INTRO } from './cache-guidance.js';
 
@@ -60,15 +60,28 @@ register('lookup', {
   return text(r.text);
 });
 
-register('drilldown', {
-  title: 'Drill into one code pointer',
-  description: 'Takes one pointer as orient and lookup print them (path:Symbol, path:Symbol:L12), a path, or a bare symbol name. Returns the definition with its exact lines, one hop of callers and callees, and the cached notes resting on it. Use it instead of reading the whole file and grepping for the name; a path alone lists what the file defines.',
+register('find', {
+  title: 'Find where something is defined',
+  description: 'Lists the definitions whose name or body carry the words you give (an identifier, or what the code would call the thing), as path:Symbol:L12 pointers with their size and blast radius, plus the cached notes on them. Use it instead of grepping for a word and reading around each hit; then drilldown the pointers you need. For what the notes say, use lookup.',
   inputSchema: {
-    pointer: z.string().describe('path:Symbol, path, or Symbol'),
-    budget: z.number().int().min(300).max(8000).optional().describe('Max tokens to return (default 1500); the code gets about two thirds of it.'),
+    query: z.string().describe('Words the code would use (e.g. "flag default parser", "invite existing member"), or one identifier.'),
+    path: z.string().optional().describe('Keep only paths containing this (e.g. "src/click", "api/"), or a glob (e.g. "**/*.py").'),
+    limit: z.number().int().min(1).max(40).optional().describe('How many definitions to list (default 12).'),
+  },
+}, async ({ query, path, limit }) => {
+  const r = find(store, { query, path, limit: limit || 12, client: 'mcp' });
+  return text(r.error ? r.error : r.text);
+});
+
+register('drilldown', {
+  title: 'Read one or more definitions by pointer',
+  description: 'Takes pointers as orient, lookup and find print them (path:Symbol, path:Symbol:L12), a path, or a bare symbol name; several at once, separated by commas. Returns each definition whole with its exact lines (a long class as its head and the outline of its members), for a single pointer also one hop of callers and callees, and the cached notes resting on the code. Use it instead of reading the file and grepping for the name; a path alone lists what the file defines.',
+  inputSchema: {
+    pointer: z.string().describe('path:Symbol, path, or Symbol; several separated by commas or spaces'),
+    budget: z.number().int().min(300).max(12000).optional().describe('Max tokens to return (default 2500); the code gets most of it. Raise it for a long definition.'),
   },
 }, async ({ pointer, budget }) => {
-  const r = drilldown(store, { pointer, client: 'mcp', budget: budget || 1500 });
+  const r = drilldown(store, { pointer, client: 'mcp', budget: budget || 2500 });
   return text(r.error ? r.error : r.text);
 });
 

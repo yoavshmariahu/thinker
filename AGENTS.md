@@ -42,7 +42,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | path | contents |
 |---|---|
 | `src/cli.js` | `thinker` command: `setup`, `init`, `distill`, `orient`, `lookup`, `check`, `verify`, `cochange`, `serve`, ... |
-| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `drilldown`, `remember`, `feedback` |
+| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
 | `src/setup.js` | the guided `setup` flow: agent selection and login check, cache build with estimates, optional PR benchmark |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI and Cursor: config files and hook formats |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
@@ -50,7 +50,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
 | `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust) when its grammars are installed (`thinker ast install`); `deps.js` falls back to regex heuristics |
-| `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines; behind `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
+| `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines, and `findSymbols` (the definitions carrying the words of a query); behind `find`, `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
 | `src/cbm.js`, `src/cbm-worker.js` | codebase-memory-mcp as the code-graph engine: install, index, and a synchronous bridge to the binary run as a child MCP server (`thinker cbm`) |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
@@ -254,7 +254,7 @@ queries; `0,0` turns them off).
 ## Serving
 
 - MCP server (`thinker serve`, registered in `.mcp.json` by `thinker init`)
-  with tools `orient(task, file?, budget?)`, `lookup(query)`, `drilldown(pointer)`,
+  with tools `orient(task, file?, budget?)`, `lookup(query)`, `find(query, path?)`, `drilldown(pointer)`,
   `remember(...)`, `feedback(id, useful, correction?)`.
 - Code behind the pointers: the MCP `orient` and `lookup` end with the
   definitions the served notes point at (`ops.js:codeSnippets`: up to two per
@@ -264,11 +264,29 @@ queries; `0,0` turns them off).
   or `snippets: false` in `.thinker/config.json` turns them off. Measured
   against Qartez on click, the agent spent its advantage on reading whole
   files after orienting; this is what the snippets are for.
-- `drilldown(pointer)` takes one `path:Symbol` (or a path, or a bare name,
-  resolved through the notes' pointers and then the code) and returns the
-  definition with its lines, one hop of callers (every reference, calls
-  first) and callees (names the body calls that are defined in the
-  repository), and the notes resting on that symbol or file
+- `find(query, path?, limit?)` answers "where is this defined / handled" when
+  no note does: the definitions whose name or body carry the words of the
+  query (`codegraph.js:findSymbols`), as `path:Symbol:L12` pointers with their
+  size and, for the first three, blast radius, plus the notes resting on them.
+  One `git grep -c -F -i` for the words over the source files (a second or
+  two on PostHog), the lines of the 50 files with most mentions attributed to
+  the enclosing definition through `outline` (parser, graph, or regex), and the
+  graph's name search added when the checkout is indexed. A word in the name
+  outweighs one in the body, which outweighs one in the path; words on many
+  lines weigh less; a definition covering more of the words comes first; tests
+  are scaled down; bodies over 1,500 lines are dropped. Scoring is heuristic,
+  not BM25 over source. Measured against codebase-memory-mcp on click, the
+  agent used that server's `search_graph` and `get_code_snippet` where thinker
+  left it grepping and reading file ranges; `find` and the whole-definition
+  `drilldown` below are what that showed thinker lacked.
+- `drilldown(pointer)` takes `path:Symbol` pointers (or a path, or a bare name,
+  resolved through the notes' pointers and then the code), several at once
+  separated by commas, and returns each definition whole with its lines (the
+  default budget of 2,500 tokens holds about 150 lines; a class that does not
+  fit is shown as its head and the outline of its members), for a single
+  pointer one hop of callers (every reference, calls first) and callees
+  (names the body calls that are defined in the repository), and the notes
+  resting on that symbol or file
   (`ops.js:drilldown`, `codegraph.js`). Two engines answer, chosen per call
   by `cbm.js:codegraphEngine`: the code graph of codebase-memory-mcp when
   the checkout is indexed (below), else `git grep` over the language family
