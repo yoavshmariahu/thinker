@@ -226,7 +226,7 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
 }
 
 // Findings that need no model. From git history: a file that usually changes with a changed file
-// and is not in the change. From the checkout: a definition the change removed that is still
+// and is not in the change (a hint, so `info`: legitimate changes leave partners alone all the time). From the checkout: a definition the change removed that is still
 // referred to (working tree and index only; a commit's references cannot be grepped).
 export function deterministicFindings(repo, change, symbols, reader, { cochange = loadCochange(repo), minConf = 0.5, minSupport = 3 } = {}) {
   const findings = [];
@@ -236,7 +236,7 @@ export function deterministicFindings(repo, change, symbols, reader, { cochange 
     if (f.status === 'D') continue;
     for (const p of partners(cochange, f.path, { minSupport, minConf, limit: 6 })) {
       if (changed.has(p.file) || reader.after(p.file) === null) continue;
-      findings.push({ severity: p.conf >= 0.75 ? 'warning' : 'info', category: 'cochange', file: f.path, line: 0, message: `${p.file} changed together with ${f.path} in ${Math.round(p.conf * 100)}% of its commits (n=${p.support}) and is not in this change`, basis: 'git history' });
+      findings.push({ severity: 'info', category: 'cochange', file: f.path, line: 0, message: `${p.file} changed together with ${f.path} in ${Math.round(p.conf * 100)}% of its commits (n=${p.support}) and is not in this change`, basis: 'git history' });
     }
   }
   if (change.head !== 'commit') {

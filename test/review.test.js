@@ -123,7 +123,7 @@ test('findings without a model: a removed symbol still referenced, and a co-chan
   assert.match(broken.message, /src\/cli.py:4/); // the call
   const co = findings.filter(f => f.category === 'cochange');
   assert.deepEqual(co.map(f => f.message.split(' ')[0]), ['src/cli.py']); // below support: types.py; not in the checkout: gone.py
-  assert.equal(co[0].severity, 'warning');
+  assert.equal(co[0].severity, 'info'); // a hint, never a warning: it fires on legitimate changes too
   // moved, not removed: validate defined in another file now
   write('src/checks.py', 'def validate(ctx):\n    return ctx\n');
   const again = deterministicFindings(repo, collectChange(repo, scope), changedSymbols(collectChange(repo, scope), reader), makeReader(repo, scope), { cochange });
