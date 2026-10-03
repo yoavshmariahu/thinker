@@ -266,7 +266,10 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
   its changed deps since `verifiedCommit`, and the current text of every dep
   to a small model (Haiku by default) which answers `still_valid` (re-hash,
   bump confidence), `update` (rewrite body, keep history) or `invalid`
-  (retire).
+  (retire). The answer is the verdict and one sentence, a body only for
+  `update`, capped at 1,500 tokens (`ops.js:VERIFY_SCHEMA`,
+  `VERIFY_MAX_TOKENS`): a week of verify calls here averaged 2,900 output
+  tokens for verdicts that were 64% `still_valid`.
 
 ## Capture
 
@@ -359,7 +362,17 @@ learning from code changes goes on: pull requests and re-verification in
 maintenance, `share --repair-staged` at commit, `thinker distill <file>` by
 hand. Each session distilled is a model call, about 10¢ with Sonnet, and in a
 week on this repository 30% of them produced no note; without them there are
-also no assessments, so `thinker usage` counts no servings as acted on.
+also no assessments, so `thinker usage` counts no servings as acted on. The
+hooks skip a quiet session (`distill.js:quietSession`): nothing served in it
+to assess, no edit, no failed tool call, no correcting prompt, and under eight
+exploration calls; logged as `distill-skipped` with `reason: quiet`.
+`learn.quietExplore` in the config moves the line (0: distill every session);
+`thinker distill <file>` by hand distills regardless. The distiller is asked
+only for the kinds worth a note here (`ops.js:distillKinds`): the kinds this
+checkout serves, plus the kinds review reads from the archive (`REVIEW_KINDS`:
+gotcha, invariant, convention, fix, cochange, rationale). With the default
+archive that leaves out `location`, which `find` answers; a note of a left-out
+kind that comes back anyway is skipped by `saveNotes`.
 
 Controls for experiments: `THINKER_NO_LINKS=1`, `THINKER_NO_COCHANGE=1`,
 `THINKER_MCP=off` (the MCP server offers no tools),
