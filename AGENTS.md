@@ -193,11 +193,23 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 - Pointers written in the body (`core.py:Command.main`, `Foo.bar`,
   `types.convert_type`) are extracted automatically and added as deps, so
   the tracked set matches what the note actually claims.
-- Every `orient`/`lookup` re-hashes the deps of candidate notes against the
-  working tree (cheap: a few files), so uncommitted edits are caught too.
+- Every `orient`/`lookup` re-hashes the deps of every note against the
+  working tree, so uncommitted edits are caught too. A whole-file dep on a
+  file the note also points into by symbol is dropped when the note is
+  created or verified (`ops.js:dropShadowedFileDeps`). Maintenance and
+  `thinker check` judge a changed whole-file dep further
+  (`deps.js:narrowFileDep`, `checkNote` with `narrow`): when the body names
+  definitions in the file and none of them changed since `verifiedCommit`,
+  the dep becomes those symbol deps; when it names none and no changed line
+  of the diff since `verifiedCommit` holds a term the note uses, the dep
+  keeps the file and takes the new hash. Either way the note stays fresh
+  and the outcome is persisted, so the per-prompt check sees it. A
+  `cochange` note's whole-file deps are existence-only: a partner file
+  changing is what the note predicts.
   Stale notes are ranked lower and served with a `⚠ STALE` banner listing
   exactly which deps changed and how (symbol body changed / file removed /
   symbol not found).
+- The `verify` log record names the deps that triggered it (`changed`).
 - `thinker check` persists statuses; `thinker verify` sends each stale note, the git diff of
   its changed deps since `verifiedCommit`, and the current text of every dep
   to a small model (Haiku by default) which answers `still_valid` (re-hash,
@@ -209,9 +221,14 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 1. **Automatic**: `thinker distill <transcript.jsonl>` condenses a session
    (prompts, tool calls with truncated results, the agent's final answer)
    and asks a model for 0–4 notes with deps. The end-of-turn hook runs this
-   incrementally in the background (on by default; see below). Near-duplicate
-   notes (same kind, ≥0.5 Jaccard on title+answers) are merged, keeping
-   history.
+   incrementally in the background (on by default; see below). The distiller
+   is shown the notes already resting on the files the session touched
+   (`distill.js:relatedNotes`) and may return one with `extends: <id>` and
+   the merged body instead of a new note. Near-duplicate notes (same kind,
+   ≥0.5 Jaccard on title+answers) are merged, keeping history. A `cochange`
+   note must name a mechanism (a generator, registry, schema, mirror or
+   test); one that only lists the files a session touched is not saved
+   (`distill.js:cochangeMechanism`), since git history holds that already.
 2. **Agent-authored**: the `remember` MCP tool, for agents that finish
    working something out.
 3. **Human**: `thinker add note.json`.
@@ -233,10 +250,14 @@ Each session both consumes and improves the cache:
 3. New notes are linked to existing ones that share a symbol-level dep (or
    several files); `orient` pulls one linked note in beside the best hit
    when it has relevance of its own.
-4. `thinker cochange` mines git history for files that change together;
-   `orient` appends "X usually changes with Y (80%, n=12)" lines for the
-   files the served notes point at, so co-change rules do not depend on an
-   agent having traced them.
+4. `thinker cochange` mines git history for files that change together.
+   The edit hook (`ops.js:lateNotes`) names the partners of each file the
+   agent edits, once per file, leaving out those the session has edited
+   ("X usually changes with Y (80%, n=12)"), and the end-of-session nudge
+   repeats what is still untouched; so co-change rules do not depend on an
+   agent having traced them. `cochange` notes are edit-time rules too: at
+   orientation one is served only when the request names its files or
+   symbols (`rank.js`, `ccNamed`).
 
 5. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
    the prompt hooks start at most every ten minutes ends with one maintenance
@@ -377,13 +398,21 @@ queries; `0,0` turns them off).
  or `notice: false` in `.thinker/config.json` turns it off.
 - Ranking: BM25 over title/answers/tags/deps/body with identifier splitting,
   plus path affinity to the current file, kind priors for orientation,
-  confidence, and a stale penalty; greedy packing into the token budget
+  confidence, what sessions did with the note when it was served
+  (`attest.confirmed` against `attest.unused`, smoothed; up to ±0.1), and a
+  stale penalty; greedy packing into the token budget
   (full note, else a one-line stub).
 - Coverage floors: relevance is relative to the best note, so the best of a
   poor lot scores near 1. A note is served only if it also covers a share of
-  the request's term weight: 0.10 with its body and pointers, 0.05 with its
-  title, answers and tags (`rank.js:MIN_COVER`). A short query must be
-  covered by more: the weight of about three of its words. This holds for
+  the request's term weight: 0.20 with its body and pointers, 0.05 with its
+  title, answers and tags (`rank.js:MIN_COVER`; on the benchmark task sets
+  the body floor separates on-target from off-target servings, 0.10 did
+  not). A short query must be covered by more: the weight of about three of
+  its words. A request of two or three content words must share two of them
+  with the note's title, answers or tags ("run the tests"); a request of one
+  content word ("status?") is a turn of conversation and is served nothing.
+  Words are stemmed conservatively (`rank.js:stem`: plurals, -ing, -ed,
+  -ation); the earlier suffix list cut "notes" to the stop word "not". This holds for
   the prompt hook, `orient`, `lookup` and late notes; a note on the current
   file is exempt. When nothing passes, nothing is served.
 - A request of one content word is not oriented on at all: `status?`,
@@ -453,7 +482,7 @@ queries; `0,0` turns them off).
 
 ## Supported agents
 
-| agent | notes for the request | notes about files being read (`--late`) | MCP tools | written to |
+| agent | notes for the request | notes about files being edited (installed by default; `--no-late` leaves it out) | MCP tools | written to |
 |---|---|---|---|---|
 | Claude Code | added to each prompt | yes | yes | `.claude/settings.local.json`, `.mcp.json` |
 | Codex CLI | added to each prompt | yes | yes | `.codex/hooks.json`, `.codex/config.toml` |

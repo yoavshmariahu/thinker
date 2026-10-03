@@ -20,7 +20,7 @@ import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } fr
 import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
 import { logModelUsage, streamModelUsage } from './model-usage.js';
 import { summarize, renderUsage, sessionKey, cacheHitNotice, turnNotice } from './usage.js';
-import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
+import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath } from './update.js';
@@ -63,7 +63,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  guided 3-step setup: connect harness CLIs, build the knowledge cache with
                                  pre-flight estimates (time, size, location), and run an optional PR change benchmark;
                                  --verbose includes per-item diagnostic details
-  init [--no-learn] [--no-hooks] [--late] [--local] [--no-git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
+  init [--no-learn] [--no-hooks] [--no-late] [--local] [--no-git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
   share [ids…] [--all] [--dry]    promote eligible local notes for review and commit
@@ -353,7 +353,7 @@ async function main() {
       //        the older name), --no-hooks (MCP server only), --late (file-keyed notes),
       //        --local (write .claude/settings.local.json, not shared), --no-git-hook, --no-mcp, --clients,
       //        --no-trust (leave Codex's trust in the project and the hooks to the user), --yes (do not ask)
-      await init({ clients: parseClients(flags.clients, 'auto'), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !flags['no-git-hook'] });
+      await init({ clients: parseClients(flags.clients, 'auto'), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !flags['no-late'], shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !flags['no-git-hook'] });
       maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store, force: true, event: 'install' });
       break;
     }
@@ -463,7 +463,7 @@ async function main() {
       break;
     }
     case 'check': {
-      const notes = refresh(store, store.list());
+      const notes = refresh(store, store.list(), { narrow: true });
       const stale = notes.filter(n => n.status === 'stale');
       if (!flags.quiet) {
         for (const n of stale) out(`stale  ${n.id}: ${n.stale.changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ')}`);
@@ -946,7 +946,7 @@ async function setup() {
     yes: Boolean(flags.yes),
     hooks: !flags['no-hooks'],
     learn: learnOn(),
-    late: Boolean(flags.late),
+    late: !flags['no-late'],
     shared: Boolean(flags.shared),
     mcp: !flags['no-mcp'],
     gitHook: !flags['no-git-hook'],
@@ -1268,7 +1268,7 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   const started = performance.now();
   let failed = true;
   try {
-  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
+  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, existing: relatedNotes(store, events), accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
   if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, cost ${r.cost == null ? 'unknown' : '$' + r.cost.toFixed(3)}, trace ${r.traceChars} chars)`); return; }
   const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') } });
   // under the session's id, which is what servings are logged under: a transcript's file name is
