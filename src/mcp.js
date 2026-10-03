@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import { Store, findRepoRoot } from './store.js';
 import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS } from './ops.js';
 import { initAst } from './ast.js';
+import { review, renderReview, resolveScope } from './review.js';
 import { CACHE_USAGE_GUIDE, CACHE_LEARNING_GUIDE, MORE_NOTES_INTRO } from './cache-guidance.js';
 
 const repo = findRepoRoot(process.env.THINKER_REPO || process.cwd());
@@ -83,6 +84,24 @@ register('drilldown', {
 }, async ({ pointer, budget }) => {
   const r = drilldown(store, { pointer, client: 'mcp', budget: budget || 2500 });
   return text(r.error ? r.error : r.text);
+});
+
+register('review', {
+  title: 'Review a change against the cache',
+  description: 'Before committing or opening a pull request: checks the change against the cached notes that rest on the changed code or bear on it (invariants, conventions, co-change rules, traps), reports violations and bugs with file:line and evidence, co-change partners missing from the change, and removed symbols still referenced. Notes that were already stale are reported as cache drift, not as faults of the change. Default scope: the working tree against HEAD. Runs a model per note, so it takes up to a minute.',
+  inputSchema: {
+    paths: z.array(z.string()).optional().describe('Limit the review to these paths.'),
+    staged: z.boolean().optional().describe('Review the index instead of the working tree.'),
+    base: z.string().optional().describe('A branch or commit: review everything since the merge base with it (e.g. "origin/main").'),
+    state: z.boolean().optional().describe('No change: audit the current code of the paths against the notes resting on it.'),
+    max: z.number().int().min(1).max(30).optional().describe('Maximum notes to assess with the model (default 12).'),
+  },
+}, async ({ paths, staged, base, state, max }) => {
+  try {
+    const scope = resolveScope(store.repo, { base, staged, state });
+    const r = await review(store, { scope, paths: paths || [], max: max || 12 });
+    return text(renderReview(r));
+  } catch (e) { return text(`review failed: ${String(e.message || e).slice(0, 300)}`); }
 });
 
 register('remember', {

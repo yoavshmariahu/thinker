@@ -65,6 +65,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that distills streamed sessions and CI pull requests and maintains each cache (`worker.js`) |
 | `action/` | GitHub Action that sends a merged pull request to the server |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
+| `src/review.js` | `thinker review` and the MCP `review` tool: a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; co-change partners missing from the change, removed symbols still referenced |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
@@ -580,6 +581,86 @@ Deployment to EC2 is `infra/sync/` (`deploy.mjs`, `stack.yaml`, `bootstrap.sh`,
 in Secrets Manager, releases in S3, updates through Systems Manager. Tests:
 `test/sync.test.js` runs the server in-process against temporary checkouts,
 with the model mocked.
+## Reviewing a change against the cache
+
+`thinker review` (`review.js`) turns the cache around: instead of serving notes
+to an agent about to make a change, it checks a change against them. The MCP
+tool `review` is the same for an agent before it commits.
+
+- **Scope** (`review.js:resolveScope`): the working tree against HEAD (default,
+  untracked code files included as additions), the index (`--staged`), the
+  branch since its merge base (`--base ref`), one commit (`--ref`, read from
+  git alone), or `--state`: no change, the current code of the given paths
+  against the notes resting on it. One reader per scope (`makeReader`) gives
+  the text of a file before and after, so a review of a commit never looks at
+  the working tree. `.thinker/` is never part of the change.
+- **Exposure** (`noteExposure`): each dep of a note is hashed on both sides with
+  `deps.js:hashText`. A dep whose hash differs between the sides is `touched`
+  by the change; a dep whose stored hash already differs from the code
+  *before* the change is `staleBefore`: drift of the cache, reported under
+  "Cache state" and said to the model, never charged to the change. Notes with
+  a touched dep are `direct`; up to six more are `related` by BM25 over the
+  changed paths, the definitions touched (`changedSymbols`, by
+  `codegraph.js:outlineText` on either side's text) and the most frequent
+  identifiers in the added lines, needing two discriminative terms on the
+  question side or three on the body side. Rules and traps weigh more than
+  maps (`KIND_WEIGHT`).
+- **Without a model** (`deterministicFindings`): a co-change partner (confidence
+  ≥ 0.5, support ≥ 3) of a changed file that exists and is not in the change;
+  a definition the change removes that is defined nowhere else and still
+  referenced (`codegraph.js:references`; working tree and index only, since a
+  commit cannot be grepped; a method's name is a warning, a top-level name an
+  error).
+- **With a model** (`assessNote`, one call per note, up to `--max`, four at a
+  time): the note with its cache state, the diff of the files it rests on (the
+  whole diff for a related note), and the code after the change behind each
+  dep. The verdict is `violation` (findings with file, line, evidence and
+  confidence), `note_outdated` (with a corrected body, reported, not applied),
+  `consistent` or `unrelated`. Findings under 0.5 confidence are dropped;
+  `category` is `violation` for a finding under a violation verdict, `bug`
+  otherwise. The model is `reviewModel` in config, else `sonnet`; accounted as
+  `purpose: review`, `phase: review`. Measured once on this repository through
+  Claude Code's CLI: about $0.12 a note.
+- **Nothing is written** to the cache by a review except the `review` log line;
+  a note found outdated or stale is listed with the `thinker verify` command
+  that re-checks it. The deletions of a diff are mapped to the line that now
+  follows them (`parseDiff`: `removedAt`), and a deletion sitting at a
+  definition's first line is not a change of that definition.
+- Several notes often see the same problem at nearby lines of one function:
+  findings in the same file within eight lines become one
+  (`review.js:clusterFindings`), with the surest wording, the highest severity
+  and every note named.
+- Strategies (`review.js:DEFAULT_STRATEGY`; CLI `--mode per-note|holistic|nocache`,
+  `--no-related`, `--callers`, `--triage`, and `verify` in code): `holistic` is
+  one call with every consulted note, `nocache` is the same model with no
+  notes (the baseline), `ensemble` is both, `callers` adds one hop of callers
+  of the touched definitions by text search, `triage` asks a small model
+  whether a note bears on the change before the expensive call, `verify`
+  re-checks every error and warning with a second call and drops what is not
+  confirmed; `chunks` reviews a large change in chunks of files, each with the
+  complete file inventory. The default is the ensemble: on 16 planted and
+  reverted bugs in two repositories it caught 15, with no false positive on
+  the controls reached, at $0.16 to $0.25 a review; one call per note (the
+  first design) cost four to six times as much, caught fewer real bugs and
+  raised more false positives (`bench/RESULTS.md`, "Review strategies").
+- Evaluation: `bench/review-eval.js run --repo <checkout> --cases <json>
+  --strategies a,b [--notes <noteset dir>] --out <dir>` reviews every case under
+  every strategy and `report` tabulates hits, false positives, findings per
+  review, cost and time. Cases (`bench/review-eval-cases*.json`): bugs planted
+  by one-line edits, real fixes reverted onto the base (only fixes that are
+  ancestors of the base apply; a fix merged after the base is already absent),
+  behaviour-preserving refactors and real commits as controls. A hit is an
+  error or warning within six lines of the bug; a hit resting on a note mined
+  from the very PR being reverted is marked (`fromFixNote`): the cache
+  remembering a fix, not reasoning about code. The harness pins
+  `THINKER_LLM=claude`: after one provider failure `llm.js` keeps the fallback
+  provider for the rest of the process, and a run labelled sonnet was otherwise
+  answered mostly by Gemini (kept under `bench/runs/review-eval/*-mixed-provider`,
+  not used). Each row records the provider and model that answered (`models`).
+- Fixed along the way: `deps.js:findSymbol` no longer reads an indented Python
+  call (`validate(ctx)`) as a C-like method definition; the C-like alternative
+  is left out for indentation-based languages. `llm.js:viaCli` retries at once
+  when `claude -p` stops with `tool_use` although no tool is offered.
 
 ## Supported agents
 

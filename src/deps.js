@@ -48,7 +48,7 @@ export function findSymbol(text, symbol, lang = 'auto') {
     `(?:def|class|function\\*?|interface|type|enum|struct|trait|impl|fn|func|module)\\s+${n}\\b` +      // py/js/ts/rs/go/rb
     `|(?:const|let|var)\\s+${n}\\s*[=:]` +                                                            // js/ts consts
     `|func\\s*\\([^)]*\\)\\s*${n}\\s*\\(` +                                                            // go methods
-    `|(?:public|private|protected|static|final|abstract|\\s)*[\\w<>\\[\\],\\s]+\\s+${n}\\s*\\(` +      // java/c#/c-like methods
+    (lang === 'indent' ? '' : `|(?:public|private|protected|static|final|abstract|\\s)*[\\w<>\\[\\],\\s]+\\s+${n}\\s*\\(`) +      // java/c#/c-like methods; in Python an indented `validate(ctx)` is a call
     `|${n}\\s*[:=]\\s*(?:async\\s*)?(?:\\([^)]*\\)\\s*=>|function\\b|class\\b)` +                     // obj-prop / arrow fns
     `|${n}\\s*=\\s*)`);
   let candidates = [];

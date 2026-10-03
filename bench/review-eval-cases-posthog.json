@@ -1,0 +1,25 @@
+{
+  "repo": "posthog",
+  "base": "a3b3c3685bc",
+  "cases": [
+    { "id": "V-105799-impersonation-audiences", "kind": "revert", "pr": 105799, "sha": "4a4c1c500f5" },
+    { "id": "V-105737-insight-autosave", "kind": "revert", "pr": 105737, "sha": "5158cf75d45" },
+    { "id": "V-105736-bigquery-key-file", "kind": "revert", "pr": 105736, "sha": "b88941af868" },
+    { "id": "V-105721-reviewer-flicker", "kind": "revert", "pr": 105721, "sha": "a4b55551a1d" },
+    { "id": "V-105852-codex-trace-id", "kind": "revert", "pr": 105852, "sha": "d6ae6a9ea78" },
+
+    { "id": "C-104593-tracing-retention", "kind": "commit", "sha": "a3b3c3685bc" },
+    { "id": "C-105788-tag-picker", "kind": "commit", "sha": "4364547b943" },
+    { "id": "C-105814-egress-labels", "kind": "commit", "sha": "854c5395af2" },
+    { "id": "C-105388-dashboards-refactor", "kind": "commit", "sha": "2e246c917bd" },
+    { "id": "C-105829-stamphog-perf", "kind": "commit", "sha": "9af924b59c1" },
+    { "id": "C-105105-workflow-send-message", "kind": "commit", "sha": "2daecc7a65e" },
+
+    { "id": "F-107030-wizard-version", "kind": "commit", "fix": true, "sha": "78944dca3e" },
+    { "id": "F-106577-stripe-oauth-reconnect", "kind": "commit", "fix": true, "sha": "a323fa5e32" },
+    { "id": "F-106033-llm-gateway-free-tier", "kind": "commit", "fix": true, "sha": "3aeb5771b7" },
+    { "id": "F-106149-cdc-truncates", "kind": "commit", "fix": true, "sha": "ffcfed7fdb" },
+    { "id": "F-106517-fractional-latency", "kind": "commit", "fix": true, "sha": "453d866aa2" },
+    { "id": "F-106636-replay-scanners-uuid", "kind": "commit", "fix": true, "sha": "b230a3b024" }
+  ]
+}

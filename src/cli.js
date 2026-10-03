@@ -32,13 +32,14 @@ import { share, validateShare, validatePush } from './share.js';
 import { repairStaged } from './share-repair.js';
 import { exportCache, importCache } from './transfer.js';
 import { syncConfig, syncNotes, pull as syncPull, push as syncPush, pushSessions, streamingPlan, pullDue, login as syncLogin, logout as syncLogout, status as syncStatus, renderStatus as renderSyncStatus, syncState } from './sync.js';
+import { review, renderReview, resolveScope } from './review.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'no-related', 'callers', 'triage', 'verify'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -72,6 +73,15 @@ const HELP = `thinker — knowledge cache for coding agents
   share --repair-staged [--cap n] repair or remove invalid staged notes before commit (at most n model checks, default 25)
                                  --strict makes manual/CI checks fail on issues
                                  --ref commit (default HEAD); --pre-push reads git stdin
+  review [paths…] [--staged | --base ref | --ref commit | --state] [--model m] [--max n] [--dry] [--json] [--strict] [--verbose]
+                                 review a change against the cache: two model calls, one with the diff and the code it touched
+                                 and one with the notes resting on or bearing on the change, report bugs and violations with
+                                 file, line and evidence; the cache's own staleness is reported, not trusted; plus co-change
+                                 partners missing from the change and removed symbols still referenced. Default: the working
+                                 tree against HEAD; --base: the branch since its merge base; --ref: one commit; --state: the
+                                 current code of the paths, with no change; --dry: no model calls; --strict: exit 2 on an
+                                 error-severity finding (for CI); --mode per-note|holistic|nocache, --verify, --chunks n,
+                                 --callers, --triage: the other strategies (see bench/RESULTS.md)
   export [file.tgz]              pack this repo's cache for delivery
   import <file.tgz|url>          unpack a delivered cache and check it against this checkout
   sync login <url> --token <t> [--as github.com/owner/repo]
@@ -404,6 +414,14 @@ async function main() {
         for (const u of result.unreadable) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
         out(`${result.ready.length} notes ${flags.dry ? 'ready to share' : 'shared; review and commit .thinker/notes/'}`);
       }
+      break;
+    }
+    case 'review': {
+      const scope = resolveScope(repo, { base: typeof flags.base === 'string' ? flags.base : undefined, staged: !!flags.staged, ref: typeof flags.ref === 'string' ? flags.ref : undefined, state: !!flags.state });
+      const strategy = { ...(flags.mode ? { mode: flags.mode } : {}), ...(flags['no-related'] ? { related: false } : {}), ...(flags.callers ? { callers: true } : {}), ...(flags.triage ? { triage: true } : {}), ...(flags.verify ? { verify: true } : {}), ...(flags.chunks ? { chunks: Number(flags.chunks) } : {}) };
+      const r = await review(store, { scope, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry, strategy });
+      out(flags.json ? JSON.stringify(r, null, 2) : renderReview(r, { verbose: !!flags.verbose }));
+      if (flags.strict && r.counts?.error) process.exitCode = 2;
       break;
     }
     case 'export': {

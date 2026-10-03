@@ -446,6 +446,84 @@ All 14 symptom-only tasks from `bench/tasks/posthog-hard.json` run with Gemini 3
 - 83 runs returned empty when the session limit was hit; detected (1 turn, 0 tokens, limit message), removed and re-run. `run.js` and `llm.js` now wait and retry on limits.
 - The re-grade first ran during a limit window and failed entirely; re-run after the reset.
 
+## Review strategies (2026-10-03): what catches bugs in a change
+
+`thinker review` checks a change against the cache. Which way of asking the
+model catches the most bugs at the fewest false alarms was measured with
+`bench/review-eval.js` on two datasets, every review answered by Claude
+Sonnet 5 through `claude -p` (provider pinned; an earlier run that fell back
+to Gemini after one failure is kept as `*-mixed-provider` and not used).
+A hit is an error or warning within six lines of the bug; a false positive is
+an error or warning on a control. Both runs were stopped before every case
+had finished, so the denominators differ per strategy.
+
+- **thinker** (this repository, 250 notes): 11 planted one-line bugs, 1
+  refactor control reached. Strategies: `nocache` (the same model, the diff
+  and the code it touched, no notes), `holistic` (one call with every
+  consulted note), `ensemble` (both), `ensemble-verify` (ensemble plus a
+  second call per finding), `notes` (one call per consulted note).
+
+| strategy | bugs caught | controls clean | $ / review | s / review |
+|---|---|---|---|---|
+| nocache | 10/11 | 1/1 | 0.04 | 11 |
+| holistic | 9/11 | 1/1 | 0.11 | 56 |
+| **ensemble** | **11/11** | 1/1 | 0.16 | 71 |
+| ensemble-verify | 11/11 | - | 0.21 | 88 |
+| notes (one call per note) | 10/11 | - | 1.05 | 141 |
+
+- **PostHog** (259-note noteset verified at the clone's HEAD): 5 real fix
+  PRs reverted onto that commit (the bug comes back), 4 feature-commit
+  controls reached.
+
+| strategy | bugs caught | controls clean (false positives) | $ / review | s / review |
+|---|---|---|---|---|
+| nocache | 3/5 | 4/4 (0) | 0.12 | 68 |
+| holistic | 3/5 | 3/4 (2) | 0.14 | 62 |
+| **ensemble** | **4/5** | 3/3 (0) | 0.25 | 116 |
+| ensemble-verify | 4/5 | 2/3 (1) | 0.32 | 139 |
+| notes (one call per note) | 2/5 | 2/3 (3) | 0.80 | 119 |
+
+What it says:
+
+- **The baseline and the notes catch different bugs.** On PostHog the
+  no-notes call caught the BigQuery key-file regression from the code while
+  the notes call missed it; the notes call caught the insight autosave
+  regression, through a note mined from that very fix PR, while the no-notes
+  call missed it. Here, the provider-pin plant (P6) was caught by neither
+  call alone and by the ensemble. So the ensemble: two calls, findings
+  merged. It caught everything the others caught, at $0.16 to $0.25 and
+  about two minutes a review.
+- **One call per note, the first design, is dominated**: four to six times
+  the cost, the slowest, the weakest on real bugs (2 of 5) and the noisiest
+  on controls (3 false positives on one feature commit). Judging a change
+  one note at a time blinds the model to bugs the notes do not describe.
+- **Verification did not pay for itself** in this sample: no recall to gain
+  by construction, one borderline finding (50% confidence) confirmed on a
+  control, $0.07 and 20 seconds more per review. It stays an option
+  (`--verify`).
+- **Confidence is informative**: of 63 findings that located a bug, 52 had
+  confidence 0.7 or more; of 6 findings on controls, 5 had 0.7 or less. A
+  reporting floor above the present 0.5 is a lever to try with more
+  controls.
+- **Misses to know about**: a 136-line, three-file protocol change
+  (Codex trace id) that no strategy and no note covered; the removed
+  home-path check (P7), where the rule lives only in the documentation, missed
+  by every notes strategy and caught only by the no-notes call.
+- **Three hits on PostHog rest on `fix` notes mined from the PR being
+  reverted**: the cache remembering a fix, not reasoning about code. That is
+  a real use (a regression of a known fix is what a team cache should catch)
+  but it is a different claim.
+- **Failure modes found and fixed on the way**: a 67-file commit cut to 16 KB
+  of diff made the model report a file as missing from the change; every
+  prompt now carries the complete file inventory, and `--chunks n` reviews a
+  large change in chunks. Several notes reporting the same bug at nearby
+  lines are one finding now. Findings under an outdated-note verdict are
+  cache state, not findings. Model answers vary run to run: the same control
+  got two false positives from one call and none from the next.
+
+The default is the ensemble. The sample is small (16 bugs, 5 controls
+reached, one model); the harness and case sets are in `bench/` to extend it.
+
 ## What this says about the design
 
 1. **Delivery matters more than retrieval.** Zero-turn injection (hook) is the only delivery that paid for itself; a tool call the agent must discover and invoke costs more than it saves in Claude Code today.
