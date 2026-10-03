@@ -42,6 +42,27 @@ export function spentToday(store, now = new Date()) {
   return total;
 }
 
+// The daily cap has always been documented as covering learning and maintenance together, but
+// only maintenance consulted it: the end-of-turn distillation of a session, which is where most
+// of the money goes, spent freely. Every caller about to spend asks this first. A cap of 0
+// means no cap.
+export function withinDailyCap(store, { now = new Date(), spentFn = spentToday } = {}) {
+  const cfg = maintainConfig(store);
+  const cap = Number(cfg.dailyCap);
+  if (!Number.isFinite(cap) || cap <= 0) return { ok: true, spent: 0, cap: 0 };
+  const spent = spentFn(store, now);
+  return { ok: spent < cap, spent, cap };
+}
+
+// Said once, at the end of a turn: learning stopped because the day's budget is gone.
+export function reportCapped(store, { spent, cap }) {
+  const state = readState(store);
+  const u = state.unreported || {};
+  u.capped = { spent, cap };
+  state.unreported = u;
+  try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
+}
+
 // Verify calls per note in the last seven days, from the machine's log.
 export function verifyCounts(store, now = Date.now()) {
   const since = new Date(now - 7 * 86400_000).toISOString();
@@ -175,6 +196,7 @@ export function maintenanceNotice(store) {
   if (u.pulled || u.pushed) parts.push(`team cache: ${[u.pulled ? `${u.pulled} ${u.pulled === 1 ? 'note' : 'notes'} pulled` : '', u.pushed ? `${u.pushed} pushed` : ''].filter(Boolean).join(', ')}`);
   if (u.share) parts.push(u.share);
   if (u.pruned?.length) parts.push(...u.pruned);
+  if (u.capped) parts.push(`learning paused for today: $${u.capped.spent.toFixed(2)} of the $${u.capped.cap.toFixed(2)} daily cap spent (maintain.dailyCap in .thinker/config.json raises it)`);
   if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} left stale after being re-verified ${maintainConfig(store).verifyChurn}+ times this week (${u.churning.slice(0, 3).join(', ')}${u.churning.length > 3 ? ', …' : ''}): their code is changing; narrow their pointers or retire them`);
   if (!parts.length) return '';
   delete state.unreported;

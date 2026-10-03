@@ -124,8 +124,25 @@ export function readLog(store, { all = false } = {}) {
 export function summarize(store, { days, all = false } = {}) {
   const since = days ? new Date(Date.now() - days * 86400_000).toISOString() : '';
   const events = readLog(store, { all }).filter(e => e.t >= since);
-  const stores = new Map([[store.repo, store]]);
-  const storeOf = repo => { if (!stores.has(repo)) stores.set(repo, new Store(repo, { readonly: true })); return stores.get(repo); };
+  // The machine's log spans every checkout thinker has run in: some are gone, some moved, and a
+  // benchmark arm may point .thinker/notes at a noteset through a symlink, which the store refuses
+  // to read. A summary of 400 repositories must not die for one of them, so a checkout that cannot
+  // be read answers "no notes" and is counted (`unreadable`) instead of throwing.
+  const unreadable = new Set();
+  const safeStore = s => ({
+    repo: s.repo,
+    get(id) { try { return s.get(id); } catch { unreadable.add(s.repo); return null; } },
+    list() { try { return s.list(); } catch { unreadable.add(s.repo); return []; } },
+  });
+  const stores = new Map([[store.repo, safeStore(store)]]);
+  const storeOf = repo => {
+    if (!stores.has(repo)) {
+      let s = null;
+      try { s = new Store(repo, { readonly: true }); } catch { unreadable.add(repo); }
+      stores.set(repo, s ? safeStore(s) : { repo, get: () => null, list: () => [] });
+    }
+    return stores.get(repo);
+  };
   const u = {
     scope: all ? 'machine' : repoId(store.repo),
     from: events[0]?.t || null, to: events[events.length - 1]?.t || null, events: events.length,
@@ -297,6 +314,7 @@ export function summarize(store, { days, all = false } = {}) {
   u.spending.cost = u.spending.reportedCost + u.spending.estimatedCost;
   u.saved.netUsd = u.saved.usd - u.injected.usd - u.spending.cost;
   u.saved.pricingComplete = !u.saved.unpricedServings && !u.injected.unpricedTokens && !u.spending.unpricedCalls;
+  u.unreadable = [...unreadable];
   u.top = [...count.values()].sort((a, b) => b.n - a.n).slice(0, 5).map(c => ({ id: c.id, repo: c.origin, served: c.n, title: storeOf(c.repo).get(c.id)?.title || '(removed)' }));
   return u;
 }
@@ -311,6 +329,8 @@ export function renderUsage(u, { days } = {}) {
   const servings = u.servings.prompt + u.servings.file + u.servings.lookup;
   const assessed = u.assessed.confirmed + u.assessed.contradicted + u.assessed.unused;
   L.push(`thinker usage ${where}${machine ? `, ${num(u.repos.length)} ${u.repos.length === 1 ? 'repository' : 'repositories'}` : ''}, ${u.from.slice(0, 10)} to ${u.to.slice(0, 10)}${days ? ` (last ${days} days)` : ''}`, '');
+  // a checkout the store will not read (gone, moved, or a benchmark arm's symlinked notes) counts no notes
+  if (u.unreadable?.length) L.push(`  (${num(u.unreadable.length)} ${u.unreadable.length === 1 ? 'checkout' : 'checkouts'} could not be read; their notes are not counted)`, '');
   L.push('Served');
   L.push(`  requests        ${num(u.requests)}, ${num(u.answered)} answered with notes${u.sessions ? `, in ${num(u.sessions)} sessions` : ''}`);
   L.push(`  notes served    ${num(servings)} (${num(u.servings.prompt)} with the request, ${num(u.servings.file)} on opening a file, ${num(u.servings.lookup)} by lookup); ${num(u.notesServed)} different notes, ${num(u.notes)} in the cache now`);

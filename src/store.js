@@ -76,13 +76,28 @@ export function repoId(repo) {
 // and the checkout it came from (`repo`). THINKER_LOG changes that:
 // a path, `local` (the repository's own .thinker/log.jsonl) or `off`. Runs that serve
 // notes from elsewhere (THINKER_NOTES_DIR: benchmark arms) log locally unless told
-// otherwise, so experiments stay out of the machine's history.
+// otherwise. So do checkouts made under the system temporary directory while THINKER_HOME
+// is unset: the test suite makes hundreds of them, and they are not usage — counting their
+// fixture costs as money spent made `thinker usage` lie by several dollars. A test that
+// means to exercise the machine's log points THINKER_HOME at a directory of its own, and
+// then logs there as before.
 export function logFile(store) {
   const v = process.env.THINKER_LOG;
   if (v === 'off') return null;
-  if (v === 'local' || (!v && process.env.THINKER_NOTES_DIR)) return path.join(store.dir, 'log.jsonl');
+  const scratch = !process.env.THINKER_HOME && isScratchCheckout(store.repo);
+  if (v === 'local' || (!v && (process.env.THINKER_NOTES_DIR || scratch))) return path.join(store.dir, 'log.jsonl');
   if (v) return path.resolve(v);
   return path.join(process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), 'log.jsonl');
+}
+
+// A checkout under the system temporary directory is scratch: a test fixture or a throwaway.
+export function isScratchCheckout(repo) {
+  try {
+    const tmp = fs.realpathSync(os.tmpdir());
+    const real = fs.realpathSync(repo);
+    const rel = path.relative(tmp, real);
+    return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel);
+  } catch { return false; }
 }
 
 // What a repository logged locally before the log was shared is moved into the machine's

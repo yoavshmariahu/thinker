@@ -5,7 +5,7 @@ import os from 'node:os';
 import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
-import { maintain, maintenanceNotice, renderMaintain, reportPruned } from './maintain.js';
+import { maintain, maintenanceNotice, renderMaintain, reportPruned, withinDailyCap, reportCapped } from './maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
@@ -651,6 +651,10 @@ async function main() {
         const plan = streamingPlan(store);
         if (plan.stream) spawn('node', [path.join(HERE, 'cli.js'), 'sync', '--sessions', '--end', '--quiet', '--transcript', source, '--session', session, '--client', client, '--repo', repo], { detached: true, stdio: 'ignore', env: process.env }).unref();
         if (!plan.local) break;
+        // distilling a session is a model call of its own (about 10¢ with Sonnet); it spends from
+        // the same daily budget as maintenance, so a long day of work cannot run up the bill
+        const cap = withinDailyCap(store);
+        if (!cap.ok) { store.log({ op: 'distill-skipped', reason: 'dailyCap', spent: cap.spent, cap: cap.cap, session, client }); reportCapped(store, cap); break; }
         const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo],
           { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } });
         child.unref();
@@ -1269,6 +1273,13 @@ async function learn({ days, idleMin, max, dry, quiet }) {
     }
     let done = 0;
     for (const s of sessions) {
+      const cap = withinDailyCap(store);
+      if (!dry && !cap.ok) {
+        store.log({ op: 'distill-skipped', reason: 'dailyCap', spent: cap.spent, cap: cap.cap, left: sessions.length - done });
+        reportCapped(store, cap);
+        if (!quiet) out(`stopping: $${cap.spent.toFixed(2)} of the $${cap.cap.toFixed(2)} daily cap is spent (maintain.dailyCap in .thinker/config.json)`);
+        break;
+      }
       let state = {}; try { state = JSON.parse(fs.readFileSync(path.join(store.dir, 'state', path.basename(s.file).replace(/\.jsonl?$/, '') + '.json'), 'utf8')); } catch {}
       let total = 0; try { total = parseTranscript(s.file).lineCount; } catch { continue; }
       if ((state.line || 0) >= total) continue;

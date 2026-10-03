@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store, repoId } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { maintain, maintenanceNotice, renderMaintain, spentToday, postCommitHook, pickStale, DEFAULTS } from '../src/maintain.js';
+import { maintain, maintenanceNotice, renderMaintain, spentToday, withinDailyCap, reportCapped, postCommitHook, pickStale, DEFAULTS } from '../src/maintain.js';
 
 // a git repo with one note whose dependency is then changed, so the note is stale
 function staleRepo() {
@@ -161,3 +161,26 @@ test('maintenance re-verifies only notes served lately, and leaves a churning no
   assert.doesNotMatch(maintenanceNotice(store), /left stale/, 'named once, not on every run');
   fs.rmSync(dir, { recursive: true, force: true });
 }));
+
+// The daily cap covers learning as well as maintenance; distilling a session is where most
+// of the money goes, so it asks before spending.
+test('withinDailyCap closes the day once the cap is spent, and the user is told once', () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cap-')));
+  try {
+    const store = new Store(dir).init();
+    assert.equal(withinDailyCap(store, { spentFn: () => 0.4 }).ok, true);
+    const over = withinDailyCap(store, { spentFn: () => 1.25 });
+    assert.equal(over.ok, false);
+    assert.equal(over.cap, DEFAULTS.dailyCap);
+    // no cap configured: nothing is withheld
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyCap: 0 } }));
+    assert.equal(withinDailyCap(store, { spentFn: () => 99 }).ok, true);
+    reportCapped(store, over);
+    const notice = maintenanceNotice(store);
+    assert.match(notice, /learning paused for today/);
+    assert.match(notice, /\$1\.25 of the \$1\.00 daily cap/);
+    assert.equal(maintenanceNotice(store), '', 'said once');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
