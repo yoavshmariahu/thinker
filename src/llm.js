@@ -538,6 +538,8 @@ async function viaCli(opts) {
   for (let attempt = 0; ; attempt++) {
     try { return await viaCliOnce(opts); }
     catch (e) {
+      // the model tried to call a tool although none is offered (seen with long code prompts): try again at once, twice
+      if (/"stop_reason":"tool_use"/.test(String(e.message)) && attempt < 2) { opts.onRetry(); continue; }
       if (!LIMIT_RE.test(String(e.message)) || attempt >= maxAttempts || process.env.THINKER_NO_LIMIT_WAIT === '1') throw e;
       opts.onRetry();
       await new Promise(r => setTimeout(r, 10 * 60_000));

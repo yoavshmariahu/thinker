@@ -27,7 +27,9 @@ import { complete } from './llm.js';
 //   related   also consult notes that share identifiers with the change
 //   callers   add one hop of callers of the definitions the change touched (by text search)
 //   triage    ask a small model first whether a note bears on the change at all
-export const DEFAULT_STRATEGY = { mode: 'per-note', related: true, callers: false, triage: false, triageModel: 'haiku' };
+//   ensemble  (mode) the nocache call and the holistic call, findings of both
+//   verify    re-check every error and warning with a second call before reporting it
+export const DEFAULT_STRATEGY = { mode: 'per-note', related: true, callers: false, triage: false, triageModel: 'haiku', verify: false };
 
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const CODE_EXT = /\.(py|pyi|js|jsx|mjs|cjs|ts|tsx|mts|cts|go|rs|rb|java|kt|cs|php|c|h|cc|cpp|hpp|swift|scala|ex|exs|sh|bash|vue|svelte|sql|dart|lua|zig)$/i;
@@ -371,7 +373,7 @@ export async function assessNote(store, note, exposure, change, reader, { model,
   const v = res.json || {};
   // under note_outdated the findings describe the note, not the code: the outdated entry carries them
   const findings = shapeFindings(v.verdict === 'note_outdated' ? [] : v.findings, change, reader, { note: note.id, category: v.verdict === 'violation' ? 'violation' : 'bug' });
-  return { id: note.id, verdict: v.verdict || 'unrelated', reason: String(v.reason || '').trim(), findings, noteCorrection: v.verdict === 'note_outdated' ? String(v.noteCorrection || '').trim() : '', cost: res.cost || 0 };
+  return { id: note.id, verdict: v.verdict || 'unrelated', reason: String(v.reason || '').trim(), findings, noteCorrection: v.verdict === 'note_outdated' ? String(v.noteCorrection || '').trim() : '', cost: res.cost || 0, model: `${res.provider}/${res.model}` };
 }
 
 function shapeFindings(raw, change, reader, { note = '', category = 'bug', minConfidence = 0.5 } = {}) {
@@ -405,7 +407,7 @@ export async function assessHolistic(store, notes, exposures, change, reader, { 
   const v = res.json || {};
   const outdated = (Array.isArray(v.outdated) ? v.outdated : []).filter(o => o && notes.some(n => n.id === o.id)).map(o => ({ id: o.id, reason: String(o.reason || '').trim(), correction: '' }));
   const findings = shapeFindings(v.findings, change, reader, { category: 'violation' }).filter(f => !outdated.some(o => o.id === f.note));
-  return { id: 'holistic', verdict: 'holistic', reason: String(v.summary || '').trim(), findings, noteCorrection: '', outdated, cost: res.cost || 0 };
+  return { id: 'holistic', verdict: 'holistic', reason: String(v.summary || '').trim(), findings, noteCorrection: '', outdated, cost: res.cost || 0, model: `${res.provider}/${res.model}` };
 }
 
 // No notes: the diff and the code of what it touched, as any reviewer without the cache would see it.
@@ -414,7 +416,22 @@ export async function assessNoCache(store, change, symbols, reader, { model, cal
   const prompt = `THE CHANGE:\n${change.text.slice(0, 16000) || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEFINITIONS IT TOUCHED:\n${changedCode(symbols, reader) || '(none)'}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
   const res = await complete({ system, prompt, model, maxTokens: 4000, accounting: { store, purpose: 'review', phase: 'review' }, schema: NOCACHE_SCHEMA });
   const v = res.json || {};
-  return { id: 'nocache', verdict: 'nocache', reason: String(v.summary || '').trim(), findings: shapeFindings(v.findings, change, reader, { category: 'bug' }), noteCorrection: '', cost: res.cost || 0 };
+  return { id: 'nocache', verdict: 'nocache', reason: String(v.summary || '').trim(), findings: shapeFindings(v.findings, change, reader, { category: 'bug' }), noteCorrection: '', cost: res.cost || 0, model: `${res.provider}/${res.model}` };
+}
+
+// A second look at one finding: the claim, the hunks of its file and the code around its line,
+// and the question whether the code shown really has that problem. Drops what is not confirmed.
+export async function verifyFinding(store, f, change, reader, { model } = {}) {
+  const file = change.files.find(x => x.path === f.file);
+  const hunks = file ? renderFileDiff(file).slice(0, 8000) : '(the file is not in the change)';
+  const text = f.file ? reader.after(f.file) : null;
+  const around = text && f.line ? text.split('\n').map((l, i) => `${i + 1}: ${l}`).slice(Math.max(0, f.line - 40), f.line + 40).join('\n').slice(0, 8000) : '(no code)';
+  const res = await complete({ model, maxTokens: 600, accounting: { store, purpose: 'review-verify', phase: 'review' },
+    schema: { type: 'object', properties: { real: { type: 'boolean' }, severity: { type: 'string', enum: ['error', 'warning', 'info'] }, reason: { type: 'string' } }, required: ['real', 'severity', 'reason'] },
+    system: 'You check one finding from a code review against the code. Confirm it (real=true) only when the code shown has the problem the finding describes; a finding that rests on a claim the code does not show, describes a pre-existing condition the change did not cause, or restates a comment rather than a defect is not real. Give the severity the code supports. Everything you need is in this message: do not use tools or read files.',
+    prompt: `FINDING (${f.severity}) at ${f.file}:${f.line}:\n${f.message}\nEvidence given: ${f.evidence || '(none)'}\n\nTHE CHANGE TO THAT FILE:\n${hunks}\n\nCODE AFTER THE CHANGE AROUND THE LINE:\n${around}` });
+  const v = res.json || {};
+  return { real: v.real !== false, severity: SEV[v.severity] !== undefined ? v.severity : f.severity, reason: String(v.reason || '').trim(), cost: res.cost || 0 };
 }
 
 // A small model says whether a note bears on the change at all, from the note and a summary of the
@@ -462,10 +479,11 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
   report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}` : 'shares identifiers with the change' }));
   if (!dry) {
     const results = [];
-    if (strat.mode === 'nocache') {
+    if (strat.mode === 'nocache' || strat.mode === 'ensemble') {
       try { results.push(await assessNoCache(store, change, symbols, reader, { model: report.model, callers })); }
       catch (e) { report.errors.push({ id: 'nocache', error: String(e.message || e).slice(0, 200) }); }
-    } else if (strat.mode === 'holistic') {
+    }
+    if (strat.mode === 'holistic' || strat.mode === 'ensemble') {
       if (queue.length) try { results.push(await assessHolistic(store, queue, exposures, change, reader, { model: report.model, callers })); }
       catch (e) { report.errors.push({ id: 'holistic', error: String(e.message || e).slice(0, 200) }); }
     } else {
@@ -484,26 +502,52 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
         }
       }));
     }
-    // several notes often see the same problem at the same place: one finding, the surest wording, every note named
-    const merged = new Map();
+    const raw = [];
+    report.models = {}; // which provider and model answered, per call: a fallback to another provider must be visible
     for (const r of results) {
       report.cost += r.cost || 0;
+      if (r.model) report.models[r.model] = (report.models[r.model] || 0) + 1;
       report.verdicts.push({ id: r.id, verdict: r.verdict, reason: r.reason });
       if (r.verdict === 'note_outdated') report.notes.outdated.push({ id: r.id, reason: r.reason, correction: r.noteCorrection });
       if (r.outdated) report.notes.outdated.push(...r.outdated);
-      for (const f of r.findings) {
-        const key = `${f.file}:${f.line}:${f.severity}`;
-        const m = merged.get(key);
-        if (!m) merged.set(key, { ...f, notes: f.note ? [f.note] : [] });
-        else { if (f.note && !m.notes.includes(f.note)) m.notes.push(f.note); if ((f.confidence || 0) > (m.confidence || 0)) Object.assign(m, { message: f.message, evidence: f.evidence, confidence: f.confidence, note: f.note, category: f.category, inChange: f.inChange }); }
-      }
+      raw.push(...r.findings);
     }
-    report.findings.push(...merged.values());
+    let clustered = clusterFindings(raw);
+    if (strat.verify) {
+      // a second call per error or warning; what it does not confirm is dropped, what it demotes is demoted
+      report.verified = { kept: 0, dropped: [] };
+      clustered = (await Promise.all(clustered.map(async f => {
+        if (f.severity === 'info' || !f.file) return f;
+        try {
+          const v = await verifyFinding(store, f, change, reader, { model: report.model });
+          report.cost += v.cost || 0;
+          if (!v.real) { report.verified.dropped.push({ file: f.file, line: f.line, message: f.message.slice(0, 120), reason: v.reason }); return null; }
+          report.verified.kept++;
+          return { ...f, severity: v.severity, verified: v.reason };
+        } catch (e) { report.errors.push({ id: `verify ${f.file}:${f.line}`, error: String(e.message || e).slice(0, 200) }); return f; }
+      }))).filter(Boolean);
+    }
+    report.findings.push(...clustered);
   }
   report.findings.sort((a, b) => (SEV[a.severity] ?? 1) - (SEV[b.severity] ?? 1) || (b.confidence || 1) - (a.confidence || 1));
   report.counts = { error: report.findings.filter(f => f.severity === 'error').length, warning: report.findings.filter(f => f.severity === 'warning').length, info: report.findings.filter(f => f.severity === 'info').length };
   store.log({ op: 'review', scope: scope.label, strategy: strat.mode === 'per-note' && !strat.callers && !strat.triage && strat.related ? undefined : strat, files: change.files.length, consulted: consulted.length, assessed: report.notes.assessed, findings: report.counts, outdated: report.notes.outdated.map(o => o.id), cost: report.cost, metered: true, dry: dry || undefined });
   return report;
+}
+
+// Several notes often see the same problem, each at a slightly different line of the same
+// function: one finding per place (same file, within `span` lines), with the surest wording, the
+// highest severity and every note named.
+export function clusterFindings(findings, { span = 8 } = {}) {
+  const out = [];
+  for (const f of [...findings].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)) {
+    const c = f.file && f.line ? out.find(m => m.file === f.file && m.line && Math.abs(m.line - f.line) <= span) : null;
+    if (!c) { out.push({ ...f, notes: f.note ? [f.note] : [] }); continue; }
+    if (f.note && !c.notes.includes(f.note)) c.notes.push(f.note);
+    if ((SEV[f.severity] ?? 1) < (SEV[c.severity] ?? 1)) c.severity = f.severity;
+    if ((f.confidence || 0) > (c.confidence || 0)) Object.assign(c, { message: f.message, evidence: f.evidence, confidence: f.confidence, note: f.note, category: f.category, inChange: f.inChange, line: f.line });
+  }
+  return out;
 }
 
 export function renderReview(r, { verbose = false } = {}) {
@@ -531,6 +575,7 @@ export function renderReview(r, { verbose = false } = {}) {
     if (r.toAssess?.length && !n.assessed) { L.push('', 'Notes to assess:'); for (const t of r.toAssess) L.push(`  - [${t.kind}] ${t.title} (${t.id}): ${t.why}`); }
     if (r.verdicts.length) { L.push('', 'Verdicts:'); for (const v of r.verdicts) L.push(`  ${v.verdict.padEnd(14)} ${v.id}: ${v.reason}`); }
     if (r.triage?.length) L.push('', `Triage: ${r.triage.filter(t => t.bears).length} of ${r.triage.length} notes went to the model`);
+    if (r.verified) L.push('', `Verification: ${r.verified.kept} finding${r.verified.kept === 1 ? '' : 's'} confirmed, ${r.verified.dropped.length} dropped${r.verified.dropped.length ? ': ' + r.verified.dropped.map(d => `${d.file}:${d.line} (${d.reason.slice(0, 100)})`).join('; ') : ''}`);
   }
   return L.join('\n');
 }

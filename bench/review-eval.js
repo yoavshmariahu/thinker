@@ -7,6 +7,7 @@
 //
 //   node bench/review-eval.js run --repo <checkout> --cases bench/review-eval-cases.json \
 //        --strategies nocache,notes,holistic --out bench/runs/review-eval/<name> [--only a,b] [--dry] [--max 12]
+//        [--notes <dir>]   a noteset to review with (bench/notesets/<name>/notes) instead of the checkout's cache
 //   node bench/review-eval.js report --out bench/runs/review-eval/<name>
 //
 // A hit: an error or warning finding in a file the bug touched, within 6 lines of it. A false
@@ -18,6 +19,9 @@ process.env.THINKER_LOG = process.env.THINKER_LOG || 'local';
 process.env.THINKER_CODEGRAPH = process.env.THINKER_CODEGRAPH || 'git';
 process.env.THINKER_NO_LEARN = '1';
 process.env.THINKER_NO_BG_VERIFY = '1';
+// One provider for the whole run: after a failure llm.js otherwise sticks to the fallback provider,
+// and a review labelled sonnet would be answered by another model. THINKER_LLM overrides.
+process.env.THINKER_LLM = process.env.THINKER_LLM || 'claude';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -40,6 +44,12 @@ export const STRATEGIES = {
   triage: { triage: true },
   'notes-haiku': { model: 'haiku' },
   'holistic-haiku': { mode: 'holistic', model: 'haiku' },
+  'holistic-opus': { mode: 'holistic', model: 'opus' },
+  ensemble: { mode: 'ensemble' },
+  'ensemble-verify': { mode: 'ensemble', verify: true },
+  'holistic-verify': { mode: 'holistic', verify: true },
+  'notes-verify': { verify: true },
+  'nocache-opus': { mode: 'nocache', model: 'opus' },
 };
 
 // The cache every case is reviewed with: the checkout's shared and local notes, flat, as the
@@ -48,11 +58,11 @@ function buildCache(repo) {
   const dir = path.join(out, 'cache'), notes = path.join(dir, 'notes');
   fs.mkdirSync(notes, { recursive: true });
   let n = 0;
-  for (const src of [path.join(repo, '.thinker', 'local', 'notes'), path.join(repo, '.thinker', 'notes')]) {
+  for (const src of flags.notes ? [path.resolve(flags.notes)] : [path.join(repo, '.thinker', 'local', 'notes'), path.join(repo, '.thinker', 'notes')]) {
     if (!fs.existsSync(src)) continue;
     for (const f of fs.readdirSync(src)) if (f.endsWith('.json')) { fs.copyFileSync(path.join(src, f), path.join(notes, f)); n++; }
   }
-  const co = path.join(repo, '.thinker', 'cochange.json');
+  const co = flags.notes ? path.join(path.resolve(flags.notes), '..', 'cochange.json') : path.join(repo, '.thinker', 'cochange.json');
   if (fs.existsSync(co)) fs.copyFileSync(co, path.join(dir, 'cochange.json'));
   process.env.THINKER_NOTES_DIR = notes;
   return n;
@@ -139,13 +149,16 @@ async function run() {
       try { r = await review.review(store, { scope: prep.scope, max: Number(flags.max) || 12, model, dry: !!flags.dry, strategy: strat, concurrency: Number(flags.conc) || 4 }); }
       catch (e) { log(`${c.id} ${s}: failed: ${e.message}`); fs.appendFileSync(resultsFile, JSON.stringify({ case: c.id, kind: c.kind, strategy: s, failed: String(e.message).slice(0, 200) }) + '\n'); continue; }
       const ms = Date.now() - t0;
+      if (r.empty) { log(`${c.id} ${s}: nothing to review (empty change)`); fs.appendFileSync(resultsFile, JSON.stringify({ case: c.id, kind: c.kind, strategy: s, failed: 'empty change' }) + '\n'); continue; }
       const text = review.renderReview(r, { verbose: true });
       fs.writeFileSync(path.join(out, 'reports', `${c.id}__${s}.txt`), text);
       fs.writeFileSync(path.join(out, 'reports', `${c.id}__${s}.json`), JSON.stringify(r, null, 1));
       const signal = r.findings.filter(f => f.severity !== 'info');
       const hits = prep.expect ? signal.filter(f => isHit(f, prep.expect)) : [];
-      const row = { case: c.id, kind: c.kind, strategy: s, hit: prep.expect ? hits.length > 0 : null, hitBy: hits[0] ? `${hits[0].file}:${hits[0].line} ${hits[0].message.slice(0, 120)}` : null, hitSource: hits[0] ? (hits[0].notes?.length || hits[0].note ? 'note' : hits[0].basis ? 'deterministic' : 'code') : null,
-        findings: signal.length, errors: r.counts.error, warnings: r.counts.warning, infos: r.counts.info, consulted: r.notes.consulted, assessed: r.notes.assessed, outdated: r.notes.outdated.length, modelErrors: r.errors.length, cost: Math.round(r.cost * 1000) / 1000, ms, dry: !!flags.dry || undefined };
+      const noteSource = id => { try { const n = JSON.parse(fs.readFileSync(path.join(process.env.THINKER_NOTES_DIR, id + '.json'), 'utf8')); return `${n.source?.type || '?'}${n.source?.ref ? ':' + String(n.source.ref).slice(0, 40) : ''}`; } catch { return '?'; } };
+      const hitNotes = [...new Set(hits.flatMap(f => f.notes?.length ? f.notes : f.note ? [f.note] : []))].map(id => ({ id, source: noteSource(id) }));
+      const row = { case: c.id, kind: c.kind, pr: c.pr, strategy: s, hit: prep.expect ? hits.length > 0 : null, hitNotes, fromFixNote: !!(c.pr && hitNotes.some(h => /^pr:/.test(h.source) && h.source.includes(String(c.pr)))), hitBy: hits[0] ? `${hits[0].file}:${hits[0].line} ${hits[0].message.slice(0, 120)}` : null, hitSource: hits[0] ? (hits[0].notes?.length || hits[0].note ? 'note' : hits[0].basis ? 'deterministic' : 'code') : null,
+        findings: signal.length, errors: r.counts.error, warnings: r.counts.warning, infos: r.counts.info, consulted: r.notes.consulted, assessed: r.notes.assessed, outdated: r.notes.outdated.length, modelErrors: r.errors.length, models: r.models, cost: Math.round(r.cost * 1000) / 1000, ms, dry: !!flags.dry || undefined };
       fs.appendFileSync(resultsFile, JSON.stringify(row) + '\n');
       log(`${c.id.padEnd(24)} ${s.padEnd(16)} ${prep.expect ? (row.hit ? 'HIT ' : 'miss') : `fp=${signal.length}`}  findings=${signal.length} cost=$${row.cost} ${Math.round(ms / 1000)}s`);
     }
@@ -154,9 +167,17 @@ async function run() {
   report();
 }
 
+let cluster = x => x;
 function report() {
   const file = path.join(out, 'results.jsonl');
   const rows = fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(r => r.strategy && !r.failed);
+  // noise is counted after clustering nearby findings, the same way for every saved report
+  for (const r of rows) {
+    try {
+      const rep = JSON.parse(fs.readFileSync(path.join(out, 'reports', `${r.case}__${r.strategy}.json`), 'utf8'));
+      r.findings = cluster(rep.findings.filter(f => f.severity !== 'info')).length;
+    } catch {}
+  }
   const strategies = [...new Set(rows.map(r => r.strategy))];
   const bugs = rows.filter(r => r.hit !== null), controls = rows.filter(r => r.hit === null);
   const L = [`# review-eval: ${path.basename(out)}`, '', `${new Set(rows.map(r => r.case)).size} cases (${new Set(bugs.map(r => r.case)).size} bugs, ${new Set(controls.map(r => r.case)).size} controls), ${strategies.length} strategies. A hit is an error or warning within 6 lines of the bug; a false positive is an error or warning on a control.`, '',
@@ -171,13 +192,14 @@ function report() {
   L.push('', '## Per case', '', `| case | kind | ${strategies.join(' | ')} |`, `|---|---|${strategies.map(() => '---').join('|')}|`);
   for (const id of [...new Set(rows.map(r => r.case))]) {
     const kind = rows.find(r => r.case === id).kind;
-    L.push(`| ${id} | ${kind} | ${strategies.map(s => { const r = rows.find(x => x.case === id && x.strategy === s); if (!r) return '-'; if (r.hit === null) return r.findings ? `${r.findings} fp` : 'clean'; return r.hit ? `hit (${r.hitSource})` : `miss (${r.findings})`; }).join(' | ')} |`);
+    L.push(`| ${id} | ${kind} | ${strategies.map(s => { const r = rows.find(x => x.case === id && x.strategy === s); if (!r) return '-'; if (r.hit === null) return r.findings ? `${r.findings} fp` : 'clean'; return r.hit ? `hit (${r.hitSource}${r.fromFixNote ? ', fix note' : ''})` : `miss (${r.findings})`; }).join(' | ')} |`);
   }
   const text = L.join('\n');
   fs.writeFileSync(path.join(out, 'SUMMARY.md'), text + '\n');
   process.stdout.write(text + '\n');
 }
 
+({ clusterFindings: cluster } = await import('../src/review.js'));
 if (cmd === 'run') await run();
 else if (cmd === 'report') report();
 else { process.stderr.write('usage: review-eval.js run|report ...\n'); process.exit(1); }
