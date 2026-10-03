@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store, repoId } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { maintain, maintenanceNotice, renderMaintain, spentToday, postCommitHook, DEFAULTS } from '../src/maintain.js';
+import { maintain, maintenanceNotice, renderMaintain, spentToday, postCommitHook, pickStale, DEFAULTS } from '../src/maintain.js';
 
 // a git repo with one note whose dependency is then changed, so the note is stale
 function staleRepo() {
@@ -20,6 +20,8 @@ function staleRepo() {
   const store = new Store(dir).init();
   const a = createNote(store, { title: 'Foo returns one', kind: 'gotcha', answers: ['what foo returns'], body: 'src/a.py:foo returns 1', deps: [{ path: 'src/a.py', symbol: 'foo' }] }).note;
   const b = createNote(store, { title: 'Bar returns two', kind: 'gotcha', answers: ['what bar returns'], body: 'src/b.py:bar returns 2', deps: [{ path: 'src/b.py', symbol: 'bar' }] }).note;
+  // served lately: maintenance re-verifies ahead of time only what is being served
+  a.uses = 1; a.lastUsed = new Date().toISOString(); store.put(a);
   fs.writeFileSync(path.join(dir, 'src/a.py'), 'def foo():\n    return 11\n');
   return { dir, store, a, b };
 }
@@ -130,3 +132,32 @@ test('postCommitHook maintains with learning on and only re-checks with it off',
   assert.match(on, /THINKER_NO_LEARN/);
   assert.match(off, /nohup node '\/x\/cli.js' check --quiet --repo "\$repo"/);
 });
+
+test('maintenance re-verifies only notes served lately, and leaves a churning note stale, named once', () => withEnv(async () => {
+  const day = 86400_000, now = Date.now();
+  const stale = (id, lastUsed, uses = 1) => ({ id, status: 'stale', uses, lastUsed: lastUsed && new Date(lastUsed).toISOString() });
+  const notes = [stale('served-today', now), stale('served-last-month', now - 30 * day), stale('never-served', null), stale('churner', now - day, 9), { id: 'fresh', status: 'fresh', lastUsed: new Date(now).toISOString() }];
+  const counts = new Map([['churner', 3], ['served-today', 2]]);
+  let r = pickStale(notes, DEFAULTS, { counts, now });
+  assert.deepEqual(r.stale.map(n => n.id), ['served-today']);
+  assert.deepEqual(r.churning.map(n => n.id), ['churner']);
+  // verifyServedDays 0: every stale note is a candidate, most served first; verifyChurn 0: nothing is held back
+  r = pickStale(notes, { ...DEFAULTS, verifyServedDays: 0, verifyChurn: 0 }, { counts, now });
+  assert.deepEqual(r.stale.map(n => n.id), ['churner', 'served-today', 'served-last-month', 'never-served']);
+  assert.deepEqual(r.churning, []);
+  // the cap still applies
+  assert.equal(pickStale(notes, { ...DEFAULTS, verifyServedDays: 0, verifyChurn: 0, verifyPerRun: 2 }, { now }).stale.length, 2);
+
+  // in a run: the churning note is not sent to the model, and the user hears of it once
+  const { dir, store, a } = staleRepo();
+  const verified = [];
+  const fns = { spentToday: () => 0, verify: async (s, n) => { verified.push(n.id); return { verdict: 'still_valid', cost: 0.01 }; }, phrase: async (s, n) => ({ done: n, cost: 0 }), verifyCounts: () => new Map([[a.id, 3]]) };
+  let run = await maintain(store, dir, { fns });
+  assert.deepEqual(verified, []); assert.deepEqual(run.churning, [a.id]);
+  assert.match(renderMaintain(run), /1 churning left stale/);
+  assert.match(maintenanceNotice(store), new RegExp(`1 note left stale after being re-verified 3\\+ times this week \\(${a.id}\\): their code is changing; narrow their pointers or retire them`));
+  run = await maintain(store, dir, { fns });
+  assert.deepEqual(run.churning, [a.id]);
+  assert.doesNotMatch(maintenanceNotice(store), /left stale/, 'named once, not on every run');
+  fs.rmSync(dir, { recursive: true, force: true });
+}));

@@ -237,12 +237,16 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // tool) passes a higher maxNotes, and notes past the second must then reach relFloor of the best hit.
 // snippets: inline the code behind the served pointers (codeSnippets) in what is left of the budget
 // plus `snippets.budget` tokens (SNIPPET_BUDGET); the MCP tools pass it, the hooks do not.
-export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full', snippets = false }) {
+// once: a note already served in this session is not served again. The prompt hooks pass it: what
+// they served on an earlier turn is in the agent's context, and serving it again on "status?" or
+// a follow-up only adds tokens. An agent calling `orient` itself asks anew and gets everything.
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full', snippets = false, once = false }) {
   const start = Date.now();
   if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
   const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
   if (early === 'auto' || early === 'router') early = specificity(store.repo, task) >= 1 ? 'full' : 'pointers'; // heuristic, also the router's fallback
   let notes = store.list();
+  if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
   if (NAIVE) notes = notes.map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; });
   if (refreshFirst) notes = refresh(store, notes);
   let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient' });
