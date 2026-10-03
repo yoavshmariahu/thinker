@@ -69,7 +69,7 @@ const HELP = `thinker — knowledge cache for coding agents
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
   share [ids…] [--all] [--dry]    promote eligible local notes for review and commit
   share --check [--base ref]      report issues in committed notes (exit 0)
-  share --repair-staged           repair or remove invalid staged notes before commit
+  share --repair-staged [--cap n] repair or remove invalid staged notes before commit (at most n model checks, default 25)
                                  --strict makes manual/CI checks fail on issues
                                  --ref commit (default HEAD); --pre-push reads git stdin
   export [file.tgz]              pack this repo's cache for delivery
@@ -383,9 +383,10 @@ async function main() {
     }
     case 'share': {
       if (flags['repair-staged']) {
-        const actions = await repairStaged(store, { dry: !!flags.dry, model: flags.model });
+        const actions = await repairStaged(store, { dry: !!flags.dry, model: flags.model, ...(flags.cap !== undefined ? { cap: Number(flags.cap) } : {}) });
         for (const a of actions) out(`${flags.dry ? 'would ' : ''}${a.action} ${a.id}: ${a.reason}`);
-        if (actions.length) out(`thinker: ${actions.filter(a => a.action === 'update').length} corrected, ${actions.filter(a => a.action === 'remove').length} removed from this commit; originals saved locally`);
+        const n = k => actions.filter(a => a.action === k).length;
+        if (actions.length) out(`thinker: ${n('update')} corrected, ${n('remove')} removed from this commit${n('deferred') ? `, ${n('deferred')} left for maintenance (--cap n changes the limit)` : ''}; originals saved locally`);
       } else if (flags.check || flags['pre-push']) {
         const opts = { base: typeof flags.base === 'string' ? flags.base : undefined, ref: flags.ref || 'HEAD', strict: !!flags.strict, remote: flags.remote || 'origin' };
         const results = flags['pre-push'] ? validatePush(repo, readStdin(), opts) : [validateShare(repo, opts)];

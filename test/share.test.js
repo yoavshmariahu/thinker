@@ -504,3 +504,19 @@ test('maintenance sweeps overlays of notes retired elsewhere, keeping ones with 
   assert.equal(fs.existsSync(path.join(store.overlayDir, 'kept.json')), true);
   assert.equal(store.list().length, 0);
 });
+
+test('pre-commit asks the model about at most `cap` notes a commit and leaves the rest for maintenance', async t => {
+  const { repo, store, note, git, commit } = fixture(t);
+  const words = [['alpha', 'parsing', 'How is input parsed?'], ['beta', 'rendering', 'Where is output rendered?'], ['gamma', 'caching', 'What does the cache hold?'], ['delta', 'logging', 'Where are errors logged?']];
+  words.forEach(([w, topic, q], i) => store.put(note(`note-${i}`, { title: `${w} ${topic} rule`, answers: [q], uses: i })));
+  share(store, { all: true }); commit();
+  assert.equal(fs.readdirSync(store.notesDir).filter(f => f.startsWith('note-')).length, 4);
+  fs.writeFileSync(path.join(repo, 'code.js'), 'export function value() { return 2; }\n');
+  git('add', 'code.js');
+  const asked = [];
+  const actions = await repairStaged(store, { cap: 2, decide: async (_store, n) => { asked.push(n.id); return { verdict: 'still_valid', reason: 'ok', body: '', deps: [] }; } });
+  assert.deepEqual(asked, ['note-3', 'note-2'], 'the most served notes first');
+  assert.deepEqual(actions.filter(a => a.action === 'deferred').map(a => a.id).sort(), ['note-0', 'note-1']);
+  assert.match(actions.find(a => a.action === 'deferred').reason, /cap of 2/);
+  assert.equal(git('show', ':.thinker/notes/note-0.json'), fs.readFileSync(path.join(store.notesDir, 'note-0.json'), 'utf8').trimEnd(), 'a deferred note is left as it is');
+});

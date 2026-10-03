@@ -478,7 +478,11 @@ queries; `0,0` turns them off).
   ref lines and always exits 0 so no push is blocked. Git's pre-push snapshot
   cannot be rewritten safely, so the new `pre-commit` hook runs
   `thinker share --repair-staged` first. It reads code and notes from the index,
-  fixes metadata, asks a small model about notes whose deps changed, and updates
+  fixes metadata, asks a small model about notes whose deps changed (at most 25
+  a commit, `share-repair.js:REPAIR_CAP`, `--cap n`: the staged note files
+  first, then the most served; the rest are left for maintenance, since a
+  commit to a central file otherwise meant dozens of model calls through the
+  agent's CLI before the commit went through), and updates
   or removes bad notes in the index. Original bytes go to
   `.thinker/local/quarantine/`; unstaged working-copy edits are preserved.
   `init`/`setup` install pre-commit, pre-push, post-merge and post-commit through

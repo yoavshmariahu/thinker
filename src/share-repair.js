@@ -90,12 +90,20 @@ async function modelDecision(store, note, changed, { model } = {}) {
 
 // Every changed index note is backed up locally before replacement or removal. Failures
 // on one note are reported and never prevent Git from making the commit.
-export async function repairStaged(store, { dry = false, decide = modelDecision, model } = {}) {
+// A commit that touches a central file can change the deps of dozens of shared notes, and each
+// model check is a call through the agent's CLI (seconds to minutes). At most `cap` notes are asked
+// about per commit, the staged note files first and then the most served; the rest are left as
+// they are (`deferred`) for maintenance, which re-verifies stale notes anyway.
+export const REPAIR_CAP = 25;
+export async function repairStaged(store, { dry = false, decide = modelDecision, model, cap = REPAIR_CAP } = {}) {
   const repo = store.repo;
   const staged = new Set(stagedNames(repo));
   const notes = indexNotes(repo), sharedIds = new Set([...notes.values()].map(n => n.id));
   const actions = [];
-  const relevant = [...notes.values()].filter(e => staged.has(e.file) || (e.note?.deps || []).some(d => staged.has(d.path)));
+  const uses = id => { try { return store.get(id)?.uses || 0; } catch { return 0; } }; // served how often here: shared content carries no per-checkout state
+  const relevant = [...notes.values()].filter(e => staged.has(e.file) || (e.note?.deps || []).some(d => staged.has(d.path)))
+    .sort((a, b) => (Number(staged.has(b.file)) - Number(staged.has(a.file))) || (uses(b.id) - uses(a.id)));
+  let asked = 0;
   for (const entry of relevant) {
     const { file, id } = entry;
     try {
@@ -130,6 +138,8 @@ export async function repairStaged(store, { dry = false, decide = modelDecision,
           const issues = check.changed.map(d => `${d.path}${d.symbol ? ':' + d.symbol : ''}: ${d.reason}`);
           if (errors.length || issues.length) {
             if (dry) { actions.push({ id, action: 'verify', reason: [...errors, ...issues].join('; ') }); continue; }
+            if (cap && asked >= cap) { actions.push({ id, action: 'deferred', reason: `over the cap of ${cap} model checks a commit; left as it is for maintenance` }); continue; }
+            asked++;
             let answer;
             try { answer = await decide(store, note, [...errors, ...issues], { model }); }
             catch (e) { reason = `verification unavailable: ${e.message}`; }
