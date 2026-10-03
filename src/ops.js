@@ -317,7 +317,7 @@ function addSnippets(store, packed, budget, snippets, pointersOnly) {
 // confirmed: the trace shows the agent used the pointer and nothing contradicted it.
 // contradicted: the trace shows a claim was wrong; body is replaced by the correction.
 // unused: served but not acted on; repeated unused servings decay confidence.
-export function attest(store, assessments, { session } = {}) {
+export function attest(store, assessments, { session, client, model } = {}) {
   const applied = [];
   for (const a of assessments || []) {
     const n = store.get(a.id); if (!n) continue;
@@ -341,7 +341,7 @@ export function attest(store, assessments, { session } = {}) {
     store.put(n);
     applied.push({ id: n.id, verdict: a.verdict, confidence: n.confidence });
   }
-  if (applied.length) store.log({ op: 'attest', session, applied });
+  if (applied.length) store.log({ op: 'attest', session, client, model: model || undefined, applied });
   return applied;
 }
 

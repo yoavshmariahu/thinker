@@ -197,3 +197,46 @@ test('turn notice sums what the whole turn served', () => {
   assert.equal(turnNotice(one.repo, []), '');
   assert.equal(turnNotice(one.repo, [one.get('n1'), one.get('n2')]), `🧠 thinker: 2 cache hits this turn (~7k tokens, ~${2 * SECONDS_PER_READ}s of 2 reads saved)`);
   assert.equal(turnNotice(one.repo, [one.get('n2')]), `🧠 thinker: 1 cache hit this turn (~1k tokens, ~${SECONDS_PER_READ}s of 1 read saved)`);});
+
+test('both sides of the balance are priced at the model of the session, and what has no price is said', () => {
+  const home = tmp('thinker-home-');
+  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, () => {
+    const store = repoWith({ n1: ['b.js'], n2: ['b.js'], n3: ['b.js'] });
+    // a Claude Code session: 6,000 tokens of reading avoided at Fable's $10/M, 500 tokens injected
+    store.log({ op: 'orient', session: 'fable', client: 'claude', task: 't', served: ['n1'], tokens: 500, est: [[1, 6000]] });
+    store.log({ op: 'attest', session: 'fable', client: 'claude', model: 'claude-fable-5-1', applied: [{ id: 'n1', verdict: 'confirmed' }] });
+    // a Codex session on a model with no price: confirmed, counted in tokens, not in dollars
+    store.log({ op: 'orient', session: 'codex', client: 'codex', task: 't', served: ['n2'], tokens: 300, est: [[1, 6000]] });
+    store.log({ op: 'attest', session: 'codex', client: 'codex', model: 'gpt-6-sol', applied: [{ id: 'n2', verdict: 'confirmed' }] });
+    // an assessment that named no model
+    store.log({ op: 'orient', session: 'old', task: 't', served: ['n3'], tokens: 200, est: [[1, 6000]] });
+    store.log({ op: 'attest', session: 'old', applied: [{ id: 'n3', verdict: 'confirmed' }] });
+    // model work: reported, priced from tokens, and unpriceable
+    store.log({ op: 'model', purpose: 'verify', phase: 'maintenance', provider: 'claude', model: 'claude-haiku-4-5', cost: 0.04, tokens: { inputTokens: 10000, outputTokens: 1000, totalTokens: 11000 } });
+    store.log({ op: 'model', purpose: 'verify', phase: 'maintenance', provider: 'claude', model: 'claude-haiku-4-5', cost: null, tokens: { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 1_000_000 } });
+    store.log({ op: 'model', purpose: 'distill', phase: 'learning', provider: 'codex', model: 'gpt-6-sol', cost: null, tokens: { inputTokens: 1000, outputTokens: 100, totalTokens: 1100 } });
+
+    const u = summarize(store);
+    assert.equal(u.saved.servings, 3); assert.equal(u.saved.tokens, 18000);
+    assert.equal(u.saved.pricedServings, 1); assert.equal(u.saved.usd, 0.06);
+    assert.deepEqual(u.saved.byModel, { 'claude-fable-5-1': { servings: 1, tokens: 6000, usd: 0.06 } });
+    assert.equal(u.saved.unpricedServings, 2); assert.equal(u.saved.unpricedTokens, 12000);
+    assert.equal(u.injected.usd, 0.005); assert.equal(u.injected.pricedTokens, 500); assert.equal(u.injected.unpricedTokens, 500);
+    assert.equal(u.spending.reportedCost, 0.04); assert.equal(u.spending.estimatedCost, 1); assert.equal(u.spending.unpricedCalls, 1);
+    assert.equal(u.spending.cost, 1.04);
+    assert.equal(Math.round(u.saved.netUsd * 1000) / 1000, 0.06 - 0.005 - 1.04);
+    assert.equal(u.saved.pricingComplete, false);
+    const text = renderUsage(u);
+    assert.match(text, /in dollars\s+\$0\.06 at the input price .* \$0\.06 on claude-fable-5-1 \(1 servings\)/);
+    assert.match(text, /2 servings \(12,000 tokens\) not priced/);
+    assert.match(text, /\$1\.00 for the 1 unreported records on a model with a known price/);
+    assert.match(text, /in dollars\s+−\$0\.98 = \$0\.06 reading avoided − \$0\.01 notes injected − \$1\.04 model work \(\$0\.04 reported \+ \$1\.00 priced from tokens\)/);
+    assert.match(text, /Not in this balance.*2 confirmed servings, 500 injected tokens, 1 model records/);
+
+    // with the vendor's price given, the Codex session and record are priced too
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ prices: { 'gpt-6-sol': { input: 5, output: 20 } } }));
+    const v = summarize(store);
+    assert.equal(v.saved.pricedServings, 2); assert.equal(v.saved.byModel['gpt-6-sol'].usd, 0.03);
+    assert.equal(v.spending.unpricedCalls, 0); assert.equal(Math.round(v.spending.estimatedCost * 1000) / 1000, 1.007);
+  });
+});

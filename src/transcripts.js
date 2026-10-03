@@ -85,12 +85,23 @@ function attachResults(events, results) {
   return events;
 }
 
+// The model the session ran on, as the agent wrote it: the one most of its turns name. Counted
+// over the whole file, not from `fromLine`, since a session's model rarely changes. Cursor's
+// transcripts do not name one.
+class ModelTally {
+  constructor() { this.n = new Map(); }
+  add(m) { if (typeof m === 'string' && m && m !== '<synthetic>') this.n.set(m, (this.n.get(m) || 0) + 1); }
+  get model() { return [...this.n].sort((a, b) => b[1] - a[1])[0]?.[0] || null; }
+}
+
 // Claude Code and Cursor share the Anthropic message shape; Cursor puts the role at the top level.
 function parseMessages(rows, fromLine) {
-  const events = [], results = new Map();
+  const events = [], results = new Map(), models = new ModelTally();
   let cwd = null;
   rows.forEach((j, i) => {
-    if (!j || i < fromLine) return;
+    if (!j) return;
+    if (j.type === 'assistant' || j.role === 'assistant') models.add(j.message?.model ?? j.model);
+    if (i < fromLine) return;
     if (j.cwd && !cwd) cwd = j.cwd;
     // streamed output of headless runs: Cursor `agent -p`, Gemini `gemini -p`
     if (j.type === 'tool_call' && j.tool_call) {
@@ -119,11 +130,11 @@ function parseMessages(rows, fromLine) {
       else if (b.type === 'tool_result') results.set(b.tool_use_id, textOf(b.content));
     }
   });
-  return { events: attachResults(events, results), cwd };
+  return { events: attachResults(events, results), cwd, model: models.model };
 }
 
 function parseCodex(rows, fromLine) {
-  const events = [], results = new Map();
+  const events = [], results = new Map(), models = new ModelTally();
   let cwd = null;
   const seenPrompts = new Set();
   const prompt = text => { const t = cleanPrompt(text); if (t && !seenPrompts.has(t)) { seenPrompts.add(t); events.push({ t: 'prompt', text: t }); } };
@@ -131,6 +142,8 @@ function parseCodex(rows, fromLine) {
     if (!j) return;
     const p = j.payload || {};
     if (j.type === 'session_meta' && p.cwd) cwd = p.cwd;
+    if (j.type === 'turn_context' || j.type === 'session_meta') models.add(p.model);
+    if (j.type === 'thread.started' || j.type === 'turn.started') models.add(j.model ?? j.thread?.model);
     if (i < fromLine) return;
     // rollout files
     if (j.type === 'event_msg' && p.type === 'item_completed' && p.item?.type === 'UserMessage') prompt(textOf(p.item.content));
@@ -153,15 +166,17 @@ function parseCodex(rows, fromLine) {
       else if (it.type === 'mcp_tool_call') events.push(tool(`mcp__${it.server}__${it.tool}`, it.arguments, it.result ?? it.error));
     }
   });
-  return { events: attachResults(events, results), cwd };
+  return { events: attachResults(events, results), cwd, model: models.model };
 }
 
 function parseGemini(j, fromLine) {
-  const events = [];
+  const events = [], models = new ModelTally();
   const msgs = j.messages || j.history || [];
+  models.add(j.model);
   msgs.forEach((m, i) => {
-    if (i < fromLine) return;
     const role = m.type || m.role;
+    if (role !== 'user') models.add(m.model);
+    if (i < fromLine) return;
     const text = textOf(m.content ?? m.parts ?? m.text);
     if (role === 'user') { const t = cleanPrompt(text); if (t) events.push({ t: 'prompt', text: t }); }
     else {
@@ -169,21 +184,22 @@ function parseGemini(j, fromLine) {
       if (text) events.push({ t: 'say', text });
     }
   });
-  return { events, cwd: j.projectPath || j.cwd || null, count: msgs.length };
+  return { events, cwd: j.projectPath || j.cwd || null, count: msgs.length, model: models.model };
 }
 
 function parseEvents(rows, fromLine) {
-  const events = [];
+  const events = [], models = new ModelTally();
   let cwd = null;
   rows.forEach((j, i) => {
     if (!j) return;
     if (j.cwd && !cwd) cwd = j.cwd;
+    models.add(j.model);
     if (i < fromLine) return;
     if (j.t === 'prompt') { const t = cleanPrompt(j.text); if (t) events.push({ t: 'prompt', text: t }); }
     else if (j.t === 'say' && j.text) events.push({ t: 'say', text: String(j.text) });
     else if (j.t === 'tool') events.push(tool(j.name, j.input, j.result));
   });
-  return { events, cwd };
+  return { events, cwd, model: models.model };
 }
 
 function parseAgy(rows, fromLine = 0) {
@@ -214,15 +230,32 @@ function parseAgy(rows, fromLine = 0) {
 }
 
 // fromLine counts lines (or messages, for Gemini's single JSON document);
-// lineCount is where the next incremental read should start.
+// lineCount is where the next incremental read should start. `model` is the model the
+// session ran on when the transcript names it (Claude Code, Codex, Gemini), else null.
 export function parseTranscript(file, { fromLine = 0, format } = {}) {
   const text = fs.readFileSync(file, 'utf8');
   const fmt = format && format !== 'auto' ? format : detectFormat(text);
-  if (fmt === 'gemini') { let j = {}; try { j = JSON.parse(text); } catch {} const r = parseGemini(j, fromLine); return { events: r.events, lineCount: r.count, cwd: r.cwd, format: fmt }; }
+  if (fmt === 'gemini') { let j = {}; try { j = JSON.parse(text); } catch {} const r = parseGemini(j, fromLine); return { events: r.events, lineCount: r.count, cwd: r.cwd, model: r.model, format: fmt }; }
   const lines = text.split('\n');
   const rows = jsonLines(text);
   const r = fmt === 'agy' ? parseAgy(rows, fromLine) : fmt === 'codex' ? parseCodex(rows, fromLine) : fmt === 'events' ? parseEvents(rows, fromLine) : parseMessages(rows, fromLine);
-  return { ...r, lineCount: lines.length, format: fmt };
+  return { model: null, ...r, lineCount: lines.length, format: fmt };
+}
+
+// The model of a session whose assessment did not record one (written before that was logged):
+// found by its id among the agents' transcripts of the checkout. One listing per checkout.
+const sessionIndex = new Map();
+export function sessionModel(repo, session, { sinceMs = 90 * 86400_000 } = {}) {
+  if (!repo || !session) return null;
+  if (!sessionIndex.has(repo)) {
+    const m = new Map();
+    try { for (const s of findSessions(repo, { sinceMs })) m.set(String(s.session), s.file); } catch {}
+    sessionIndex.set(repo, m);
+  }
+  const key = String(session).replace(/\.jsonl?$/, '').replace(/^trace-/, '');
+  const file = sessionIndex.get(repo).get(key) || sessionIndex.get(repo).get((key.match(/([0-9a-f]{8}-[0-9a-f-]{27,})$/) || [])[1]);
+  if (!file) return null;
+  try { return parseTranscript(file).model; } catch { return null; }
 }
 
 // --- thinker's own trace -------------------------------------------------------

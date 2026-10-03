@@ -58,7 +58,8 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, refresh co-change, distill newly merged PRs, under a daily cap |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
-| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens |
+| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens and in dollars |
+| `src/prices.js` | dollars per token by model: Anthropic's list prices, the user's for other vendors |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
@@ -132,6 +133,19 @@ plus `saved.netAfterSpend` (estimated reading avoided minus notes injected minus
 model tokens). Missing counters/costs stay unknown. Legacy logs lack setup exploration
 and token counts, so this comparison is partial, not measured financial ROI. See
 `src/model-usage.js` for provider normalization.
+
+The same balance is given in dollars where the model is known (`prices.js`). The
+end-of-session assessment records the model the session ran on, read from its
+transcript (`transcripts.js:parseTranscript` returns `model`: Claude Code's
+`message.model`, Codex's `turn_context`, Gemini's message `model`; Cursor names none),
+on the `attest` line; for assessments written before that, `usage` finds the transcript
+by session id (`transcripts.js:sessionModel`). Reading avoided and notes injected are
+priced at that model's input price; a model record with tokens but no reported cost is
+priced from its tokens (`spending.estimatedCost`). Anthropic's list prices are built in;
+other vendors' go in `THINKER_HOME/prices.json` or under `prices` in
+`.thinker/config.json` (`{"gpt-6-sol": {"input": 2, "output": 8}}`, dollars per million).
+What has no model or price is counted and reported (`saved.unpricedServings`,
+`injected.unpricedTokens`, `spending.unpricedCalls`), never taken as zero or as free.
 
 ## What a note is
 

@@ -1226,7 +1226,7 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   const stateFile = path.join(stateDir, path.basename(file).replace(/\.jsonl?$/, '') + '.json');
   let state = {}; try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch {}
   const fromLine = incremental ? (state.line || 0) : 0;
-  const { events, lineCount } = parseTranscript(file, { fromLine, format });
+  const { events, lineCount, model: sessionModel, format: fmt } = parseTranscript(file, { fromLine, format });
   hydrate(events, repo, { trace: session ? traceFile(store.dir, session) : null });
   // a turn-end hook and a session-end hook can both ask for the same session
   const lock = stateFile + '.lock';
@@ -1251,7 +1251,8 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') } });
   // under the session's id, which is what servings are logged under: a transcript's file name is
   // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
-  const applied = attest(store, r.assessments, { session: session || sessionKey(path.basename(file)) });
+  // with the session's model, so the reading its confirmed notes saved can be priced (usage.js)
+  const applied = attest(store, r.assessments, { session: session || sessionKey(path.basename(file)), client: fmt === 'agy' ? 'gemini' : fmt === 'events' ? 'trace' : fmt, model: sessionModel });
   if (!quiet) for (const a of applied) out(`attest  ${a.verdict.padEnd(12)} ${a.id} → c=${Math.round(a.confidence * 100)}%`);
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(stateFile, JSON.stringify({ line: lineCount, assessed: [...new Set([...(state.assessed || []), ...served.map(n => n.id)])], at: new Date().toISOString() }));

@@ -11,8 +11,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { emptySpend, addSpend } from './model-usage.js';
+import { priceOf, readCost } from './prices.js';
 import { estTokens } from './rank.js';
 import { Store, logFile, adoptLocalLog, repoId } from './store.js';
+import { sessionModel } from './transcripts.js';
 
 const FILE_CAP = 6000;   // tokens one read of a large file returns (about 2000 lines)
 const MAX_FILES = 5;
@@ -158,12 +160,16 @@ export function summarize(store, { days, all = false } = {}) {
       durationSamples: 0,
       servedByKind: {},
     },
-    spent: 0, saved: { calls: 0, tokens: 0, servings: 0 }, repos: [], top: [],
+    spent: 0, saved: { calls: 0, tokens: 0, servings: 0, usd: 0, pricedServings: 0, unpricedServings: 0, unpricedTokens: 0, byModel: {} },
+    injected: { usd: 0, pricedTokens: 0, unpricedTokens: 0 },
+    repos: [], top: [],
   };
+  const config = store.config();
+  const price = m => priceOf(m, { config });
   // a repository is its origin; its checkouts (clones, worktrees) are counted together
   const repos = new Map();      // origin → its line in the summary
   const per = (origin, checkout) => { if (!repos.has(origin)) repos.set(origin, { repo: origin, checkouts: new Set(), requests: 0, served: 0, learned: 0, calls: 0, tokens: 0, spending: emptySpend() }); const r = repos.get(origin); if (checkout) r.checkouts.add(checkout); return r; };
-  const sessions = new Map();   // origin|session → { origin, named, client, notes: Map(note id → [calls, tokens]) }
+  const sessions = new Map();   // origin|session → { origin, named, client, model, injected, notes: Map(note id → [calls, tokens]) }
   const verdicts = new Map();   // origin|session → Map(note id → verdict)
   const count = new Map();
   let anon = 0;
@@ -177,14 +183,15 @@ export function summarize(store, { days, all = false } = {}) {
         d.durationMs += e.durationMs; d.durationSamples++;
       }
     }
-    if (!e.dry && !e.metered && ((e.op === 'model' && e.purpose === 'distill') || e.op === 'distill')) addSpend(d.spending, e);
+    const p = e.op === 'model' || e.model ? price(e.model) : null;
+    if (!e.dry && !e.metered && ((e.op === 'model' && e.purpose === 'distill') || e.op === 'distill')) addSpend(d.spending, e, p);
     if (!e.metered && (e.op === 'model' || ['distill', 'mine-prs', 'verify', 'phrase', 'route'].includes(e.op))) {
       const purpose = e.purpose || e.op, phase = e.phase || 'legacy';
       const model = `${e.provider || 'unknown'}/${e.model || 'unknown'}`;
-      addSpend(u.spending, e); addSpend(r.spending, e);
+      addSpend(u.spending, e, p); addSpend(r.spending, e, p);
       for (const [group, key] of [['byPurpose', purpose], ['byPhase', phase], ['byModel', model]]) {
         u.spending[group][key] ||= emptySpend();
-        addSpend(u.spending[group][key], e);
+        addSpend(u.spending[group][key], e, p);
       }
       if (e.op !== 'model') u.spending.legacyRecords++;
     }
@@ -225,10 +232,12 @@ export function summarize(store, { days, all = false } = {}) {
       }
 
       // lines written before the estimate was recorded: the note's text and files as they are now
-      u.tokensServed += typeof e.tokens === 'number' ? e.tokens : ids.reduce((n, id) => n + estTokens(s.get(id)?.body || ''), 0);
+      const injected = typeof e.tokens === 'number' ? e.tokens : ids.reduce((n, id) => n + estTokens(s.get(id)?.body || ''), 0);
+      u.tokensServed += injected;
       const named = e.session && e.session !== 'unknown';
       const key = `${e.origin}|${named ? sessionKey(e.session) : `?${anon++}`}`;
-      if (!sessions.has(key)) sessions.set(key, { origin: e.origin, named, client: cl, notes: new Map() });
+      if (!sessions.has(key)) sessions.set(key, { origin: e.origin, repo: e.repo, session: named ? e.session : null, named, client: cl, model: null, injected: 0, notes: new Map() });
+      sessions.get(key).injected += injected;
       ids.forEach((id, i) => {
         const k = `${e.origin}|${id}`; count.set(k, { origin: e.origin, repo: e.repo, id, n: (count.get(k)?.n || 0) + 1 });
         if (!sessions.get(key).notes.has(id)) sessions.get(key).notes.set(id, e.est?.[i] || Object.values(savingOf(e.repo, s.get(id))));
@@ -237,6 +246,8 @@ export function summarize(store, { days, all = false } = {}) {
       const key = `${e.origin}|${sessionKey(e.session)}`;
       if (!verdicts.has(key)) verdicts.set(key, new Map());
       for (const a of e.applied || []) verdicts.get(key).set(a.id, a.verdict);
+      // the model the session ran on; the servings were logged before the assessment named it
+      if (e.model && sessions.has(key)) sessions.get(key).model = e.model;
     } else if (e.op === 'distill') { u.learned.sessions++; u.learned.notes += (e.saved || []).length; u.learned.merged += (e.merged || []).length; r.learned += (e.saved || []).length; }
     else if (e.op === 'mine-prs') { u.learned.prs += e.prs || 0; u.learned.prNotes += e.saved || 0; r.learned += e.saved || 0; }
     else if (e.op === 'verify') { if (e.verdict in u.verified) u.verified[e.verdict]++; }
@@ -254,13 +265,29 @@ export function summarize(store, { days, all = false } = {}) {
     ? Math.round((u.retrieval.staleServed / totalServed) * 1000) / 1000
     : 0;
   const distinct = new Set();
-  for (const [key, x] of sessions) for (const [id, est] of x.notes) {
-    distinct.add(`${x.origin}|${id}`);
-    const v = verdicts.get(key)?.get(id);
-    if (v === 'confirmed') { u.assessed.confirmed++; u.saved.servings++; u.saved.calls += est[0] || 0; u.saved.tokens += est[1] || 0; const r = per(x.origin); r.calls += est[0] || 0; r.tokens += est[1] || 0; }
-    else if (v === 'contradicted') u.assessed.contradicted++;
-    else if (v) u.assessed.unused++;
-    else u.assessed.pending++;
+  for (const [key, x] of sessions) {
+    // assessed before the model was recorded: the transcript, when it is still there, names it
+    if (!x.model && x.session && [...x.notes.keys()].some(id => verdicts.get(key)?.get(id) === 'confirmed')) x.model = sessionModel(x.repo, x.session);
+    const p = price(x.model);
+    const inj = readCost(x.injected, p);
+    if (inj === null) u.injected.unpricedTokens += x.injected; else { u.injected.usd += inj; u.injected.pricedTokens += x.injected; }
+    for (const [id, est] of x.notes) {
+      distinct.add(`${x.origin}|${id}`);
+      const v = verdicts.get(key)?.get(id);
+      if (v === 'confirmed') {
+        u.assessed.confirmed++; u.saved.servings++; u.saved.calls += est[0] || 0; u.saved.tokens += est[1] || 0; const r = per(x.origin); r.calls += est[0] || 0; r.tokens += est[1] || 0;
+        const usd = readCost(est[1] || 0, p);
+        if (usd === null) { u.saved.unpricedServings++; u.saved.unpricedTokens += est[1] || 0; }
+        else {
+          u.saved.usd += usd; u.saved.pricedServings++;
+          const m = u.saved.byModel[x.model] ||= { servings: 0, tokens: 0, usd: 0 };
+          m.servings++; m.tokens += est[1] || 0; m.usd += usd;
+        }
+      }
+      else if (v === 'contradicted') u.assessed.contradicted++;
+      else if (v) u.assessed.unused++;
+      else u.assessed.pending++;
+    }
   }
   u.notesServed = distinct.size;
   if (!repos.size && !all) per(repoId(store.repo), store.repo);
@@ -273,11 +300,16 @@ export function summarize(store, { days, all = false } = {}) {
   // Keep the old serving-only net for consumers; expose the full token comparison separately.
   u.saved.netAfterSpend = u.saved.net - u.spending.totalTokens;
   u.saved.spendComplete = u.spending.calls > 0 && u.spending.unknownTokenCalls === 0 && u.spending.legacyRecords === 0;
+  // the same balance in dollars, over what could be priced on each side
+  u.spending.cost = u.spending.reportedCost + u.spending.estimatedCost;
+  u.saved.netUsd = u.saved.usd - u.injected.usd - u.spending.cost;
+  u.saved.pricingComplete = !u.saved.unpricedServings && !u.injected.unpricedTokens && !u.spending.unpricedCalls;
   u.top = [...count.values()].sort((a, b) => b.n - a.n).slice(0, 5).map(c => ({ id: c.id, repo: c.origin, served: c.n, title: storeOf(c.repo).get(c.id)?.title || '(removed)' }));
   return u;
 }
 
 const num = n => Math.round(n).toLocaleString('en-US');
+const usd = n => `${n < 0 ? '−' : ''}$${Math.abs(n) >= 100 ? Math.round(Math.abs(n)).toLocaleString('en-US') : Math.abs(n).toFixed(2)}`;
 export function renderUsage(u, { days } = {}) {
   const machine = u.scope === 'machine';
   const where = machine ? 'on this machine' : `for ${path.isAbsolute(u.scope) ? path.basename(u.scope) : u.scope}`;
@@ -311,6 +343,7 @@ export function renderUsage(u, { days } = {}) {
     for (const [purpose, s] of Object.entries(spending.byPurpose)) L.push(row('  ' + purpose, s));
     L.push(`  provider caching   ${num(spending.cacheReadTokens)} read, ${num(spending.cacheWriteTokens)} written (included in input, distinct from thinker savings)`);
     L.push(`  missing usage      ${num(spending.unknownTokenCalls)} records without complete token totals; ${num(spending.unknownCostCalls)} without dollar cost`);
+    if (spending.unknownCostCalls) L.push(`  priced from tokens ${usd(spending.estimatedCost)} for the ${num(spending.unknownCostCalls - spending.unpricedCalls)} unreported records on a model with a known price (prices.js); ${num(spending.unpricedCalls)} records cannot be priced${spending.unpricedCalls ? ' (no tokens, or a model with no price: THINKER_HOME/prices.json or `prices` in .thinker/config.json)' : ''}`);
     if (spending.failed) L.push(`  failed attempts    ${num(spending.failed)} (reported spending included above)`);
     if (spending.legacyRecords) L.push('  history            older records omit tokens and setup exploration; totals are incomplete');
     if (u.distillation.runs) L.push(`  distillation yield ${num(u.distillation.noNewNotes)}/${num(u.distillation.runs)} runs added no new notes; ${num(u.distillation.noChanges)} also made no merges (may still assess existing notes)`);
@@ -323,10 +356,23 @@ export function renderUsage(u, { days } = {}) {
     L.push(`  tokens          about ${num(u.saved.tokens)} of file reading avoided; ${num(Math.abs(u.saved.net))} ${u.saved.net >= 0 ? 'more than' : 'less than'} the ${num(u.tokensServed)} the notes added`);
     L.push(`  basis           ${num(u.saved.servings)} servings the agent acted on: one read per file a note rests on (at most ${MAX_FILES}),`);
     L.push(`                  at the file's size (at most ${num(FILE_CAP)} tokens). Searches and re-read context are not counted. An estimate, not a measurement.`);
+    const models = Object.entries(u.saved.byModel).sort((a, b) => b[1].usd - a[1].usd);
+    if (models.length) {
+      L.push(`  in dollars      ${usd(u.saved.usd)} at the input price of the model each session ran on: ${models.map(([m, x]) => `${usd(x.usd)} on ${m} (${num(x.servings)} servings)`).join(', ')}`);
+      if (u.saved.unpricedServings) L.push(`                  ${num(u.saved.unpricedServings)} servings (${num(u.saved.unpricedTokens)} tokens) not priced: the session's model is not known or has no price`);
+    } else L.push(`  in dollars      not priced: no assessed session named its model (sessions assessed before this was recorded, or an agent whose transcript does not name it)`);
   }
   if (spending?.calls) {
     L.push(`  after cache work  ${num(u.saved.netAfterSpend)} tokens = estimated reading avoided − notes added − ${num(spending.totalTokens)} reported build/maintenance tokens`);
     L.push(`                  ${u.saved.spendComplete ? 'Reported tokens only' : 'Partial accounting; unreported spending is not subtracted'}. Token balance is not dollar ROI; models and cached input have different prices.`);
+    if (u.saved.pricedServings || u.injected.pricedTokens) {
+      L.push(`  in dollars      ${usd(u.saved.netUsd)} = ${usd(u.saved.usd)} reading avoided − ${usd(u.injected.usd)} notes injected − ${usd(spending.cost)} model work (${usd(spending.reportedCost)} reported + ${usd(spending.estimatedCost)} priced from tokens)`);
+      const gaps = [];
+      if (u.saved.unpricedServings) gaps.push(`${num(u.saved.unpricedServings)} confirmed servings`);
+      if (u.injected.unpricedTokens) gaps.push(`${num(u.injected.unpricedTokens)} injected tokens`);
+      if (spending.unpricedCalls) gaps.push(`${num(spending.unpricedCalls)} model records`);
+      L.push(`                  ${gaps.length ? `Not in this balance, for lack of a model or a price: ${gaps.join(', ')}` : 'Every side priced'}. The reading avoided is the estimate above, at input price; it leaves out that an avoided read is not re-sent on every later turn.`);
+    }
   }
   if (machine) {
     const home = process.env.HOME || '';
