@@ -10,7 +10,7 @@ import path from 'node:path';
 import { gitHead } from './store.js';
 import { refresh, verifyNote, phraseNotes, phraseKey } from './ops.js';
 import { mineCochange, loadCochange } from './cochange.js';
-import { cbmProject, cbmIndex } from './cbm.js';
+import { cbmProject, cbmIndex, codegraphEngine } from './cbm.js';
 import { readLog } from './usage.js';
 import { reconcileLocal, readyToShareNotice } from './share.js';
 
@@ -93,8 +93,9 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     if (head && (!idx || idx.head !== head)) {
       try { if (!dry) (fns.cochange || mineCochange)(repo); r.cochange = true; } catch { r.errors++; }
     }
-    // 1b. the code graph (cbm.js), when this checkout has one: free too, re-indexed when HEAD moved
-    if (head && state.graphHead !== head && (fns.graphIndexed || cbmProject)(repo)) {
+    // 1b. the code graph (cbm.js), when this checkout uses it (THINKER_CODEGRAPH=cbm|auto) and has one:
+    // free too, re-indexed when HEAD moved
+    if (head && state.graphHead !== head && (fns.graphEngine || codegraphEngine)(repo) === 'cbm' && (fns.graphIndexed || cbmProject)(repo)) {
       try { const g = dry ? {} : (fns.graphIndex || cbmIndex)(repo); if (!g.error) { r.graph = true; state.graphHead = head; } else r.errors++; } catch { r.errors++; }
     }
     // 2. Re-hashing is free, even when the model budget is exhausted.

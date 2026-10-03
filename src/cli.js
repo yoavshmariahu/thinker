@@ -9,7 +9,7 @@ import { maintain, maintenanceNotice, renderMaintain } from './maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
-import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, CBM_VERSION } from './cbm.js';
+import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, codegraphEngine, CBM_VERSION } from './cbm.js';
 import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
@@ -84,9 +84,10 @@ const HELP = `thinker — knowledge cache for coding agents
   ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
                                  web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
   cbm [status|install|index|forget]
-                                 codebase-memory-mcp as the code graph behind drilldown and the blast-radius counts:
-                                 install puts the binary (~40 MB) under ~/.thinker/cbm, index builds its graph of this
-                                 checkout (and maintenance keeps it current); without it, git grep answers
+                                 codebase-memory-mcp as an optional code graph behind drilldown, find and the blast-radius
+                                 counts, used only with THINKER_CODEGRAPH=cbm (or auto, when indexed): install puts the
+                                 binary (~40 MB) under ~/.thinker/cbm, index builds its graph of this checkout (and
+                                 maintenance keeps it current); the default engine is git grep, which needs neither
   list [--stale] [--all]         list notes
   show <id>                      print a note
   rm <id>
@@ -177,10 +178,10 @@ async function main() {
         out(`indexing ${store.repo} with codebase-memory-mcp…`);
         const r = cbmIndex(store.repo, { name: flags.name, stdio: ['ignore', 'pipe', 'inherit'] });
         if (r.error) { out('error: ' + r.error); process.exit(1); }
-        out(`indexed as ${r.project}: ${r.nodes} nodes, ${r.edges} edges${r.parse_partial_count ? ` (${r.parse_partial_count} files parsed partially)` : ''}. drilldown and fanout now come from the graph; maintenance re-indexes when HEAD moves.`);
+        out(`indexed as ${r.project}: ${r.nodes} nodes, ${r.edges} edges${r.parse_partial_count ? ` (${r.parse_partial_count} files parsed partially)` : ''}. ${codegraphEngine(store.repo) === 'cbm' ? 'drilldown and fanout now come from the graph; maintenance re-indexes when HEAD moves.' : 'git grep stays the engine until THINKER_CODEGRAPH=cbm (or auto) is set; then maintenance re-indexes when HEAD moves.'}`);
         break;
       }
-      if (pos[0] === 'forget') { const r = cbmForget(store.repo); out(r.error ? 'error: ' + r.error : 'index removed; git grep answers again'); break; }
+      if (pos[0] === 'forget') { const r = cbmForget(store.repo); out(r.error ? 'error: ' + r.error : 'index removed'); break; }
       const st = cbmStatus(store.repo);
       if (!st.bin) out(`codebase-memory-mcp: not installed (git grep answers)\nlooked in: THINKER_CBM_BIN, ~/.local/bin, PATH, ${cbmDir()}\ninstall with: thinker cbm install`);
       else out(`codebase-memory-mcp ${st.version || '?'} at ${st.bin}\nthis checkout: ${st.project ? `indexed as ${st.project}` : 'not indexed (thinker cbm index)'}; ${st.projects ?? '?'} project${st.projects === 1 ? '' : 's'} indexed on this machine\nengine for drilldown and fanout: ${st.engine}${process.env.THINKER_CODEGRAPH ? ` (THINKER_CODEGRAPH=${process.env.THINKER_CODEGRAPH})` : ''}`);

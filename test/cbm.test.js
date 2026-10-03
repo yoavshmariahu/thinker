@@ -52,7 +52,7 @@ test('a qualified name of a file resolves to its path in the checkout', () => {
 test('THINKER_CODEGRAPH=git keeps the graph out; caller counts render as callers', () => {
   const before = process.env.THINKER_CODEGRAPH;
   process.env.THINKER_CODEGRAPH = 'git';
-  try { assert.equal(codegraphEngine(process.cwd()), 'git'); assert.equal(cbmBin(), null); }
+  try { assert.equal(codegraphEngine(process.cwd()), 'git'); assert.equal(cbmBin(), null); delete process.env.THINKER_CODEGRAPH; assert.equal(codegraphEngine(process.cwd()), 'git', 'git is the default'); }
   finally { if (before === undefined) delete process.env.THINKER_CODEGRAPH; else process.env.THINKER_CODEGRAPH = before; }
   assert.equal(renderFanout({ files: 3, sites: 5, refs: 5, callers: true }), '5 callers in 3 files');
   assert.equal(renderFanout({ files: 1, sites: 1, refs: 1, callers: true }), '1 caller in 1 file');
@@ -60,17 +60,20 @@ test('THINKER_CODEGRAPH=git keeps the graph out; caller counts render as callers
   assert.match(cbmAsset() || 'codebase-memory-mcp-x', /^codebase-memory-mcp-/);
 });
 
-test('maintenance re-indexes the graph when HEAD moved, only for a checkout that has one', async () => {
+test('maintenance re-indexes the graph when HEAD moved, only for a checkout that has one and uses it', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cbm-m-'));
   fs.writeFileSync(path.join(dir, 'a.js'), 'export const a = 1;\n');
   const git = (...a) => execFileSync('git', a, { cwd: dir, stdio: 'ignore' });
   git('init', '-q'); git('add', '.'); git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'init');
   const store = new Store(dir); store.init();
   const calls = [];
-  const fns = { cochange: () => {}, refresh: () => [], phrase: async () => ({ done: [] }), spentToday: () => 0, graphIndexed: () => false, graphIndex: () => { calls.push('index'); return { project: 'x' }; } };
+  const fns = { cochange: () => {}, refresh: () => [], phrase: async () => ({ done: [] }), spentToday: () => 0, graphIndexed: () => false, graphEngine: () => 'git', graphIndex: () => { calls.push('index'); return { project: 'x' }; } };
   let r = await maintain(store, dir, { fns });
   assert.equal(r.graph, false); assert.deepEqual(calls, []);
   fns.graphIndexed = () => 'x';
+  r = await maintain(store, dir, { fns });
+  assert.equal(r.graph, false); assert.deepEqual(calls, [], 'indexed, but git grep is the engine: left alone');
+  fns.graphEngine = () => 'cbm';
   r = await maintain(store, dir, { fns });
   assert.equal(r.graph, true); assert.deepEqual(calls, ['index']);
   r = await maintain(store, dir, { fns });
