@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { Store } from '../src/store.js';
 import { createNote, lateNotes, rememberTask, completenessNudge, orient, lookup, takeTurn } from '../src/ops.js';
+import { rank } from '../src/rank.js';
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-late-'));
@@ -211,4 +212,33 @@ test('phrasings of a note count on its question side', async () => {
   assert.equal(rank([note, other, ...filler], { query: request })[0].note.id, 'chart');
   const said = { ...note, says: ['The actions sidebar stays open after copying a chart', 'Side menu hides the new chart on a phone'] };
   assert.equal(rank([said, other, ...filler], { query: request })[0].note.id, 'panel');
+});
+
+test('a request of one content word is a turn of conversation, not a task: nothing is served on it', async () => {
+  const { store, inv, cp } = setup();
+  const st = createNote(store, { title: 'Note status lifecycle', kind: 'callpath', answers: ['how status changes', 'when is a note stale'], body: 'src/b.py:other sets the status', deps: [{ path: 'src/b.py', symbol: 'other' }] }).note;
+  for (const task of ['status?', 'merged?', 'ok good. status?', 'yeah just run it', 'hi']) {
+    assert.equal((await orient(store, { task, backgroundVerify: false, recordUsage: false })).included.length, 0, JSON.stringify(task));
+  }
+  // two content words are a question; a named note is still looked up; a note on the current file is still served
+  assert.ok((await orient(store, { task: 'how does launch work', backgroundVerify: false, recordUsage: false })).included.some(n => n.id === cp.id));
+  assert.ok((await orient(store, { task: 'status lifecycle', backgroundVerify: false, recordUsage: false })).included.some(n => n.id === st.id));
+  assert.ok((await orient(store, { task: 'status?', file: 'src/a.py', backgroundVerify: false, recordUsage: false })).included.some(n => n.id === inv.id || n.id === cp.id));
+  assert.ok(rank([st], { query: 'status', mode: 'lookup' }).length, 'lookup by one word is answered');
+  const old = process.env.THINKER_MIN_COVER; process.env.THINKER_MIN_COVER = '0,0';
+  try { assert.ok((await orient(store, { task: 'status?', backgroundVerify: false, recordUsage: false })).included.length, 'floors off: served as before'); }
+  finally { if (old === undefined) delete process.env.THINKER_MIN_COVER; else process.env.THINKER_MIN_COVER = old; }
+});
+
+test('the prompt hook serves a note once per session; an explicit orient gets it again', async () => {
+  const { store, cp } = setup();
+  const first = await orient(store, { task: 'how does launch work', session: 'h1', once: true, backgroundVerify: false });
+  assert.ok(first.included.some(n => n.id === cp.id));
+  const again = await orient(store, { task: 'how does launch work', session: 'h1', once: true, backgroundVerify: false });
+  assert.ok(!again.included.some(n => n.id === cp.id), 'already in the session\'s context');
+  assert.ok(again.included.every(n => !first.included.includes(n)), 'what is served now is new to the session');
+  let more = again; for (let i = 0; i < 3 && more.included.length; i++) more = await orient(store, { task: 'how does launch work', session: 'h1', once: true, backgroundVerify: false });
+  assert.equal(more.included.length, 0, 'once every relevant note has been served, nothing is');
+  assert.ok((await orient(store, { task: 'how does launch work', session: 'h2', once: true, backgroundVerify: false })).included.length, 'another session');
+  assert.ok((await orient(store, { task: 'how does launch work', session: 'h1', backgroundVerify: false })).included.length, 'asked for by the agent');
 });

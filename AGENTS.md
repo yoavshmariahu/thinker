@@ -58,7 +58,8 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, refresh co-change, distill newly merged PRs, under a daily cap |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
-| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens |
+| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens and in dollars |
+| `src/prices.js` | dollars per token by model: Anthropic's list prices, the user's for other vendors |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
@@ -132,6 +133,19 @@ plus `saved.netAfterSpend` (estimated reading avoided minus notes injected minus
 model tokens). Missing counters/costs stay unknown. Legacy logs lack setup exploration
 and token counts, so this comparison is partial, not measured financial ROI. See
 `src/model-usage.js` for provider normalization.
+
+The same balance is given in dollars where the model is known (`prices.js`). The
+end-of-session assessment records the model the session ran on, read from its
+transcript (`transcripts.js:parseTranscript` returns `model`: Claude Code's
+`message.model`, Codex's `turn_context`, Gemini's message `model`; Cursor names none),
+on the `attest` line; for assessments written before that, `usage` finds the transcript
+by session id (`transcripts.js:sessionModel`). Reading avoided and notes injected are
+priced at that model's input price; a model record with tokens but no reported cost is
+priced from its tokens (`spending.estimatedCost`). Anthropic's list prices are built in;
+other vendors' go in `THINKER_HOME/prices.json` or under `prices` in
+`.thinker/config.json` (`{"gpt-6-sol": {"input": 2, "output": 8}}`, dollars per million).
+What has no model or price is counted and reported (`saved.unpricedServings`,
+`injected.unpricedTokens`, `spending.unpricedCalls`), never taken as zero or as free.
 
 ## What a note is
 
@@ -228,14 +242,22 @@ Each session both consumes and improves the cache:
    the prompt hooks start at most every ten minutes ends with one maintenance
    run, and so do the git `post-commit` and `post-merge` hooks that `setup`, `init` and the
    installer put in place (`--no-git-hook` leaves it out). A run refreshes the
-   co-change index when `HEAD` moved, re-verifies up to 10 stale notes (the
-   most served first), writes phrasings for up to 8 notes that lack them, and
-   distills up to 3 pull requests merged since maintenance first ran in the
-   repository (older ones are `thinker mine-prs`). Reported model cost of
+   co-change index when `HEAD` moved, re-verifies up to 10 stale notes, writes
+   phrasings for up to 8 notes that lack them, and distills up to 3 pull
+   requests merged since maintenance first ran in the repository (older ones
+   are `thinker mine-prs`). Re-verification ahead of time is for notes served in
+   the last 14 days (`verifyServedDays`; 0: all), the most served first; a
+   stale note nobody is reading waits until it is served, when serving
+   verifies it in the background anyway (`ops.js:scheduleVerify`). A note
+   re-verified 3 times in a week (`verifyChurn`; 0: never) rests on code under
+   active change: it is left stale, with its ⚠ banner, and named to the user
+   once (`maintain.js:pickStale`), to narrow its pointers or retire it. In the
+   week this was added, 28 of 80 notes maintenance verified had not been served
+   at all, and one note was rewritten 8 times. Reported model cost of
    learning and maintenance is summed from the machine's log and a run stops
    at `dailyCap` (default $1 a day). `maintain` in `.thinker/config.json`
-   overrides `enabled`, `dailyCap`, `verifyPerRun`, `phrasePerRun`, `prs`,
-   `prsPerRun`. What a run did is shown once at the end of the next turn
+   overrides `enabled`, `dailyCap`, `verifyPerRun`, `verifyServedDays`,
+   `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`. What a run did is shown once at the end of the next turn
    (`maintain.js:maintenanceNotice`), through the same channel as the
    cache-hit notice. `thinker maintain [--dry]` is one run by hand;
    `THINKER_NO_LEARN=1` switches it off with the rest of learning.
@@ -355,6 +377,17 @@ queries; `0,0` turns them off).
   covered by more: the weight of about three of its words. This holds for
   the prompt hook, `orient`, `lookup` and late notes; a note on the current
   file is exempt. When nothing passes, nothing is served.
+- A request of one content word is not oriented on at all: `status?`,
+  `merged?`, `ok good. pushed?`, `yeah just run it` are turns of a
+  conversation, and any note holding the word would cover all of it
+  (`ok`, `yeah`, `please` and the like are stop words). `lookup` by one word
+  is still answered, and so is a note on the current file. In one week on this
+  repository such turns took 20 of 111 servings, and the note holding the
+  word *status* became the most served note of the week.
+- The prompt hooks serve a note once per session (`orient`'s `once`): what
+  was served on an earlier turn is in the agent's context, and serving it
+  again on a follow-up adds tokens and a verdict of `unused`. `orient` called
+  by the agent is a fresh question and may return it again.
 - The query: function words are dropped (`rank.js:STOP`), and so is what the
   request tells the agent not to do ("do not run the test suite"), which
   would otherwise bring up the notes on running tests (`rank.js:subject`).

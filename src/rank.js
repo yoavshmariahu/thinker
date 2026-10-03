@@ -11,7 +11,8 @@ const STOP = new Set(`the a an and or of to in on for with is are be by as at fr
  about above after before between through during under over out up down off across against within without via per
  any all some each every both either neither other another such same own more most less few many much
  here now very really quite rather instead because while until unless although though whether however
- need needs needed want wants wanted let lets see seen say says said`.split(/\s+/).filter(Boolean));
+ need needs needed want wants wanted let lets see seen say says said
+ ok okay yes yeah yep no nope good great fine sure thanks thank please hi hello hey`.split(/\s+/).filter(Boolean));
 
 export function tokenize(s) {
   const out = [];
@@ -114,11 +115,16 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
   // the body must then hold the weight of about `terms` of its words
   const short = floorB > 0 && Q.uniq > 3 ? Math.min(0.6, terms / Q.uniq) : 0;
   const minB = Math.max(floorB, short), minQ = floorQ;
+  // A request of one content word has no subject to cover: "status?", "merged?", "ok good. pushed?",
+  // "yeah just run it" are turns of a conversation, not tasks, and any note holding the word would
+  // cover all of it. Orientation then serves nothing but a note on the current file; a lookup is
+  // asked for by name and is answered as before.
+  const subjectless = mode === 'orient' && !loose && floorB > 0 && Q.uniq < 2;
   return notes.map(n => {
     const mq = Q.matched.get(n.id) || 0, mb = B.matched.get(n.id) || 0;
     const aff = pathAffinity(n, file);
     const cover = (B.scores.get(n.id) || 0) / Math.max(1e-9, B.mass), coverQ = (Q.scores.get(n.id) || 0) / Math.max(1e-9, Q.mass);
-    const passes = loose ? (mq + mb) >= 1 || aff > 0 : (((mq >= need || (mq >= 1 && mb >= 3)) && cover >= minB && coverQ >= minQ) || aff > 0);
+    const passes = loose ? (mq + mb) >= 1 || aff > 0 : ((!subjectless && (mq >= need || (mq >= 1 && mb >= 3)) && cover >= minB && coverQ >= minQ) || aff > 0);
     const rel = passes ? 0.7 * (Q.scores.get(n.id) || 0) / maxQ + 0.3 * (B.scores.get(n.id) || 0) / maxB : 0;
     const prior = mode === 'orient' ? (KIND_PRIOR[n.kind] || 0) * 0.3 : 0;
     const conf = (n.confidence ?? 0.7);

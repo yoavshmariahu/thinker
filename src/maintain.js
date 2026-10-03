@@ -17,7 +17,9 @@ import { reconcileLocal, readyToShareNotice } from './share.js';
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
   dailyCap: 1.0,    // USD of reported model cost per day, learning and maintenance together
-  verifyPerRun: 10, // stale notes re-verified per run, most recently served first
+  verifyPerRun: 10, // stale notes re-verified per run, most served first
+  verifyServedDays: 14, // only notes served this recently are re-verified ahead of time (0: all); the rest wait to be served
+  verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
   prs: true,        // distill pull requests merged since maintenance first ran here
   prsPerRun: 3,
@@ -40,6 +42,32 @@ export function spentToday(store, now = new Date()) {
   return total;
 }
 
+// Verify calls per note in the last seven days, from the machine's log.
+export function verifyCounts(store, now = Date.now()) {
+  const since = new Date(now - 7 * 86400_000).toISOString();
+  const counts = new Map();
+  for (const e of readLog(store)) if (e.op === 'verify' && e.t >= since && e.id) counts.set(e.id, (counts.get(e.id) || 0) + 1);
+  return counts;
+}
+
+// Which stale notes a run re-verifies. Serving verifies a stale note in the background anyway
+// (ops.js:scheduleVerify), so maintenance only gets ahead of serving: notes served lately, in
+// the order of how much they are served. A note that has had to be re-verified `verifyChurn`
+// times this week rests on code under active change; rewriting it again each day costs a call
+// per day and settles nothing, so it is left stale, with the ⚠ banner, and named once to the
+// user, who can narrow its pointers or retire it.
+export function pickStale(notes, cfg, { counts = new Map(), now = Date.now() } = {}) {
+  const recent = cfg.verifyServedDays > 0 ? now - cfg.verifyServedDays * 86400_000 : -Infinity;
+  const churning = [];
+  const stale = notes
+    .filter(n => n.status === 'stale' && !(n.verifying && now - Date.parse(n.verifying) < 10 * 60_000))
+    .filter(n => recent === -Infinity || (n.lastUsed && Date.parse(n.lastUsed) >= recent))
+    .filter(n => { if (cfg.verifyChurn > 0 && (counts.get(n.id) || 0) >= cfg.verifyChurn) { churning.push(n); return false; } return true; })
+    .sort((a, b) => (b.uses || 0) - (a.uses || 0))
+    .slice(0, cfg.verifyPerRun);
+  return { stale, churning };
+}
+
 function stateFile(store) { return path.join(store.dir, 'state', 'maintain.json'); }
 function readState(store) { try { return JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch { return {}; } }
 
@@ -53,7 +81,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   const state = readState(store);
-  const r = { verified: 0, updated: 0, retired: 0, phrased: 0, prs: 0, cochange: false, graph: false, cost: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], phrased: 0, prs: 0, cochange: false, graph: false, cost: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const budget = cfg.dailyCap - spent;
   const afford = () => budget - r.cost > 0;
@@ -72,10 +100,8 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     // 2. Re-hashing is free, even when the model budget is exhausted.
     const notes = (fns.refresh || refresh)(store, store.list());
     if (afford()) {
-      const stale = notes
-        .filter(n => n.status === 'stale' && !(n.verifying && Date.now() - Date.parse(n.verifying) < 10 * 60_000))
-        .sort((a, b) => (b.uses || 0) - (a.uses || 0))
-        .slice(0, cfg.verifyPerRun);
+      const { stale, churning } = pickStale(notes, cfg, { counts: cfg.verifyChurn > 0 ? (fns.verifyCounts || verifyCounts)(store) : new Map() });
+      r.churning = churning.map(n => n.id);
       for (const n of stale) {
         if (!afford()) { r.capped = true; break; }
         if (dry) { r.verified++; continue; }
@@ -105,6 +131,11 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     const u = state.unreported || {};
     if (!dry) { const notice = readyToShareNotice(store); if (notice) u.share = notice; }
     for (const k of ['verified', 'updated', 'retired', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
+    // churning notes are named once; a note named before is not named again until it settles
+    const named = new Set(state.churnNamed || []);
+    const fresh = r.churning.filter(id => !named.has(id));
+    if (fresh.length) u.churning = [...new Set([...(u.churning || []), ...fresh])];
+    state.churnNamed = r.churning;
     u.cochange = !!(u.cochange || r.cochange);
     u.graph = !!(u.graph || r.graph);
     state.unreported = u; state.at = new Date().toISOString(); state.last = r;
@@ -129,6 +160,7 @@ export function maintenanceNotice(store) {
   if (u.cochange) parts.push('co-change index refreshed');
   if (u.graph) parts.push('code graph re-indexed');
   if (u.share) parts.push(u.share);
+  if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} left stale after being re-verified ${maintainConfig(store).verifyChurn}+ times this week (${u.churning.slice(0, 3).join(', ')}${u.churning.length > 3 ? ', …' : ''}): their code is changing; narrow their pointers or retire them`);
   if (!parts.length) return '';
   delete state.unreported;
   try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
@@ -152,6 +184,7 @@ export function renderMaintain(r) {
   const bits = [`${r.verified} re-verified`];
   if (r.updated) bits.push(`${r.updated} updated`);
   if (r.retired) bits.push(`${r.retired} retired`);
+  if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`, `co-change ${r.cochange ? 'refreshed' : 'unchanged'}`);
   if (r.graph) bits.push('code graph re-indexed');
   return `maintained: ${bits.join(', ')}${r.cost ? ` ($${r.cost.toFixed(3)})` : ''}${r.capped ? '; daily cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
