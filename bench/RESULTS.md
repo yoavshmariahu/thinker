@@ -1,6 +1,6 @@
 # Benchmark results
 
-Additional comparison: [Thinker versus CodeGraph on PostHog](../research/codegraph-posthog/README.md)
+Additional comparisons: [Thinker versus CodeGraph on PostHog](../research/codegraph-posthog/README.md); [Thinker versus codebase-memory-mcp on click, and the `find` tool it led to](../research/cbm-comparison/README.md)
 — two completed task pairs, with raw traces, grades, and excluded attempts.
 
 ## Headline results and how to read them

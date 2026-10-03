@@ -6,7 +6,7 @@ import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
 import { maintain, maintenanceNotice, renderMaintain } from './maintain.js';
-import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
+import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
 import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, CBM_VERSION } from './cbm.js';
@@ -76,8 +76,11 @@ const HELP = `thinker — knowledge cache for coding agents
   serve                          run the MCP server (stdio)
   orient "<task>" [--file f] [--budget n] [--snippets]
   lookup "<query>" [--snippets]  (--snippets: inline the code behind the pointers, as the MCP tools do)
-  drilldown <path:Symbol|path|Symbol> [--budget n]
-                                 the definition with its lines, one hop of callers and callees, and the notes on it
+  find "<words|Identifier>" [--path p] [--limit n]
+                                 the definitions whose name or body carry the words, as pointers with their lines
+  drilldown <pointer…> [--budget n]
+                                 each definition whole with its lines (path:Symbol, path, or Symbol; several at once),
+                                 one hop of callers and callees for a single pointer, and the notes on the code
   ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
                                  web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
   cbm [status|install|index|forget]
@@ -184,7 +187,13 @@ async function main() {
       break;
     }
     case 'drilldown': {
-      const r = drilldown(store, { pointer: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 1500 });
+      const r = drilldown(store, { pointer: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500 });
+      if (r.error) { out('error: ' + r.error); process.exit(1); }
+      out(r.text);
+      break;
+    }
+    case 'find': {
+      const r = find(store, { query: pos.join(' '), path: flags.path || undefined, limit: Number(flags.limit) || 12, client: flags.client || 'cli' });
       if (r.error) { out('error: ' + r.error); process.exit(1); }
       out(r.text);
       break;

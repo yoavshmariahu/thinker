@@ -4,7 +4,7 @@
 // patch is graded against the task's acceptance criteria (bench/judge-protocol.js). Costs model
 // calls; run on purpose.
 //
-//   THINKER_TELEMETRY=off node bench/cbm-pr-compare.js [--arms thinker,cbm,both] [--tasks PR106936-hard,…] [--reindex] [--out dir]
+//   THINKER_TELEMETRY=off node bench/cbm-pr-compare.js [--arms thinker,cbm,both] [--tasks PR106936-hard,…] [--reindex] [--out dir] [--judge fable]
 //
 // Arms: thinker (notes + git grep), cbm (the graph alone), both (notes with the graph as engine).
 import fs from 'node:fs';
@@ -20,6 +20,8 @@ fs.mkdirSync(OUT, { recursive: true });
 const SPEC = JSON.parse(fs.readFileSync(path.join(ROOT, 'bench/tasks/posthog-hard.json'), 'utf8'));
 const IDS = opts.tasks || ['PR106936-hard', 'PR106672-hard', 'PR106522-hard'];
 const NOTES = path.join(ROOT, 'bench/notesets/posthog-v2/notes');
+const JUDGE = opts.judge || 'claude-sonnet-5'; // --judge fable: bench/RESULTS.md reports Fable-judged numbers
+const MAX_TURNS = Number(process.env.CBM_PR_MAX_TURNS) || 60; // 35 capped two of three Qartez-study runs before any edit
 
 const worktrees = {};
 function worktreeFor(arm) {
@@ -59,7 +61,7 @@ async function runArm(task, arm) {
   const { cwd, project } = worktreeFor(arm);
   const prompt = `${guidanceFor(arm, project)}\n\n${task.prompt}`;
   console.log(`[START] ${id} at ${new Date().toISOString()}`);
-  const run = await runClaude({ prompt, cwd, arm, maxTurns: 35 });
+  const run = await runClaude({ prompt, cwd, arm, maxTurns: MAX_TURNS, disallowed: 'Agent,Task', timeoutMs: 40 * 60_000 }); // no subagents: their replies end up as the run's summary
   execFileSync('git', ['add', '-A', '--', '.', ':!.thinker', ':!AGENTS.md'], { cwd });
   const diff = execFileSync('git', ['diff', '--cached', '--no-color'], { cwd, encoding: 'utf8' });
   const tools = toolStats(transcriptPath(run.session_id, cwd));
@@ -74,7 +76,7 @@ async function grade(task, record) {
   if (fs.existsSync(judgeFile)) return JSON.parse(fs.readFileSync(judgeFile, 'utf8'));
   console.log(`[JUDGING] ${record.id}…`);
   const prompt = `REQUEST:\n${task.prompt}\n\nCRITERIA:\n${task.criteria.map(c => `${c.id}${c.essential ? ' (essential)' : ''}: ${c.behavior}`).join('\n')}\n\nPATCH:\n${(srcOnly(record.diff) || '(empty patch)').slice(0, 40000)}\n\nCODE AFTER PATCH:\n${record.context}\n\nAUTHOR SUMMARY:\n${(record.summary || '').slice(0, 3000)}`;
-  const res = await complete({ model: 'claude-sonnet-5', system: JUDGE_SYSTEM_PROMPT, prompt, schema: GRADE_SCHEMA });
+  const res = await complete({ model: JUDGE, system: JUDGE_SYSTEM_PROMPT, prompt, schema: GRADE_SCHEMA });
   const scores = computeGradeScores(task.criteria, res.json?.results || []);
   const g = { ...scores, cost_usd: res.cost, model: res.model };
   fs.writeFileSync(judgeFile, JSON.stringify(g, null, 2) + '\n');
@@ -87,7 +89,7 @@ async function main() {
     created: new Date().toISOString(),
     thinkerCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(),
     cbmVersion: armsNeedingCbm(opts.arms) ? cbmVersion() : null,
-    base: SPEC.base, model: 'claude-sonnet-5', tasks: IDS, arms: opts.arms,
+    base: SPEC.base, model: 'claude-sonnet-5', judge: JUDGE, maxTurns: MAX_TURNS, tasks: IDS, arms: opts.arms,
     controls: [
       'Identical symptom-only task prompts from the PostHog hard set',
       `Worktrees reset to the pinned base ${SPEC.base} before every run, one per arm`,

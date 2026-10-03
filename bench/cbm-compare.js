@@ -3,7 +3,7 @@
 // each arm answers the same questions in its own clean worktree through Claude Code, and a
 // judge scores the answers against the expert reference. Costs model calls; run on purpose.
 //
-//   THINKER_TELEMETRY=off node bench/cbm-compare.js [--arms thinker,cbm,both] [--tasks E1-flag-parsing,…] [--reindex] [--out dir]
+//   THINKER_TELEMETRY=off node bench/cbm-compare.js [--arms thinker,cbm,both] [--tasks E1-flag-parsing,…] [--reindex] [--out dir] [--judge fable]
 //
 // Arms: thinker (notes + git grep), cbm (the graph alone), both (notes with the graph as engine).
 // Completed runs are kept and skipped on rerun (delete a record to redo it).
@@ -19,6 +19,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const SPEC = JSON.parse(fs.readFileSync(path.join(ROOT, 'bench/tasks/click.json'), 'utf8'));
 const IDS = opts.tasks || ['E1-flag-parsing', 'E2-option-kwarg', 'E5-runner-exit'];
 const NOTES = path.join(ROOT, 'bench/notesets/click-systematic/notes');
+const JUDGE = opts.judge || 'claude-sonnet-5'; // --judge fable grades with Fable (bench/RESULTS.md reports Fable-judged numbers)
 
 const JUDGE_SCHEMA = {
   type: 'object',
@@ -47,7 +48,7 @@ async function runArm(task, arm) {
   const { cwd, project } = worktreeFor(arm);
   const prompt = `${guidanceFor(arm, project)}\n\nTASK:\n${task.prompt}`;
   console.log(`[START] ${id} at ${new Date().toISOString()}`);
-  const run = await runClaude({ prompt, cwd, arm, maxTurns: 30, disallowed: 'Edit,Write,NotebookEdit' });
+  const run = await runClaude({ prompt, cwd, arm, maxTurns: 30, disallowed: 'Edit,Write,NotebookEdit,Agent,Task' }); // no subagents: their replies end up as the run's answer
   const tools = toolStats(transcriptPath(run.session_id, cwd));
   const must = task.must || [];
   const answer = run.result || '';
@@ -64,7 +65,7 @@ async function grade(task, record) {
   if (fs.existsSync(judgeFile)) return JSON.parse(fs.readFileSync(judgeFile, 'utf8'));
   console.log(`[JUDGING] ${record.id}…`);
   const res = await complete({
-    model: 'claude-sonnet-5',
+    model: JUDGE,
     system: 'You grade a coding agent\'s answer about a codebase against a reference answer written by an expert. Score 1.0 if every key fact in the reference is present and nothing in the answer contradicts the reference or the code; 0.5 if the main point is right but important specifics are missing or one detail is wrong; 0 if the answer is wrong, evasive, or contradicts the reference on the main point. List missing key facts and wrong claims. Extra correct detail is fine and not penalized. Do not penalize wording, ordering, or formatting.',
     prompt: `TASK:\n${task.prompt}\n\nREFERENCE ANSWER:\n${task.gold}\n\nAGENT ANSWER:\n${record.answer}`,
     schema: JUDGE_SCHEMA,
@@ -80,7 +81,7 @@ async function main() {
     created: new Date().toISOString(),
     thinkerCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(),
     cbmVersion: armsNeedingCbm(opts.arms) ? cbmVersion() : null,
-    model: 'claude-sonnet-5', tasks: IDS, arms: opts.arms, repetitions: 1,
+    model: 'claude-sonnet-5', judge: JUDGE, tasks: IDS, arms: opts.arms, repetitions: 1,
     controls: [
       'Identical task prompts and clean git worktrees for Click, one per arm',
       'thinker arms serve the frozen click-systematic noteset with learning off; CBM arms use a graph indexed before the first run',

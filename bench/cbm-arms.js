@@ -36,7 +36,7 @@ export function ensureIndexed(wt, { force = false, log = console.log } = {}) {
   return r.project;
 }
 
-export const THINKER_GUIDANCE = `This repository has a "thinker" knowledge cache from previous sessions, exposed as MCP tools (mcp__thinker__orient, mcp__thinker__lookup, mcp__thinker__drilldown). Before exploring the codebase, call mcp__thinker__orient with the task to get the relevant notes and file:symbol pointers; use mcp__thinker__drilldown on a pointer for its code, callers and callees. Rely on grep/read only to verify or fill gaps.`;
+export const THINKER_GUIDANCE = `This repository has a "thinker" knowledge cache from previous sessions, exposed as MCP tools (mcp__thinker__orient, mcp__thinker__lookup, mcp__thinker__find, mcp__thinker__drilldown). Before exploring the codebase, call mcp__thinker__orient with the task to get the relevant notes and file:symbol pointers; use mcp__thinker__find with the words the code would use to list where something is defined, and mcp__thinker__drilldown on pointers (several at once) for their code, callers and callees. Rely on grep/read only to verify or fill gaps.`;
 
 export const cbmGuidance = project => `This repository is indexed by the "codebase-memory-mcp" code-graph server, exposed as MCP tools (mcp__codebase-memory-mcp__search_graph, get_code_snippet, trace_path, get_file_outline, get_architecture, search_code, detect_changes, query_graph). The project is already indexed under the name "${project}"; pass project="${project}" and do not re-index. Before manually grepping or reading files, use these tools to find symbol definitions, call hierarchies and the blast radius of a change.`;
 
@@ -132,7 +132,7 @@ export function parseArgs(argv, { defaultArms = ['thinker', 'cbm'] } = {}) {
   for (let i = 0; i < argv.length; i++) { const a = argv[i]; if (a.startsWith('--')) { const k = a.slice(2); const v = argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; } }
   const arms = String(flags.arms || defaultArms.join(',')).split(',').map(s => s.trim()).filter(Boolean);
   for (const a of arms) if (!ARMS.includes(a)) throw new Error(`unknown arm ${a}; arms: ${ARMS.join(', ')}`);
-  return { arms, tasks: flags.tasks ? String(flags.tasks).split(',') : null, reindex: !!flags.reindex, out: flags.out };
+  return { arms, tasks: flags.tasks ? String(flags.tasks).split(',') : null, reindex: !!flags.reindex, out: flags.out, judge: flags.judge && flags.judge !== true ? String(flags.judge) : null };
 }
 export function alternate(taskIds, arms) {
   const order = [];

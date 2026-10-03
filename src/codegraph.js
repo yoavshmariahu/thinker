@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { repoFile, symbolBlock } from './deps.js';
 import { definitions, astReady } from './ast.js';
 import { codegraphEngine, cbmProject, cbmNeighbors, cbmSearch, cbmOutline } from './cbm.js';
+import { tokenize } from './rank.js';
 
 // The CBM project to ask, 'git' to grep instead, or null when CBM was demanded but has no index.
 function graph(repo) {
@@ -28,6 +29,7 @@ const pathspecs = file => familyOf(file).map(e => `*.${e}`);
 
 // Lines a definition regex recognizes, per family; the same shapes deps.js:findSymbol knows.
 const DEF_WORDS = '(?:def|class|function\\*?|interface|type|enum|struct|trait|impl|fn|func|module|macro_rules!)';
+const NORM_KIND = { def: 'function', fn: 'function', func: 'function', 'function*': 'function', 'macro_rules!': 'macro' };
 const defLine = name => new RegExp(`^\\s*(?:export\\s+(?:default\\s+)?)?(?:pub(?:\\([^)]*\\))?\\s+)?(?:async\\s+)?(?:(?:${DEF_WORDS})\\s+${esc(name)}\\b|(?:const|let|var|static)\\s+${esc(name)}\\s*[=:]|func\\s*\\([^)]*\\)\\s*${esc(name)}\\s*\\(|${esc(name)}\\s*[:=]\\s*(?:async\\s*)?(?:\\([^)]*\\)\\s*=>|function\\b|class\\b))`);
 const callLine = name => new RegExp(`(?:^|[^\\w.])${esc(name)}\\s*!?\\(|\\.${esc(name)}\\s*\\(`);
 const importLine = /^\s*(?:import\b|from\b.*\bimport\b|use\b|require\(|#include)/;
@@ -162,6 +164,106 @@ export function findDefinitions(repo, name, { limit = 10 } = {}) {
   return raw.map(parseLine).filter(Boolean).slice(0, limit);
 }
 
+// Definitions that carry the words of a query, in their name or in their body: find("flag default
+// parser") lists Option.__init__, Option.add_to_parser, Option.get_default, … with their lines, so
+// the agent need not grep for the words and read around every hit. One git grep counts the words
+// per file (fixed strings, so a large checkout answers in a second or two), the lines of the files
+// with most mentions are attributed to the definition that encloses them (outline: parser, graph or
+// regex), and the graph adds definitions named by the words when the checkout is indexed. Ranked by
+// how many of the words a definition covers, name matches above body mentions; tests last. A single
+// identifier is matched as a name first. `scope` keeps paths that contain it (or match it as a glob).
+// Returns {hits: [{path, name, parent, symbol, kind, line, end, score, mentions}], toks, engine,
+// more} or null when the checkout cannot be searched.
+const CODE_EXT = new Set([...Object.keys(FAMILY), 'vue', 'svelte', 'dart', 'lua', 'zig', 'm', 'mm', 'erb', 'rake']);
+const EXCLUDES = [':(exclude).thinker', ':(exclude)*.min.js', ':(exclude)*.d.ts', ':(exclude)**/node_modules/**', ':(exclude)**/vendor/**', ':(exclude)**/dist/**', ':(exclude)**/build/**'];
+const extOf = p => String(p).split('.').pop().toLowerCase();
+const globRe = g => new RegExp('(^|/)' + g.split('**').map(p => p.split('*').map(esc).join('[^/]*')).join('.*') + (/\*$|\/$/.test(g) ? '' : '(/|$)'));
+export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 50 } = {}) {
+  const q = String(query || '').trim();
+  const ident = /^[A-Za-z_$][\w$]*$/.test(q) ? q : null;
+  const toks = [...new Set([...(ident ? [ident.toLowerCase()] : []), ...tokenize(q)])].filter(t => t.length >= 3).slice(0, 12);
+  if (!toks.length) return { hits: [], toks, engine: null, more: false };
+  const g = graph(repo); if (g === null) return null;
+  const inScope = scope ? (/[*?]/.test(scope) ? (re => p => re.test(p))(globRe(scope)) : p => p.includes(scope)) : () => true;
+  const specs = [...CODE_EXT].map(e => `*.${e}`);
+  // 1. the files that mention the words, most first (tests count for less)
+  const counted = gitGrep(repo, ['-c', '-F', '-i', ...toks.flatMap(t => ['-e', t]), '--', ...specs, ...EXCLUDES], { maxBuffer: 64 * 1024 * 1024 });
+  if (!counted) return null;
+  const files = counted.map(l => { const m = /^(.+):(\d+)$/.exec(l); return m && CODE_EXT.has(extOf(m[1])) && inScope(m[1]) ? { path: m[1], n: Number(m[2]) } : null; }).filter(Boolean)
+    .sort((a, b) => (isTestPath(a.path) ? 0.3 : 1) * b.n * 0 + ((isTestPath(b.path) ? 0.3 : 1) * b.n - (isTestPath(a.path) ? 0.3 : 1) * a.n)).slice(0, maxFiles);
+  // 2. their matching lines, attributed to the enclosing definition
+  const cands = new Map(); // path|symbol -> candidate
+  const cand = (path, d) => { const key = `${path}|${d.parent ? d.parent + '.' : ''}${d.name}`; if (!cands.has(key)) cands.set(key, { path, name: d.name, parent: d.parent || null, symbol: d.parent ? `${d.parent}.${d.name}` : d.name, kind: d.kind || 'definition', line: d.line, end: d.end || null, body: new Map(), mentions: 0 }); return cands.get(key); };
+  const has = (text, t) => text.toLowerCase().includes(t);
+  const lineCount = new Map(); // lines mentioning each word: common words weigh less below
+  if (files.length) {
+    const lines = gitGrep(repo, ['-F', '-i', ...toks.flatMap(t => ['-e', t]), '--', ...files.map(f => f.path)], { maxBuffer: 64 * 1024 * 1024 }) || [];
+    const byFile = new Map();
+    for (const l of lines.slice(0, 40000)) { const r = parseLine(l); if (r) { if (!byFile.has(r.path)) byFile.set(r.path, []); byFile.get(r.path).push(r); } }
+    for (const rows of byFile.values()) for (const r of rows) for (const t of toks) if (has(r.text, t)) lineCount.set(t, (lineCount.get(t) || 0) + 1);
+    for (const [file, rows] of byFile) {
+      try { if (fs.statSync(repoFile(repo, file)).size > 400_000 ) continue; } catch { continue; } // generated or vendored: not where a definition is looked for
+      const defs = (outline(repo, file, { limit: 5000 }) || []).slice().sort((a, b) => a.line - b.line);
+      if (!defs.length) continue;
+      for (let i = 0; i < defs.length; i++) if (!defs[i].end) defs[i].end = (i + 1 < defs.length ? defs[i + 1].line - 1 : Infinity); // regex outline: until the next definition
+      for (const d of defs) cand(file, d);
+      for (const r of rows) {
+        let enc = null; // the innermost definition enclosing the line
+        for (const d of defs) { if (d.line > r.line) break; if (r.line <= d.end && (!enc || d.line >= enc.line)) enc = d; }
+        if (!enc) continue;
+        const c = cand(file, enc); c.mentions++;
+        for (const t of toks) if (has(r.text, t)) c.body.set(t, (c.body.get(t) || 0) + 1);
+      }
+    }
+  }
+  // 3. definitions named by the words, from the graph (files beyond the counted ones too)
+  let engine = 'git';
+  if (g !== 'git') {
+    const rows = cbmSearch(g, `(${toks.map(t => ci(esc(t))).join('|')})`, { limit: 400 });
+    if (rows) {
+      engine = 'cbm';
+      for (const h of rows) {
+        if (!h.line || !CODE_EXT.has(extOf(h.path)) || !inScope(h.path) || SKIP_KINDS.has(h.label.toLowerCase())) continue;
+        const stem = h.path.split('/').pop().replace(/\.[^.]+$/, ''), last = h.qn_prefix.split('.').pop();
+        const parent = last && last !== stem && !h.path.split('/').includes(last) ? last : null;
+        const c = cand(h.path, { name: h.name, parent, kind: h.label.toLowerCase(), line: h.line, end: h.end });
+        if (!c.end && h.end) c.end = h.end; if (c.kind === 'definition') c.kind = h.label.toLowerCase();
+      }
+    }
+  }
+  // 4. score: a word in the name above one in the body above one in the path; a word on few lines
+  // weighs more than one on hundreds; a definition that covers more of the words comes first
+  const weight = t => 1 / (1 + Math.log(1 + (lineCount.get(t) || 0) / 20));
+  const scored = [];
+  for (const c of cands.values()) {
+    const nl = c.name.toLowerCase(), nt = new Set(tokenize(c.name)), pt = new Set(tokenize(c.path)), par = (c.parent || '').toLowerCase();
+    let s = 0, cover = 0;
+    for (const t of toks) {
+      const w = 0.4 + 0.6 * weight(t);
+      const base = nt.has(t) ? 3 : nl.includes(t) ? 1.5 : par.includes(t) ? 1.5 : c.body.has(t) ? 1.2 * (1 + Math.min(1, Math.log10(c.body.get(t)))) : pt.has(t) ? 0.5 : 0;
+      if (!base) continue;
+      s += base * w; cover += weight(t);
+    }
+    if (!cover) continue;
+    const span = c.end && c.end !== Infinity ? c.end - c.line + 1 : 50;
+    if (span > 1500) continue; // a generated blob, not a definition anyone reads
+    s += 2.5 * cover + Math.min(1, c.mentions * 0.1);
+    if (c.kind === 'class' || c.kind === 'interface' || c.kind === 'struct') s -= 1.5; // its header mentions everything its methods do
+    if (ident && nl === ident.toLowerCase()) s += 5;
+    if (c.kind === 'const' || c.kind === 'variable' || c.kind === 'field' || c.kind === 'property') s -= 0.5;
+    s -= Math.min(8, Math.max(0, 1.2 * Math.log2(span / 100))); // a 400-line body mentions everything
+    s -= Math.min(1, c.path.split('/').length * 0.05) + Math.min(1, c.name.length / 60);
+    if (isTestPath(c.path)) s *= 0.4;
+    scored.push({ ...c, score: Math.round(s * 100) / 100 });
+  }
+  scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path) || a.line - b.line);
+  const hits = scored.slice(0, limit).map(h => { const o = { ...h }; delete o.body; return o; });
+  for (const h of hits) { const b = symbolBlock(repo, { path: h.path, symbol: h.symbol }, 1); if (b) { h.line = b.start; h.end = b.start + b.total - 1; } else if (h.end === Infinity) h.end = null; } // exact spans for what is shown
+  return { hits, toks, engine, more: scored.length > hits.length };
+}
+const SKIP_KINDS = new Set(['section', 'file', 'folder', 'module', 'package', 'resource', 'branch', 'repository', 'route']);
+const ci = s => s.replace(/[A-Za-z]/g, c => `[${c.toLowerCase()}${c.toUpperCase()}]`);
+
 // The definitions a file holds: [{name, parent, kind, line, end}], by the parser when loaded (it
 // reads the working tree, so it is exact), else from the graph, else by regex.
 export function outline(repo, file, { limit = 80 } = {}) {
@@ -175,9 +277,11 @@ export function outline(repo, file, { limit = 80 } = {}) {
   const parents = []; // [{name, indent}] for Python-style nesting
   for (let i = 0; i < lines.length && out.length < limit; i++) {
     const m = re.exec(lines[i]); if (!m) continue;
-    const indent = m[1].length; const name = m[3] || m[4] || m[5]; const kind = m[2] || (m[5] ? 'method' : 'const');
+    const indent = m[1].length; const name = m[3] || m[4] || m[5]; let kind = NORM_KIND[m[2]] || m[2] || (m[5] ? 'method' : 'const');
     while (parents.length && parents[parents.length - 1].indent >= indent) parents.pop();
-    out.push({ name, parent: parents.length ? parents[parents.length - 1].name : null, kind, line: i + 1 });
+    const parent = parents.length ? parents[parents.length - 1].name : null;
+    if (kind === 'function' && parent) kind = 'method';
+    out.push({ name, parent, kind, line: i + 1 });
     if (/^(class|struct|impl|trait|interface|module|enum)$/.test(kind)) parents.push({ name, indent });
   }
   return out;

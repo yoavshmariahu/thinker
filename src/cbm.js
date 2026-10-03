@@ -219,9 +219,16 @@ export function pathFromQn(repo, project, qn) {
 }
 
 // What a file defines, from the graph: [{name, parent, kind, line, end}] or null.
+// CBM pages the outline 200 rows at a time; a larger limit is read in pages.
 export function cbmOutline(project, file, { limit = 80 } = {}) {
-  const r = cbmCall('get_file_outline', { project, file_path: file, limit });
-  return !r || r.error ? null : parseOutline(r, { limit });
+  const page = Math.min(200, limit); let offset = 0, rows = [], first = null;
+  for (;;) {
+    const r = cbmCall('get_file_outline', { project, file_path: file, limit: page, ...(offset ? { offset } : {}) });
+    if (!r || r.error) return offset ? parseOutline({ ...first, rows }, { limit }) : null;
+    first = first || r; rows = rows.concat(r.rows || []); offset += (r.rows || []).length;
+    if (!r.has_more || !(r.rows || []).length || rows.length >= limit) break;
+  }
+  return parseOutline({ ...first, rows }, { limit });
 }
 export function parseOutline(r, { limit = 80 } = {}) {
   const rows = (r.rows || []).filter(([, label]) => !SKIP_LABELS.has(label));
