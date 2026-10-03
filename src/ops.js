@@ -91,12 +91,20 @@ function findFile(repo, p, files) {
   return null;
 }
 
+// A whole-file dep on a file the note also points into by symbol says nothing the symbol deps do
+// not, and goes stale with every edit to the file: half of this repository's stale notes were stale
+// for that alone. The symbol deps stay; the file dep goes.
+export function dropShadowedFileDeps(deps) {
+  const symFiles = new Set(deps.filter(d => d.symbol).map(d => d.path));
+  return deps.filter(d => d.symbol || !symFiles.has(d.path));
+}
+
 export function createNote(store, input, { source = { type: 'agent' }, reuseId = false } = {}) {
   const repo = store.repo;
   const extra = extractDeps(repo, String(input.body || ''), input.deps || []);
   const { deps: resolved, dropped } = resolveDeps(repo, [...(input.deps || []), ...extra]);
   if (!resolved.length) return { error: 'no resolvable dependencies; a note must point at at least one existing file', dropped };
-  const deps = annotateFanout(repo, resolved); // blast radius of each symbol pointer, shown beside it when served
+  const deps = annotateFanout(repo, dropShadowedFileDeps(resolved)); // blast radius of each symbol pointer, shown beside it when served
   const kind = KINDS.includes(input.kind) ? input.kind : 'location';
   const id = reuseId && input.id ? input.id : input.id && !store.get(input.id) ? slugify(input.id) : uniqueId(store, slugify(input.title));
   const now = new Date().toISOString();
@@ -117,10 +125,10 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
 
 // Recompute staleness for notes against the working tree. Persists status
 // changes. Returns notes with fresh status.
-export function refresh(store, notes = store.list(), { persist = true } = {}) {
+export function refresh(store, notes = store.list(), { persist = true, narrow = false } = {}) {
   return notes.map(n => {
     if (n.status === 'invalid') return n;
-    const { changed, deps, upgraded } = checkNote(store.repo, n);
+    const { changed, deps, upgraded } = checkNote(store.repo, n, { narrow });
     const wasStale = n.status === 'stale';
     if (changed.length) {
       const stale = { since: n.stale?.since || new Date().toISOString(), changed };
@@ -396,7 +404,20 @@ export function lateNotes(store, { session, client, files, edited = false, on = 
 }
 function lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }) {
   const { st, save } = sessionState(store, session);
-  if (st.late.length >= perSession) return { text: '', included: [] };
+  // what git history says changes with the files being edited: free, and told once per file, leaving
+  // out partners the session has edited already. The rule notes below need no such list to exist.
+  const cc = [];
+  if (on === 'edit' && process.env.THINKER_NO_COCHANGE !== '1') {
+    const idx = loadCochange(store.repo);
+    st.edited = [...new Set([...(st.edited || []), ...rel])]; st.ccTold = st.ccTold || [];
+    if (idx) for (const f of rel) {
+      if (st.ccTold.includes(f)) continue;
+      const ps = partners(idx, f, { minSupport: 3, minConf: 0.5, limit: 3 }).filter(p => !st.edited.includes(p.file) && fs.existsSync(path.join(store.repo, p.file)));
+      if (ps.length) { cc.push(`${f} usually changes with ${ps.map(p => `${p.file} (${Math.round(p.conf * 100)}%, n=${p.support})`).join(', ')}`); st.ccTold.push(f); }
+    }
+  }
+  const ccText = cc.length ? `Co-change (from git history): ${cc.join('; ')}. Decide whether this change needs them.` : '';
+  if (st.late.length >= perSession) { if (cc.length) { save(); store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: [], cochange: cc.length }); } return { text: cc.length ? `<thinker-cache>\n${ccText}\n</thinker-cache>` : '', included: [] }; }
   let notes = store.list().filter(n => n.status !== 'invalid' && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
   if (on === 'edit') {
     notes = notes.filter(n => RULE_KINDS.includes(n.kind));
@@ -406,15 +427,15 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   if (!NAIVE) notes = refresh(store, notes);
   notes.sort((a, b) => (LATE_PRIORITY[a.kind] ?? 9) - (LATE_PRIORITY[b.kind] ?? 9) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7));
   const pick = notes.slice(0, Math.min(perEvent, perSession - st.late.length));
-  if (!pick.length) return { text: '', included: [] };
+  if (!pick.length) { if (cc.length) { save(); store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: [], cochange: cc.length }); } return { text: cc.length ? `<thinker-cache>\n${ccText}\n</thinker-cache>` : '', included: [] }; }
   for (const n of pick) { st.late.push(n.id); n.uses = (n.uses || 0) + 1; n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   st.turn = [...new Set([...(st.turn || []), ...pick.map(n => n.id)])];
   save();
   const intro = on === 'edit'
     ? `Rules from previous sessions about code you are changing (${rel.join(', ')}). Check the change against them; they do not call for more reading.`
     : `Cached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.`;
-  const text = `<thinker-cache>\n${intro}\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>`;
-  store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
+  const text = `<thinker-cache>\n${intro}\n\n${pick.map(n => renderNote(n)).join('\n\n')}${ccText ? '\n\n' + ccText : ''}\n</thinker-cache>`;
+  store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: pick.map(n => n.id), cochange: cc.length || undefined, ...servedFields(store, pick, text) });
   return { included: pick, text };
 }
 
@@ -659,11 +680,11 @@ export async function verifyNote(store, note, { model } = {}) {
     next = { ...note, status: 'invalid', invalidReason: v.reason, verified: now };
   }
   // drop deps whose files disappeared; count references again for the symbols that changed
-  next.deps = (next.deps || []).filter(d => !d.missing);
+  next.deps = dropShadowedFileDeps((next.deps || []).filter(d => !d.missing));
   if (v.verdict !== 'invalid') { const ch = new Set(changed.map(c => `${c.path}|${c.symbol || ''}`)); next.deps = next.deps.map(d => ch.has(`${d.path}|${d.symbol || ''}`) ? annotateFanout(repo, [d], { max: 1 })[0] : d); }
   delete next.verifying;
   store.put(next);
-  store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost, metered: true });
+  store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
   return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost };
 }
 

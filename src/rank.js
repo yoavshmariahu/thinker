@@ -29,12 +29,24 @@ export function tokenize(s) {
   return out;
 }
 
-function stem(w) {
+// A conservative stemmer: plural, -ing, -ed and -ation are folded, nothing else. The suffix list
+// it replaces cut "notes" to "not" (a stop word, so the cache's own noun vanished from every
+// query) and split status/statuses, share/shared and worktree/worktrees into different terms.
+export function stem(w) {
+  if (w.length <= 3) return w;
+  if (w.endsWith('ies') && w.length > 4) return w.slice(0, -3) + 'y';          // entries -> entry
+  if (/(?:ch|sh|x|z|ss)es$/.test(w)) return w.slice(0, -2);                     // hashes -> hash, classes -> class
+  if (w.endsWith('s') && !/(?:ss|us|is)$/.test(w)) w = w.slice(0, -1);         // notes -> note, status stays
   if (w.length <= 4) return w;
-  for (const suf of ['ations', 'ation', 'ings', 'ing', 'ies', 'ed', 'es', 's', 'er']) {
-    if (w.endsWith(suf) && w.length - suf.length >= 3) return w.slice(0, -suf.length);
+  for (const suf of ['ation', 'ing', 'ed']) {
+    if (w.endsWith(suf) && w.length - suf.length >= 3) {
+      const r = w.slice(0, -suf.length);
+      if (/([bdfgklmnprtv])\1$/.test(r)) return r.slice(0, -1);                  // running -> run
+      if (r.endsWith('i')) return r.slice(0, -1) + 'y';                           // verified -> verify
+      return r;
+    }
   }
-  return w;
+  return w.endsWith('e') ? w.slice(0, -1) : w;                                  // verify/verifie, cache/cached share a stem
 }
 
 // says: how a user would put it, in the words of the product (ops.js:phraseNotes)
@@ -57,29 +69,30 @@ function index(notes, textOf) {
 export function buildIndex(notes) { return { q: index(notes, qText), b: index(notes, bText) }; }
 
 export function bm25(index, qtoks, k1 = 1.4, b = 0.6) {
-  const scores = new Map(), matched = new Map();
+  const scores = new Map(), matched = new Map(), held = new Map();
   const uniq = [...new Set(qtoks)];
   for (const d of index.docs) {
-    let s = 0, m = 0;
+    let s = 0, m = 0, h = 0;
     for (const q of uniq) {
       const f = d.tf.get(q); if (!f) continue;
+      h++;
       const idf = Math.log(1 + (index.N - index.df.get(q) + 0.5) / (index.df.get(q) + 0.5));
       if (index.df.get(q) <= Math.max(1, index.N * 0.4)) m++; // discriminative term
       s += idf * (f * (k1 + 1)) / (f + k1 * (1 - b + b * d.len / index.avg));
     }
-    scores.set(d.note.id, s); matched.set(d.note.id, m);
+    scores.set(d.note.id, s); matched.set(d.note.id, m); held.set(d.note.id, h);
   }
   // weight of the query's terms that occur in the index at all: what a note could cover of it
   let mass = 0;
   for (const q of uniq) { const df = index.df.get(q); if (df) mass += Math.log(1 + (index.N - df + 0.5) / (df + 0.5)); }
-  return { scores, matched, uniq: uniq.length, mass };
+  return { scores, matched, held, uniq: uniq.length, mass };
 }
 
 // Share of the request's term weight that a note must cover, with its body and pointers
 // and with its question side (title/answers/tags). rel is relative to the best note, so the
 // best of a poor lot scores near 1; these floors are absolute.
 // THINKER_MIN_COVER=body,question,terms changes them; 0,0 turns them off.
-export const MIN_COVER = { body: 0.10, question: 0.05, terms: 3 };
+export const MIN_COVER = { body: 0.20, question: 0.05, terms: 3 };
 
 // path affinity: 1 if a dep is the current file, decaying by directory distance
 function pathAffinity(note, file) {
@@ -95,7 +108,7 @@ function pathAffinity(note, file) {
   return best;
 }
 
-const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0.1, callpath: 0.05, location: 0.05, rationale: 0.05, overview: 0.1, invariant: 0.1, fix: 0.1 };
+const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0, callpath: 0.05, location: 0.05, rationale: 0.05, overview: 0.1, invariant: 0.1, fix: 0.1 };
 
 // What a request tells the agent not to do is not what it is about: "do not run the test suite"
 // would otherwise bring up the notes on running tests. Only instructions: "it never updates" and
@@ -105,16 +118,21 @@ export const subject = q => String(q).replace(/\b(?:do not|don't|dont|no need to
 export function rank(notes, { query = '', file = '', mode = 'orient', loose = false } = {}) {
   const idx = buildIndex(notes);
   const qtoks = tokenize(subject(query) + ' ' + (file || ''));
+  const qset = new Set(qtoks);
   const Q = bm25(idx.q, qtoks), B = bm25(idx.b, qtoks);
   const maxQ = Math.max(1e-9, ...Q.scores.values()), maxB = Math.max(1e-9, ...B.scores.values());
   // absolute gate: the note's question side (title/answers/tags) must share
   // discriminative terms with the query, or the note must sit on the current file.
-  const need = Q.uniq <= 3 ? 1 : 2;
+  // a request of two or three content words must share two of them with the note's question side
+  // (one of them discriminative): "run the tests" is answered by notes on running tests, not by
+  // every note that mentions a test. A longer request shares two discriminative terms, or one and
+  // three in the body.
+  const short = Q.uniq <= 3;
   const [floorB = MIN_COVER.body, floorQ = MIN_COVER.question, terms = MIN_COVER.terms] = (process.env.THINKER_MIN_COVER || '').split(',').filter(Boolean).map(Number);
   // a short query has little weight to cover, and two shared words are a large share of it:
   // the body must then hold the weight of about `terms` of its words
-  const short = floorB > 0 && Q.uniq > 3 ? Math.min(0.6, terms / Q.uniq) : 0;
-  const minB = Math.max(floorB, short), minQ = floorQ;
+  const shortFloor = floorB > 0 && Q.uniq > 3 ? Math.min(0.6, terms / Q.uniq) : 0;
+  const minB = Math.max(floorB, shortFloor), minQ = floorQ;
   // A request of one content word has no subject to cover: "status?", "merged?", "ok good. pushed?",
   // "yeah just run it" are turns of a conversation, not tasks, and any note holding the word would
   // cover all of it. Orientation then serves nothing but a note on the current file; a lookup is
@@ -123,12 +141,19 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
   return notes.map(n => {
     const mq = Q.matched.get(n.id) || 0, mb = B.matched.get(n.id) || 0;
     const aff = pathAffinity(n, file);
+    // a co-change rule is for the moment its files are edited (ops.js:lateNotes); at orientation it is
+    // served only when the request names one of its files or symbols, or it is about the current file
+    const ccNamed = n.kind !== 'cochange' || mode !== 'orient' || aff > 0 || (n.deps || []).some(d => tokenize(`${path.basename(d.path)} ${d.symbol || ''}`).some(t => t.length >= 3 && qset.has(t)));
     const cover = (B.scores.get(n.id) || 0) / Math.max(1e-9, B.mass), coverQ = (Q.scores.get(n.id) || 0) / Math.max(1e-9, Q.mass);
-    const passes = loose ? (mq + mb) >= 1 || aff > 0 : ((!subjectless && (mq >= need || (mq >= 1 && mb >= 3)) && cover >= minB && coverQ >= minQ) || aff > 0);
+    const terms = short ? mq >= 1 && (Q.held.get(n.id) || 0) >= Math.min(2, Q.uniq) : mq >= 2 || (mq >= 1 && mb >= 3);
+    const passes = ccNamed && (loose ? (mq + mb) >= 1 || aff > 0 : ((!subjectless && terms && cover >= minB && coverQ >= minQ) || aff > 0));
     const rel = passes ? 0.7 * (Q.scores.get(n.id) || 0) / maxQ + 0.3 * (B.scores.get(n.id) || 0) / maxB : 0;
     const prior = mode === 'orient' ? (KIND_PRIOR[n.kind] || 0) * 0.3 : 0;
     const conf = (n.confidence ?? 0.7);
-    let score = rel + aff * 0.4 + prior + 0.05 * conf;
+    // what sessions did with the note when it was served (ops.js:attest), smoothed towards an even
+    // chance: a note acted on each time it was served rises by up to 0.1, one never acted on sinks as much
+    const a = n.attest || {}, acted = ((a.confirmed || 0) + 1) / ((a.confirmed || 0) + (a.unused || 0) + 2);
+    let score = rel + aff * 0.4 + prior + 0.05 * conf + 0.2 * (acted - 0.5);
     if (n.status === 'stale') score *= 0.6;
     if (n.status === 'invalid') score = -1;
     return { note: n, score, rel, aff, cover, coverQ, matched: mq + mb };

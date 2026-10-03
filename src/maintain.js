@@ -98,7 +98,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
       try { const g = dry ? {} : (fns.graphIndex || cbmIndex)(repo); if (!g.error) { r.graph = true; state.graphHead = head; } else r.errors++; } catch { r.errors++; }
     }
     // 2. Re-hashing is free, even when the model budget is exhausted.
-    const notes = (fns.refresh || refresh)(store, store.list());
+    const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true });
     if (afford()) {
       const { stale, churning } = pickStale(notes, cfg, { counts: cfg.verifyChurn > 0 ? (fns.verifyCounts || verifyCounts)(store) : new Map() });
       r.churning = churning.map(n => n.id);
