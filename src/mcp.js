@@ -34,6 +34,18 @@ const text = s => ({ content: [{ type: 'text', text: s }] });
 const emptyCache = () => store.list().length ? '' : `The cache is empty: no notes in ${store.notesDir}. `;
 const guide = (() => { try { return process.env.THINKER_ORIENT_GUIDE ? fs.readFileSync(process.env.THINKER_ORIENT_GUIDE, 'utf8').trim() : ''; } catch { return ''; } })();
 
+// When no note answers, the definitions whose code carries the words of the request, from `find`:
+// in a week of real sessions `find` was never called (Claude Code defers MCP tools; agents grep
+// instead), so a miss hands its first results over rather than naming the tool.
+const codeFallback = q => {
+  if (!String(q || '').trim()) return '';
+  try {
+    const r = find(store, { query: q, limit: 6, client: 'mcp-fallback' });
+    if (r.error || !r.hits?.length) return '';
+    return `By text search instead (not notes; find takes the words the code would use, drilldown the pointers that fit):\n${r.text}\n\n`;
+  } catch { return ''; }
+};
+
 register('orient', {
   title: 'Orient in this repo',
   description: 'Call once at the start of a task unless a thinker-cache bundle for this request is already present. Returns notes with file:symbol pointers (each with its blast radius) and the code behind the main pointers, so the files need not be read for that. Call again only for a distinct task part the first result missed; confirm STALE claims against code.',
@@ -46,7 +58,7 @@ register('orient', {
   if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
   // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
   const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
-  if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}Explore normally, then call remember with what you learn.`);
+  if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}${codeFallback(task)}Explore from there, then call remember with what you learn.`);
   const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
   const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
   return text(guide ? `${guide}\n\n<thinker-cache>\n${notes}\n</thinker-cache>` : notes);
@@ -62,7 +74,7 @@ register('lookup', {
   },
 }, async ({ query, budget, maxNotes }) => {
   const r = lookup(store, { query, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
-  if (!r.included.length) return text(emptyCache() || 'Nothing cached about that. Try fewer or different words, or an identifier from the code.');
+  if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query) || 'Try fewer or different words, or an identifier from the code. '}`);
   return text(r.text);
 });
 

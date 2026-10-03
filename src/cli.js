@@ -20,7 +20,7 @@ import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } fr
 import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
 import { logModelUsage, streamModelUsage } from './model-usage.js';
 import { summarize, renderUsage, sessionKey, turnNotice } from './usage.js';
-import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, quietSession, QUIET_MIN_EXPLORE } from './distill.js';
+import { parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, quietSession, QUIET_MIN_EXPLORE } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath } from './update.js';
@@ -125,8 +125,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  co-change, distill newly merged PRs; runs by itself from the hooks, under a daily cap
   phrase [ids...] [--model m] [--force]
                                  add to each note how a user would put it, in the words of the product (for retrieval)
-  distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--dry] [--model m]
-                                 turn a session into notes; reads any of these agents' transcripts, or a plain event trace
+  distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--incremental [--batch]] [--dry] [--model m]
+                                 turn a session into notes; reads any of these agents' transcripts, or a plain event trace;
+                                 --batch (end of a turn) leaves a small backlog for the end of the session
   learn [--days n] [--max n] [--idle-min n] [--prs [n]] [--maintain] [--dry]
                                  distill every session any supported agent ran in this repo that has not been distilled yet;
                                  --prs also mines merged pull requests that were not mined before (default 20)
@@ -578,7 +579,7 @@ async function main() {
     case 'distill': {
       let file = pos[0];
       if (!file) { file = transcriptsFor(repo)[0]; if (!file) { out('no transcript found for ' + repo); process.exit(1); } }
-      await distillFile(file, { minExplore: Number(flags['min-explore']) || 1, dry: !!flags.dry, model: flags.model, quiet: !!flags.quiet, incremental: !!flags.incremental, format: flags.format, session: typeof flags.session === 'string' ? flags.session : undefined });
+      await distillFile(file, { minExplore: Number(flags['min-explore']) || 1, dry: !!flags.dry, model: flags.model, quiet: !!flags.quiet, incremental: !!flags.incremental, batch: !!flags.batch, format: flags.format, session: typeof flags.session === 'string' ? flags.session : undefined });
       break;
     }
     case 'hook': {
@@ -608,7 +609,7 @@ async function main() {
         const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) });
         if (!r.included.length) break;
         const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
-        const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify.\n\n${r.text}${more}\n</thinker-cache>`;
+        const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify. For code no note maps, thinker's find lists the definitions carrying the words the code would use; drilldown reads them.\n\n${r.text}${more}\n</thinker-cache>`;
         if (client === 'cursor') parkPending(store.dir, session, text);
         else out(promptOutput(client, text));
       } else if (pos[0] === 'tool') {
@@ -681,9 +682,14 @@ async function main() {
         // the same daily budget as maintenance, so a long day of work cannot run up the bill
         const cap = withinDailyCap(store);
         if (!cap.ok) { store.log({ op: 'distill-skipped', reason: 'dailyCap', spent: cap.spent, cap: cap.cap, session, client }); reportCapped(store, cap); break; }
-        const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo],
+        // One distill per session, not per turn: each call carries a fixed prompt, so at the end of a turn
+        // only a backlog near the trace limit is distilled (`--batch`). The session's end distills the
+        // rest; where the agent fires no end, the catch-up run takes sessions that have gone quiet.
+        const ending = /^session_?end$/i.test(ev.hook_event_name || '');
+        const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo, ...(ending ? [] : ['--batch'])],
           { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } });
         child.unref();
+        if (!ending) learnInBackground(client, { maintain: false });
       }
       break;
     }
@@ -1332,21 +1338,25 @@ function pullInBackground() {
   spawn('node', [path.join(HERE, 'cli.js'), 'sync', '--pull', '--quiet', '--repo', repo], { detached: true, stdio: 'ignore', env: process.env }).unref();
 }
 // From a hook: start catch-up in the background, at most every ten minutes.
-function learnInBackground(client) {
-  if (NO_LEARN) return;
+// Only sessions quiet for LEARN_IDLE_MIN minutes: one still running is distilled when it ends or goes quiet.
+const LEARN_IDLE_MIN = 20;
+function learnInBackground(client, { maintain = true } = {}) {
+  if (NO_LEARN || !sessionLearning()) return;
   const mark = path.join(store.dir, 'state', 'learn.last');
   try { if (Date.now() - fs.statSync(mark).mtimeMs < 10 * 60_000) return; } catch {}
   fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, '');
-  spawn('node', [path.join(HERE, 'cli.js'), 'learn', '--quiet', '--days', '2', '--max', '5', '--maintain', '--repo', repo], { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } }).unref();
+  spawn('node', [path.join(HERE, 'cli.js'), 'learn', '--quiet', '--days', '2', '--max', '5', '--idle-min', String(LEARN_IDLE_MIN), ...(maintain ? ['--maintain'] : []), '--repo', repo], { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } }).unref();
 }
 
-async function distillFile(file, { minExplore, dry, model, quiet, incremental, format, session, phase = 'learning' }) {
+async function distillFile(file, { minExplore, dry, model, quiet, incremental, batch, format, session, phase = 'learning' }) {
   const stateDir = path.join(store.dir, 'state');
   const stateFile = path.join(stateDir, path.basename(file).replace(/\.jsonl?$/, '') + '.json');
   let state = {}; try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch {}
   const fromLine = incremental ? (state.line || 0) : 0;
   const { events, lineCount, model: sessionModel, format: fmt } = parseTranscript(file, { fromLine, format });
   hydrate(events, repo, { trace: session ? traceFile(store.dir, session) : null });
+  // decided before the lock, so a session-end distill right after is not turned away by it
+  if (batch && !batchDue(events)) { if (!quiet) out('a small backlog since last distill; left for the end of the session'); return; }
   // a turn-end hook and a session-end hook can both ask for the same session
   const lock = stateFile + '.lock';
   if (incremental && !dry) {

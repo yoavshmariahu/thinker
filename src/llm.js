@@ -547,13 +547,18 @@ async function viaCli(opts) {
   }
 }
 
+const CLI_SYSTEM = 'Answer the request directly. No tools are available.';
+
 async function viaCliOnce({ system, prompt, model, schema, timeoutMs, onUsage }) {
   // Run in an empty temp cwd so no project CLAUDE.md / MCP servers leak in.
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-llm-'));
   const resolved = resolveModel('claude', model);
   const args = ['-p', '--model', ALIASES[resolved] || resolved, '--output-format', 'json', '--no-session-persistence',
-    '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}'];
-  if (system) args.push('--append-system-prompt', system);
+    '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
+    // Replace Claude Code's own system prompt rather than append to it: appended, every call sent ~7k
+    // tokens of agent instructions, written to the one-hour prompt cache (twice the input price) and
+    // never read again. No settings or skills either: neither is used, both add to the prompt.
+    '--system-prompt', system || CLI_SYSTEM, '--setting-sources', '', '--disable-slash-commands'];
   if (schema) args.push('--json-schema', JSON.stringify(schema));
   try {
     const stdout = await new Promise((resolve, reject) => {

@@ -60,7 +60,7 @@
     },
     {
       "path": "src/cli.js",
-      "hash": "sha256:86ad26d75e5ae83657dbe6f4",
+      "hash": "sha256:b94169a4fcf842da65a2b783",
       "missing": false
     },
     {
@@ -124,6 +124,6 @@
     "type": "agent"
   },
   "created": "2026-09-26T09:33:10.424Z",
-  "verified": "2026-10-03T08:20:19.019Z",
-  "confidence": 0.95
+  "verified": "2026-10-03T23:41:45.244Z",
+  "confidence": 1
 }

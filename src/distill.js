@@ -4,7 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { complete } from './llm.js';
 import { createNote, KINDS, looksLikeCorrection } from './ops.js';
-import { tokenize } from './rank.js';
+import { tokenize, rank } from './rank.js';
 
 const EXPLORE_TOOLS = new Set(['Grep', 'Glob', 'Read', 'Bash', 'Agent', 'Task', 'LS', 'WebFetch']);
 
@@ -49,6 +49,14 @@ export function quietSession(events, { served = 0, minExplore = QUIET_MIN_EXPLOR
   return exploreCount(events) < minExplore && !sessionStakes(events).any;
 }
 
+// At the end of a turn a session is distilled only once its undistilled part nears the trace limit
+// (`condense`, 70,000 chars, past which the middle is cut): a call carries the prompt, the schema and
+// the related notes whatever the trace, and on 2026-10-03 one session was distilled 13 times.
+export const BATCH_CHARS = 45000;
+export function batchDue(events, { chars = BATCH_CHARS } = {}) {
+  return condense(events, { maxChars: Infinity }).length >= chars;
+}
+
 function short(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + `…[+${s.length - n} chars]` : s; }
 
 export function condense(events, { maxChars = 70000 } = {}) {
@@ -81,11 +89,15 @@ export function condense(events, { maxChars = 70000 } = {}) {
   return text;
 }
 
+// At most this many notes from one distill. In a week on this repository 158 distills made 328 notes,
+// of which 190 of the cache's 300 were never served; most sessions establish one thing worth keeping.
+export const MAX_NOTES = 3;
 const NOTE_SCHEMA = {
   type: 'object',
   properties: {
     notes: {
       type: 'array',
+      maxItems: MAX_NOTES,
       items: {
         type: 'object',
         properties: {
@@ -148,7 +160,10 @@ Rules:
 - applies: for gotcha / convention / rationale / cochange notes, one line stating when the rule applies and when it does not (e.g. "only for options with multiple=True; arguments use a different path"). Generic lessons without such constraints are useless.
 - answers: 2-5 short question phrasings a future agent might ask that this note answers (used for retrieval).
 - confidence: 0.9+ only when the agent read the actual code; 0.6-0.8 for things inferred from grep hits or partial reads.
-- Typical yield is 1-4 notes: the main callpath/location the session established, plus any gotcha, convention, cochange rule or howto the trace shows. Split distinct topics into separate notes rather than one long note. 0 notes is fine for a trivial session.
+- Typical yield is 0 or 1 note; 2-3 only when the session clearly established distinct things, never more than 3. Most turns of a session only apply what is already known: 0 notes is the right answer for them. When in doubt, leave it out: a missing note costs one search later, a weak one is served to every later task it resembles.
+- Not news: do not write what changed ("X now does Y", "merged to main", "was added in this session"). Write the rule or the map a later task needs, in the present tense, as if it had always been so.
+- Not the state of one machine or one day: which copy is installed, a leftover file or hook, a credential, what a log or a dashboard showed, how the agent's own harness asked for permission. These are not facts about the repository's code.
+- Not what the repository's own docs already say (README, AGENTS.md, CLAUDE.md and the like): agents read those at the start of every session. A note is for what the docs leave out or get wrong.
 - The agent's final answer is usually the best-synthesized source; mine it, but only keep claims backed by the trace.`;
 
 export const ASSESS_RULES = `
@@ -161,7 +176,7 @@ Be strict about "contradicted": only when the trace shows evidence, not when the
 
 export const EXISTING_RULES = `
 
-EXISTING NOTES: the cache already holds notes on the files this session touched (listed below with ids). Do not write a note that restates one of them, even in other words. When the session establishes something that completes or corrects one of them, return that note with \`extends\` set to its id and the full merged body (its claims that still hold, plus the new ones, same length rules). A new note is for understanding none of them holds.`;
+EXISTING NOTES: the cache already holds notes on the files this session touched or on the topic it worked on (listed below with ids). Do not write a note that restates one of them, even in other words. When the session establishes something that completes or corrects one of them, return that note with \`extends\` set to its id and the full merged body (its claims that still hold, plus the new ones, same length rules). Prefer extending to writing a new note on a neighbouring topic. A new note is for understanding none of them holds.`;
 
 // Files the session read, searched or edited, from the tool events.
 export function touchedFiles(events, repo = '') {
@@ -178,14 +193,23 @@ export function touchedFiles(events, repo = '') {
 
 // Notes resting on files the session touched, most overlapping first: what the distiller is shown
 // so it extends what is there instead of writing it again (189 notes from 109 sessions merged twice).
-export function relatedNotes(store, events, { max = 12 } = {}) {
+// Then the notes on the topic of the session's requests, which share no file with it when the session
+// ran commands rather than reading code: of the howto notes on running this repository's tests, five
+// were written by five sessions, none shown the others.
+export function relatedNotes(store, events, { max = 12, topical = 4 } = {}) {
   const files = new Set(touchedFiles(events, store.repo));
-  if (!files.size) return [];
-  return store.list().filter(n => n.status !== 'invalid')
+  const live = store.list().filter(n => n.status !== 'invalid');
+  const byFile = !files.size ? [] : live
     .map(n => ({ n, hit: new Set((n.deps || []).map(d => d.path).filter(p => files.has(p))).size }))
     .filter(x => x.hit > 0)
     .sort((a, b) => b.hit - a.hit || (b.n.uses || 0) - (a.n.uses || 0))
-    .slice(0, max).map(x => x.n);
+    .map(x => x.n);
+  const query = events.filter(e => e.t === 'prompt').map(e => String(e.text || '').replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, ' ')).join('\n').slice(0, 2000);
+  const byTopic = query.trim() ? rank(live, { query, mode: 'lookup' }).filter(r => r.rel > 0).map(r => r.note) : [];
+  const out = byFile.slice(0, max - Math.min(topical, byTopic.length));
+  for (const n of byTopic) { if (out.length >= max) break; if (!out.includes(n)) out.push(n); }
+  for (const n of byFile) { if (out.length >= max) break; if (!out.includes(n)) out.push(n); }
+  return out;
 }
 
 // kinds: what the distiller may produce. The caller leaves out the kinds this checkout archives
@@ -215,7 +239,8 @@ export async function distillEvents(events, { model = 'sonnet', repoHint = '', s
     prompt += `\n\nProduce the notes JSON (new notes for reusable understanding this session established that the injected notes do not already cover) and one assessment per injected note.`;
   } else prompt += `\n\nProduce the notes JSON.`;
   const res = await complete({ system, prompt, model, schema, maxTokens: 12000, accounting });
-  return { notes: res.json?.notes || [], assessments: res.json?.assessments || [], cost: res.cost, usage: res.usage, traceChars: trace.length };
+  const notes = (res.json?.notes || []).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).slice(0, MAX_NOTES);
+  return { notes, assessments: res.json?.assessments || [], cost: res.cost, usage: res.usage, traceChars: trace.length };
 }
 
 function jaccard(a, b) {

@@ -37,7 +37,11 @@ All agents working on this repository MUST perform code changes, scratch experim
 
 Model calls go through the Anthropic SDK when `ANTHROPIC_API_KEY` is set,
 otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
-`agent`), so no extra credentials are needed.
+`agent`), so no extra credentials are needed. `claude -p` is run with its
+system prompt replaced (`--system-prompt`, `--setting-sources ''`,
+`--disable-slash-commands`; `llm.js:viaCliOnce`): appended to, Claude Code's
+own prompt added ~7k tokens to every call, written to the one-hour prompt
+cache at twice the input price and never read again.
 
 | path | contents |
 |---|---|
@@ -294,10 +298,13 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 
 1. **Automatic**: `thinker distill <transcript.jsonl>` condenses a session
    (prompts, tool calls with truncated results, the agent's final answer)
-   and asks a model for 0–4 notes with deps. The end-of-turn hook runs this
-   incrementally in the background (on by default; see below). The distiller
-   is shown the notes already resting on the files the session touched
-   (`distill.js:relatedNotes`) and may return one with `extends: <id>` and
+   and asks a model for 0–3 notes with deps (`distill.js:MAX_NOTES`; the
+   prompt expects 0 or 1, and rules out news of what changed, the state of
+   one machine, and what the repository's own docs say). The hooks run this
+   in the background once per session (on by default; see below). The
+   distiller is shown the notes already resting on the files the session
+   touched, and up to four on the topic of its requests by BM25
+   (`distill.js:relatedNotes`), and may return one with `extends: <id>` and
    the merged body instead of a new note. Near-duplicate notes (same kind,
    ≥0.5 Jaccard on title+answers) are merged, keeping history. A `cochange`
    note must name a mechanism (a generator, registry, schema, mirror or
@@ -313,7 +320,7 @@ Each session both consumes and improves the cache:
 
 1. `UserPromptSubmit` hook injects the orientation bundle and records which
    note ids were served in this session.
-2. At `Stop`, the distiller sees the trace **and the injected notes**, and
+2. Once per session, the distiller sees the trace **and the injected notes**, and
    returns new notes plus one assessment per injected note:
    `confirmed` (the agent acted on the pointer, nothing contradicted it:
    confidence +0.05), `contradicted` (the trace shows a claim is wrong:
@@ -376,7 +383,7 @@ Learning is on by default in `setup` and the installer. Evals keep
 the cache fixed with `--no-learn` at install time, or `THINKER_NO_LEARN=1` in
 the environment, which also silences hooks that are already installed.
 `learn: {"sessions": false}` in `.thinker/config.json` switches off learning
-from sessions alone (the end-of-turn distill and the catch-up `learn`), while
+from sessions alone (the session distill and the catch-up `learn`), while
 learning from code changes goes on: pull requests and re-verification in
 maintenance, `share --repair-staged` at commit, `thinker distill <file>` by
 hand. Each session distilled is a model call, about 10¢ with Sonnet, and in a
@@ -413,13 +420,18 @@ queries; `0,0` turns them off).
   or `snippets: false` in `.thinker/config.json` turns them off. Measured
   against Qartez on click, the agent spent its advantage on reading whole
   files after orienting; this is what the snippets are for.
+- When `orient` or `lookup` over MCP finds no note, its answer carries the first
+  six definitions `find` returns for the request (`mcp.js:codeFallback`, logged
+  as `client: "mcp-fallback"`), and the prompt hook's bundle names `find`: in
+  the week before, real sessions never called `find` (Claude Code defers MCP
+  tools until searched for), only the benchmark arms did.
 - `find(query, path?, limit?)` answers "where is this defined / handled" when
   no note does: the definitions whose name or body carry the words of the
   query (`codegraph.js:findSymbols`), as `path:Symbol:L12` pointers with their
   size and, for the first three, blast radius, plus the notes resting on them.
   One `git grep -c -F -i` for the words over the source files (a second or
   two on PostHog), the lines of the 50 files with most mentions attributed to
-  the enclosing definition through `outline` (parser, graph, or regex), and the
+  the enclosing definition through `outline` (parser, graph, or regex; a regex definition ends where its braces or indentation close, and no later than the next definition indented no deeper, so a one-line `const` is not credited with the text below it), and the
   graph's name search added when the checkout is indexed. A word in the name
   outweighs one in the body, which outweighs one in the path; words on many
   lines weigh less; a definition covering more of the words comes first; tests
@@ -885,11 +897,16 @@ path below. Nothing in it is tied to one vendor:
   them to one event form: prompt, tool call with result, agent message. Tool
   names are mapped to one vocabulary, so `read_file`, `Read` and a shell `cat`
   are all seen as reading.
-- **When.** At the end of a turn (`Stop`, `AfterAgent`, `stop`), and by
-  catch-up: `thinker learn` finds every session any of these agents ran in
-  the repository and distills what is new. Hooks start it in the background
-  at most every ten minutes, so modes that fire no end-of-session hook are
-  covered too.
+- **When.** Once per session, not per turn: each call carries the prompt,
+  schema and related notes whatever the size of the trace, and on 2026-10-03
+  one session was distilled 13 times. At the end of a turn (`Stop`,
+  `AfterAgent`, `stop`) the hook distills only a backlog near the trace limit
+  (`distill --batch`, `distill.js:batchDue`, 45,000 condensed chars); the end
+  of the session (Claude Code's `SessionEnd`, Cursor's `sessionEnd`) distills
+  the rest. Catch-up covers agents that fire no end: `thinker learn` finds
+  every session any of these agents ran in the repository and distills what
+  is new in those quiet for 20 minutes (`cli.js:LEARN_IDLE_MIN`). Hooks start
+  it in the background at most every ten minutes.
 - **What the agent's record leaves out.** Where an agent gives no transcript,
   the hooks record the session themselves (`.thinker/state/trace-*.jsonl`).
   Cursor records tool calls without their output; reads and searches are
