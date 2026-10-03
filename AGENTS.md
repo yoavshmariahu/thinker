@@ -337,11 +337,12 @@ queries; `0,0` turns them off).
   pointer one hop of callers (every reference, calls first) and callees
   (names the body calls that are defined in the repository), and the notes
   resting on that symbol or file
-  (`ops.js:drilldown`, `codegraph.js`). Two engines answer, chosen per call
-  by `cbm.js:codegraphEngine`: the code graph of codebase-memory-mcp when
-  the checkout is indexed (below), else `git grep` over the language family
-  of the file, which needs no index and is approximate; outside a git
-  checkout it says so.
+  (`ops.js:drilldown`, `codegraph.js`). Two engines can answer, chosen per
+  call by `cbm.js:codegraphEngine`: `git grep` over the language family of
+  the file, which needs no index and is approximate, is the default; the
+  code graph of codebase-memory-mcp (below) answers only when
+  `THINKER_CODEGRAPH=cbm` (or `auto`, when the checkout is indexed) asks for
+  it. Outside a git checkout it says so.
 - Blast radius: a symbol pointer is served as `path:Sym:L12 [6 call sites in
   3 files]` (`[5 callers in 3 files]` from the graph). The count is made when
   the note is created and again for the symbols a verification found changed
@@ -349,16 +350,21 @@ queries; `0,0` turns them off).
   stored on the dep as `fanout`, and by `git grep` not made for names under
   four characters or common ones (`main`, `get`). `THINKER_FANOUT=off` skips
   both the counting and the tag.
-- The code graph: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
+- The code graph (optional, off by default): [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
   (CBM) is a single binary that indexes a repository with tree-sitter into a
-  SQLite graph (`~/.cache/codebase-memory-mcp/`) and answers over MCP.
+  SQLite graph (`~/.cache/codebase-memory-mcp/`) and answers over MCP. It is
+  kept as the comparison baseline of the benchmarks and as an opt-in engine;
+  measured on click (`research/cbm-comparison/`) the graph-backed arm was
+  marginally cheaper and no more accurate than thinker's own tools, and the
+  decision was to own the tooling rather than depend on a second binary.
   `thinker cbm install` downloads the pinned release (`cbm.js:CBM_VERSION`,
   ~40 MB) into `~/.thinker/cbm` after checking its published SHA-256, and
   touches no agent configuration (CBM's own installer would); a binary on
   `PATH`, in `~/.local/bin` or named by `THINKER_CBM_BIN` is used too.
   `thinker cbm index` builds the graph of the checkout (CBM keys projects by
-  real path, so a worktree is indexed on its own); maintenance re-indexes
-  when `HEAD` moved (`maintain.js`, "code graph re-indexed"). `thinker cbm
+  real path, so a worktree is indexed on its own); when the engine is the
+  graph, maintenance re-indexes when `HEAD` moved (`maintain.js`, "code graph
+  re-indexed"). `thinker cbm
   status` says which engine answers; `thinker cbm forget` drops the index.
   thinker runs the binary once per process as a child MCP server held by a
   worker thread and waits on it synchronously (`cbm.js:cbmCall`,
@@ -369,8 +375,9 @@ queries; `0,0` turns them off).
   snippets stay on thinker's own parser or regex, which read the working
   tree. A symbol the graph knows but sees no caller of (a method called on an
   untyped instance, say) is counted by `git grep` instead. Controls:
-  `THINKER_CODEGRAPH=git|cbm|auto` (auto: the graph when the checkout is
-  indexed; `cbm` answers unknown rather than grep when it is not),
+  `THINKER_CODEGRAPH=git|cbm|auto` (`git`, the default; `auto`: the graph
+  when the checkout is indexed; `cbm` answers unknown rather than grep when
+  it is not),
   `THINKER_CBM=off`. The live test needs `THINKER_CBM_TEST=1` and
   `THINKER_CBM_BIN` (it writes to CBM's index and removes its project after).
   `bench/cbm-compare.js`, `bench/cbm-pr-compare.js` and `bench/cbm-preflight.js`

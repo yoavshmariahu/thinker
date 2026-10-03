@@ -96,9 +96,13 @@ export function cbmProject(repo, opts) {
   return ps.find(p => real(p.root_path) === root)?.name || null;
 }
 
-// Which engine codegraph.js should use for this repository: 'cbm' or 'git'.
+// Which engine codegraph.js should use for this repository: 'git' unless THINKER_CODEGRAPH asks for
+// the graph ('cbm': always, 'auto': when this checkout is indexed). git grep is the default on
+// purpose: measured on click the graph-backed arm was marginally cheaper and no more accurate, and
+// thinker's own tooling needs no second binary or index (research/cbm-comparison). CBM stays the
+// comparison baseline of the benchmarks, which set the variable for their `both` arm.
 export function codegraphEngine(repo) {
-  const want = process.env.THINKER_CODEGRAPH || 'auto';
+  const want = process.env.THINKER_CODEGRAPH || 'git';
   if (want === 'git' || !cbmBin()) return 'git';
   if (want === 'cbm') return 'cbm';
   return cbmProject(repo) ? 'cbm' : 'git';
