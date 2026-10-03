@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { gitHead } from './store.js';
-import { refresh, verifyNote, phraseNotes, phraseKey } from './ops.js';
+import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
 import { mineCochange, loadCochange } from './cochange.js';
 import { cbmProject, cbmIndex, codegraphEngine } from './cbm.js';
 import { readLog } from './usage.js';
@@ -23,6 +23,7 @@ export const DEFAULTS = {
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
   prs: true,        // distill pull requests merged since maintenance first ran here
   prsPerRun: 3,
+  archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
 };
 const LOCK_MS = 15 * 60_000;
 
@@ -81,7 +82,7 @@ export function pickStale(notes, cfg, { counts = new Map(), now = Date.now() } =
   const recent = cfg.verifyServedDays > 0 ? now - cfg.verifyServedDays * 86400_000 : -Infinity;
   const churning = [];
   const stale = notes
-    .filter(n => n.status === 'stale' && !(n.verifying && now - Date.parse(n.verifying) < 10 * 60_000))
+    .filter(n => n.status === 'stale' && !n.archived && !(n.verifying && now - Date.parse(n.verifying) < 10 * 60_000))
     .filter(n => recent === -Infinity || (n.lastUsed && Date.parse(n.lastUsed) >= recent))
     .filter(n => { if (cfg.verifyChurn > 0 && (counts.get(n.id) || 0) >= cfg.verifyChurn) { churning.push(n); return false; } return true; })
     .sort((a, b) => (b.uses || 0) - (a.uses || 0))
@@ -102,7 +103,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   const state = readState(store);
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], phrased: 0, prs: 0, cochange: false, graph: false, sync: null, cost: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, cochange: false, graph: false, sync: null, cost: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const budget = cfg.dailyCap - spent;
   const afford = () => budget - r.cost > 0;
@@ -121,6 +122,9 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     if (head && state.graphHead !== head && (fns.graphEngine || codegraphEngine)(repo) === 'cbm' && (fns.graphIndexed || cbmProject)(repo)) {
       try { const g = dry ? {} : (fns.graphIndex || cbmIndex)(repo); if (!g.error) { r.graph = true; state.graphHead = head; } else r.errors++; } catch { r.errors++; }
     }
+    // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
+    // served in a month, leave serving and upkeep and stay for review (ops.js:archiveNotes)
+    if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch { r.errors++; } }
     // 2. Re-hashing is free, even when the model budget is exhausted.
     const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true });
     if (afford()) {
@@ -139,7 +143,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     } else r.capped = true;
     // 3. phrasings for notes that have none for their present text
     if (afford()) {
-      const need = store.list().filter(n => n.status !== 'invalid' && (!n.says?.length || n.saysFor !== phraseKey(n))).slice(0, cfg.phrasePerRun);
+      const need = store.list().filter(n => n.status !== 'invalid' && !n.archived && (!n.says?.length || n.saysFor !== phraseKey(n))).slice(0, cfg.phrasePerRun);
       if (need.length) {
         if (dry) r.phrased = need.length;
         else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.cost += p.cost || 0; } catch { r.errors++; } }
@@ -154,7 +158,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     }
     const u = state.unreported || {};
     if (!dry) { const notice = readyToShareNotice(store); if (notice) u.share = notice; }
-    for (const k of ['verified', 'updated', 'retired', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
+    for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
     if (r.sync && !r.sync.skipped) { u.pulled = (u.pulled || 0) + (r.sync.pulled || 0) + (r.sync.deleted || 0); u.pushed = (u.pushed || 0) + (r.sync.pushed || 0) + (r.sync.retired || 0); }
     // churning notes are named once; a note named before is not named again until it settles
     const named = new Set(state.churnNamed || []);
@@ -190,6 +194,7 @@ export function maintenanceNotice(store) {
     parts.push(`${u.verified} stale ${u.verified === 1 ? 'note' : 'notes'} re-verified${detail ? ` (${detail})` : ''}`);
   }
   if (u.phrased) parts.push(`${u.phrased} ${u.phrased === 1 ? 'note' : 'notes'} phrased`);
+  if (u.archived) parts.push(`${u.archived} ${u.archived === 1 ? 'note' : 'notes'} archived: kept for review, no longer served or re-verified (thinker archive --list)`);
   if (u.prs) parts.push(`${u.prs} ${u.prs === 1 ? 'note' : 'notes'} from merged pull requests`);
   if (u.cochange) parts.push('co-change index refreshed');
   if (u.graph) parts.push('code graph re-indexed');
@@ -222,6 +227,7 @@ export function renderMaintain(r) {
   if (r.updated) bits.push(`${r.updated} updated`);
   if (r.retired) bits.push(`${r.retired} retired`);
   if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
+  if (r.archived) bits.push(`${r.archived} archived`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`, `co-change ${r.cochange ? 'refreshed' : 'unchanged'}`);
   if (r.graph) bits.push('code graph re-indexed');
   if (r.sync && !r.sync.skipped) bits.push(`team cache ${r.sync.pulled + (r.sync.deleted || 0)}↓ ${r.sync.pushed + (r.sync.retired || 0)}↑`);

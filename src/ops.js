@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile } from './deps.js';
 import { rank, pack, renderNote, renderPointers, estTokens } from './rank.js';
@@ -253,7 +254,9 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // the slot and the tokens of a fresh one, and its ⚠ banner is a claim the agent has to check or
 // ignore. Over three days on this repository 43 of 154 hook servings were stale. The agent's own
 // `orient` and `lookup` still return stale notes, with the banner.
-export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full', snippets = false, once = false, freshOnly = false }) {
+// holdout: the session is a control (holdoutSession): the notes are ranked and packed as usual,
+// what would have been served is logged as `withheld`, and nothing is served or marked served.
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full', snippets = false, once = false, freshOnly = false, holdout = false }) {
   const start = Date.now();
   if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
   const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
@@ -299,6 +302,13 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   packed.mode = early;
   // relevant notes that were not served, so the caller can name them and the agent can ask for one
   packed.more = ranked.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, 6).map(r => r.note);
+  // a held-out session: what would have been served is logged and nothing is; the notes are not
+  // marked served, so a later turn in the same session is held out the same way
+  if (holdout) {
+    const withheld = packed.included.map(n => n.id);
+    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
+    return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
+  }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (recordUsage && session) trackTurn(store, session, packed.included.map(n => n.id));
   packed.held = held;
@@ -427,7 +437,7 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   }
   const ccText = cc.length ? `Co-change (from git history): ${cc.join('; ')}. Decide whether this change needs them.` : '';
   if (st.late.length >= perSession) { if (cc.length) { save(); store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: [], cochange: cc.length }); } return { text: cc.length ? `<thinker-cache>\n${ccText}\n</thinker-cache>` : '', included: [] }; }
-  let notes = store.list().filter(n => n.status !== 'invalid' && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
+  let notes = store.list().filter(n => n.status !== 'invalid' && !n.archived && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
   if (on === 'edit') {
     notes = notes.filter(n => RULE_KINDS.includes(n.kind));
     // relevance is measured among all notes: among these few the best one would always score 1
@@ -515,7 +525,7 @@ export function linkNotes(store, note, notes = store.list()) {
 export function scheduleVerify(store, notes) {
   if (process.env.THINKER_NO_BG_VERIFY === '1') return;
   const now = Date.now();
-  const ids = notes.filter(n => !n.verifying || now - Date.parse(n.verifying) > 10 * 60_000).map(n => n.id);
+  const ids = notes.filter(n => !n.archived && (!n.verifying || now - Date.parse(n.verifying) > 10 * 60_000)).map(n => n.id);
   if (!ids.length) return;
   for (const id of ids) { const n = store.get(id); if (n) { n.verifying = new Date(now).toISOString(); store.put(n); } }
   try {
@@ -770,3 +780,64 @@ export function feedback(store, { id, useful, correction }) {
 }
 
 export { renderNote, estTokens, Store };
+
+// Holdout: a share of sessions is served nothing by the hooks, so that what the notes do for a
+// session can be measured on this machine's own work rather than estimated (usage.js, "Holdout").
+// The choice is a hash of the session id: every hook of a session agrees on it without state, and
+// a session is held out for its whole length. The agent's own `orient`, `lookup`, `find` and
+// `drilldown` are not held out (it asked). `holdout` in .thinker/config.json is the share (0 or
+// false: none); THINKER_HOLDOUT overrides it (`0`, `off`, or a share).
+export const HOLDOUT_DEFAULT = 0.15;
+export function holdoutRate(store) {
+  const env = process.env.THINKER_HOLDOUT;
+  const raw = env !== undefined && env !== '' ? env : store.config().holdout;
+  if (raw === undefined || raw === null) return HOLDOUT_DEFAULT;
+  if (raw === false || /^(off|no|false)$/i.test(String(raw))) return 0;
+  const r = Number(raw);
+  return Number.isFinite(r) ? Math.min(1, Math.max(0, r)) : HOLDOUT_DEFAULT;
+}
+export function holdoutSession(store, session) {
+  if (!session || session === 'unknown') return false;
+  const rate = holdoutRate(store);
+  if (rate <= 0) return false;
+  const h = parseInt(createHash('sha1').update(String(session)).digest('hex').slice(0, 8), 16) / 0x100000000;
+  return h < rate;
+}
+
+// Archive: notes that the sessions showed are not worth serving are kept for `thinker review`,
+// `drilldown`, `find` and `lookup` by id, and taken out of orientation, the edit hook and
+// maintenance (no re-verification, no phrasing). Two rules, both free: a kind that was never
+// acted on when served (in a week on this repository: location 0 of 6, fix 0 of 12, cochange 0
+// of 5, convention 0 of 3; `find` and the git co-change index cover what location and cochange
+// notes said), and a note nobody has been served in `unservedDays` since it was made. The
+// state is this checkout's (`archived` is a LOCAL_FIELDS entry), never shared or pushed.
+// `archive` in .thinker/config.json: `{ kinds: [...], unservedDays: 30 }`, or false.
+export const ARCHIVE_DEFAULTS = { kinds: ['location', 'fix', 'cochange', 'convention'], unservedDays: 30 };
+export function archiveConfig(store) {
+  const c = store.config().archive;
+  if (c === false) return { ...ARCHIVE_DEFAULTS, enabled: false };
+  return { ...ARCHIVE_DEFAULTS, ...(c && typeof c === 'object' ? c : {}), enabled: true };
+}
+export function archiveReason(note, { kinds, unservedDays, now = Date.now() }) {
+  if (note.archived || note.status === 'invalid') return null;
+  if (kinds.includes(note.kind)) return `kind ${note.kind}`;
+  const made = Date.parse(note.created || '');
+  if (unservedDays > 0 && !(note.uses > 0) && !(note.servedIn || []).length && Number.isFinite(made) && now - made > unservedDays * 86400_000) return `not served in ${unservedDays} days`;
+  return null;
+}
+// ids: only these (by any reason); restore: take them back into serving
+export function archiveNotes(store, { dry = false, ids, restore = false, now = Date.now(), ...over } = {}) {
+  const cfg = { ...archiveConfig(store), ...over };
+  const done = [];
+  for (const n of store.list()) {
+    if (ids && !ids.includes(n.id)) continue;
+    if (restore) { if (!n.archived) continue; delete n.archived; done.push({ id: n.id, title: n.title, kind: n.kind }); if (!dry) store.put(n); continue; }
+    const reason = ids ? (n.archived ? null : 'by request') : cfg.enabled ? archiveReason(n, { ...cfg, now }) : null;
+    if (!reason) continue;
+    n.archived = { at: new Date(now).toISOString(), reason };
+    done.push({ id: n.id, title: n.title, kind: n.kind, reason });
+    if (!dry) store.put(n);
+  }
+  if (done.length && !dry) store.log({ op: restore ? 'unarchive' : 'archive', ids: done.map(d => d.id), reasons: restore ? undefined : [...new Set(done.map(d => d.reason))] });
+  return done;
+}

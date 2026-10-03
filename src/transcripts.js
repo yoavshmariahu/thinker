@@ -93,14 +93,29 @@ class ModelTally {
   add(m) { if (typeof m === 'string' && m && m !== '<synthetic>') this.n.set(m, (this.n.get(m) || 0) + 1); }
   get model() { return [...this.n].sort((a, b) => b[1] - a[1])[0]?.[0] || null; }
 }
+// What the session cost, over the whole file: tool calls, model turns and the input tokens of every
+// turn as the agent reported them (Claude Code and Cursor: message.usage; Codex: token_count
+// events). Read by the stop hook into the `session` log line, for the holdout comparison in usage.js.
+class Stats {
+  constructor() { this.toolCalls = 0; this.turns = 0; this.inputTokens = null; }
+  turn(usage) {
+    this.turns++;
+    if (!usage || typeof usage !== 'object') return;
+    const n = (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0);
+    if (n > 0) this.inputTokens = (this.inputTokens || 0) + n;
+  }
+  total(inputTokens) { if (Number.isFinite(inputTokens) && inputTokens > 0) this.inputTokens = inputTokens; }
+  get value() { return { toolCalls: this.toolCalls, turns: this.turns, inputTokens: this.inputTokens }; }
+}
 
 // Claude Code and Cursor share the Anthropic message shape; Cursor puts the role at the top level.
 function parseMessages(rows, fromLine) {
-  const events = [], results = new Map(), models = new ModelTally();
+  const events = [], results = new Map(), models = new ModelTally(), stats = new Stats();
   let cwd = null;
   rows.forEach((j, i) => {
     if (!j) return;
     if (j.type === 'assistant' || j.role === 'assistant') models.add(j.message?.model ?? j.model);
+    if (j.type === 'assistant' || j.role === 'assistant') { stats.turn(j.message?.usage ?? j.usage); for (const b of Array.isArray(j.message?.content) ? j.message.content : []) if (b.type === 'tool_use') stats.toolCalls++; }
     if (i < fromLine) return;
     if (j.cwd && !cwd) cwd = j.cwd;
     // streamed output of headless runs: Cursor `agent -p`, Gemini `gemini -p`
@@ -130,11 +145,11 @@ function parseMessages(rows, fromLine) {
       else if (b.type === 'tool_result') results.set(b.tool_use_id, textOf(b.content));
     }
   });
-  return { events: attachResults(events, results), cwd, model: models.model };
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value };
 }
 
 function parseCodex(rows, fromLine) {
-  const events = [], results = new Map(), models = new ModelTally();
+  const events = [], results = new Map(), models = new ModelTally(), stats = new Stats();
   let cwd = null;
   const seenPrompts = new Set();
   const prompt = text => { const t = cleanPrompt(text); if (t && !seenPrompts.has(t)) { seenPrompts.add(t); events.push({ t: 'prompt', text: t }); } };
@@ -144,6 +159,9 @@ function parseCodex(rows, fromLine) {
     if (j.type === 'session_meta' && p.cwd) cwd = p.cwd;
     if (j.type === 'turn_context' || j.type === 'session_meta') models.add(p.model);
     if (j.type === 'thread.started' || j.type === 'turn.started') models.add(j.model ?? j.thread?.model);
+    if (j.type === 'event_msg' && p.type === 'token_count') stats.total(p.info?.total_token_usage?.input_tokens ?? p.info?.total_token_usage?.inputTokens);
+    if (j.type === 'response_item' && (p.type === 'function_call' || p.type === 'custom_tool_call' || p.type === 'local_shell_call')) stats.toolCalls++;
+    if (j.type === 'response_item' && p.type === 'message' && p.role === 'assistant') stats.turns++;
     if (i < fromLine) return;
     // rollout files
     if (j.type === 'event_msg' && p.type === 'item_completed' && p.item?.type === 'UserMessage') prompt(textOf(p.item.content));
@@ -166,7 +184,7 @@ function parseCodex(rows, fromLine) {
       else if (it.type === 'mcp_tool_call') events.push(tool(`mcp__${it.server}__${it.tool}`, it.arguments, it.result ?? it.error));
     }
   });
-  return { events: attachResults(events, results), cwd, model: models.model };
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value };
 }
 
 function parseGemini(j, fromLine) {

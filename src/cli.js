@@ -6,7 +6,7 @@ import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
 import { maintain, maintenanceNotice, renderMaintain, reportPruned, withinDailyCap, reportCapped } from './maintain.js';
-import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
+import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, archiveNotes, archiveConfig } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
 import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, codegraphEngine, CBM_VERSION } from './cbm.js';
@@ -114,6 +114,9 @@ const HELP = `thinker — knowledge cache for coding agents
   rm <id>
   add [file.json]                add a human-written note (JSON on stdin or file)
   check                          re-hash dependencies, mark stale notes
+  archive [--dry] [--list] [--restore] [ids...] [--kinds a,b] [--days n]
+                                 take notes out of serving and upkeep, keeping them for review: kinds the sessions
+                                 never acted on and notes unserved for 30 days; maintenance applies the same rules
   rehash [--fanout]              re-baseline every note's hashes without verification (--fanout: count references again)
   cochange [file]                mine co-change edges from git history / show partners of a file
   relink                         recompute cross-note links
@@ -158,7 +161,7 @@ const HELP = `thinker — knowledge cache for coding agents
 
 // Commands that read or maintain an existing cache. Not `setup`, `seed`, `mine-prs`, `import`,
 // `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
-const CACHE_COMMANDS = ['orient', 'lookup', 'list', 'show', 'rm', 'check', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'cochange', 'relink', 'rehash', 'outcome'];
+const CACHE_COMMANDS = ['orient', 'lookup', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'cochange', 'relink', 'rehash', 'outcome'];
 
 async function main() {
   if (process.stderr.isTTY && !['update', 'upgrade', 'switch', 'branch', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
@@ -483,7 +486,7 @@ async function main() {
       let notes = refresh(store, store.list());
       if (flags.stale) notes = notes.filter(n => n.status === 'stale');
       if (!flags.all) notes = notes.filter(n => n.status !== 'invalid');
-      for (const n of notes) out(`${(store.isShared(n.id) ? 'repo' : 'local').padEnd(5)} ${n.status.padEnd(7)} ${String(n.kind).padEnd(10)} ${n.id.padEnd(45)} c=${Math.round((n.confidence ?? 0.7) * 100)}% uses=${n.uses || 0}  ${n.title}`);
+      for (const n of notes) out(`${(store.isShared(n.id) ? 'repo' : 'local').padEnd(5)} ${(n.archived ? 'archived' : n.status).padEnd(8)} ${String(n.kind).padEnd(10)} ${n.id.padEnd(45)} c=${Math.round((n.confidence ?? 0.7) * 100)}% uses=${n.uses || 0}  ${n.title}`);
       for (const u of store.unreadable()) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
       out(`${notes.length} notes`);
       break;
@@ -527,6 +530,25 @@ async function main() {
         out(`${stale.length}/${notes.length} notes stale`);
       }
       if (flags.verify && stale.length) await verifyAll(stale);
+      break;
+    }
+    case 'archive': {
+      // thinker archive [--dry] [--list] [--restore] [ids…] [--kinds a,b] [--days n]: notes out of
+      // serving and upkeep, kept for review (ops.js:archiveNotes); maintenance runs the same rules
+      const cfg = archiveConfig(store);
+      if (flags.list) {
+        const arch = store.list().filter(n => n.archived);
+        for (const n of arch) out(`${String(n.kind).padEnd(10)} ${n.id.padEnd(45)} ${n.archived.at.slice(0, 10)}  ${n.archived.reason}  ${n.title}`);
+        out(`${arch.length} archived notes (rules: kinds ${cfg.kinds.join(', ')}; not served in ${cfg.unservedDays} days${cfg.enabled ? '' : '; archive: false in the config'})`);
+        break;
+      }
+      const over = {};
+      if (typeof flags.kinds === 'string') over.kinds = flags.kinds.split(',').map(s => s.trim()).filter(Boolean);
+      if (flags.days !== undefined) over.unservedDays = Number(flags.days) || 0;
+      if (!pos.length && !flags.restore) over.enabled = true; // asked by hand: the rules apply even with archive: false in the config
+      const done = archiveNotes(store, { dry: !!flags.dry, ids: pos.length ? pos : undefined, restore: !!flags.restore, ...over });
+      for (const d of done) out(`${flags.restore ? 'restored' : flags.dry ? 'would archive' : 'archived'}  ${d.id}  [${d.kind}] ${d.title}${d.reason ? `  (${d.reason})` : ''}`);
+      out(`${done.length} ${done.length === 1 ? 'note' : 'notes'} ${flags.restore ? 'restored' : flags.dry ? 'would be archived' : 'archived'}`);
       break;
     }
     case 'phrase': {
@@ -581,7 +603,8 @@ async function main() {
         // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
         if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
         if (session !== 'unknown') rememberTask(store, session, ev.prompt);
-        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true });
+        // a held-out session is served nothing by the hooks, and what it would have been served is logged (ops.js:holdoutSession)
+        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) });
         if (!r.included.length) break;
         const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
         const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify.\n\n${r.text}${more}\n</thinker-cache>`;
@@ -605,12 +628,12 @@ async function main() {
           const turn = path.join(store.dir, 'state', `oriented-${String(ev.generation_id || session).replace(/[^\w.-]/g, '_')}`);
           if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && store.list().length) {
             const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-            if (task) { const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
+            if (task) { const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
           }
           fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '');
           if (p && !mcpCall) parts.push(p);
         }
-        if (client === 'claude' || flags.late) {
+        if ((client === 'claude' || flags.late) && !holdoutSession(store, session)) {
           const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
           // an edit tool, or a shell command that writes a file in place
           const edited = name === 'Edit' || name === 'Write' || (name === 'Bash' && /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/.test(command));
@@ -630,6 +653,8 @@ async function main() {
         if (client === 'cursor') out('{}');
         // what the turn's servings saved, for the user; the ids are cleared so the next turn starts from none
         const served = takeTurn(store, session !== 'unknown' ? session : null);
+        // what the session has cost so far, for the holdout comparison (usage.js); the last line per session counts
+        if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); store.log({ op: 'session', session, client, model: p.model || undefined, holdout: holdoutSession(store, session) || undefined, ...(p.stats || {}) }); } catch {} }
         if (noticeOn(store)) {
           const notice = [served.length ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
           const o = stopOutput(client, notice); if (o) out(o);

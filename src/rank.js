@@ -155,9 +155,9 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
     const a = n.attest || {}, acted = ((a.confirmed || 0) + 1) / ((a.confirmed || 0) + (a.unused || 0) + 2);
     let score = rel + aff * 0.4 + prior + 0.05 * conf + 0.2 * (acted - 0.5);
     if (n.status === 'stale') score *= 0.6;
-    if (n.status === 'invalid') score = -1;
+    if (n.status === 'invalid' || n.archived) score = -1; // archived: kept for review, drilldown and lookup by id (ops.js:archiveNotes)
     return { note: n, score, rel, aff, cover, coverQ, matched: mq + mb };
-  }).filter(r => process.env.THINKER_FORCE === '1' ? r.note.status !== 'invalid' : (r.score > 0 && (r.rel > 0 || r.aff > 0))).sort((a, b) => b.score - a.score);
+  }).filter(r => process.env.THINKER_FORCE === '1' ? r.note.status !== 'invalid' && !r.note.archived : (r.score > 0 && (r.rel > 0 || r.aff > 0))).sort((a, b) => b.score - a.score);
 }
 
 export const estTokens = s => Math.ceil(String(s).length / 3.6);

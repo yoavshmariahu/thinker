@@ -172,8 +172,11 @@ export function summarize(store, { days, all = false } = {}) {
     },
     spent: 0, saved: { calls: 0, tokens: 0, servings: 0, usd: 0, pricedServings: 0, unpricedServings: 0, unpricedTokens: 0, byModel: {} },
     injected: { usd: 0, pricedTokens: 0, unpricedTokens: 0 },
+    holdout: null,
     repos: [], top: [],
   };
+  const sessionLines = new Map();  // origin|session → the last `session` line (what the session cost)
+  const servedIn = new Map();      // origin|session → { served, withheld, holdout }
   const config = store.config();
   const price = m => priceOf(m, { config });
   // a repository is its origin; its checkouts (clones, worktrees) are counted together
@@ -210,9 +213,15 @@ export function summarize(store, { days, all = false } = {}) {
       if (!(e.saved || []).length) u.distillation.noNewNotes++;
       if (!(e.saved || []).length && !(e.merged || []).length) u.distillation.noChanges++;
     }
+    if (e.op === 'session' && e.session && e.session !== 'unknown') { sessionLines.set(`${e.origin}|${sessionKey(e.session)}`, e); continue; }
     if (e.op === 'orient' || e.op === 'late' || e.op === 'lookup') {
       const cl = normalizeClient(e.client, e.session);
       const ids = e.served || [];
+      if (e.op !== 'lookup' && e.session && e.session !== 'unknown') {
+        const k = `${e.origin}|${sessionKey(e.session)}`, x = servedIn.get(k) || { served: 0, withheld: 0, holdout: false };
+        if (e.holdout) { x.holdout = true; x.withheld += (e.withheld || []).length; } else x.served += ids.length;
+        servedIn.set(k, x);
+      }
       if (e.op !== 'late') {
         u.requests++;
         r.requests++;
@@ -264,6 +273,7 @@ export function summarize(store, { days, all = false } = {}) {
     else if (e.op === 'feedback') u.feedback[e.useful ? 'useful' : 'notUseful']++;
     else if (e.op === 'outcome' && !e.positive) u.corrections++;
   }
+  u.holdout = holdoutSummary(sessionLines, servedIn);
   const namedSessions = [...sessions.values()].filter(x => x.named);
   u.sessions = namedSessions.length;
   for (const x of namedSessions) {
@@ -320,6 +330,49 @@ export function summarize(store, { days, all = false } = {}) {
 }
 
 const num = n => Math.round(n).toLocaleString('en-US');
+
+// The holdout comparison: sessions the hooks served notes against sessions they held notes back
+// from (ops.js:holdoutSession), on what each cost by its own transcript (the `session` line the
+// stop hook writes: tool calls, model turns, input tokens). Sessions where nothing would have been
+// served are left out of both sides; they tell nothing about the notes. Medians, since a few long
+// sessions dominate a mean. With fewer than MIN_HOLDOUT sessions on a side the numbers are shown
+// as too few to compare. It is a measurement of this machine's own work, not an estimate.
+export const MIN_HOLDOUT = 5;
+const median = xs => { const a = xs.filter(Number.isFinite).sort((x, y) => x - y); return a.length ? (a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : null; };
+export function holdoutSummary(sessionLines, servedIn) {
+  const side = () => ({ sessions: 0, toolCalls: [], inputTokens: [], turns: [] });
+  const groups = { served: side(), heldOut: side() }, byModel = {};
+  let noNotes = 0, unmeasured = 0;
+  for (const [k, x] of servedIn) {
+    const g = x.holdout ? (x.withheld ? 'heldOut' : null) : (x.served ? 'served' : null);
+    if (!g) { noNotes++; continue; }
+    const line = sessionLines.get(k);
+    if (!line) { unmeasured++; continue; }
+    const m = byModel[line.model || 'unknown'] ||= { served: side(), heldOut: side() };
+    for (const t of [groups[g], m[g]]) { t.sessions++; t.toolCalls.push(line.toolCalls); t.inputTokens.push(line.inputTokens); t.turns.push(line.turns); }
+  }
+  const fold = t => ({ sessions: t.sessions, toolCalls: median(t.toolCalls), inputTokens: median(t.inputTokens), turns: median(t.turns) });
+  const out = { served: fold(groups.served), heldOut: fold(groups.heldOut), noNotes, unmeasured, byModel: {} };
+  for (const [m, g] of Object.entries(byModel)) out.byModel[m] = { served: fold(g.served), heldOut: fold(g.heldOut) };
+  out.enough = out.served.sessions >= MIN_HOLDOUT && out.heldOut.sessions >= MIN_HOLDOUT;
+  const delta = (a, b) => a != null && b != null && b > 0 ? Math.round((a - b) / b * 100) : null;
+  out.deltaPct = { toolCalls: delta(out.served.toolCalls, out.heldOut.toolCalls), inputTokens: delta(out.served.inputTokens, out.heldOut.inputTokens) };
+  return out;
+}
+export function renderHoldout(h) {
+  if (!h || (!h.served.sessions && !h.heldOut.sessions)) return [];
+  const L = ['', 'Holdout (sessions the hooks served nothing, to measure what the notes do)'];
+  L.push(`  sessions        ${num(h.served.sessions)} served notes, ${num(h.heldOut.sessions)} held out with notes withheld${h.noNotes ? `; ${num(h.noNotes)} had none to serve either way` : ''}${h.unmeasured ? `; ${num(h.unmeasured)} not measured (no transcript at the end of the turn)` : ''}`);
+  const pct = d => d == null ? '' : ` (${d > 0 ? '+' : ''}${d}% with notes)`;
+  const v = (x, f = num) => x == null ? '?' : f(x);
+  if (!h.enough) { L.push(`  too few to compare yet: at least ${MIN_HOLDOUT} sessions on each side; medians so far: tool calls ${v(h.served.toolCalls)} vs ${v(h.heldOut.toolCalls)}, input tokens ${v(h.served.inputTokens, formatTokens)} vs ${v(h.heldOut.inputTokens, formatTokens)}`); return L; }
+  L.push(`  tool calls      median ${v(h.served.toolCalls)} served vs ${v(h.heldOut.toolCalls)} held out${pct(h.deltaPct.toolCalls)}`);
+  L.push(`  input tokens    median ${v(h.served.inputTokens, formatTokens)} served vs ${v(h.heldOut.inputTokens, formatTokens)} held out${pct(h.deltaPct.inputTokens)}`);
+  const models = Object.entries(h.byModel).filter(([, g]) => g.served.sessions && g.heldOut.sessions).sort((a, b) => (b[1].served.sessions + b[1].heldOut.sessions) - (a[1].served.sessions + a[1].heldOut.sessions));
+  for (const [m, g] of models) L.push(`  ${m.padEnd(15)} ${num(g.served.sessions)} vs ${num(g.heldOut.sessions)} sessions; tool calls ${v(g.served.toolCalls)} vs ${v(g.heldOut.toolCalls)}, input tokens ${v(g.served.inputTokens, formatTokens)} vs ${v(g.heldOut.inputTokens, formatTokens)}`);
+  L.push('  medians over whole sessions, by their transcripts; sessions with nothing to serve are on neither side');
+  return L;
+}
 const usd = n => `${n < 0 ? '−' : ''}$${Math.abs(n) >= 100 ? Math.round(Math.abs(n)).toLocaleString('en-US') : Math.abs(n).toFixed(2)}`;
 export function renderUsage(u, { days } = {}) {
   const machine = u.scope === 'machine';
@@ -362,6 +415,7 @@ export function renderUsage(u, { days } = {}) {
     if (u.distillation.runs) L.push(`  distillation yield ${num(u.distillation.noNewNotes)}/${num(u.distillation.runs)} runs added no new notes; ${num(u.distillation.noChanges)} also made no merges (may still assess existing notes)`);
     L.push('  details            --json includes provider/model and per-repository spending');
   }
+  L.push(...renderHoldout(u.holdout));
   L.push('', 'Estimated saving');
   if (!u.saved.servings) L.push(`  none counted yet: only notes a session is seen to act on are counted, and none has been assessed so far`);
   else {

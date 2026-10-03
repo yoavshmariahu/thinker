@@ -284,7 +284,22 @@ Each session both consumes and improves the cache:
    orientation one is served only when the request names its files or
    symbols (`rank.js`, `ccNamed`).
 
-5. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
+5. Archiving (`ops.js:archiveNotes`, `thinker archive`): a note that the
+   sessions showed is not worth serving leaves orientation, the edit hook,
+   background verification and phrasing, and stays for `thinker review`,
+   `drilldown`, `find` and `lookup` by id; `rank.js` scores it like an
+   invalid note. Two rules, both free: a kind that was never acted on when
+   served (in a week on this repository location 0 of 6, fix 0 of 12,
+   cochange 0 of 5, convention 0 of 3; `find` and the git co-change index
+   cover what location and cochange notes said), and a note nobody was served
+   in 30 days since it was made. `archived: {at, reason}` is this checkout's
+   state (`store.js:LOCAL_FIELDS`), never shared or pushed; a shared note's
+   committed file is untouched. Maintenance applies the rules on every run
+   and names the count once; `archive` in `.thinker/config.json` sets
+   `kinds` and `unservedDays` or is `false`. `thinker archive [--dry]`
+   runs the rules by hand, `--list` shows the archive, `--restore [ids]`
+   takes notes back, and ids archive any note by request.
+6. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
    the prompt hooks start at most every ten minutes ends with one maintenance
    run, and so do the git `post-commit` and `post-merge` hooks that `setup` and the
    installer put in place (`--no-git-hook` leaves it out). A run refreshes the
@@ -457,6 +472,25 @@ queries; `0,0` turns them off).
   was served on an earlier turn is in the agent's context, and serving it
   again on a follow-up adds tokens and a verdict of `unused`. `orient` called
   by the agent is a fresh question and may return it again.
+- Holdout: the hooks serve nothing in a share of sessions, so that what the
+  notes do can be measured on the machine's own work instead of estimated
+  (`ops.js:holdoutSession`). Which sessions is a hash of the session id, so
+  every hook of a session agrees without state and a session is held out for
+  its whole length; `orient` with `holdout` ranks and packs as usual, logs
+  what it would have served as `withheld` on the `orient` line, marks nothing
+  served, and returns nothing; the edit hook serves nothing either. The agent's
+  own `orient`, `lookup`, `find` and `drilldown` are not held out. At every
+  stop the hook logs the session's cost so far from its transcript
+  (`op: "session"`: tool calls, model turns, input tokens with cache reads and
+  writes, model; `transcripts.js` `stats`, Claude Code, Cursor and Codex);
+  the last line per session counts. `thinker usage` compares the two sides
+  under "Holdout" (`usage.js:holdoutSummary`): medians of tool calls and
+  input tokens over sessions that got notes against sessions that had notes
+  withheld, per model; sessions with nothing to serve are on neither side,
+  and under five sessions a side it says so rather than compare. The share
+  is `holdout` in `.thinker/config.json` (default 0.15; 0 or false: none),
+  `THINKER_HOLDOUT` overrides it (`off`, `0`, or a share; `1` holds out
+  every session, for tests). Benchmarks pin their arms and should set it off.
 - The prompt hooks serve no stale note (`orient`'s `freshOnly`). A stale
   note that would have been served is held back, logged as `held` on the
   `orient` line, verified in the background as if it had been served
