@@ -134,24 +134,29 @@ test('findings without a model: a removed symbol still referenced, and a co-chan
 });
 
 test('review assembles the report: model findings carry the note and the line, outdated notes are cache state, nothing is rewritten', async t => {
-  const { repo, store, write } = fixture(t);
+  const { repo, store, write, notes } = fixture(t);
   write('src/core.py', CORE.replace('        validate(ctx)\n', ''));
   const calls = [];
   const assess = async (s, note, exposure, change, reader, opts) => {
     calls.push({ id: note.id, related: opts.related, touched: exposure.touched.map(d => d.symbol) });
     if (note.id === 'validate-before-main') return { id: note.id, verdict: 'violation', reason: 'invoke no longer validates', findings: [{ severity: 'error', category: 'violation', file: 'src/core.py', line: 5, message: 'Command.invoke skips validate(ctx); main dereferences ctx', evidence: '-        validate(ctx)', confidence: 0.9, note: note.id, inChange: true }], noteCorrection: '', cost: 0.01 };
     if (note.id === 'cli-and-core-change-together') return { id: note.id, verdict: 'note_outdated', reason: 'entry no longer depends on Command methods', findings: [], noteCorrection: 'cli.py:entry only calls invoke.', cost: 0.01 };
+    if (note.id === 'duplicate-view') return { id: note.id, verdict: 'violation', reason: 'same problem', findings: [{ severity: 'error', category: 'violation', file: 'src/core.py', line: 5, message: 'invoke skips validate', evidence: 'x', confidence: 0.6, note: note.id }], noteCorrection: '', cost: 0.01 };
     return silent();
   };
+  store.put({ ...notes.invariant, id: 'duplicate-view', title: 'Invoke validates first', kind: 'gotcha', confidence: 0.6 });
   const before = JSON.stringify(store.list());
   const r = await review(store, { assess, cochange: { totals: {}, pairs: {} } });
-  assert.deepEqual(calls.map(c => c.id).sort(), ['cli-and-core-change-together', 'validate-before-main']);
+  assert.deepEqual(calls.map(c => c.id).sort(), ['cli-and-core-change-together', 'duplicate-view', 'validate-before-main']);
+  // two notes saw the same problem at the same line: one finding, the surer wording, both notes named
+  assert.equal(r.findings.length, 1); assert.deepEqual(r.findings[0].notes, ['validate-before-main', 'duplicate-view']); assert.equal(r.findings[0].confidence, 0.9);
+  assert.match(renderReview(r), /\[notes validate-before-main, duplicate-view, 90%\]/);
   assert.deepEqual(r.files.map(f => f.path), ['src/core.py']);
-  assert.equal(r.notes.direct, 2);
+  assert.equal(r.notes.direct, 3);
   assert.equal(r.findings[0].severity, 'error'); assert.equal(r.findings[0].note, 'validate-before-main'); assert.equal(r.findings[0].line, 5);
   assert.deepEqual(r.counts, { error: 1, warning: 0, info: 0 });
   assert.deepEqual(r.notes.outdated.map(o => o.id), ['cli-and-core-change-together']);
-  assert.equal(Math.round(r.cost * 100), 2);
+  assert.equal(Math.round(r.cost * 100), 3);
   assert.equal(JSON.stringify(store.list()), before); // the cache is not touched by a review
   const text = renderReview(r);
   assert.match(text, /Findings: 1 error/);
@@ -160,7 +165,7 @@ test('review assembles the report: model findings carry the note and the line, o
   assert.match(text, /1 note the review found outdated: cli-and-core-change-together/);
   assert.match(text, /thinker verify cli-and-core-change-together/);
   const log = fs.readFileSync(path.join(repo, '.thinker', 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).find(e => e.op === 'review');
-  assert.equal(log.assessed, 2); assert.deepEqual(log.outdated, ['cli-and-core-change-together']);
+  assert.equal(log.assessed, 3); assert.deepEqual(log.outdated, ['cli-and-core-change-together']);
 });
 
 test('a note already stale before the change is reported as drift, assessed anyway, and failures of the model do not hide the rest', async t => {

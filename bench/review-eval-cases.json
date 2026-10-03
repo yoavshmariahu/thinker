@@ -1,0 +1,53 @@
+{
+  "repo": "thinker",
+  "base": "a0621fe",
+  "cases": [
+    { "id": "P1-codex-event-name", "kind": "planted", "note": "codex-hook-hashes-require-snake-case-event-names",
+      "edits": [{ "file": "src/clients.js", "find": "codexHookHash(snake(ev), h)", "replace": "codexHookHash(ev, h)" }] },
+    { "id": "P2-log-rename-order", "kind": "planted", "note": "legacy-local-log-migration-must-rename-before-appending-to-p",
+      "edits": [
+        { "file": "src/store.js", "find": "  const moved = path.join(store.dir, 'state', 'log-before-shared.jsonl');\n  try { fs.mkdirSync(path.dirname(moved), { recursive: true }); fs.renameSync(local, moved); } catch { return; }\n  try {\n    const lines = fs.readFileSync(moved, 'utf8')", "replace": "  const moved = path.join(store.dir, 'state', 'log-before-shared.jsonl');\n  try {\n    const lines = fs.readFileSync(local, 'utf8')" },
+        { "file": "src/store.js", "find": "    if (lines.length) fs.appendFileSync(main, lines.join('\\n') + '\\n');\n  } catch { try { fs.renameSync(moved, local); } catch {} }", "replace": "    if (lines.length) fs.appendFileSync(main, lines.join('\\n') + '\\n');\n    fs.mkdirSync(path.dirname(moved), { recursive: true }); fs.renameSync(local, moved);\n  } catch {}" }
+      ] },
+    { "id": "P3-coverage-floor", "kind": "planted", "note": "absolute-term-coverage-floor-for-note-retrieval-gating",
+      "edits": [{ "file": "src/rank.js", "find": "&& cover >= minB && coverQ >= minQ)", "replace": "&& coverQ >= minQ)" }] },
+    { "id": "P4-codex-double-count", "kind": "planted", "note": "codex-input-tokens-already-includes-cached-input-tokens (dep is bench/codex-run.js; related at best)",
+      "edits": [{ "file": "src/model-usage.js", "find": "if (inputTokens !== null && (provider === 'claude' || provider === 'anthropic' || 'cache_creation_input_tokens' in u || 'cache_read_input_tokens' in u)) {", "replace": "if (inputTokens !== null) {" }] },
+    { "id": "P5-renamed-export", "kind": "planted", "note": "none: a broken reference", "expectFiles": ["src/usage.js", "src/ops.js"], "anyLine": true,
+      "edits": [{ "file": "src/usage.js", "find": "export const servedFields =", "replace": "export const servedInfo =" }] },
+    { "id": "P6-llm-pin-ignored", "kind": "planted", "note": "THINKER_LLM picks one provider (AGENTS.md); fallbacks must not run",
+      "edits": [{ "file": "src/llm.js", "find": "  if (process.env.THINKER_LLM) return executeProvider(providers[0], o);\n", "replace": "" }] },
+    { "id": "P7-share-home-path", "kind": "planted", "note": "share rejects home paths (AGENTS.md)",
+      "edits": [{ "file": "src/share.js", "deleteLineMatching": "contains a machine-specific home path" }] },
+    { "id": "P8-ast-regex-compat", "kind": "planted", "note": "ast/regex hash compatibility (AGENTS.md: installing or lacking the parser marks no note stale)",
+      "edits": [{ "file": "src/deps.js", "deleteLineMatching": "no parser here: keep the record of the checkout that has one" }] },
+    { "id": "P9-rule-notes-decay", "kind": "planted", "note": "rule notes do not decay on omission (comment in attest)",
+      "edits": [{ "file": "src/ops.js", "find": "const decays = ['callpath', 'location', 'overview'].includes(n.kind);", "replace": "const decays = true;" }] },
+    { "id": "P10-daily-cap", "kind": "planted", "note": "maintenance stops at dailyCap (AGENTS.md)",
+      "edits": [{ "file": "src/maintain.js", "find": "const budget = cfg.dailyCap - spent;", "replace": "const budget = cfg.dailyCap;" }] },
+    { "id": "P11-stale-banner-sticks", "kind": "planted", "note": "none: a note that becomes fresh again keeps its stale record",
+      "edits": [{ "file": "src/ops.js", "find": "if (wasStale) { const next = { ...n, status: 'fresh', deps }; delete next.stale; if (persist)", "replace": "if (wasStale) { const next = { ...n, status: 'fresh', deps }; if (persist)" }] },
+    { "id": "P12-cochange-gate", "kind": "planted", "note": "none: partners must pass both support and confidence",
+      "edits": [{ "file": "src/cochange.js", "find": "p.support >= minSupport && p.conf >= minConf", "replace": "p.support >= minSupport || p.conf >= minConf" }] },
+
+    { "id": "R1-rank-rename", "kind": "refactor", "edits": [{ "file": "src/rank.js", "find": "qtoks", "replace": "queryTokens", "all": true }] },
+    { "id": "R2-store-rename", "kind": "refactor", "edits": [
+        { "file": "src/store.js", "find": "    const lines = fs.readFileSync(moved, 'utf8')", "replace": "    // one line per event, each tagged with the repository it came from\n    const events = fs.readFileSync(moved, 'utf8')" },
+        { "file": "src/store.js", "find": "    if (lines.length) fs.appendFileSync(main, lines.join('\\n') + '\\n');", "replace": "    if (events.length) fs.appendFileSync(main, events.join('\\n') + '\\n');" } ] },
+    { "id": "R3-clients-comment", "kind": "refactor", "edits": [{ "file": "src/clients.js", "find": "    text = setTomlTable(text, `[hooks.state.", "replace": "    // Codex keys hook state by the snake_case event name and hashes the same name\n    text = setTomlTable(text, `[hooks.state." }] },
+    { "id": "R4-usage-comment", "kind": "refactor", "edits": [{ "file": "src/model-usage.js", "find": "export function normalizeModelUsage(provider, usage) {", "replace": "// One provider's usage object as thinker's counters; arrays and per-model maps are summed.\nexport function normalizeModelUsage(provider, usage) {" }] },
+
+    { "id": "V1-extractjson-fix", "kind": "revert", "sha": "537a86e" },
+    { "id": "V2-is-sandbox-fix", "kind": "revert", "sha": "1b8c925" },
+    { "id": "V3-benchmark-auth-fix", "kind": "revert", "sha": "70b7139" },
+    { "id": "V4-onboarding-fix", "kind": "revert", "sha": "c1a6324" },
+    { "id": "V5-init-failed-message", "kind": "revert", "sha": "509d0f2" },
+
+    { "id": "C1-cbm-status-line", "kind": "commit", "sha": "086bee6" },
+    { "id": "C2-missing-crontab", "kind": "commit", "sha": "44044a8" },
+    { "id": "C3-rename-onboard", "kind": "commit", "sha": "e436164" },
+    { "id": "C4-cache-hit-notice", "kind": "commit", "sha": "844f706" },
+    { "id": "C5-release-metadata", "kind": "commit", "sha": "773353f" },
+    { "id": "C6-prs-git-fallback", "kind": "commit", "sha": "3b7f8b3" }
+  ]
+}

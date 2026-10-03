@@ -20,6 +20,15 @@ import { buildIndex, bm25, tokenize } from './rank.js';
 import { loadCochange, partners } from './cochange.js';
 import { complete } from './llm.js';
 
+// How a review is run; the defaults are what `thinker review` does. The rest exists for
+// bench/review-eval.js, which compares them on planted and reverted bugs:
+//   mode      per-note (one model call per consulted note), holistic (one call with every consulted
+//             note), nocache (no notes at all: the diff and the code it touched; the baseline)
+//   related   also consult notes that share identifiers with the change
+//   callers   add one hop of callers of the definitions the change touched (by text search)
+//   triage    ask a small model first whether a note bears on the change at all
+export const DEFAULT_STRATEGY = { mode: 'per-note', related: true, callers: false, triage: false, triageModel: 'haiku' };
+
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const CODE_EXT = /\.(py|pyi|js|jsx|mjs|cjs|ts|tsx|mts|cts|go|rs|rb|java|kt|cs|php|c|h|cc|cpp|hpp|swift|scala|ex|exs|sh|bash|vue|svelte|sql|dart|lua|zig)$/i;
 const MAX_FILE = 200 * 1024;
@@ -197,7 +206,10 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
     if (e.touched.length) direct.push(n);
   }
   const weight = n => (KIND_WEIGHT[n.kind] || 1) * (0.5 + 0.5 * (n.confidence ?? 0.7));
-  direct.sort((a, b) => weight(b) - weight(a));
+  // a note whose symbol-level dep the change altered speaks to it; one that rests on a whole file
+  // the change touched somewhere is a weaker lead, and goes after the related notes
+  const strong = n => exposures.get(n.id).touched.some(d => d.symbol || d.reason === 'file removed' || d.reason === 'file added');
+  direct.sort((a, b) => Number(strong(b)) - Number(strong(a)) || weight(b) - weight(a));
   let related = [];
   if (!change.state && change.files.length) {
     const idx = buildIndex(live);
@@ -209,7 +221,8 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
       .map(n => ({ n, s: (0.6 * (Q.scores.get(n.id) || 0) / maxQ + 0.4 * (B.scores.get(n.id) || 0) / maxB) * weight(n) }))
       .sort((a, b) => b.s - a.s).slice(0, relatedMax).map(x => x.n);
   }
-  return { direct, related, exposures, symbols };
+  const order = [...direct.filter(strong), ...related, ...direct.filter(n => !strong(n))];
+  return { direct, related, exposures, symbols, order };
 }
 
 // Findings that need no model. From git history: a file that usually changes with a changed file
@@ -239,6 +252,59 @@ export function deterministicFindings(repo, change, symbols, reader, { cochange 
   }
   return findings;
 }
+
+// One hop of callers of the definitions the change touched, by text search over the checkout
+// (so never for a commit scope): "path:line: text" lines, at most `perSymbol` for each.
+export function callersContext(repo, symbols, change, { perSymbol = 8, maxSymbols = 6 } = {}) {
+  if (change.head === 'commit') return '';
+  const out = [];
+  for (const s of symbols) for (const q of s.changed.slice(0, maxSymbols)) {
+    const name = q.split('.').pop();
+    if (!countable(name)) continue;
+    const r = references(repo, name, { file: s.path, limit: 200 });
+    if (!r) continue;
+    const lines = r.lines.filter(l => !l.def && !l.import && !(l.path === s.path && change.files.find(f => f.path === s.path)?.touched.has(l.line))).slice(0, perSymbol);
+    if (lines.length) out.push(`${s.path}:${q} is called from:
+${lines.map(l => `  ${l.path}:${l.line}: ${l.text.trim().slice(0, 160)}`).join('\n')}${r.total > lines.length ? `
+  (+${r.total - lines.length} more references)` : ''}`);
+  }
+  return out.join('\n\n');
+}
+
+// The code after the change of every definition the change touched (for the nocache baseline).
+function changedCode(symbols, reader, { maxSymbols = 10, maxLines = 80 } = {}) {
+  const parts = [];
+  for (const s of symbols) {
+    const text = reader.after(s.path); if (text === null) continue;
+    for (const q of s.changed) { if (parts.length >= maxSymbols) break; parts.push(`--- ${s.path}:${q} ---
+${codeOf(text, { path: s.path, symbol: q }, maxLines)}`); }
+  }
+  return parts.join('\n\n').slice(0, 36000);
+}
+
+const FINDING_ITEMS = {
+  type: 'object',
+  properties: {
+    severity: { type: 'string', enum: ['error', 'warning', 'info'] },
+    file: { type: 'string' },
+    line: { type: 'integer', description: 'line in the file after the change; 0 when unknown' },
+    message: { type: 'string' },
+    evidence: { type: 'string', description: 'the lines of code or diff that show it' },
+    confidence: { type: 'number' },
+    note: { type: 'string', description: 'id of the note the finding rests on; empty when it rests on the code alone' },
+  },
+  required: ['severity', 'file', 'line', 'message', 'evidence', 'confidence', 'note'],
+};
+const HOLISTIC_SCHEMA = {
+  type: 'object',
+  properties: {
+    findings: { type: 'array', items: FINDING_ITEMS },
+    outdated: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, reason: { type: 'string' } }, required: ['id', 'reason'] }, description: 'notes the code shows to be wrong, whether or not the change is at fault' },
+    summary: { type: 'string' },
+  },
+  required: ['findings', 'outdated', 'summary'],
+};
+const NOCACHE_SCHEMA = { type: 'object', properties: { findings: { type: 'array', items: FINDING_ITEMS }, summary: { type: 'string' } }, required: ['findings', 'summary'] };
 
 const ASSESS_SCHEMA = {
   type: 'object',
@@ -273,7 +339,7 @@ Give one verdict:
 - consistent: the change respects what the note says.
 - unrelated: the note has nothing to say about this change.
 
-Also report a bug you can see in the changed code shown (a wrong call order, a missing update the note says must accompany this one, a name that no longer exists), but only when the evidence is in the code or diff shown, never inferred from the note alone. Give each finding a confidence between 0 and 1 and quote the evidence. Prefer no finding over a speculative one; a reviewer who cries wolf is ignored.`;
+Also report a bug you can see in the changed code shown (a wrong call order, a missing update the note says must accompany this one, a name that no longer exists), but only when the evidence is in the code or diff shown, never inferred from the note alone. Give each finding a confidence between 0 and 1 and quote the evidence. Prefer no finding over a speculative one; a reviewer who cries wolf is ignored. Everything you need is in this message: do not use tools or read files.`;
 
 const STATE_SYSTEM = SYSTEM.replace('You review a code change against one note', 'You audit the current code against one note');
 
@@ -288,7 +354,7 @@ function codeOf(text, d, maxLines = 120) {
 
 // One note against the change: the note with how the cache stands on it, the diff of the files it
 // rests on (the whole change for a related note), and the code after the change behind each dep.
-export async function assessNote(store, note, exposure, change, reader, { model, related = false } = {}) {
+export async function assessNote(store, note, exposure, change, reader, { model, related = false, callers = '' } = {}) {
   const depPaths = new Set((note.deps || []).map(d => d.path));
   const own = change.files.filter(f => depPaths.has(f.path) || depPaths.has(f.oldPath));
   const diff = (related || !own.length ? change.text : own.map(renderFileDiff).join('\n')).slice(0, 14000);
@@ -300,28 +366,80 @@ export async function assessNote(store, note, exposure, change, reader, { model,
   ].join('\n');
   const prompt = change.state
     ? `NOTE ${note.id} (kind=${note.kind}, confidence ${Math.round((note.confidence ?? 0.7) * 100)}%)\n"${note.title}"\n${note.body}${note.applies ? `\nApplies: ${note.applies}` : ''}\n\nCACHE STATE:\n${state}\n\nThere is no change under review: audit the current code against the note. A violation is code that contradicts an invariant or convention the note states and that the rest of the code shown still supports.\n\nCURRENT CODE OF EACH DEPENDENCY:\n${code}`
-    : `NOTE ${note.id} (kind=${note.kind}, confidence ${Math.round((note.confidence ?? 0.7) * 100)}%)\n"${note.title}"\n${note.body}${note.applies ? `\nApplies: ${note.applies}` : ''}\n\nCACHE STATE:\n${state}\n\nTHE CHANGE (${related || !own.length ? 'whole diff' : 'diff of the files the note rests on'}):\n${diff || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR EACH DEPENDENCY:\n${code}`;
+    : `NOTE ${note.id} (kind=${note.kind}, confidence ${Math.round((note.confidence ?? 0.7) * 100)}%)\n"${note.title}"\n${note.body}${note.applies ? `\nApplies: ${note.applies}` : ''}\n\nCACHE STATE:\n${state}\n\nTHE CHANGE (${related || !own.length ? 'whole diff' : 'diff of the files the note rests on'}):\n${diff || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR EACH DEPENDENCY:\n${code}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
   const res = await complete({ system: change.state ? STATE_SYSTEM : SYSTEM, prompt, model, maxTokens: 3000, accounting: { store, purpose: 'review', phase: 'review' }, schema: ASSESS_SCHEMA });
   const v = res.json || {};
-  const findings = (Array.isArray(v.findings) ? v.findings : []).filter(f => f && typeof f.message === 'string' && (Number(f.confidence) || 0) >= 0.5).map(f => {
-    const file = change.files.find(x => x.path === f.file || x.path.endsWith('/' + f.file))?.path || (reader.after(f.file) !== null ? f.file : '');
-    const line = Math.max(0, Math.floor(Number(f.line) || 0));
-    return { severity: SEV[f.severity] !== undefined ? f.severity : 'warning', category: v.verdict === 'violation' ? 'violation' : 'bug', file, line, message: f.message.trim(), evidence: String(f.evidence || '').trim().slice(0, 600), confidence: Math.min(1, Number(f.confidence) || 0), note: note.id, inChange: !!(file && change.files.find(x => x.path === file)?.touched.has(line)) };
-  });
+  // under note_outdated the findings describe the note, not the code: the outdated entry carries them
+  const findings = shapeFindings(v.verdict === 'note_outdated' ? [] : v.findings, change, reader, { note: note.id, category: v.verdict === 'violation' ? 'violation' : 'bug' });
   return { id: note.id, verdict: v.verdict || 'unrelated', reason: String(v.reason || '').trim(), findings, noteCorrection: v.verdict === 'note_outdated' ? String(v.noteCorrection || '').trim() : '', cost: res.cost || 0 };
+}
+
+function shapeFindings(raw, change, reader, { note = '', category = 'bug', minConfidence = 0.5 } = {}) {
+  return (Array.isArray(raw) ? raw : []).filter(f => f && typeof f.message === 'string' && (Number(f.confidence) || 0) >= minConfidence).map(f => {
+    const file = change.files.find(x => x.path === f.file || x.path.endsWith('/' + f.file))?.path || (f.file && reader.after(f.file) !== null ? f.file : '');
+    const line = Math.max(0, Math.floor(Number(f.line) || 0));
+    return { severity: SEV[f.severity] !== undefined ? f.severity : 'warning', category: f.note || note ? category : 'bug', file, line, message: f.message.trim(), evidence: String(f.evidence || '').trim().slice(0, 600), confidence: Math.min(1, Number(f.confidence) || 0), note: (typeof f.note === 'string' && f.note) || note || undefined, inChange: !!(file && change.files.find(x => x.path === file)?.touched.has(line)) };
+  });
+}
+
+// Every consulted note in one call: cheaper, and the model sees the notes together; what it loses
+// is one verdict per note. Returns one result in the shape of assessNote's, with `outdated`.
+export async function assessHolistic(store, notes, exposures, change, reader, { model, callers = '' } = {}) {
+  const shown = [];
+  let used = 0;
+  for (const n of notes) {
+    const e = exposures.get(n.id);
+    const state = [e.staleBefore.length ? `already differed from the note's record BEFORE this change: ${e.staleBefore.map(c => `${ptr(c)} (${c.reason})`).join(', ')}` : '', e.touched.length ? `altered by this change: ${e.touched.map(c => `${ptr(c)} (${c.reason})`).join(', ')}` : 'shares identifiers with the change'].filter(Boolean).join('; ');
+    const t = `### [${n.kind}] ${n.title} (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%; ${state})\n${String(n.body).slice(0, 2500)}${n.applies ? `\nApplies: ${n.applies}` : ''}`;
+    if (used + t.length > 30000) break;
+    shown.push(t); used += t.length;
+  }
+  const seen = new Set(), code = [];
+  for (const n of notes) for (const d of (n.deps || [])) {
+    if (!exposures.get(n.id).touched.some(t => depKey(t) === depKey(d)) || seen.has(depKey(d)) || code.length >= 12) continue;
+    seen.add(depKey(d)); code.push(`--- ${ptr(d)} ---\n${codeOf(reader.after(d.path), d, 80)}`);
+  }
+  const prompt = `NOTES FROM THE CACHE (each may be out of date; the code is the ground truth):\n\n${shown.join('\n\n')}\n\nTHE CHANGE:\n${change.text.slice(0, 16000) || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEPENDENCIES IT ALTERED:\n${code.join('\n\n').slice(0, 30000)}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
+  const system = SYSTEM.replace('against one note from a cache', 'against the notes from a cache').replace('Give one verdict:', 'For each finding name the note it rests on (or none). Report under `outdated` every note the code shows to be wrong, whether or not the change is at fault; such a note is not a finding against the change. The verdicts, per note, are:');
+  const res = await complete({ system, prompt, model, maxTokens: 4000, accounting: { store, purpose: 'review', phase: 'review' }, schema: HOLISTIC_SCHEMA });
+  const v = res.json || {};
+  const outdated = (Array.isArray(v.outdated) ? v.outdated : []).filter(o => o && notes.some(n => n.id === o.id)).map(o => ({ id: o.id, reason: String(o.reason || '').trim(), correction: '' }));
+  const findings = shapeFindings(v.findings, change, reader, { category: 'violation' }).filter(f => !outdated.some(o => o.id === f.note));
+  return { id: 'holistic', verdict: 'holistic', reason: String(v.summary || '').trim(), findings, noteCorrection: '', outdated, cost: res.cost || 0 };
+}
+
+// No notes: the diff and the code of what it touched, as any reviewer without the cache would see it.
+export async function assessNoCache(store, change, symbols, reader, { model, callers = '' } = {}) {
+  const system = `You review a code change for bugs: a wrong call order, a broken invariant visible in the code shown, a name or field that no longer exists, a condition inverted or dropped, a changed contract whose callers were not updated. Report each as a finding with the file and line after the change, the evidence quoted from the code or diff, and a confidence between 0 and 1. Report only what the code shown supports; prefer no finding over a speculative one. Everything you need is in this message: do not use tools or read files.`;
+  const prompt = `THE CHANGE:\n${change.text.slice(0, 16000) || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEFINITIONS IT TOUCHED:\n${changedCode(symbols, reader) || '(none)'}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
+  const res = await complete({ system, prompt, model, maxTokens: 4000, accounting: { store, purpose: 'review', phase: 'review' }, schema: NOCACHE_SCHEMA });
+  const v = res.json || {};
+  return { id: 'nocache', verdict: 'nocache', reason: String(v.summary || '').trim(), findings: shapeFindings(v.findings, change, reader, { category: 'bug' }), noteCorrection: '', cost: res.cost || 0 };
+}
+
+// A small model says whether a note bears on the change at all, from the note and a summary of the
+// change, before the expensive call is spent on it.
+export async function triageNote(store, note, change, symbols, { model = 'haiku' } = {}) {
+  const summary = [`Files: ${change.files.map(f => `${f.path} (${f.status}, +${f.added} -${f.removed})`).join(', ')}`, `Definitions touched: ${symbols.flatMap(s => s.changed.map(q => `${s.path}:${q}`)).join(', ') || 'none'}`, `Removed: ${symbols.flatMap(s => s.removed.map(r => `${s.path}:${r.qualified}`)).join(', ') || 'none'}`,
+    `Changed lines:\n${change.files.flatMap(f => f.hunks.flatMap(h => h.lines.filter(l => /^[-+]/.test(l)))).slice(0, 80).join('\n').slice(0, 4000)}`].join('\n');
+  const res = await complete({ model, maxTokens: 300, accounting: { store, purpose: 'review-triage', phase: 'review' }, schema: { type: 'object', properties: { bears: { type: 'boolean' }, reason: { type: 'string' } }, required: ['bears', 'reason'] },
+    system: 'Decide whether a cached note about a codebase could bear on a code change: whether the change could violate, contradict or depend on what the note states. Answer bears=true when in doubt; a false no hides a bug, a false yes costs one further look. Everything you need is in this message: do not use tools or read files.',
+    prompt: `NOTE (${note.kind}): ${note.title}\n${String(note.body).slice(0, 1500)}\n\nTHE CHANGE:\n${summary}` });
+  return { bears: res.json?.bears !== false, reason: String(res.json?.reason || '').trim(), cost: res.cost || 0 };
 }
 
 // The review. `assess` is the model step (injected by tests). Returns the report as data; render()
 // prints it. Nothing in the cache is rewritten: a note the review finds outdated is reported for
 // `thinker verify`, since the change under review may never be merged.
-export async function review(store, { scope, paths = [], max = 12, model, dry = false, concurrency = 4, assess = assessNote, cochange } = {}) {
+export async function review(store, { scope, paths = [], max = 12, model, dry = false, concurrency = 4, assess = assessNote, cochange, strategy = {} } = {}) {
+  const strat = { ...DEFAULT_STRATEGY, ...strategy };
   const repo = store.repo;
   scope = scope || resolveScope(repo);
   const reader = makeReader(repo, scope);
   const change = collectChange(repo, scope, { paths });
   change.state = !!scope.state; change.head = scope.head === 'worktree' || scope.head === 'index' ? scope.head : 'commit';
   const notes = store.list();
-  const report = { scope: scope.label, state: !!scope.state, files: change.files.map(f => ({ path: f.path, status: f.status, added: f.added, removed: f.removed })), notes: { consulted: 0, direct: 0, related: 0, assessed: 0, staleBefore: [], outdated: [], uncovered: [] }, verdicts: [], findings: [], cost: 0, model: model || store.config().reviewModel || 'sonnet', errors: [] };
+  const report = { scope: scope.label, state: !!scope.state, strategy: strat, files: change.files.map(f => ({ path: f.path, status: f.status, added: f.added, removed: f.removed })), notes: { consulted: 0, direct: 0, related: 0, assessed: 0, staleBefore: [], outdated: [], uncovered: [] }, verdicts: [], findings: [], cost: 0, model: model || store.config().reviewModel || 'sonnet', errors: [] };
   if (scope.state) {
     // the current code of the given files (every file the notes rest on when none is named)
     const pathSet = new Set(paths.map(p => p.replace(/^\.\//, '')));
@@ -329,37 +447,62 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
     report.files = change.files.map(f => ({ path: f.path, status: 'state' }));
   }
   if (!change.files.length) { report.empty = true; return report; }
-  const { direct, related, exposures, symbols } = selectNotes(notes, change, reader);
+  const { direct, related, exposures, symbols, order } = selectNotes(notes, change, reader, { relatedMax: strat.related ? 6 : 0 });
   report.symbols = symbols.filter(s => s.changed.length || s.removed.length).map(s => ({ path: s.path, changed: s.changed, removed: s.removed.map(r => r.qualified) }));
   report.findings.push(...deterministicFindings(repo, change, symbols, reader, cochange ? { cochange } : {}));
-  const consulted = [...direct, ...related];
+  const consulted = strat.mode === 'nocache' ? [] : order;
   report.notes.consulted = consulted.length; report.notes.direct = direct.length; report.notes.related = related.length;
   for (const n of consulted) { const e = exposures.get(n.id); if (e.staleBefore.length) report.notes.staleBefore.push({ id: n.id, title: n.title, changed: e.staleBefore }); }
   const covered = new Set(direct.flatMap(n => (n.deps || []).map(d => d.path)));
   report.notes.uncovered = change.files.filter(f => f.status !== 'D' && CODE_EXT.test(f.path) && !covered.has(f.path)).map(f => f.path);
   const queue = consulted.slice(0, max);
   report.notes.assessed = dry ? 0 : queue.length;
+  const callers = strat.callers ? callersContext(repo, symbols, change) : '';
   report.notes.skipped = consulted.length - queue.length;
-  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, why: direct.includes(n) ? exposures.get(n.id).touched.map(ptr).join(', ') : 'shares identifiers with the change' }));
+  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}` : 'shares identifiers with the change' }));
   if (!dry) {
     const results = [];
-    await Promise.all(Array.from({ length: Math.max(1, concurrency) }, async () => {
-      while (queue.length) {
-        const n = queue.shift();
-        try { results.push(await assess(store, n, exposures.get(n.id), change, reader, { model: report.model, related: related.includes(n) })); }
-        catch (e) { report.errors.push({ id: n.id, error: String(e.message || e).slice(0, 200) }); }
-      }
-    }));
+    if (strat.mode === 'nocache') {
+      try { results.push(await assessNoCache(store, change, symbols, reader, { model: report.model, callers })); }
+      catch (e) { report.errors.push({ id: 'nocache', error: String(e.message || e).slice(0, 200) }); }
+    } else if (strat.mode === 'holistic') {
+      if (queue.length) try { results.push(await assessHolistic(store, queue, exposures, change, reader, { model: report.model, callers })); }
+      catch (e) { report.errors.push({ id: 'holistic', error: String(e.message || e).slice(0, 200) }); }
+    } else {
+      if (strat.triage) report.triage = [];
+      await Promise.all(Array.from({ length: Math.max(1, concurrency) }, async () => {
+        while (queue.length) {
+          const n = queue.shift();
+          try {
+            if (strat.triage) {
+              const t = await triageNote(store, n, change, symbols, { model: strat.triageModel });
+              report.triage.push({ id: n.id, bears: t.bears, reason: t.reason }); report.cost += t.cost || 0;
+              if (!t.bears) { results.push({ id: n.id, verdict: 'unrelated', reason: `triage: ${t.reason}`, findings: [], cost: 0 }); continue; }
+            }
+            results.push(await assess(store, n, exposures.get(n.id), change, reader, { model: report.model, related: related.includes(n), callers }));
+          } catch (e) { report.errors.push({ id: n.id, error: String(e.message || e).slice(0, 200) }); }
+        }
+      }));
+    }
+    // several notes often see the same problem at the same place: one finding, the surest wording, every note named
+    const merged = new Map();
     for (const r of results) {
       report.cost += r.cost || 0;
       report.verdicts.push({ id: r.id, verdict: r.verdict, reason: r.reason });
-      report.findings.push(...r.findings);
       if (r.verdict === 'note_outdated') report.notes.outdated.push({ id: r.id, reason: r.reason, correction: r.noteCorrection });
+      if (r.outdated) report.notes.outdated.push(...r.outdated);
+      for (const f of r.findings) {
+        const key = `${f.file}:${f.line}:${f.severity}`;
+        const m = merged.get(key);
+        if (!m) merged.set(key, { ...f, notes: f.note ? [f.note] : [] });
+        else { if (f.note && !m.notes.includes(f.note)) m.notes.push(f.note); if ((f.confidence || 0) > (m.confidence || 0)) Object.assign(m, { message: f.message, evidence: f.evidence, confidence: f.confidence, note: f.note, category: f.category, inChange: f.inChange }); }
+      }
     }
+    report.findings.push(...merged.values());
   }
   report.findings.sort((a, b) => (SEV[a.severity] ?? 1) - (SEV[b.severity] ?? 1) || (b.confidence || 1) - (a.confidence || 1));
   report.counts = { error: report.findings.filter(f => f.severity === 'error').length, warning: report.findings.filter(f => f.severity === 'warning').length, info: report.findings.filter(f => f.severity === 'info').length };
-  store.log({ op: 'review', scope: scope.label, files: change.files.length, consulted: consulted.length, assessed: report.notes.assessed, findings: report.counts, outdated: report.notes.outdated.map(o => o.id), cost: report.cost, metered: true, dry: dry || undefined });
+  store.log({ op: 'review', scope: scope.label, strategy: strat.mode === 'per-note' && !strat.callers && !strat.triage && strat.related ? undefined : strat, files: change.files.length, consulted: consulted.length, assessed: report.notes.assessed, findings: report.counts, outdated: report.notes.outdated.map(o => o.id), cost: report.cost, metered: true, dry: dry || undefined });
   return report;
 }
 
@@ -367,12 +510,12 @@ export function renderReview(r, { verbose = false } = {}) {
   const L = [];
   if (r.empty) return `thinker review: nothing to review (${r.scope})`;
   const n = r.notes;
-  L.push(`thinker review: ${r.scope}, ${r.files.length} file${r.files.length === 1 ? '' : 's'}; ${n.consulted} note${n.consulted === 1 ? '' : 's'} consulted (${n.direct} on the changed code, ${n.related} related)${r.toAssess?.length && !n.assessed ? `, ${r.toAssess.length} to assess` : n.assessed ? `, ${n.assessed} assessed with ${r.model}${r.cost ? ` ($${r.cost.toFixed(2)})` : ''}` : ''}${n.skipped ? `, ${n.skipped} left out (--max)` : ''}`);
+  L.push(`thinker review: ${r.scope}, ${r.files.length} file${r.files.length === 1 ? '' : 's'}; ${r.strategy?.mode === 'nocache' ? 'no notes (baseline)' : `${n.consulted} note${n.consulted === 1 ? '' : 's'} consulted`} (${n.direct} on the changed code, ${n.related} related)${r.toAssess?.length && !n.assessed ? `, ${r.toAssess.length} to assess` : n.assessed ? `, ${n.assessed} assessed with ${r.model}${r.cost ? ` ($${r.cost.toFixed(2)})` : ''}` : ''}${n.skipped ? `, ${n.skipped} left out (--max)` : ''}`);
   if (r.findings.length) {
     L.push('', `Findings: ${r.counts.error} error${r.counts.error === 1 ? '' : 's'}, ${r.counts.warning} warning${r.counts.warning === 1 ? '' : 's'}, ${r.counts.info} info`);
     for (const f of r.findings) {
       const where = f.file ? `${f.file}${f.line ? ':' + f.line : ''}` : '(no file)';
-      L.push(`  ${f.severity.padEnd(8)} ${where}  ${f.message}${f.note ? `  [note ${f.note}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}]` : f.basis ? `  [${f.basis}]` : ''}`);
+      L.push(`  ${f.severity.padEnd(8)} ${where}  ${f.message}${f.notes?.length || f.note ? `  [note${(f.notes?.length || 1) > 1 ? 's' : ''} ${(f.notes?.length ? f.notes : [f.note]).join(', ')}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}]` : f.basis ? `  [${f.basis}]` : f.confidence ? `  [from the code, ${Math.round(f.confidence * 100)}%]` : ''}`);
       if (f.evidence) L.push(`           evidence: ${f.evidence.split('\n').map(s => s.trim()).filter(Boolean).join(' | ').slice(0, 300)}`);
     }
   } else L.push('', n.assessed || r.toAssess?.length === 0 ? 'No findings.' : 'No findings without the model (dry run).');
@@ -387,6 +530,7 @@ export function renderReview(r, { verbose = false } = {}) {
   if (verbose || !n.assessed) {
     if (r.toAssess?.length && !n.assessed) { L.push('', 'Notes to assess:'); for (const t of r.toAssess) L.push(`  - [${t.kind}] ${t.title} (${t.id}): ${t.why}`); }
     if (r.verdicts.length) { L.push('', 'Verdicts:'); for (const v of r.verdicts) L.push(`  ${v.verdict.padEnd(14)} ${v.id}: ${v.reason}`); }
+    if (r.triage?.length) L.push('', `Triage: ${r.triage.filter(t => t.bears).length} of ${r.triage.length} notes went to the model`);
   }
   return L.join('\n');
 }
