@@ -379,6 +379,7 @@ async function main() {
       break;
     }
     case 'init': {
+      if (!fs.existsSync(path.join(repo, '.git'))) { process.stderr.write(`thinker: ${repo} is not a git repository. Run \`thinker init\` from inside the repository to set up.\n`); process.exit(1); }
       // hooks serve notes and learn from sessions by default. flags: --no-learn (serve only, for evals; --serve-only is
       //        the older name), --no-hooks (MCP server only), --late (file-keyed notes),
       //        --local (write .claude/settings.local.json, not shared), --no-git-hook, --no-mcp, --clients,
@@ -388,6 +389,7 @@ async function main() {
       break;
     }
     case 'setup': {
+      if (!fs.existsSync(path.join(repo, '.git'))) { process.stderr.write(`thinker: ${repo} is not a git repository. Run \`thinker setup\` from inside the repository to set up.\n`); process.exit(1); }
       await setup();
       break;
     }
