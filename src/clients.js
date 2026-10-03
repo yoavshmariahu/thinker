@@ -146,6 +146,105 @@ function excludeLocally(repo, entries) {
 
 const isOurs = h => JSON.stringify(h).includes('thinker');
 
+// --- other installs of thinker wired into the same checkout ---------------------------------
+// A hook runs `node "<install>/src/cli.js" hook …` and an MCP entry `node <install>/src/mcp.js`:
+// the script names the copy of thinker it runs. Two copies wired into one checkout (an old
+// install left behind, a smoke-test copy, a shared and a local Claude settings file) both fire on
+// every prompt: notes served twice, the old copy's notice and state format back again.
+const scriptOf = cmd => { const m = String(cmd || '').match(/^(?:\w+=\S*\s+)*node (?:"([^"]+)"|'([^']+)'|(\S+))(?:\s|$)/); return m ? (m[1] || m[2] || m[3]) : null; }; // env prefixes (THINKER_LOG=local node …) are allowed
+const hookScript = group => scriptOf((group?.hooks ? group.hooks[0] : group)?.command);
+const mcpScript = entry => entry?.command === 'node' ? (entry.args || []).map(String).find(a => /mcp\.js$/.test(a)) || null : null; // a hand-written entry (`thinker serve`) is not touched
+const installRoot = script => path.resolve(path.dirname(script), '..');
+function installInfo(script) {
+  const root = installRoot(script);
+  let version = null;
+  try { version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version || null; } catch {}
+  return { root, version, exists: fs.existsSync(script) };
+}
+export function compareVersions(a, b) {
+  const A = String(a || '0').split(/[.-]/).map(Number), B = String(b || '0').split(/[.-]/).map(Number);
+  for (let i = 0; i < Math.max(A.length, B.length); i++) { const d = (A[i] || 0) - (B[i] || 0); if (d) return d < 0 ? -1 : 1; }
+  return 0;
+}
+function codexTomlBlock(mcpEntry) {
+  return [TOML_START, '[mcp_servers.thinker]', `command = ${tomlStr(mcpEntry.command)}`, `args = [${mcpEntry.args.map(tomlStr).join(', ')}]`, 'default_tools_approval_mode = "approve"', '', '[mcp_servers.thinker.env]', ...Object.entries(mcpEntry.env || {}).map(([k, v]) => `${k} = ${tomlStr(v)}`), TOML_END].join('\n');
+}
+const HOOK_FILES = { claude: ['.claude/settings.json', '.claude/settings.local.json'], codex: ['.codex/hooks.json'], gemini: ['.gemini/settings.json'], cursor: ['.cursor/hooks.json'] };
+const MCP_FILES = { claude: ['.mcp.json'], gemini: ['.gemini/settings.json'], cursor: ['.cursor/mcp.json'] };
+
+// Take the entries of other copies of thinker out of this checkout's client configuration.
+// `cli` is this copy's cli.js. Hooks of another copy are removed; an MCP entry of another copy
+// is pointed at this one (`mcpEntry`) or removed. By default every other copy goes (an install
+// is explicit: one copy per checkout); with `olderOnly`, only copies that are gone or older by
+// their package.json than this one, so that at prompt time two copies of one version do not
+// take each other out, and a newer copy is left to do the cleaning.
+// Returns what was done: [{ file, root, version, what: 'hooks' | 'mcp' }].
+export function pruneInstalls(repo, { cli, mcpEntry, olderOnly = false, clients = CLIENTS } = {}) {
+  const mine = installInfo(cli);
+  const mineRoots = [mine.root, mcpEntry && mcpScript(mcpEntry) ? installRoot(mcpScript(mcpEntry)) : null].filter(Boolean).map(real);
+  const foreign = script => {
+    if (!script) return null;
+    const other = installInfo(script);
+    if (mineRoots.includes(real(other.root))) return null;
+    if (olderOnly && other.exists && compareVersions(other.version, mine.version) >= 0) return null;
+    return other;
+  };
+  const done = [];
+  const record = (file, other, what) => done.push({ file: path.relative(repo, file), root: other.root, version: other.version, what });
+  const hookFiles = [...new Set(clients.flatMap(c => HOOK_FILES[c] || []))], mcpFiles = [...new Set(clients.flatMap(c => MCP_FILES[c] || []))];
+  const jsonFiles = [...new Set([...hookFiles, ...mcpFiles])];
+  for (const rel of jsonFiles) {
+    const file = path.join(repo, rel);
+    if (!fs.existsSync(file)) continue;
+    let cur; try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { continue; }
+    let next = cur, changed = false;
+    if (hookFiles.includes(rel) && cur.hooks && typeof cur.hooks === 'object') {
+      const hooks = { ...cur.hooks };
+      for (const ev of Object.keys(hooks)) {
+        if (!Array.isArray(hooks[ev])) continue;
+        const kept = hooks[ev].filter(g => { if (!isOurs(g)) return true; const o = foreign(hookScript(g)); if (o) { record(file, o, 'hooks'); return false; } return true; });
+        if (kept.length !== hooks[ev].length) { changed = true; if (kept.length) hooks[ev] = kept; else delete hooks[ev]; }
+      }
+      if (changed) { next = { ...next, hooks }; if (!Object.keys(hooks).length) delete next.hooks; }
+    }
+    if (mcpFiles.includes(rel) && cur.mcpServers?.thinker) {
+      const o = foreign(mcpScript(cur.mcpServers.thinker));
+      if (o) {
+        record(file, o, 'mcp'); changed = true;
+        const m = { ...next.mcpServers };
+        if (mcpEntry) m.thinker = mcpEntry; else delete m.thinker;
+        next = { ...next, mcpServers: m }; if (!Object.keys(m).length) delete next.mcpServers;
+      }
+    }
+    if (!changed) continue;
+    if (Object.keys(next).filter(k => !(rel === '.cursor/hooks.json' && k === 'version')).length) fs.writeFileSync(file, JSON.stringify(next, null, 2) + '\n');
+    else fs.unlinkSync(file);
+  }
+  if (clients.includes('codex')) {
+    const file = path.join(repo, '.codex', 'config.toml');
+    const cur = readText(file);
+    const a = cur.indexOf(TOML_START), b = a < 0 ? -1 : cur.indexOf(TOML_END, a);
+    if (a >= 0 && b >= 0) {
+      const block = cur.slice(a, b);
+      const m = block.match(/^args = \[(.*)\]$/m);
+      let script = null; try { script = m ? JSON.parse(`[${m[1]}]`).map(String).find(x => /mcp\.js$/.test(x)) || null : null; } catch {}
+      const o = foreign(script);
+      if (o) {
+        record(file, o, 'mcp');
+        const rest = stripTomlBlock(cur);
+        if (mcpEntry) fs.writeFileSync(file, (rest.trim() ? rest.trimEnd() + '\n\n' : '') + codexTomlBlock(mcpEntry) + '\n');
+        else if (rest.trim()) fs.writeFileSync(file, rest); else fs.unlinkSync(file);
+      }
+    }
+  }
+  return done;
+}
+export function prunedLines(done) {
+  const by = new Map();
+  for (const d of done) { const k = `${d.version || 'unknown version'}|${d.root}`; (by.get(k) || by.set(k, new Set()).get(k)).add(d.file); }
+  return [...by.entries()].map(([k, files]) => { const [v, root] = k.split('|'); return `removed the entries of another thinker install (${v === 'unknown version' ? 'no longer there' : `version ${v}`}, ${root}) from ${[...files].join(', ')}`; });
+}
+
 // Codex keeps what the user has trusted in its own config.toml (CODEX_HOME, ~/.codex): a project,
 // before it reads the project's .codex/, and each hook by a hash of its definition.
 const codexConfig = () => path.join(process.env.CODEX_HOME || home('.codex'), 'config.toml');
@@ -213,7 +312,8 @@ function setHooks(hooks, events, entries) {
 // Wire one client into the repo. Returns lines describing what was done.
 //   opts: repo, cli (path to cli.js), mcpEntry ({command,args,env}), hooks, learn, late, shared, mcp
 export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late, shared, mcp }) {
-  const done = [];
+  // whatever another copy of thinker left in this client's files goes first: one copy per checkout
+  const done = prunedLines(pruneInstalls(repo, { cli, mcpEntry: mcp ? mcpEntry : undefined, clients: [client] }));
   const cmd = (what, extra = '') => `node "${cli}" hook ${what} --client ${client} --repo "${repo}"${extra}`;
   const rel = f => path.relative(repo, f);
   const rec = learn ? ' --record' : '';
@@ -227,6 +327,9 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
       if (late) entries.push(['PostToolUse', { matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `node "${cli}" hook tool`, timeout: 10 }] }]);
       if (learn) entries.push(['Stop', { matcher: '', hooks: [{ type: 'command', command: `node "${cli}" hook stop`, timeout: 10 }] }]);
       mergeJson(target, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'Stop', 'PostToolUse'], entries) }));
+      // Claude Code runs both files: thinker's hooks live in one of them
+      const other = path.join(repo, '.claude', shared ? 'settings.local.json' : 'settings.json');
+      if (stripThinkerHooks(other)) done.push(`Claude Code: removed thinker's hooks from ${rel(other)}; they are in ${rel(target)} now`);
       done.push(`Claude Code: hooks in ${rel(target)}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learn ? ', sessions distilled into new notes when they end' : ''}`);
     }
   }
@@ -238,7 +341,7 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
       const cur = fs.existsSync(file) ? stripTomlBlock(fs.readFileSync(file, 'utf8')) : '';
       if (/^\[mcp_servers\.thinker\]/m.test(cur)) done.push('Codex: .codex/config.toml already defines mcp_servers.thinker; left as is');
       else {
-        const block = [TOML_START, '[mcp_servers.thinker]', `command = ${tomlStr(mcpEntry.command)}`, `args = [${mcpEntry.args.map(tomlStr).join(', ')}]`, 'default_tools_approval_mode = "approve"', '', '[mcp_servers.thinker.env]', ...Object.entries(mcpEntry.env || {}).map(([k, v]) => `${k} = ${tomlStr(v)}`), TOML_END].join('\n');
+        const block = codexTomlBlock(mcpEntry);
         fs.mkdirSync(path.dirname(file), { recursive: true });
         fs.writeFileSync(file, (cur.trim() ? cur.trimEnd() + '\n\n' : '') + block + '\n');
         done.push('Codex: registered MCP server in .codex/config.toml');
@@ -307,22 +410,29 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
   return done;
 }
 
+// Take thinker's hook entries (and, with `mcp`, its MCP entry) out of one JSON file; the file
+// goes when nothing else is in it. Returns whether anything was removed.
+function stripThinkerHooks(file, { keepVersion = false, mcp = false } = {}) {
+  if (!fs.existsSync(file)) return false;
+  const before = fs.readFileSync(file, 'utf8');
+  mergeJson(file, c => {
+    const hooks = { ...(c.hooks || {}) };
+    for (const ev of Object.keys(hooks)) { hooks[ev] = (hooks[ev] || []).filter(h => !isOurs(h)); if (!hooks[ev].length) delete hooks[ev]; }
+    const n = { ...c, hooks };
+    if (!Object.keys(hooks).length) delete n.hooks;
+    if (mcp && n.mcpServers?.thinker) { n.mcpServers = { ...n.mcpServers }; delete n.mcpServers.thinker; if (!Object.keys(n.mcpServers).length) delete n.mcpServers; }
+    return n;
+  });
+  const after = fs.readFileSync(file, 'utf8');
+  const left = JSON.parse(after);
+  if (!Object.keys(left).filter(k => !(keepVersion && k === 'version')).length) fs.unlinkSync(file);
+  return JSON.stringify(JSON.parse(before)) !== JSON.stringify(left);
+}
+
 // Remove everything installClient wrote for any client.
 export function uninstallClients(repo) {
   untrustCodexHooks(repo);
-  const stripHooks = (file, keepVersion) => {
-    if (!fs.existsSync(file)) return;
-    mergeJson(file, c => {
-      const hooks = { ...(c.hooks || {}) };
-      for (const ev of Object.keys(hooks)) { hooks[ev] = (hooks[ev] || []).filter(h => !isOurs(h)); if (!hooks[ev].length) delete hooks[ev]; }
-      const n = { ...c, hooks };
-      if (!Object.keys(hooks).length) delete n.hooks;
-      if (n.mcpServers?.thinker) { n.mcpServers = { ...n.mcpServers }; delete n.mcpServers.thinker; if (!Object.keys(n.mcpServers).length) delete n.mcpServers; }
-      return n;
-    });
-    const left = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!Object.keys(left).filter(k => !(keepVersion && k === 'version')).length) fs.unlinkSync(file);
-  };
+  const stripHooks = (file, keepVersion) => stripThinkerHooks(file, { keepVersion, mcp: true });
   for (const f of ['.claude/settings.json', '.claude/settings.local.json', '.codex/hooks.json', '.gemini/settings.json']) stripHooks(path.join(repo, f));
   stripHooks(path.join(repo, '.cursor', 'hooks.json'), true);
   for (const f of ['.mcp.json', '.cursor/mcp.json']) {

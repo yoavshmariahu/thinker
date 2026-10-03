@@ -150,6 +150,15 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
 }
 
 // One line for the user about what maintenance did since they last saw it; then cleared.
+// The prompt hook took the entries of an older copy of thinker out of the checkout: tell the user at the end of the turn.
+export function reportPruned(store, lines) {
+  const state = readState(store);
+  const u = state.unreported || {};
+  u.pruned = [...new Set([...(u.pruned || []), ...lines])];
+  state.unreported = u;
+  try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
+}
+
 export function maintenanceNotice(store) {
   const state = readState(store);
   const u = state.unreported;
@@ -165,6 +174,7 @@ export function maintenanceNotice(store) {
   if (u.graph) parts.push('code graph re-indexed');
   if (u.pulled || u.pushed) parts.push(`team cache: ${[u.pulled ? `${u.pulled} ${u.pulled === 1 ? 'note' : 'notes'} pulled` : '', u.pushed ? `${u.pushed} pushed` : ''].filter(Boolean).join(', ')}`);
   if (u.share) parts.push(u.share);
+  if (u.pruned?.length) parts.push(...u.pruned);
   if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} left stale after being re-verified ${maintainConfig(store).verifyChurn}+ times this week (${u.churning.slice(0, 3).join(', ')}${u.churning.length > 3 ? ', …' : ''}): their code is changing; narrow their pointers or retire them`);
   if (!parts.length) return '';
   delete state.unreported;
