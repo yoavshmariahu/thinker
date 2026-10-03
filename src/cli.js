@@ -154,6 +154,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --schedule / --unschedule manages hourly background telemetry
 `;
 
+// Commands that read or maintain an existing cache. Not `init`, `setup`, `seed`, `mine-prs`, `import`,
+// `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
+const CACHE_COMMANDS = ['orient', 'lookup', 'list', 'show', 'rm', 'check', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'cochange', 'relink', 'rehash', 'outcome'];
+
 async function main() {
   if (process.stderr.isTTY && !['update', 'upgrade', 'switch', 'branch', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
     const notice = checkPendingNotice(thinkerHome());
@@ -162,6 +166,12 @@ async function main() {
   if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup', 'init', 'share'].includes(cmd) && !flags.background) {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
     maybeSendTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
+  }
+  // the cache is used only where `thinker init` (or `setup`) has run: a repository without .thinker/
+  // is served nothing and learns nothing. Commands that build or add to a cache create it themselves.
+  if (CACHE_COMMANDS.includes(cmd) && !store.exists()) {
+    process.stderr.write(`thinker: not set up in this repository (${repo}). Run \`thinker init\` there to set it up and build its knowledge cache.\n`);
+    process.exit(1);
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
   if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'cbm', 'usage', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();

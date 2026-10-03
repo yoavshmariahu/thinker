@@ -14,14 +14,19 @@ const repo = findRepoRoot(process.env.THINKER_REPO || process.cwd());
 // THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
 // benchmark when the agent's MCP registration is machine-wide and cannot be left out for one run.
 const off = process.env.THINKER_MCP === 'off';
-const store = off ? null : new Store(repo).init();
-if (!off) await initAst(); // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
+// A repository where `thinker init` has not run has no cache: the server offers no tools there and
+// creates nothing, so a machine-wide registration does not start a cache in every checkout.
+const store = off ? null : new Store(repo);
+const setUp = !off && store.exists();
+if (setUp) { store.init(); await initAst(); } // tree-sitter grammars when installed (`thinker ast install`); the regex otherwise
 
-const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : {
+const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : setUp ? {
   instructions: `thinker is a cache of notes about this repository (${repo}) from earlier sessions and humans.\n\n${CACHE_USAGE_GUIDE}\n\n${CACHE_LEARNING_GUIDE}`,
+} : {
+  instructions: `thinker is installed but not set up for this repository (${repo}): no notes are served or learned here. To use it, run \`thinker init\` in the repository.`,
 });
 
-const register = off ? () => {} : server.registerTool.bind(server);
+const register = setUp ? server.registerTool.bind(server) : () => {};
 
 const text = s => ({ content: [{ type: 'text', text: s }] });
 // THINKER_ORIENT_GUIDE: a file with instructions on how to use the notes, put above them (per-model guidance).
