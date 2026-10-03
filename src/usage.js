@@ -65,14 +65,15 @@ export function formatSeconds(s) {
   return `${Math.round(s)}s`;
 }
 
-// What the user sees when notes are served: hits, and the reading and time they stand for.
+// What the user sees when notes are served: how many, and the size of the code they point at.
+// Nothing is known yet about whether the agent will act on them, so the notice describes the
+// notes and does not say "saved"; in a week on this repository about 30% of servings were acted
+// on. What was saved is counted after the session is assessed (summarize, `thinker usage`).
 export function cacheHitNotice(repo, notes) {
   const hits = (notes || []).length;
   if (!hits) return '';
-  const { tokens, seconds } = cacheHitSavings(repo, notes);
-  const hitStr = hits === 1 ? 'cache hit' : 'cache hits';
-  const tokPart = tokens > 0 ? `~${formatTokens(tokens)} tokens, ` : '';
-  return `🧠 thinker: ${hits} ${hitStr} (${tokPart}~${formatSeconds(seconds)} saved)`;
+  const { tokens } = cacheHitSavings(repo, notes);
+  return `🧠 thinker: ${hits} ${hits === 1 ? 'note' : 'notes'}${tokens > 0 ? ` (pointing at ~${formatTokens(tokens)} tokens of code)` : ''}`;
 }
 
 // What the user sees at the end of a turn: everything served in it, at the prompt and
@@ -80,10 +81,9 @@ export function cacheHitNotice(repo, notes) {
 export function turnNotice(repo, notes) {
   const hits = (notes || []).length;
   if (!hits) return '';
-  const { calls, tokens, seconds } = cacheHitSavings(repo, notes);
-  const hitStr = hits === 1 ? 'cache hit' : 'cache hits';
-  const readStr = calls ? `${calls} ${calls === 1 ? 'read' : 'reads'}` : 'exploration';
-  return `🧠 thinker: ${hits} ${hitStr} this turn (~${formatTokens(tokens)} tokens, ~${formatSeconds(seconds)} of ${readStr} saved)`;
+  const { calls, tokens } = cacheHitSavings(repo, notes);
+  const files = calls ? `${calls} ${calls === 1 ? 'file' : 'files'}, ` : '';
+  return `🧠 thinker: ${hits} ${hits === 1 ? 'note' : 'notes'} this turn (pointing at ${files}~${formatTokens(tokens)} tokens of code)`;
 }
 
 

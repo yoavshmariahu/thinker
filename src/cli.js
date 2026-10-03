@@ -48,6 +48,12 @@ const readStdin = () => fs.readFileSync(0, 'utf8');
 // Learning from sessions is on unless switched off, which evals do to keep the cache fixed.
 const NO_LEARN = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
 const learnOn = () => !NO_LEARN && !flags['no-learn'] && !flags['serve-only'];
+// Learning from sessions (the end-of-turn distill and the catch-up `learn`) is a model call per
+// session, about 10¢ with Sonnet, and in a week on this repository 30% of them produced no note.
+// `learn: {sessions: false}` in .thinker/config.json keeps it off while learning from code changes
+// goes on: pull requests and verification in maintenance, `share --repair-staged` at commit.
+// `thinker distill <file>` by hand is still answered. THINKER_NO_LEARN=1 switches off everything.
+const sessionLearning = () => store.config().learn?.sessions !== false;
 
 const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: repo } });
 
@@ -566,7 +572,7 @@ async function main() {
           recordEvent(store.dir, session, { t: 'say', text: last });
           source = traceFile(store.dir, session);
         }
-        if (flags['no-distill'] || NO_LEARN) break;
+        if (flags['no-distill'] || NO_LEARN || !sessionLearning()) break;
         if (!source || !fs.existsSync(source)) break;
         const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo],
           { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client } });
@@ -1192,6 +1198,7 @@ async function verifyAll(notes) {
 // agents and modes that do not fire one (Cursor's headless mode, for one).
 async function learn({ days, idleMin, max, dry, quiet }) {
   if (NO_LEARN) { if (!quiet) out('learning is switched off (THINKER_NO_LEARN)'); return; }
+  if (!sessionLearning()) { if (!quiet) out('learning from sessions is off (learn.sessions in .thinker/config.json); maintenance and pull requests go on'); return; }
   const lock = path.join(store.init().dir, 'state', 'learn.lock');
   fs.mkdirSync(path.dirname(lock), { recursive: true });
   try { if (Date.now() - fs.statSync(lock).mtimeMs < 15 * 60_000) { if (!quiet) out('another learn run is in progress'); return; } } catch {}
