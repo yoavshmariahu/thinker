@@ -248,7 +248,12 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // once: a note already served in this session is not served again. The prompt hooks pass it: what
 // they served on an earlier turn is in the agent's context, and serving it again on "status?" or
 // a follow-up only adds tokens. An agent calling `orient` itself asks anew and gets everything.
-export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full', snippets = false, once = false }) {
+// freshOnly: a stale note is not served; it is held back, verified in the background as if it had
+// been served, and comes back fresh on a later turn. The prompt hooks pass it: a stale note takes
+// the slot and the tokens of a fresh one, and its ⚠ banner is a claim the agent has to check or
+// ignore. Over three days on this repository 43 of 154 hook servings were stale. The agent's own
+// `orient` and `lookup` still return stale notes, with the banner.
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full', snippets = false, once = false, freshOnly = false }) {
   const start = Date.now();
   if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
   const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
@@ -270,13 +275,16 @@ export async function orient(store, { task, file, session, client, budget = HOOK
       ranked = routed.picked.map(r => ({ ...r, rel: Math.max(r.rel, 0.5) })); early = routed.mode;
     } catch (e) { store.log({ op: 'route-error', error: String(e.message).slice(0, 200) }); }
   }
-  let top = ranked.slice(0, maxNotes).filter((r, i) => i < 2 || r.rel >= relFloor * ranked[0].rel);
+  // what would have been served had staleness not held it back: verified below, as if it had been
+  const held = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
+  const servable = freshOnly ? ranked.filter(r => r.note.status !== 'stale') : ranked;
+  let top = servable.slice(0, maxNotes).filter((r, i) => i < 2 || r.rel >= relFloor * servable[0].rel);
   if (routed) process.env.THINKER_NO_LINKS = '1'; // the router's selection is final
   // cross-note links: pull in one note linked from the best hit when it has
   // at least some lexical relevance of its own and is not already selected
   // what a model chose is final: a linked note it did not choose is not added
   if (top.length && !chosen && process.env.THINKER_NO_LINKS !== '1') {
-    const rel = ranked.filter(r => (top[0].note.related || []).includes(r.note.id) && !top.includes(r) && r.rel >= 0.15)[0];
+    const rel = servable.filter(r => (top[0].note.related || []).includes(r.note.id) && !top.includes(r) && r.rel >= 0.15)[0];
     // with more than two slots the linked note is added; with two slots it takes the second only if
     // slot 2 is missing, weak (<0.7 of the best hit), or less relevant than the linked note.
     if (rel) {
@@ -293,7 +301,8 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   packed.more = ranked.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, 6).map(r => r.note);
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (recordUsage && session) trackTurn(store, session, packed.included.map(n => n.id));
-  if (!NAIVE && backgroundVerify) scheduleVerify(store, packed.included.filter(n => n.status === 'stale'));
+  packed.held = held;
+  if (!NAIVE && backgroundVerify) scheduleVerify(store, [...packed.included.filter(n => n.status === 'stale'), ...held]);
   // co-change edges for the files the served notes (and the current file) point at
   // co-change lines are carried through every later model call, so they are
   // off at the start by default; the end-of-task nudge uses them instead
@@ -308,7 +317,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: process.env.THINKER_GUARD_PHRASES !== '1', max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   addSnippets(store, packed, budget, snippets, early === 'pointers');
-  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 

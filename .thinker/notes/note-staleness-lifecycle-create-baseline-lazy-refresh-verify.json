@@ -27,7 +27,7 @@
       "path": "src/ops.js",
       "symbol": "verifyNote",
       "hash": "sha256:e05c5ade3cabd30dc7f79bfa",
-      "line": 658,
+      "line": 728,
       "missing": false
     },
     {
@@ -60,13 +60,13 @@
     },
     {
       "path": "src/cli.js",
-      "hash": "sha256:a5f3dd143d3cce01a315a59c",
+      "hash": "sha256:86ad26d75e5ae83657dbe6f4",
       "missing": false
     },
     {
       "path": "src/store.js",
       "symbol": "Store",
-      "hash": "sha256:cee3e56ae615b5fff2c5677b",
+      "hash": "sha256:f20f4d107b067fde69798a66",
       "line": 141,
       "missing": false
     },
@@ -80,14 +80,14 @@
     {
       "path": "src/store.js",
       "symbol": "Store.put",
-      "hash": "sha256:caef0408e2465708a47d887a",
-      "line": 306,
+      "hash": "sha256:b50df9bd55dab26f347bd4be",
+      "line": 350,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "orient",
-      "hash": "sha256:a0b46234dd643a2b93969e99",
+      "hash": "sha256:9da8b87f6b6c41ab3db8675b",
       "line": 242,
       "missing": false
     },
@@ -95,14 +95,14 @@
       "path": "src/ops.js",
       "symbol": "lookup",
       "hash": "sha256:82859cc15af450af4f3f8649",
-      "line": 520,
+      "line": 529,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "gitDiffFor",
       "hash": "sha256:2ab1811899cbd193dabef5b7",
-      "line": 640,
+      "line": 710,
       "missing": false
     },
     {
@@ -124,6 +124,6 @@
     "type": "agent"
   },
   "created": "2026-09-26T09:33:10.424Z",
-  "verified": "2026-10-03T07:31:31.401Z",
-  "confidence": 0.9
+  "verified": "2026-10-03T08:20:19.019Z",
+  "confidence": 0.95
 }

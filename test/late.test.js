@@ -230,6 +230,25 @@ test('a request of one content word is a turn of conversation, not a task: nothi
   finally { if (old === undefined) delete process.env.THINKER_MIN_COVER; else process.env.THINKER_MIN_COVER = old; }
 });
 
+test('the prompt hook serves no stale note: it is held, verified, and listed for lookup', async () => {
+  const { dir, store, cp } = setup();
+  const file = path.join(dir, 'src/a.py');
+  const original = fs.readFileSync(file, 'utf8');
+  fs.writeFileSync(file, original.replace('def launch():\n    pass', 'def launch():\n    return 1'));
+  const hook = await orient(store, { task: 'how does launch work', session: 'f1', once: true, freshOnly: true, backgroundVerify: false });
+  assert.equal(store.get(cp.id).status, 'stale', 'the edit made the note stale');
+  assert.ok(!hook.included.some(n => n.id === cp.id), 'the stale note is not served');
+  assert.deepEqual(hook.held.map(n => n.id), [cp.id], 'held back, for background verification');
+  assert.ok(hook.more.some(n => n.id === cp.id), 'listed for lookup');
+  assert.ok(!(store.get(cp.id).servedIn || []).includes('f1'), 'not counted as served');
+  fs.writeFileSync(file, original);
+  const later = await orient(store, { task: 'how does launch work', session: 'f1', once: true, freshOnly: true, backgroundVerify: false });
+  assert.ok(later.included.some(n => n.id === cp.id), 'served once fresh again, in the same session');
+  fs.writeFileSync(file, original.replace('def launch():\n    pass', 'def launch():\n    return 2'));
+  assert.ok((await orient(store, { task: 'how does launch work', session: 'f1', backgroundVerify: false })).included.some(n => n.id === cp.id && n.status === 'stale'), 'the agent\'s own orient still gets it, with the banner');
+  assert.ok(lookup(store, { query: 'how launch works' }).included.some(n => n.id === cp.id), 'and so does lookup');
+});
+
 test('the prompt hook serves a note once per session; an explicit orient gets it again', async () => {
   const { store, cp } = setup();
   const first = await orient(store, { task: 'how does launch work', session: 'h1', once: true, backgroundVerify: false });

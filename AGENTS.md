@@ -433,6 +433,16 @@ queries; `0,0` turns them off).
   was served on an earlier turn is in the agent's context, and serving it
   again on a follow-up adds tokens and a verdict of `unused`. `orient` called
   by the agent is a fresh question and may return it again.
+- The prompt hooks serve no stale note (`orient`'s `freshOnly`). A stale
+  note that would have been served is held back, logged as `held` on the
+  `orient` line, verified in the background as if it had been served
+  (`ops.js:scheduleVerify`), and served on a later turn once it is fresh
+  again; in the meantime it is listed by title, marked STALE, among the
+  notes the agent can `lookup`. Over three days on this repository 43 of
+  154 hook servings were stale: each took a slot and the tokens of a fresh
+  note and put a claim in front of the agent that it had to check or ignore.
+  `orient` and `lookup` called by the agent still return stale notes, with
+  the ⚠ banner.
 - The query: function words are dropped (`rank.js:STOP`), and so is what the
   request tells the agent not to do ("do not run the test suite"), which
   would otherwise bring up the notes on running tests (`rank.js:subject`).
