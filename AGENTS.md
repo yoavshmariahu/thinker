@@ -679,6 +679,20 @@ tool `review` is the same for an agent before it commits.
 | Gemini CLI | added to each prompt | yes | yes | `.gemini/settings.json` |
 | Cursor | through the `orient` tool, and with the first tool result | yes | yes (approved by setup) | `.cursor/hooks.json`, `.cursor/mcp.json`, `.cursor/rules/thinker.mdc` |
 
+- One copy of thinker per checkout (`clients.js:pruneInstalls`). A hook names
+  the copy it runs (`node "<install>/src/cli.js" hook …`), and so does an MCP
+  entry; two copies wired into one checkout (an install left behind, a smoke-test
+  copy, hooks in both of Claude Code's settings files) both fire on every prompt,
+  serve the notes twice and bring the old copy's notice and state format back.
+  `init` and `setup` take every other copy's hooks out of the files of the client
+  they install and point its MCP entry at the new copy; for Claude Code the hooks
+  live in one settings file, so installing `--local` empties the shared one and
+  the other way round. The prompt hook does the same on every prompt for copies
+  that are gone or older by their `package.json` than the one running
+  (`olderOnly`): a copy of the same version is left, or two copies would take
+  each other out, and a newer copy is left to do the cleaning. What was removed
+  is logged (`op: "prune"`) and said once at the end of the turn through the
+  maintenance notice. Only the entries go; the old copy's files are not deleted.
 - Cursor's prompt hook can allow or block a prompt but cannot add context, so
   thinker computes the notes at prompt time and hands them over with the first
   tool result. An always-applied rule also tells the agent to call `orient`.

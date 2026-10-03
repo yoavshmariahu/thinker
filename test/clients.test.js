@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, trustCodex, codexHookHash, toolFiles, hookClient } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, pruneInstalls, prunedLines, compareVersions, trustCodex, codexHookHash, toolFiles, hookClient } from '../src/clients.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 
@@ -22,7 +22,7 @@ function repo() {
 }
 const opts = dir => ({ repo: dir, cli: CLI, mcpEntry: { command: 'node', args: ['/x/mcp.js'], env: { THINKER_REPO: dir } }, hooks: true, learn: false, late: true, shared: false, mcp: true });
 const read = (dir, f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
-const hook = (dir, what, client, ev, extra = []) => execFileSync('node', [CLI, 'hook', what, '--client', client, '--repo', dir, ...extra], { input: JSON.stringify(ev), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1' } }).trim();
+const hook = (dir, what, client, ev, extra = [], env = {}) => execFileSync('node', [CLI, 'hook', what, '--client', client, '--repo', dir, ...extra], { input: JSON.stringify(ev), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', ...env } }).trim();
 const PROMPT = 'add stricter rate limiting to the upload endpoint in upload.py';
 
 test('parseClients validates names and expands all', () => {
@@ -211,4 +211,87 @@ test('init learns from sessions by default; --no-learn and THINKER_NO_LEARN swit
     assert.equal(off.Stop, undefined);
   }
   assert.ok(!run(['--no-hooks'])?.UserPromptSubmit, 'no hooks at all');
+});
+
+// a copy of thinker somewhere else: package.json with a version, src/cli.js, src/mcp.js
+function otherInstall(version) {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-copy-')));
+  fs.mkdirSync(path.join(root, 'src'));
+  if (version) fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'thinker', version }));
+  fs.writeFileSync(path.join(root, 'src/cli.js'), '');
+  fs.writeFileSync(path.join(root, 'src/mcp.js'), '');
+  return root;
+}
+const wire = (dir, root, file = '.claude/settings.json') => {
+  fs.mkdirSync(path.join(dir, path.dirname(file)), { recursive: true });
+  fs.writeFileSync(path.join(dir, file), JSON.stringify({ hooks: { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: `node "${root}/src/cli.js" hook prompt`, timeout: 15 }] }], Stop: [{ matcher: '', hooks: [{ type: 'command', command: `node "${root}/src/cli.js" hook stop`, timeout: 10 }] }] } }));
+  fs.writeFileSync(path.join(dir, '.mcp.json'), JSON.stringify({ mcpServers: { other: { command: 'x' }, thinker: { command: 'node', args: [`${root}/src/mcp.js`], env: { THINKER_REPO: dir } } } }));
+};
+
+test('init takes the entries of another copy of thinker out of the checkout: one copy per checkout', () => {
+  const dir = repo();
+  const old = otherInstall('0.1.4');
+  wire(dir, old);
+  fs.mkdirSync(path.join(dir, '.codex'));
+  fs.writeFileSync(path.join(dir, '.codex/config.toml'), `model = "gpt-5"\n\n# thinker:start (managed by thinker, do not edit)\n[mcp_servers.thinker]\ncommand = "node"\nargs = ["${old}/src/mcp.js"]\n\n[mcp_servers.thinker.env]\nTHINKER_REPO = "${dir}"\n# thinker:end\n`);
+  const lines = installClient('claude', opts(dir));
+  assert.ok(lines[0].includes('another thinker install') && lines[0].includes('0.1.4') && lines[0].includes('.claude/settings.json') && lines[0].includes('.mcp.json'), lines[0]);
+  assert.ok(!fs.existsSync(path.join(dir, '.claude/settings.json')), 'nothing else in the shared file: it goes');
+  assert.ok(read(dir, '.claude/settings.local.json').hooks.UserPromptSubmit[0].hooks[0].command.includes(CLI));
+  const mcp = read(dir, '.mcp.json').mcpServers;
+  assert.equal(mcp.thinker.args[0], '/x/mcp.js', 'the MCP entry points at this install now');
+  assert.equal(mcp.other.command, 'x');
+  // the Codex block is another client's: touched when that client is installed
+  assert.ok(fs.readFileSync(path.join(dir, '.codex/config.toml'), 'utf8').includes(old));
+  installClient('codex', opts(dir));
+  const toml = fs.readFileSync(path.join(dir, '.codex/config.toml'), 'utf8');
+  assert.ok(toml.startsWith('model = "gpt-5"') && toml.includes('"/x/mcp.js"') && !toml.includes(old));
+  assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1);
+
+  // the shared file held this install's own hooks before (installed with --shared): moving to --local leaves one set
+  wire(dir, path.dirname(path.dirname(CLI)));
+  const moved = installClient('claude', opts(dir));
+  assert.ok(moved.some(l => l.includes("removed thinker's hooks from .claude/settings.json")), moved.join('\n'));
+  assert.ok(!fs.existsSync(path.join(dir, '.claude/settings.json')));
+  assert.equal(read(dir, '.claude/settings.local.json').hooks.UserPromptSubmit.length, 1);
+});
+
+test('at prompt time only a copy that is older or gone is taken out, and the user is told at the end of the turn', () => {
+  const dir = repo();
+  const mine = path.dirname(path.dirname(CLI));
+  const same = otherInstall(JSON.parse(fs.readFileSync(path.join(mine, 'package.json'), 'utf8')).version);
+  installClient('claude', { ...opts(dir), shared: true, mcp: false });
+  wire(dir, same, '.claude/settings.local.json');
+  // a copy of the same version stays: two copies of one version must not take each other out
+  assert.equal(pruneInstalls(dir, { cli: CLI, olderOnly: true }).length, 0);
+  assert.ok(read(dir, '.claude/settings.local.json').hooks.UserPromptSubmit[0].hooks[0].command.includes(same));
+  // a newer copy stays too; it cleans up after this one
+  const newer = otherInstall('99.0.0');
+  wire(dir, newer, '.claude/settings.local.json');
+  assert.equal(pruneInstalls(dir, { cli: CLI, olderOnly: true }).length, 0);
+  // an older copy goes, through the prompt hook, and the stop hook says so
+  const old = otherInstall('0.0.1');
+  wire(dir, old, '.claude/settings.local.json');
+  hook(dir, 'prompt', 'claude', { session_id: 's1', prompt: PROMPT }, [], { THINKER_LOG: 'local' });
+  assert.ok(!fs.existsSync(path.join(dir, '.claude/settings.local.json')));
+  assert.ok(read(dir, '.claude/settings.json').hooks.UserPromptSubmit[0].hooks[0].command.includes(CLI), 'this install\'s hooks stay');
+  assert.equal(read(dir, '.mcp.json').mcpServers.thinker.args[0], path.join(mine, 'src', 'mcp.js'), 'the MCP entry is pointed at this install');
+  const stop = JSON.parse(hook(dir, 'stop', 'claude', { session_id: 's1', transcript_path: '/nonexistent' }));
+  assert.ok(stop.systemMessage.includes('another thinker install') && stop.systemMessage.includes('0.0.1') && stop.systemMessage.includes('.claude/settings.local.json'), stop.systemMessage);
+  assert.ok(!JSON.parse(hook(dir, 'stop', 'claude', { session_id: 's1', transcript_path: '/nonexistent' }) || '{}').systemMessage, 'said once');
+  const log = fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse);
+  assert.ok(log.some(l => l.op === 'prune' && l.removed[0].version === '0.0.1'));
+  // a copy that is no longer there goes too
+  const gone = otherInstall(null); fs.rmSync(gone, { recursive: true });
+  wire(dir, gone, '.claude/settings.local.json');
+  const done = pruneInstalls(dir, { cli: CLI, olderOnly: true });
+  assert.equal(done.length, 3);
+  assert.ok(prunedLines(done)[0].includes('no longer there'));
+});
+
+test('compareVersions orders release versions', () => {
+  assert.equal(compareVersions('0.1.4', '0.1.8'), -1);
+  assert.equal(compareVersions('0.1.10', '0.1.8'), 1);
+  assert.equal(compareVersions('1.0.0', '1.0.0'), 0);
+  assert.equal(compareVersions(null, '0.1.0'), -1);
 });
