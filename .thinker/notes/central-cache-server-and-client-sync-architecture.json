@@ -87,10 +87,11 @@
   "verifiedCommit": "a35ec3bfc80df76bd1bf41b5d2fa0eeaf2cceb32",
   "confidence": 0.9,
   "status": "fresh",
-  "uses": 1,
+  "uses": 2,
   "related": [],
-  "lastUsed": "2026-10-03T07:03:14.379Z",
+  "lastUsed": "2026-10-03T07:04:26.251Z",
   "servedIn": [
+    "5888f66d-1c1e-4e02-9d4f-1f1ea507bef1",
     "5888f66d-1c1e-4e02-9d4f-1f1ea507bef1"
   ]
 }

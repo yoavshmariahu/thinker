@@ -19,104 +19,104 @@
     {
       "path": "src/ops.js",
       "symbol": "refresh",
-      "hash": "sha256:e0c3683a5fde4dc1ba6140e1",
-      "line": 110,
+      "hash": "sha256:005323ee7a8b732a050143c4",
+      "line": 118,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "verifyNote",
-      "hash": "sha256:b5db8b06b99f1bbe240e4c57",
-      "line": 204,
+      "hash": "sha256:b8afa9e45ff342cd4650dc15",
+      "line": 633,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "createNote",
-      "hash": "sha256:bafcc639969c6001cf104814",
-      "line": 88,
+      "hash": "sha256:481d4f58c1b10725014d4af7",
+      "line": 94,
       "missing": false
     },
     {
       "path": "src/deps.js",
       "symbol": "checkNote",
-      "hash": "sha256:dcca2a4dd209c986bd60f118",
-      "line": 114,
+      "hash": "sha256:a3cdd75792d95c97b6b815d8",
+      "line": 193,
       "missing": false
     },
     {
       "path": "src/deps.js",
       "symbol": "hashDep",
-      "hash": "sha256:f3b0b0da48251fc478a00638",
-      "line": 98,
+      "hash": "sha256:6e5e49dffffb2242a7bea05b",
+      "line": 130,
       "missing": false
     },
     {
       "path": "src/rank.js",
       "symbol": "rank",
-      "hash": "sha256:c599ea3e5a6b8f3bc8c552fd",
-      "line": 80,
+      "hash": "sha256:12a901fc7e9adc73c4daa61b",
+      "line": 104,
       "missing": false
     },
     {
       "path": "src/cli.js",
-      "hash": "sha256:b343d613c8a5c8c8fa45ff64",
+      "hash": "sha256:d3ed7845afd75c7a31ecc30a",
       "missing": false
     },
     {
       "path": "src/store.js",
       "symbol": "Store",
-      "hash": "sha256:7616bd89f2b3233f5fba70b3",
-      "line": 24,
+      "hash": "sha256:cee3e56ae615b5fff2c5677b",
+      "line": 141,
       "missing": false
     },
     {
       "path": "src/llm.js",
       "symbol": "complete",
-      "hash": "sha256:5a55d736ac09d85c5a8dc9e9",
-      "line": 12,
+      "hash": "sha256:e34f87f9757b73bd32aca56c",
+      "line": 121,
       "missing": false
     },
     {
       "path": "src/store.js",
       "symbol": "Store.put",
-      "hash": "sha256:8c17bb4ad1b15aac6adae308",
-      "line": 48,
+      "hash": "sha256:caef0408e2465708a47d887a",
+      "line": 306,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "orient",
-      "hash": "sha256:2a98f5a3e5980f86b1a46709",
-      "line": 148,
+      "hash": "sha256:4e0095587aa48571ac04300b",
+      "line": 234,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "lookup",
-      "hash": "sha256:f19d0662f071a1d84086ee88",
-      "line": 178,
+      "hash": "sha256:82859cc15af450af4f3f8649",
+      "line": 495,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "gitDiffFor",
       "hash": "sha256:2ab1811899cbd193dabef5b7",
-      "line": 186,
+      "line": 615,
       "missing": false
     },
     {
       "path": "src/deps.js",
       "symbol": "symbolText",
-      "hash": "sha256:8f784b9a57c56b998871cb98",
-      "line": 128,
+      "hash": "sha256:372f3e63a49dec606d06efd9",
+      "line": 231,
       "missing": false
     },
     {
       "path": "src/store.js",
       "symbol": "config",
       "hash": "sha256:160bba38f050249d1f58eac0",
-      "line": 37,
+      "line": 180,
       "missing": false
     }
   ],
@@ -125,83 +125,14 @@
     "ref": "8c1552c5-1ea2-4551-946c-25fea13d296d"
   },
   "created": "2026-09-26T09:33:10.424Z",
-  "verified": "2026-09-26T09:33:10.424Z",
-  "verifiedCommit": null,
-  "confidence": 0.85,
-  "status": "stale",
-  "uses": 1,
-  "stale": {
-    "since": "2026-09-27T10:33:53.463Z",
-    "changed": [
-      {
-        "path": "src/ops.js",
-        "symbol": "refresh",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/ops.js",
-        "symbol": "verifyNote",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/ops.js",
-        "symbol": "createNote",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/deps.js",
-        "symbol": "checkNote",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/deps.js",
-        "symbol": "hashDep",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/rank.js",
-        "symbol": "rank",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/cli.js",
-        "reason": "file changed"
-      },
-      {
-        "path": "src/store.js",
-        "symbol": "Store",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/llm.js",
-        "symbol": "complete",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/store.js",
-        "symbol": "Store.put",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/ops.js",
-        "symbol": "orient",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/ops.js",
-        "symbol": "lookup",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "src/deps.js",
-        "symbol": "symbolText",
-        "reason": "symbol body changed"
-      }
-    ]
-  },
-  "lastUsed": "2026-10-03T07:03:14.379Z",
+  "verified": "2026-10-03T07:04:24.977Z",
+  "verifiedCommit": "e402418bcf7de4d5c34b221869691e6115fd1722",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 2,
+  "lastUsed": "2026-10-03T07:04:26.252Z",
   "servedIn": [
+    "5888f66d-1c1e-4e02-9d4f-1f1ea507bef1",
     "5888f66d-1c1e-4e02-9d4f-1f1ea507bef1"
-  ],
-  "verifying": "2026-10-03T07:03:14.380Z"
+  ]
 }

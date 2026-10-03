@@ -131,7 +131,8 @@ export function planPush(store, cfg = syncConfig(store) || {}) {
   const ids = new Set(notes.map(n => n.id));
   const items = [], skipped = [];
   for (const n of store.localNotes()) {
-    const w = outbound(store, n, ids);
+    // a synced note goes up as it is: it was normalized when first pushed, or came from the server
+    const w = n.sync?.digest ? wire(n) : outbound(store, n, ids);
     const d = digest(w);
     if (n.sync?.digest) {
       if (d === n.sync.digest || n.sync.rejected === d) continue;
@@ -161,7 +162,11 @@ export async function push(store, cfg = syncConfig(store), { dry = false } = {})
     for (const item of batch) {
       const x = byId.get(item.note.id); if (!x) continue;
       const n = store.get(item.local.id); if (!n) continue;
-      if (x.result === 'added' || x.result === 'updated') { n.sync = { digest: x.digest, seq: res.seq, at: new Date().toISOString() }; store.put(n); r.pushed++; }
+      if (x.result === 'added' || x.result === 'updated') {
+        // the note here takes the normalized content that went up (no transcript path, rounded confidence), so it matches the server's
+        const { status: _s, invalidReason: _i, ...content } = item.note;
+        store.put({ ...n, ...(item.op === 'put' ? content : {}), sync: { digest: x.digest, seq: res.seq, at: new Date().toISOString() } }); r.pushed++;
+      }
       else if (x.result === 'retired') { n.sync = { digest: x.digest, seq: res.seq, at: new Date().toISOString() }; store.put(n); r.retired++; }
       else if (x.result === 'conflict' || x.result === 'exists') {
         r.conflicts++;
