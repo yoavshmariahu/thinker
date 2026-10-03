@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { references, fanout, callees, annotateFanout, findDefinitions, outline, familyOf } from '../src/codegraph.js';
-import { codeSnippets, drilldown, parsePointer, createNote, orient, lookup } from '../src/ops.js';
+import { references, fanout, callees, annotateFanout, findDefinitions, findSymbols, outline, familyOf } from '../src/codegraph.js';
+import { codeSnippets, drilldown, find, parsePointer, parsePointers, createNote, orient, lookup } from '../src/ops.js';
 import { renderNote, renderPointer } from '../src/rank.js';
 import { Store } from '../src/store.js';
 
@@ -152,7 +152,7 @@ test('drilldown returns the definition with its lines, callers and callees, and 
   // callees of a caller; a path alone is an outline
   assert.match(drilldown(store, { pointer: 'src/cli.py:entry' }).text, /Calls into this repository: Command \(src\/core\.py:L3\), invoke \(src\/core\.py:L4\), run_callback \(src\/core\.py:L10\)/);
   const file = drilldown(store, { pointer: 'src/core.py' });
-  assert.match(file.text, /^src\/core\.py: 5 definitions\n- L3 class Command\n- L4 def Command\.invoke/);
+  assert.match(file.text, /^src\/core\.py: 5 definitions\n- L3 class Command\n- L4 method Command\.invoke/);
   assert.match(file.text, /Cached notes about this code/);
   // errors say what to do
   assert.match(drilldown(store, { pointer: 'src/core.py:nothing' }).error, /nothing is not defined in src\/core\.py/);
@@ -160,8 +160,53 @@ test('drilldown returns the definition with its lines, callers and callees, and 
   assert.match(drilldown(store, { pointer: '' }).error, /needs a pointer/);
   // a budget cuts the code, not the rest
   const small = drilldown(store, { pointer: 'src/long.py:long_one', budget: 300 });
-  assert.match(small.text, /^src\/long\.py:long_one \(L1–L42, 42 lines; no references\)\n```\ndef long_one\(x\):\n(    x = x \+ \d+\n){16}… \(25 more lines\)\n```/);
+  assert.match(small.text, /^src\/long\.py:long_one \(L1–L42, 42 lines; no references\)\n```\ndef long_one\(x\):\n(    x = x \+ \d+\n){17}… \(24 more lines; drilldown with a larger budget for all of it\)\n```/);
   assert.match(small.text, /No cached notes rest on this code/);
   assert.ok(small.tokens <= 320, String(small.tokens));
   assert.ok(!drilldown(store, { pointer: 'src/long.py:long_one', budget: 3000 }).text.includes('more lines'));
+});
+
+test('findSymbols lists the definitions carrying the words, name matches first, with exact spans', () => {
+  const repo = gitRepo();
+  process.env.THINKER_CODEGRAPH = 'git';
+  try {
+    const r = findSymbols(repo, 'run callback');
+    assert.equal(r.engine, 'git');
+    assert.equal(r.hits[0].symbol, 'run_callback'); // named by both words
+    assert.equal(r.hits[0].path, 'src/core.py'); assert.equal(r.hits[0].line, 10); assert.equal(r.hits[0].end, 11);
+    assert.ok(r.hits.some(h => h.symbol === 'Command.main'), 'a method whose body calls run_callback'); // body mention, parent resolved
+    const test = r.hits.find(h => h.path === 'tests/test_core.py'); const prod = r.hits.find(h => h.symbol === 'entry');
+    assert.ok(!test || test.score < prod.score, 'tests rank below production code');
+    assert.deepEqual(findSymbols(repo, 'the and of').hits, []); // nothing left after stop words
+    assert.equal(findSymbols(repo, 'Command').hits[0].symbol, 'Command'); // an identifier: the exact name first
+    assert.equal(findSymbols(repo, 'run callback', { scope: 'tests/' }).hits.every(h => h.path.startsWith('tests/')), true);
+    assert.equal(findSymbols(repo, 'run callback', { scope: '**/*.py' }).hits.length > 0, true);
+  } finally { delete process.env.THINKER_CODEGRAPH; }
+});
+
+test('find renders pointers drilldown takes, with the notes on them; drilldown reads several pointers and outlines a long class', () => {
+  const repo = gitRepo();
+  process.env.THINKER_CODEGRAPH = 'git'; process.env.THINKER_LOG = 'off';
+  try {
+    const store = new Store(repo).init();
+    createNote(store, { title: 'Callbacks run through run_callback', kind: 'callpath', body: 'src/core.py:run_callback is the end of the line.', deps: [{ path: 'src/core.py', symbol: 'run_callback' }] });
+    const f = find(store, { query: 'run callback' });
+    assert.match(f.text, /^Definitions carrying "run callback"/);
+    assert.match(f.text, /- src\/core\.py:run_callback:L10  \(function, 2 lines; 4 call sites in 3 files\)/);
+    assert.match(f.text, /Cached notes on this code.*\n- \[callpath\] Callbacks run through run_callback/);
+    assert.match(find(store, { query: 'zzzz_nothing_here' }).text, /No definition carries/);
+    assert.deepEqual(parsePointers('src/core.py:Command.invoke:L4 (method, 2 lines; 1 call site), src/core.py:run_callback and `src/cli.py`'), ['src/core.py:Command.invoke:L4', 'src/core.py:run_callback', 'src/cli.py']);
+    assert.deepEqual(parsePointers('invoke'), ['invoke']);
+    const d = drilldown(store, { pointer: 'src/core.py:Command.invoke, src/core.py:run_callback' });
+    assert.match(d.text, /src\/core\.py:Command\.invoke \(L4–L5, 2 lines/); assert.match(d.text, /src\/core\.py:run_callback \(L10–L11, 2 lines/);
+    assert.doesNotMatch(d.text, /Callers \(/); assert.match(d.text, /Callers and callees: drilldown with one pointer/);
+    assert.match(d.text, /Callbacks run through run_callback/);
+    // a class longer than the room is shown as its head and its members
+    fs.writeFileSync(path.join(repo, 'src/big.py'), 'class Big:\n    """doc"""\n' + Array.from({ length: 6 }, (_, i) => `    def m${i}(self):\n` + Array.from({ length: 12 }, (_, j) => `        x${j} = ${j}\n`).join('') + '        return x0\n').join(''));
+    const big = drilldown(store, { pointer: 'src/big.py:Big', budget: 400 });
+    assert.match(big.text, /src\/big\.py:Big \(L1–L86, 86 lines\)/); assert.match(big.text, /Members \(6; drilldown src\/big\.py:Big\.<member> for one\):\n- L3 method m0/);
+    assert.doesNotMatch(big.text, /x11 = 11/);
+    const whole = drilldown(store, { pointer: 'src/big.py:Big', budget: 4000 });
+    assert.match(whole.text, /x11 = 11/); assert.doesNotMatch(whole.text, /Members/);
+  } finally { delete process.env.THINKER_CODEGRAPH; delete process.env.THINKER_LOG; }
 });

@@ -42,7 +42,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | path | contents |
 |---|---|
 | `src/cli.js` | `thinker` command: `setup`, `init`, `distill`, `orient`, `lookup`, `check`, `verify`, `cochange`, `serve`, ... |
-| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `drilldown`, `remember`, `feedback` |
+| `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
 | `src/setup.js` | the guided `setup` flow: agent selection and login check, cache build with estimates, optional PR benchmark |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI and Cursor: config files and hook formats |
 | `src/transcripts.js` | session transcripts of every agent as one event form; the hook-recorded trace; finding sessions |
@@ -50,7 +50,7 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/ops.js` | core operations on notes (serve, merge, assess, link) |
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
 | `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust) when its grammars are installed (`thinker ast install`); `deps.js` falls back to regex heuristics |
-| `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines; behind `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
+| `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines, and `findSymbols` (the definitions carrying the words of a query); behind `find`, `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
 | `src/cbm.js`, `src/cbm-worker.js` | codebase-memory-mcp as the code-graph engine: install, index, and a synchronous bridge to the binary run as a child MCP server (`thinker cbm`) |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
@@ -58,7 +58,8 @@ otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
 | `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, refresh co-change, distill newly merged PRs, under a daily cap |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
-| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens |
+| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens and in dollars |
+| `src/prices.js` | dollars per token by model: Anthropic's list prices, the user's for other vendors |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/sync.js` | a checkout's side of the central cache: pull and push notes, stream sessions; from the hooks and maintenance once `thinker sync login` has run |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that distills streamed sessions and CI pull requests and maintains each cache (`worker.js`) |
@@ -137,6 +138,19 @@ model tokens). Missing counters/costs stay unknown. Legacy logs lack setup explo
 and token counts, so this comparison is partial, not measured financial ROI. See
 `src/model-usage.js` for provider normalization.
 
+The same balance is given in dollars where the model is known (`prices.js`). The
+end-of-session assessment records the model the session ran on, read from its
+transcript (`transcripts.js:parseTranscript` returns `model`: Claude Code's
+`message.model`, Codex's `turn_context`, Gemini's message `model`; Cursor names none),
+on the `attest` line; for assessments written before that, `usage` finds the transcript
+by session id (`transcripts.js:sessionModel`). Reading avoided and notes injected are
+priced at that model's input price; a model record with tokens but no reported cost is
+priced from its tokens (`spending.estimatedCost`). Anthropic's list prices are built in;
+other vendors' go in `THINKER_HOME/prices.json` or under `prices` in
+`.thinker/config.json` (`{"gpt-6-sol": {"input": 2, "output": 8}}`, dollars per million).
+What has no model or price is counted and reported (`saved.unpricedServings`,
+`injected.unpricedTokens`, `spending.unpricedCalls`), never taken as zero or as free.
+
 ## What a note is
 
 A note answers a recurring question, not "what this file does":
@@ -183,11 +197,23 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 - Pointers written in the body (`core.py:Command.main`, `Foo.bar`,
   `types.convert_type`) are extracted automatically and added as deps, so
   the tracked set matches what the note actually claims.
-- Every `orient`/`lookup` re-hashes the deps of candidate notes against the
-  working tree (cheap: a few files), so uncommitted edits are caught too.
+- Every `orient`/`lookup` re-hashes the deps of every note against the
+  working tree, so uncommitted edits are caught too. A whole-file dep on a
+  file the note also points into by symbol is dropped when the note is
+  created or verified (`ops.js:dropShadowedFileDeps`). Maintenance and
+  `thinker check` judge a changed whole-file dep further
+  (`deps.js:narrowFileDep`, `checkNote` with `narrow`): when the body names
+  definitions in the file and none of them changed since `verifiedCommit`,
+  the dep becomes those symbol deps; when it names none and no changed line
+  of the diff since `verifiedCommit` holds a term the note uses, the dep
+  keeps the file and takes the new hash. Either way the note stays fresh
+  and the outcome is persisted, so the per-prompt check sees it. A
+  `cochange` note's whole-file deps are existence-only: a partner file
+  changing is what the note predicts.
   Stale notes are ranked lower and served with a `⚠ STALE` banner listing
   exactly which deps changed and how (symbol body changed / file removed /
   symbol not found).
+- The `verify` log record names the deps that triggered it (`changed`).
 - `thinker check` persists statuses; `thinker verify` sends each stale note, the git diff of
   its changed deps since `verifiedCommit`, and the current text of every dep
   to a small model (Haiku by default) which answers `still_valid` (re-hash,
@@ -199,9 +225,14 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 1. **Automatic**: `thinker distill <transcript.jsonl>` condenses a session
    (prompts, tool calls with truncated results, the agent's final answer)
    and asks a model for 0–4 notes with deps. The end-of-turn hook runs this
-   incrementally in the background (on by default; see below). Near-duplicate
-   notes (same kind, ≥0.5 Jaccard on title+answers) are merged, keeping
-   history.
+   incrementally in the background (on by default; see below). The distiller
+   is shown the notes already resting on the files the session touched
+   (`distill.js:relatedNotes`) and may return one with `extends: <id>` and
+   the merged body instead of a new note. Near-duplicate notes (same kind,
+   ≥0.5 Jaccard on title+answers) are merged, keeping history. A `cochange`
+   note must name a mechanism (a generator, registry, schema, mirror or
+   test); one that only lists the files a session touched is not saved
+   (`distill.js:cochangeMechanism`), since git history holds that already.
 2. **Agent-authored**: the `remember` MCP tool, for agents that finish
    working something out.
 3. **Human**: `thinker add note.json`.
@@ -223,23 +254,35 @@ Each session both consumes and improves the cache:
 3. New notes are linked to existing ones that share a symbol-level dep (or
    several files); `orient` pulls one linked note in beside the best hit
    when it has relevance of its own.
-4. `thinker cochange` mines git history for files that change together;
-   `orient` appends "X usually changes with Y (80%, n=12)" lines for the
-   files the served notes point at, so co-change rules do not depend on an
-   agent having traced them.
+4. `thinker cochange` mines git history for files that change together.
+   The edit hook (`ops.js:lateNotes`) names the partners of each file the
+   agent edits, once per file, leaving out those the session has edited
+   ("X usually changes with Y (80%, n=12)"), and the end-of-session nudge
+   repeats what is still untouched; so co-change rules do not depend on an
+   agent having traced them. `cochange` notes are edit-time rules too: at
+   orientation one is served only when the request names its files or
+   symbols (`rank.js`, `ccNamed`).
 
 5. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
    the prompt hooks start at most every ten minutes ends with one maintenance
    run, and so do the git `post-commit` and `post-merge` hooks that `setup`, `init` and the
    installer put in place (`--no-git-hook` leaves it out). A run refreshes the
-   co-change index when `HEAD` moved, re-verifies up to 10 stale notes (the
-   most served first), writes phrasings for up to 8 notes that lack them, and
-   distills up to 3 pull requests merged since maintenance first ran in the
-   repository (older ones are `thinker mine-prs`). Reported model cost of
+   co-change index when `HEAD` moved, re-verifies up to 10 stale notes, writes
+   phrasings for up to 8 notes that lack them, and distills up to 3 pull
+   requests merged since maintenance first ran in the repository (older ones
+   are `thinker mine-prs`). Re-verification ahead of time is for notes served in
+   the last 14 days (`verifyServedDays`; 0: all), the most served first; a
+   stale note nobody is reading waits until it is served, when serving
+   verifies it in the background anyway (`ops.js:scheduleVerify`). A note
+   re-verified 3 times in a week (`verifyChurn`; 0: never) rests on code under
+   active change: it is left stale, with its ⚠ banner, and named to the user
+   once (`maintain.js:pickStale`), to narrow its pointers or retire it. In the
+   week this was added, 28 of 80 notes maintenance verified had not been served
+   at all, and one note was rewritten 8 times. Reported model cost of
    learning and maintenance is summed from the machine's log and a run stops
    at `dailyCap` (default $1 a day). `maintain` in `.thinker/config.json`
-   overrides `enabled`, `dailyCap`, `verifyPerRun`, `phrasePerRun`, `prs`,
-   `prsPerRun`. What a run did is shown once at the end of the next turn
+   overrides `enabled`, `dailyCap`, `verifyPerRun`, `verifyServedDays`,
+   `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`. What a run did is shown once at the end of the next turn
    (`maintain.js:maintenanceNotice`), through the same channel as the
    cache-hit notice. `thinker maintain [--dry]` is one run by hand;
    `THINKER_NO_LEARN=1` switches it off with the rest of learning.
@@ -247,6 +290,13 @@ Each session both consumes and improves the cache:
 Learning is on by default in `setup`, `init` and the installer. Evals keep
 the cache fixed with `--no-learn` at install time, or `THINKER_NO_LEARN=1` in
 the environment, which also silences hooks that are already installed.
+`learn: {"sessions": false}` in `.thinker/config.json` switches off learning
+from sessions alone (the end-of-turn distill and the catch-up `learn`), while
+learning from code changes goes on: pull requests and re-verification in
+maintenance, `share --repair-staged` at commit, `thinker distill <file>` by
+hand. Each session distilled is a model call, about 10¢ with Sonnet, and in a
+week on this repository 30% of them produced no note; without them there are
+also no assessments, so `thinker usage` counts no servings as acted on.
 
 Controls for experiments: `THINKER_NO_LINKS=1`, `THINKER_NO_COCHANGE=1`,
 `THINKER_MCP=off` (the MCP server offers no tools),
@@ -258,7 +308,7 @@ queries; `0,0` turns them off).
 ## Serving
 
 - MCP server (`thinker serve`, registered in `.mcp.json` by `thinker init`)
-  with tools `orient(task, file?, budget?)`, `lookup(query)`, `drilldown(pointer)`,
+  with tools `orient(task, file?, budget?)`, `lookup(query)`, `find(query, path?)`, `drilldown(pointer)`,
   `remember(...)`, `feedback(id, useful, correction?)`.
 - Code behind the pointers: the MCP `orient` and `lookup` end with the
   definitions the served notes point at (`ops.js:codeSnippets`: up to two per
@@ -268,16 +318,35 @@ queries; `0,0` turns them off).
   or `snippets: false` in `.thinker/config.json` turns them off. Measured
   against Qartez on click, the agent spent its advantage on reading whole
   files after orienting; this is what the snippets are for.
-- `drilldown(pointer)` takes one `path:Symbol` (or a path, or a bare name,
-  resolved through the notes' pointers and then the code) and returns the
-  definition with its lines, one hop of callers (every reference, calls
-  first) and callees (names the body calls that are defined in the
-  repository), and the notes resting on that symbol or file
-  (`ops.js:drilldown`, `codegraph.js`). Two engines answer, chosen per call
-  by `cbm.js:codegraphEngine`: the code graph of codebase-memory-mcp when
-  the checkout is indexed (below), else `git grep` over the language family
-  of the file, which needs no index and is approximate; outside a git
-  checkout it says so.
+- `find(query, path?, limit?)` answers "where is this defined / handled" when
+  no note does: the definitions whose name or body carry the words of the
+  query (`codegraph.js:findSymbols`), as `path:Symbol:L12` pointers with their
+  size and, for the first three, blast radius, plus the notes resting on them.
+  One `git grep -c -F -i` for the words over the source files (a second or
+  two on PostHog), the lines of the 50 files with most mentions attributed to
+  the enclosing definition through `outline` (parser, graph, or regex), and the
+  graph's name search added when the checkout is indexed. A word in the name
+  outweighs one in the body, which outweighs one in the path; words on many
+  lines weigh less; a definition covering more of the words comes first; tests
+  are scaled down; bodies over 1,500 lines are dropped. Scoring is heuristic,
+  not BM25 over source. Measured against codebase-memory-mcp on click, the
+  agent used that server's `search_graph` and `get_code_snippet` where thinker
+  left it grepping and reading file ranges; `find` and the whole-definition
+  `drilldown` below are what that showed thinker lacked.
+- `drilldown(pointer)` takes `path:Symbol` pointers (or a path, or a bare name,
+  resolved through the notes' pointers and then the code), several at once
+  separated by commas, and returns each definition whole with its lines (the
+  default budget of 2,500 tokens holds about 150 lines; a class that does not
+  fit is shown as its head and the outline of its members), for a single
+  pointer one hop of callers (every reference, calls first) and callees
+  (names the body calls that are defined in the repository), and the notes
+  resting on that symbol or file
+  (`ops.js:drilldown`, `codegraph.js`). Two engines can answer, chosen per
+  call by `cbm.js:codegraphEngine`: `git grep` over the language family of
+  the file, which needs no index and is approximate, is the default; the
+  code graph of codebase-memory-mcp (below) answers only when
+  `THINKER_CODEGRAPH=cbm` (or `auto`, when the checkout is indexed) asks for
+  it. Outside a git checkout it says so.
 - Blast radius: a symbol pointer is served as `path:Sym:L12 [6 call sites in
   3 files]` (`[5 callers in 3 files]` from the graph). The count is made when
   the note is created and again for the symbols a verification found changed
@@ -285,16 +354,21 @@ queries; `0,0` turns them off).
   stored on the dep as `fanout`, and by `git grep` not made for names under
   four characters or common ones (`main`, `get`). `THINKER_FANOUT=off` skips
   both the counting and the tag.
-- The code graph: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
+- The code graph (optional, off by default): [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
   (CBM) is a single binary that indexes a repository with tree-sitter into a
-  SQLite graph (`~/.cache/codebase-memory-mcp/`) and answers over MCP.
+  SQLite graph (`~/.cache/codebase-memory-mcp/`) and answers over MCP. It is
+  kept as the comparison baseline of the benchmarks and as an opt-in engine;
+  measured on click (`research/cbm-comparison/`) the graph-backed arm was
+  marginally cheaper and no more accurate than thinker's own tools, and the
+  decision was to own the tooling rather than depend on a second binary.
   `thinker cbm install` downloads the pinned release (`cbm.js:CBM_VERSION`,
   ~40 MB) into `~/.thinker/cbm` after checking its published SHA-256, and
   touches no agent configuration (CBM's own installer would); a binary on
   `PATH`, in `~/.local/bin` or named by `THINKER_CBM_BIN` is used too.
   `thinker cbm index` builds the graph of the checkout (CBM keys projects by
-  real path, so a worktree is indexed on its own); maintenance re-indexes
-  when `HEAD` moved (`maintain.js`, "code graph re-indexed"). `thinker cbm
+  real path, so a worktree is indexed on its own); when the engine is the
+  graph, maintenance re-indexes when `HEAD` moved (`maintain.js`, "code graph
+  re-indexed"). `thinker cbm
   status` says which engine answers; `thinker cbm forget` drops the index.
   thinker runs the binary once per process as a child MCP server held by a
   worker thread and waits on it synchronously (`cbm.js:cbmCall`,
@@ -305,8 +379,9 @@ queries; `0,0` turns them off).
   snippets stay on thinker's own parser or regex, which read the working
   tree. A symbol the graph knows but sees no caller of (a method called on an
   untyped instance, say) is counted by `git grep` instead. Controls:
-  `THINKER_CODEGRAPH=git|cbm|auto` (auto: the graph when the checkout is
-  indexed; `cbm` answers unknown rather than grep when it is not),
+  `THINKER_CODEGRAPH=git|cbm|auto` (`git`, the default; `auto`: the graph
+  when the checkout is indexed; `cbm` answers unknown rather than grep when
+  it is not),
   `THINKER_CBM=off`. The live test needs `THINKER_CBM_TEST=1` and
   `THINKER_CBM_BIN` (it writes to CBM's index and removes its project after).
   `bench/cbm-compare.js`, `bench/cbm-pr-compare.js` and `bench/cbm-preflight.js`
@@ -322,25 +397,46 @@ queries; `0,0` turns them off).
   is put above the notes `orient` returns (per-model guidance).
 - Prompt-time hook: injects the orientation bundle into every prompt
  automatically (no tool call needed). See [Supported agents](#supported-agents).
-- What the user sees: the prompt hook shows the hits and what they stand for
- (`🧠 thinker: 2 cache hits (~7k tokens, ~8s saved)`), and the stop hook sums
- the turn, prompt-time and late notes together (`usage.js:cacheHitNotice`,
- `usage.js:turnNotice`). Tokens are one read per file a note rests on, time
- is `usage.js:SECONDS_PER_READ` per read; both are estimates, not
- measurements. Shown through `systemMessage` in Claude Code and Gemini CLI;
+- What the user sees: the prompt hook names the notes and the size of the
+ code they point at (`🧠 thinker: 2 notes (pointing at ~7k tokens of code)`),
+ and the stop hook sums the turn, prompt-time and late notes together
+ (`usage.js:cacheHitNotice`, `usage.js:turnNotice`). Tokens are one read per
+ file a note rests on. The notice does not say "saved": at serve time nothing
+ is known about whether the agent will act on a note, and in a week on this
+ repository about 30% of servings were; what was saved is counted once the
+ session is assessed, in `thinker usage`. Shown through `systemMessage` in Claude Code and Gemini CLI;
  Codex and Cursor have no channel for it from a stop hook. `THINKER_NOTICE=off`
  or `notice: false` in `.thinker/config.json` turns it off.
 - Ranking: BM25 over title/answers/tags/deps/body with identifier splitting,
   plus path affinity to the current file, kind priors for orientation,
-  confidence, and a stale penalty; greedy packing into the token budget
+  confidence, what sessions did with the note when it was served
+  (`attest.confirmed` against `attest.unused`, smoothed; up to ±0.1), and a
+  stale penalty; greedy packing into the token budget
   (full note, else a one-line stub).
 - Coverage floors: relevance is relative to the best note, so the best of a
   poor lot scores near 1. A note is served only if it also covers a share of
-  the request's term weight: 0.10 with its body and pointers, 0.05 with its
-  title, answers and tags (`rank.js:MIN_COVER`). A short query must be
-  covered by more: the weight of about three of its words. This holds for
+  the request's term weight: 0.20 with its body and pointers, 0.05 with its
+  title, answers and tags (`rank.js:MIN_COVER`; on the benchmark task sets
+  the body floor separates on-target from off-target servings, 0.10 did
+  not). A short query must be covered by more: the weight of about three of
+  its words. A request of two or three content words must share two of them
+  with the note's title, answers or tags ("run the tests"); a request of one
+  content word ("status?") is a turn of conversation and is served nothing.
+  Words are stemmed conservatively (`rank.js:stem`: plurals, -ing, -ed,
+  -ation); the earlier suffix list cut "notes" to the stop word "not". This holds for
   the prompt hook, `orient`, `lookup` and late notes; a note on the current
   file is exempt. When nothing passes, nothing is served.
+- A request of one content word is not oriented on at all: `status?`,
+  `merged?`, `ok good. pushed?`, `yeah just run it` are turns of a
+  conversation, and any note holding the word would cover all of it
+  (`ok`, `yeah`, `please` and the like are stop words). `lookup` by one word
+  is still answered, and so is a note on the current file. In one week on this
+  repository such turns took 20 of 111 servings, and the note holding the
+  word *status* became the most served note of the week.
+- The prompt hooks serve a note once per session (`orient`'s `once`): what
+  was served on an earlier turn is in the agent's context, and serving it
+  again on a follow-up adds tokens and a verdict of `unused`. `orient` called
+  by the agent is a fresh question and may return it again.
 - The query: function words are dropped (`rank.js:STOP`), and so is what the
   request tells the agent not to do ("do not run the test suite"), which
   would otherwise bring up the notes on running tests (`rank.js:subject`).
@@ -361,6 +457,13 @@ queries; `0,0` turns them off).
   corrections for shared notes, tied to a content digest; pulled content supersedes old
   corrections and staleness. `Store.list/get` serve their union; shared IDs win.
   Untracked legacy notes migrate to local on first use; tracked files are left unchanged.
+  A change pending here when a pull replaces the note is not dropped: it is kept in the overlay
+  as `superseded` (`Store.superseded`), named by `thinker share [--dry]`, `thinker show` and the
+  maintenance notice, and cleared when the note is shared again from here. Note files that
+  cannot be read (a merge conflict, invalid JSON, an id that does not match the file name) are
+  skipped by the store and named by `list`, `check` and `share` (`Store.unreadable`), so a
+  conflicted note does not just vanish. Maintenance removes overlays of shared notes that no
+  longer exist unless they hold unshared content (`Store.sweepOverlays`).
   `THINKER_NOTES_DIR` retains a flat store for benchmarks. Inventory of other checkouts
   uses `new Store(repo, { readonly: true })` and never migrates them.
 - `thinker share [ids…] [--all] [--dry]` promotes fresh, valid notes from trusted sources
@@ -466,7 +569,7 @@ with the model mocked.
 
 ## Supported agents
 
-| agent | notes for the request | notes about files being read (`--late`) | MCP tools | written to |
+| agent | notes for the request | notes about files being edited (installed by default; `--no-late` leaves it out) | MCP tools | written to |
 |---|---|---|---|---|
 | Claude Code | added to each prompt | yes | yes | `.claude/settings.local.json`, `.mcp.json` |
 | Codex CLI | added to each prompt | yes | yes | `.codex/hooks.json`, `.codex/config.toml` |

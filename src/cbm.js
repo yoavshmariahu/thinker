@@ -96,9 +96,13 @@ export function cbmProject(repo, opts) {
   return ps.find(p => real(p.root_path) === root)?.name || null;
 }
 
-// Which engine codegraph.js should use for this repository: 'cbm' or 'git'.
+// Which engine codegraph.js should use for this repository: 'git' unless THINKER_CODEGRAPH asks for
+// the graph ('cbm': always, 'auto': when this checkout is indexed). git grep is the default on
+// purpose: measured on click the graph-backed arm was marginally cheaper and no more accurate, and
+// thinker's own tooling needs no second binary or index (research/cbm-comparison). CBM stays the
+// comparison baseline of the benchmarks, which set the variable for their `both` arm.
 export function codegraphEngine(repo) {
-  const want = process.env.THINKER_CODEGRAPH || 'auto';
+  const want = process.env.THINKER_CODEGRAPH || 'git';
   if (want === 'git' || !cbmBin()) return 'git';
   if (want === 'cbm') return 'cbm';
   return cbmProject(repo) ? 'cbm' : 'git';
@@ -219,9 +223,16 @@ export function pathFromQn(repo, project, qn) {
 }
 
 // What a file defines, from the graph: [{name, parent, kind, line, end}] or null.
+// CBM pages the outline 200 rows at a time; a larger limit is read in pages.
 export function cbmOutline(project, file, { limit = 80 } = {}) {
-  const r = cbmCall('get_file_outline', { project, file_path: file, limit });
-  return !r || r.error ? null : parseOutline(r, { limit });
+  const page = Math.min(200, limit); let offset = 0, rows = [], first = null;
+  for (;;) {
+    const r = cbmCall('get_file_outline', { project, file_path: file, limit: page, ...(offset ? { offset } : {}) });
+    if (!r || r.error) return offset ? parseOutline({ ...first, rows }, { limit }) : null;
+    first = first || r; rows = rows.concat(r.rows || []); offset += (r.rows || []).length;
+    if (!r.has_more || !(r.rows || []).length || rows.length >= limit) break;
+  }
+  return parseOutline({ ...first, rows }, { limit });
 }
 export function parseOutline(r, { limit = 80 } = {}) {
   const rows = (r.rows || []).filter(([, label]) => !SKIP_LABELS.has(label));

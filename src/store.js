@@ -243,9 +243,53 @@ export class Store {
     return moved;
   }
 
-  #writeOverlay(id, { base, state, pending }) {
+  #writeOverlay(id, { base, state, pending, superseded }) {
     fs.mkdirSync(this.overlayDir, { recursive: true });
-    writeJson(path.join(this.overlayDir, id + '.json'), { id, base, state, pending });
+    const out = { id, base, state, pending };
+    if (superseded) out.superseded = superseded;
+    writeJson(path.join(this.overlayDir, id + '.json'), out);
+  }
+  // Content this checkout changed and had not shared when a pull replaced the note: it no
+  // longer applies to the committed content, so it is not served or offered for sharing, but
+  // it is kept beside the overlay (`superseded`) so a correction made on evidence is not lost
+  // without a trace. Null when there is none.
+  superseded(id) {
+    if (!this.isShared(id)) return null;
+    const raw = readJson(path.join(this.notesDir, id + '.json')), ov = readJson(path.join(this.overlayDir, id + '.json'));
+    if (!raw || !ov) return null;
+    if (ov.base !== digest(sharedContent(raw)) && Object.keys(ov.pending || {}).length) return { base: ov.base, pending: ov.pending, at: ov.supersededAt || null };
+    return ov.superseded || null;
+  }
+  // Forget a superseded correction, once it has been looked at (or shared again).
+  clearSuperseded(id) {
+    if (this.readonly) throw new Error('readonly store');
+    const file = path.join(this.overlayDir, id + '.json'), ov = readJson(file);
+    if (!ov) return false;
+    const raw = readJson(path.join(this.notesDir, id + '.json'));
+    const live = raw && ov.base !== digest(sharedContent(raw)) && Object.keys(ov.pending || {}).length;
+    if (!live && !ov.superseded) return false;
+    const next = { id: ov.id, base: live ? digest(sharedContent(raw)) : ov.base, state: ov.state || {}, pending: live ? {} : ov.pending || {} };
+    if (live) for (const k of ['status', 'stale', 'verifying', 'invalidReason', ...OVERRIDE_FIELDS]) delete next.state[k];
+    writeJson(file, next);
+    return true;
+  }
+  // Note files that cannot be read: invalid JSON (a merge conflict, a half-written file) or an
+  // id that does not match the file name. The store skips them, so a caller that lists notes
+  // should name them, or a conflicted note just disappears from the cache.
+  unreadable() {
+    const out = [];
+    const dirs = this.tiered && this.#layout() ? [['shared', this.notesDir], ['local', this.localNotesDir]] : [['shared', this.notesDir]];
+    for (const [tier, dir] of dirs) {
+      let files = []; try { files = fs.readdirSync(dir).filter(f => NOTE_FILE.test(f)); } catch {}
+      for (const f of files) {
+        const file = path.join(dir, f);
+        let text; try { if (fs.lstatSync(file).isSymbolicLink()) { out.push({ file, tier, reason: 'symbolic link' }); continue; } text = fs.readFileSync(file, 'utf8'); } catch { continue; }
+        let n = null; try { n = JSON.parse(text); } catch {}
+        if (n === null) out.push({ file, tier, reason: /^<{7} |^={7}$|^>{7} /m.test(text) ? 'unresolved merge conflict' : 'invalid JSON' });
+        else if (typeof n?.id !== 'string' || n.id !== f.slice(0, -5)) out.push({ file, tier, reason: 'id does not match the file name' });
+      }
+    }
+    return out;
   }
   // A shared note as this checkout sees it: the committed content, then what was changed here and
   // not shared yet, then this checkout's state. What was changed here holds only against the
@@ -316,7 +360,12 @@ export class Store {
         if (k === 'id' || LOCAL_FIELDS.includes(k) || same(note[k], content[k])) continue;
         (OVERRIDE_FIELDS.includes(k) ? state : pending)[k] = note[k] ?? null;
       }
-      this.#writeOverlay(note.id, { base: digest(content), state, pending });
+      const base = digest(content);
+      // what was pending against the content a pull replaced is kept as superseded, not dropped
+      const prev = readJson(path.join(this.overlayDir, note.id + '.json'));
+      let superseded = prev?.superseded || null;
+      if (prev && prev.base !== base && Object.keys(prev.pending || {}).length) superseded = { base: prev.base, pending: prev.pending, at: new Date().toISOString() };
+      this.#writeOverlay(note.id, { base, state, pending, superseded });
       return note;
     }
     const dir = this.tiered ? this.localNotesDir : this.notesDir;
@@ -341,6 +390,7 @@ export class Store {
     writeJson(file, content);
     try { fs.unlinkSync(path.join(this.localNotesDir, note.id + '.json')); } catch {}
     this.put({ ...note, ...content }); // now a shared note: the rest becomes its local record
+    this.clearSuperseded(note.id);     // what is shared now is this checkout's word on the note
     return content;
   }
   remove(id) {
@@ -356,6 +406,22 @@ export class Store {
     this.assertSafeNotesPath();
     if (!this.tiered || !this.#layout()) return [];
     return this.#flat(this.localNotesDir);
+  }
+  // Overlays of shared notes that no longer exist (retired by a teammate, say). One that still
+  // holds unshared content is kept, so the correction can be read; the rest are removed.
+  sweepOverlays() {
+    if (this.readonly) throw new Error('readonly store');
+    if (!this.tiered || !this.#layout()) return [];
+    const removed = [];
+    let files = []; try { files = fs.readdirSync(this.overlayDir).filter(f => NOTE_FILE.test(f)); } catch {}
+    for (const f of files) {
+      const id = f.slice(0, -5);
+      if (fs.existsSync(path.join(this.notesDir, f))) continue;
+      const ov = readJson(path.join(this.overlayDir, f));
+      if (ov && (Object.keys(ov.pending || {}).length || ov.superseded)) continue;
+      try { fs.unlinkSync(path.join(this.overlayDir, f)); removed.push(id); } catch {}
+    }
+    return removed;
   }
   removeLocal(id) {
     if (this.readonly) throw new Error('readonly store');

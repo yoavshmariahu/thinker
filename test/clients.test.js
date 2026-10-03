@@ -123,16 +123,16 @@ test('prompt hook output matches what each client accepts', () => {
   const dir = repo();
   const codex = hook(dir, 'prompt', 'codex', { session_id: 's1', prompt: PROMPT, cwd: dir });
   assert.ok(codex.startsWith('<thinker-cache>') && codex.includes('RateLimiter.allow'));
-  assert.ok(codex.includes('cache hit'));
+  assert.ok(codex.includes('🧠 thinker: 1 note'));
 
   const gem = JSON.parse(hook(dir, 'prompt', 'gemini', { session_id: 's2', prompt: PROMPT, cwd: dir }));
   assert.ok(gem.hookSpecificOutput.additionalContext.includes('RateLimiter.allow'));
-  assert.ok(gem.systemMessage.includes('cache hit'));
-  assert.ok(gem.injectSteps[0].ephemeralMessage.includes('cache hit'));
+  assert.ok(gem.systemMessage.includes('🧠 thinker: 1 note'));
+  assert.ok(gem.injectSteps[0].ephemeralMessage.includes('🧠 thinker: 1 note'));
 
   const claude = JSON.parse(hook(dir, 'prompt', 'claude', { session_id: 's4', prompt: PROMPT, cwd: dir }));
   assert.ok(claude.hookSpecificOutput.additionalContext.includes('RateLimiter.allow'));
-  assert.ok(claude.systemMessage.includes('cache hit'));
+  assert.ok(claude.systemMessage.includes('🧠 thinker: 1 note'));
 
   const off = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--repo', dir], { input: JSON.stringify({ session_id: 's5', prompt: PROMPT }), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_NOTICE: 'off' } }).trim();
   assert.ok(off.startsWith('<thinker-cache>') && !off.includes('thinker:'));
@@ -148,12 +148,12 @@ test('stop hook tells the user what the turn saved, once, where the client can s
 
   hook(dir, 'prompt', 'claude', { session_id: 't1', prompt: PROMPT, cwd: dir });
   const claude = JSON.parse(hook(dir, 'stop', 'claude', { session_id: 't1', cwd: dir }, noLearn));
-  assert.match(claude.systemMessage, /^🧠 thinker: 1 cache hit this turn \(~\d+k? tokens, ~\d+s of 1 read saved\)$/);
+  assert.match(claude.systemMessage, /^🧠 thinker: 1 note this turn \(pointing at 1 file, ~\d+k? tokens of code\)$/);
   assert.equal(Object.keys(claude).join(), 'systemMessage', 'no decision: the agent stops as it meant to');
   assert.equal(hook(dir, 'stop', 'claude', { session_id: 't1', cwd: dir }, noLearn), '', 'the next turn starts from none');
 
   hook(dir, 'prompt', 'gemini', { session_id: 't2', prompt: PROMPT, cwd: dir });
-  assert.match(JSON.parse(hook(dir, 'stop', 'gemini', { session_id: 't2', cwd: dir }, noLearn)).systemMessage, /cache hit this turn/);
+  assert.match(JSON.parse(hook(dir, 'stop', 'gemini', { session_id: 't2', cwd: dir }, noLearn)).systemMessage, /1 note this turn/);
 
   // Codex has no channel to the user from a stop hook; its stdout stays empty
   hook(dir, 'prompt', 'codex', { session_id: 't3', prompt: PROMPT, cwd: dir });

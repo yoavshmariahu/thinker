@@ -1,4 +1,5 @@
 // Provider-reported usage only. Missing counters are null, never an estimate of zero.
+import { costOf } from './prices.js';
 const count = (...xs) => xs.find(x => typeof x === 'number' && Number.isFinite(x) && x >= 0) ?? null;
 const sum = xs => xs.length && xs.every(x => x !== null) ? xs.reduce((a, b) => a + b, 0) : null;
 
@@ -42,10 +43,12 @@ export function logModelUsage(store, { purpose, phase = 'maintenance', store: _s
 
 export function emptySpend() {
   return { calls: 0, failed: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
-    totalTokens: 0, unknownTokenCalls: 0, reportedCost: 0, unknownCostCalls: 0 };
+    totalTokens: 0, unknownTokenCalls: 0, reportedCost: 0, unknownCostCalls: 0, estimatedCost: 0, unpricedCalls: 0 };
 }
 
-export function addSpend(total, e) {
+// `price` (prices.js) prices a record whose provider reported tokens but no cost; a record with
+// neither, or on a model with no price, is counted as unpriced rather than as free.
+export function addSpend(total, e, price = null) {
   total.calls++;
   if (e.failed) total.failed++;
   const tokens = e.tokens && typeof e.tokens === 'object' ? e.tokens : normalizeModelUsage(e.provider, e.usage);
@@ -53,6 +56,9 @@ export function addSpend(total, e) {
   if (count(tokens.totalTokens) === null) total.unknownTokenCalls++;
   // Legacy mining batches used 0 even when no provider reported cost.
   const cost = e.op === 'mine-prs' && e.cost === 0 ? null : count(e.cost);
-  if (cost === null) total.unknownCostCalls++;
-  else total.reportedCost += cost;
+  if (cost !== null) { total.reportedCost += cost; return; }
+  total.unknownCostCalls++;
+  const est = costOf(tokens, price);
+  if (est === null) total.unpricedCalls++;
+  else total.estimatedCost += est;
 }

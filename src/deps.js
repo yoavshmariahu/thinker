@@ -12,6 +12,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { astFindSymbol, astReady, extendUp } from './ast.js';
+import { stem } from './rank.js';
 
 const sha = s => 'sha256:' + crypto.createHash('sha256').update(s).digest('hex').slice(0, 24);
 const norm = s => s.replace(/[ \t]+$/gm, '').replace(/\r\n/g, '\n');
@@ -193,23 +194,101 @@ export function hashDepAtIndex(repo, dep, opts = {}) {
 // Re-hash all deps of a note against the working tree. Returns
 // {changed: [{path, symbol, reason}], deps: freshDeps, upgraded}; upgraded is set when a dep hashed
 // by the regex was re-hashed by the parser with its block unchanged (the note should be saved).
-export function checkNote(repo, note, { ref, index = false } = {}) {
+// narrow: a changed whole-file dep is judged against what the note names (narrowFileDep), which costs
+// git calls per changed file. Maintenance and `thinker check` pass it and persist the outcome; the
+// per-prompt refresh does not, and sees the deps they stored.
+export function checkNote(repo, note, { ref, index = false, narrow = false } = {}) {
   const changed = [];
   let upgraded = false;
-  const deps = (note.deps || []).map(d => {
+  const deps = (note.deps || []).flatMap(d => {
     let now = index ? hashDepAtIndex(repo, d) : ref ? hashDepAt(repo, d, ref) : hashDep(repo, d);
     if (now.missing) changed.push({ path: d.path, symbol: d.symbol, reason: 'file removed' });
     else if (now.symbolMissing && !d.symbolMissing) changed.push({ path: d.path, symbol: d.symbol, reason: 'symbol not found' });
     else if (d.hash && now.hash !== d.hash) {
+      // a co-change note says its files change together: a partner file changing is what it predicts,
+      // not evidence against it. Only a removed file or a changed named symbol counts; the hash moves on.
+      if (!d.symbol && note.kind === 'cochange') upgraded = true;
       // the parser and the regex cut different blocks; the block is unchanged when the regex hashes agree
-      if (d.symbol && now.engine === 'ast' && !d.engine && now.hashRegex === d.hash) upgraded = true; // the parser arrived here: store its hash
+      else if (d.symbol && now.engine === 'ast' && !d.engine && now.hashRegex === d.hash) upgraded = true; // the parser arrived here: store its hash
       else if (d.symbol && !now.engine && d.engine === 'ast' && d.hashRegex === now.hash) now = { ...d }; // no parser here: keep the record of the checkout that has one
+      else if (!d.symbol && narrow && !ref && !index) {
+        // the file changed somewhere; when every definition the note names in it is as it was, the
+        // change cannot touch the note's claims, and the dep narrows to those definitions
+        const narrowed = narrowFileDep(repo, d, note);
+        if (narrowed) { upgraded = true; return narrowed; }
+        changed.push({ path: d.path, symbol: d.symbol, reason: 'file changed' });
+      }
       else changed.push({ path: d.path, symbol: d.symbol, reason: d.symbol && !now.symbolMissing ? 'symbol body changed' : 'file changed' });
     }
     if (d.fanout) now.fanout = d.fanout; // reference counts (codegraph.js) are kept until the note is re-verified
-    return now;
+    return [now];
   });
   return { changed, deps, upgraded };
+}
+
+// Identifiers a note body could be naming: words of an identifier's shape, four characters or more,
+// that are not English. findSymbol decides which of them are definitions in the file.
+const NOT_IDENT = new Set('this that with from when where which must only also into then than they them have been were does each file files note notes line lines change changed changes should would could before after under over same other every call calls called return returns string number value values array object true false null none list dict test tests check checks run runs running hook hooks path paths repo'.split(' '));
+export function bodyIdentifiers(body, max = 40) {
+  const out = [];
+  for (const m of String(body || '').matchAll(/(?<![\w.])([A-Za-z_][\w]{3,})(?![\w])/g)) {
+    const w = m[1];
+    if (NOT_IDENT.has(w.toLowerCase()) || out.includes(w)) continue;
+    // a shape only code has, or a plain word the text uses as a name (`foo()`, backticks)
+    const ctx = body.slice(Math.max(0, m.index - 1), m.index + w.length + 1);
+    if (/[A-Z_]/.test(w) || /\d/.test(w) || ctx.startsWith('`') || ctx.endsWith('(') || ctx.endsWith('`')) out.push(w);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+// A whole-file dep whose file changed since the note was verified. When the body names definitions
+// in that file and none of them changed between the verified commit and now, the change is elsewhere
+// in the file: returns those definitions as symbol deps, hashed now, to replace the file dep. Null
+// when nothing can be told (no named definition, no verified commit, or one of them did change):
+// the note is then stale as before. Working tree only; commit checks (share --check) keep file hashes.
+export function narrowFileDep(repo, dep, note, { max = 4 } = {}) {
+  if (dep.symbol || !note?.verifiedCommit) return null;
+  const abs = repoFile(repo, dep.path);
+  if (!abs) return null;
+  let text; try { text = fs.readFileSync(abs, 'utf8'); } catch { return null; }
+  const syms = [];
+  for (const name of bodyIdentifiers(note.body)) {
+    const now = hashText(text, { path: dep.path, symbol: name });
+    if (now.symbolMissing) continue; // not a definition in this file
+    const then = hashDepAt(repo, { path: dep.path, symbol: name }, note.verifiedCommit);
+    if (then.missing || then.symbolMissing || then.hash !== now.hash) return null; // a named definition changed: a real change
+    syms.push(now);
+    if (syms.length >= max) break;
+  }
+  if (syms.length) return syms;
+  // no definition named: the file is read as a whole (a script, a config, a switch of cases). The
+  // change is still unrelated when no changed line holds a term the note uses; the dep then keeps
+  // the file and takes the new hash. The diff is from the verified commit, so later changes are
+  // judged against everything since, not just the latest edit.
+  const diff = diffSince(repo, note.verifiedCommit, dep.path);
+  if (diff === null) return null;
+  const terms = noteTerms(note);
+  if (!terms.size) return null;
+  for (const line of diff.split('\n')) {
+    if (!/^[+-]/.test(line) || /^(\+\+\+|---)/.test(line)) continue;
+    for (const w of line.toLowerCase().match(/[a-z_][a-z0-9_]{3,}/g) || []) if (terms.has(stem(w))) return null;
+  }
+  return [hashText(text, { path: dep.path })];
+}
+
+function diffSince(repo, commit, file) {
+  try { return execFileSync('git', ['diff', '--no-color', '-U0', commit, '--', file], { cwd: repo, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; }
+}
+
+// The words a note is about: identifiers and words of four letters or more from its title, body and
+// pointers, lowercased, without the English the body is written in.
+const TERM_STOP = new Set('this that with from when where which must only also into then than they them have been were does each file files note notes line lines should would could before after under over same other every about there their these those what while because through without within between during against since until using used uses call calls called return returns returned true false null none value values default option options'.split(' '));
+export function noteTerms(note) {
+  const out = new Set();
+  const text = `${note.title || ''}\n${note.body || ''}\n${(note.deps || []).map(d => d.symbol || '').join(' ')}`;
+  for (const w of text.toLowerCase().match(/[a-z_][a-z0-9_]{3,}/g) || []) if (!TERM_STOP.has(w)) out.add(stem(w));
+  return out;
 }
 
 // The definition behind a dep, with its place in the file: {text, start, end, total, truncated}

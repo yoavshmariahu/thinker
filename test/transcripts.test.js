@@ -23,19 +23,23 @@ test('tool names from every agent map to one vocabulary', () => {
 test('Claude Code transcript', () => {
   const f = write([
     { type: 'user', cwd: '/r', message: { content: 'where is x' } },
-    { type: 'assistant', message: { content: [{ type: 'text', text: 'looking' }, { type: 'tool_use', id: 'a', name: 'Read', input: { file_path: 'src/x.py' } }] } },
+    { type: 'assistant', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: 'looking' }, { type: 'tool_use', id: 'a', name: 'Read', input: { file_path: 'src/x.py' } }] } },
     { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'a', content: [{ type: 'text', text: 'def x(): pass' }] }] } },
-    { type: 'assistant', message: { content: [{ type: 'text', text: 'in src/x.py' }] } },
+    { type: 'assistant', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: 'in src/x.py' }] } },
   ]);
   const r = parseTranscript(f);
   assert.equal(r.format, 'claude');
   assert.deepEqual(shape(r.events), ['prompt:where is x', 'say:looking', 'Read:src/x.py=def x(): pass', 'say:in src/x.py']);
+  assert.equal(r.model, 'claude-opus-5-5');
+  // the model is that of the whole session, even when only the tail is read
   assert.equal(parseTranscript(f, { fromLine: 3 }).events.length, 1);
+  assert.equal(parseTranscript(f, { fromLine: 3 }).model, 'claude-opus-5-5');
 });
 
 test('Codex rollout and `codex exec --json` output', () => {
   const rollout = write([
     { type: 'session_meta', payload: { cwd: '/r', id: 's' } },
+    { type: 'turn_context', payload: { cwd: '/r', model: 'gpt-6-sol' } },
     { type: 'response_item', payload: { type: 'message', role: 'developer', content: [{ type: 'input_text', text: 'rules' }] } },
     { type: 'event_msg', payload: { type: 'item_completed', item: { type: 'UserMessage', content: [{ type: 'text', text: 'where is x' }] } } },
     { type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'where is x' }] } },
@@ -45,7 +49,7 @@ test('Codex rollout and `codex exec --json` output', () => {
     { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'in src/x.py' }] } },
   ]);
   const r = parseTranscript(rollout);
-  assert.equal(r.format, 'codex'); assert.equal(r.cwd, '/r');
+  assert.equal(r.format, 'codex'); assert.equal(r.cwd, '/r'); assert.equal(r.model, 'gpt-6-sol');
   assert.deepEqual(shape(r.events), ['prompt:where is x', 'Bash:rg -n def x src=src/x.py:1:def x', 'say:in src/x.py']);
   assert.equal(exploreCount(r.events), 1);
 
@@ -56,6 +60,7 @@ test('Codex rollout and `codex exec --json` output', () => {
     { type: 'turn.completed', usage: {} },
   ]);
   assert.deepEqual(shape(parseTranscript(stream).events), ['Bash:cat src/x.py=def x(): pass', 'say:in src/x.py']);
+  assert.equal(parseTranscript(stream).model, null);
 });
 
 test('Cursor transcript and `agent -p` stream', () => {
@@ -83,10 +88,10 @@ test('Gemini session JSON and stream', () => {
   const dir = tmp(), f = path.join(dir, 'session.json');
   fs.writeFileSync(f, JSON.stringify({ sessionId: 's', messages: [
     { type: 'user', content: 'where is x' },
-    { type: 'gemini', content: 'in src/x.py', toolCalls: [{ id: '1', name: 'read_file', args: { absolute_path: '/r/src/x.py' }, result: [{ functionResponse: { response: { output: 'def x(): pass' } } }] }] },
+    { type: 'gemini', model: 'gemini-3.8-flash', content: 'in src/x.py', toolCalls: [{ id: '1', name: 'read_file', args: { absolute_path: '/r/src/x.py' }, result: [{ functionResponse: { response: { output: 'def x(): pass' } } }] }] },
   ] }, null, 2));
   const r = parseTranscript(f);
-  assert.equal(r.format, 'gemini'); assert.equal(r.lineCount, 2);
+  assert.equal(r.format, 'gemini'); assert.equal(r.lineCount, 2); assert.equal(r.model, 'gemini-3.8-flash');
   assert.equal(r.events[0].text, 'where is x');
   assert.equal(r.events[1].name, 'Read'); assert.equal(r.events[1].input.file_path, '/r/src/x.py');
   assert.equal(r.events[2].text, 'in src/x.py');
@@ -229,4 +234,19 @@ test('learning hooks are installed for every agent and record the session', () =
   // hooks inside thinker's own model calls do nothing
   execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'gemini', '--record', '--repo', dir], { input: JSON.stringify({ session_id: 'g2', prompt: 'x' }), env: { ...env, THINKER_IN_LLM: '1' } });
   assert.ok(!fs.existsSync(path.join(dir, '.thinker/state/trace-g2.jsonl')));
+});
+
+test('learn.sessions: false keeps session distillation off while maintenance goes on', () => {
+  const dir = tmp();
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  fs.mkdirSync(path.join(dir, '.thinker/notes'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.thinker/config.json'), JSON.stringify({ learn: { sessions: false } }));
+  const env = { ...process.env, HOME: tmp(), THINKER_LOG: 'off', THINKER_TELEMETRY: 'off', THINKER_CBM: 'off' };
+  const run = args => execFileSync('node', [CLI, ...args, '--repo', dir], { encoding: 'utf8', env });
+  assert.match(run(['learn']), /learning from sessions is off \(learn\.sessions/);
+  const both = run(['learn', '--maintain', '--dry']);
+  assert.match(both, /learning from sessions is off/);
+  assert.match(both, /maintained: 0 re-verified/, 'maintenance still runs');
+  // the environment switch is stronger: nothing runs
+  assert.match(execFileSync('node', [CLI, 'learn', '--maintain', '--dry', '--repo', dir], { encoding: 'utf8', env: { ...env, THINKER_NO_LEARN: '1' } }), /switched off \(THINKER_NO_LEARN\)/);
 });

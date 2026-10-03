@@ -19,48 +19,48 @@
     {
       "path": "src/ops.js",
       "symbol": "refresh",
-      "hash": "sha256:005323ee7a8b732a050143c4",
-      "line": 118,
+      "hash": "sha256:1896f7e617fa4c1170fb9c6a",
+      "line": 126,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "verifyNote",
-      "hash": "sha256:b8afa9e45ff342cd4650dc15",
-      "line": 633,
+      "hash": "sha256:e05c5ade3cabd30dc7f79bfa",
+      "line": 658,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "createNote",
-      "hash": "sha256:481d4f58c1b10725014d4af7",
-      "line": 94,
+      "hash": "sha256:77dc06607ad03024334425ee",
+      "line": 102,
       "missing": false
     },
     {
       "path": "src/deps.js",
       "symbol": "checkNote",
-      "hash": "sha256:a3cdd75792d95c97b6b815d8",
-      "line": 193,
+      "hash": "sha256:4d377d06720c6390c8dc318d",
+      "line": 194,
       "missing": false
     },
     {
       "path": "src/deps.js",
       "symbol": "hashDep",
       "hash": "sha256:6e5e49dffffb2242a7bea05b",
-      "line": 130,
+      "line": 131,
       "missing": false
     },
     {
       "path": "src/rank.js",
       "symbol": "rank",
-      "hash": "sha256:12a901fc7e9adc73c4daa61b",
-      "line": 104,
+      "hash": "sha256:819d19857607aa41a18f16db",
+      "line": 118,
       "missing": false
     },
     {
       "path": "src/cli.js",
-      "hash": "sha256:d3ed7845afd75c7a31ecc30a",
+      "hash": "sha256:a5f3dd143d3cce01a315a59c",
       "missing": false
     },
     {
@@ -87,29 +87,29 @@
     {
       "path": "src/ops.js",
       "symbol": "orient",
-      "hash": "sha256:4e0095587aa48571ac04300b",
-      "line": 234,
+      "hash": "sha256:a0b46234dd643a2b93969e99",
+      "line": 242,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "lookup",
       "hash": "sha256:82859cc15af450af4f3f8649",
-      "line": 495,
+      "line": 520,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "gitDiffFor",
       "hash": "sha256:2ab1811899cbd193dabef5b7",
-      "line": 615,
+      "line": 640,
       "missing": false
     },
     {
       "path": "src/deps.js",
       "symbol": "symbolText",
       "hash": "sha256:372f3e63a49dec606d06efd9",
-      "line": 231,
+      "line": 310,
       "missing": false
     },
     {
@@ -121,18 +121,9 @@
     }
   ],
   "source": {
-    "type": "agent",
-    "ref": "8c1552c5-1ea2-4551-946c-25fea13d296d"
+    "type": "agent"
   },
   "created": "2026-09-26T09:33:10.424Z",
-  "verified": "2026-10-03T07:04:24.977Z",
-  "verifiedCommit": "e402418bcf7de4d5c34b221869691e6115fd1722",
-  "confidence": 0.9,
-  "status": "fresh",
-  "uses": 2,
-  "lastUsed": "2026-10-03T07:04:26.252Z",
-  "servedIn": [
-    "5888f66d-1c1e-4e02-9d4f-1f1ea507bef1",
-    "5888f66d-1c1e-4e02-9d4f-1f1ea507bef1"
-  ]
+  "verified": "2026-10-03T07:31:31.401Z",
+  "confidence": 0.9
 }

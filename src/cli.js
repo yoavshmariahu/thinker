@@ -6,10 +6,10 @@ import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
 import { maintain, maintenanceNotice, renderMaintain } from './maintain.js';
-import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
+import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
-import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, CBM_VERSION } from './cbm.js';
+import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, codegraphEngine, CBM_VERSION } from './cbm.js';
 import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
@@ -20,7 +20,7 @@ import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } fr
 import { available, provider, findBin, resolveModel, FALLBACK_ORDER, BINS } from './llm.js';
 import { logModelUsage, streamModelUsage } from './model-usage.js';
 import { summarize, renderUsage, sessionKey, cacheHitNotice, turnNotice } from './usage.js';
-import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds } from './distill.js';
+import { parseTranscript, exploreCount, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes } from './distill.js';
 import { MORE_NOTES_INTRO } from './cache-guidance.js';
 import { benchmarkAgent, coveredBenchmarkQuestions, latestBenchmark, renderBenchmarkReport, runBenchmarkAgent, saveBenchmark, isAuthError, cleanErrorMessage } from './benchmark.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, maybeCheckDailyUpdateInBackground, checkPendingNotice, getLaunchAgentPath } from './update.js';
@@ -49,6 +49,12 @@ const readStdin = () => fs.readFileSync(0, 'utf8');
 // Learning from sessions is on unless switched off, which evals do to keep the cache fixed.
 const NO_LEARN = /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '');
 const learnOn = () => !NO_LEARN && !flags['no-learn'] && !flags['serve-only'];
+// Learning from sessions (the end-of-turn distill and the catch-up `learn`) is a model call per
+// session, about 10¢ with Sonnet, and in a week on this repository 30% of them produced no note.
+// `learn: {sessions: false}` in .thinker/config.json keeps it off while learning from code changes
+// goes on: pull requests and verification in maintenance, `share --repair-staged` at commit.
+// `thinker distill <file>` by hand is still answered. THINKER_NO_LEARN=1 switches off everything.
+const sessionLearning = () => store.config().learn?.sessions !== false;
 
 const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: repo } });
 
@@ -58,7 +64,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  guided 3-step setup: connect harness CLIs, build the knowledge cache with
                                  pre-flight estimates (time, size, location), and run an optional PR change benchmark;
                                  --verbose includes per-item diagnostic details
-  init [--no-learn] [--no-hooks] [--late] [--local] [--no-git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
+  init [--no-learn] [--no-hooks] [--no-late] [--local] [--no-git-hook] [--no-mcp] [--no-trust] [--yes] [--clients list|all|auto]
                                  set up .thinker/, hooks and the MCP server for this repo (clients: claude, codex, cursor, gemini; default claude)
   uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
   share [ids…] [--all] [--dry]    promote eligible local notes for review and commit
@@ -79,14 +85,18 @@ const HELP = `thinker — knowledge cache for coding agents
   serve                          run the MCP server (stdio)
   orient "<task>" [--file f] [--budget n] [--snippets]
   lookup "<query>" [--snippets]  (--snippets: inline the code behind the pointers, as the MCP tools do)
-  drilldown <path:Symbol|path|Symbol> [--budget n]
-                                 the definition with its lines, one hop of callers and callees, and the notes on it
+  find "<words|Identifier>" [--path p] [--limit n]
+                                 the definitions whose name or body carry the words, as pointers with their lines
+  drilldown <pointer…> [--budget n]
+                                 each definition whole with its lines (path:Symbol, path, or Symbol; several at once),
+                                 one hop of callers and callees for a single pointer, and the notes on the code
   ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
                                  web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
   cbm [status|install|index|forget]
-                                 codebase-memory-mcp as the code graph behind drilldown and the blast-radius counts:
-                                 install puts the binary (~40 MB) under ~/.thinker/cbm, index builds its graph of this
-                                 checkout (and maintenance keeps it current); without it, git grep answers
+                                 codebase-memory-mcp as an optional code graph behind drilldown, find and the blast-radius
+                                 counts, used only with THINKER_CODEGRAPH=cbm (or auto, when indexed): install puts the
+                                 binary (~40 MB) under ~/.thinker/cbm, index builds its graph of this checkout (and
+                                 maintenance keeps it current); the default engine is git grep, which needs neither
   list [--stale] [--all]         list notes
   show <id>                      print a note
   rm <id>
@@ -177,17 +187,23 @@ async function main() {
         out(`indexing ${store.repo} with codebase-memory-mcp…`);
         const r = cbmIndex(store.repo, { name: flags.name, stdio: ['ignore', 'pipe', 'inherit'] });
         if (r.error) { out('error: ' + r.error); process.exit(1); }
-        out(`indexed as ${r.project}: ${r.nodes} nodes, ${r.edges} edges${r.parse_partial_count ? ` (${r.parse_partial_count} files parsed partially)` : ''}. drilldown and fanout now come from the graph; maintenance re-indexes when HEAD moves.`);
+        out(`indexed as ${r.project}: ${r.nodes} nodes, ${r.edges} edges${r.parse_partial_count ? ` (${r.parse_partial_count} files parsed partially)` : ''}. ${codegraphEngine(store.repo) === 'cbm' ? 'drilldown and fanout now come from the graph; maintenance re-indexes when HEAD moves.' : 'git grep stays the engine until THINKER_CODEGRAPH=cbm (or auto) is set; then maintenance re-indexes when HEAD moves.'}`);
         break;
       }
-      if (pos[0] === 'forget') { const r = cbmForget(store.repo); out(r.error ? 'error: ' + r.error : 'index removed; git grep answers again'); break; }
+      if (pos[0] === 'forget') { const r = cbmForget(store.repo); out(r.error ? 'error: ' + r.error : 'index removed'); break; }
       const st = cbmStatus(store.repo);
       if (!st.bin) out(`codebase-memory-mcp: not installed (git grep answers)\nlooked in: THINKER_CBM_BIN, ~/.local/bin, PATH, ${cbmDir()}\ninstall with: thinker cbm install`);
       else out(`codebase-memory-mcp ${st.version || '?'} at ${st.bin}\nthis checkout: ${st.project ? `indexed as ${st.project}` : 'not indexed (thinker cbm index)'}; ${st.projects ?? '?'} project${st.projects === 1 ? '' : 's'} indexed on this machine\nengine for drilldown and fanout: ${st.engine}${process.env.THINKER_CODEGRAPH ? ` (THINKER_CODEGRAPH=${process.env.THINKER_CODEGRAPH})` : ''}`);
       break;
     }
     case 'drilldown': {
-      const r = drilldown(store, { pointer: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 1500 });
+      const r = drilldown(store, { pointer: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500 });
+      if (r.error) { out('error: ' + r.error); process.exit(1); }
+      out(r.text);
+      break;
+    }
+    case 'find': {
+      const r = find(store, { query: pos.join(' '), path: flags.path || undefined, limit: Number(flags.limit) || 12, client: flags.client || 'cli' });
       if (r.error) { out('error: ' + r.error); process.exit(1); }
       out(r.text);
       break;
@@ -347,7 +363,7 @@ async function main() {
       //        the older name), --no-hooks (MCP server only), --late (file-keyed notes),
       //        --local (write .claude/settings.local.json, not shared), --no-git-hook, --no-mcp, --clients,
       //        --no-trust (leave Codex's trust in the project and the hooks to the user), --yes (do not ask)
-      await init({ clients: parseClients(flags.clients, 'auto'), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !!flags.late, shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !flags['no-git-hook'] });
+      await init({ clients: parseClients(flags.clients, 'auto'), hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !flags['no-late'], shared: !flags.local, mcp: !flags['no-mcp'], gitHook: !flags['no-git-hook'] });
       maybeSendDailyTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store, force: true, event: 'install' });
       break;
     }
@@ -383,6 +399,8 @@ async function main() {
         const result = share(store, { ids: pos, all: !!flags.all, dry: !!flags.dry });
         for (const r of result.ready) out(`${flags.dry ? 'would ' : ''}${r.action} ${r.id}`);
         for (const r of result.skipped) out(`skip ${r.id}: ${r.reasons.join('; ')}`);
+        for (const r of result.superseded) out(`superseded ${r.id}: a pull replaced this note while a change to it (${r.fields.join(', ')}) was unshared here; thinker show ${r.id} prints it`);
+        for (const u of result.unreadable) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
         out(`${result.ready.length} notes ${flags.dry ? 'ready to share' : 'shared; review and commit .thinker/notes/'}`);
       }
       break;
@@ -438,12 +456,15 @@ async function main() {
       if (flags.stale) notes = notes.filter(n => n.status === 'stale');
       if (!flags.all) notes = notes.filter(n => n.status !== 'invalid');
       for (const n of notes) out(`${(store.isShared(n.id) ? 'repo' : 'local').padEnd(5)} ${n.status.padEnd(7)} ${String(n.kind).padEnd(10)} ${n.id.padEnd(45)} c=${Math.round((n.confidence ?? 0.7) * 100)}% uses=${n.uses || 0}  ${n.title}`);
+      for (const u of store.unreadable()) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
       out(`${notes.length} notes`);
       break;
     }
     case 'show': {
       const n = store.get(pos[0]); if (!n) { out('no such note'); process.exit(1); }
       out(flags.json ? JSON.stringify(n, null, 2) : renderNote(n) + `\nsource: ${JSON.stringify(n.source)}  verified: ${n.verified}  status: ${n.status}  attest: ${JSON.stringify(n.attest || {})}  related: ${(n.related || []).join(', ') || '-'}`);
+      const sup = store.superseded(pos[0]);
+      if (sup && !flags.json) out(`\nsuperseded: a pull replaced this note while this checkout had an unshared change to it (${Object.keys(sup.pending).join(', ')}). Kept in .thinker/local/shared/${pos[0]}.json; put it back with feedback or remember if it still holds.` + (sup.pending.body ? `\n--- unshared body ---\n${sup.pending.body}` : ''));
       break;
     }
     case 'rm': { out(store.remove(pos[0]) ? 'removed' : 'no such note'); break; }
@@ -470,10 +491,11 @@ async function main() {
       break;
     }
     case 'check': {
-      const notes = refresh(store, store.list());
+      const notes = refresh(store, store.list(), { narrow: true });
       const stale = notes.filter(n => n.status === 'stale');
       if (!flags.quiet) {
         for (const n of stale) out(`stale  ${n.id}: ${n.stale.changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ')}`);
+        for (const u of store.unreadable()) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
         out(`${stale.length}/${notes.length} notes stale`);
       }
       if (flags.verify && stale.length) await verifyAll(stale);
@@ -529,7 +551,7 @@ async function main() {
         // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
         if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
         if (session !== 'unknown') rememberTask(store, session, ev.prompt);
-        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET });
+        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true });
         if (!r.included.length) break;
         const notice = noticeOn(store) ? cacheHitNotice(store.repo, r.included) : '';
         const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
@@ -555,7 +577,7 @@ async function main() {
           const turn = path.join(store.dir, 'state', `oriented-${String(ev.generation_id || session).replace(/[^\w.-]/g, '_')}`);
           if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && store.list().length) {
             const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-            if (task) { const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
+            if (task) { const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
           }
           fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '');
           if (p && !mcpCall) parts.push(p);
@@ -594,7 +616,7 @@ async function main() {
           recordEvent(store.dir, session, { t: 'say', text: last });
           source = traceFile(store.dir, session);
         }
-        if (flags['no-distill'] || NO_LEARN) break;
+        if (flags['no-distill'] || NO_LEARN || !sessionLearning()) break;
         if (!source || !fs.existsSync(source)) break;
         // a checkout that syncs with the team cache streams the session there, where it is distilled;
         // it is distilled here as well only while the server cannot (no checkout or model there)
@@ -958,7 +980,7 @@ async function setup() {
     yes: Boolean(flags.yes),
     hooks: !flags['no-hooks'],
     learn: learnOn(),
-    late: Boolean(flags.late),
+    late: !flags['no-late'],
     shared: Boolean(flags.shared),
     mcp: !flags['no-mcp'],
     gitHook: !flags['no-git-hook'],
@@ -1228,6 +1250,7 @@ async function verifyAll(notes) {
 // agents and modes that do not fire one (Cursor's headless mode, for one).
 async function learn({ days, idleMin, max, dry, quiet }) {
   if (NO_LEARN) { if (!quiet) out('learning is switched off (THINKER_NO_LEARN)'); return; }
+  if (!sessionLearning()) { if (!quiet) out('learning from sessions is off (learn.sessions in .thinker/config.json); maintenance and pull requests go on'); return; }
   const lock = path.join(store.init().dir, 'state', 'learn.lock');
   fs.mkdirSync(path.dirname(lock), { recursive: true });
   try { if (Date.now() - fs.statSync(lock).mtimeMs < 15 * 60_000) { if (!quiet) out('another learn run is in progress'); return; } } catch {}
@@ -1276,7 +1299,7 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   const stateFile = path.join(stateDir, path.basename(file).replace(/\.jsonl?$/, '') + '.json');
   let state = {}; try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch {}
   const fromLine = incremental ? (state.line || 0) : 0;
-  const { events, lineCount } = parseTranscript(file, { fromLine, format });
+  const { events, lineCount, model: sessionModel, format: fmt } = parseTranscript(file, { fromLine, format });
   hydrate(events, repo, { trace: session ? traceFile(store.dir, session) : null });
   // a turn-end hook and a session-end hook can both ask for the same session
   const lock = stateFile + '.lock';
@@ -1296,12 +1319,13 @@ async function distillFile(file, { minExplore, dry, model, quiet, incremental, f
   const started = performance.now();
   let failed = true;
   try {
-  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
+  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, existing: relatedNotes(store, events), accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
   if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, cost ${r.cost == null ? 'unknown' : '$' + r.cost.toFixed(3)}, trace ${r.traceChars} chars)`); return; }
   const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') } });
   // under the session's id, which is what servings are logged under: a transcript's file name is
   // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
-  const applied = attest(store, r.assessments, { session: session || sessionKey(path.basename(file)) });
+  // with the session's model, so the reading its confirmed notes saved can be priced (usage.js)
+  const applied = attest(store, r.assessments, { session: session || sessionKey(path.basename(file)), client: fmt === 'agy' ? 'gemini' : fmt === 'events' ? 'trace' : fmt, model: sessionModel });
   if (!quiet) for (const a of applied) out(`attest  ${a.verdict.padEnd(12)} ${a.id} → c=${Math.round(a.confidence * 100)}%`);
   fs.mkdirSync(stateDir, { recursive: true });
   fs.writeFileSync(stateFile, JSON.stringify({ line: lineCount, assessed: [...new Set([...(state.assessed || []), ...served.map(n => n.id)])], at: new Date().toISOString() }));
