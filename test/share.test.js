@@ -434,3 +434,73 @@ test('pre-commit removes invalid note paths and staged symlinks', async t => {
   assert.equal(git('ls-files', '.thinker/notes/link.json'), '');
   assert.equal(fs.readdirSync(path.join(store.localDir, 'quarantine')).length, 2);
 });
+
+test('an unshared correction that a pull replaces is kept as superseded, reported, and cleared by a new share', t => {
+  const { store, note } = fixture(t);
+  store.put(note()); share(store);
+  store.put({ ...store.get('value'), body: 'Local correction about code.js:value.', uses: 3 });
+  assert.equal(store.pending('value').body, 'Local correction about code.js:value.');
+  assert.equal(store.superseded('value'), null);
+  // a pull brings a different version of the note
+  fs.writeFileSync(path.join(store.notesDir, 'value.json'), JSON.stringify(sharedContent(note('value', { body: 'Pulled correction' }))));
+  assert.deepEqual(store.pending('value'), {});
+  assert.equal(store.get('value').body, 'Pulled correction');
+  assert.equal(store.superseded('value').pending.body, 'Local correction about code.js:value.');
+  const plan = planShare(store);
+  assert.equal(plan.ready.length, 0);
+  assert.deepEqual(plan.superseded.map(s => [s.id, s.fields]), [['value', ['body']]]);
+  assert.match(readyToShareNotice(store), /1 unshared correction was superseded by a pull \(value\)/);
+  assert.equal(readyToShareNotice(store), '');
+  // serving the note rewrites the overlay against the new base; the superseded text survives
+  store.put({ ...store.get('value'), uses: 4 });
+  assert.equal(store.get('value').uses, 4);
+  assert.deepEqual(store.pending('value'), {});
+  assert.equal(store.superseded('value').pending.body, 'Local correction about code.js:value.');
+  assert.ok(store.superseded('value').at);
+  // the correction is made again against the pulled content and shared: nothing superseded remains
+  store.put({ ...store.get('value'), body: 'Correction again about code.js:value.' });
+  assert.equal(planShare(store).superseded.length, 1);
+  share(store);
+  assert.equal(store.sharedFile('value').body, 'Correction again about code.js:value.');
+  assert.equal(store.superseded('value'), null);
+  assert.ok(store.clearSuperseded('value') === false);
+});
+
+test('a conflicted or malformed note file is named as unreadable instead of vanishing', t => {
+  const { store, note, repo } = fixture(t);
+  store.put(note()); share(store);
+  const good = fs.readFileSync(path.join(store.notesDir, 'value.json'), 'utf8');
+  fs.writeFileSync(path.join(store.notesDir, 'value.json'), `<<<<<<< HEAD\n${good}=======\n${good}>>>>>>> origin/main\n`);
+  fs.writeFileSync(path.join(store.localNotesDir, 'broken.json'), '{');
+  fs.writeFileSync(path.join(store.notesDir, 'renamed.json'), JSON.stringify(sharedContent(note('other'))));
+  assert.equal(store.list().length, 0);
+  const bad = store.unreadable().sort((a, b) => a.file.localeCompare(b.file));
+  assert.deepEqual(bad.map(u => [path.relative(repo, u.file), u.tier, u.reason]), [
+    ['.thinker/local/notes/broken.json', 'local', 'invalid JSON'],
+    ['.thinker/notes/renamed.json', 'shared', 'id does not match the file name'],
+    ['.thinker/notes/value.json', 'shared', 'unresolved merge conflict'],
+  ]);
+  assert.equal(planShare(store).unreadable.length, 3);
+  assert.match(readyToShareNotice(store), /3 note files are unreadable \(/);
+  const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_TEST: '1', THINKER_LOG: 'local', THINKER_NO_AUTO_UPDATE: '1', THINKER_NO_LEARN: '1', THINKER_AST: 'off', THINKER_HOME: path.join(repo, 'home') };
+  const list = spawnSync(process.execPath, [cli, 'list', '--repo', repo], { cwd: repo, encoding: 'utf8', env });
+  assert.equal(list.status, 0, list.stderr);
+  assert.match(list.stdout, /warning: \.thinker\/notes\/value\.json is not served: unresolved merge conflict/);
+  assert.match(spawnSync(process.execPath, [cli, 'check', '--repo', repo], { cwd: repo, encoding: 'utf8', env }).stdout, /unresolved merge conflict/);
+  fs.writeFileSync(path.join(store.notesDir, 'value.json'), good);
+  assert.equal(store.list().length, 1);
+});
+
+test('maintenance sweeps overlays of notes retired elsewhere, keeping ones with unshared content', t => {
+  const { store, note } = fixture(t);
+  store.put(note()); store.put(note('kept', { title: 'Independent package installation map', kind: 'howto', answers: [] })); share(store);
+  store.put({ ...store.get('value'), uses: 2 });
+  store.put({ ...store.get('kept'), body: 'Unshared correction about code.js:value.' });
+  assert.ok(fs.existsSync(path.join(store.overlayDir, 'value.json')) && fs.existsSync(path.join(store.overlayDir, 'kept.json')));
+  // a pull removes both shared files
+  fs.unlinkSync(path.join(store.notesDir, 'value.json')); fs.unlinkSync(path.join(store.notesDir, 'kept.json'));
+  assert.deepEqual(reconcileLocal(store), []);
+  assert.equal(fs.existsSync(path.join(store.overlayDir, 'value.json')), false);
+  assert.equal(fs.existsSync(path.join(store.overlayDir, 'kept.json')), true);
+  assert.equal(store.list().length, 0);
+});
