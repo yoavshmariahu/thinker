@@ -169,7 +169,7 @@ test('assessments are logged under the session id, and older ones under a file n
   });
 });
 
-test('cache hit notice formats brief friendly one-liner with quantified token and time savings', () => {
+test('the notice names the notes and the code they point at, not a saving', () => {
   assert.equal(formatTokens(450), '450');
   assert.equal(formatTokens(1500), '1.5k');
   assert.equal(formatTokens(10000), '10k');
@@ -185,18 +185,17 @@ test('cache hit notice formats brief friendly one-liner with quantified token an
 
   assert.equal(cacheHitNotice(one.repo, []), '');
 
-  const single = cacheHitNotice(one.repo, [one.get('n2')]);
-  assert.equal(single, `🧠 thinker: 1 cache hit (~1k tokens, ~${SECONDS_PER_READ}s saved)`);
-
-  const multi = cacheHitNotice(one.repo, [one.get('n1'), one.get('n2')]);
-  assert.equal(multi, `🧠 thinker: 2 cache hits (~7k tokens, ~${2 * SECONDS_PER_READ}s saved)`);
+  assert.equal(cacheHitNotice(one.repo, [one.get('n2')]), '🧠 thinker: 1 note (pointing at ~1k tokens of code)');
+  assert.equal(cacheHitNotice(one.repo, [one.get('n1'), one.get('n2')]), '🧠 thinker: 2 notes (pointing at ~7k tokens of code)');
+  for (const text of [cacheHitNotice(one.repo, [one.get('n1')]), turnNotice(one.repo, [one.get('n1')])]) assert.doesNotMatch(text, /saved|hit/, 'nothing is known to be saved when a note is served');
 });
 
 test('turn notice sums what the whole turn served', () => {
   const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
   assert.equal(turnNotice(one.repo, []), '');
-  assert.equal(turnNotice(one.repo, [one.get('n1'), one.get('n2')]), `🧠 thinker: 2 cache hits this turn (~7k tokens, ~${2 * SECONDS_PER_READ}s of 2 reads saved)`);
-  assert.equal(turnNotice(one.repo, [one.get('n2')]), `🧠 thinker: 1 cache hit this turn (~1k tokens, ~${SECONDS_PER_READ}s of 1 read saved)`);});
+  assert.equal(turnNotice(one.repo, [one.get('n1'), one.get('n2')]), '🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)');
+  assert.equal(turnNotice(one.repo, [one.get('n2')]), '🧠 thinker: 1 note this turn (pointing at 1 file, ~1k tokens of code)');
+});
 
 test('both sides of the balance are priced at the model of the session, and what has no price is said', () => {
   const home = tmp('thinker-home-');

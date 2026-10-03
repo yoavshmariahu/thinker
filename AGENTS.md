@@ -265,6 +265,13 @@ Each session both consumes and improves the cache:
 Learning is on by default in `setup`, `init` and the installer. Evals keep
 the cache fixed with `--no-learn` at install time, or `THINKER_NO_LEARN=1` in
 the environment, which also silences hooks that are already installed.
+`learn: {"sessions": false}` in `.thinker/config.json` switches off learning
+from sessions alone (the end-of-turn distill and the catch-up `learn`), while
+learning from code changes goes on: pull requests and re-verification in
+maintenance, `share --repair-staged` at commit, `thinker distill <file>` by
+hand. Each session distilled is a model call, about 10¢ with Sonnet, and in a
+week on this repository 30% of them produced no note; without them there are
+also no assessments, so `thinker usage` counts no servings as acted on.
 
 Controls for experiments: `THINKER_NO_LINKS=1`, `THINKER_NO_COCHANGE=1`,
 `THINKER_MCP=off` (the MCP server offers no tools),
@@ -340,12 +347,14 @@ queries; `0,0` turns them off).
   is put above the notes `orient` returns (per-model guidance).
 - Prompt-time hook: injects the orientation bundle into every prompt
  automatically (no tool call needed). See [Supported agents](#supported-agents).
-- What the user sees: the prompt hook shows the hits and what they stand for
- (`🧠 thinker: 2 cache hits (~7k tokens, ~8s saved)`), and the stop hook sums
- the turn, prompt-time and late notes together (`usage.js:cacheHitNotice`,
- `usage.js:turnNotice`). Tokens are one read per file a note rests on, time
- is `usage.js:SECONDS_PER_READ` per read; both are estimates, not
- measurements. Shown through `systemMessage` in Claude Code and Gemini CLI;
+- What the user sees: the prompt hook names the notes and the size of the
+ code they point at (`🧠 thinker: 2 notes (pointing at ~7k tokens of code)`),
+ and the stop hook sums the turn, prompt-time and late notes together
+ (`usage.js:cacheHitNotice`, `usage.js:turnNotice`). Tokens are one read per
+ file a note rests on. The notice does not say "saved": at serve time nothing
+ is known about whether the agent will act on a note, and in a week on this
+ repository about 30% of servings were; what was saved is counted once the
+ session is assessed, in `thinker usage`. Shown through `systemMessage` in Claude Code and Gemini CLI;
  Codex and Cursor have no channel for it from a stop hook. `THINKER_NOTICE=off`
  or `notice: false` in `.thinker/config.json` turns it off.
 - Ranking: BM25 over title/answers/tags/deps/body with identifier splitting,

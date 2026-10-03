@@ -235,3 +235,18 @@ test('learning hooks are installed for every agent and record the session', () =
   execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'gemini', '--record', '--repo', dir], { input: JSON.stringify({ session_id: 'g2', prompt: 'x' }), env: { ...env, THINKER_IN_LLM: '1' } });
   assert.ok(!fs.existsSync(path.join(dir, '.thinker/state/trace-g2.jsonl')));
 });
+
+test('learn.sessions: false keeps session distillation off while maintenance goes on', () => {
+  const dir = tmp();
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  fs.mkdirSync(path.join(dir, '.thinker/notes'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.thinker/config.json'), JSON.stringify({ learn: { sessions: false } }));
+  const env = { ...process.env, HOME: tmp(), THINKER_LOG: 'off', THINKER_TELEMETRY: 'off', THINKER_CBM: 'off' };
+  const run = args => execFileSync('node', [CLI, ...args, '--repo', dir], { encoding: 'utf8', env });
+  assert.match(run(['learn']), /learning from sessions is off \(learn\.sessions/);
+  const both = run(['learn', '--maintain', '--dry']);
+  assert.match(both, /learning from sessions is off/);
+  assert.match(both, /maintained: 0 re-verified/, 'maintenance still runs');
+  // the environment switch is stronger: nothing runs
+  assert.match(execFileSync('node', [CLI, 'learn', '--maintain', '--dry', '--repo', dir], { encoding: 'utf8', env: { ...env, THINKER_NO_LEARN: '1' } }), /switched off \(THINKER_NO_LEARN\)/);
+});
