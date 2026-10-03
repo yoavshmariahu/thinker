@@ -105,7 +105,8 @@ function prepare(repo, c, review) {
   const wt = path.join(out, 'wt', c.id);
   if (c.kind === 'commit') return { scope: review.resolveScope(repo, { ref: c.sha }), repo, expect: null };
   if (fs.existsSync(wt)) try { git(repo, ['worktree', 'remove', '--force', wt]); } catch {}
-  git(repo, ['worktree', 'add', '--detach', wt, c.base]);
+  try { git(repo, ['worktree', 'prune']); } catch {} // a registration left by a stopped run would refuse the path
+  git(repo, ['worktree', 'add', '-f', '--detach', wt, c.base]);
   let expect = null;
   if (c.kind === 'planted' || c.kind === 'refactor') {
     const e = applyEdits(wt, c.edits);

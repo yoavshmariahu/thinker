@@ -441,7 +441,12 @@ tool `review` is the same for an agent before it commits.
   of the touched definitions by text search, `triage` asks a small model
   whether a note bears on the change before the expensive call, `verify`
   re-checks every error and warning with a second call and drops what is not
-  confirmed. Which is the default follows from the evaluation below.
+  confirmed; `chunks` reviews a large change in chunks of files, each with the
+  complete file inventory. The default is the ensemble: on 16 planted and
+  reverted bugs in two repositories it caught 15, with no false positive on
+  the controls reached, at $0.16 to $0.25 a review; one call per note (the
+  first design) cost four to six times as much, caught fewer real bugs and
+  raised more false positives (`bench/RESULTS.md`, "Review strategies").
 - Evaluation: `bench/review-eval.js run --repo <checkout> --cases <json>
   --strategies a,b [--notes <noteset dir>] --out <dir>` reviews every case under
   every strategy and `report` tabulates hits, false positives, findings per

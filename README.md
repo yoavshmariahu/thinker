@@ -141,14 +141,15 @@ thinker review --ref <commit>       # one commit, read from git alone
 thinker review --state src/auth/    # no change: the current code against the notes on it
 ```
 
-A review finds the notes resting on the changed code, and the notes that bear
-on it by the identifiers it writes (a convention written against other files,
-say). Each is checked by a model against the change and the code after it, and
-every finding carries a file, a line, the evidence it rests on and the note it
-came from:
+A review makes two model calls and merges what they find: one sees the diff
+and the code it touched, as any reviewer would; the other sees the notes
+resting on the changed code and the notes that bear on it by the identifiers
+it writes (a convention written against other files, say). Every finding
+carries a file, a line, the evidence it rests on and the note it came from,
+when one does:
 
 ```
-thinker review: working tree against HEAD, 2 files; 3 notes consulted (2 on the changed code, 1 related), 3 assessed with sonnet ($0.31)
+thinker review: working tree against HEAD, 2 files; 3 notes consulted (2 on the changed code, 1 related), 3 assessed with sonnet ($0.19)
 
 Findings: 1 error, 1 warning, 0 info
   error    src/core.py:5  Command.invoke no longer calls validate(ctx); main dereferences ctx  [note validate-before-main, 90%]
@@ -171,12 +172,16 @@ along with a changed file and is missing from the change, and a definition the
 change removes that the rest of the checkout still refers to. Nothing in the
 cache is rewritten by a review; the change under review may never be merged.
 
-`--max n` caps the notes assessed (default 12, the ones on the changed code
-first), `--model` picks the model (`reviewModel` in `.thinker/config.json`,
-default `sonnet`; about $0.10 a note through Claude Code's CLI, less through
-`ANTHROPIC_API_KEY`), `--json` gives the report as data, and `--strict` exits 2
-on an error-severity finding, for CI. Agents have the same review as the MCP
-tool `review`, for a check before they commit.
+Measured on planted and reverted bugs in two repositories (`bench/RESULTS.md`,
+"Review strategies"), this caught 15 of 16 bugs with no false positive on the
+controls reached, at $0.16 to $0.25 and about two minutes a review through
+Claude Code's CLI. `--max n` caps the notes shown (default 12, the ones on the
+changed code first), `--model` picks the model (`reviewModel` in
+`.thinker/config.json`, default `sonnet`), `--chunks n` reviews a large change
+in chunks of files, `--verify` re-checks every finding with a second call,
+`--json` gives the report as data, and `--strict` exits 2 on an error-severity
+finding, for CI. Agents have the same review as the MCP tool `review`, for a
+check before they commit.
 
 ## Cache cost and savings
 

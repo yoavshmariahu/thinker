@@ -20,8 +20,9 @@ import { buildIndex, bm25, tokenize } from './rank.js';
 import { loadCochange, partners } from './cochange.js';
 import { complete } from './llm.js';
 
-// How a review is run; the defaults are what `thinker review` does. The rest exists for
-// bench/review-eval.js, which compares them on planted and reverted bugs:
+// How a review is run; the defaults are what `thinker review` does: the ensemble, chosen by
+// bench/review-eval.js on planted and reverted bugs (bench/RESULTS.md, "Review strategies"). The
+// rest exists for that comparison:
 //   mode      per-note (one model call per consulted note), holistic (one call with every consulted
 //             note), nocache (no notes at all: the diff and the code it touched; the baseline)
 //   related   also consult notes that share identifiers with the change
@@ -31,7 +32,7 @@ import { complete } from './llm.js';
 //   verify    re-check every error and warning with a second call before reporting it
 //   chunks    for a change larger than one call can show: one call per chunk of files (at most this many), the
 //             files the notes rest on first; 0 or 1 is one call with the diff cut to fit
-export const DEFAULT_STRATEGY = { mode: 'per-note', related: true, callers: false, triage: false, triageModel: 'haiku', verify: false, chunks: 1 };
+export const DEFAULT_STRATEGY = { mode: 'ensemble', related: true, callers: false, triage: false, triageModel: 'haiku', verify: false, chunks: 1 };
 
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 const CODE_EXT = /\.(py|pyi|js|jsx|mjs|cjs|ts|tsx|mts|cts|go|rs|rb|java|kt|cs|php|c|h|cc|cpp|hpp|swift|scala|ex|exs|sh|bash|vue|svelte|sql|dart|lua|zig)$/i;
@@ -576,7 +577,7 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
   }
   report.findings.sort((a, b) => (SEV[a.severity] ?? 1) - (SEV[b.severity] ?? 1) || (b.confidence || 1) - (a.confidence || 1));
   report.counts = { error: report.findings.filter(f => f.severity === 'error').length, warning: report.findings.filter(f => f.severity === 'warning').length, info: report.findings.filter(f => f.severity === 'info').length };
-  store.log({ op: 'review', scope: scope.label, strategy: strat.mode === 'per-note' && !strat.callers && !strat.triage && strat.related ? undefined : strat, files: change.files.length, consulted: consulted.length, assessed: report.notes.assessed, findings: report.counts, outdated: report.notes.outdated.map(o => o.id), cost: report.cost, metered: true, dry: dry || undefined });
+  store.log({ op: 'review', scope: scope.label, strategy: JSON.stringify(strat) === JSON.stringify(DEFAULT_STRATEGY) ? undefined : strat, files: change.files.length, consulted: consulted.length, assessed: report.notes.assessed, findings: report.counts, outdated: report.notes.outdated.map(o => o.id), cost: report.cost, metered: true, dry: dry || undefined });
   return report;
 }
 

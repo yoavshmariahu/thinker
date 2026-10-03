@@ -146,7 +146,7 @@ test('review assembles the report: model findings carry the note and the line, o
   };
   store.put({ ...notes.invariant, id: 'duplicate-view', title: 'Invoke validates first', kind: 'gotcha', confidence: 0.6 });
   const before = JSON.stringify(store.list());
-  const r = await review(store, { assess, cochange: { totals: {}, pairs: {} } });
+  const r = await review(store, { strategy: { mode: 'per-note' }, assess, cochange: { totals: {}, pairs: {} } });
   assert.deepEqual(calls.map(c => c.id).sort(), ['cli-and-core-change-together', 'duplicate-view', 'validate-before-main']);
   // two notes saw the same problem at the same line: one finding, the surer wording, both notes named
   assert.equal(r.findings.length, 1); assert.deepEqual(r.findings[0].notes, ['validate-before-main', 'duplicate-view']); assert.equal(r.findings[0].confidence, 0.9);
@@ -174,7 +174,7 @@ test('a note already stale before the change is reported as drift, assessed anyw
   write('src/core.py', CORE.replace('return self.main(ctx)', 'return self.main(ctx)  # dispatch'));
   const seen = [];
   const assess = async (s, note, exposure) => { seen.push({ id: note.id, stale: exposure.staleBefore.map(d => d.symbol) }); if (note.id === 'validate-before-main') throw new Error('model down'); return silent(); };
-  const r = await review(store, { assess, cochange: { totals: {}, pairs: {} } });
+  const r = await review(store, { strategy: { mode: 'per-note' }, assess, cochange: { totals: {}, pairs: {} } });
   assert.deepEqual(seen.find(s => s.id === 'validate-before-main').stale, ['Command.invoke']);
   assert.deepEqual(r.notes.staleBefore.map(s => s.id), ['validate-before-main']);
   assert.deepEqual(r.errors, [{ id: 'validate-before-main', error: 'model down' }]);
@@ -189,11 +189,11 @@ test('dry run lists what would be assessed without calling the model; --max leav
   const { store, write } = fixture(t);
   write('src/core.py', CORE.replace('return self.main(ctx)', 'return self.main(ctx)  # dispatch'));
   let called = 0;
-  const r = await review(store, { assess: async () => { called++; return silent(); }, dry: true, cochange: { totals: {}, pairs: {} } });
+  const r = await review(store, { strategy: { mode: 'per-note' }, assess: async () => { called++; return silent(); }, dry: true, cochange: { totals: {}, pairs: {} } });
   assert.equal(called, 0); assert.equal(r.notes.assessed, 0);
   assert.deepEqual(r.toAssess.map(x => x.id), ['validate-before-main', 'cli-and-core-change-together']);
   assert.match(renderReview(r), /Notes to assess:/);
-  const capped = await review(store, { assess: async () => { called++; return silent(); }, max: 1, cochange: { totals: {}, pairs: {} } });
+  const capped = await review(store, { strategy: { mode: 'per-note' }, assess: async () => { called++; return silent(); }, max: 1, cochange: { totals: {}, pairs: {} } });
   assert.equal(called, 1); assert.equal(capped.notes.skipped, 1);
   assert.match(renderReview(capped), /1 left out \(--max\)/);
 });
@@ -203,13 +203,13 @@ test('state mode audits the current code of the given paths against the notes re
   write('src/types.py', TYPES.replace('str(value)', 'int(value)')); // the convention is broken in the checkout itself
   const seen = [];
   const assess = async (s, note, exposure, change) => { seen.push({ id: note.id, state: change.state, touched: exposure.touched.map(d => d.path), stale: exposure.staleBefore.map(d => d.symbol) }); return { id: note.id, verdict: 'violation', reason: 'convert returns int', findings: [{ severity: 'error', file: 'src/types.py', line: 2, message: 'convert returns int', evidence: 'return int(value)', confidence: 0.9, note: note.id }], noteCorrection: '', cost: 0 }; };
-  const r = await review(store, { scope: resolveScope(repo, { state: true }), paths: ['src/types.py'], assess });
+  const r = await review(store, { scope: resolveScope(repo, { state: true }), paths: ['src/types.py'], strategy: { mode: 'per-note' }, assess });
   assert.deepEqual(seen, [{ id: 'convert-returns-str', state: true, touched: ['src/types.py'], stale: ['convert'] }]);
   assert.equal(r.state, true);
   assert.equal(r.findings[0].file, 'src/types.py');
   assert.match(renderReview(r), /current code/);
   // a directory covers the files under it; nothing named audits every file the notes rest on
-  const all = await review(store, { scope: resolveScope(repo, { state: true }), assess: silent });
+  const all = await review(store, { scope: resolveScope(repo, { state: true }), strategy: { mode: 'per-note' }, assess: silent });
   assert.deepEqual(all.files.map(f => f.path).sort(), ['src/cli.py', 'src/core.py', 'src/types.py']);
 });
 
