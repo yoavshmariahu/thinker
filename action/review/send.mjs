@@ -20,7 +20,8 @@ const token = env.THINKER_SYNC_TOKEN;
 const slug = env.GITHUB_REPOSITORY;
 const repoId = (env.THINKER_REPO || `github.com/${slug}`).toLowerCase();
 const fail = msg => { console.error(`thinker: ${msg}`); process.exit(1); };
-if (!url || !token) fail('THINKER_SYNC_URL and THINKER_SYNC_TOKEN are required');
+if (!url) fail('THINKER_SYNC_URL is required');
+if (!token) { console.log('thinker: no THINKER_SYNC_TOKEN (the repository secret is not set); nothing sent'); process.exit(0); }
 if (!slug) fail('GITHUB_REPOSITORY is not set');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 

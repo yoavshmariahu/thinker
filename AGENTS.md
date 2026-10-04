@@ -619,6 +619,16 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 
 ## The central cache (`thinker-server`)
 
+**Not deployed and not offered publicly (decided 2026-10-04).** The server stays
+in the repository and runs from a checkout (`node src/server/cli.js start`), for
+local use and tests. The release archive (`scripts/pack.sh`) leaves out
+`src/server/` and the `thinker-server` bin, the public `README.md` does not
+mention the server or `thinker sync`, and the CLI help lists no `sync`
+commands (they still work for a checkout that has a server to talk to). The
+EC2 stack in `infra/sync/` is not to be deployed, and the review workflow in
+`.github/workflows/thinker-review.yml` is a no-op until the `THINKER_SYNC_TOKEN`
+secret exists.
+
 Committing notes shares them at the pace of pull requests. A team that wants
 every checkout to see what every other one learned runs `thinker-server`
 (`src/server/`), one process with a data directory, and points checkouts at it

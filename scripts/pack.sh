@@ -12,7 +12,19 @@ if tar --no-xattrs --version >/dev/null 2>&1; then
   tar_pack+=(--no-xattrs)
 fi
 mkdir -p dist
-"${tar_pack[@]}" -czf dist/thinker.tgz --exclude='*.test.js' src package.json package-lock.json README.md
+# The archive is the public tool: src without the tests and without the team server (src/server,
+# the thinker-server bin), which is not offered publicly; it stays in the repository and runs from
+# a checkout (node src/server/cli.js).
+stage="$(mktemp -d)"; trap 'rm -rf "$stage"' EXIT
+mkdir -p "$stage/src"
+"${tar_pack[@]}" -c --exclude='*.test.js' --exclude='src/server' src package-lock.json README.md | tar -x -C "$stage"
+node --input-type=module - "$stage/package.json" <<'JS'
+import fs from 'node:fs';
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+delete pkg.bin['thinker-server'];
+fs.writeFileSync(process.argv[2], JSON.stringify(pkg, null, 2) + '\n');
+JS
+(cd "$stage" && "${tar_pack[@]}" -czf - src package.json package-lock.json README.md) > dist/thinker.tgz
 node --input-type=module - dist/thinker.tgz dist/version.json <<'JS'
 import fs from 'node:fs';
 import crypto from 'node:crypto';
