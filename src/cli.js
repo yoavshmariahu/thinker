@@ -7,6 +7,7 @@ import { initAst } from './ast.js';
 import { thinkerHome, maybeCheckDailyUpdateInBackground, checkPendingNotice } from './update.js';
 import { maybeSendTelemetryInBackground } from './telemetry.js';
 import { commands as noteCommands } from './commands/notes.js';
+import { commands as impactCommands } from './commands/impact.js';
 import { commands as cacheCommands } from './commands/cache.js';
 import { commands as learnCommands } from './commands/learn.js';
 import { commands as hookCommands } from './commands/hooks.js';
@@ -19,7 +20,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -131,6 +132,13 @@ const HELP = `thinker — knowledge cache for coding agents
                                  without GitHub, or with --git, commits from git history (--fixes: only those whose message says they fix something)
                                  (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
+  impact [--days n] [--pr n] [--json]   delivery outcomes: tokens per PR and confirmed bugs fixed before merge
+  impact sync [--days n] [--pr n]      read PR lifecycle and commits through gh (no posting)
+  impact link --session id --pr n     attribute a session; --split 12:0.4,13:0.6 splits its tokens
+  impact export | impact import <file.json>   transfer evidence from CI or another machine
+  impact link-review <run-id> --pr n   attach an earlier local review to its PR
+  impact finding <id> --pr n --validity confirmed|dismissed|duplicate|pending --evidence reason
+         [--resolution fixed|open|accepted-risk|not-applicable] [--fix sha] [--duplicate-of id]
   usage [--here] [--days n] [--json]
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, build/distillation tokens, and estimated savings
@@ -161,7 +169,7 @@ const HELP = `thinker — knowledge cache for coding agents
 const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'relink', 'rehash', 'outcome'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...noteCommands, ...cacheCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands };
+const COMMANDS = { ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands };
 
 async function main() {
   if (process.stderr.isTTY && !['update', 'upgrade', 'switch', 'branch', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
@@ -179,7 +187,7 @@ async function main() {
     process.exit(1);
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'impact', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }

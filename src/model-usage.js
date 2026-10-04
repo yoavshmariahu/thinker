@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+import { impactContext, tryImpact } from './impact-journal.js';
 // Provider-reported usage only. Missing counters are null, never an estimate of zero. Everything is
 // counted in tokens: the agents run on subscriptions as often as on metered keys, so a dollar figure
 // derived from list prices told most people what they would not pay. Provider-reported cost is kept
@@ -37,10 +39,14 @@ export function streamModelUsage(provider, stdout) {
 }
 
 export function logModelUsage(store, { purpose, phase = 'maintenance', store: _store, ...context }, response) {
-  store.log({ op: 'model', purpose, phase, ...context, provider: response.provider,
+  const { calls, ...impact } = impactContext.getStore() || {};
+  const event = { op: 'model', eventId: crypto.randomUUID(), purpose, phase, ...context, ...impact, provider: response.provider,
     model: response.model, usage: response.usage ?? null,
     tokens: normalizeModelUsage(response.provider, response.usage), cost: count(response.cost),
-    failed: !!response.failed });
+    failed: !!response.failed };
+  store.log(event);
+  const recorded = tryImpact(store, event);
+  if (recorded && calls) calls.push(recorded);
 }
 
 // The tokens a model answer reported (llm.js puts them on every answer as `tokens`); null when the

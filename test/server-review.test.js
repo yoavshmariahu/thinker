@@ -45,9 +45,10 @@ test('the server reviews a pull request against its clone and posts the review; 
     return { ok: true, status: 200, text: async () => JSON.stringify(body) };
   };
   const s = await listen({ host: '127.0.0.1', port: 0, data: tmp(t, 'server'), adminToken: 'adm', startWorker: false, worker: { githubToken: 'ghs_server', fns: {
-    review: async (store, { scope, kinds, max }) => {
+    review: async (store, { scope, kinds, max, pr }) => {
+      assert.equal(pr, 7);
       reviewed.push({ scope, kinds, max, notes: store.list().map(n => n.id) });
-      return { scope: scope.label, kinds, model: 'sonnet', cost: 0.05, tokens: 50000, notes: { consulted: 1, assessed: 1, staleBefore: [], outdated: [], uncovered: [] }, counts: { error: 1, warning: 0, info: 0 }, errors: [],
+      return { impact: { recorded: true, pr, events: [{ op: 'impact-review', runId: 'fixture-run', pr }] }, scope: scope.label, kinds, model: 'sonnet', cost: 0.05, tokens: 50000, notes: { consulted: 1, assessed: 1, staleBefore: [], outdated: [], uncovered: [] }, counts: { error: 1, warning: 0, info: 0 }, errors: [],
         behaviors: [{ id: 'value-rejects-null', title: 'value rejects null', mutability: 'fixed', outcome: 'violated', reason: 'the null check is gone' }],
         findings: [{ severity: 'error', category: 'violation', file: 'code.js', line: 2, message: 'value no longer throws on null', evidence: '-  if (x === null) throw', confidence: 0.9, note: 'value-rejects-null', notes: ['value-rejects-null'], inChange: true }] };
     },
@@ -95,8 +96,11 @@ test('the server reviews a pull request against its clone and posts the review; 
   const event = path.join(tmp(t, 'event'), 'event.json');
   fs.writeFileSync(event, JSON.stringify({ pull_request: { number: 7, title: 'Drop the check', head: { sha: up.head, ref: 'feature' }, base: { ref: 'main', sha: up.base } } }));
   const summary = path.join(tmp(t, 'summary'), 'summary.md');
-  const r = await run([send], { GITHUB_EVENT_PATH: event, GITHUB_REPOSITORY: 'acme/widgets', GITHUB_API_URL: 'https://api.github.com', GITHUB_STEP_SUMMARY: summary, THINKER_SYNC_URL: url, THINKER_SYNC_TOKEN: token, THINKER_REVIEW_WAIT: '30' });
+  const runner = tmp(t, 'runner'), output = path.join(runner, 'output');
+  const r = await run([send], { RUNNER_TEMP: runner, GITHUB_OUTPUT: output, GITHUB_EVENT_PATH: event, GITHUB_REPOSITORY: 'acme/widgets', GITHUB_API_URL: 'https://api.github.com', GITHUB_STEP_SUMMARY: summary, THINKER_SYNC_URL: url, THINKER_SYNC_TOKEN: token, THINKER_REVIEW_WAIT: '30' });
   assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(runner, 'thinker-review.json'), 'utf8')).impact.events[0].runId, 'fixture-run');
+  assert.match(fs.readFileSync(output, 'utf8'), /report=.*thinker-review.json/);
   assert.match(r.stdout, /PR #7 at \w{10} was already reviewed/);
   assert.match(r.stdout, /posted a REQUEST_CHANGES review \(1 errors, 0 warnings; 1 of 1 behaviors violated, ~50k tokens\)/);
   assert.match(r.stderr, /failing the check/);

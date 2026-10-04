@@ -25,7 +25,7 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   const onLine = x => !!(x && x.file && x.line > 0 && x.inChange);
   const inline = [], rest = [];
   for (const f of findings) (onLine(f) || (f.locations || []).some(onLine) ? inline : rest).push(f);
-  const one = f => `**${f.severity}** ${esc(f.message)}${f.evidence ? `\n\n> ${esc(f.evidence).split('\n').map(s => s.trim()).filter(Boolean).join('\n> ')}` : ''}\n\n<sub>${esc(label(f))}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}</sub>`;
+  const one = f => `**${f.severity}** ${esc(f.message)}${f.evidence ? `\n\n> ${esc(f.evidence).split('\n').map(s => s.trim()).filter(Boolean).join('\n> ')}` : ''}\n\n<sub>${f.id ? `${code(f.id)} · ` : ''}${esc(label(f))}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}</sub>`;
   // one inline comment per place a finding was seen on a changed line: its own, and each location
   // the clustering folded into it (the same regression in the serializer, the test, the docs)
   const comments = [];
@@ -69,7 +69,7 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
     }
     if (rest.length) {
       L.push(`#### Findings${inline.length ? ' not on a changed line' : ''}`, '');
-      for (const f of rest) L.push(`- **${f.severity}** ${f.file ? code(`${f.file}${f.line ? ':' + f.line : ''}`) + ' ' : ''}${esc(f.message)} <sub>${esc(label(f))}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}</sub>${also(f)}`);
+      for (const f of rest) L.push(`- **${f.severity}** ${f.file ? code(`${f.file}${f.line ? ':' + f.line : ''}`) + ' ' : ''}${esc(f.message)} <sub>${f.id ? `${code(f.id)} · ` : ''}${esc(label(f))}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}</sub>${also(f)}`);
       L.push('');
     }
     if (comments.length) L.push(`${comments.length} comment${comments.length === 1 ? '' : 's'} on changed lines ${comments.length === 1 ? 'is' : 'are'} posted inline${inline.length !== comments.length ? ` (${inline.length} finding${inline.length === 1 ? '' : 's'})` : ''}.`, '');

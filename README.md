@@ -235,6 +235,33 @@ rather than served, and review still reads them: `thinker archive --list` shows 
 back, and `archive` in `.thinker/config.json` sets the rules or turns them
 off.
 
+## Delivery outcomes
+
+`thinker impact` connects recorded agent work and reviews to merged pull requests:
+observed tokens per PR, merge timing, and confirmed defects fixed before merge.
+
+```sh
+thinker impact sync --days 30                  # read PRs and commits through your gh login
+thinker impact                                # delivery summary and measurement coverage
+thinker impact --pr 142 --json                 # sessions, findings, fixes, and token evidence
+thinker impact link --session <id> --pr 142    # correct or supply attribution
+thinker review --base main --pr 142            # retain this review's findings and usage
+```
+
+Sessions are linked automatically only when their observed commit movement belongs
+to one synced PR. Explicit links can split work across PRs. Reviews retain stable
+finding IDs across identical reruns; a disappearance is never counted as a fix.
+A confirmed, fixed finding counts only when its fixing commit belongs to the PR
+and falls between the finding and merge. Confirmation is explicitly human-reported.
+
+Missing counters and unlinked work remain visible. The median uses PRs with complete
+counters for their linked recorded sessions; it does not imply that all contributors
+or subagents were recorded. Shared learning/setup overhead is shown separately.
+No improvement over a baseline is claimed without comparative evidence.
+
+See [the delivery measurement guide](docs/delivery-outcomes.md) for finding decisions,
+CI imports, accounting rules, and the versioned JSON format for a future dashboard.
+
 ## Cache usage and savings
 
 Run `thinker stats` for a machine-wide dashboard of activity, agent usage,

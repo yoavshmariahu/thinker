@@ -12,6 +12,7 @@
 //   cursor  Cursor agent transcript JSONL (tool calls without their results)
 //   gemini  Gemini CLI session JSON
 import fs from 'node:fs';
+import { normalizeModelUsage } from './model-usage.js';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -97,25 +98,36 @@ class ModelTally {
 // turn as the agent reported them (Claude Code and Cursor: message.usage; Codex: token_count
 // events). Read by the stop hook into the `session` log line, for the holdout comparison in usage.js.
 class Stats {
-  constructor() { this.toolCalls = 0; this.turns = 0; this.inputTokens = null; }
-  turn(usage) {
+  constructor() { this.toolCalls = 0; this.turns = 0; this.inputTokens = null; this.outputTokens = null; this.cacheReadTokens = null; this.cacheWriteTokens = null; this.covered = 0; this.measured = 0; this.cumulative = false; }
+  turn(usage, provider = 'anthropic') {
     this.turns++;
     if (!usage || typeof usage !== 'object') return;
-    const n = (usage.input_tokens || 0) + (usage.cache_read_input_tokens || 0) + (usage.cache_creation_input_tokens || 0);
-    if (n > 0) this.inputTokens = (this.inputTokens || 0) + n;
+    const t = normalizeModelUsage(provider, usage);
+    this.measured++;
+    if (t.totalTokens !== null) this.covered++;
+    for (const k of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']) if (t[k] !== null) this[k] = (this[k] || 0) + t[k];
   }
-  total(inputTokens) { if (Number.isFinite(inputTokens) && inputTokens > 0) this.inputTokens = inputTokens; }
-  get value() { return { toolCalls: this.toolCalls, turns: this.turns, inputTokens: this.inputTokens }; }
+  total(usage) {
+    const t = normalizeModelUsage('codex', usage);
+    if (t.inputTokens === null && t.totalTokens === null) return;
+    for (const k of ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']) this[k] = t[k];
+    this.cumulative = true; this.measured = 1; this.covered = t.totalTokens !== null ? 1 : 0;
+  }
+  get value() {
+    const complete = this.cumulative ? this.covered === 1 : this.turns > 0 && this.covered === this.turns;
+    const totalTokens = this.inputTokens !== null && this.outputTokens !== null ? this.inputTokens + this.outputTokens : null;
+    return { toolCalls: this.toolCalls, turns: this.turns, inputTokens: this.inputTokens, outputTokens: this.outputTokens, cacheReadTokens: this.cacheReadTokens, cacheWriteTokens: this.cacheWriteTokens, totalTokens, tokenCoverage: complete ? 'complete' : 'partial' };
+  }
 }
 
 // Claude Code and Cursor share the Anthropic message shape; Cursor puts the role at the top level.
 function parseMessages(rows, fromLine) {
-  const events = [], results = new Map(), models = new ModelTally(), stats = new Stats();
+  const events = [], results = new Map(), models = new ModelTally(), stats = new Stats(), messageUsage = new Map();
   let cwd = null;
   rows.forEach((j, i) => {
     if (!j) return;
     if (j.type === 'assistant' || j.role === 'assistant') models.add(j.message?.model ?? j.model);
-    if (j.type === 'assistant' || j.role === 'assistant') { stats.turn(j.message?.usage ?? j.usage); for (const b of Array.isArray(j.message?.content) ? j.message.content : []) if (b.type === 'tool_use') stats.toolCalls++; }
+    if (j.type === 'assistant' || j.role === 'assistant') { messageUsage.set(j.message?.id || j.id || `row-${i}`, j.message?.usage ?? j.usage); for (const b of Array.isArray(j.message?.content) ? j.message.content : []) if (b.type === 'tool_use') stats.toolCalls++; }
     if (i < fromLine) return;
     if (j.cwd && !cwd) cwd = j.cwd;
     // streamed output of headless runs: Cursor `agent -p`, Gemini `gemini -p`
@@ -145,6 +157,7 @@ function parseMessages(rows, fromLine) {
       else if (b.type === 'tool_result') results.set(b.tool_use_id, textOf(b.content));
     }
   });
+  for (const usage of messageUsage.values()) stats.turn(usage);
   return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value };
 }
 
@@ -159,7 +172,8 @@ function parseCodex(rows, fromLine) {
     if (j.type === 'session_meta' && p.cwd) cwd = p.cwd;
     if (j.type === 'turn_context' || j.type === 'session_meta') models.add(p.model);
     if (j.type === 'thread.started' || j.type === 'turn.started') models.add(j.model ?? j.thread?.model);
-    if (j.type === 'event_msg' && p.type === 'token_count') stats.total(p.info?.total_token_usage?.input_tokens ?? p.info?.total_token_usage?.inputTokens);
+    if (j.type === 'turn.completed') stats.turn(j.usage, 'codex');
+    if (j.type === 'event_msg' && p.type === 'token_count') stats.total(p.info?.total_token_usage);
     if (j.type === 'response_item' && (p.type === 'function_call' || p.type === 'custom_tool_call' || p.type === 'local_shell_call')) stats.toolCalls++;
     if (j.type === 'response_item' && p.type === 'message' && p.role === 'assistant') stats.turns++;
     if (i < fromLine) return;
@@ -188,12 +202,12 @@ function parseCodex(rows, fromLine) {
 }
 
 function parseGemini(j, fromLine) {
-  const events = [], models = new ModelTally();
+  const events = [], models = new ModelTally(), stats = new Stats();
   const msgs = j.messages || j.history || [];
   models.add(j.model);
   msgs.forEach((m, i) => {
     const role = m.type || m.role;
-    if (role !== 'user') models.add(m.model);
+    if (role !== 'user') { models.add(m.model); stats.turn(m.tokens || m.usage, 'gemini'); stats.toolCalls += (m.toolCalls || []).length; }
     if (i < fromLine) return;
     const text = textOf(m.content ?? m.parts ?? m.text);
     if (role === 'user') { const t = cleanPrompt(text); if (t) events.push({ t: 'prompt', text: t }); }
@@ -202,7 +216,7 @@ function parseGemini(j, fromLine) {
       if (text) events.push({ t: 'say', text });
     }
   });
-  return { events, cwd: j.projectPath || j.cwd || null, count: msgs.length, model: models.model };
+  return { events, cwd: j.projectPath || j.cwd || null, count: msgs.length, model: models.model, stats: stats.value };
 }
 
 function parseEvents(rows, fromLine) {

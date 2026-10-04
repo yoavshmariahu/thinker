@@ -63,11 +63,12 @@ inputs:
 outputs:
   report:
     description: Path of the JSON report
-    value: ${{ steps.review.outputs.report }}
+    value: ${{ steps.review.outputs.report || steps.server-review.outputs.report }}
 runs:
   using: composite
   steps:
     - name: Send the pull request to the thinker server and wait for its review
+      id: server-review
       if: inputs.url != ''
       shell: bash
       run: node "$GITHUB_ACTION_PATH/send.mjs"

@@ -147,6 +147,9 @@ test('review assembles the report: model findings carry the note and the line, o
   store.put({ ...notes.invariant, id: 'duplicate-view', title: 'Invoke validates first', kind: 'gotcha', confidence: 0.6 });
   const before = JSON.stringify(store.list());
   const r = await review(store, { strategy: { mode: 'per-note' }, assess });
+  assert.ok(r.impact.recorded);
+  assert.ok(r.impact.events.some(e => e.op === 'impact-review' && e.runId === r.runId && e.findings[0].id === r.findings[0].id));
+  assert.match(r.findings[0].id, /^f-/);
   assert.deepEqual(calls.map(c => c.id).sort(), ['cli-and-core-change-together', 'duplicate-view', 'validate-before-main']);
   // two notes saw the same problem at the same line: one finding, the surer wording, both notes named
   assert.equal(r.findings.length, 1); assert.deepEqual(r.findings[0].notes, ['validate-before-main', 'duplicate-view']); assert.equal(r.findings[0].confidence, 0.9);

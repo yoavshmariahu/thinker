@@ -13,6 +13,7 @@
 //   THINKER_REVIEW_WAIT     seconds to wait for the result (default 600; 0: send and leave)
 //   GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GITHUB_API_URL, GITHUB_STEP_SUMMARY   set by Actions
 import fs from 'node:fs';
+import path from 'node:path';
 
 const env = process.env;
 const url = String(env.THINKER_SYNC_URL || '').replace(/\/+$/, '');
@@ -51,6 +52,11 @@ async function main() {
     await sleep(Number(env.THINKER_REVIEW_POLL_MS) || 10_000);
     rec = (await server('GET', `/v1/repos/${encodeURIComponent(repoId)}/reviews/${pr.number}`)).review;
     if (rec && rec.headSha && req.headSha && rec.headSha !== req.headSha && rec.status !== 'queued') { console.log(`thinker: the server reviewed a newer head (${rec.headSha.slice(0, 10)}); this run stands down`); return; }
+  }
+  if (env.RUNNER_TEMP) {
+    const file = path.join(env.RUNNER_TEMP, 'thinker-review.json');
+    fs.writeFileSync(file, JSON.stringify(rec, null, 2));
+    if (env.GITHUB_OUTPUT) fs.appendFileSync(env.GITHUB_OUTPUT, `report=${file}\n`);
   }
   if (rec.status === 'failed') fail(`the review failed on the server: ${rec.error}`);
   if (rec.body) {

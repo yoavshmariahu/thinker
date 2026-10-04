@@ -1,3 +1,4 @@
+import { gitContext, tryImpact } from '../impact-journal.js';
 // The hook entrypoints the agents call (clients.js installs them): prompt, tool and stop, with the
 // background catch-up and team-cache pull they start. JSON on stdin, the client's answer on stdout.
 import fs from 'node:fs';
@@ -52,6 +53,7 @@ async function hookCommand(ctx) {
   // installed hooks carry --record; THINKER_NO_LEARN=1 switches learning off without reinstalling them
   if (NO_LEARN) flags.record = false;
   if (pos[0] === 'prompt') {
+    if (store.exists() && session !== 'unknown') tryImpact(store, { op: 'impact-observation', session, ...gitContext(repo) });
     if (client === 'copilot' || client === 'cursor') takePending(store.dir, session);
     if (client === 'cursor') out(JSON.stringify({ continue: true })); // cannot add context here; see clients.js
     if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
@@ -121,7 +123,7 @@ async function hookCommand(ctx) {
     // what the turn's servings saved, for the user; the ids are cleared so the next turn starts from none
     const served = takeTurn(store, session !== 'unknown' ? session : null);
     // what the session has cost so far, for the holdout comparison (usage.js); the last line per session counts
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); store.log({ op: 'session', session, client, model: p.model || undefined, holdout: holdoutSession(store, session) || undefined, ...(p.stats || {}) }); } catch {} }
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, client, model: p.model || undefined, holdout: holdoutSession(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); tryImpact(store, record); } catch {} }
     if (noticeOn(store)) {
       const notice = [served.length ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
       const o = stopOutput(client, notice); if (o) out(o);

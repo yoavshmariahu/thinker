@@ -69,13 +69,13 @@ export class Worker {
     const base = rv.baseSha && repo.hasCommit(rv.baseSha) ? rv.baseSha : `origin/${rv.baseRef}`;
     const scope = resolveScope(repo.checkout, { ref: head, base });
     const run = this.fns.review || review;
-    const report = await run(store, { scope, kinds: rv.kinds && rv.kinds.length ? rv.kinds : undefined, max: rv.max || 12, model: store.config().reviewModel });
+    const report = await run(store, { scope, pr: rv.number, kinds: rv.kinds && rv.kinds.length ? rv.kinds : undefined, max: rv.max || 12, model: store.config().reviewModel });
     const built = buildReview(report, { failOn: rv.failOn || 'error', quiet: rv.quiet !== false });
     const slug = repo.id.replace(/^github\.com\//, '');
     let posted = { posted: false, dismissed: [] };
     if (this.githubToken) posted = await publish({ review: built, slug, number: rv.number, sha: head, token: this.githubToken, api: this.githubApi || rv.apiUrl || 'https://api.github.com', fetch: this.fns.github || globalThis.fetch, log: m => this.log(repo.id, m) });
     else this.log(repo.id, `review #${rv.number}: no GitHub token (THINKER_SERVER_GITHUB_TOKEN); the review was not posted`);
-    const rec = repo.finishReview(rv.number, { status: 'done', headSha: head, base: scope.base, counts: report.counts || { error: 0, warning: 0, info: 0 }, behaviors: (report.behaviors || []).map(b => ({ id: b.id, title: b.title, mutability: b.mutability, outcome: b.outcome })), findings: (report.findings || []).length, event: built.event, fail: built.fail, summary: built.summary, body: built.body, wouldPost: built.post, posted: posted.posted, postStatus: posted.status, dismissed: posted.dismissed.length, cost: report.cost || 0, tokens: report.tokens || 0, model: report.model, errors: report.errors || [] });
+    const rec = repo.finishReview(rv.number, { status: 'done', impact: report.impact, headSha: head, base: scope.base, counts: report.counts || { error: 0, warning: 0, info: 0 }, behaviors: (report.behaviors || []).map(b => ({ id: b.id, title: b.title, mutability: b.mutability, outcome: b.outcome })), findings: (report.findings || []).length, event: built.event, fail: built.fail, summary: built.summary, body: built.body, wouldPost: built.post, posted: posted.posted, postStatus: posted.status, dismissed: posted.dismissed.length, cost: report.cost || 0, tokens: report.tokens || 0, model: report.model, errors: report.errors || [] });
     this.log(repo.id, `review #${rv.number} at ${head.slice(0, 8)}: ${built.summary}${posted.posted ? `; posted ${built.event}` : built.post ? '; not posted' : ''}`);
     return rec;
   }

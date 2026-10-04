@@ -87,7 +87,7 @@ test('the hooks of a held-out session serve nothing and log the session stats at
   assert.ok(s, 'a session line'); assert.equal(s.holdout, true); assert.equal(s.model, 'claude-test-1');
   assert.equal(s.toolCalls, 1); assert.equal(s.turns, 2); assert.equal(s.inputTokens, 3000, 'input, cache reads and cache writes of every turn');
   const stats = parseTranscript(transcript).stats;
-  assert.deepEqual(stats, { toolCalls: 1, turns: 2, inputTokens: 3000 });
+  assert.deepEqual(stats, { toolCalls: 1, turns: 2, inputTokens: 3000, outputTokens: null, cacheReadTokens: 2850, cacheWriteTokens: null, totalTokens: null, tokenCoverage: 'partial' });
 }));
 
 test('usage compares served and held-out sessions by their own transcripts, and says when there are too few', () => {

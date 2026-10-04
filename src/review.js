@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+import { impactContext, tryImpact, findingId, reviewPrNumber, gitContext } from './impact-journal.js';
 // Review of a change against the knowledge cache: which notes the change touches or bears on,
 // whether it breaks what they state, and what the git history says should have changed with it.
 //
@@ -608,7 +610,29 @@ export async function triageNote(store, note, change, symbols, { model = 'haiku'
 // `thinker verify`, since the change under review may never be merged. `kinds` narrows the notes
 // consulted to those kinds (`['behavior']`: the desired behaviors alone, which is what a pull
 // request check asks; the no-notes baseline call is then left out, since only the rules are asked).
-export async function review(store, { scope, paths = [], max = 12, model, dry = false, concurrency = 4, assess = assessNote, strategy = {}, kinds } = {}) {
+export async function review(store, options = {}) {
+  options = { ...options, scope: options.scope || resolveScope(store.repo) };
+  const pr = reviewPrNumber(options.pr), runId = crypto.randomUUID();
+  const startedAt = new Date().toISOString();
+  const context = gitContext(store.repo);
+  return impactContext.run({ impactRun: runId, impactPr: pr, calls: [] }, async () => {
+    try {
+      const report = await reviewImpl(store, options);
+      if (!options.dry) {
+        report.runId = runId;
+        report.findings = (report.findings || []).map(f => ({ ...f, id: findingId(f) }));
+        const event = tryImpact(store, { op: 'impact-review', runId, pr, startedAt, completedAt: new Date().toISOString(), head: options.scope?.head === 'worktree' || options.scope?.head === 'index' ? context.head : options.scope?.head, branch: context.branch, scope: options.scope, model: report.model, tokens: report.tokens > 0 || !report.notes?.assessed && !report.errors?.length ? report.tokens ?? 0 : null, findings: report.findings, notes: report.notes, errors: report.errors || [] });
+        report.impact = { recorded: !!event, pr: pr || null, events: event ? [...impactContext.getStore().calls, event] : [] };
+      }
+      return report;
+    } catch (error) {
+      if (!options.dry) tryImpact(store, { op: 'impact-review', runId, pr, startedAt, scope: options.scope, findings: [], tokens: null, errors: [String(error.message || error)] });
+      throw error;
+    }
+  });
+}
+
+async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = false, concurrency = 4, assess = assessNote, strategy = {}, kinds } = {}) {
   const only = Array.isArray(kinds) && kinds.length ? new Set(kinds) : null;
   const strat = { ...DEFAULT_STRATEGY, ...(only && !strategy.mode ? { mode: 'per-note' } : {}), ...strategy };
   const repo = store.repo;
@@ -781,6 +805,7 @@ export function renderReview(r, { verbose = false } = {}) {
     for (const f of r.findings) {
       const where = f.file ? `${f.file}${f.line ? ':' + f.line : ''}` : '(no file)';
       L.push(`  ${f.severity.padEnd(8)} ${where}  ${f.message}${f.notes?.length || f.note ? `  [note${(f.notes?.length || 1) > 1 ? 's' : ''} ${(f.notes?.length ? f.notes : [f.note]).join(', ')}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}]` : f.basis ? `  [${f.basis}]` : f.confidence ? `  [from the code, ${Math.round(f.confidence * 100)}%]` : ''}`);
+      if (f.id) L.push(`           finding: ${f.id}`);
       if (f.evidence) L.push(`           evidence: ${f.evidence.split('\n').map(s => s.trim()).filter(Boolean).join(' | ').slice(0, 300)}`);
       if (f.locations?.length) L.push(`           also at: ${f.locations.slice(0, 6).map(l => `${l.file}${l.line ? ':' + l.line : ''} (${l.message.slice(0, 80)}${l.message.length > 80 ? '…' : ''})`).join('; ')}${f.locations.length > 6 ? ` (+${f.locations.length - 6} more)` : ''}`);
     }
@@ -805,5 +830,6 @@ export function renderReview(r, { verbose = false } = {}) {
     if (r.triage?.length) L.push('', `Triage: ${r.triage.filter(t => t.bears).length} of ${r.triage.length} notes went to the model`);
     if (r.verified) L.push('', `Verification: ${r.verified.kept} finding${r.verified.kept === 1 ? '' : 's'} confirmed, ${r.verified.dropped.length} dropped${r.verified.dropped.length ? ': ' + r.verified.dropped.map(d => `${d.file}:${d.line} (${d.reason.slice(0, 100)})`).join('; ') : ''}`);
   }
+  if (r.runId) L.push('', `Impact review: ${r.runId}${r.impact?.pr ? ` · PR #${r.impact.pr}` : ' · attach with thinker impact link-review <run-id> --pr <number>'}${r.impact?.recorded === false ? ' · recording unavailable' : ''}`);
   return L.join('\n');
 }
