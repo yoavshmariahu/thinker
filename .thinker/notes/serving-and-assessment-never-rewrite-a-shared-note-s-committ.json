@@ -14,15 +14,15 @@
     {
       "path": "src/store.js",
       "symbol": "Store.put",
-      "hash": "sha256:b50df9bd55dab26f347bd4be",
-      "line": 368,
+      "hash": "sha256:e5b3d6de536484af050fc5d8",
+      "line": 378,
       "missing": false
     },
     {
       "path": "src/store.js",
       "symbol": "Store.promote",
       "hash": "sha256:1721cd82760f9837a5a3ef35",
-      "line": 396,
+      "line": 406,
       "missing": false,
       "fanout": {
         "files": 5,
@@ -33,8 +33,8 @@
     {
       "path": "src/ops.js",
       "symbol": "attest",
-      "hash": "sha256:21e46d400bee9b91f1901e1e",
-      "line": 364,
+      "hash": "sha256:786cc09dd828479954bc60bc",
+      "line": 298,
       "missing": false,
       "fanout": {
         "files": 18,
@@ -47,8 +47,8 @@
     "type": "human"
   },
   "created": "2026-10-04T05:12:42.428Z",
-  "verified": "2026-10-04T05:12:42.428Z",
-  "verifiedCommit": "d5a567af5622de4cf9f8be8af51953d615f32ee2",
+  "verified": "2026-10-04T05:51:27.948Z",
+  "verifiedCommit": "907a273a640899608131d1ec2482b0b547c54e95",
   "confidence": 0.95,
   "related": [
     "note-staleness-lifecycle-create-baseline-lazy-refresh-verify",
