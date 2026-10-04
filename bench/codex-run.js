@@ -120,6 +120,11 @@ function cacheUse(wt) {
   use.injected = [...ids];
   return use;
 }
+// The hook is shown the request as a person would type it: the benchmark's first paragraph ("Implement the
+// following change in this repository. Do not install dependencies…") is harness instruction, and with the
+// cross-encoder reading the request's first 120 tokens it crowded the request out (2026-10-04: nothing served
+// on four tasks that get a note on the bare request). The agent still receives the whole prompt.
+const requestOf = p => /^Implement the following change/.test(p) ? (p.split('\n\n').slice(1).join('\n\n') || p) : p;
 function contextFor(task, session) {
   const env = {
     ...process.env,
@@ -130,7 +135,7 @@ function contextFor(task, session) {
     const text = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'codex', '--repo', REPO, '--budget', String(BUDGET)], {
       cwd: REPO,
       env,
-      input: JSON.stringify({ prompt: task.prompt, session_id: session }),
+      input: JSON.stringify({ prompt: requestOf(task.prompt), session_id: session }),
       encoding: 'utf8',
       maxBuffer: 1 << 24,
       stdio: ['pipe', 'pipe', 'ignore'],

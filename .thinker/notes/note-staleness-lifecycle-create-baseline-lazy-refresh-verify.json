@@ -20,42 +20,42 @@
       "path": "src/ops.js",
       "symbol": "createNote",
       "hash": "sha256:1f07ebbdcc639d70414d5aad",
-      "line": 112,
+      "line": 113,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "refresh",
       "hash": "sha256:1da7ddb1ddebd0d01243f195",
-      "line": 139,
+      "line": 140,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "verifyNote",
       "hash": "sha256:1498e824893e1bc94e9682bc",
-      "line": 678,
+      "line": 699,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "orient",
-      "hash": "sha256:2e6e7121545eb5c77deb5627",
-      "line": 217,
+      "hash": "sha256:bad9bb48b7f3e096461f5320",
+      "line": 218,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "lookup",
       "hash": "sha256:c786bd92e09e6a8bbcee3553",
-      "line": 469,
+      "line": 484,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "gitDiffFor",
       "hash": "sha256:2ab1811899cbd193dabef5b7",
-      "line": 648,
+      "line": 669,
       "missing": false
     },
     {
@@ -82,15 +82,15 @@
     {
       "path": "src/rank.js",
       "symbol": "rank",
-      "hash": "sha256:b7ea517b11b55744e9ea7a5e",
-      "line": 124,
+      "hash": "sha256:fa9efcf9afae7fa244a72476",
+      "line": 127,
       "missing": false
     },
     {
       "path": "src/rank.js",
       "symbol": "renderNote",
       "hash": "sha256:2bc95879c4831d6c558a64bd",
-      "line": 185,
+      "line": 216,
       "missing": false
     },
     {
@@ -112,6 +112,6 @@
     "type": "agent"
   },
   "created": "2026-09-26T09:33:10.424Z",
-  "verified": "2026-10-04T19:07:24.513Z",
+  "verified": "2026-10-04T19:25:31.936Z",
   "confidence": 1
 }

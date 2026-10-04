@@ -99,6 +99,9 @@ export function bm25(index, qtoks, k1 = 1.4, b = 0.6) {
 // distinct: different discriminative words a long request must share with a note answered on one
 // question-side word (see `terms` in rank).
 export const MIN_COVER = { body: 0.20, question: 0.05, terms: 3, agentBody: 0.30, distinct: 4 };
+// dense (dense.js, THINKER_DENSE=minilm): a note whose dense score reaches this passes the gate without
+// lexical cover; measured offline on grafana-v3 (2026-10-04, MiniLM): 0.45 took the hook from 3 to 7 of 11 tasks hit at precision 0.16 → 0.22, doubling the tokens served; 0.40 served twice as many notes again for no further hit
+export const DENSE_FLOOR = Number(process.env.THINKER_DENSE_FLOOR) || 0.45;
 
 // path affinity: 1 if a dep is the current file, decaying by directory distance
 function pathAffinity(note, file) {
@@ -121,7 +124,7 @@ const KIND_PRIOR = { howto: 0.15, rule: 0.1, map: 0.07, behavior: 0.12 };
 // "launches without the check" describe the fault.
 export const subject = q => String(q).replace(/\b(?:do not|don't|dont|no need to)\b[^.;:\n]*/gi, ' ');
 
-export function rank(notes, { query = '', file = '', mode = 'orient', loose = false, minBody, cover } = {}) {
+export function rank(notes, { query = '', file = '', mode = 'orient', loose = false, minBody, cover, dense = null } = {}) {
   const idx = buildIndex(notes);
   const qtoks = tokenize(subject(query) + ' ' + (file || ''));
   const qset = new Set(qtoks);
@@ -149,7 +152,20 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
   const qset0 = [...new Set(qtoks)];
   // different discriminative words of the request the note holds, on either side
   const distinct = n => qset0.filter(t => (docQ.get(n.id)?.has(t) || docB.get(n.id)?.has(t)) && discriminative(t)).length;
-  return notes.map(n => {
+  // dense gate variants under test (THINKER_DENSE_GATE, comma list): abs (score >= DENSE_FLOOR, default),
+  // z (score at least DENSE_Z standard deviations above the mean over all notes for this request),
+  // lex (the note also shares a discriminative word with the request); THINKER_DENSE_RESCUE=n lets at
+  // most the n best dense notes through on dense alone
+  const gate = new Set((process.env.THINKER_DENSE_GATE || 'abs').split(',').map(x => x.trim()).filter(Boolean));
+  const Z = Number(process.env.THINKER_DENSE_Z) || 3, RESCUE = Number(process.env.THINKER_DENSE_RESCUE) || 0;
+  let dMean = 0, dStd = 1, dRank = new Map();
+  if (dense) {
+    const vals = notes.map(n => dense.get(n.id)).filter(v => v != null);
+    dMean = vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
+    dStd = Math.sqrt(vals.reduce((a, b) => a + (b - dMean) ** 2, 0) / (vals.length || 1)) || 1;
+    [...notes].filter(n => dense.has(n.id)).sort((a, b) => dense.get(b.id) - dense.get(a.id)).forEach((n, i) => dRank.set(n.id, i + 1));
+  }
+  const rows = notes.map(n => {
     const mq = Q.matched.get(n.id) || 0, mb = B.matched.get(n.id) || 0;
     const aff = pathAffinity(n, file);
     const cover = (B.scores.get(n.id) || 0) / Math.max(1e-9, B.mass), coverQ = (Q.scores.get(n.id) || 0) / Math.max(1e-9, Q.mass);
@@ -157,8 +173,17 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
     // titled "Cache hit notice" and in its body, with "claude" and "usage", let it through for "change
     // how long we wait before retrying when claude -p hits a usage limit". Four different words are asked.
     const terms = short ? mq >= 1 && (Q.held.get(n.id) || 0) >= Math.min(2, Q.uniq) : mq >= 2 || (mq >= 1 && mb >= 3 && distinct(n) >= MIN_COVER.distinct);
-    const passes = (loose ? (mq + mb) >= 1 || aff > 0 : ((!subjectless && terms && cover >= minB && coverQ >= minQ) || aff > 0));
-    const rel = passes ? 0.7 * (Q.scores.get(n.id) || 0) / maxQ + 0.3 * (B.scores.get(n.id) || 0) / maxB : 0;
+    // dense: the cosine score of the request against the note (dense.js); a note the model finds close
+    // passes without lexical cover, and the relevance becomes a blend of the two (normalized below)
+    const ds = dense ? (dense.get(n.id) ?? 0) : 0;
+    const densePass = !!dense && !subjectless && dense.has(n.id)
+      && (!gate.has('abs') || ds >= DENSE_FLOOR)
+      && (!gate.has('z') || (ds - dMean) / dStd >= Z)
+      && (!gate.has('lex') || (mq + mb) >= 1)
+      && (!RESCUE || (dRank.get(n.id) || Infinity) <= RESCUE);
+    const passes = (loose ? (mq + mb) >= 1 || aff > 0 : ((!subjectless && terms && cover >= minB && coverQ >= minQ) || aff > 0 || densePass));
+    const lex = 0.7 * (Q.scores.get(n.id) || 0) / maxQ + 0.3 * (B.scores.get(n.id) || 0) / maxB;
+    const rel = passes ? (dense ? 0.5 * lex + ds : lex) : 0;
     const prior = mode === 'orient' ? (KIND_PRIOR[n.kind] || 0) * 0.3 : 0;
     const conf = (n.confidence ?? 0.7);
     // what sessions did with the note when it was served (ops.js:attest), smoothed towards an even
@@ -167,8 +192,14 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
     let score = rel + aff * 0.4 + prior + 0.05 * conf + 0.2 * (acted - 0.5);
     if (n.status === 'stale') score *= 0.6;
     if (n.status === 'invalid' || n.archived) score = -1; // archived: kept for review, drilldown and lookup by id (ops.js:archiveNotes)
-    return { note: n, score, rel, aff, cover, coverQ, matched: mq + mb };
-  }).filter(r => r.score > 0 && (r.rel > 0 || r.aff > 0)).sort((a, b) => b.score - a.score);
+    return { note: n, score, rel, aff, cover, coverQ, dense: ds, matched: mq + mb };
+  });
+  // with dense scores the blend is normalized to the best passing note, as the lexical relevance is
+  if (dense) {
+    const top = Math.max(1e-9, ...rows.map(r => r.rel));
+    for (const r of rows) if (r.rel > 0) { r.score += r.rel / top - r.rel; r.rel = r.rel / top; }
+  }
+  return rows.filter(r => r.score > 0 && (r.rel > 0 || r.aff > 0)).sort((a, b) => b.score - a.score);
 }
 
 export const estTokens = s => Math.ceil(String(s).length / 3.6);
