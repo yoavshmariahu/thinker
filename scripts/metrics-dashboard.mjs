@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Local Metabase backed by durable Docker volumes; production access is read-only.
 import fs from 'node:fs';
+import { deliveryQuestions } from './delivery-dashboard.mjs';
 import path from 'node:path';
 import net from 'node:net';
 import { randomBytes } from 'node:crypto';
@@ -8,7 +9,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const root = path.resolve(import.meta.dirname, '..');
-const work = path.join(root, '.metrics-work/dashboard');
+const work = process.env.THINKER_DASHBOARD_WORK || path.join(root, '.metrics-work/dashboard');
 const stateFile = path.join(work, 'state.json');
 const base = 'http://127.0.0.1:3030';
 const tunnelPort = 15432;
@@ -102,7 +103,7 @@ const costQuestions = [
   { name: 'Distillation measurement coverage', display: 'table', sql: `SELECT count(*) FILTER (WHERE raw_json #>> '{distillation,schemaVersion}' = '1') AS installations_with_instrumentation, ${distillSum('attempts')} AS measured_runs, ${distillSum('legacySuccessfulRuns')} AS older_completions_without_outcomes, ${distillSum('durationSamples')} AS timed_runs, ${distillSum('costKnownCalls')} AS model_calls_with_cost, ${distillSum('costUnknownCalls')} AS model_calls_without_cost, ${distillSum('modelFailedCalls')} AS failed_model_attempts FROM v_latest_installs` }
 ];
 performanceQuestions.push(...costQuestions);
-const questions = [...diagnosticQuestions, ...performanceQuestions];
+const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions];
 const performanceCardNames = [...performanceQuestions.map(q => q.name), 'Note assessments · latest snapshots', 'Savings estimates · latest snapshots'];
 
 const filterDefs = [
@@ -155,13 +156,13 @@ async function provision() {
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && state.cardVersion === 4) continue;
+    if (existingId && (question.delivery ? state.deliveryCardVersion === 2 : state.cardVersion === 4)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 4; save();
+  state.cardVersion = 4; state.deliveryCardVersion = 2; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -230,6 +231,28 @@ async function provision() {
         ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
     }
   }
+  if (!state.deliveryId) {
+    state.deliveryId = (await api('/dashboard', 'POST', { name: 'PR delivery & review', collection_id: state.collectionId,
+      description: 'Observed tokens per merged PR, confirmed fixes, elapsed merge timing and coverage. Aggregate 30-day snapshots; no causal improvement claim.' })).id;
+    save();
+  }
+  if (state.deliveryDashboardVersion !== 1) {
+    const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
+      visualization_settings: { virtual_card: { display: 'text' }, text: '## What did we ship, and what did Thinker help catch?\n30-day snapshots from updated clients after PR metadata is synced. No data means not measured, not zero bugs or zero tokens.\n**Attribution:** counts are PR observations, not unique team PRs. Latest snapshot per known device (installation fallback); several contributors can observe the same PR. Complete counters cover linked recorded work only. Comparative improvement is not established.' } }];
+    deliveryQuestions.forEach((q, i) => {
+      const scalar = i < 4, j = i - 4;
+      cards.push({ id: -(i + 2), card_id: state.cards[q.name], row: scalar ? 4 : 8 + Math.floor(j / 2) * 8,
+        col: scalar ? i * 6 : j % 2 * 12, size_x: scalar ? 6 : q.fullWidth ? 24 : 12, size_y: scalar ? 4 : 8,
+        parameter_mappings: mappings(state.cards[q.name]) });
+    });
+    await api(`/dashboard/${state.deliveryId}`, 'PUT', { parameters, dashcards: cards });
+    state.deliveryDashboardVersion = 1; save();
+  } else {
+    const dashboard = await api(`/dashboard/${state.deliveryId}`);
+    await api(`/dashboard/${state.deliveryId}`, 'PUT', { parameters: [...parameters,
+      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
+  }
+  console.log(`Delivery: http://localhost:3030/dashboard/${state.deliveryId}`);
   console.log(`Dashboard: http://localhost:3030/dashboard/${state.dashboardId}`);
   console.log(`Waitlist: http://localhost:3030/dashboard/${state.waitlistId}`);
   console.log(`SQL editor: http://localhost:3030/question#?db=${db.id}&type=native`);
@@ -250,6 +273,18 @@ async function verify() {
     if (result.status !== 'completed' || result.data.rows[0][0] !== 0) throw new Error(`Filter did not restrict data: ${id}`);
   }
   console.log('PASS: platform, version, device ID, and report-type filters restrict results.');
+  if (state.deliveryId) {
+    const delivery = await api(`/dashboard/${state.deliveryId}`);
+    if (deliveryQuestions.some(q => !delivery.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Delivery dashboard is missing cards');
+    for (const [id] of filterDefs) {
+      if (!delivery.parameters.some(p => p.id === id) || delivery.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id))) throw new Error(`Unmapped delivery filter: ${id}`);
+      const result = await api(`/card/${state.cards['Delivery measurement coverage']}/query`, 'POST', {
+        parameters: [{ id, type: 'string/=', target: ['variable', ['template-tag', id]], value: ['__thinker_no_matching_value__'] }]
+      });
+      if (result.status !== 'completed' || result.data.rows[0][0] !== 0) throw new Error(`Delivery filter did not restrict data: ${id}`);
+    }
+    console.log('PASS: delivery layout and filters.');
+  }
   if (performanceCardNames.some(name => !dashboard.dashcards.some(card => card.card_id === state.cards[name]))) {
     throw new Error('Starter dashboard is missing cards');
   }
@@ -267,7 +302,7 @@ async function verify() {
 
 async function main() {
   const command = process.argv[2] || 'start';
-  if (!['start', 'stop', 'status', 'login', 'verify', 'tunnel'].includes(command)) throw new Error('Usage: node scripts/metrics-dashboard.mjs [start|stop|status|login|verify|tunnel]');
+  if (!['start', 'stop', 'status', 'login', 'verify', 'tunnel', 'refresh'].includes(command)) throw new Error('Usage: node scripts/metrics-dashboard.mjs [start|stop|status|login|verify|tunnel|refresh]');
   fs.mkdirSync(work, { recursive: true, mode: 0o700 });
   fs.chmodSync(work, 0o700);
   if (fs.existsSync(stateFile)) state = JSON.parse(fs.readFileSync(stateFile));
@@ -280,6 +315,7 @@ async function main() {
   if (command === 'status') { console.log(compose('ps')); return; }
   if (command === 'login') { console.log(`Email: ${state.email}\nPassword: ${state.password}`); return; }
   if (command === 'verify') { await verify(); return; }
+  if (command === 'refresh') { await tunnel(); await provision(); return; }
   if (command === 'tunnel') {
     if (await listening()) { console.log(`Private RDS tunnel is already listening on port ${tunnelPort}.`); return; }
     await tunnel();

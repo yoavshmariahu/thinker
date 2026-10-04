@@ -17,6 +17,13 @@ jobs:
         with:
           sparse-checkout: action/review
       - uses: ./action/review
+        id: thinker-review
         with:
           url: https://sync.zerotime.dev
           token: ${{ secrets.THINKER_SYNC_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.thinker-review.outputs.report != ''
+        with:
+          name: thinker-review-${{ github.event.pull_request.number }}-${{ github.sha }}
+          path: ${{ steps.thinker-review.outputs.report }}
+          retention-days: 30

@@ -16,6 +16,17 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 ## Working on this repository
 
+**Pull requests for every merge (MANDATORY RULE):**
+- Push task branches and open a GitHub pull request targeting `main`. Never push
+  commits directly to remote `main`, including fast-forward pushes.
+- Run the test suite with telemetry disabled, wait for the PR's tests, and merge
+  through GitHub. Bring local `main` up to date from the merged remote branch.
+- Do not bypass a pre-push guard or disable hooks to push `main`.
+- GitHub server-side enforcement for this private repository requires GitHub Pro
+  (the API currently returns 403 on the account's plan). Until enabled, the local
+  guard and this policy enforce the workflow on this checkout, not on every client.
+
+
 Requires Node 20+. Tests: `npm test` (`node --test test/*.test.js`).
 
 **No telemetry from tests or benchmarks (MANDATORY RULE):**

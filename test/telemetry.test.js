@@ -398,7 +398,7 @@ test('cli setup sends installation telemetry in background upon completion', asy
   }
 });
 
-test('scheduleTelemetry and unscheduleTelemetry manage plist file and status', () => {
+test('scheduleTelemetry and unscheduleTelemetry manage plist file and status', { skip: process.platform !== 'darwin' }, () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-telem-sched-'));
   try {
     const plistPath = path.join(tmp, 'telemetry.plist');

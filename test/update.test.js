@@ -172,8 +172,9 @@ test('maybeCheckDailyUpdateInBackground honors 24h rate limit and flags', () => 
       // Artificially age the timestamp by 2 days
       const oldDate = new Date(Date.now() - 2 * DAY_MS);
       fs.utimesSync(stampFile, oldDate, oldDate);
+      const agedTime = fs.statSync(stampFile).mtimeMs; // filesystem precision varies by platform
       maybeCheckDailyUpdateInBackground({ home: tmp, cliPath: stubCli });
-      assert.equal(fs.statSync(stampFile).mtimeMs, oldDate.getTime());
+      assert.equal(fs.statSync(stampFile).mtimeMs, agedTime);
     } finally {
       if (oldEnv === undefined) delete process.env.THINKER_NO_AUTO_UPDATE;
       else process.env.THINKER_NO_AUTO_UPDATE = oldEnv;
