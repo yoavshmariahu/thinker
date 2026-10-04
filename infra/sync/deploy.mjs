@@ -34,14 +34,15 @@ const log = m => console.log(`${new Date().toISOString().slice(11, 19)} ${m}`);
 let secretArn;
 try { secretArn = json(aws(['secretsmanager', 'describe-secret', '--secret-id', config.secretName], { quiet: true })).ARN; } catch {}
 if (!secretArn) {
-  const value = { adminToken: 'tk_' + crypto.randomBytes(24).toString('hex'), anthropicApiKey: process.env.ANTHROPIC_API_KEY || '', gitToken: process.env.THINKER_SERVER_GIT_TOKEN || '' };
+  const value = { adminToken: 'tk_' + crypto.randomBytes(24).toString('hex'), anthropicApiKey: process.env.ANTHROPIC_API_KEY || '', gitToken: process.env.THINKER_SERVER_GIT_TOKEN || '', githubToken: process.env.THINKER_SERVER_GITHUB_TOKEN || '' };
   const r = json(aws(['secretsmanager', 'create-secret', '--name', config.secretName, '--description', 'thinker-server: admin token, model key, git token', '--secret-string', 'file:///dev/stdin'], { input: JSON.stringify(value) }));
   secretArn = r.ARN;
   log(`created secret ${config.secretName}${value.anthropicApiKey ? '' : ' (no ANTHROPIC_API_KEY in the environment: set anthropicApiKey in the secret and rerun with --secret-only)'}`);
-} else if (flag('--set-api-key') || flag('--set-git-token')) {
+} else if (flag('--set-api-key') || flag('--set-git-token') || flag('--set-github-token')) {
   const cur = json(json(aws(['secretsmanager', 'get-secret-value', '--secret-id', config.secretName])).SecretString) || {};
   if (flag('--set-api-key')) { if (!process.env.ANTHROPIC_API_KEY) throw new Error('--set-api-key needs ANTHROPIC_API_KEY in the environment'); cur.anthropicApiKey = process.env.ANTHROPIC_API_KEY; }
   if (flag('--set-git-token')) { if (!process.env.THINKER_SERVER_GIT_TOKEN) throw new Error('--set-git-token needs THINKER_SERVER_GIT_TOKEN in the environment'); cur.gitToken = process.env.THINKER_SERVER_GIT_TOKEN; }
+  if (flag('--set-github-token')) { if (!process.env.THINKER_SERVER_GITHUB_TOKEN) throw new Error('--set-github-token needs THINKER_SERVER_GITHUB_TOKEN in the environment'); cur.githubToken = process.env.THINKER_SERVER_GITHUB_TOKEN; }
   aws(['secretsmanager', 'put-secret-value', '--secret-id', config.secretName, '--secret-string', 'file:///dev/stdin'], { input: JSON.stringify(cur) });
   log('secret updated');
 }

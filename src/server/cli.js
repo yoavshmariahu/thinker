@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { listen } from './index.js';
 import { Repos } from './repos.js';
 import { Tokens } from './auth.js';
+import { provider } from '../llm.js';
 
 const argv = process.argv.slice(2);
 const cmd = argv.shift();
@@ -28,7 +29,10 @@ const HELP = `thinker-server — the central thinker cache for a team
 Environment: THINKER_SERVER_DATA, THINKER_SERVER_PORT, THINKER_SERVER_HOST,
   THINKER_SERVER_ADMIN_TOKEN (the token that may do everything; generated into
   <data>/admin-token on first start when unset), THINKER_SERVER_GIT_TOKEN (to clone
-  private repositories), ANTHROPIC_API_KEY (the model that distills),
+  private repositories), THINKER_SERVER_GITHUB_TOKEN (to post pull request reviews;
+  pull requests: write; the git token when unset), THINKER_SERVER_GITHUB_API (another
+  GitHub API url, e.g. a local fake for testing), ANTHROPIC_API_KEY (the model; without
+  it the first installed agent CLI with its login: claude, codex, gemini, agent),
   THINKER_SERVER_DAILY_CAP (USD a day, default 5).
 Commands other than start work on the data directory directly, so they can be run
 beside a running server on the same machine.`;
@@ -52,7 +56,7 @@ async function main() {
       const port = Number(flags.port || process.env.THINKER_SERVER_PORT) || 8787;
       const log = (where, msg) => process.stderr.write(`${new Date().toISOString()} [${where}] ${msg}\n`);
       const s = await listen({ host, port, data, adminToken: adminToken(), log });
-      log('server', `listening on http://${host}:${s.address.port}, data in ${data}, ${s.repos.list().length} repositories, model ${s.worker.hasModel() ? 'available' : 'unavailable (set ANTHROPIC_API_KEY)'}`);
+      log('server', `listening on http://${host}:${s.address.port}, data in ${data}, ${s.repos.list().length} repositories, model ${s.worker.hasModel() ? `available (${provider()})` : 'unavailable (set ANTHROPIC_API_KEY or install an agent CLI)'}, reviews ${s.worker.githubToken ? 'posted to GitHub' : 'not posted (set THINKER_SERVER_GITHUB_TOKEN)'}`);
       const stop = () => s.close().then(() => process.exit(0));
       process.on('SIGINT', stop); process.on('SIGTERM', stop);
       break;
