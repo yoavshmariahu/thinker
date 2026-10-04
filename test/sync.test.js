@@ -205,13 +205,14 @@ test('sessions stream to the server and are distilled there against its checkout
   assert.equal((await s.call('POST', `/v1/repos/${encodeURIComponent(ID)}/prs`, { number: 8, title: 'x' }, token)).status, 400, 'a diff is required');
   await s.worker.tick();
   assert.equal(prs.length, 1); assert.equal(prs[0].slug, 'acme/widgets'); assert.deepEqual(prs[0].pr.comments, pr.comments);
-  const inv = serverStore.list().find(n => n.kind === 'invariant');
+  const inv = serverStore.list().find(n => n.title === 'Value must stay positive'); // distilled as an invariant, read as a rule
+  assert.equal(inv.kind, 'rule');
   assert.equal(inv.source.ref, 'acme/widgets#7');
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(repo.checkout, '.thinker', 'prs.json'), 'utf8'))['acme/widgets'].mined, [7]);
   res = await s.call('POST', `/v1/repos/${encodeURIComponent(ID)}/prs`, pr, token);
   assert.equal(res.body.done, true, 'a distilled pull request is not queued again');
   await s.worker.tick(); assert.equal(prs.length, 1);
-  r = await pull(a.store, cfg); assert.equal(a.store.get(inv.id).kind, 'invariant');
+  r = await pull(a.store, cfg); assert.equal(a.store.get(inv.id).kind, 'rule');
 
   // the action script, against a fake GitHub API and this server
   const gh = http.createServer((req, res) => {

@@ -10,7 +10,7 @@ import { tokenize, stem, rank } from '../src/rank.js';
 import { checkNote, hashDep, bodyIdentifiers, noteTerms } from '../src/deps.js';
 import { Store } from '../src/store.js';
 import { createNote, dropShadowedFileDeps, lateNotes, orient } from '../src/ops.js';
-import { cochangeMechanism, touchedFiles, relatedNotes, saveNotes } from '../src/distill.js';
+import { touchedFiles, relatedNotes, saveNotes } from '../src/distill.js';
 
 process.env.THINKER_TELEMETRY = 'off';
 const git = (repo, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
@@ -96,36 +96,12 @@ test('a whole-file dep with no named definition stays fresh while the diff touch
   fs.rmSync(repo, { recursive: true, force: true });
 });
 
-test('a co-change note is not stale because a partner file changed, only when one is removed', () => {
-  const repo = gitRepo();
-  const note = { id: 'c', kind: 'cochange', title: 'a and build go together', body: 'src/a.js and build.sh change together', deps: [hashDep(repo, { path: 'src/a.js' }), hashDep(repo, { path: 'build.sh' })] };
-  fs.appendFileSync(path.join(repo, 'src/a.js'), '// more\n');
-  const r = checkNote(repo, note);
-  assert.deepEqual(r.changed, []); assert.ok(r.upgraded, 'the hash moves on');
-  fs.rmSync(path.join(repo, 'build.sh'));
-  assert.deepEqual(checkNote(repo, note).changed.map(c => c.reason), ['file removed']);
-  fs.rmSync(repo, { recursive: true, force: true });
-});
-
-test('a co-change note that is one session\'s edit set is not saved; one with a mechanism is', () => {
-  assert.equal(cochangeMechanism({ kind: 'cochange', title: 'Renaming the setup verb touches 8 files', body: 'edit a, b, c', deps: [{ path: 'a' }, { path: 'b' }] }), false);
-  assert.equal(cochangeMechanism({ kind: 'cochange', title: 'Pricing change', body: 'a, b, c and d changed', deps: [{ path: 'a' }, { path: 'b' }, { path: 'c' }, { path: 'd' }] }), false);
-  assert.equal(cochangeMechanism({ kind: 'cochange', title: 'Flags are generated', body: 'editing registry.go requires regenerating the .gen files', deps: [{ path: 'a' }, { path: 'b' }, { path: 'c' }, { path: 'd' }] }), true);
-  assert.equal(cochangeMechanism({ kind: 'cochange', title: 'Two CI files mirror each other', body: 'both set the same matrix', deps: [{ path: 'a.yml' }, { path: 'b.yml' }] }), true);
-  assert.equal(cochangeMechanism({ kind: 'gotcha', title: 'touches 8 files', body: '', deps: [{ path: 'a' }] }), true, 'other kinds are not judged');
-});
-
-test('at orientation a co-change note is served only when the request names its code; the edit hook names git partners', async () => {
+test('the edit hook names git co-change partners of an edited file, once per session; a rule note on the file is still served', async () => {
   const repo = gitRepo();
   fs.writeFileSync(path.join(repo, 'src/billing.js'), 'export function applyRates() {\n  return 1;\n}\n');
   fs.mkdirSync(path.join(repo, 'scripts')); fs.writeFileSync(path.join(repo, 'scripts/regen.sh'), 'echo regen\n');
   const store = new Store(repo).init();
-  const cc = createNote(store, { title: 'Costs and the regen script change together', kind: 'cochange', answers: ['what must change with the cost figures'], body: 'the cost figures change with the rates: src/billing.js:applyRates reads what scripts/regen.sh writes; rerun it after editing', deps: [{ path: 'src/billing.js', symbol: 'applyRates' }, { path: 'scripts/regen.sh' }] }).note;
-  const r1 = await orient(store, { task: 'what must change with the cost figures', backgroundVerify: false, recordUsage: false });
-  assert.ok(!r1.included.some(n => n.id === cc.id), 'not named: kept for edit time');
-  assert.ok(rank([cc], { query: 'what must change with the cost figures', mode: 'lookup' }).length, 'a lookup is answered');
-  const r2 = await orient(store, { task: 'what must change with the cost figures in billing.js', backgroundVerify: false, recordUsage: false });
-  assert.ok(r2.included.some(n => n.id === cc.id), 'the request names the file');
+  createNote(store, { title: 'Costs and the regen script change together', kind: 'rule', answers: ['what must change with the cost figures'], body: 'the cost figures change with the rates: src/billing.js:applyRates and scripts/regen.sh regenerate them', deps: [{ path: 'src/billing.js', symbol: 'applyRates' }, { path: 'scripts/regen.sh' }] });
   fs.writeFileSync(path.join(repo, '.thinker', 'cochange.json'), JSON.stringify({ commits: 5, totals: { 'src/billing.js': 5 }, pairs: { 'src/billing.js': { 'scripts/regen.sh': 4 } } }));
   const late = lateNotes(store, { session: 'e1', files: ['src/billing.js'], edited: true });
   assert.match(late.text, /src\/billing\.js usually changes with scripts\/regen\.sh \(80%, n=4\)/);
@@ -147,7 +123,5 @@ test('the distiller is shown the notes on the files the session touched, and an 
   const got = store.get(n.id);
   assert.match(got.body, /saveRows returns 2/);
   assert.equal(got.history.at(-1).reason, 'extended by a new session');
-  const skipped = saveNotes(store, [{ title: 'Pricing touched 7 files', kind: 'cochange', answers: [], body: 'a b c d', deps: [{ path: 'src/a.js' }, { path: 'build.sh' }], tags: [], confidence: 0.8 }], { source: { type: 'agent' } });
-  assert.equal(skipped.saved.length, 0); assert.match(skipped.skipped[0].reason, /co-change without a mechanism/);
   fs.rmSync(repo, { recursive: true, force: true });
 });

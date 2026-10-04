@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { KINDS, LOCAL_FIELDS, sharedContent } from './store.js';
+import { KINDS, KIND_ALIAS, kindOf, LOCAL_FIELDS, sharedContent } from './store.js';
 import { checkNote, validDepPath } from './deps.js';
 import { tokenize } from './rank.js';
 
@@ -15,7 +15,7 @@ const canonical = value => Array.isArray(value) ? value.map(canonical) : value &
 const equal = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 
 export function nearDuplicate(a, b) {
-  if (a.kind !== b.kind) return false;
+  if (kindOf(a.kind) !== kindOf(b.kind)) return false;
   const words = n => new Set(tokenize(`${n.title || ''} ${Array.isArray(n.answers) ? n.answers.join(' ') : ''}`));
   const x = words(a), y = words(b), union = new Set([...x, ...y]);
   return union.size > 0 && [...x].filter(w => y.has(w)).length / union.size >= 0.5;
@@ -40,7 +40,7 @@ export function contentErrors(note, id = note?.id) {
   if (typeof note.title !== 'string' || !note.title.trim()) errors.push('missing title');
   if (typeof note.body !== 'string' || !note.body.trim()) errors.push('missing body');
   else if (Buffer.byteLength(note.body) > MAX_BODY_BYTES) errors.push(`body exceeds ${MAX_BODY_BYTES} bytes`);
-  if (!KINDS.includes(note.kind)) errors.push('unknown kind');
+  if (!KINDS.includes(note.kind) && !KIND_ALIAS[note.kind]) errors.push('unknown kind');
   if (!Array.isArray(note.deps) || !note.deps.length) errors.push('missing deps');
   else for (const d of note.deps) {
     if (!d || !validDepPath(d.path) || typeof d.hash !== 'string' || !/^sha256:[a-f0-9]{24}$/.test(d.hash) || (d.symbol !== undefined && (typeof d.symbol !== 'string' || !d.symbol))) errors.push('invalid dependency path, symbol or hash');

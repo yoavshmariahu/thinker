@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { complete } from './llm.js';
-import { createNote, KINDS, looksLikeCorrection } from './ops.js';
+import { createNote, KINDS, kindOf, looksLikeCorrection } from './ops.js';
 import { tokenize, rank } from './rank.js';
 
 const EXPLORE_TOOLS = new Set(['Grep', 'Glob', 'Read', 'Bash', 'Agent', 'Task', 'LS', 'WebFetch']);
@@ -140,24 +140,17 @@ const ASSESS_SCHEMA = {
 
 export const DISTILL_SYSTEM = `You distill a coding agent's session into a small number of reusable notes for a "knowledge cache" about this repository. A future agent will read these notes at the start of a task instead of re-grepping and re-reading files.
 
-Write a note ONLY for understanding that (a) took the agent real effort to establish (several greps/reads/traces), (b) is likely to be needed again by a different task, and (c) is stated concretely enough to act on. Kinds, in order of value:
-- callpath: how control/data flows across files for some operation (list the hops as file:symbol → file:symbol).
-- location: where a recurring concern is handled (not "what a file does", but "if you need to change X, it is in file:symbol, and Y is in ...").
-- cochange: things that must be changed together because of a mechanism the trace shows: a generator to rerun, a registry or enum to extend, a schema and the code that maps it, a test that asserts two places agree, a mirror that must stay identical. Name the mechanism and point at it (file:symbol). NOT the list of files one session happened to touch: git history records what changed together by itself, and such a list is served from it.
+Write a note ONLY for understanding that (a) took the agent real effort to establish (several greps/reads/traces), (b) is likely to be needed again by a different task, and (c) is stated concretely enough to act on. Four kinds:
+- rule: what a change in this area must respect. An invariant (a permission or ownership check, a status or eligibility guard, feature-flag gating, fields or stores that must stay in sync, an ordering), a local convention an agent would otherwise violate (naming, error handling, where tests go, how config is threaded), a trap the agent fell into (two similarly named functions, an order dependency, a cache that must be cleared), a bug that was fixed and must not come back (Symptom as a user would report it, Root cause with file:symbol, Fix pattern, Constraints), why something is the way it is (rejected approaches, incident-driven constraints; only with evidence in the transcript), or things that must change together because of a mechanism the trace shows (a generator to rerun, a registry or enum to extend, a schema and the code that maps it, a test that asserts two places agree): name the mechanism and point at it. NOT the list of files one session happened to touch: git history records that by itself. State the rule, where it is enforced (file:symbol), and what breaks if it is skipped. These are the most valuable notes for an agent that has found the code and is deciding what the change must include.
+- map: where a recurring concern is handled (not "what a file does", but "if you need to change X, it is in file:symbol, and Y is in ..."), how control or data flows across files for an operation (the hops as file:symbol → file:symbol), or a compact map of a module area the agent had to assemble from many files.
 - howto: exactly how to build/test/run/lint this repo, including the non-obvious flags, env, or fixtures.
-- convention: local rules an agent would otherwise violate (naming, error handling, where tests go, how config is threaded).
-- gotcha: a trap the agent fell into or discovered (e.g. two similarly named functions, an order dependency, a cache that must be cleared).
-- rationale: WHY something is the way it is: rejected approaches, incident-driven constraints, deliberate limitations. Only if the transcript contains evidence for it.
-- overview: a compact map of the module structure relevant to a whole area, only when the agent had to assemble it from many files.
-- invariant: a condition any change in this area must respect: permission or ownership checks, status/eligibility guards, feature-flag gating, fields or stores that must stay in sync, ordering requirements. State the rule, where it is enforced (file:symbol), and what breaks if it is skipped. These are the most valuable notes for an agent that has already found the code and is deciding what the change must include.
-- fix: a record of a bug that was fixed, in four parts: Symptom (as a user would report it), Root cause (file:symbol), Fix pattern (what kind of change resolved it), Constraints (when the pattern applies and when it does not).
 
 Rules:
 - Do NOT write "this file contains ..." summaries. Do NOT restate the task or what the agent changed in this session unless that reveals a reusable rule.
 - Every claim must be grounded in what the agent actually observed in the trace (file contents, grep hits, command output), not in what it assumed.
 - Bodies are 3-12 lines of markdown, dense, with \`path:Symbol\` pointers. Prefer symbol pointers over line numbers. State claims as present-tense facts about the code ("X does Y; Z must run before W"), never as a narrative of this session ("the session found", "in this run", "the agent then"): a future reader checks claims against code, and a story about one run cannot be checked. A claim that held only in this run is left out.
 - deps: list every file the note's claims rest on, and for a code file name the definition (symbol) the claim rests on. A dep on a whole code file is almost never right: the file changes with every unrelated commit and the note goes stale for nothing; whole-file deps are for configs, scripts and documents. The cache hashes these to detect staleness, so be precise and do not list files the note does not depend on.
-- applies: for gotcha / convention / rationale / cochange notes, one line stating when the rule applies and when it does not (e.g. "only for options with multiple=True; arguments use a different path"). Generic lessons without such constraints are useless.
+- applies: for rule notes, one line stating when the rule applies and when it does not (e.g. "only for options with multiple=True; arguments use a different path"). Generic lessons without such constraints are useless.
 - answers: 2-5 short question phrasings a future agent might ask that this note answers (used for retrieval).
 - confidence: 0.9+ only when the agent read the actual code; 0.6-0.8 for things inferred from grep hits or partial reads.
 - Typical yield is 0 or 1 note; 2-3 only when the session clearly established distinct things, never more than 3. Most turns of a session only apply what is already known: 0 notes is the right answer for them. When in doubt, leave it out: a missing note costs one search later, a weak one is served to every later task it resembles.
@@ -251,28 +244,16 @@ function jaccard(a, b) {
   return i / (A.size + B.size - i || 1);
 }
 
-// A co-change note that is one session's edit set, not a rule: a title that counts files, or four or
-// more whole files as its only deps and no word in the body for why they move together. Git history
-// already holds which files changed together (cochange.js); the edit hook serves it from there.
-const MECHANISM = /\b(generat\w*|regenerat\w*|codegen|registr\w*|regist\w*|enum\w*|schema\w*|migration\w*|mirror\w*|assert\w*|in sync|derive[sd]?|template\w*|lockstep|serializ\w*|validat\w*|snapshot\w*|fixture\w*|manifest\w*|barrel|export\w*|import\w*|entry|matching|match\w*)\b/i;
-export function cochangeMechanism(n) {
-  if (n.kind !== 'cochange') return true;
-  if (/\b\d+\s+(?:\w+\s+)?files?\b/i.test(n.title || '')) return false;   // "touches 8 files", "7 files + 3 test files"
-  const deps = n.deps || [];
-  if (deps.some(d => d.symbol) || deps.length < 4) return true;
-  return MECHANISM.test(`${n.title}\n${n.body}\n${n.applies || ''}`);
-}
 
 // Save distilled notes, merging near-duplicates (same topic → keep higher confidence, refresh deps).
 export function saveNotes(store, notes, { source, kinds = KINDS }) {
   const existing = store.list();
   const saved = [], merged = [], skipped = [];
   for (const n of notes) {
-    if (KINDS.includes(n.kind) && !kinds.includes(n.kind)) { skipped.push({ title: n.title, reason: `kind ${n.kind} is not served in this repository (archived by thinker archive)` }); continue; }
-    if (!cochangeMechanism(n)) { skipped.push({ title: n.title, reason: 'co-change without a mechanism: git history already records which files changed together' }); continue; }
+    if (KINDS.includes(kindOf(n.kind)) && !kinds.includes(kindOf(n.kind))) { skipped.push({ title: n.title, reason: `kind ${kindOf(n.kind)} is not served in this repository (archived by thinker archive)` }); continue; }
     const key = tokenize(n.title + ' ' + (n.answers || []).join(' '));
     const named = n.extends && existing.find(e => e.id === n.extends);
-    const dup = named || existing.find(e => jaccard(key, tokenize(e.title + ' ' + (e.answers || []).join(' '))) >= 0.5 && e.kind === n.kind);
+    const dup = named || existing.find(e => jaccard(key, tokenize(e.title + ' ' + (e.answers || []).join(' '))) >= 0.5 && kindOf(e.kind) === kindOf(n.kind));
     if (dup) {
       if (named || (n.confidence ?? 0.7) >= (dup.confidence ?? 0.7) - 0.1 || dup.status !== 'fresh') {
         const r = createNote(store, { ...n, id: dup.id }, { source, reuseId: true });

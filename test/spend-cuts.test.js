@@ -39,26 +39,26 @@ test('the distiller is not asked for archived kinds, and a note of one is not sa
   const all = distillSpec({});
   assert.deepEqual(all.schema.properties.notes.items.properties.kind.enum, KINDS.filter(k => k !== 'behavior')); // a desired behavior is a person's (behavior.js)
   assert.ok(!/Do not produce notes of these kinds/.test(all.system));
-  const some = distillSpec({ kinds: KINDS.filter(k => !['location', 'fix', 'cochange', 'convention'].includes(k)) });
-  assert.deepEqual(some.schema.properties.notes.items.properties.kind.enum, ['callpath', 'howto', 'rationale', 'gotcha', 'overview', 'invariant']);
-  assert.match(some.system, /Do not produce notes of these kinds: location, cochange, convention, fix\./);
+  const some = distillSpec({ kinds: KINDS.filter(k => k !== 'map') });
+  assert.deepEqual(some.schema.properties.notes.items.properties.kind.enum, ['howto', 'rule']);
+  assert.match(some.system, /Do not produce notes of these kinds: map\./);
   // what a checkout with the default archive asks for: everything but location; review reads fix,
   // convention and cochange notes from the archive, so they are still distilled
   const dir0 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-spend-')));
   const s0 = new Store(dir0).init();
-  assert.deepEqual(distillKinds(s0), KINDS.filter(k => k !== 'location' && k !== 'behavior'));
-  assert.ok(REVIEW_KINDS.includes('fix') && REVIEW_KINDS.includes('convention'));
-  fs.writeFileSync(path.join(s0.dir, 'config.json'), JSON.stringify({ archive: { kinds: ['overview'] } }));
-  assert.deepEqual(distillKinds(new Store(dir0)), KINDS.filter(k => k !== 'overview' && k !== 'behavior'));
+  assert.deepEqual(distillKinds(s0), ['map', 'howto', 'rule']); // no kind is archived by default
+  assert.ok(REVIEW_KINDS.includes('rule'));
+  fs.writeFileSync(path.join(s0.dir, 'config.json'), JSON.stringify({ archive: { kinds: ['overview'] } })); // the old name means map
+  assert.deepEqual(distillKinds(new Store(dir0)), ['howto', 'rule']);
   fs.writeFileSync(path.join(s0.dir, 'config.json'), JSON.stringify({ archive: false }));
   assert.deepEqual(distillKinds(new Store(dir0)), KINDS.filter(k => k !== 'behavior'));
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-spend-')));
   fs.mkdirSync(path.join(dir, 'src')); fs.writeFileSync(path.join(dir, 'src/a.js'), 'export function f() {}\n');
   const store = new Store(dir).init();
   const note = kind => ({ title: `${kind} note about f`, kind, answers: [`${kind} of f`], body: 'src/a.js:f does it', deps: [{ path: 'src/a.js', symbol: 'f' }], tags: [], confidence: 0.8 });
-  const r = saveNotes(store, [note('location'), note('gotcha')], { source: { type: 'agent', ref: 't' }, kinds: KINDS.filter(k => k !== 'location') });
-  assert.equal(r.saved.length, 1); assert.equal(r.saved[0].kind, 'gotcha');
-  assert.equal(r.skipped.length, 1); assert.match(r.skipped[0].reason, /kind location is not served/);
+  const r = saveNotes(store, [note('location'), note('gotcha')], { source: { type: 'agent', ref: 't' }, kinds: KINDS.filter(k => k !== 'map') }); // the old names are the new kinds
+  assert.equal(r.saved.length, 1); assert.equal(r.saved[0].kind, 'rule');
+  assert.equal(r.skipped.length, 1); assert.match(r.skipped[0].reason, /kind map is not served/);
   const r2 = saveNotes(store, [note('location')], { source: { type: 'agent', ref: 't' } });
   assert.equal(r2.saved.length, 1, 'with no kinds given every kind is saved, as before');
 });

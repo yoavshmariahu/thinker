@@ -19,7 +19,7 @@
     {
       "path": "src/ops.js",
       "symbol": "createNote",
-      "hash": "sha256:778c864c78d22e9cc4c05f49",
+      "hash": "sha256:1f07ebbdcc639d70414d5aad",
       "line": 112,
       "missing": false
     },
@@ -61,7 +61,7 @@
     {
       "path": "src/deps.js",
       "symbol": "checkNote",
-      "hash": "sha256:db63518cfef6c9711d852c89",
+      "hash": "sha256:54e09d88f885c5f96516c2e8",
       "line": 194,
       "missing": false
     },
@@ -76,13 +76,13 @@
       "path": "src/deps.js",
       "symbol": "symbolText",
       "hash": "sha256:372f3e63a49dec606d06efd9",
-      "line": 363,
+      "line": 360,
       "missing": false
     },
     {
       "path": "src/rank.js",
       "symbol": "rank",
-      "hash": "sha256:e3670c6defdee547c8828243",
+      "hash": "sha256:b7ea517b11b55744e9ea7a5e",
       "line": 124,
       "missing": false
     },
@@ -90,14 +90,14 @@
       "path": "src/rank.js",
       "symbol": "renderNote",
       "hash": "sha256:2bc95879c4831d6c558a64bd",
-      "line": 188,
+      "line": 185,
       "missing": false
     },
     {
       "path": "src/store.js",
       "symbol": "Store",
-      "hash": "sha256:f20f4d107b067fde69798a66",
-      "line": 159,
+      "hash": "sha256:bf225bd31a8dbbd85b06fcd3",
+      "line": 169,
       "missing": false
     },
     {
@@ -112,6 +112,6 @@
     "type": "agent"
   },
   "created": "2026-09-26T09:33:10.424Z",
-  "verified": "2026-10-04T05:07:18.649Z",
+  "verified": "2026-10-04T05:19:45.189Z",
   "confidence": 1
 }

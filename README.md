@@ -234,10 +234,9 @@ The notes a review draws on most are records of past fixes: what the symptom
 was, where the root cause sat, what kind of change resolved it. `thinker
 mine-prs` writes them from merged pull requests; a repository whose work lands
 by direct commits has few of those, and `thinker mine-prs --git --fixes` mines
-the commits whose message says they fix something instead. Notes of kinds that
-sessions never act on when served (`location`, `fix`, `cochange`,
-`convention` by default) are archived rather than served, and review still
-reads them: `thinker archive --list` shows them, `--restore` brings one
+the commits whose message says they fix something instead. Notes nobody was served
+in 30 days (and any kind named under `archive` in the config) are archived
+rather than served, and review still reads them: `thinker archive --list` shows them, `--restore` brings one
 back, and `archive` in `.thinker/config.json` sets the rules or turns them
 off.
 

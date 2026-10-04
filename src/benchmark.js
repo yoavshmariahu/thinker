@@ -18,7 +18,7 @@ export function benchmarkDir(store) { return path.join(store.dir, 'benchmarks');
 // is not covered. Structural notes make better read-only benchmark questions
 // than narrow rules, so prefer them, then confidence and freshness.
 export function benchmarkSuggestions(store, limit = 3) {
-  const kind = { callpath: 6, overview: 5, howto: 4, location: 3, gotcha: 2, rationale: 2, convention: 1, invariant: 1, cochange: 1, fix: 0 };
+  const kind = { map: 3, howto: 2, rule: 1, behavior: 0 }; // questions about where things are make the best benchmark tasks
   const seen = new Set();
   return store.list()
     .filter(note => note.status !== 'invalid')

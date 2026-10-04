@@ -6,9 +6,16 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
-export const KINDS = ['location', 'callpath', 'cochange', 'howto', 'convention', 'rationale', 'gotcha', 'overview', 'invariant', 'fix', 'behavior'];
-// A `behavior` note is a desired behavior of the system, written by a person (behavior.js): the code must
-// conform to it, never the other way round. `mutability` says whether a change may revise it.
+// Four kinds of note. `map`: where things are and how control flows (what an agent would otherwise
+// grep and read for). `howto`: how to build, test, run, with the non-obvious flags. `rule`: what a
+// change must respect: an invariant, a convention, a trap, a fix not to undo, a reason, things that
+// change together. `behavior`: a desired behavior of the system, written by a person (behavior.js):
+// the code must conform to it, never the other way round; `mutability` says whether a change may
+// revise it. Until October 2026 there were eleven kinds; the old names are read as the new ones
+// (KIND_ALIAS) wherever a note is read, so committed notes and benchmark notesets stay as they are.
+export const KINDS = ['map', 'howto', 'rule', 'behavior'];
+export const KIND_ALIAS = { location: 'map', callpath: 'map', overview: 'map', invariant: 'rule', convention: 'rule', gotcha: 'rule', rationale: 'rule', fix: 'rule', cochange: 'rule' };
+export const kindOf = k => KIND_ALIAS[k] || k;
 export const MUTABILITY = ['fixed', 'mutable'];
 
 export function findRepoRoot(start = process.cwd()) {
@@ -146,6 +153,9 @@ export function sharedContent(note) {
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const digest = content => crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex').slice(0, 16);
 const readJson = file => { try { if (fs.lstatSync(file).isSymbolicLink()) return null; return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; } };
+// A note as the rest of thinker sees it: a legacy kind read as its new one. The file is left as it is
+// (and so is the digest the overlay was keyed on) until the note is next written.
+const aliased = n => { if (n && typeof n === 'object' && KIND_ALIAS[n.kind]) return { ...n, kind: KIND_ALIAS[n.kind] }; return n; };
 
 // Replace atomically so another hook process never reads a half-written note.
 function writeJson(file, value) {
@@ -335,7 +345,7 @@ export class Store {
   // Whole notes in one directory: THINKER_NOTES_DIR, or a checkout that is only being looked at.
   #flat(dir) {
     let files = []; try { files = fs.readdirSync(dir).filter(f => NOTE_FILE.test(f)); } catch {}
-    return files.flatMap(f => { const n = readJson(path.join(dir, f)); return typeof n?.id === 'string' && NOTE_ID.test(n.id) ? [n] : []; });
+    return files.flatMap(f => { const n = aliased(readJson(path.join(dir, f))); return typeof n?.id === 'string' && NOTE_ID.test(n.id) ? [n] : []; });
   }
 
   isShared(id) { return this.tiered && NOTE_ID.test(String(id)) && this.#layout() && fs.existsSync(path.join(this.notesDir, id + '.json')); }
@@ -354,15 +364,15 @@ export class Store {
     if (!this.tiered || !this.#layout()) return this.#flat(this.notesDir);
     const byId = new Map();
     for (const n of this.#flat(this.localNotesDir)) byId.set(n.id, n);
-    for (const id of this.#sharedIds()) { const n = this.#shared(id); if (n) byId.set(id, n); } // the shared note wins
+    for (const id of this.#sharedIds()) { const n = aliased(this.#shared(id)); if (n) byId.set(id, n); } // the shared note wins
     return [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
   get(id) {
     this.assertSafeNotesPath();
     if (!NOTE_ID.test(String(id))) return null;
-    if (!this.tiered || !this.#layout()) { const n = readJson(path.join(this.notesDir, id + '.json')); return n?.id === id ? n : null; }
-    const s = this.#shared(id); if (s) return s;
-    const n = readJson(path.join(this.localNotesDir, id + '.json'));
+    if (!this.tiered || !this.#layout()) { const n = aliased(readJson(path.join(this.notesDir, id + '.json'))); return n?.id === id ? n : null; }
+    const s = aliased(this.#shared(id)); if (s) return s;
+    const n = aliased(readJson(path.join(this.localNotesDir, id + '.json')));
     return n?.id === id ? n : null;
   }
   put(note) {
@@ -375,7 +385,7 @@ export class Store {
       const state = {}, pending = {};
       for (const k of LOCAL_FIELDS) if (note[k] !== undefined) state[k] = note[k];
       for (const k of new Set([...Object.keys(note), ...Object.keys(content)])) {
-        if (k === 'id' || LOCAL_FIELDS.includes(k) || same(note[k], content[k])) continue;
+        if (k === 'id' || LOCAL_FIELDS.includes(k) || same(note[k], content[k]) || (k === 'kind' && kindOf(note.kind) === kindOf(content.kind))) continue; // a legacy kind read as its new one is not a change
         (OVERRIDE_FIELDS.includes(k) ? state : pending)[k] = note[k] ?? null;
       }
       const base = digest(content);

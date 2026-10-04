@@ -191,7 +191,7 @@ test('promote makes a rule note a behavior, propose lists the candidates, and th
   createNote(store, { title: 'where tests live', kind: 'location', answers: ['where are tests'], body: 'src/cli.py:entry', deps: [{ path: 'src/cli.py' }] }, { source: { type: 'agent' } });
   assert.deepEqual(proposeBehaviors(store).map(c => c.id), [inv.id]);
   const p = promoteBehavior(store, inv.id, { mutability: 'fixed' });
-  assert.equal(p.note.kind, 'behavior'); assert.equal(p.note.mutability, 'fixed'); assert.equal(p.note.source.type, 'human'); assert.equal(p.note.source.promoted, 'invariant');
+  assert.equal(p.note.kind, 'behavior'); assert.equal(p.note.mutability, 'fixed'); assert.equal(p.note.source.type, 'human'); assert.equal(p.note.source.promoted, 'rule');
   assert.ok(p.note.confidence >= 0.8);
   assert.equal(promoteBehavior(store, inv.id, { mutability: 'fixed' }).unchanged, true);
   assert.equal(promoteBehavior(store, 'nope').error, 'no such note');

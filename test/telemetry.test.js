@@ -117,8 +117,8 @@ test('buildTelemetryPayload constructs anonymous high-level metrics without sens
     assert.ok(payload.version);
     assert.equal(payload.periodHours, 24);
     assert.ok(payload.cacheSize.totalNotes >= 2);
-    assert.ok(payload.cacheSize.kinds.location >= 1);
-    assert.ok(payload.cacheSize.kinds.gotcha >= 1);
+    assert.ok(payload.cacheSize.kinds.map >= 1);
+    assert.ok(payload.cacheSize.kinds.rule >= 1);
 
     // Assert effectiveness structure
     assert.equal(typeof payload.effectiveness.requestsTotal, 'number');
@@ -230,8 +230,8 @@ test('computeCacheMetrics accurately counts local store notes on fresh install w
     const metrics = computeCacheMetrics(store, { home: tmpHome, all: true });
     assert.equal(metrics.totalNotes, 2, 'fresh installation must reflect local store notes');
     assert.equal(metrics.repositoriesCount, 1, 'fresh installation must count the repository');
-    assert.equal(metrics.kinds.location, 1);
-    assert.equal(metrics.kinds.gotcha, 1);
+    assert.equal(metrics.kinds.map, 1);
+    assert.equal(metrics.kinds.rule, 1);
     assert.ok(metrics.totalBytes > 0);
   } finally {
     if (origHome) process.env.THINKER_HOME = origHome;
@@ -568,8 +568,8 @@ test('telemetry payload captures retrieval quality metrics, staleness, and guard
     assert.equal(payload.retrieval.durationSamples, 3);
     assert.equal(payload.retrieval.averageDurationMs, 30);
 
-    assert.equal(payload.retrieval.servedByKind.callpath, 1);
-    assert.equal(payload.retrieval.servedByKind.gotcha, 2);
+    assert.equal(payload.retrieval.servedByKind.map, 1);
+    assert.equal(payload.retrieval.servedByKind.rule, 2);
   } finally {
     fs.rmSync(tmpRepo, { recursive: true, force: true });
     fs.rmSync(tmpHome, { recursive: true, force: true });

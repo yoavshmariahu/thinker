@@ -51,7 +51,7 @@ const depKey = d => `${d.path}|${d.symbol || ''}`;
 const ptr = d => `${d.path}${d.symbol ? ':' + d.symbol : ''}`;
 const SEV = { error: 0, warning: 1, info: 2 };
 // How much a note of each kind has to say about a change: rules and traps first, maps last.
-const KIND_WEIGHT = { behavior: 1.4, invariant: 1.3, convention: 1.3, gotcha: 1.3, cochange: 1.2, fix: 1.2, rationale: 1.1, callpath: 1, location: 0.8, howto: 0.7, overview: 0.6 };
+const KIND_WEIGHT = { behavior: 1.4, rule: 1.3, map: 0.9, howto: 0.7 };
 
 // What is reviewed: {base: commit|null, head: 'worktree'|'index'|commit, label}. `base` is where the
 // change starts; with a branch base it is the merge base, so the review covers the branch's work.

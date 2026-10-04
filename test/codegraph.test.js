@@ -137,14 +137,14 @@ test('drilldown returns the definition with its lines, callers and callees, and 
   assert.match(r.text, /Callers and other references \(6 in 3 files\):\n- src\/cli\.py:L6  return run_callback\(ctx\)\n- src\/cli\.py:L9/); // calls first, tests last, imports after
   assert.ok(r.text.indexOf('tests/test_core.py') > r.text.indexOf('src/cli.py:L6'));
   assert.ok(!r.text.includes('Calls into this repository')); // run_callback calls nothing of the repository
-  assert.match(r.text, /Cached notes about this code \(lookup takes an id\):\n### \[callpath\] Command invocation path/);
+  assert.match(r.text, /Cached notes about this code \(lookup takes an id\):\n### \[map\] Command invocation path/);
   assert.deepEqual(r.notes.map(n => n.id), [a.id]);
   // a bare symbol resolves through the notes' pointers, then through the code
   assert.equal(drilldown(store, { pointer: 'invoke' }).file, 'src/core.py');
   const bare = drilldown(store, { pointer: 'other' });
   assert.equal(bare.file, 'src/cli.py');
   assert.match(bare.text, /Callers and other references: none\n\nCalls into this repository: run_callback \(src\/core\.py:L10\)/);
-  assert.match(bare.text, /Cached notes about this code \(lookup takes an id\):\n### \[location\] CLI entry point/); // a note on the file
+  assert.match(bare.text, /Cached notes about this code \(lookup takes an id\):\n### \[map\] CLI entry point/); // a note on the file
   assert.match(drilldown(store, { pointer: 'tests/test_core.py:test_run_callback' }).text, /No cached notes rest on this code\./);
   // callees of a caller; a path alone is an outline
   assert.match(drilldown(store, { pointer: 'src/cli.py:entry' }).text, /Calls into this repository: Command \(src\/core\.py:L3\), invoke \(src\/core\.py:L4\), run_callback \(src\/core\.py:L10\)/);
@@ -188,7 +188,7 @@ test('find renders pointers drilldown takes, with the notes on them; drilldown r
     const f = find(store, { query: 'run callback' });
     assert.match(f.text, /^Definitions carrying "run callback"/);
     assert.match(f.text, /- src\/core\.py:run_callback:L10  \(function, 2 lines; 4 call sites in 3 files\)/);
-    assert.match(f.text, /Cached notes on this code.*\n- \[callpath\] Callbacks run through run_callback/);
+    assert.match(f.text, /Cached notes on this code.*\n- \[map\] Callbacks run through run_callback/);
     assert.match(find(store, { query: 'zzzz_nothing_here' }).text, /No definition carries/);
     assert.deepEqual(parsePointers('src/core.py:Command.invoke:L4 (method, 2 lines; 1 call site), src/core.py:run_callback and `src/cli.py`'), ['src/core.py:Command.invoke:L4', 'src/core.py:run_callback', 'src/cli.py']);
     assert.deepEqual(parsePointers('invoke'), ['invoke']);

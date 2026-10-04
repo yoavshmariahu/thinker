@@ -230,10 +230,9 @@ const SCHEMA = {
 const SYSTEM = `You turn one merged pull request into 0-3 reusable notes for a knowledge cache that coding agents read before and while working in this repository. The reader is an agent facing a DIFFERENT future task in the same area.
 
 Allowed kinds and what each must contain:
-- fix: four labelled lines. "Symptom:" as a user would report it, in product vocabulary. "Root cause:" with file:symbol. "Fix pattern:" the kind of change that resolved it, general enough to reuse. "Constraints:" when the pattern applies and when it does not.
-- invariant: a condition any change in this area must respect (permission/ownership checks, status or eligibility guards, feature-flag gating, things that must stay in sync, ordering). Say where it is enforced (file:symbol) and what breaks if skipped.
-- convention: a local rule visible in the diff or enforced by a reviewer comment (naming, layering, where logic must live, generated files that must not be hand-edited, test placement).
-- cochange: things this PR shows must change together (e.g. backend serializer + frontend type + generated client).
+- rule (most of what a pull request teaches): a bug that was fixed, as four labelled lines, "Symptom:" as a user would report it in product vocabulary, "Root cause:" with file:symbol, "Fix pattern:" the kind of change that resolved it, general enough to reuse, "Constraints:" when the pattern applies and when it does not; an invariant any change in this area must respect (permission/ownership checks, status or eligibility guards, feature-flag gating, things that must stay in sync, ordering), with where it is enforced (file:symbol) and what breaks if skipped; a local convention visible in the diff or enforced by a reviewer comment (naming, layering, where logic must live, generated files that must not be hand-edited, test placement); or things this PR shows must change together because of a mechanism (a serializer and the type generated from it, a registry and its entries), naming the mechanism.
+- map: where a concern this PR touched is handled, when the diff makes that clearer than the code alone.
+- howto: a way of building, testing or running that the PR introduced or relies on, with its non-obvious flags.
 
 Rules:
 - Only claims the diff, description or review comments support. No speculation.

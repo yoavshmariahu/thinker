@@ -139,19 +139,21 @@ test('archiving: kinds the sessions never acted on, and notes unserved for a mon
   const month = 31 * 86400_000;
   for (const n of [old, oldUsed]) { n.created = new Date(Date.now() - month).toISOString(); store.put(n); }
   oldUsed.uses = 1; store.put(oldUsed);
-  assert.deepEqual(ARCHIVE_DEFAULTS.kinds, ['location', 'fix', 'cochange', 'convention']);
-  assert.equal(archiveReason(loc, ARCHIVE_DEFAULTS), 'kind location');
-  assert.equal(archiveReason(store.get(rule.id), ARCHIVE_DEFAULTS), null, 'a gotcha stays in serving');
+  assert.deepEqual(ARCHIVE_DEFAULTS.kinds, []); // since the kinds were collapsed to four, no kind is archived by default
+  const byKind = { ...ARCHIVE_DEFAULTS, kinds: ['map'] };
+  assert.equal(archiveReason(loc, byKind), 'kind map');
+  assert.equal(archiveReason(store.get(rule.id), byKind), null, 'a rule stays in serving');
   assert.equal(archiveReason(store.get(old.id), ARCHIVE_DEFAULTS), 'not served in 30 days');
   assert.equal(archiveReason(store.get(oldUsed.id), ARCHIVE_DEFAULTS), null, 'served once: kept');
   const dry = archiveNotes(store, { dry: true });
-  assert.deepEqual(dry.map(d => d.id).sort(), [loc.id, old.id].sort());
-  assert.ok(!store.get(loc.id).archived, 'dry run writes nothing');
+  assert.deepEqual(dry.map(d => d.id), [old.id]);
+  assert.ok(!store.get(old.id).archived, 'dry run writes nothing');
   const done = archiveNotes(store, {});
-  assert.equal(done.length, 2);
-  assert.equal(store.get(loc.id).archived.reason, 'kind location');
+  assert.equal(done.length, 1);
+  assert.equal(store.get(old.id).archived.reason, 'not served in 30 days');
+  archiveNotes(store, { ids: [loc.id] }); // by request, for the checks below
   assert.equal(archiveNotes(store, {}).length, 0, 'idempotent');
-  assert.equal(logLines(store).filter(l => l.op === 'archive').length, 1);
+  assert.equal(logLines(store).filter(l => l.op === 'archive').length, 2); // the rules once, the request once
   // out of ranking and orientation
   const ranked = rank(store.list(), { query: 'where is fetchRows defined', mode: 'orient' });
   assert.ok(!ranked.some(r => r.note.id === loc.id), 'archived note is not ranked');
@@ -194,7 +196,7 @@ test('archived is this checkout\'s state: a shared note keeps its committed file
   git(dir, 'add', '.thinker/notes'); git(dir, 'commit', '-q', '-m', 'share');
   const s2 = new Store(dir);
   assert.ok(s2.isShared(n.id));
-  archiveNotes(s2, {});
+  archiveNotes(s2, { kinds: ['map'] });
   assert.ok(s2.get(n.id).archived);
   assert.ok(!JSON.parse(fs.readFileSync(path.join(s2.dir, 'notes', n.id + '.json'), 'utf8')).archived, 'the committed file is untouched');
   assert.equal(git(dir, 'status', '--porcelain', '--', '.thinker/notes'), '', 'nothing to commit');
@@ -203,6 +205,7 @@ test('archived is this checkout\'s state: a shared note keeps its committed file
 test('maintenance archives by the rules, counts it, and tells the user once', () => withEnv({ THINKER_LOG: 'off' }, async () => {
   const dir = gitRepo(); const store = new Store(dir).init();
   createNote(store, { title: 'fetchRows is defined in src/a.js', kind: 'location', answers: ['where is fetchRows'], body: 'src/a.js:fetchRows', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ archive: { kinds: ['map'] } }));
   const r = await maintain(store, dir, { fns: { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid' }), phrase: async () => ({ done: [], cost: 0 }), cochange: () => {} } });
   assert.equal(r.archived, 1);
   const { maintenanceNotice, renderMaintain } = await import('../src/maintain.js');
@@ -216,10 +219,11 @@ test('maintenance archives by the rules, counts it, and tells the user once', ()
 test('the archive command lists, archives, dry-runs and restores', () => withEnv({ THINKER_LOG: 'off', THINKER_NO_LEARN: '1' }, () => {
   const dir = gitRepo(); const store = new Store(dir).init();
   const n = createNote(store, { title: 'fetchRows is defined in src/a.js', kind: 'location', answers: ['where is fetchRows'], body: 'src/a.js:fetchRows', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] }).note;
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ archive: { kinds: ['map'] } }));
   const run = (...a) => execFileSync('node', [CLI, 'archive', ...a, '--repo', dir], { encoding: 'utf8', env: process.env });
-  assert.match(run('--dry'), /would archive  .*\[location\]/); assert.ok(!store.get(n.id).archived);
+  assert.match(run('--dry'), /would archive  .*\[map\]/); assert.ok(!store.get(n.id).archived);
   assert.match(run(), /1 note archived/); assert.ok(new Store(dir).get(n.id).archived);
-  assert.match(run('--list'), /location\s+\S+\s+\d{4}-\d\d-\d\d\s+kind location/);
-  assert.match(execFileSync('node', [CLI, 'list', '--repo', dir], { encoding: 'utf8', env: process.env }), /archived\s+location/);
+  assert.match(run('--list'), /map\s+\S+\s+\d{4}-\d\d-\d\d\s+kind map/);
+  assert.match(execFileSync('node', [CLI, 'list', '--repo', dir], { encoding: 'utf8', env: process.env }), /archived\s+map/);
   assert.match(run('--restore', n.id), /1 note restored/); assert.ok(!new Store(dir).get(n.id).archived);
 }));

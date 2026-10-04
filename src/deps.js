@@ -225,11 +225,8 @@ export function checkNote(repo, note, { ref, index = false, narrow = false } = {
       else changed.push({ path: d.path, symbol: d.symbol, reason: 'symbol not found' });
     }
     else if (d.hash && now.hash !== d.hash) {
-      // a co-change note says its files change together: a partner file changing is what it predicts,
-      // not evidence against it. Only a removed file or a changed named symbol counts; the hash moves on.
-      if (!d.symbol && note.kind === 'cochange') upgraded = true;
       // the parser and the regex cut different blocks; the block is unchanged when the regex hashes agree
-      else if (d.symbol && now.engine === 'ast' && !d.engine && now.hashRegex === d.hash) upgraded = true; // the parser arrived here: store its hash
+      if (d.symbol && now.engine === 'ast' && !d.engine && now.hashRegex === d.hash) upgraded = true; // the parser arrived here: store its hash
       else if (d.symbol && !now.engine && d.engine === 'ast' && d.hashRegex === now.hash) now = { ...d }; // no parser here: keep the record of the checkout that has one
       else if (!d.symbol && narrow && !ref && !index) {
         // the file changed somewhere. When the note names definitions in it, the dep narrows to those

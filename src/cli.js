@@ -123,8 +123,8 @@ const HELP = `thinker — knowledge cache for coding agents
   add [file.json]                add a human-written note (JSON on stdin or file)
   check                          re-hash dependencies, mark stale notes
   archive [--dry] [--list] [--restore] [ids...] [--kinds a,b] [--days n]
-                                 take notes out of serving and upkeep, keeping them for review: kinds the sessions
-                                 never acted on and notes unserved for 30 days; maintenance applies the same rules
+                                 take notes out of serving and upkeep, keeping them for review: the kinds named in the
+                                 config (none by default) and notes unserved for 30 days; maintenance applies the same rules
   rehash [--fanout]              re-baseline every note's hashes without verification (--fanout: count references again)
   cochange [file]                mine co-change edges from git history / show partners of a file
   relink                         recompute cross-note links

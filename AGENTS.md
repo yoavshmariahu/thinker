@@ -211,17 +211,21 @@ What has no model or price is counted and reported (`saved.unpricedServings`,
 
 A note answers a recurring question, not "what this file does":
 
-| kind        | answers                                                       |
-|-------------|---------------------------------------------------------------|
-| `callpath`  | how control/data flows across files for an operation          |
-| `location`  | where a recurring concern is handled                          |
-| `cochange`  | what must change together                                     |
-| `howto`     | how to build / test / run / lint, with the non-obvious flags  |
-| `convention`| local rules an agent would otherwise violate                  |
-| `gotcha`    | a trap (similar names, ordering, caches)                      |
-| `rationale` | why: rejected approaches, incident-driven constraints         |
-| `overview`  | a compact map of a module area                                |
-| `behavior`  | a desired behavior of the system a person wrote; the code must uphold it (see [Desired behaviors](#desired-behaviors)) |
+| kind       | answers                                                                 |
+|------------|-------------------------------------------------------------------------|
+| `map`      | where a recurring concern is handled, how control or data flows across files, the shape of a module area |
+| `howto`    | how to build / test / run / lint, with the non-obvious flags            |
+| `rule`     | what a change must respect: an invariant, a convention, a trap, a fix not to undo, a reason, what changes together and through which mechanism |
+| `behavior` | a desired behavior of the system a person wrote; the code must uphold it (see [Desired behaviors](#desired-behaviors)) |
+
+Until October 2026 there were eleven kinds (`location`, `callpath`, `overview`,
+`invariant`, `convention`, `gotcha`, `rationale`, `fix`, `cochange`, `howto`,
+`behavior`): nobody applied them consistently, the distiller included, and the
+serving code had a branch for several. The old names are read as the new ones
+wherever a note is read (`store.js:KIND_ALIAS`, `kindOf`), so committed notes,
+benchmark notesets and a config written with them keep working; a file is
+rewritten with the new kind when the note is next written. The measurements
+quoted below with the old names are about those subkinds.
 
 Each note stores: `title`, `answers` (question phrasings, for retrieval),
 `body` (3–12 lines with `file:Symbol` pointers), `deps` (files/symbols it
@@ -276,9 +280,7 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
   nothing but whole-file deps on hub files (`src/cli.js` in 48), and
   neither the term rule nor a line-anchored variant could clear them, since
   a week of diff to a hub file holds every word; anchoring to definitions
-  is what helps, and it helps the next time, not retroactively. A
-  `cochange` note's whole-file deps are existence-only: a partner file
-  changing is what the note predicts.
+  is what helps, and it helps the next time, not retroactively.
   Stale notes are ranked lower and served with a `⚠ STALE` banner listing
   exactly which deps changed and how (symbol body changed / file removed /
   symbol not found).
@@ -306,10 +308,10 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
    touched, and up to four on the topic of its requests by BM25
    (`distill.js:relatedNotes`), and may return one with `extends: <id>` and
    the merged body instead of a new note. Near-duplicate notes (same kind,
-   ≥0.5 Jaccard on title+answers) are merged, keeping history. A `cochange`
-   note must name a mechanism (a generator, registry, schema, mirror or
-   test); one that only lists the files a session touched is not saved
-   (`distill.js:cochangeMechanism`), since git history holds that already.
+   ≥0.5 Jaccard on title+answers) are merged, keeping history. The distiller
+   is told that a rule about things changing together must name the
+   mechanism (a generator, registry, schema, mirror or test), not list the
+   files one session touched, since git history holds that already.
 2. **Agent-authored**: the `remember` MCP tool, for agents that finish
    working something out.
 3. **Human**: `thinker add note.json`.
@@ -336,19 +338,17 @@ Each session both consumes and improves the cache:
    agent edits, once per file, leaving out those the session has edited
    ("X usually changes with Y (80%, n=12)"), and the end-of-session nudge
    repeats what is still untouched; so co-change rules do not depend on an
-   agent having traced them. `cochange` notes are edit-time rules too: at
-   orientation one is served only when the request names its files or
-   symbols (`rank.js`, `ccNamed`).
+   agent having traced them.
 
 5. Archiving (`ops.js:archiveNotes`, `thinker archive`): a note that the
    sessions showed is not worth serving leaves orientation, the edit hook,
    background verification and phrasing, and stays for `thinker review`,
    `drilldown`, `find` and `lookup` by id; `rank.js` scores it like an
-   invalid note. Two rules, both free: a kind that was never acted on when
-   served (in a week on this repository location 0 of 6, fix 0 of 12,
-   cochange 0 of 5, convention 0 of 3; `find` and the git co-change index
-   cover what location and cochange notes said), and a note nobody was served
-   in 30 days since it was made. `archived: {at, reason}` is this checkout's
+   invalid note. Two rules, both free: the kinds named in the config (none
+   by default since the collapse to four kinds; before it, location, fix,
+   cochange and convention, which in a week on this repository were acted on
+   0 of 6, 0 of 12, 0 of 5 and 0 of 3 times when served), and a note nobody
+   was served in 30 days since it was made. `archived: {at, reason}` is this checkout's
    state (`store.js:LOCAL_FIELDS`), never shared or pushed; a shared note's
    committed file is untouched. Maintenance applies the rules on every run
    and names the count once; `archive` in `.thinker/config.json` sets
@@ -396,9 +396,8 @@ exploration calls; logged as `distill-skipped` with `reason: quiet`.
 `thinker distill <file>` by hand distills regardless. The distiller is asked
 only for the kinds worth a note here (`ops.js:distillKinds`): the kinds this
 checkout serves, plus the kinds review reads from the archive (`REVIEW_KINDS`:
-gotcha, invariant, convention, fix, cochange, rationale). With the default
-archive that leaves out `location`, which `find` answers; a note of a left-out
-kind that comes back anyway is skipped by `saveNotes`.
+rule, behavior; behavior is never distilled). A note of a left-out kind that
+comes back anyway is skipped by `saveNotes`.
 
 Controls for experiments: `THINKER_NOTES_DIR` (a flat note store for a
 benchmark arm), `THINKER_NO_BG_VERIFY=1` (no background verification, so a
@@ -711,8 +710,8 @@ read the repository without the tool. They are committed like any shared note
   `violated` is this checkout's state (`store.js:LOCAL_FIELDS`).
 - **Who writes one.** A person: `thinker system add file.json [--fixed]`, or
   `thinker system promote <id> [--fixed]` for a note that already states a
-  rule (`thinker system propose` lists the invariant, convention and gotcha
-  notes, the ones the sessions acted on first). An agent may save one with
+  rule (`thinker system propose` lists the rule notes, the ones the sessions
+  acted on first). An agent may save one with
   `remember` (kind `behavior`); it is listed as *proposed* until `thinker
   system accept <id>`. Distillation and PR mining are not offered the kind
   (`distill.js:distillSpec`, `prs.js`), archiving never takes one

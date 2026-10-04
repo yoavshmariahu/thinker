@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { Store, slugify, uniqueId, gitHead, KINDS, MUTABILITY } from './store.js';
+import { Store, slugify, uniqueId, gitHead, KINDS, KIND_ALIAS, kindOf, MUTABILITY } from './store.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation } from './deps.js';
 import { rank, pack, renderNote, estTokens, MIN_COVER } from './rank.js';
 import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
@@ -12,7 +12,7 @@ import { complete } from './llm.js';
 import { loadCochange, partners } from './cochange.js';
 import { anchoringGuard } from './guard.js';
 
-export { KINDS, MUTABILITY };
+export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
 
 function normPath(repo, p) {
   if (!p) return p;
@@ -115,7 +115,7 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
   const { deps: resolved, dropped } = resolveDeps(repo, [...(input.deps || []), ...extra]);
   if (!resolved.length) return { error: 'no resolvable dependencies; a note must point at at least one existing file', dropped };
   const deps = annotateFanout(repo, dropShadowedFileDeps(narrowAtCreation(repo, resolved, String(input.body || '')))); // blast radius of each symbol pointer, shown beside it when served
-  const kind = KINDS.includes(input.kind) ? input.kind : 'location';
+  const kind = KINDS.includes(kindOf(input.kind)) ? kindOf(input.kind) : 'map';
   const id = reuseId && input.id ? input.id : input.id && !store.get(input.id) ? slugify(input.id) : uniqueId(store, slugify(input.title));
   const now = new Date().toISOString();
   const note = {
@@ -316,7 +316,7 @@ export function attest(store, assessments, { session, client, model } = {}) {
       n.attest.unused++;
       // Navigational notes (callpath, location, overview) decay slowly towards 0.4 after ≥5 unconfirmed servings.
       // Rule notes (invariant, convention, gotcha, howto, fix) represent enduring truths and do not decay on simple omission.
-      const decays = ['callpath', 'location', 'overview'].includes(n.kind);
+      const decays = n.kind === 'map';
       if (decays && (n.attest.confirmed || 0) === 0 && n.attest.unused >= 5) {
         n.confidence = Math.max(0.4, (n.confidence ?? 0.7) - 0.03);
       }
@@ -333,8 +333,8 @@ export function attest(store, assessments, { session, client, model } = {}) {
 // served when it edits them: each once per session, and only those that bear on the
 // request. Serving notes on a file as soon as the agent opens it was tried and dropped: an
 // agent that gets notes after every read was seen to read in smaller steps and make more calls.
-const RULE_KINDS = ['behavior', 'invariant', 'gotcha', 'convention', 'cochange'];
-const LATE_PRIORITY = { behavior: 0, invariant: 0, gotcha: 1, convention: 2, cochange: 3, fix: 4, rationale: 5, howto: 6, callpath: 7, location: 8, overview: 9 };
+const RULE_KINDS = ['behavior', 'rule'];
+const LATE_PRIORITY = { behavior: 0, rule: 1, howto: 2, map: 3 };
 function sessionState(store, session) {
   const f = path.join(store.dir, 'state', `session-${String(session).replace(/[^\w-]/g, '')}.json`);
   let st = { late: [], turn: [], nudged: false }; try { st = { ...st, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch {}
@@ -829,11 +829,13 @@ export function holdoutSession(store, session) {
 // notes said), and a note nobody has been served in `unservedDays` since it was made. The
 // state is this checkout's (`archived` is a LOCAL_FIELDS entry), never shared or pushed.
 // `archive` in .thinker/config.json: `{ kinds: [...], unservedDays: 30 }`, or false.
-export const ARCHIVE_DEFAULTS = { kinds: ['location', 'fix', 'cochange', 'convention'], unservedDays: 30 };
+// kinds: none by default since the kinds were collapsed to four (the location, fix, cochange and
+// convention notes the sessions never acted on are rules and maps now, beside notes they did act on)
+export const ARCHIVE_DEFAULTS = { kinds: [], unservedDays: 30 };
 // The kinds `thinker review` reasons with (review.js:KIND_WEIGHT): rules, traps, past fixes and
 // why. An archived kind among them is still worth distilling, since review reads the archive;
 // an archived kind outside them (location: `find` answers it) is not worth a note at all.
-export const REVIEW_KINDS = ['behavior', 'gotcha', 'invariant', 'convention', 'fix', 'cochange', 'rationale'];
+export const REVIEW_KINDS = ['behavior', 'rule'];
 export function distillKinds(store) {
   const arch = archiveConfig(store);
   // a desired behavior is written or accepted by a person (behavior.js), never distilled from a session
@@ -842,7 +844,9 @@ export function distillKinds(store) {
 export function archiveConfig(store) {
   const c = store.config().archive;
   if (c === false) return { ...ARCHIVE_DEFAULTS, enabled: false };
-  return { ...ARCHIVE_DEFAULTS, ...(c && typeof c === 'object' ? c : {}), enabled: true };
+  const cfg = { ...ARCHIVE_DEFAULTS, ...(c && typeof c === 'object' ? c : {}), enabled: true };
+  cfg.kinds = [...new Set((cfg.kinds || []).map(kindOf))]; // a config written with the old kind names
+  return cfg;
 }
 export function archiveReason(note, { kinds, unservedDays, now = Date.now() }) {
   if (note.archived || note.status === 'invalid' || note.kind === 'behavior') return null; // a desired behavior is a rule a person wrote, not a note the sessions grade

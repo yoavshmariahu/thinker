@@ -1,6 +1,6 @@
+import path from 'node:path';
 // Retrieval: BM25 over note text + path affinity + kind/confidence priors,
 // then greedy packing into a token budget.
-import path from 'node:path';
 
 // Words that say nothing about the subject. A request in prose is mostly these, and notes are
 // written in prose too, so without the list two texts match on "why", "not" and "only".
@@ -114,7 +114,7 @@ function pathAffinity(note, file) {
   return best;
 }
 
-const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0, callpath: 0.05, location: 0.05, rationale: 0.05, overview: 0.1, invariant: 0.1, fix: 0.1, behavior: 0.12 };
+const KIND_PRIOR = { howto: 0.15, rule: 0.1, map: 0.07, behavior: 0.12 };
 
 // What a request tells the agent not to do is not what it is about: "do not run the test suite"
 // would otherwise bring up the notes on running tests. Only instructions: "it never updates" and
@@ -152,15 +152,12 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
   return notes.map(n => {
     const mq = Q.matched.get(n.id) || 0, mb = B.matched.get(n.id) || 0;
     const aff = pathAffinity(n, file);
-    // a co-change rule is for the moment its files are edited (ops.js:lateNotes); at orientation it is
-    // served only when the request names one of its files or symbols, or it is about the current file
-    const ccNamed = n.kind !== 'cochange' || mode !== 'orient' || aff > 0 || (n.deps || []).some(d => tokenize(`${path.basename(d.path)} ${d.symbol || ''}`).some(t => t.length >= 3 && qset.has(t)));
     const cover = (B.scores.get(n.id) || 0) / Math.max(1e-9, B.mass), coverQ = (Q.scores.get(n.id) || 0) / Math.max(1e-9, Q.mass);
     // one word in the title and three in the body may be the same word counted twice: "hit" in a note
     // titled "Cache hit notice" and in its body, with "claude" and "usage", let it through for "change
     // how long we wait before retrying when claude -p hits a usage limit". Four different words are asked.
     const terms = short ? mq >= 1 && (Q.held.get(n.id) || 0) >= Math.min(2, Q.uniq) : mq >= 2 || (mq >= 1 && mb >= 3 && distinct(n) >= MIN_COVER.distinct);
-    const passes = ccNamed && (loose ? (mq + mb) >= 1 || aff > 0 : ((!subjectless && terms && cover >= minB && coverQ >= minQ) || aff > 0));
+    const passes = (loose ? (mq + mb) >= 1 || aff > 0 : ((!subjectless && terms && cover >= minB && coverQ >= minQ) || aff > 0));
     const rel = passes ? 0.7 * (Q.scores.get(n.id) || 0) / maxQ + 0.3 * (B.scores.get(n.id) || 0) / maxB : 0;
     const prior = mode === 'orient' ? (KIND_PRIOR[n.kind] || 0) * 0.3 : 0;
     const conf = (n.confidence ?? 0.7);

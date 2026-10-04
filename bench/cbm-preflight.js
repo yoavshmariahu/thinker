@@ -12,7 +12,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ROOT, cbmBinary, ensureIndexed } from './cbm-arms.js';
 import { cbmProject } from './eval-support/cbm.js';
-import { fanout, callers, outline } from '../src/codegraph.js';
+import { fanout, references, outline } from '../src/codegraph.js';
 
 const args = process.argv.slice(2);
 const flag = n => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : null; };
@@ -44,7 +44,7 @@ try {
   if (first?.file) {
     const dep = { path: first.file, symbol: first.rows[0][0] };
     console.log(`fanout(${dep.path}:${dep.symbol}):`, JSON.stringify(fanout(REPO, dep)));
-    console.log(`callers:`, JSON.stringify((callers(REPO, dep) || []).slice(0, 5).map(c => `${c.path}:${c.name}:L${c.line}`)));
+    console.log(`references:`, JSON.stringify((references(REPO, dep.symbol.split('.').pop(), { file: dep.path, limit: 50 })?.lines || []).slice(0, 5).map(l => `${l.path}:L${l.line}`)));
     console.log(`outline(${dep.path}): ${(outline(REPO, dep.path) || []).length} definitions`);
   }
   console.log('preflight ok');

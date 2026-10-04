@@ -44,7 +44,7 @@
     },
     {
       "path": "src/cli.js",
-      "hash": "sha256:3f19193fd07b70f4038555e1",
+      "hash": "sha256:2b346516ea06633e3fb9f2c0",
       "missing": false
     },
     {
@@ -54,7 +54,7 @@
     },
     {
       "path": "src/prs.js",
-      "hash": "sha256:082c322a715f1f2246d7ab16",
+      "hash": "sha256:2ecb769658c3ab07a00d2260",
       "missing": false
     },
     {
@@ -82,7 +82,7 @@
     "type": "agent"
   },
   "created": "2026-10-03T06:37:50.164Z",
-  "verified": "2026-10-04T05:05:53.185Z",
+  "verified": "2026-10-04T05:17:40.259Z",
   "verifiedCommit": "a35ec3bfc80df76bd1bf41b5d2fa0eeaf2cceb32",
   "confidence": 1,
   "related": []

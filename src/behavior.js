@@ -68,7 +68,7 @@ export function addBehavior(store, input, { mutability, source = { type: 'human'
   return r;
 }
 
-// A note that already states a rule (an invariant, a convention, a gotcha) becomes a behavior; the
+// A rule note becomes a behavior; the
 // person who promotes it is its source from then on, and the original kind is kept in `promoted`.
 export function promoteBehavior(store, id, { mutability = 'mutable' } = {}) {
   const n = store.get(id);
@@ -86,7 +86,7 @@ export function promoteBehavior(store, id, { mutability = 'mutable' } = {}) {
 export const acceptBehavior = (store, id, opts) => promoteBehavior(store, id, opts);
 
 // Candidates for promotion: the notes that state rules, the ones the sessions acted on most first.
-export function proposeBehaviors(store, { kinds = ['invariant', 'convention', 'gotcha'], limit = 20 } = {}) {
+export function proposeBehaviors(store, { kinds = ['rule'], limit = 20 } = {}) {
   return store.list().filter(n => kinds.includes(n.kind) && n.status !== 'invalid')
     .map(n => ({ id: n.id, title: n.title, kind: n.kind, confidence: n.confidence ?? 0.7, confirmed: n.attest?.confirmed || 0, uses: n.uses || 0, source: n.source?.type || 'agent' }))
     .sort((a, b) => b.confirmed - a.confirmed || b.uses - a.uses || b.confidence - a.confidence).slice(0, limit);
