@@ -31,6 +31,36 @@ existing Thinker model backend (Anthropic API or a supported model CLI); these
 new hook integrations do not add model-provider adapters. Retrieval itself does
 not need model credentials.
 
+## End-of-turn notices
+
+All eight adapters install a stop callback when hooks are enabled, including with
+`--no-learn`. Notices describe notes actually served during that session's turn;
+an empty turn produces no cache-hit notice. `THINKER_NOTICE=off` or `notice: false`
+in `.thinker/config.json` disables notices without disabling learning.
+
+| Client | Notice display |
+| --- | --- |
+| Claude Code, Gemini CLI | `systemMessage` |
+| Codex | `systemMessage`, surfaced by the host as a UI/event-stream warning |
+| Pi | Native `ctx.ui.notify` in interactive mode |
+| OpenCode | Native `client.tui.showToast` |
+| Windsurf Cascade | Stop stdout with `show_output: true` |
+| Cursor, Copilot CLI | Stop callbacks run, but their APIs have no passive notice output |
+
+Codex supports the [common stop output fields](https://learn.chatgpt.com/docs/hooks#common-output-fields).
+Pi uses its [extension UI](https://pi.dev/docs/latest/extensions), OpenCode its
+[TUI SDK](https://opencode.ai/docs/sdk/#tui), and Windsurf its
+[visible hook output](https://docs.windsurf.com/windsurf/cascade/hooks).
+Windsurf's CLI retrieval must use a `--session` matching the hook's `trajectory_id`
+for hits to be attributed to that turn; unassociated CLI/MCP retrieval is not
+counted as another session's cache hit.
+
+[Cursor stop](https://cursor.com/docs/hooks) and
+[Copilot agentStop](https://docs.github.com/en/copilot/reference/hooks-reference)
+can force continuation, but that starts another model turn. Thinker does not do
+that just to show a notice. Their callbacks still clear turn state and perform
+learning when enabled. There is no claim of a visible stop notice in those hosts.
+
 ## Why these additions
 
 Pi and Windsurf were explicitly requested. Copilot and OpenCode are the next

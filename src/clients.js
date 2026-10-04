@@ -122,12 +122,14 @@ export function promptOutput(client, text) {
   if (client === 'gemini') return JSON.stringify({ hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: text } });
   return text;
 }
-// What the stop hook prints so the client shows `notice` to the user. Claude Code and
-// Gemini CLI show `systemMessage` for every hook event; Codex and Cursor have no channel
-// to the user from a stop hook, so nothing is printed for them.
+// Notices use each host's display API without requesting another model turn.
+// Pi/OpenCode consume plain text in their native extensions; Windsurf shows stdout.
+// Cursor and Copilot stop outputs only control continuation, not user notices.
 export function stopOutput(client, notice) {
-  if (!notice || !['claude', 'gemini'].includes(client)) return '';
-  return JSON.stringify({ systemMessage: notice });
+  if (!notice) return '';
+  if (['claude', 'codex', 'gemini'].includes(client)) return JSON.stringify({ systemMessage: notice });
+  if (['pi', 'opencode', 'windsurf'].includes(client)) return notice;
+  return '';
 }
 export function toolOutput(client, text) {
   if (client === 'windsurf') return '';
@@ -286,7 +288,7 @@ function isLocalFile(client, file, repo) {
 // --budget: what a benchmark arm writes). `thinker rewire` runs it for the user's files and every
 // repository on the machine, `thinker update` after an update, and the prompt hook for its own
 // checkout and the user's files.
-const HOOK_COMMAND = /^node "[^"]+" hook (prompt|tool|stop)(?: --client \w+)?(?: --user)?(?: --repo "[^"]+")?(?: --late)?(?: --record)?$/;
+const HOOK_COMMAND = /^node "[^"]+" hook (prompt|tool|stop)(?: --client \w+)?(?: --user)?(?: --repo "[^"]+")?(?: --late)?(?: --record)?(?: --no-distill)?$/;
 const readJsonOr = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const ourGroups = (hooks, ev) => (hooks?.[ev] || []).filter(isOurs);
 const commandOf = g => (g?.hooks ? g.hooks[0] : g)?.command;
@@ -295,6 +297,8 @@ const codexMcpScript = text => { const a = text.indexOf(TOML_START), b = a < 0 ?
 // What one client's files say about how thinker was wired in, at `scope`: null when it was not.
 // `scripts` are the thinker scripts the entries run; `custom` names a command the installer
 // would not have written as it stands.
+const hasLearningStop = (hooks, events) => events.some(event => ourGroups(hooks, event).some(group => !/ --no-distill\b/.test(commandOf(group) || '')));
+
 export function inferWiring(repo, client, { scope = 'repo' } = {}) {
   const f = wiringFiles(client, { scope, repo });
   const scripts = new Set(), hookScripts = new Set(), custom = [];
@@ -306,7 +310,7 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
       if (!file) continue;
       const hooks = readJsonOr(file, {}).hooks;
       if (!ourGroups(hooks, 'UserPromptSubmit').length) continue;
-      w.hooks = true; w.shared = shared; w.learn = ourGroups(hooks, 'Stop').length > 0 || ourGroups(hooks, 'SessionEnd').length > 0; w.late = ourGroups(hooks, 'PostToolUse').length > 0;
+      w.hooks = true; w.shared = shared; w.learn = hasLearningStop(hooks, ['Stop', 'SessionEnd']); w.late = ourGroups(hooks, 'PostToolUse').length > 0;
       for (const ev of ['UserPromptSubmit', 'Stop', 'SessionEnd', 'PostToolUse']) ourGroups(hooks, ev).forEach(see);
       break;
     }
@@ -316,7 +320,7 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
   if (client === 'codex') {
     const hooks = readJsonOr(f.hooks, {}).hooks;
     if (ourGroups(hooks, 'UserPromptSubmit').length) {
-      w.hooks = true; w.learn = ourGroups(hooks, 'Stop').length > 0;
+      w.hooks = true; w.learn = hasLearningStop(hooks, ['Stop']);
       w.late = ourGroups(hooks, 'PostToolUse').some(g => / --late\b/.test(commandOf(g) || ''));
       for (const ev of ['UserPromptSubmit', 'PostToolUse', 'Stop']) ourGroups(hooks, ev).forEach(see);
     }
@@ -327,7 +331,7 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
   if (client === 'gemini') {
     const cfg = readJsonOr(f.settings, {});
     if (ourGroups(cfg.hooks, 'BeforeAgent').length) {
-      w.hooks = true; w.learn = ourGroups(cfg.hooks, 'AfterAgent').length > 0;
+      w.hooks = true; w.learn = hasLearningStop(cfg.hooks, ['AfterAgent']);
       w.late = ourGroups(cfg.hooks, 'AfterTool').some(g => / --late\b/.test(commandOf(g) || ''));
       for (const ev of ['BeforeAgent', 'AfterTool', 'AfterAgent']) ourGroups(cfg.hooks, ev).forEach(see);
     }
@@ -337,7 +341,7 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
   if (client === 'cursor') {
     const hooks = readJsonOr(f.hooks, {}).hooks;
     if (ourGroups(hooks, 'beforeSubmitPrompt').length) {
-      w.hooks = true; w.learn = ourGroups(hooks, 'stop').length > 0 || ourGroups(hooks, 'sessionEnd').length > 0;
+      w.hooks = true; w.learn = hasLearningStop(hooks, ['stop', 'sessionEnd']);
       w.late = ourGroups(hooks, 'postToolUse').some(g => / --late\b/.test(commandOf(g) || ''));
       for (const ev of ['beforeSubmitPrompt', 'postToolUse', 'afterShellExecution', 'stop', 'sessionEnd']) ourGroups(hooks, ev).forEach(see);
     }
@@ -582,7 +586,7 @@ function trustHooksIn(text, hooksFile, root) {
   const defs = {
     UserPromptSubmit: [['prompt', 15, ['', ' --record']]],
     PostToolUse: [['tool', 10, ['', ' --late', ' --record', ' --late --record']]],
-    Stop: [['stop', 10, ['', ' --record']]],
+    Stop: [['stop', 10, ['', ' --record', ' --no-distill']]],
   };
   const generated = (event, h) => h?.type === 'command' && (defs[event] || []).some(([what, timeout, suffixes]) =>
     h.timeout === timeout && suffixes.some(suffix => h.command === `node "${cli}" hook ${what} --client codex${repoPart}${suffix}`));
@@ -648,6 +652,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     : client === 'claude' ? `node "${cli}" hook ${what}${extra}` : `node "${cli}" hook ${what} --client ${client} --repo "${repo}"${extra}`;
   const rel = file => label(file, o);
   const rec = learn ? ' --record' : '';
+  const stopFlags = learn ? rec : ' --no-distill';
   const learned = learn ? ', sessions distilled into new notes when they end' : '';
   const localFiles = files => { if (scope === 'repo' && !shared && files.length) excludeLocally(repo, files.map(x => path.relative(repo, x))); };
 
@@ -671,11 +676,11 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       const prompt = wind ? 'pre_user_prompt' : 'userPromptSubmitted';
       const tools = wind ? ['post_read_code', 'post_write_code', 'post_run_command', 'post_mcp_tool_use'] : ['postToolUse', 'postToolUseFailure'];
       const stops = wind ? ['post_cascade_response'] : ['agentStop', 'sessionEnd'];
-      const entry = (what, extra) => wind ? { command: cmd(what, extra), show_output: false } : { type: 'command', command: cmd(what, extra), timeoutSec: 15 };
+      const entry = (what, extra) => wind ? { command: cmd(what, extra), show_output: what === 'stop' } : { type: 'command', command: cmd(what, extra), timeoutSec: 15 };
       const entries = [[prompt, entry('prompt', rec)]];
       // Copilot delivers the parked prompt bundle on the first successful tool.
       if (learn || (!wind && (hooks || late))) for (const ev of tools) entries.push([ev, entry('tool', (!wind && late ? ' --late' : '') + rec)]);
-      if (learn) for (const ev of stops) entries.push([ev, entry('stop', rec)]);
+      for (const ev of stops) entries.push([ev, entry('stop', stopFlags)]);
       mergeJson(path.join(repo, file), c => ({ ...(!wind ? { version: 1 } : {}), ...c, hooks: setHooks(c.hooks, [prompt, ...tools, ...stops], entries) }));
       generated.push(file);
       done.push(`${client}: hooks in ${file}${wind ? '; recording only, retrieval uses the always-on rule' : '; prompt notes delivered after the first tool result'}`);
@@ -702,7 +707,8 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       const entries = [['UserPromptSubmit', { matcher: '', hooks: [{ type: 'command', command: cmd('prompt'), timeout: 15 }] }]];
       if (late) entries.push(['PostToolUse', { matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: cmd('tool'), timeout: 10 }] }]);
       // Stop ends a turn and distills only a large backlog; SessionEnd distills what is left
-      if (learn) entries.push(['Stop', { matcher: '', hooks: [{ type: 'command', command: cmd('stop'), timeout: 10 }] }],
+      entries.push(['Stop', { matcher: '', hooks: [{ type: 'command', command: cmd('stop', learn ? '' : ' --no-distill'), timeout: 10 }] }]);
+      if (learn) entries.push(
         ['SessionEnd', { matcher: '', hooks: [{ type: 'command', command: cmd('stop'), timeout: 10 }] }]);
       mergeJson(target, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'Stop', 'SessionEnd', 'PostToolUse'], entries) }));
       // Claude Code runs both files: thinker's hooks live in one of them
@@ -727,7 +733,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     if (hooks) {
       const entries = [['UserPromptSubmit', { hooks: [{ type: 'command', command: cmd('prompt', rec), timeout: 15 }] }]];
       if (late || learn) entries.push(['PostToolUse', { hooks: [{ type: 'command', command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10 }] }]);
-      if (learn) entries.push(['Stop', { hooks: [{ type: 'command', command: cmd('stop', rec), timeout: 10 }] }]);
+      entries.push(['Stop', { hooks: [{ type: 'command', command: cmd('stop', stopFlags), timeout: 10 }] }]);
       mergeJson(f.hooks, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'PostToolUse', 'Stop'], entries) }));
       done.push(`Codex: hooks in ${rel(f.hooks)}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
       generated.push(f.hooks);
@@ -743,7 +749,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         // Gemini CLI timeouts are in milliseconds
         const entries = [['BeforeAgent', { hooks: [{ name: 'thinker-prompt', type: 'command', command: cmd('prompt', rec), timeout: 15000 }] }]];
         if (late || learn) entries.push(['AfterTool', { hooks: [{ name: 'thinker-tool', type: 'command', command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10000 }] }]);
-        if (learn) entries.push(['AfterAgent', { hooks: [{ name: 'thinker-learn', type: 'command', command: cmd('stop', rec), timeout: 10000 }] }]);
+        entries.push(['AfterAgent', { hooks: [{ name: 'thinker-learn', type: 'command', command: cmd('stop', stopFlags), timeout: 10000 }] }]);
         n.hooks = setHooks(c.hooks, ['BeforeAgent', 'AfterTool', 'AfterAgent'], entries);
       }
       return n;
@@ -769,7 +775,8 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       ];
       // the editor ends a turn with `stop`; the CLI (agent -p) fires only sessionEnd,
       // and reports shell output in afterShellExecution
-      if (learn) entries.push(['afterShellExecution', { command: cmd('tool', rec), timeout: 10 }], ['stop', { command: cmd('stop', rec), timeout: 10 }], ['sessionEnd', { command: cmd('stop', rec), timeout: 10 }]);
+      entries.push(['stop', { command: cmd('stop', stopFlags), timeout: 10 }], ['sessionEnd', { command: cmd('stop', stopFlags), timeout: 10 }]);
+      if (learn) entries.push(['afterShellExecution', { command: cmd('tool', rec), timeout: 10 }]);
       mergeJson(f.hooks, c => ({ version: 1, ...c, hooks: setHooks(c.hooks, ['beforeSubmitPrompt', 'postToolUse', 'afterShellExecution', 'stop', 'sessionEnd'], entries) }));
       done.push(`Cursor: hooks in ${rel(f.hooks)}: notes for the request are delivered after the agent's first tool call${late ? ', then file-keyed notes while working' : ''}${learned}`);
       generated.push(f.hooks);

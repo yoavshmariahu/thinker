@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, refreshWiring, inferWiring } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring } from '../src/clients.js';
 import { installGitHooks, preCommitHook, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';
 
@@ -153,8 +153,11 @@ test('stop hook tells the user what the turn saved, once, where the client can s
   hook(dir, 'prompt', 'gemini', { session_id: 't2', prompt: PROMPT, cwd: dir });
   assert.match(JSON.parse(hook(dir, 'stop', 'gemini', { session_id: 't2', cwd: dir }, noLearn)).systemMessage, /1 note this turn/);
 
-  // Codex has no channel to the user from a stop hook; its stdout stays empty
+  // Codex supports systemMessage without restarting the agent.
   hook(dir, 'prompt', 'codex', { session_id: 't3', prompt: PROMPT, cwd: dir });
+  const codex = JSON.parse(hook(dir, 'stop', 'codex', { session_id: 't3', cwd: dir }, noLearn));
+  assert.match(codex.systemMessage, /1 note this turn/);
+  assert.deepEqual(Object.keys(codex), ['systemMessage']);
   assert.equal(hook(dir, 'stop', 'codex', { session_id: 't3', cwd: dir }, noLearn), '');
 
   // turned off
@@ -217,7 +220,8 @@ test('setup learns from sessions by default; --no-learn and THINKER_NO_LEARN swi
   assert.ok(on.Stop, 'sessions are distilled when they end');
   for (const off of [run(['--no-learn']), run(['--serve-only']), run([], { THINKER_NO_LEARN: '1' })]) {
     assert.ok(off.UserPromptSubmit, 'notes are still served');
-    assert.equal(off.Stop, undefined);
+    assert.match(off.Stop[0].hooks[0].command, / --no-distill$/);
+    assert.equal(off.SessionEnd, undefined);
   }
   assert.ok(!run(['--no-hooks'])?.UserPromptSubmit, 'no hooks at all');
 });
@@ -607,4 +611,40 @@ test('the home directory is not a checkout: .thinker/ there is thinker\'s own ho
   const env = { ...process.env, ...home, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off' };
   const outp = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--user'], { input: JSON.stringify({ session_id: 'h1', prompt: PROMPT, cwd: home.HOME }), encoding: 'utf8', env, cwd: home.HOME }).trim();
   assert.equal(outp, '');
+});
+
+
+test('all command adapters keep stop hooks with learning disabled across refresh', () => {
+  const stops = { claude: ['.claude/settings.local.json', 'Stop'], codex: ['.codex/hooks.json', 'Stop'], gemini: ['.gemini/settings.json', 'AfterAgent'], cursor: ['.cursor/hooks.json', 'stop'], windsurf: ['.windsurf/hooks.json', 'post_cascade_response'], copilot: ['.github/hooks/thinker.json', 'agentStop'] };
+  const dir = repo();
+  for (const client of Object.keys(stops)) {
+    installClient(client, opts(dir));
+    assert.equal(inferWiring(dir, client).learn, false, client);
+  }
+  refreshWiring(dir, { cli: CLI, mcpEntry: opts(dir).mcpEntry });
+  for (const [client, [file, event]] of Object.entries(stops)) {
+    const entry = read(dir, file).hooks[event][0];
+    assert.match((entry.hooks?.[0] || entry).command, / --no-distill$/, client);
+    assert.equal(inferWiring(dir, client).learn, false, client);
+    assert.deepEqual(inferWiring(dir, client).custom, [], client);
+    if (client === 'windsurf') assert.equal(entry.show_output, true);
+  }
+});
+
+test('stop output follows native notice contracts and never requests continuation', () => {
+  for (const client of ['claude', 'codex', 'gemini']) assert.deepEqual(JSON.parse(stopOutput(client, 'cache hit')), { systemMessage: 'cache hit' });
+  for (const client of ['pi', 'opencode', 'windsurf']) assert.equal(stopOutput(client, 'cache hit'), 'cache hit');
+  for (const client of ['cursor', 'copilot']) assert.equal(stopOutput(client, 'cache hit'), '');
+  for (const client of parseClients('all')) assert.equal(stopOutput(client, ''), '');
+});
+
+
+test('CLI retrieval attributed to a Windsurf trajectory produces one visible stop notice', () => {
+  const dir = repo();
+  for (const command of ['orient', 'lookup']) {
+    execFileSync('node', [CLI, command, PROMPT, '--repo', dir, '--session', 'wind-hit'], { env: { ...process.env, THINKER_NO_BG_VERIFY: '1' } });
+    const event = { trajectory_id: 'wind-hit', agent_action_name: 'post_cascade_response', tool_info: { response: 'done' } };
+    assert.match(hook(dir, 'stop', 'windsurf', event, ['--no-distill']), /1 note this turn/);
+    assert.equal(hook(dir, 'stop', 'windsurf', event, ['--no-distill']), '');
+  }
 });

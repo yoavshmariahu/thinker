@@ -12,13 +12,12 @@ export function piExtension(pi, config, run = hookRunner(config)) {
       const text = await run('tool', event(ctx, { tool_name: e.toolName, tool_input: e.input, tool_response: e.content, is_error: e.isError }));
       if (text) return { content: [...e.content, { type: 'text', text }] };
     });
-    if (config.learn) {
-      pi.on('agent_end', async (e, ctx) => {
-        const last = e.messages.filter(m => m.role === 'assistant').at(-1);
-        await run('stop', event(ctx, { last_assistant_message: last?.content?.filter(c => c.type === 'text').map(c => c.text).join('\n') }));
-      });
-      pi.on('session_shutdown', async (_e, ctx) => { await run('stop', event(ctx, { hook_event_name: 'SessionEnd' })); });
-    }
+    pi.on('agent_end', async (e, ctx) => {
+      const last = e.messages.filter(m => m.role === 'assistant').at(-1);
+      const notice = await run('stop', event(ctx, { last_assistant_message: last?.content?.filter(c => c.type === 'text').map(c => c.text).join('\n') }));
+      if (notice && ctx.hasUI) ctx.ui.notify(notice, 'info');
+    });
+    if (config.learn) pi.on('session_shutdown', async (_e, ctx) => { await run('stop', event(ctx, { hook_event_name: 'SessionEnd' })); });
   } else if (config.mcp) {
     pi.on('before_agent_start', async () => ({ message: { customType: 'thinker-cache', content: guidance(config), display: false } }));
   }

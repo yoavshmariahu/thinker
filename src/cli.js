@@ -76,8 +76,8 @@ const HELP = `thinker — knowledge cache for coding agents
   export [file.tgz]              pack this repo's cache for delivery
   import <file.tgz|url>          unpack a delivered cache and check it against this checkout
   serve                          run the MCP server (stdio)
-  orient "<task>" [--file f] [--budget n] [--snippets]
-  lookup "<query>" [--kind k] [--snippets]
+  orient "<task>" [--file f] [--budget n] [--snippets] [--session id]
+  lookup "<query>" [--kind k] [--snippets] [--session id]
                                  (--kind behavior with no query: every desired behavior; --snippets: inline the code
                                  behind the pointers, as the MCP tools do)
   system [--all] [--json]        the desired behaviors of the system (notes of kind behavior) and whether the code
