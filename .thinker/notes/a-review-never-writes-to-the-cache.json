@@ -14,8 +14,8 @@
     {
       "path": "src/review.js",
       "symbol": "review",
-      "hash": "sha256:0754faebe3fb9340780f959c",
-      "line": 616,
+      "hash": "sha256:ac10e873e94b1bd042f77eb1",
+      "line": 607,
       "missing": false,
       "fanout": {
         "files": 17,
@@ -27,7 +27,7 @@
       "path": "src/review.js",
       "symbol": "assessNote",
       "hash": "sha256:0a8a7fc551eebc1ffd05c6ce",
-      "line": 507,
+      "line": 498,
       "missing": false,
       "fanout": {
         "files": 1,
@@ -39,7 +39,7 @@
       "path": "src/review.js",
       "symbol": "assessBehavior",
       "hash": "sha256:3c4297ae98678a74993d225e",
-      "line": 462,
+      "line": 453,
       "missing": false,
       "fanout": {
         "files": 3,
@@ -51,7 +51,7 @@
       "path": "src/review.js",
       "symbol": "assessHolistic",
       "hash": "sha256:b8f016fdbbf88bec3033f65f",
-      "line": 538,
+      "line": 529,
       "missing": false,
       "fanout": {
         "files": 2,
@@ -71,8 +71,8 @@
     "type": "human"
   },
   "created": "2026-10-04T05:12:42.214Z",
-  "verified": "2026-10-04T05:12:42.214Z",
-  "verifiedCommit": "d5a567af5622de4cf9f8be8af51953d615f32ee2",
+  "verified": "2026-10-04T05:19:24.591Z",
+  "verifiedCommit": "fc12a22f478a172f67161018f3e62967f6e1486f",
   "confidence": 0.95,
   "related": []
 }
