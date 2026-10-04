@@ -21,10 +21,16 @@ const model = flags.model || 'sonnet';
 const reps = Number(flags.reps) || 1;
 const tag = flags.tag || new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
 const only = flags.only ? flags.only.split(',') : null;
+const TOOL_SEARCH = flags['tool-search'] === 'off' ? 'off' : 'on';
 const outDir = path.join(HERE, 'runs', tag);
 fs.mkdirSync(outDir, { recursive: true });
 
-const CACHE_PROMPT = `This repository has a "thinker" knowledge cache from previous sessions, exposed as MCP tools. Before exploring the codebase, call mcp__thinker__orient with the task. Follow the file:symbol pointers it returns instead of re-deriving them; only grep/read to confirm or to fill gaps. Use mcp__thinker__lookup for specific questions mid-task. Treat notes marked STALE as unverified.`;
+// The arm's system prompt. It names every tool the server offers, not just orient and
+// lookup: in the first paired Opus run the agent reached for grep and Read where `find`
+// and `drilldown` were built to answer, and one of the two runs never loaded their
+// schemas at all. Claude Code defers MCP tools, so the schemas cost a ToolSearch call
+// before the first use; say so rather than leave the agent to discover it.
+const CACHE_PROMPT = `This repository has a "thinker" knowledge cache from previous sessions, exposed as MCP tools: orient (notes for a task), lookup (one question), find (where a name is defined, when no note says), drilldown (a definition whole, with its callers and callees). They are deferred, so load their schemas in one call before you start: ToolSearch with query \`select:mcp__thinker__orient,mcp__thinker__lookup,mcp__thinker__find,mcp__thinker__drilldown\`. Call mcp__thinker__orient with the task before exploring the codebase, and follow the file:symbol pointers it returns instead of re-deriving them. Prefer find and drilldown over grep and whole-file reads for locating and opening a definition. Treat notes marked STALE as unverified.`;
 
 function transcriptPath(sessionId, cwd = repo) {
   const enc = cwd.replace(/[\/.]/g, '-');
@@ -39,6 +45,21 @@ function makeWorktree(i) {
   execFileSync('git', ['worktree', 'add', '-q', '--detach', wt, 'HEAD'], { cwd: repo });
   return wt;
 }
+// The noteset a run is served from. Serving writes to it: `uses`, `lastUsed` and
+// `servedIn` on every note served, and a persisted `status` on every note whose deps
+// were re-hashed. A noteset shared by several runs therefore stops being a constant —
+// `uses` feeds ranking and the prompt hook holds stale notes back — so each run is given
+// its own copy and the source directory is never touched. `live` is the exception: that
+// arm exists to let the cache change between tasks.
+const SRC_NOTES = path.resolve(flags['notes-dir'] || path.join(HERE, 'repos', repoName, '.thinker', 'notes'));
+function stageNotes(id) {
+  const dst = path.join(outDir, 'notes-staged', id);
+  fs.rmSync(dst, { recursive: true, force: true });
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.cpSync(SRC_NOTES, dst, { recursive: true });
+  return dst;
+}
+
 function resetWorktree(wt) {
   try { execFileSync('git', ['checkout', '-q', '--', '.'], { cwd: wt }); execFileSync('git', ['clean', '-qfd'], { cwd: wt }); } catch {}
 }
@@ -74,11 +95,15 @@ function injectedIds(file) {
   return [...ids];
 }
 
-function runClaude(prompt, { arm, allowEdit, cwd }) {
+function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
   const a = ['-p', '--model', model, '--output-format', 'json', '--permission-mode', 'bypassPermissions', '--strict-mcp-config', '--max-turns', String(flags['max-turns'] || 60)];
   if (!allowEdit) a.push('--disallowedTools', 'Edit,Write,NotebookEdit,mcp__thinker__remember,mcp__thinker__feedback');
-  const env = { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' };
-  const notesDir = path.resolve(flags['notes-dir'] || path.join(repo, '.thinker', 'notes'));
+  // --tool-search off: Claude Code offers MCP tools as deferred names whose schemas cost a
+  // ToolSearch call before the first use, which an agent handed a <thinker-cache> bundle
+  // often never pays. `off` puts the schemas in the prompt instead, so an arm measures
+  // thinker's tools rather than the host's tool discovery. Applied to both arms alike.
+  const env = { ...process.env, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', ...(TOOL_SEARCH === 'off' ? { ENABLE_TOOL_SEARCH: 'false' } : {}) };
+  const notesDir = staged || SRC_NOTES;
   // Hook-based and cache arms. early: what the UserPromptSubmit hook injects; late: PostToolUse
   // file-keyed notes; nudge: Stop-hook completeness check.
   const ARMS = {
@@ -172,9 +197,11 @@ async function main() {
       const id = `${task.id}-${arm}-${rep}`;
       const file = path.join(outDir, id + '.json');
       if (fs.existsSync(file) && !flags.force) { summary.push(JSON.parse(fs.readFileSync(file, 'utf8'))); console.log(`skip ${id} (exists)`); continue; }
+      // `live` learns across tasks on purpose; every other arm gets an untouched copy
+      const notesDir = (arm === 'live' || flags['notes-mutable']) ? SRC_NOTES : stageNotes(id);
       let r;
       for (let attempt = 0; ; attempt++) {
-        try { r = await runClaude(task.prompt, { arm, allowEdit: task.type === 'change', cwd }); }
+        try { r = await runClaude(task.prompt, { arm, allowEdit: task.type === 'change', cwd, notesDir }); }
         catch (e) { console.log(`${id} ERROR ${e.message}`); r = null; break; }
         // usage/session limit: do not record garbage; wait and retry
         if ((r.num_turns || 0) <= 1 && /session limit|usage limit|rate limit|limit reached/i.test(r.result || '')) {
@@ -188,7 +215,7 @@ async function main() {
       let distill = null;
       if (arm === 'live') {
         // the cache learns from this session before the next task runs
-        try { distill = execFileSync('node', [CLI, 'distill', transcriptPath(r.session_id, cwd), '--repo', cwd], { encoding: 'utf8', env: { ...process.env, THINKER_NOTES_DIR: path.resolve(flags['notes-dir'] || path.join(repo, '.thinker', 'notes')) } }); }
+        try { distill = execFileSync('node', [CLI, 'distill', transcriptPath(r.session_id, cwd), '--repo', cwd], { encoding: 'utf8', env: { ...process.env, THINKER_NOTES_DIR: SRC_NOTES } }); }
         catch (e) { distill = 'DISTILL ERROR ' + e.message; }
         process.stdout.write(distill.trim().split('\n').map(l => '    ' + l).join('\n') + '\n');
       }
@@ -200,13 +227,16 @@ async function main() {
         try { execFileSync('git', ['add', '-A', '--', '.', ':!.thinker'], { cwd }); diff = execFileSync('git', ['diff', '--cached', '--no-color'], { cwd, maxBuffer: 16 * 1024 * 1024 }).toString(); execFileSync('git', ['reset', '-q'], { cwd }); } catch (e) { diff = 'DIFF ERROR ' + e.message; }
         if (!flags['no-judge']) { try { grade = await judgeChange(task, diff, r.result || ''); } catch (e) { grade = { error: e.message }; } }
         if (task.testCmd) {
-          // run the task's test command in the worktree with the agent's edits applied
-          try { const t = execFileSync('sh', ['-c', task.testCmd], { cwd, encoding: 'utf8', timeout: 600_000, maxBuffer: 1 << 24, stdio: ['ignore', 'pipe', 'pipe'] }); grade = { ...(grade || {}), tests: 'pass', testTail: t.slice(-800) }; }
+          // run the task's test command in the worktree with the agent's edits applied.
+          // testCmd is an argv array (grafana) or a shell string; an array handed to `sh -c`
+          // stringifies to a comma-joined word and every such task reported `tests: fail`.
+          const [bin, binArgs] = Array.isArray(task.testCmd) ? [task.testCmd[0], task.testCmd.slice(1)] : ['sh', ['-c', task.testCmd]];
+          try { const t = execFileSync(bin, binArgs, { cwd, encoding: 'utf8', timeout: 600_000, maxBuffer: 1 << 24, stdio: ['ignore', 'pipe', 'pipe'] }); grade = { ...(grade || {}), tests: 'pass', testTail: t.slice(-800) }; }
           catch (e) { grade = { ...(grade || {}), tests: 'fail', testTail: String(e.stdout || '').slice(-800) + String(e.stderr || '').slice(-400) }; }
         }
       } else if (task.gold && !flags['no-judge']) { try { grade = await judge(task, r.result || ''); } catch (e) { grade = { error: e.message }; } }
       const rec = {
-        id, task: task.id, area: task.area, arm, rep, model, session: r.session_id,
+        id, task: task.id, area: task.area, arm, rep, model, toolSearch: TOOL_SEARCH, session: r.session_id,
         turns: r.num_turns, wall_ms: r.wall_ms, api_ms: r.duration_api_ms, cost: r.total_cost_usd,
         in_tokens: (r.usage?.input_tokens || 0) + (r.usage?.cache_creation_input_tokens || 0) + (r.usage?.cache_read_input_tokens || 0),
         out_tokens: r.usage?.output_tokens || 0, tools, grade, result: r.result, is_error: r.is_error, diff, distill,
