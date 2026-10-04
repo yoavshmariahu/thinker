@@ -23,7 +23,7 @@ const TOOL_NAMES = [
   [/^(glob|list_directory|ls|list_dir|file_search|find)$/i, 'Glob'],
   [/^(bash|shell|run_shell_command|exec|exec_command|local_shell|run_terminal_cmd|run_command|command_execution|terminal)$/i, 'Bash'],
   [/^(edit|replace|replace_file_content|str_replace|strreplace|apply_patch|search_replace|multiedit|file_change|edit_file)$/i, 'Edit'],
-  [/^(write|write_file|write_to_file|create_file)$/i, 'Write'],
+  [/^(write|write_file|write_to_file|create_file|create)$/i, 'Write'],
 ];
 export function toolName(name) {
   const n = String(name || '');

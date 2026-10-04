@@ -250,3 +250,10 @@ test('a note resting on the agent\'s own configuration is not credited with read
   // a note whose code is merely missing from disk still stands for one read, as before
   assert.equal(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]).seconds, SECONDS_PER_READ);
 });
+
+
+test('new host integration files are not counted as code reading avoided', () => {
+  for (const file of ['.pi/extensions/thinker.js', '.opencode/plugins/thinker.js', '.windsurf/rules/thinker.md', '.devin/hooks.json', '.github/hooks/thinker.json', '.github/instructions/thinker.instructions.md']) {
+    assert.deepEqual(savingOf('/missing', { deps: [{ path: file }] }), { calls: 0, tokens: 0 });
+  }
+});

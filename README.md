@@ -22,7 +22,7 @@ correctness score    without thinker  ██████████████
 
 [See the benchmark](#benchmarks).
 
-Works with Claude Code, Codex CLI, Gemini CLI and Cursor. Research prototype.
+Integrates with Claude Code, Codex CLI, Gemini CLI, Cursor, Pi, Windsurf Cascade, GitHub Copilot CLI and OpenCode. [Hook coverage and limitations](docs/agent-integrations.md). Research prototype.
 
 ## Install and start
 

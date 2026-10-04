@@ -10,6 +10,10 @@
 //            always-applied rule points the agent at the MCP tools
 //                                             postToolUse               .cursor/mcp.json
 //
+// Pi/OpenCode use native extensions in integrations/; Windsurf records hooks
+// and retrieves through a CLI rule; Copilot parks context until postToolUse.
+// See docs/agent-integrations.md for the capability matrix.
+//
 // Learning from sessions: Claude Code's transcript is distilled at Stop. For
 // the others the hooks record the session themselves (prompt, every tool call
 // with its result, the closing message) and that trace is distilled, so
@@ -19,11 +23,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
+import { guidance } from './integrations/runner.js';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
 
-export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini'];
+export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode'];
 
 export function mergeJson(file, patch) {
   let cur = {};
@@ -47,6 +52,9 @@ export function detectClients() {
   if (onPath('codex') || fs.existsSync(home('.codex'))) found.push('codex');
   if (onPath('cursor') || onPath('cursor-agent') || onPath('agent') || fs.existsSync(home('.cursor'))) found.push('cursor');
   if (onPath('gemini') || onPath('agy') || fs.existsSync(home('.gemini'))) found.push('gemini');
+  for (const [client, dir] of [['pi', '.pi'], ['windsurf', '.codeium/windsurf'], ['copilot', '.copilot'], ['opencode', '.config/opencode']]) {
+    if (onPath(client) || fs.existsSync(home(dir))) found.push(client);
+  }
   return found.length ? found : ['claude'];
 }
 
@@ -71,7 +79,28 @@ export function hookClient(flag, ev = {}) {
   return 'claude';
 }
 
-export const sessionOf = ev => ev.session_id || ev.conversation_id || ev.conversationId || 'unknown';
+export const sessionOf = ev => ev.session_id || ev.conversation_id || ev.conversationId || ev.sessionId || ev.trajectory_id || 'unknown';
+
+// Translate host payloads once, before recording or retrieving anything.
+export function normalizeHookEvent(client, ev, what) {
+  if (client === 'windsurf') {
+    const info = ev.tool_info || {};
+    const names = { post_read_code: 'Read', post_write_code: 'Edit', post_run_command: 'Bash' };
+    return { ...ev, session_id: ev.trajectory_id || ev.session_id, hook_event_name: ev.agent_action_name,
+      prompt: info.user_prompt, tool_name: names[ev.agent_action_name] || `MCP:${info.mcp_tool_name || ''}`,
+      tool_input: { ...info, command: info.command_line }, tool_response: info.mcp_result,
+      last_assistant_message: info.response };
+  }
+  if (client === 'copilot') {
+    let input = ev.toolArgs ?? ev.tool_input;
+    if (typeof input === 'string') { try { input = JSON.parse(input); } catch { input = {}; } }
+    return { ...ev, session_id: ev.sessionId || ev.session_id,
+      tool_name: ev.toolName || ev.tool_name, tool_input: input,
+      tool_response: ev.toolResult?.textResultForLlm ?? ev.tool_result?.text_result_for_llm ?? (ev.error ? `Error: ${ev.error}` : undefined),
+      hook_event_name: ev.hook_event_name || (what === 'stop' && ev.reason ? 'SessionEnd' : undefined) };
+  }
+  return ev;
+}
 
 // Files named by a tool call, across the clients' tool input shapes.
 export function toolFiles(ev, repo) {
@@ -87,6 +116,7 @@ export function toolFiles(ev, repo) {
 // What the prompt hook prints: the bundle as context for the agent, and nothing for the
 // user. A line at every prompt was noise; the stop hook names what the turn served once.
 export function promptOutput(client, text) {
+  if (client === 'windsurf') return '';
   if (client === 'gemini') return JSON.stringify({ hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: text } });
   return text;
 }
@@ -98,6 +128,9 @@ export function stopOutput(client, notice) {
   return JSON.stringify({ systemMessage: notice });
 }
 export function toolOutput(client, text) {
+  if (client === 'windsurf') return '';
+  if (client === 'pi' || client === 'opencode') return text;
+  if (client === 'copilot') return JSON.stringify({ additionalContext: text });
   if (client === 'cursor') return JSON.stringify({ additional_context: text });
   return JSON.stringify({ hookSpecificOutput: { hookEventName: client === 'gemini' ? 'AfterTool' : 'PostToolUse', additionalContext: text } });
 }
@@ -175,7 +208,7 @@ export function compareVersions(a, b) {
 function codexTomlBlock(mcpEntry) {
   return [TOML_START, '[mcp_servers.thinker]', `command = ${tomlStr(mcpEntry.command)}`, `args = [${mcpEntry.args.map(tomlStr).join(', ')}]`, 'default_tools_approval_mode = "approve"', '', '[mcp_servers.thinker.env]', ...Object.entries(mcpEntry.env || {}).map(([k, v]) => `${k} = ${tomlStr(v)}`), TOML_END].join('\n');
 }
-const HOOK_FILES = { claude: ['.claude/settings.json', '.claude/settings.local.json'], codex: ['.codex/hooks.json'], gemini: ['.gemini/settings.json'], cursor: ['.cursor/hooks.json'] };
+const HOOK_FILES = { claude: ['.claude/settings.json', '.claude/settings.local.json'], codex: ['.codex/hooks.json'], gemini: ['.gemini/settings.json'], cursor: ['.cursor/hooks.json'], windsurf: ['.windsurf/hooks.json', '.devin/hooks.json'], copilot: ['.github/hooks/thinker.json'] };
 const MCP_FILES = { claude: ['.mcp.json'], gemini: ['.gemini/settings.json'], cursor: ['.cursor/mcp.json'] };
 
 // --- keeping a checkout's wiring in step with the installed copy ----------------------------------
@@ -192,7 +225,9 @@ const MCP_FILES = { claude: ['.mcp.json'], gemini: ['.gemini/settings.json'], cu
 // what a benchmark arm writes). `thinker rewire` runs it for every repository on the
 // machine, `thinker update` after an update, and the prompt hook for its own checkout.
 const HOOK_COMMAND = /^node "[^"]+" hook (prompt|tool|stop)(?: --client \w+)?(?: --repo "[^"]+")?(?: --late)?(?: --record)?$/;
-const WIRING_FILES = ['.claude/settings.json', '.claude/settings.local.json', '.mcp.json', '.codex/hooks.json', '.codex/config.toml', '.gemini/settings.json', '.cursor/hooks.json', '.cursor/mcp.json', '.cursor/rules/thinker.mdc'];
+const EXTENSIONS = { pi: '.pi/extensions/thinker.js', opencode: '.opencode/plugins/thinker.js' };
+const GENERATED_MARK = '// thinker integration: ';
+const WIRING_FILES = [...Object.values(EXTENSIONS), '.github/instructions/thinker.instructions.md', '.devin/rules/thinker.md', '.windsurf/hooks.json', '.devin/hooks.json', '.windsurf/rules/thinker.md', '.github/hooks/thinker.json', '.claude/settings.json', '.claude/settings.local.json', '.mcp.json', '.codex/hooks.json', '.codex/config.toml', '.gemini/settings.json', '.cursor/hooks.json', '.cursor/mcp.json', '.cursor/rules/thinker.mdc'];
 const readJsonOr = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const ourGroups = (hooks, ev) => (hooks?.[ev] || []).filter(isOurs);
 const commandOf = g => (g?.hooks ? g.hooks[0] : g)?.command;
@@ -247,6 +282,28 @@ export function inferWiring(repo, client) {
     const mcp = readJsonOr(path.join(repo, '.cursor', 'mcp.json'), {}).mcpServers?.thinker;
     if (mcp) { w.mcp = true; const sc = mcpScript(mcp); if (sc) scripts.add(sc); }
     w.shared = !excludedLocally(repo, '.cursor/hooks.json') && !excludedLocally(repo, '.cursor/mcp.json');
+  }
+  if (EXTENSIONS[client]) {
+    const text = readText(path.join(repo, EXTENSIONS[client]));
+    if (!text.startsWith(GENERATED_MARK)) return null;
+    try {
+      const cfg = JSON.parse(text.split('\n')[0].slice(GENERATED_MARK.length));
+      Object.assign(w, cfg); scripts.add(cfg.cli);
+      if (text !== extensionText(cfg)) custom.push('modified thinker extension');
+    } catch { return null; }
+  }
+  if (client === 'windsurf' || client === 'copilot') {
+    for (const f of HOOK_FILES[client]) {
+      const h = readJsonOr(path.join(repo, f), {}).hooks || {};
+      for (const groups of Object.values(h)) for (const g of groups.filter(isOurs)) {
+        see(g); const cmd = commandOf(g) || '';
+        w.hooks = true; w.learn ||= cmd.includes(' --record'); w.late ||= cmd.includes(' --late');
+      }
+    }
+    w.shared = HOOK_FILES[client].every(f => !excludedLocally(repo, f));
+    // Windsurf's always-on CLI rule is the retrieval route (no global MCP mutation).
+    w.mcp = (client === 'windsurf' ? ['.windsurf/rules/thinker.md', '.devin/rules/thinker.md'] : ['.github/instructions/thinker.instructions.md']).some(f => readText(path.join(repo, f)).includes('<!-- thinker -->'));
+    if (w.mcp && !scripts.size) custom.push('rule-only integration; rerun setup to refresh');
   }
   if (!w.hooks && !w.mcp) return null;
   return { ...w, scripts: [...scripts], custom };
@@ -431,6 +488,14 @@ function setHooks(hooks, events, entries) {
   return next;
 }
 
+function extensionText(config) {
+  const source = pathToFileURL(path.join(path.dirname(config.cli), 'integrations', `${config.client}.js`)).href;
+  const factory = config.client === 'pi' ? 'piExtension' : 'opencodePlugin';
+  return GENERATED_MARK + JSON.stringify(config) + '\n' +
+    `import { ${factory} } from ${JSON.stringify(source)};\n` +
+    (config.client === 'pi' ? `export default pi => piExtension(pi, ${JSON.stringify(config)});\n` : `export default opencodePlugin(${JSON.stringify(config)});\n`);
+}
+
 // Wire one client into the repo. Returns lines describing what was done.
 //   opts: repo, cli (path to cli.js), mcpEntry ({command,args,env}), hooks, learn, late, shared, mcp
 export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late, shared, mcp }) {
@@ -440,6 +505,49 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
   const rel = f => path.relative(repo, f);
   const rec = learn ? ' --record' : '';
   const learned = learn ? ', sessions distilled into new notes when they end' : '';
+
+  if (EXTENSIONS[client] && (hooks || mcp)) {
+    const file = path.join(repo, EXTENSIONS[client]);
+    const before = readText(file);
+    if (before && !before.startsWith(GENERATED_MARK)) throw new Error(`Refusing to overwrite ${EXTENSIONS[client]}: not a generated thinker extension`);
+    const config = { client, repo, cli, hooks: !!hooks, learn: !!learn, late: !!late, shared: !!shared, mcp: !!mcp, mcpEntry };
+    const text = extensionText(config);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (before !== text) fs.writeFileSync(file, text);
+    if (!shared) excludeLocally(repo, [EXTENSIONS[client]]);
+    done.push(`${client}: installed ${EXTENSIONS[client]}${client === 'pi' && mcp ? '; follow-up retrieval uses the CLI (no MCP dependency)' : ''}`);
+  }
+  if (client === 'windsurf' || client === 'copilot') {
+    const generated = [];
+    if (hooks) {
+      const wind = client === 'windsurf';
+      const file = wind && Object.keys(readJsonOr(path.join(repo, '.devin/hooks.json'), {}).hooks || {}).length ? '.devin/hooks.json' : HOOK_FILES[client][0];
+      const prompt = wind ? 'pre_user_prompt' : 'userPromptSubmitted';
+      const tools = wind ? ['post_read_code', 'post_write_code', 'post_run_command', 'post_mcp_tool_use'] : ['postToolUse', 'postToolUseFailure'];
+      const stops = wind ? ['post_cascade_response'] : ['agentStop', 'sessionEnd'];
+      const entry = (what, extra) => wind ? { command: cmd(what, extra), show_output: false } : { type: 'command', command: cmd(what, extra), timeoutSec: 15 };
+      const entries = [[prompt, entry('prompt', rec)]];
+      // Copilot delivers the parked prompt bundle on the first successful tool.
+      if (learn || (!wind && (hooks || late))) for (const ev of tools) entries.push([ev, entry('tool', (!wind && late ? ' --late' : '') + rec)]);
+      if (learn) for (const ev of stops) entries.push([ev, entry('stop', rec)]);
+      mergeJson(path.join(repo, file), c => ({ ...(!wind ? { version: 1 } : {}), ...c, hooks: setHooks(c.hooks, [prompt, ...tools, ...stops], entries) }));
+      generated.push(file);
+      done.push(`${client}: hooks in ${file}${wind ? '; recording only, retrieval uses the always-on rule' : '; prompt notes delivered after the first tool result'}`);
+    }
+    if ((client === 'windsurf' && (hooks || mcp)) || (client === 'copilot' && mcp)) {
+      const file = client === 'windsurf' ? (fs.existsSync(path.join(repo, '.devin/rules')) ? '.devin/rules/thinker.md' : '.windsurf/rules/thinker.md') : '.github/instructions/thinker.instructions.md';
+      const front = client === 'windsurf' ? 'trigger: always_on' : 'applyTo: "**"';
+      const text = `---\n${front}\n---\n<!-- thinker -->\n${guidance({ cli, repo })}\n`;
+      const before = readText(path.join(repo, file));
+      if (before && !before.includes('<!-- thinker -->')) throw new Error(`Refusing to overwrite ${file}`);
+      fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
+      if (before !== text) fs.writeFileSync(path.join(repo, file), text);
+      generated.push(file);
+      done.push(`${client}: CLI retrieval guidance in ${file}; no global MCP configuration changed`);
+    }
+    if (client === 'copilot' && mcp) done.push('Copilot: automatic context via hooks; optional MCP can be added with /mcp add (user-level configuration)');
+    if (!shared) excludeLocally(repo, generated);
+  }
 
   if (client === 'claude') {
     if (mcp) { mergeJson(path.join(repo, '.mcp.json'), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpEntry } })); done.push('Claude Code: registered MCP server in .mcp.json'); }
@@ -556,6 +664,12 @@ function stripThinkerHooks(file, { keepVersion = false, mcp = false } = {}) {
 // Remove everything installClient wrote for any client.
 export function uninstallClients(repo) {
   untrustCodexHooks(repo);
+  for (const f of [...HOOK_FILES.windsurf, ...HOOK_FILES.copilot]) stripThinkerHooks(path.join(repo, f), { keepVersion: true });
+  for (const f of Object.values(EXTENSIONS)) if (readText(path.join(repo, f)).startsWith(GENERATED_MARK)) fs.unlinkSync(path.join(repo, f));
+  for (const f of ['.windsurf/rules/thinker.md', '.devin/rules/thinker.md', '.github/instructions/thinker.instructions.md']) {
+    const rule = path.join(repo, f);
+    if (readText(rule).includes('<!-- thinker -->')) fs.unlinkSync(rule);
+  }
   const stripHooks = (file, keepVersion) => stripThinkerHooks(file, { keepVersion, mcp: true });
   for (const f of ['.claude/settings.json', '.claude/settings.local.json', '.codex/hooks.json', '.gemini/settings.json']) stripHooks(path.join(repo, f));
   stripHooks(path.join(repo, '.cursor', 'hooks.json'), true);

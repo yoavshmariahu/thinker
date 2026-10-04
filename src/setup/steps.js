@@ -20,6 +20,10 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
   const targetClients = clients || detected;
 
   const clientMeta = {
+    pi: { name: 'Pi' },
+    windsurf: { name: 'Windsurf Cascade' },
+    copilot: { name: 'GitHub Copilot CLI' },
+    opencode: { name: 'OpenCode' },
     claude: { name: 'Claude Code', bin: 'claude', desc: 'Anthropic Claude Code CLI' },
     codex: { name: 'OpenAI Codex', bin: 'codex', desc: 'OpenAI Codex CLI' },
     cursor: { name: 'Cursor Agent', bin: 'agent / cursor', desc: 'Cursor Editor & Agent CLI' },
@@ -92,6 +96,7 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
 
     if (res.status === 'connected') {
       out(`  ${c.green('✓')} ${c.bold(clientLabel)} Connected`);
+      if (['pi', 'windsurf', 'copilot', 'opencode'].includes(res.client)) for (const line of res.logs) out(`    ${line}`);
     } else if (res.status === 'skipped') {
       out(`  ${c.gray('○')} ${c.dim(clientLabel)} ${c.dim(`Skipped · ${res.detail}`)}`);
     } else {

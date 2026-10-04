@@ -28,9 +28,9 @@ const PROMPT = 'add stricter rate limiting to the upload endpoint in upload.py';
 
 test('parseClients validates names and expands all', () => {
   assert.deepEqual(parseClients('codex, cursor'), ['codex', 'cursor']);
-  assert.deepEqual(parseClients('all'), ['claude', 'codex', 'cursor', 'gemini']);
+  assert.deepEqual(parseClients('all'), ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode']);
   assert.deepEqual(parseClients(undefined), ['claude']);
-  assert.throws(() => parseClients('copilot'), /unknown client/);
+  assert.throws(() => parseClients('nonexistent'), /unknown client/);
 });
 
 test('Codex trust: the project and thinker\'s hooks are written to Codex\'s config, and taken out on uninstall', () => {
@@ -354,4 +354,81 @@ test('refreshWiring brings a checkout\'s entries to this version\'s shape, keeps
   const outp = execFileSync('node', [CLI, 'rewire', '--here', '--dry', '--repo', dir], { encoding: 'utf8', env: { ...process.env, THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' } });
   assert.match(outp, /codex left alone/); assert.match(outp, /cursor left alone/); assert.match(outp, /1 checkouts checked; the wiring is current/);
   fs.rmSync(other, { recursive: true, force: true });
+});
+
+test('new clients install idempotently, refresh and uninstall only their entries', () => {
+  const dir = repo();
+  fs.mkdirSync(path.join(dir, '.windsurf'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.windsurf/hooks.json'), JSON.stringify({ hooks: { pre_user_prompt: [{ command: 'other' }] } }));
+  const files = { pi: '.pi/extensions/thinker.js', opencode: '.opencode/plugins/thinker.js', windsurf: '.windsurf/hooks.json', copilot: '.github/hooks/thinker.json' };
+  for (const client of Object.keys(files)) {
+    installClient(client, { ...opts(dir), learn: true });
+    const before = fs.readFileSync(path.join(dir, files[client]), 'utf8');
+    installClient(client, { ...opts(dir), learn: true });
+    assert.equal(fs.readFileSync(path.join(dir, files[client]), 'utf8'), before);
+    const wiring = inferWiring(dir, client);
+    assert.equal(wiring.hooks, true); assert.equal(wiring.learn, true);
+    assert.deepEqual(wiring.custom, []);
+    const refreshed = refreshWiring(dir, { cli: CLI, mcpEntry: opts(dir).mcpEntry, clients: [client] });
+    assert.deepEqual(refreshed.changed, []);
+    assert.deepEqual(refreshed.skipped, []);
+    assert.ok(fs.readFileSync(path.join(dir, '.git/info/exclude'), 'utf8').includes(files[client]));
+  }
+  uninstallClients(dir);
+  assert.deepEqual(read(dir, files.windsurf).hooks.pre_user_prompt, [{ command: 'other' }]);
+  for (const c of ['pi', 'opencode', 'copilot']) assert.equal(fs.existsSync(path.join(dir, files[c])), false);
+  assert.equal(fs.existsSync(path.join(dir, '.windsurf/rules/thinker.md')), false);
+});
+
+test('Windsurf records documented nested events without claiming to inject context', () => {
+  const dir = repo();
+  // Disable background learning in config, while allowing the hook trace to be recorded.
+  const store = new Store(dir); const cfg = store.config(); cfg.learn = { sessions: false }; fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify(cfg));
+  const env = { THINKER_NO_LEARN: '', THINKER_LOG: 'local' };
+  const ev = (agent_action_name, tool_info) => ({ trajectory_id: 'cascade-1', execution_id: 'turn-1', agent_action_name, tool_info });
+  assert.equal(hook(dir, 'prompt', 'windsurf', ev('pre_user_prompt', { user_prompt: PROMPT }), ['--record'], env), '');
+  assert.equal(hook(dir, 'tool', 'windsurf', ev('post_write_code', { file_path: 'src/upload.py', edits: [{ old_string: 'True', new_string: 'False' }] }), ['--record'], env), '');
+  hook(dir, 'stop', 'windsurf', ev('post_cascade_response', { response: 'Updated the limiter.' }), ['--record', '--no-distill'], env);
+  const trace = fs.readFileSync(path.join(store.dir, 'state/trace-cascade-1.jsonl'), 'utf8');
+  assert.match(trace, /stricter rate limiting/); assert.match(trace, /Updated the limiter/); assert.match(trace, /"name":"Edit"/);
+  assert.equal(hook(dir, 'prompt', 'windsurf', { tool_info: { user_prompt: PROMPT } }, ['--record'], env), '');
+  assert.equal(fs.existsSync(path.join(store.dir, 'state/trace-unknown.jsonl')), false);
+});
+
+test('Copilot parks prompt context and returns native post-tool additionalContext', () => {
+  const dir = repo();
+  assert.equal(hook(dir, 'prompt', 'copilot', { sessionId: 'copilot-1', prompt: PROMPT }), '');
+  assert.equal(hook(dir, 'tool', 'copilot', { sessionId: 'copilot-1', toolName: 'view', toolArgs: {}, error: 'not found' }), '');
+  const result = hook(dir, 'tool', 'copilot', { sessionId: 'copilot-1', toolName: 'view', toolArgs: JSON.stringify({ path: 'src/upload.py' }), toolResult: { resultType: 'success', textResultForLlm: 'file contents' } });
+  assert.match(JSON.parse(result).additionalContext, /RateLimiter/);
+  assert.equal(hook(dir, 'tool', 'copilot', { sessionId: 'copilot-1', toolName: 'view', toolArgs: {} }), '');
+});
+
+test('Windsurf respects preferred Devin hook location and preserves unrelated hooks', () => {
+  const dir = repo(); fs.mkdirSync(path.join(dir, '.devin/rules'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.devin/hooks.json'), JSON.stringify({ hooks: { pre_read_code: [{ command: 'other' }] } }));
+  installClient('windsurf', { ...opts(dir), learn: true });
+  assert.ok(read(dir, '.devin/hooks.json').hooks.pre_user_prompt);
+  assert.equal(inferWiring(dir, 'windsurf').shared, false);
+  assert.ok(fs.existsSync(path.join(dir, '.devin/rules/thinker.md')));
+  assert.equal(fs.existsSync(path.join(dir, '.windsurf/hooks.json')), false);
+  uninstallClients(dir);
+  assert.deepEqual(read(dir, '.devin/hooks.json').hooks.pre_read_code, [{ command: 'other' }]);
+});
+
+test('Pi and OpenCode generated extensions retrieve a real note through the CLI', async () => {
+  const { pathToFileURL } = await import('node:url');
+  const dir = repo();
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ type: 'module' }));
+  installClient('pi', opts(dir));
+  const pi = await import(pathToFileURL(path.join(dir, '.pi/extensions/thinker.js')).href);
+  const handlers = {}; pi.default({ on: (ev, fn) => { handlers[ev] = fn; } });
+  const answer = await handlers.before_agent_start({ prompt: PROMPT }, { sessionManager: { getSessionId: () => 'pi-real' } });
+  assert.match(answer.message.content, /RateLimiter/);
+  installClient('opencode', opts(dir));
+  const oc = await import(pathToFileURL(path.join(dir, '.opencode/plugins/thinker.js')).href);
+  const plugin = await oc.default({});
+  const output = { parts: [{ type: 'text', text: PROMPT }] };
+  await plugin['chat.message']({ sessionID: 'opencode-real' }, output);
+  assert.match(output.parts[0].text, /RateLimiter/);
 });

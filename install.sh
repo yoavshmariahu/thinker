@@ -24,7 +24,7 @@
 #   --benchmark         run paired PR benchmark during setup
 #   --no-benchmark      skip the paired PR benchmark step
 #   -y, --yes           accept defaults and skip interactive confirmation prompts
-#   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, all or auto
+#   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, pi, windsurf, copilot, opencode, all or auto
 #                       (default: auto with --build, otherwise claude)
 #   --cache <source>    cache built for this repo. One of: gh:<path in the thinker repo>, an https URL, a local file.
 #                       Omit if .thinker/notes is already in the repo.

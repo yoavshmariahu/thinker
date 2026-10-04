@@ -1,0 +1,23 @@
+import { hookRunner } from './runner.js';
+export function opencodePlugin(config, run = hookRunner(config)) {
+  return async () => ({
+    ...(config.mcp ? { config: async c => { c.mcp = { ...c.mcp, thinker: { type: 'local', command: [config.mcpEntry.command, ...config.mcpEntry.args], environment: config.mcpEntry.env || {}, enabled: true } }; } } : {}),
+    ...(config.hooks ? {
+      'chat.message': async (input, output) => {
+        const prompt = output.parts.filter(p => p.type === 'text' && !p.synthetic).map(p => p.text).join('\n');
+        if (!prompt) return;
+        const text = await run('prompt', { session_id: input.sessionID, prompt });
+        // Append to an existing text part to preserve the host's part identifiers.
+        if (text) output.parts.find(p => p.type === 'text' && !p.synthetic).text += '\n\n' + text;
+      },
+      ...((config.late || config.learn) ? { 'tool.execute.after': async (input, output) => {
+        const text = await run('tool', { session_id: input.sessionID, tool_name: input.tool, tool_input: input.args, tool_response: output.output });
+        if (text) output.output += '\n\n' + text;
+      } } : {}),
+      ...(config.learn ? { event: async ({ event }) => {
+        if (event.type === 'session.idle') await run('stop', { session_id: event.properties.sessionID });
+        if (event.type === 'session.deleted') await run('stop', { session_id: event.properties.info.id, hook_event_name: 'SessionEnd' });
+      } } : {}),
+    } : {}),
+  });
+}

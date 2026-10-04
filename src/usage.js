@@ -30,7 +30,7 @@ export const SECONDS_PER_READ = 4;
 // learns those rules by reading that file: what such a note saves is a wrong action, not a
 // read. This estimate only counts reading, so it counts them as nothing rather than crediting
 // a read no session would have made. The notes keep their anchors and are served as before.
-const NOT_READING = /^(\.claude|\.codex|\.cursor|\.gemini|\.vscode|\.idea|\.git|\.thinker|node_modules|dist|coverage)\/|^\.mcp\.json$|^bench\/runs\/|\.log$/;
+const NOT_READING = /^(\.claude|\.codex|\.cursor|\.gemini|\.pi|\.windsurf|\.devin|\.opencode|\.vscode|\.idea|\.git|\.thinker|node_modules|dist|coverage)\/|^\.github\/(hooks|instructions)\/|^\.mcp\.json$|^bench\/runs\/|\.log$/;
 export const countsAsReading = f => !NOT_READING.test(String(f || ''));
 
 export function savingOf(repo, note) {

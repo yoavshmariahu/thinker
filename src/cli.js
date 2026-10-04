@@ -45,7 +45,7 @@ const HELP = `thinker — knowledge cache for coding agents
         [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--shared] [--no-mcp] [--no-git-hook]
         [--no-trust] [--yes] [--verbose]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
-                                 server, clients claude, codex, cursor, gemini; default auto), then offer to build the
+                                 server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
                                  knowledge cache from the code and merged pull requests with pre-flight estimates, and
                                  an optional PR change benchmark. --build builds without asking, --no-build only wires
                                  things up and lets the cache grow from your sessions; --verbose adds per-item details

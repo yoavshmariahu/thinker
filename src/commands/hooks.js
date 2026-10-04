@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { MORE_NOTES_INTRO } from '../cache-guidance.js';
-import { pruneInstalls, prunedLines, refreshWiring, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from '../clients.js';
+import { pruneInstalls, prunedLines, refreshWiring, normalizeHookEvent, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from '../clients.js';
 import { parseTranscript } from '../distill.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession } from '../ops.js';
@@ -18,15 +18,19 @@ async function hookCommand(ctx) {
   const noticeOn = s => process.env.THINKER_NOTICE !== 'off' && s.config().notice !== false && s.config().notice !== 'off';
   // model calls made by thinker run agents too; their hooks must do nothing
   if (process.env.THINKER_IN_LLM) return;
-  const ev = JSON.parse(readStdin() || '{}');
+  let ev = JSON.parse(readStdin() || '{}');
   const client = hookClient(flags.client, ev);
+  ev = normalizeHookEvent(client, ev, pos[0]);
   if (process.env.THINKER_HOOK_DEBUG) fs.appendFileSync(process.env.THINKER_HOOK_DEBUG, JSON.stringify({ hook: pos[0], client, ev }) + '\n');
   // Cursor also runs the Claude Code hooks it imports; its own hooks do the work
   if (client === 'cursor-import') return;
   const session = sessionOf(ev);
+  // Do not combine unrelated sessions from unsupported/older hook payloads.
+  if (['pi', 'windsurf', 'copilot', 'opencode'].includes(client) && session === 'unknown') return;
   // installed hooks carry --record; THINKER_NO_LEARN=1 switches learning off without reinstalling them
   if (NO_LEARN) flags.record = false;
   if (pos[0] === 'prompt') {
+    if (client === 'copilot' || client === 'cursor') takePending(store.dir, session);
     if (client === 'cursor') out(JSON.stringify({ continue: true })); // cannot add context here; see clients.js
     if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
     if (store.exists()) pullInBackground(ctx);
@@ -34,7 +38,7 @@ async function hookCommand(ctx) {
     if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
     // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command)
     if (store.exists()) { try { const w = refreshWiring(repo, { cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
-    if (!store.exists() || !store.list().length) return;
+    if (!store.exists() || !store.list().length || client === 'windsurf') return;
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
     if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
     if (session !== 'unknown') rememberTask(store, session, ev.prompt);
@@ -43,7 +47,7 @@ async function hookCommand(ctx) {
     if (!r.included.length) return;
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
     const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify. For code no note maps, thinker's find lists the definitions carrying the words the code would use; drilldown reads them.\n\n${r.text}${more}\n</thinker-cache>`;
-    if (client === 'cursor') parkPending(store.dir, session, text);
+    if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text);
     else out(promptOutput(client, text));
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
@@ -51,7 +55,11 @@ async function hookCommand(ctx) {
     // Cursor reports a shell command's output in afterShellExecution, not in postToolUse
     if (ev.hook_event_name === 'afterShellExecution') { if (flags.record) recordEvent(store.dir, session, { t: 'tool', name: 'Bash', input: { command: ev.command }, result: ev.output }); out('{}'); return; }
     if (flags.record && !(client === 'cursor' && toolName(ev.tool_name) === 'Bash')) { const name = toolName(ev.tool_name); recordEvent(store.dir, session, { t: 'tool', name, input: toolInput(name, ev.tool_input), result: ev.tool_response ?? ev.tool_output ?? ev.output }); }
+    // Copilot failure hooks require a different output/exit protocol. Record the
+    // failure but keep prompt context for the next successful tool result.
+    if (client === 'copilot' && ev.error) { if (flags.record) learnInBackground(ctx, client); return; }
     const parts = [];
+    if (client === 'copilot') { const pending = takePending(store.dir, session); if (pending) parts.push(pending); }
     if (flags.record) learnInBackground(ctx, client);
     // Cursor drops context added to an MCP call's result: wait for the next tool call,
     // unless the agent asked the cache itself, in which case it has the notes already

@@ -1,0 +1,98 @@
+# Coding agent compatibility
+
+Thinker supports eight clients through `thinker setup --clients auto` (detected
+clients), `--clients all`, or a comma-separated selection. To add the new adapters:
+
+```sh
+thinker setup --clients pi,windsurf,copilot,opencode --no-build
+```
+
+Restart the host agent after setup so it discovers the generated hooks/extensions.
+Project trust and hook enablement remain controlled by the host. Generated files
+are locally excluded from git unless `--shared` is requested. `thinker uninstall`
+removes Thinker's entries and preserves other integrations.
+
+## Coverage
+
+| Client | Request context | File context | Learning capture | Follow-up retrieval |
+| --- | --- | --- | --- | --- |
+| Claude Code | Prompt hook | Post-tool hook | Native transcript | MCP |
+| Codex CLI | Prompt hook | Post-tool hook | Hook trace | MCP |
+| Gemini CLI | BeforeAgent | AfterTool | Hook trace | MCP |
+| Cursor | First tool after prompt | Post-tool hook | Hook trace | MCP + rule |
+| Pi | before_agent_start extension | tool_result extension | Prompt, tools, final answer; shutdown flush | CLI guidance in extension |
+| Windsurf Cascade | Always-on rule asks agent to orient | Agent-directed CLI lookup | Prompt, reads, edits, commands, MCP results, response | CLI rule |
+| GitHub Copilot CLI | First successful tool after prompt; CLI instruction fallback | postToolUse | Prompt, tools/errors, stop/end | CLI instruction; optional manual MCP |
+| OpenCode | chat.message plugin | tool.execute.after plugin | Prompt, successful tools, idle/end | MCP registered by plugin |
+
+File context is enabled with `--late`. Hook recording is enabled by default;
+`--no-learn` or `THINKER_NO_LEARN=1` disables it. Learning still requires an
+existing Thinker model backend (Anthropic API or a supported model CLI); these
+new hook integrations do not add model-provider adapters. Retrieval itself does
+not need model credentials.
+
+## Why these additions
+
+Pi and Windsurf were explicitly requested. Copilot and OpenCode are the next
+high-reach additions: GitHub reports [20M+ Copilot developers across its product
+surfaces](https://github.blog/ai-and-ml/github-copilot/copilot-faster-smarter-and-built-for-how-you-work-now/),
+and [OpenCode reports millions of monthly developers](https://opencode.ai/).
+These are vendor-reported, different measures, not a comparable CLI market-share
+ranking. Claude Code, Codex, Cursor and Gemini already had adapters.
+
+This is broad coverage, not universal lifecycle parity. Aider exposes
+[CLI/Python scripting](https://aider.chat/docs/scripting.html), which would need a
+separate wrapper design. Cline, Roo, Goose, Amp and other agents are not claimed
+as tested automatic integrations by this change. MCP-capable hosts can use
+`thinker serve`; merely supporting MCP does not establish hook compatibility.
+
+## Contracts and limitations
+
+- **Pi:** `.pi/extensions/thinker.js` loads Thinker's extension module. It adds a
+  custom context message and appends late notes to tool results without replacing
+  the original result. Uses the [extension event contracts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/extensions/types.ts).
+  CLI follow-up retrieval works without an MCP extension or SDK dependency.
+- **Windsurf:** `.windsurf/hooks.json` records the documented `trajectory_id` and
+  nested `tool_info` payloads. [Cascade hooks](https://docs.windsurf.com/windsurf/cascade/hooks)
+  do not document successful stdout as model context, so Thinker does not pretend
+  it was delivered. An [always-on rule](https://docs.windsurf.com/windsurf/cascade/memories)
+  in `.windsurf/rules/thinker.md` asks the agent to use the CLI. Existing preferred
+  `.devin/hooks.json` and `.devin/rules/` locations are respected. This adapter
+  targets Cascade, not every agent available inside the editor. Read/command
+  callbacks lack full results; the final Cascade response adds the supplied
+  summary. Retrieval depends on the agent following the rule.
+- **Copilot CLI:** `.github/hooks/thinker.json` uses native camelCase events and
+  inputs. [Command prompt hooks discard output](https://docs.github.com/en/copilot/reference/hooks-reference),
+  so notes wait for a successful tool result, whose output accepts
+  `additionalContext`. A task that uses no tools receives no hook bundle; the
+  instruction file `.github/instructions/thinker.instructions.md` provides CLI
+  retrieval guidance. Hook payloads without a session ID are ignored rather than
+  mixing different conversations. The final assistant answer is not supplied by
+  the native stop event and is not fabricated. MCP can be configured manually
+  with `/mcp add`; setup does not change user-wide MCP settings. Some headless
+  modes require explicitly enabling repository hooks. This is a CLI adapter,
+  not a claim about every VS Code/cloud Copilot hook runtime.
+- **OpenCode:** `.opencode/plugins/thinker.js` uses the documented
+  [plugin API](https://opencode.ai/docs/plugins/) and its
+  [hook types](https://github.com/anomalyco/opencode/blob/dev/packages/plugin/src/index.ts).
+  MCP registration uses the plugin config hook. Idle triggers batch learning;
+  ordinary quiet-session catch-up handles sessions without an end event. The
+  plugin does not claim to record an assistant answer or failed tool result that
+  its subscribed callbacks do not supply.
+
+For Pi, Windsurf and Copilot, the usual MCP setup option enables CLI retrieval
+guidance instead of registering a user-wide server. OpenCode registers actual
+MCP. `--no-hooks --no-mcp` writes none of these integrations. Extension subprocesses
+have bounded execution time and fail open. All inherit Thinker's telemetry and
+learning controls.
+
+## Validation
+
+`test/clients.test.js` checks native payload processing, retrieval output,
+recording, repeat installation, refresh, local excludes, and uninstall.
+`test/integrations.test.js` loads generated Pi/OpenCode modules and invokes their
+host contracts, checking session isolation, preservation of tool output, options,
+and subprocess failure behavior. These are contract and subprocess tests, not
+live authenticated sessions in all four hosts. A release should smoke-test each
+supported host version with a known note, a prompt, a file read/edit, and session
+end; inspect the trace and confirm the model actually received the context.
