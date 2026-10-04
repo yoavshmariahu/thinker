@@ -237,6 +237,15 @@ off.
 
 ## Cache usage and savings
 
+Run `thinker stats` for a machine-wide dashboard of activity, agent usage,
+learning, estimated reading avoided, and reported model tokens, with a breakdown
+by repository and the current checkout's cache details. `--here` limits activity
+to this repository, `--days 7` shows the last week, and `--json` includes the full
+data (the original `repo`, `notes`, `status`, `kinds`, and `uses` fields still
+describe the current checkout). Repositories are discovered from the configured
+usage log; clones and worktrees sharing an origin are grouped together. Cache
+counts are current, even when activity is filtered by date.
+
 Run `thinker usage --here` to compare this repository's cache spending with its
 estimated savings, or `thinker usage` for every repository on the machine.
 `--days 7` limits the period; `--json` includes spending by operation, provider/model,

@@ -149,7 +149,8 @@ const HELP = `thinker — knowledge cache for coding agents
   rewire [--here] [--dry]        rewrite the hooks and MCP entries of your agent settings and of every checkout set up
                                  on this machine for this version, and wire thinker into your settings for the agents
                                  the checkouts wire (update runs it; the prompt hook does it for its own checkout)
-  stats
+  stats [--here] [--days n] [--json]
+                                 machine-wide overview: activity, agents, learning, tokens and repositories; current checkout cache details
   telemetry [--send] [--json] [--force] [--event name] [--schedule] [--unschedule] [--status]
                                  cache effectiveness and size metrics sent to the metrics service;
                                  --schedule / --unschedule manages hourly background telemetry
