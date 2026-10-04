@@ -369,9 +369,42 @@ test('pre-commit applies a corrected body or retires a note when verification sa
   git('commit', '-qm', 'corrected note');
   fs.writeFileSync(path.join(repo, 'code.js'), 'export function value() { return 4; }\n');
   git('add', 'code.js');
+  // a commit that changes only the code: the note is not the commit's to remove; it goes stale for maintenance
+  const kept = git('show', ':.thinker/notes/value.json');
+  actions = await repairStaged(store, { decide: async () => ({ verdict: 'invalid', reason: 'obsolete', body: '', deps: [] }) });
+  assert.equal(actions[0].action, 'left');
+  assert.match(actions[0].reason, /obsolete; left as it is \(the commit does not change the note\)/);
+  assert.equal(git('show', ':.thinker/notes/value.json'), kept);
+  // the note file staged in the same commit: the verdict stands
+  const file = path.join(store.notesDir, 'value.json');
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(kept), confidence: 0.8 }, null, 2) + '\n');
+  git('add', '.thinker/notes/value.json');
   actions = await repairStaged(store, { decide: async () => ({ verdict: 'invalid', reason: 'obsolete', body: '', deps: [] }) });
   assert.equal(actions[0].action, 'remove');
   assert.equal(git('ls-files', '.thinker/notes/value.json'), '');
+});
+
+test('pre-commit never removes a note on a misread, a failed call or an unusable answer', async t => {
+  const { repo, store, note, git, commit } = fixture(t);
+  store.put(note()); share(store); commit();
+  const file = path.join(store.notesDir, 'value.json');
+  // the note file itself staged, so only the kind of answer decides
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf8')), confidence: 0.8 }, null, 2) + '\n');
+  fs.writeFileSync(path.join(repo, 'code.js'), 'export function value() { return 5; }\n');
+  git('add', 'code.js', '.thinker/notes/value.json');
+  const staged = git('show', ':.thinker/notes/value.json');
+  for (const decide of [
+    async () => ({ verdict: 'invalid', reason: 'No cache note was provided to validate against the staged source code.', body: '', deps: [] }),
+    async () => ({ verdict: 'invalid', reason: 'Cache note not provided.', body: '', deps: [] }),
+    async () => { throw new Error('claude -p exited 1'); },
+    async () => ({ verdict: 'maybe', reason: '', body: '', deps: [] }),
+    async () => ({ verdict: 'update', reason: 'changed', body: '', deps: [] }),
+  ]) {
+    const actions = await repairStaged(store, { decide });
+    assert.equal(actions[0].action, 'left', actions[0].reason);
+    assert.equal(git('show', ':.thinker/notes/value.json'), staged);
+  }
+  assert.ok(!fs.existsSync(path.join(store.localDir, 'quarantine')), 'nothing written, nothing backed up');
 });
 
 test('pre-commit reads the index and does not overwrite unstaged note edits', async t => {

@@ -96,7 +96,9 @@ export function bm25(index, qtoks, k1 = 1.4, b = 0.6) {
 // request): on the offline sets (bench/retrieval.js) the hook's 0.20 let through most of grafana's
 // off-target servings (precision 0.12); 0.30 took it to 0.17 and mitmproxy's 0.56 to 0.64 with no
 // task losing its on-target note, posthog unchanged at 0.80; 0.35 cost posthog a task.
-export const MIN_COVER = { body: 0.20, question: 0.05, terms: 3, agentBody: 0.30 };
+// distinct: different discriminative words a long request must share with a note answered on one
+// question-side word (see `terms` in rank).
+export const MIN_COVER = { body: 0.20, question: 0.05, terms: 3, agentBody: 0.30, distinct: 4 };
 
 // path affinity: 1 if a dep is the current file, decaying by directory distance
 function pathAffinity(note, file) {
@@ -142,6 +144,11 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
   // cover all of it. Orientation then serves nothing but a note on the current file; a lookup is
   // asked for by name and is answered as before.
   const subjectless = mode === 'orient' && !loose && floorB > 0 && Q.uniq < 2;
+  const docQ = new Map(idx.q.docs.map(d => [d.note.id, d.tf])), docB = new Map(idx.b.docs.map(d => [d.note.id, d.tf]));
+  const discriminative = t => Math.min(idx.b.df.get(t) || Infinity, idx.q.df.get(t) || Infinity) <= Math.max(1, idx.b.N * 0.4);
+  const qset0 = [...new Set(qtoks)];
+  // different discriminative words of the request the note holds, on either side
+  const distinct = n => qset0.filter(t => (docQ.get(n.id)?.has(t) || docB.get(n.id)?.has(t)) && discriminative(t)).length;
   return notes.map(n => {
     const mq = Q.matched.get(n.id) || 0, mb = B.matched.get(n.id) || 0;
     const aff = pathAffinity(n, file);
@@ -149,7 +156,10 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
     // served only when the request names one of its files or symbols, or it is about the current file
     const ccNamed = n.kind !== 'cochange' || mode !== 'orient' || aff > 0 || (n.deps || []).some(d => tokenize(`${path.basename(d.path)} ${d.symbol || ''}`).some(t => t.length >= 3 && qset.has(t)));
     const cover = (B.scores.get(n.id) || 0) / Math.max(1e-9, B.mass), coverQ = (Q.scores.get(n.id) || 0) / Math.max(1e-9, Q.mass);
-    const terms = short ? mq >= 1 && (Q.held.get(n.id) || 0) >= Math.min(2, Q.uniq) : mq >= 2 || (mq >= 1 && mb >= 3);
+    // one word in the title and three in the body may be the same word counted twice: "hit" in a note
+    // titled "Cache hit notice" and in its body, with "claude" and "usage", let it through for "change
+    // how long we wait before retrying when claude -p hits a usage limit". Four different words are asked.
+    const terms = short ? mq >= 1 && (Q.held.get(n.id) || 0) >= Math.min(2, Q.uniq) : mq >= 2 || (mq >= 1 && mb >= 3 && distinct(n) >= MIN_COVER.distinct);
     const passes = ccNamed && (loose ? (mq + mb) >= 1 || aff > 0 : ((!subjectless && terms && cover >= minB && coverQ >= minQ) || aff > 0));
     const rel = passes ? 0.7 * (Q.scores.get(n.id) || 0) / maxQ + 0.3 * (B.scores.get(n.id) || 0) / maxB : 0;
     const prior = mode === 'orient' ? (KIND_PRIOR[n.kind] || 0) * 0.3 : 0;

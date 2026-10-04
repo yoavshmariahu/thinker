@@ -59,6 +59,10 @@ function writeIndex(repo, file, text) {
 }
 function removeIndex(repo, file) { run(repo, ['update-index', '--force-remove', '--', file]); }
 
+// An answer that says the note was not there is a misreading of the request, not a verdict on the note.
+const MISREAD = /\b(?:no|not|without)\b[^.]{0,40}\b(?:note|content|claims?)\b[^.]{0,30}\b(?:provided|given|included|supplied|present|shown)\b|\b(?:note|content)\b[^.]{0,30}\b(?:(?:was|is|were) )?(?:not|never) (?:provided|given|included|supplied)\b|\bmissing (?:the )?(?:cache )?note\b/i;
+export const misread = reason => MISREAD.test(String(reason || ''));
+
 async function modelDecision(store, note, changed, { model } = {}) {
   const deps = (note.deps || []).slice(0, 8).map(d => {
     let source = '(missing from staged code)';
@@ -106,9 +110,15 @@ export async function repairStaged(store, { dry = false, decide = modelDecision,
   let asked = 0;
   for (const entry of relevant) {
     const { file, id } = entry;
+    // A note file the commit adds or changes is the commit's own: it may be taken out of it. A note
+    // reached only through the code it rests on is never removed by a commit: a small model at commit
+    // time is the only judge there, and it misread notes it was shown ("No cache note was provided",
+    // four times out of four on one note), so a note that does not check out is left as it is, goes
+    // stale, and maintenance verifies it with its history kept.
+    const own = staged.has(file);
     try {
       let note = entry.note;
-      let reason = '';
+      let reason = '', settled = true; // settled: a reason that is a fact about the note, not a missing or unusable answer
       if (entry.mode !== '100644' && entry.mode !== '100755') reason = 'not a regular note file';
       if (file !== `.thinker/notes/${id}.json`) reason = 'note is outside the shared notes directory';
       if (!reason && (!note || typeof note !== 'object' || Array.isArray(note))) reason = 'invalid JSON or note object';
@@ -142,22 +152,28 @@ export async function repairStaged(store, { dry = false, decide = modelDecision,
             asked++;
             let answer;
             try { answer = await decide(store, note, [...errors, ...issues], { model }); }
-            catch (e) { reason = `verification unavailable: ${e.message}`; }
+            catch (e) { reason = `verification unavailable: ${e.message}`; settled = false; }
+            if (!reason && answer?.verdict === 'invalid' && misread(answer.reason)) { reason = `verification misread the request: ${String(answer.reason).slice(0, 120)}`; settled = false; }
             if (!reason && answer?.verdict === 'invalid') reason = answer.reason || 'no longer useful';
-            if (!reason && !['still_valid', 'update'].includes(answer?.verdict)) reason = 'verification gave no usable answer';
+            if (!reason && !['still_valid', 'update'].includes(answer?.verdict)) { reason = 'verification gave no usable answer'; settled = false; }
             if (!reason) {
               if (answer.verdict === 'update') {
-                if (!answer.body?.trim()) reason = 'verification returned no corrected body';
+                if (!answer.body?.trim()) { reason = 'verification returned no corrected body'; settled = false; }
                 else { note.body = answer.body.trim(); if (answer.deps?.length) note.deps = answer.deps; }
               }
               if (!reason) {
                 note.deps = note.deps.map(d => hashDepAtIndex(repo, d));
-                if (note.deps.some(d => d.missing || d.symbolMissing) || contentErrors(note, id).length) reason = 'corrected note still fails validation';
+                if (note.deps.some(d => d.missing || d.symbolMissing) || contentErrors(note, id).length) { reason = 'corrected note still fails validation'; settled = false; }
                 else { note.verified = new Date().toISOString(); note.confidence = Math.min(1, (note.confidence ?? 0.7) + 0.05); }
               }
             }
           }
         }
+      }
+      if (reason && !(own && settled)) {
+        // left as it is in the commit: nothing written, so nothing to back up
+        actions.push({ id, action: 'left', reason: `${reason}; left as it is${own ? '' : ' (the commit does not change the note)'} for maintenance to verify` });
+        continue;
       }
       if (reason) {
         actions.push({ id, action: 'remove', reason });

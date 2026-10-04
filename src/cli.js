@@ -410,7 +410,7 @@ async function main() {
         const actions = await repairStaged(store, { dry: !!flags.dry, model: flags.model, ...(flags.cap !== undefined ? { cap: Number(flags.cap) } : {}) });
         for (const a of actions) out(`${flags.dry ? 'would ' : ''}${a.action} ${a.id}: ${a.reason}`);
         const n = k => actions.filter(a => a.action === k).length;
-        if (actions.length) out(`thinker: ${n('update')} corrected, ${n('remove')} removed from this commit${n('deferred') ? `, ${n('deferred')} left for maintenance (--cap n changes the limit)` : ''}; originals saved locally`);
+        if (actions.length) out(`thinker: ${n('update')} corrected, ${n('remove')} removed from this commit${n('left') ? `, ${n('left')} left as they are for maintenance to verify` : ''}${n('deferred') ? `, ${n('deferred')} left for maintenance (--cap n changes the limit)` : ''}${n('update') + n('remove') ? '; originals saved locally' : ''}`);
       } else if (flags.check || flags['pre-push']) {
         const opts = { base: typeof flags.base === 'string' ? flags.base : undefined, ref: flags.ref || 'HEAD', strict: !!flags.strict, remote: flags.remote || 'origin' };
         const results = flags['pre-push'] ? validatePush(repo, readStdin(), opts) : [validateShare(repo, opts)];

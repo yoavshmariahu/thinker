@@ -622,7 +622,15 @@ queries; `0,0` turns them off).
   first, then the most served; the rest are left for maintenance, since a
   commit to a central file otherwise meant dozens of model calls through the
   agent's CLI before the commit went through), and updates
-  or removes bad notes in the index. Original bytes go to
+  or removes bad notes in the index. Only a note file the commit itself adds
+  or changes can be removed, and only for a settled reason (malformed, a
+  duplicate, unsafe content, retired, or a model verdict of `invalid`); a
+  note reached only through the code it rests on is never removed by a
+  commit, and neither is one whose check failed, gave no usable answer, or
+  misread the request (`share-repair.js:misread`: Haiku answered "No cache
+  note was provided" for a note it was shown, four times out of four, and
+  the hook removed it). Such a note is `left` as it is, goes stale, and
+  maintenance verifies it. Original bytes go to
   `.thinker/local/quarantine/`; unstaged working-copy edits are preserved.
   `setup` installs pre-commit, pre-push, post-merge and post-commit through
   `git-hooks.js`, preserving custom hooks; uninstall removes only thinker hooks.
