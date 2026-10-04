@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
 import { resolveScope, makeReader, collectChange, selectNotes, commonTerms } from '../src/review.js';
+import { stem } from '../src/rank.js';
 
 process.env.THINKER_TELEMETRY = 'off'; process.env.THINKER_LOG = 'off'; process.env.THINKER_AST = 'off';
 const git = (repo, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
@@ -37,6 +38,6 @@ test('strong direct notes are ordered by whether the changed lines name what the
   assert.ok(!commonTerms([hub, flags, handler]).has('unknown'), 'three notes: nothing is common yet');
   const many = Array.from({ length: 6 }, (_, i) => ({ title: `pipeline step ${i}`, body: i < 4 ? 'the pipeline runs in order' : 'something else entirely', deps: [] }));
   const common = commonTerms(many, 0.5);
-  assert.ok(common.has('pipeline'), 'in two thirds of the notes');
-  assert.ok(!common.has('entirely'));
+  assert.ok(common.has(stem('pipeline')), 'in two thirds of the notes (the set holds stems)');
+  assert.ok(!common.has(stem('entirely')));
 });
