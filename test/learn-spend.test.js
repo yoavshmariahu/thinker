@@ -119,7 +119,7 @@ test('find does not credit a one-line definition with the text that follows it',
     'export function compareVersions(a, b) {', '  // semver: compare installed versions part by part', '  return a.split(".").map(Number)[0] - b.split(".").map(Number)[0];', '}', '',
   ].join('\n'));
   git(dir, 'add', '.'); git(dir, 'commit', '-q', '-m', 'cli');
-  const r = await withEnv({ THINKER_AST: 'off', THINKER_CODEGRAPH: 'git' }, () => findSymbols(dir, 'semver comparison of installed versions'));
+  const r = await withEnv({ THINKER_AST: 'off' }, () => findSymbols(dir, 'semver comparison of installed versions'));
   assert.equal(r.hits[0].symbol, 'compareVersions');
   assert.ok(!r.hits.some(h => h.symbol === 'entry'), 'the help text below it is not its body');
   fs.rmSync(dir, { recursive: true, force: true });

@@ -126,7 +126,6 @@ function contextFor(task, session) {
   const env = {
     ...process.env,
     THINKER_NOTES_DIR: NOTES,
-    THINKER_EARLY: 'full',
     THINKER_NO_BG_VERIFY: '1',
   };
   try {

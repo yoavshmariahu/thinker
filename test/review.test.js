@@ -219,7 +219,7 @@ test('state mode audits the current code of the given paths against the notes re
 test('the CLI renders the report and --strict exits 2 on an error finding', t => {
   const { repo, write } = fixture(t);
   write('src/core.py', CORE.replace('        validate(ctx)\n', '').replace('def validate(ctx):\n    if ctx is None:\n        raise ValueError("ctx")\n\n', ''));
-  const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_LOG: 'local', THINKER_CODEGRAPH: 'git', THINKER_AST: 'off' };
+  const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_LOG: 'local', THINKER_AST: 'off' };
   const dry = spawnSync('node', [cli, 'review', '--dry', '--repo', repo], { encoding: 'utf8', env });
   assert.equal(dry.status, 0, dry.stderr);
   assert.match(dry.stdout, /validate was removed from src\/core.py/);

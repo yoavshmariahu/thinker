@@ -30,10 +30,8 @@ const server = new McpServer({ name: 'thinker', version: '0.1.0' }, off ? {} : s
 const register = setUp ? server.registerTool.bind(server) : () => {};
 
 const text = s => ({ content: [{ type: 'text', text: s }] });
-// THINKER_ORIENT_GUIDE: a file with instructions on how to use the notes, put above them (per-model guidance).
 // An empty cache is said outright, with its location: "nothing matches" reads as a miss and hides a server pointed at the wrong place.
 const emptyCache = () => store.list().length ? '' : `The cache is empty: no notes in ${store.notesDir}. `;
-const guide = (() => { try { return process.env.THINKER_ORIENT_GUIDE ? fs.readFileSync(process.env.THINKER_ORIENT_GUIDE, 'utf8').trim() : ''; } catch { return ''; } })();
 
 // When no note answers, the definitions whose code carries the words of the request, from `find`:
 // in a week of real sessions `find` was never called (Claude Code defers MCP tools; agents grep
@@ -62,7 +60,7 @@ register('orient', {
   if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}${codeFallback(task)}Explore from there, then call remember with what you learn.`);
   const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
   const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
-  return text(guide ? `${guide}\n\n<thinker-cache>\n${notes}\n</thinker-cache>` : notes);
+  return text(notes);
 });
 
 register('lookup', {

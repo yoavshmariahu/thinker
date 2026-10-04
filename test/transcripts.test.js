@@ -241,7 +241,7 @@ test('learn.sessions: false keeps session distillation off while maintenance goe
   execFileSync('git', ['init', '-q'], { cwd: dir });
   fs.mkdirSync(path.join(dir, '.thinker/notes'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.thinker/config.json'), JSON.stringify({ learn: { sessions: false } }));
-  const env = { ...process.env, HOME: tmp(), THINKER_LOG: 'off', THINKER_TELEMETRY: 'off', THINKER_CBM: 'off' };
+  const env = { ...process.env, HOME: tmp(), THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' };
   const run = args => execFileSync('node', [CLI, ...args, '--repo', dir], { encoding: 'utf8', env });
   assert.match(run(['learn']), /learning from sessions is off \(learn\.sessions/);
   const both = run(['learn', '--maintain', '--dry']);

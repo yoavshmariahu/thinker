@@ -169,7 +169,7 @@ async function runAgy(prompt, { arm, cwd }) {
       hookBundle = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', cwd, '--budget', budget], {
         encoding: 'utf8',
         input,
-        env: { ...process.env, THINKER_NOTES_DIR: notesDir, THINKER_EARLY: 'full' }
+        env: { ...process.env, THINKER_NOTES_DIR: notesDir }
       }).trim();
     } catch (e) {
       console.error('hook prompt error:', e.message);

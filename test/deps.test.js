@@ -114,8 +114,7 @@ test('rank serves nothing when no note covers the request, though one of them is
   ];
   const request = 'On a narrow screen, after I duplicate an insight the sidebar stays open over the copy. The back link on the transfer page opens the wrong project page. The subscriptions modal keeps its illustration beside the text.';
   assert.deepEqual(rank(notes, { query: request }).map(r => r.note.id), []);
-  const old = process.env.THINKER_MIN_COVER; process.env.THINKER_MIN_COVER = '0,0';
-  try { assert.equal(rank(notes, { query: request })[0]?.note.id, 'order'); } finally { if (old === undefined) delete process.env.THINKER_MIN_COVER; else process.env.THINKER_MIN_COVER = old; }
+  assert.equal(rank(notes, { query: request, cover: { body: 0, question: 0 } })[0]?.note.id, 'order');
   assert.equal(rank(notes, { query: 'When a bulk invite has some addresses that fail, the invites that failed are not reported and the rest are not sent' })[0].note.id, 'invite');
 });
 

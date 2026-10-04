@@ -96,21 +96,12 @@ export function cbmProject(repo, opts) {
   return ps.find(p => real(p.root_path) === root)?.name || null;
 }
 
-// Which engine codegraph.js should use for this repository: 'git' unless THINKER_CODEGRAPH asks for
-// the graph ('cbm': always, 'auto': when this checkout is indexed). git grep is the default on
-// purpose: measured on click the graph-backed arm was marginally cheaper and no more accurate, and
-// thinker's own tooling needs no second binary or index (research/cbm-comparison). CBM stays the
-// comparison baseline of the benchmarks, which set the variable for their `both` arm.
-export function codegraphEngine(repo) {
-  const want = process.env.THINKER_CODEGRAPH || 'git';
-  if (want === 'git' || !cbmBin()) return 'git';
-  if (want === 'cbm') return 'cbm';
-  return cbmProject(repo) ? 'cbm' : 'git';
-}
-
+// CBM is the comparison baseline of the benchmarks (bench/cbm-*.js), not an engine of thinker: measured on
+// click the graph-backed arm was marginally cheaper and no more accurate than thinker's own git-grep
+// tooling (research/cbm-comparison), so the engine was removed and this module moved out of src/.
 export function cbmStatus(repo) {
   const bin = cbmBin();
-  const out = { bin, engine: codegraphEngine(repo), project: null, projects: null, version: null };
+  const out = { bin, project: null, projects: null, version: null };
   if (!bin) return out;
   try { out.version = execFileSync(bin, ['--version'], { stdio: ['ignore', 'pipe', 'ignore'], timeout: 15_000 }).toString().trim().split(/\s+/).pop(); } catch { /* unknown */ }
   const ps = cbmProjects({ fresh: true });

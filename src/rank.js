@@ -91,7 +91,7 @@ export function bm25(index, qtoks, k1 = 1.4, b = 0.6) {
 // Share of the request's term weight that a note must cover, with its body and pointers
 // and with its question side (title/answers/tags). rel is relative to the best note, so the
 // best of a poor lot scores near 1; these floors are absolute.
-// THINKER_MIN_COVER=body,question,terms changes them; 0,0 turns them off.
+// `cover: {body, question, terms}` on rank() overrides them (benchmarks measure the order alone with 0,0).
 // agentBody: the body floor when the agent calls `orient` itself (up to five notes, a one-sentence
 // request): on the offline sets (bench/retrieval.js) the hook's 0.20 let through most of grafana's
 // off-target servings (precision 0.12); 0.30 took it to 0.17 and mitmproxy's 0.56 to 0.64 with no
@@ -121,7 +121,7 @@ const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0, cal
 // "launches without the check" describe the fault.
 export const subject = q => String(q).replace(/\b(?:do not|don't|dont|no need to)\b[^.;:\n]*/gi, ' ');
 
-export function rank(notes, { query = '', file = '', mode = 'orient', loose = false, minBody } = {}) {
+export function rank(notes, { query = '', file = '', mode = 'orient', loose = false, minBody, cover } = {}) {
   const idx = buildIndex(notes);
   const qtoks = tokenize(subject(query) + ' ' + (file || ''));
   const qset = new Set(qtoks);
@@ -134,7 +134,7 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
   // every note that mentions a test. A longer request shares two discriminative terms, or one and
   // three in the body.
   const short = Q.uniq <= 3;
-  const [floorB = minBody ?? MIN_COVER.body, floorQ = MIN_COVER.question, terms = MIN_COVER.terms] = (process.env.THINKER_MIN_COVER || '').split(',').filter(Boolean).map(Number);
+  const floorB = cover?.body ?? minBody ?? MIN_COVER.body, floorQ = cover?.question ?? MIN_COVER.question, terms = cover?.terms ?? MIN_COVER.terms;
   // a short query has little weight to cover, and two shared words are a large share of it:
   // the body must then hold the weight of about `terms` of its words
   const shortFloor = floorB > 0 && Q.uniq > 3 ? Math.min(0.6, terms / Q.uniq) : 0;
@@ -171,25 +171,19 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
     if (n.status === 'stale') score *= 0.6;
     if (n.status === 'invalid' || n.archived) score = -1; // archived: kept for review, drilldown and lookup by id (ops.js:archiveNotes)
     return { note: n, score, rel, aff, cover, coverQ, matched: mq + mb };
-  }).filter(r => process.env.THINKER_FORCE === '1' ? r.note.status !== 'invalid' && !r.note.archived : (r.score > 0 && (r.rel > 0 || r.aff > 0))).sort((a, b) => b.score - a.score);
+  }).filter(r => r.score > 0 && (r.rel > 0 || r.aff > 0)).sort((a, b) => b.score - a.score);
 }
 
 export const estTokens = s => Math.ceil(String(s).length / 3.6);
 
-// A pointer: path:Symbol:L12, with the blast radius when it was counted (codegraph.js:fanout) and
-// not switched off (THINKER_FANOUT=off): `path:Sym:L12 [6 call sites in 3 files]`.
+// A pointer: path:Symbol:L12, with the blast radius when it was counted (codegraph.js:fanout):
+// `path:Sym:L12 [6 call sites in 3 files]`.
+export const MAX_POINTERS = 6;
 export function renderPointer(d) {
-  const f = d.fanout && process.env.THINKER_FANOUT !== 'off' ? ` [${renderFanout(d.fanout)}]` : '';
+  const f = d.fanout ? ` [${renderFanout(d.fanout)}]` : '';
   return `${d.path}${d.symbol ? ':' + d.symbol : ''}${d.line ? ':L' + d.line : ''}${f}`;
 }
 export const renderFanout = f => f.files === 0 ? 'no references' : `${f.sites || f.refs} ${f.callers ? 'caller' : f.sites ? 'call site' : 'reference'}${(f.sites || f.refs) === 1 ? '' : 's'} in ${f.files} file${f.files === 1 ? '' : 's'}`;
-
-// Pointers-only rendering: where to look, without prose that could be read as the whole picture.
-export function renderPointers(n) {
-  const deps = [...(n.deps || []).filter(d => d.symbol), ...(n.deps || []).filter(d => !d.symbol)].slice(0, Number(process.env.THINKER_MAX_POINTERS) || 6).map(renderPointer).join(', ');
-  const stale = n.status === 'stale' ? ' (STALE: confirm)' : n.status === 'violated' ? ' (VIOLATED by the code)' : '';
-  return `- [${n.kind}] ${n.title}${stale}  (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%)\n  → ${deps}`;
-}
 
 export function renderNote(n, { full = true } = {}) {
   const flag = n.status === 'stale'
@@ -197,7 +191,7 @@ export function renderNote(n, { full = true } = {}) {
     : n.status === 'violated'
     ? `\n> ⚠ VIOLATED: the code no longer upholds this ${n.mutability || 'mutable'} behavior${n.violated?.commit ? ` since commit ${String(n.violated.commit).slice(0, 10)}` : ''}${n.violated?.reason ? `: ${n.violated.reason}` : ''}. ${n.mutability === 'fixed' ? 'Restore it; a fixed behavior is not revised.' : 'Restore it, or revise the behavior note on purpose.'}`
     : '';
-  const maxPtr = Number(process.env.THINKER_MAX_POINTERS) || 6;
+  const maxPtr = MAX_POINTERS;
   const all = (n.deps || []);
   // symbol-level pointers first: they are the precise ones
   const shown = [...all.filter(d => d.symbol), ...all.filter(d => !d.symbol)].slice(0, maxPtr);
@@ -209,13 +203,13 @@ export function renderNote(n, { full = true } = {}) {
 }
 
 // Greedy pack ranked notes into a token budget; returns {text, included, omitted}
-export function pack(ranked, budget, { minRel = 0.05, force = process.env.THINKER_FORCE === '1', pointers = false } = {}) {
+export function pack(ranked, budget, { minRel = 0.05 } = {}) {
   const parts = [], included = [], omitted = [];
   let used = 0;
   for (const r of ranked) {
     const n = r.note;
-    if (!force && r.rel < minRel && r.aff === 0) { omitted.push(n); continue; }
-    const text = pointers ? renderPointers(n) : renderNote(n);
+    if (r.rel < minRel && r.aff === 0) { omitted.push(n); continue; }
+    const text = renderNote(n);
     const t = estTokens(text);
     if (used + t <= budget) { parts.push(text); used += t; included.push(n); }
     else {

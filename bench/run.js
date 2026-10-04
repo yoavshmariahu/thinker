@@ -107,21 +107,14 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
   // Hook-based and cache arms. early: what the UserPromptSubmit hook injects; late: PostToolUse
   // file-keyed notes; nudge: Stop-hook completeness check.
   const ARMS = {
-    cache:      { early: 'full', mcp: true },
-    hook:       { early: 'full' },
-    rerank:     { early: 'full', env: 'THINKER_RERANK=haiku ' },
-    naive:      { early: 'full', env: 'THINKER_NAIVE=1 ' },
-    live:       { early: 'full' },
-    irrelevant: { early: 'full', env: `THINKER_FORCE=1 THINKER_NAIVE=1 THINKER_NO_COCHANGE=1 THINKER_NO_GUARD=1 `, notes: flags['irrelevant-notes'] || path.join(HERE, 'irrelevant-notes') },
-    prompt:     { early: 'full', notes: (() => { const e = path.join(HERE, 'runs', 'empty-notes'); fs.mkdirSync(e, { recursive: true }); return e; })() },
-    pointers:   { early: 'pointers' },
-    late:       { early: 'none', late: true },
-    'pointers+late': { early: 'pointers', late: true },
-    'late+nudge':    { early: 'none', late: true, nudge: true },
-    all:        { early: 'auto', late: true, nudge: true },
-    router:     { early: 'router' },
-    'router+late': { early: 'router', late: true, nudge: true },
+    cache:      { mcp: true },
+    hook:       {},
+    live:       {},
+    prompt:     { notes: (() => { const e = path.join(HERE, 'runs', 'empty-notes'); fs.mkdirSync(e, { recursive: true }); return e; })() },
+    late:       { late: true },
+    'late+nudge':    { late: true, nudge: true },
   };
+
   const cfg = ARMS[arm];
   if (arm === 'cache' || cfg?.mcp) {
     a.push('--mcp-config', JSON.stringify({ mcpServers: { thinker: { command: 'node', args: [path.join(HERE, '..', 'src', 'mcp.js')], env: { THINKER_REPO: cwd, THINKER_NOTES_DIR: notesDir } } } }), '--append-system-prompt', CACHE_PROMPT);
@@ -130,7 +123,7 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
   }
   if (cfg) {
     const nd = cfg.notes || notesDir;
-    const hookEnv = `${cfg.env || ''}THINKER_NOTES_DIR=${nd} THINKER_EARLY=${cfg.early} THINKER_NO_BG_VERIFY=1 `;
+    const hookEnv = `THINKER_NOTES_DIR=${nd} THINKER_NO_BG_VERIFY=1 `;
     const budget = flags.budget ? ` --budget ${Number(flags.budget)}` : '';
     const hooks = { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook prompt --repo ${cwd}${budget}`, timeout: 60 }] }] };
     if (cfg.late) hooks.PostToolUse = [{ matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook tool --repo ${cwd}`, timeout: 15 }] }];

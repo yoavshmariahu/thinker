@@ -18,25 +18,14 @@ function setup() {
   return { dir, store, inv, cp };
 }
 
-test('late notes on read: file-keyed, rules first, once per session', () => {
-  const { dir, store, inv, cp } = setup();
-  const r1 = lateNotes(store, { on: 'read', session: 's1', files: [path.join(dir, 'src/a.py')], perEvent: 1 });
-  assert.deepEqual(r1.included.map(n => n.id), [inv.id]);
-  const r2 = lateNotes(store, { on: 'read', session: 's1', files: ['src/a.py'], perEvent: 1 });
-  assert.deepEqual(r2.included.map(n => n.id), [cp.id]);
-  assert.equal(lateNotes(store, { on: 'read', session: 's1', files: ['src/a.py'] }).included.length, 0);
-  assert.equal(lateNotes(store, { on: 'read', session: 's1', files: ['src/b.py'] }).included.length, 0);
-  assert.equal(lateNotes(store, { on: 'read', session: 's2', files: ['src/a.py'] }).included.length, 2);
-});
-
 test('a turn collects what orient and the late hook served, and is emptied when taken', async () => {
   const { store, inv, cp } = setup();
   assert.deepEqual(takeTurn(store, 'u1'), []);
   const r = await orient(store, { task: 'how does launch work', session: 'u1', backgroundVerify: false });
   assert.ok(r.included.length);
-  lateNotes(store, { on: 'read', session: 'u1', files: ['src/a.py'] });
+  lateNotes(store, { session: 'u1', files: ['src/a.py'], edited: true });
   const ids = takeTurn(store, 'u1');
-  assert.deepEqual(ids.sort(), [inv.id, cp.id].sort(), 'each once, from both paths');
+  assert.ok(ids.includes(inv.id) && ids.length === new Set(ids).size, 'each once, from both paths');
   assert.deepEqual(takeTurn(store, 'u1'), [], 'taken');
   assert.deepEqual(takeTurn(store, null), []);
   // servings without a session or usage recording are not a turn's
@@ -74,14 +63,6 @@ test('completeness nudge: co-change partner not touched and unseen rule, once', 
   assert.equal(completenessNudge(store, { session: 's10', changed: ['src/a.py', 'src/b.py'], cochange: { totals: {}, pairs: {} } }).text.includes('src/b.py'), false);
 });
 
-test('early modes: pointers omit prose, none injects nothing', async () => {
-  const { store } = setup();
-  const p = await orient(store, { task: 'launch eligibility check', early: 'pointers' });
-  assert.ok(p.text.includes('src/a.py:launch') && !p.text.includes('must call'));
-  const n = await orient(store, { task: 'launch eligibility check', early: 'none' });
-  assert.equal(n.included.length, 0);
-});
-
 test('orient with a caller budget: more notes, links add, the rest is listed; lookup takes an id', async () => {
   const { dir, store } = setup();
   fs.writeFileSync(path.join(dir, 'src/c.py'), 'def invite():\n    pass\n\ndef bulk():\n    pass\n\ndef toast():\n    pass\n\ndef modal():\n    pass\n');
@@ -97,9 +78,7 @@ test('orient with a caller budget: more notes, links add, the rest is listed; lo
   assert.ok(many.included.length > 2);
   // a linked note is added after the ranked hits; it does not take the place of one
   const ranked = (await orient(store, { task, budget: 3000, maxNotes: 5 })).included.map(n => n.id);
-  process.env.THINKER_NO_LINKS = '1';
-  const plain = (await orient(store, { task, budget: 3000, maxNotes: 5 })).included.map(n => n.id);
-  delete process.env.THINKER_NO_LINKS;
+  const plain = (await orient(store, { task, budget: 3000, maxNotes: 5, links: false })).included.map(n => n.id);
   assert.deepEqual(ranked.slice(0, plain.length), plain);
   // what was not served is listed, and lookup returns a listed note by id
   assert.ok(two.more.length >= 1 && two.more.every(n => !two.included.some(i => i.id === n.id)));
@@ -225,9 +204,6 @@ test('a request of one content word is a turn of conversation, not a task: nothi
   assert.ok((await orient(store, { task: 'status lifecycle', backgroundVerify: false, recordUsage: false })).included.some(n => n.id === st.id));
   assert.ok((await orient(store, { task: 'status?', file: 'src/a.py', backgroundVerify: false, recordUsage: false })).included.some(n => n.id === inv.id || n.id === cp.id));
   assert.ok(rank([st], { query: 'status', mode: 'lookup' }).length, 'lookup by one word is answered');
-  const old = process.env.THINKER_MIN_COVER; process.env.THINKER_MIN_COVER = '0,0';
-  try { assert.ok((await orient(store, { task: 'status?', backgroundVerify: false, recordUsage: false })).included.length, 'floors off: served as before'); }
-  finally { if (old === undefined) delete process.env.THINKER_MIN_COVER; else process.env.THINKER_MIN_COVER = old; }
 });
 
 test('the prompt hook serves no stale note: it is held, verified, and listed for lookup', async () => {

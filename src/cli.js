@@ -10,7 +10,6 @@ import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBe
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, archiveNotes, archiveConfig, distillKinds } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
-import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, codegraphEngine, CBM_VERSION } from './cbm.js';
 import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
@@ -40,7 +39,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -83,8 +82,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  partners missing from the change and removed symbols still referenced. Default: the working
                                  tree against HEAD; --base: the branch since its merge base; --ref: one commit; --state: the
                                  current code of the paths, with no change; --dry: no model calls; --strict: exit 2 on an
-                                 error-severity finding (for CI); --mode per-note|holistic|nocache, --verify, --chunks n,
-                                 --callers, --triage: the other strategies (see bench/RESULTS.md)
+                                 error-severity finding (for CI)
   export [file.tgz]              pack this repo's cache for delivery
   import <file.tgz|url>          unpack a delivered cache and check it against this checkout
   sync login <url> --token <t> [--as github.com/owner/repo]
@@ -119,11 +117,6 @@ const HELP = `thinker — knowledge cache for coding agents
                                  one hop of callers and callees for a single pointer, and the notes on the code
   ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
                                  web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
-  cbm [status|install|index|forget]
-                                 codebase-memory-mcp as an optional code graph behind drilldown, find and the blast-radius
-                                 counts, used only with THINKER_CODEGRAPH=cbm (or auto, when indexed): install puts the
-                                 binary (~40 MB) under ~/.thinker/cbm, index builds its graph of this checkout (and
-                                 maintenance keeps it current); the default engine is git grep, which needs neither
   list [--stale] [--all]         list notes
   show <id>                      print a note
   rm <id>
@@ -154,7 +147,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
                                  without GitHub, or with --git, commits from git history (--fixes: only those whose message says they fix something)
                                  (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
-  hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = early injection, tool = late file-keyed injection, stop = nudge + distill
+  hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
   usage [--here] [--days n] [--json]
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, build/distillation tokens and reported cost, and estimated savings
@@ -196,7 +189,7 @@ async function main() {
     process.exit(1);
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'cbm', 'usage', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'stats', 'telemetry', 'help', undefined].includes(cmd)) await initAst();
 
   switch (cmd) {
     case 'ast': {
@@ -214,28 +207,6 @@ async function main() {
       }
       const st = await initAst();
       out(st.available ? `tree-sitter: on (${st.dir}); grammars: ${st.grammars.join(', ')}` : `tree-sitter: off (regex heuristics in use)${st.error ? `: ${st.error}` : ''}\nlooked in: ${astDirs().join(', ')}\ninstall with: thinker ast install   (grammars: ${GRAMMAR_NAMES.join(', ')})`);
-      break;
-    }
-    case 'cbm': {
-      if (pos[0] === 'install') {
-        const have = cbmBin();
-        if (have && !have.startsWith(flags.dir || cbmDir()) && !flags.force) { out(`codebase-memory-mcp is already installed at ${have}; thinker uses it (a second copy would compete for its daemon). --force installs anyway.`); break; }
-        const bin = await installCbm({ dir: flags.dir || undefined, log: out });
-        out(`codebase-memory-mcp ${CBM_VERSION} installed at ${bin}. Next: thinker cbm index`);
-        break;
-      }
-      if (pos[0] === 'index') {
-        if (!cbmBin()) { out('codebase-memory-mcp is not installed: thinker cbm install'); process.exit(1); }
-        out(`indexing ${store.repo} with codebase-memory-mcp…`);
-        const r = cbmIndex(store.repo, { name: flags.name, stdio: ['ignore', 'pipe', 'inherit'] });
-        if (r.error) { out('error: ' + r.error); process.exit(1); }
-        out(`indexed as ${r.project}: ${r.nodes} nodes, ${r.edges} edges${r.parse_partial_count ? ` (${r.parse_partial_count} files parsed partially)` : ''}. ${codegraphEngine(store.repo) === 'cbm' ? 'drilldown and fanout now come from the graph; maintenance re-indexes when HEAD moves.' : 'git grep stays the engine until THINKER_CODEGRAPH=cbm (or auto) is set; then maintenance re-indexes when HEAD moves.'}`);
-        break;
-      }
-      if (pos[0] === 'forget') { const r = cbmForget(store.repo); out(r.error ? 'error: ' + r.error : 'index removed'); break; }
-      const st = cbmStatus(store.repo);
-      if (!st.bin) out(`codebase-memory-mcp: not installed (git grep answers)\nlooked in: THINKER_CBM_BIN, ~/.local/bin, PATH, ${cbmDir()}\ninstall with: thinker cbm install`);
-      else out(`codebase-memory-mcp ${st.version || '?'} at ${st.bin}\nthis checkout: ${st.project ? `indexed as ${st.project}` : 'not indexed (thinker cbm index)'}; ${st.projects ?? '?'} project${st.projects === 1 ? '' : 's'} indexed on this machine\nengine for drilldown and fanout: ${st.engine}${process.env.THINKER_CODEGRAPH ? ` (THINKER_CODEGRAPH=${process.env.THINKER_CODEGRAPH})` : ''}`);
       break;
     }
     case 'drilldown': {
@@ -447,8 +418,7 @@ async function main() {
     }
     case 'review': {
       const scope = resolveScope(repo, { base: typeof flags.base === 'string' ? flags.base : undefined, staged: !!flags.staged, ref: typeof flags.ref === 'string' ? flags.ref : undefined, state: !!flags.state });
-      const strategy = { ...(flags.mode ? { mode: flags.mode } : {}), ...(flags['no-related'] ? { related: false } : {}), ...(flags.callers ? { callers: true } : {}), ...(flags.triage ? { triage: true } : {}), ...(flags.verify ? { verify: true } : {}), ...(flags.chunks ? { chunks: Number(flags.chunks) } : {}) };
-      const r = await review(store, { scope, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry, strategy });
+      const r = await review(store, { scope, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry });
       out(flags.json ? JSON.stringify(r, null, 2) : renderReview(r, { verbose: !!flags.verbose }));
       if (flags.strict && r.counts?.error) process.exitCode = 2;
       break;

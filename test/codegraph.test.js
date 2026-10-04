@@ -48,9 +48,6 @@ test('fanout is the blast radius of a symbol pointer and short or common names a
   assert.equal(deps[1].fanout, undefined);
   assert.equal(renderPointer({ path: 'src/core.py', symbol: 'run_callback', line: 10, fanout: { files: 3, sites: 4, refs: 6 } }), 'src/core.py:run_callback:L10 [4 call sites in 3 files]');
   assert.equal(renderPointer({ path: 'src/core.py', symbol: 'x', fanout: { files: 0, sites: 0, refs: 0 } }), 'src/core.py:x [no references]');
-  process.env.THINKER_FANOUT = 'off';
-  try { assert.equal(renderPointer({ path: 'a.py', symbol: 'x', fanout: { files: 2, sites: 1, refs: 1 } }), 'a.py:x'); assert.equal(annotateFanout(repo, deps)[0].fanout, deps[0].fanout); }
-  finally { delete process.env.THINKER_FANOUT; }
 });
 
 test('callees are the repository symbols a definition calls, resolved to their definitions', () => {
@@ -120,9 +117,9 @@ test('orient and lookup add the code only when asked, in what is left of the bud
   assert.ok(zero.tokens <= 200, String(zero.tokens));
   const l = lookup(store, { query: 'command-invocation-path', snippets: true });
   assert.match(l.text, /Code behind the pointers/);
-  process.env.THINKER_SNIPPETS = 'off';
-  try { assert.ok(!lookup(store, { query: 'command-invocation-path', snippets: true }).text.includes('Code behind')); }
-  finally { delete process.env.THINKER_SNIPPETS; }
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ snippets: false }));
+  assert.ok(!lookup(store, { query: 'command-invocation-path', snippets: true }).text.includes('Code behind'));
+  fs.rmSync(path.join(store.dir, 'config.json'));
 });
 
 test('parsePointer reads path:Symbol:L12 in any order of its tail', () => {
@@ -168,10 +165,8 @@ test('drilldown returns the definition with its lines, callers and callees, and 
 
 test('findSymbols lists the definitions carrying the words, name matches first, with exact spans', () => {
   const repo = gitRepo();
-  process.env.THINKER_CODEGRAPH = 'git';
-  try {
+  {
     const r = findSymbols(repo, 'run callback');
-    assert.equal(r.engine, 'git');
     assert.equal(r.hits[0].symbol, 'run_callback'); // named by both words
     assert.equal(r.hits[0].path, 'src/core.py'); assert.equal(r.hits[0].line, 10); assert.equal(r.hits[0].end, 11);
     assert.ok(r.hits.some(h => h.symbol === 'Command.main'), 'a method whose body calls run_callback'); // body mention, parent resolved
@@ -181,12 +176,12 @@ test('findSymbols lists the definitions carrying the words, name matches first, 
     assert.equal(findSymbols(repo, 'Command').hits[0].symbol, 'Command'); // an identifier: the exact name first
     assert.equal(findSymbols(repo, 'run callback', { scope: 'tests/' }).hits.every(h => h.path.startsWith('tests/')), true);
     assert.equal(findSymbols(repo, 'run callback', { scope: '**/*.py' }).hits.length > 0, true);
-  } finally { delete process.env.THINKER_CODEGRAPH; }
+  }
 });
 
 test('find renders pointers drilldown takes, with the notes on them; drilldown reads several pointers and outlines a long class', () => {
   const repo = gitRepo();
-  process.env.THINKER_CODEGRAPH = 'git'; process.env.THINKER_LOG = 'off';
+  process.env.THINKER_LOG = 'off';
   try {
     const store = new Store(repo).init();
     createNote(store, { title: 'Callbacks run through run_callback', kind: 'callpath', body: 'src/core.py:run_callback is the end of the line.', deps: [{ path: 'src/core.py', symbol: 'run_callback' }] });
@@ -208,5 +203,5 @@ test('find renders pointers drilldown takes, with the notes on them; drilldown r
     assert.doesNotMatch(big.text, /x11 = 11/);
     const whole = drilldown(store, { pointer: 'src/big.py:Big', budget: 4000 });
     assert.match(whole.text, /x11 = 11/); assert.doesNotMatch(whole.text, /Members/);
-  } finally { delete process.env.THINKER_CODEGRAPH; delete process.env.THINKER_LOG; }
+  } finally { delete process.env.THINKER_LOG; }
 });

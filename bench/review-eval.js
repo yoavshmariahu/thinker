@@ -16,7 +16,6 @@
 // are prepared in worktrees under <out>/wt and removed after.
 process.env.THINKER_TELEMETRY = 'off';
 process.env.THINKER_LOG = process.env.THINKER_LOG || 'local';
-process.env.THINKER_CODEGRAPH = process.env.THINKER_CODEGRAPH || 'git';
 process.env.THINKER_NO_LEARN = '1';
 process.env.THINKER_NO_BG_VERIFY = '1';
 // One provider for the whole run: after a failure llm.js otherwise sticks to the fallback provider,

@@ -66,14 +66,14 @@ function armCache(wt) {
   fs.cpSync(path.join(NOTESET, 'notes'), path.join(own, 'notes'), { recursive: true });
   const cc = path.join(NOTESET, 'cochange.json');
   if (fs.existsSync(cc)) fs.copyFileSync(cc, path.join(own, 'cochange.json'));
-  const env = { THINKER_REPO: wt, THINKER_EARLY: 'full', THINKER_NO_BG_VERIFY: '1', THINKER_ORIENT_GUIDE: GUIDE };
+  const env = { THINKER_REPO: wt, THINKER_NO_BG_VERIFY: '1' };
   installClient('cursor', {
     repo: wt, cli: CLI, hooks: true, learn: false, late: true, shared: false, mcp: true,
     mcpEntry: { command: 'node', args: [MCP], env },
   });
   const file = path.join(wt, '.cursor', 'hooks.json');
   const h = JSON.parse(fs.readFileSync(file, 'utf8'));
-  const pre = 'THINKER_EARLY=full THINKER_NO_BG_VERIFY=1 ';
+  const pre = 'THINKER_NO_BG_VERIFY=1 ';
   for (const ev of Object.values(h.hooks || {})) for (const entry of ev) if (entry.command && !entry.command.includes('THINKER_EARLY')) entry.command = pre + entry.command;
   fs.writeFileSync(file, JSON.stringify(h, null, 2));
   const r = spawnSyncEnable(wt);

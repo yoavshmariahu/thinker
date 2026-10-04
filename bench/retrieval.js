@@ -26,7 +26,7 @@ const SETS = {
   posthog: ['tasks/posthog-hard.json', 'notesets/posthog-v2/notes'],
 };
 
-process.env.THINKER_LOG = 'off'; process.env.THINKER_NO_BG_VERIFY = '1'; process.env.THINKER_NAIVE = '1'; process.env.THINKER_NO_GUARD = '1';
+process.env.THINKER_LOG = 'off'; process.env.THINKER_NO_BG_VERIFY = '1';
 const { orient, rememberTask } = await import('../src/ops.js');
 const { rank } = await import('../src/rank.js');
 const { Store } = await import('../src/store.js');
@@ -51,16 +51,14 @@ async function run(name) {
     const exists = store.list().some(on);
     // the order alone, with nothing gated: where the first note on a changed file stands, and the top 2
     if (exists) {
-      const keep = process.env.THINKER_MIN_COVER; process.env.THINKER_MIN_COVER = '0,0';
-      const all = rank(store.list(), { query: t.prompt, mode: 'orient' });
-      if (keep === undefined) delete process.env.THINKER_MIN_COVER; else process.env.THINKER_MIN_COVER = keep;
+      const all = rank(store.list(), { query: t.prompt, mode: 'orient', cover: { body: 0, question: 0 } });
       const first = all.findIndex(r => on(r.note));
       out.order.push({ task: t.id, first: first < 0 ? Infinity : first + 1, top2: all.slice(0, 2).filter(r => on(r.note)).length });
     }
     const session = `retrieval-${t.id}`;
-    const h = await orient(store, { task: t.prompt, session });
+    const h = await orient(store, { task: t.prompt, session, refreshFirst: false });
     rememberTask(store, session, t.prompt);
-    const a = await orient(store, { task: summary(t), budget: 1000, maxNotes: 5, relFloor: 0.7 });
+    const a = await orient(store, { task: summary(t), budget: 1000, maxNotes: 5, relFloor: 0.7, refreshFirst: false });
     for (const [mode, r] of [['hook', h], ['agent', a]]) {
       out[mode].push({ task: t.id, exists, served: r.included.map(n => n.id), on: r.included.filter(on).map(n => n.id), tokens: r.tokens });
       if (VERBOSE) console.log(`${name} ${mode.padEnd(5)} ${t.id.padEnd(16)} ${r.included.map(n => (on(n) ? '+' : '-') + n.id.slice(0, 44)).join('  ') || '(nothing)'}`);

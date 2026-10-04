@@ -10,7 +10,6 @@ import path from 'node:path';
 import { gitHead } from './store.js';
 import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
 import { mineCochange, loadCochange } from './cochange.js';
-import { cbmProject, cbmIndex, codegraphEngine } from './cbm.js';
 import { readLog } from './usage.js';
 import { reconcileLocal, readyToShareNotice } from './share.js';
 
@@ -103,7 +102,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   const state = readState(store);
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, cochange: false, graph: false, sync: null, cost: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, cochange: false, sync: null, cost: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const budget = cfg.dailyCap - spent;
   const afford = () => budget - r.cost > 0;
@@ -116,11 +115,6 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     const idx = loadCochange(repo);
     if (head && (!idx || idx.head !== head)) {
       try { if (!dry) (fns.cochange || mineCochange)(repo); r.cochange = true; } catch { r.errors++; }
-    }
-    // 1b. the code graph (cbm.js), when this checkout uses it (THINKER_CODEGRAPH=cbm|auto) and has one:
-    // free too, re-indexed when HEAD moved
-    if (head && state.graphHead !== head && (fns.graphEngine || codegraphEngine)(repo) === 'cbm' && (fns.graphIndexed || cbmProject)(repo)) {
-      try { const g = dry ? {} : (fns.graphIndex || cbmIndex)(repo); if (!g.error) { r.graph = true; state.graphHead = head; } else r.errors++; } catch { r.errors++; }
     }
     // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
     // served in a month, leave serving and upkeep and stay for review (ops.js:archiveNotes)
@@ -170,7 +164,6 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     if (fresh.length) u.churning = [...new Set([...(u.churning || []), ...fresh])];
     state.churnNamed = r.churning;
     u.cochange = !!(u.cochange || r.cochange);
-    u.graph = !!(u.graph || r.graph);
     state.unreported = u; state.at = new Date().toISOString(); state.last = r;
     if (!dry) fs.writeFileSync(stateFile(store), JSON.stringify(state));
     store.log({ op: 'maintain', ...r, spentBefore: spent, cap: cfg.dailyCap, dry });
@@ -201,7 +194,6 @@ export function maintenanceNotice(store) {
   if (u.archived) parts.push(`${u.archived} ${u.archived === 1 ? 'note' : 'notes'} archived: kept for review, no longer served or re-verified (thinker archive --list)`);
   if (u.prs) parts.push(`${u.prs} ${u.prs === 1 ? 'note' : 'notes'} from merged pull requests`);
   if (u.cochange) parts.push('co-change index refreshed');
-  if (u.graph) parts.push('code graph re-indexed');
   if (u.pulled || u.pushed) parts.push(`team cache: ${[u.pulled ? `${u.pulled} ${u.pulled === 1 ? 'note' : 'notes'} pulled` : '', u.pushed ? `${u.pushed} pushed` : ''].filter(Boolean).join(', ')}`);
   if (u.share) parts.push(u.share);
   if (u.pruned?.length) parts.push(...u.pruned);
@@ -235,7 +227,6 @@ export function renderMaintain(r) {
   if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
   if (r.archived) bits.push(`${r.archived} archived`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`, `co-change ${r.cochange ? 'refreshed' : 'unchanged'}`);
-  if (r.graph) bits.push('code graph re-indexed');
   if (r.sync && !r.sync.skipped) bits.push(`team cache ${r.sync.pulled + (r.sync.deleted || 0)}↓ ${r.sync.pushed + (r.sync.retired || 0)}↑`);
   return `maintained: ${bits.join(', ')}${r.cost ? ` ($${r.cost.toFixed(3)})` : ''}${r.capped ? '; daily cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
 }

@@ -55,7 +55,6 @@ cache at twice the input price and never read again.
 | `src/deps.js` | dependency extraction and symbol-level content hashing |
 | `src/ast.js` | symbol boundaries by tree-sitter (Python, JS/TS, Go, Rust) when its grammars are installed (`thinker ast install`); `deps.js` falls back to regex heuristics |
 | `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines, and `findSymbols` (the definitions carrying the words of a query); behind `find`, `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
-| `src/cbm.js`, `src/cbm-worker.js` | codebase-memory-mcp as the code-graph engine: install, index, and a synchronous bridge to the binary run as a child MCP server (`thinker cbm`) |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
 | `src/cochange.js` | co-change mining from git history |
@@ -401,12 +400,16 @@ gotcha, invariant, convention, fix, cochange, rationale). With the default
 archive that leaves out `location`, which `find` answers; a note of a left-out
 kind that comes back anyway is skipped by `saveNotes`.
 
-Controls for experiments: `THINKER_NO_LINKS=1`, `THINKER_NO_COCHANGE=1`,
-`THINKER_MCP=off` (the MCP server offers no tools),
-`THINKER_NAIVE=1` (no invalidation), `THINKER_FORCE=1` (inject regardless
-of relevance), `THINKER_RERANK=haiku`, `THINKER_MIN_COVER=body,question`
-(the coverage floors below, a third value is the number of words for short
-queries; `0,0` turns them off).
+Controls for experiments: `THINKER_NOTES_DIR` (a flat note store for a
+benchmark arm), `THINKER_NO_BG_VERIFY=1` (no background verification, so a
+pinned noteset stays as it is), `THINKER_MCP=off` (the MCP server offers no
+tools; the control arm of `thinker benchmark`), `THINKER_HOLDOUT`. The
+switches of settled experiments were removed in October 2026 (early modes,
+the router, forced or naive serving, links and co-change off, the guard off,
+cover floors, pointer and snippet limits, the fanout tag, a per-model guide
+above `orient`); what they measured is in `bench/RESULTS.md`, and what won is
+the only behavior. A harness that needs the order alone passes `cover: {body:
+0, question: 0}` to `rank` and `refreshFirst: false` to `orient`.
 
 ## Serving
 
@@ -416,9 +419,9 @@ queries; `0,0` turns them off).
 - Code behind the pointers: the MCP `orient` and `lookup` end with the
   definitions the served notes point at (`ops.js:codeSnippets`: up to two per
   note and four in all, each cut to 30 lines), in what is left of the note
-  budget plus `SNIPPET_BUDGET` (600 tokens; `THINKER_SNIPPET_BUDGET`). The
-  hooks do not add them (`thinker orient --snippets` does). `THINKER_SNIPPETS=off`
-  or `snippets: false` in `.thinker/config.json` turns them off. Measured
+  budget plus `SNIPPET_BUDGET` (600 tokens). The hooks do not add them
+  (`thinker orient --snippets` does); `snippets: false` in
+  `.thinker/config.json` turns them off. Measured
   against Qartez on click, the agent spent its advantage on reading whole
   files after orienting; this is what the snippets are for.
 - When `orient` or `lookup` over MCP finds no note, its answer carries the first
@@ -449,60 +452,31 @@ queries; `0,0` turns them off).
   pointer one hop of callers (every reference, calls first) and callees
   (names the body calls that are defined in the repository), and the notes
   resting on that symbol or file
-  (`ops.js:drilldown`, `codegraph.js`). Two engines can answer, chosen per
-  call by `cbm.js:codegraphEngine`: `git grep` over the language family of
-  the file, which needs no index and is approximate, is the default; the
-  code graph of codebase-memory-mcp (below) answers only when
-  `THINKER_CODEGRAPH=cbm` (or `auto`, when the checkout is indexed) asks for
-  it. Outside a git checkout it says so.
+  (`ops.js:drilldown`, `codegraph.js`). Everything is answered by `git grep`
+  over the language family of the file: no index, approximate by design.
+  Outside a git checkout it says so.
 - Blast radius: a symbol pointer is served as `path:Sym:L12 [6 call sites in
-  3 files]` (`[5 callers in 3 files]` from the graph). The count is made when
-  the note is created and again for the symbols a verification found changed
-  (`codegraph.js:annotateFanout`; `thinker rehash --fanout` redoes all),
-  stored on the dep as `fanout`, and by `git grep` not made for names under
-  four characters or common ones (`main`, `get`). `THINKER_FANOUT=off` skips
-  both the counting and the tag.
-- The code graph (optional, off by default): [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
-  (CBM) is a single binary that indexes a repository with tree-sitter into a
-  SQLite graph (`~/.cache/codebase-memory-mcp/`) and answers over MCP. It is
-  kept as the comparison baseline of the benchmarks and as an opt-in engine;
-  measured on click (`research/cbm-comparison/`) the graph-backed arm was
-  marginally cheaper and no more accurate than thinker's own tools, and the
-  decision was to own the tooling rather than depend on a second binary.
-  `thinker cbm install` downloads the pinned release (`cbm.js:CBM_VERSION`,
-  ~40 MB) into `~/.thinker/cbm` after checking its published SHA-256, and
-  touches no agent configuration (CBM's own installer would); a binary on
-  `PATH`, in `~/.local/bin` or named by `THINKER_CBM_BIN` is used too.
-  `thinker cbm index` builds the graph of the checkout (CBM keys projects by
-  real path, so a worktree is indexed on its own); when the engine is the
-  graph, maintenance re-indexes when `HEAD` moved (`maintain.js`, "code graph
-  re-indexed"). `thinker cbm
-  status` says which engine answers; `thinker cbm forget` drops the index.
-  thinker runs the binary once per process as a child MCP server held by a
-  worker thread and waits on it synchronously (`cbm.js:cbmCall`,
-  `cbm-worker.js`), so `codegraph.js` keeps its synchronous API: the first
-  question costs the binary's start (~2.5 s), later ones milliseconds. Asked
-  of it: `search_graph` to resolve a pointer to a qualified name in its file,
-  `trace_path` one hop both ways, `get_file_outline`; hashing, staleness and
-  snippets stay on thinker's own parser or regex, which read the working
-  tree. A symbol the graph knows but sees no caller of (a method called on an
-  untyped instance, say) is counted by `git grep` instead. Controls:
-  `THINKER_CODEGRAPH=git|cbm|auto` (`git`, the default; `auto`: the graph
-  when the checkout is indexed; `cbm` answers unknown rather than grep when
-  it is not),
-  `THINKER_CBM=off`. The live test needs `THINKER_CBM_TEST=1` and
-  `THINKER_CBM_BIN` (it writes to CBM's index and removes its project after).
-  `bench/cbm-compare.js`, `bench/cbm-pr-compare.js` and `bench/cbm-preflight.js`
-  compare the arms `thinker` (notes, git grep), `cbm` (the graph alone, as the
-  agent's MCP server) and `both` (notes with the graph as engine); the
-  earlier comparison against Qartez is in `research/qartez-comparison/`.
+  3 files]`. The count is made when the note is created and again for the
+  symbols a verification found changed (`codegraph.js:annotateFanout`;
+  `thinker rehash --fanout` redoes all), stored on the dep as `fanout`, and
+  not made for names under four characters or common ones (`main`, `get`).
+- The code graph that was: [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp)
+  (CBM), a binary that indexes a repository into a graph and answers over MCP,
+  was an opt-in engine behind `drilldown`, `find` and the blast-radius counts
+  for a while. Measured on click (`research/cbm-comparison/`) the graph-backed
+  arm was marginally cheaper and no more accurate than thinker's own tools,
+  so the engine, its `thinker cbm` command and its switches were removed in
+  October 2026. CBM stays the comparison baseline of the benchmarks:
+  `bench/eval-support/cbm.js` installs the pinned release and indexes a
+  checkout, and `bench/cbm-compare.js`, `bench/cbm-pr-compare.js` and
+  `bench/cbm-preflight.js` compare the arms `thinker` (notes, git grep) and
+  `cbm` (the graph alone, as the agent's MCP server); the earlier comparison
+  against Qartez is in `research/qartez-comparison/`.
 - The prompt hooks serve two notes. When an agent calls `orient` with its own
   `budget`, up to five are served (past the second, a note must reach 0.7 of
   the best hit's relevance), a linked note is added instead of replacing a
   hit, and relevant notes that were not served are listed by title and id;
   `lookup` takes such an id (or a query, returning up to 3 notes by default).
-  `THINKER_ORIENT_GUIDE` names a file whose text
-  is put above the notes `orient` returns (per-model guidance).
 - Prompt-time hook: injects the orientation bundle into every prompt
  automatically (no tool call needed). See [Supported agents](#supported-agents).
 - What the user sees: the stop hook sums the turn, prompt-time and late notes
@@ -585,7 +559,7 @@ queries; `0,0` turns them off).
   a user would put it (`says`), written by a small model from the note alone;
   ranking counts them with the title and answers. Notes whose text changed
   since are done again; about $0.005 a note with Haiku.
-- `THINKER_RERANK=haiku` (or `rerank` in `.thinker/config.json`) hands the
+- `rerank: "haiku"` in `.thinker/config.json` hands the
   eight best candidates to a small model, which keeps those that bear on the
   request, or none. Its choice is final: no linked note is added to it.
   Through an agent's CLI a call took 8 to 13 seconds and about $0.02, which
@@ -827,8 +801,8 @@ tool `review` is the same for an agent before it commits.
   findings in the same file within eight lines become one
   (`review.js:clusterFindings`), with the surest wording, the highest severity
   and every note named.
-- Strategies (`review.js:DEFAULT_STRATEGY`; CLI `--mode per-note|holistic|nocache`,
-  `--no-related`, `--callers`, `--triage`, and `verify` in code): `holistic` is
+- Strategies (`review.js:DEFAULT_STRATEGY`, the `strategy` option of
+  `review()`; no longer on the CLI, kept for `bench/review-eval.js`): `holistic` is
   one call with every consulted note, `nocache` is the same model with no
   notes (the baseline), `ensemble` is both, `callers` adds one hop of callers
   of the touched definitions by text search, `triage` asks a small model

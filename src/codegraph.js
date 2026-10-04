@@ -1,21 +1,14 @@
 // One hop of the call graph around a symbol: where a name is referenced (callers, blast radius)
-// and which repository symbols a definition calls (callees). Two engines answer, chosen per call
-// by cbm.js:codegraphEngine: the graph of codebase-memory-mcp when the checkout is indexed
-// (resolved calls, no false hits), else `git grep` without an index: approximate by design, word
-// matches on the language family of the file, and good enough to say "6 call sites in 3 files"
-// next to a pointer and to spare the agent its own greps.
+// and which repository symbols a definition calls (callees). Everything is answered by `git grep`
+// without an index: approximate by design, word matches on the language family of the file, and
+// good enough to say "6 call sites in 3 files" next to a pointer and to spare the agent its own
+// greps. A graph engine (codebase-memory-mcp) was measured against this on click and kept only as
+// the benchmarks' baseline (bench/eval-support/cbm.js, research/cbm-comparison).
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { repoFile, symbolBlock, locateSymbol } from './deps.js';
 import { definitions, astReady } from './ast.js';
-import { codegraphEngine, cbmProject, cbmNeighbors, cbmSearch, cbmOutline } from './cbm.js';
 import { tokenize } from './rank.js';
-
-// The CBM project to ask, 'git' to grep instead, or null when CBM was demanded but has no index.
-function graph(repo) {
-  if (codegraphEngine(repo) !== 'cbm') return 'git';
-  return cbmProject(repo) || (process.env.THINKER_CODEGRAPH === 'cbm' ? null : 'git');
-}
 
 const FAMILY = {
   py: ['py', 'pyi'], pyi: ['py', 'pyi'],
@@ -70,13 +63,6 @@ export function references(repo, name, { file, limit = 400, excludeTests = false
 // beyond the definition. Short or very common names are not counted (too many false hits to mean anything).
 export function fanout(repo, dep) {
   if (!dep.symbol) return null;
-  const g = graph(repo); if (g === null) return null;
-  if (g !== 'git') {
-    // resolved callers from the graph; a symbol it knows but sees no caller of (a method called on
-    // an instance the resolver did not type, say) is counted by text below rather than as unused
-    const c = callers(repo, dep);
-    if (c?.length) return { files: new Set(c.map(x => x.path || x.qn.split('.').slice(0, -1).join('.'))).size, sites: c.length, refs: c.length, callers: true };
-  }
   const name = dep.symbol.split('.').pop();
   if (!countable(name)) return null;
   const r = references(repo, name, { file: dep.path, limit: 2000 });
@@ -85,18 +71,10 @@ export function fanout(repo, dep) {
   return { files: new Set(refs.map(l => l.path)).size, sites: refs.filter(l => l.call).length, refs: refs.length };
 }
 
-// The functions that call a symbol, from the graph: [{name, qn, path?, line?}], [] when the graph
-// knows the symbol and sees no caller, null without a graph (or when it does not know the symbol).
-export function callers(repo, dep) {
-  const g = graph(repo); if (!g || g === 'git' || !dep.symbol) return null;
-  const n = cbmNeighbors(g, dep, { repo });
-  return n ? n.callers : null;
-}
 const COMMON = new Set(['main', 'init', 'test', 'setup', 'run', 'get', 'set', 'name', 'data', 'value', 'type', 'index', 'list', 'item', 'items', 'config', 'default', 'update', 'create', 'delete', 'remove', 'handle', 'handler', 'render', 'load', 'save', 'open', 'close', 'read', 'write', 'start', 'stop', 'send', 'call', 'apply', 'self', 'this', 'super', 'props', 'state', 'error', 'result', 'response', 'request', 'options', 'params', 'args', 'constructor', 'toString', 'length']);
 
-// Attach fanout to the symbol-level deps of a note (at most `max` git greps). THINKER_FANOUT=off skips it.
+// Attach fanout to the symbol-level deps of a note (at most `max` git greps).
 export function annotateFanout(repo, deps, { max = 8 } = {}) {
-  if (process.env.THINKER_FANOUT === 'off') return deps;
   let n = 0;
   return (deps || []).map(d => {
     if (!d.symbol || d.missing || d.symbolMissing || n >= max) return d;
@@ -113,11 +91,6 @@ const KEYWORDS = new Set(`if for while switch return function def class catch pr
 // Identifiers the definition calls that are defined in this repository, resolved by one git grep
 // for definition lines: [{name, path, line}], in order of first call, at most `limit`.
 export function callees(repo, dep, { limit = 12 } = {}) {
-  const g = graph(repo); if (g === null) return null;
-  if (g !== 'git') {
-    const n = cbmNeighbors(g, dep, { repo });
-    if (n) return n.callees.filter(c => c.path).slice(0, limit).map(c => ({ name: c.name, defs: [{ path: c.path, line: c.line }] }));
-  }
   const b = symbolBlock(repo, dep, 400);
   if (!b) return null;
   const self = (dep.symbol || '').split('.').pop();
@@ -153,11 +126,6 @@ export function callees(repo, dep, { limit = 12 } = {}) {
 
 // Definitions of a bare name anywhere in the repository: [{path, line, text}], for a pointer without a file.
 export function findDefinitions(repo, name, { limit = 10 } = {}) {
-  const g = graph(repo); if (g === null) return null;
-  if (g !== 'git') {
-    const hits = cbmSearch(g, `^${esc(name)}$`, { limit: Math.max(limit, 20) });
-    if (hits) return hits.filter(h => h.line).slice(0, limit).map(h => ({ path: h.path, line: h.line, text: `${h.label.toLowerCase()} ${h.qn.split('.').slice(-2).join('.')}` }));
-  }
   const sp = '[[:space:]]';
   const raw = gitGrep(repo, ['-E', '-e', `(def|class|function|fn|func|type|interface|struct|trait|enum|impl)${sp}+${esc(name)}[^[:alnum:]_]`, '-e', `(const|let|var)${sp}+${esc(name)}${sp}*[=:]`, '-e', `func${sp}*\\([^)]*\\)${sp}*${esc(name)}${sp}*\\(`, '--', '.', ':(exclude).thinker', ':(exclude)*.md', ':(exclude)*.json']);
   if (!raw) return null;
@@ -172,7 +140,7 @@ export function findDefinitions(repo, name, { limit = 10 } = {}) {
 // regex), and the graph adds definitions named by the words when the checkout is indexed. Ranked by
 // how many of the words a definition covers, name matches above body mentions; tests last. A single
 // identifier is matched as a name first. `scope` keeps paths that contain it (or match it as a glob).
-// Returns {hits: [{path, name, parent, symbol, kind, line, end, score, mentions}], toks, engine,
+// Returns {hits: [{path, name, parent, symbol, kind, line, end, score, mentions}], toks,
 // more} or null when the checkout cannot be searched.
 const CODE_EXT = new Set([...Object.keys(FAMILY), 'vue', 'svelte', 'dart', 'lua', 'zig', 'm', 'mm', 'erb', 'rake']);
 const EXCLUDES = [':(exclude).thinker', ':(exclude)*.min.js', ':(exclude)*.d.ts', ':(exclude)**/node_modules/**', ':(exclude)**/vendor/**', ':(exclude)**/dist/**', ':(exclude)**/build/**'];
@@ -182,8 +150,7 @@ export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 
   const q = String(query || '').trim();
   const ident = /^[A-Za-z_$][\w$]*$/.test(q) ? q : null;
   const toks = [...new Set([...(ident ? [ident.toLowerCase()] : []), ...tokenize(q)])].filter(t => t.length >= 3).slice(0, 12);
-  if (!toks.length) return { hits: [], toks, engine: null, more: false };
-  const g = graph(repo); if (g === null) return null;
+  if (!toks.length) return { hits: [], toks, more: false };
   const inScope = scope ? (/[*?]/.test(scope) ? (re => p => re.test(p))(globRe(scope)) : p => p.includes(scope)) : () => true;
   const specs = [...CODE_EXT].map(e => `*.${e}`);
   // 1. the files that mention the words, most first (tests count for less)
@@ -229,21 +196,6 @@ export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 
       }
     }
   }
-  // 3. definitions named by the words, from the graph (files beyond the counted ones too)
-  let engine = 'git';
-  if (g !== 'git') {
-    const rows = cbmSearch(g, `(${toks.map(t => ci(esc(t))).join('|')})`, { limit: 400 });
-    if (rows) {
-      engine = 'cbm';
-      for (const h of rows) {
-        if (!h.line || !CODE_EXT.has(extOf(h.path)) || !inScope(h.path) || SKIP_KINDS.has(h.label.toLowerCase())) continue;
-        const stem = h.path.split('/').pop().replace(/\.[^.]+$/, ''), last = h.qn_prefix.split('.').pop();
-        const parent = last && last !== stem && !h.path.split('/').includes(last) ? last : null;
-        const c = cand(h.path, { name: h.name, parent, kind: h.label.toLowerCase(), line: h.line, end: h.end });
-        if (!c.end && h.end) c.end = h.end; if (c.kind === 'definition') c.kind = h.label.toLowerCase();
-      }
-    }
-  }
   // 4. score: a word in the name above one in the body above one in the path; a word on few lines
   // weighs more than one on hundreds; a definition that covers more of the words comes first
   const weight = t => 1 / (1 + Math.log(1 + (lineCount.get(t) || 0) / 20));
@@ -272,7 +224,7 @@ export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 
   scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path) || a.line - b.line);
   const hits = scored.slice(0, limit).map(h => { const o = { ...h }; delete o.body; return o; });
   for (const h of hits) { const b = symbolBlock(repo, { path: h.path, symbol: h.symbol }, 1); if (b) { h.line = b.start; h.end = b.start + b.total - 1; } else if (h.end === Infinity) h.end = null; } // exact spans for what is shown
-  return { hits, toks, engine, more: scored.length > hits.length };
+  return { hits, toks, more: scored.length > hits.length };
 }
 const SKIP_KINDS = new Set(['section', 'file', 'folder', 'module', 'package', 'resource', 'branch', 'repository', 'route']);
 const ci = s => s.replace(/[A-Za-z]/g, c => `[${c.toLowerCase()}${c.toUpperCase()}]`);
@@ -283,8 +235,6 @@ export function outline(repo, file, { limit = 80 } = {}) {
   const abs = repoFile(repo, file); if (!abs) return null;
   let text; try { text = fs.readFileSync(abs, 'utf8'); } catch { return null; }
   if (astReady(file)) { const d = outlineText(text, file, { limit }); if (d) return d; }
-  const g = graph(repo);
-  if (g && g !== 'git') { const o = cbmOutline(g, file, { limit }); if (o?.length) return o; }
   return outlineText(text, file, { limit });
 }
 

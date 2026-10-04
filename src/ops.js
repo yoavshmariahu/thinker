@@ -5,13 +5,12 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS, MUTABILITY } from './store.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation } from './deps.js';
-import { rank, pack, renderNote, renderPointers, estTokens, MIN_COVER } from './rank.js';
-import { annotateFanout, fanout, callers, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
+import { rank, pack, renderNote, estTokens, MIN_COVER } from './rank.js';
+import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
-import { loadCochange, renderCochange } from './cochange.js';
-import { anchoringGuard, explicitIdents, existsInRepo } from './guard.js';
-import { partners } from './cochange.js';
+import { loadCochange, partners } from './cochange.js';
+import { anchoringGuard } from './guard.js';
 
 export { KINDS, MUTABILITY };
 
@@ -160,10 +159,6 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
   });
 }
 
-// THINKER_NAIVE=1 disables invalidation entirely (notes are served as written,
-// never re-hashed or flagged). Only for benchmarking what a naive cache does.
-const NAIVE = process.env.THINKER_NAIVE === '1';
-
 const RERANK_SCHEMA = { type: 'object', properties: { useful: { type: 'array', items: { type: 'string' } }, reason: { type: 'string' } }, required: ['useful', 'reason'] };
 
 // Ask a small model which candidate notes would actually save work on this
@@ -177,44 +172,7 @@ async function rerank(store, ranked, task, file, model) {
     system: 'You gate which cached notes about a codebase get injected into a coding agent\'s context at the start of a task. Injecting an irrelevant note costs tokens and misdirects the agent; injecting a relevant one saves it from re-exploring. Pick only notes whose content directly bears on what the task must touch or understand. Prefer one precise note over several loosely related ones. Picking none is correct when nothing applies.',
     prompt: `TASK: ${task}${file ? `\nCURRENT FILE: ${file}` : ''}\n\nCANDIDATE NOTES:\n${list}\n\nReturn the ids of the notes worth injecting (0-3).` });
   const pick = new Set((res.json?.useful || []).map(x => String(x).replace(/^\[?(\d+)\]?$/, (_, i) => cands[Number(i) - 1]?.note.id || x).replace(/^id=/, '')));
-  if (process.env.THINKER_DEBUG) console.error('rerank:', JSON.stringify(res.json));
   return cands.filter(r => pick.has(r.note.id));
-}
-
-const ROUTE_SCHEMA = { type: 'object', properties: {
-  request_type: { type: 'string', enum: ['specified', 'symptom', 'question', 'other'] },
-  mode: { type: 'string', enum: ['full', 'pointers', 'none'] },
-  ids: { type: 'array', items: { type: 'string' } },
-  reason: { type: 'string' } }, required: ['request_type', 'mode', 'ids', 'reason'] };
-
-// A small model decides what the cache says at the start of a task: which
-// candidate notes (if any) and in what form. Falls back to the heuristic.
-export async function route(store, ranked, task, file, model) {
-  const cands = ranked.slice(0, 8);
-  if (!cands.length) return { mode: 'none', picked: [], reason: 'no candidates' };
-  const list = cands.map((r, i) => `[${i + 1}] id=${r.note.id} kind=${r.note.kind} confidence=${Math.round((r.note.confidence ?? 0.7) * 100)}%${r.note.status === 'stale' ? ' STALE' : ''}\n    title: ${r.note.title}\n    answers: ${(r.note.answers || []).slice(0, 3).join(' | ')}\n    first lines: ${r.note.body.slice(0, 260).replace(/\n/g, ' ')}`).join('\n');
-  const res = await complete({ model, accounting: { store, purpose: 'route' }, schema: ROUTE_SCHEMA, maxTokens: 400,
-    system: `You decide what a cache of notes about a codebase injects into a coding agent's context at the start of a task. Evidence from experiments you must apply:
-- Notes with explanatory prose save the agent work when the request already says WHAT to change (it names code, components or the exact behavior change). Then mode=full.
-- When the request only describes a symptom or a wish in product words, prose makes the agent commit to a narrower fix than it would have designed on its own. Locations alone still shorten the search. Then mode=pointers.
-- Injecting a note that is not about what the task must touch costs tokens and can misdirect. If no candidate clearly concerns the feature or code the request is about, mode=none with no ids.
-- Prefer one or two precise notes over three loosely related ones. Never pick a note only because it shares generic words with the request.
-Classify the request (specified / symptom / question / other), choose the mode, and list the ids worth serving (0-3), best first.`,
-    prompt: `REQUEST:\n${String(task).slice(0, 3000)}${file ? `\nCURRENT FILE: ${file}` : ''}\n\nCANDIDATE NOTES:\n${list}` });
-  const j = res.json || {};
-  const norm = x => String(x).replace(/^\[?(\d+)\]?$/, (_, i) => cands[Number(i) - 1]?.note.id || x).replace(/^id=/, '');
-  const ids = (j.ids || []).map(norm);
-  const picked = ids.map(id => cands.find(c => c.note.id === id)).filter(Boolean).slice(0, 3);
-  const mode = picked.length ? (j.mode === 'none' ? 'pointers' : j.mode) : 'none';
-  store.log({ op: 'route', type: j.request_type, mode, ids: picked.map(p => p.note.id), reason: String(j.reason || '').slice(0, 200), cost: res.cost, metered: true });
-  return { mode, picked, type: j.request_type, reason: j.reason };
-}
-
-// How specific is the request? Count identifiers in it that exist in the repo.
-export function specificity(repo, task) {
-  let n = 0;
-  for (const id of explicitIdents(String(task)).filter(x => x.length >= 5).slice(0, 12)) if (existsInRepo(repo, id) > 0) n++;
-  return n;
 }
 
 // Tokens of notes a prompt hook serves. A note that does not fit is cut to its first line and its
@@ -226,7 +184,7 @@ export const HOOK_BUDGET = 750;
 // 1,000-line file to see a 20-line function (the "file-read tax" the Qartez comparison measured).
 // Per note the symbol-level pointers in order, at most `perNote` of them and `max` in all, each cut to
 // `maxLines`; a snippet is added only when it fits the budget whole. Returns {text, tokens, shown}.
-export const SNIPPET_BUDGET = Number(process.env.THINKER_SNIPPET_BUDGET) || 600;
+export const SNIPPET_BUDGET = 600;
 export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLines = 30, minLines = 8 } = {}) {
   const parts = [], shown = [], seen = new Set();
   let used = 0;
@@ -256,8 +214,6 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
   return { text: `### Code behind the pointers\n${parts.join('\n\n')}`, tokens: used, shown };
 }
 
-// early: 'full' (notes with prose), 'pointers' (titles + anchors only),
-// 'auto' (full when the request names code that exists, else pointers), 'none'.
 // maxNotes/relFloor: the prompt hooks serve two notes; a caller that names its own budget (the MCP
 // tool) passes a higher maxNotes, and notes past the second must then reach relFloor of the best hit.
 // snippets: inline the code behind the served pointers (codeSnippets) in what is left of the budget
@@ -272,39 +228,26 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // `orient` and `lookup` still return stale notes, with the banner.
 // holdout: the session is a control (holdoutSession): the notes are ranked and packed as usual,
 // what would have been served is logged as `withheld`, and nothing is served or marked served.
-export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = !NAIVE, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank || process.env.THINKER_RERANK, early = process.env.THINKER_EARLY || store.config().early || 'full', snippets = false, once = false, freshOnly = false, holdout = false }) {
+// rerankModel (`rerank` in .thinker/config.json): a small model keeps, of the eight best candidates,
+// those that bear on the request; its choice is final. links: pull in one note linked from the best hit.
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false }) {
   const start = Date.now();
-  if (early === 'none') return { text: '', included: [], omitted: [], tokens: 0 };
-  const routerModel = early === 'router' ? (process.env.THINKER_ROUTER || store.config().router || 'haiku') : null;
-  if (early === 'auto' || early === 'router') early = specificity(store.repo, task) >= 1 ? 'full' : 'pointers'; // heuristic, also the router's fallback
   let notes = store.list();
   if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
-  if (NAIVE) notes = notes.map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; });
   if (refreshFirst) notes = refresh(store, notes);
   // the agent's own call (more than the hook's two notes) asks with a sentence; a higher body floor keeps
   // the notes that merely share its words out (rank.js:MIN_COVER.agentBody)
   let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', minBody: maxNotes > 2 ? MIN_COVER.agentBody : undefined });
-  if (process.env.THINKER_FORCE === '1') ranked = rank(notes, { query: '', mode: 'orient' }).map(r => ({ ...r, rel: 1 })); // control arm: inject regardless of relevance
   let chosen = false;
-  if (process.env.THINKER_FORCE !== '1' && rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
-  let routed = null;
-  if (routerModel && process.env.THINKER_FORCE !== '1') {
-    try {
-      const loose = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', loose: true });
-      routed = await route(store, loose, task, file, routerModel);
-      if (routed.mode === 'none') { store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), served: [], routed: 'none', durationMs: Date.now() - start }); return { text: '', included: [], omitted: [], tokens: 0, mode: 'none', routed }; }
-      ranked = routed.picked.map(r => ({ ...r, rel: Math.max(r.rel, 0.5) })); early = routed.mode;
-    } catch (e) { store.log({ op: 'route-error', error: String(e.message).slice(0, 200) }); }
-  }
+  if (rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
   // what would have been served had staleness not held it back: verified below, as if it had been
   const held = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
   const servable = freshOnly ? ranked.filter(r => r.note.status !== 'stale') : ranked;
   let top = servable.slice(0, maxNotes).filter((r, i) => i < 2 || r.rel >= relFloor * servable[0].rel);
-  if (routed) process.env.THINKER_NO_LINKS = '1'; // the router's selection is final
   // cross-note links: pull in one note linked from the best hit when it has
   // at least some lexical relevance of its own and is not already selected
   // what a model chose is final: a linked note it did not choose is not added
-  if (top.length && !chosen && process.env.THINKER_NO_LINKS !== '1') {
+  if (top.length && !chosen && links) {
     const rel = servable.filter(r => (top[0].note.related || []).includes(r.note.id) && !top.includes(r) && r.rel >= 0.15)[0];
     // with more than two slots the linked note is added; with two slots it takes the second only if
     // slot 2 is missing, weak (<0.7 of the best hit), or less relevant than the linked note.
@@ -316,8 +259,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
       }
     }
   }
-  const packed = pack(top, budget, { minRel: 0.35, pointers: early === 'pointers' });
-  packed.mode = early;
+  const packed = pack(top, budget, { minRel: 0.35 });
   // relevant notes that were not served, so the caller can name them and the agent can ask for one
   packed.more = ranked.filter(r => !packed.included.includes(r.note) && r.rel >= 0.35).slice(0, 6).map(r => r.note);
   // a held-out session: what would have been served is logged and nothing is; the notes are not
@@ -330,33 +272,25 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (recordUsage && session) trackTurn(store, session, packed.included.map(n => n.id));
   packed.held = held;
-  if (!NAIVE && backgroundVerify) scheduleVerify(store, [...packed.included.filter(n => n.status === 'stale'), ...held]);
-  // co-change edges for the files the served notes (and the current file) point at
-  // co-change lines are carried through every later model call, so they are
-  // off at the start by default; the end-of-task nudge uses them instead
-  const cc = process.env.THINKER_EARLY_COCHANGE === '1' && process.env.THINKER_NO_COCHANGE !== '1' ? loadCochange(store.repo) : null;
-  if (cc && packed.included.length) {
-    const files = [...new Set([file, ...packed.included.flatMap(n => (n.deps || []).map(d => d.path))].filter(Boolean))].slice(0, 6);
-    const block = renderCochange(cc, files);
-    if (block) { packed.text += '\n\n' + block; packed.tokens += estTokens(block); packed.cochange = true; }
-  }
+  if (backgroundVerify) scheduleVerify(store, [...packed.included.filter(n => n.status === 'stale'), ...held]);
+  // co-change edges are not served here: carried through every later model call they cost more than
+  // they gave; the edit hook names them when a file is edited (lateNotes) and the stop hook repeats them
   // anchoring guard: name what the request mentions that the notes do not cover
-  if (packed.included.length && process.env.THINKER_NO_GUARD !== '1') {
-    try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: process.env.THINKER_GUARD_PHRASES !== '1', max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
+  if (packed.included.length) {
+    try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
-  addSnippets(store, packed, budget, snippets, early === 'pointers');
+  addSnippets(store, packed, budget, snippets);
   if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
-// THINKER_SNIPPETS=off or `snippets: false` in .thinker/config.json leaves the code out everywhere.
-export function snippetsOn(store) { return process.env.THINKER_SNIPPETS !== 'off' && store.config().snippets !== false; }
-function addSnippets(store, packed, budget, snippets, pointersOnly) {
+// `snippets: false` in .thinker/config.json leaves the code out everywhere.
+export function snippetsOn(store) { return store.config().snippets !== false; }
+function addSnippets(store, packed, budget, snippets) {
   if (!snippets || !packed.included.length || !snippetsOn(store)) return;
   const extra = typeof snippets === 'object' && snippets.budget != null ? snippets.budget : SNIPPET_BUDGET;
   const left = Math.max(0, budget - packed.tokens) + extra;
-  // in pointers mode the notes are stubs; the code is then most of what is served, so fewer pieces
-  const s = codeSnippets(store.repo, packed.included, left, pointersOnly ? { perNote: 1, max: 3 } : {});
+  const s = codeSnippets(store.repo, packed.included, left);
   if (!s.text) return;
   packed.text += '\n\n' + s.text; packed.tokens += s.tokens; packed.snippets = s.shown;
 }
@@ -397,9 +331,8 @@ export function attest(store, assessments, { session, client, model } = {}) {
 // --- late, file-keyed injection ---------------------------------------------
 // Rules about files the agent is changing (invariant, gotcha, convention, cochange),
 // served when it edits them: each once per session, and only those that bear on the
-// request. `on: 'read'` (THINKER_LATE=read) serves any note on a file as soon as the
-// agent opens it, rules before maps of the code; an agent that gets those after every
-// read was seen to read in smaller steps and make more calls.
+// request. Serving notes on a file as soon as the agent opens it was tried and dropped: an
+// agent that gets notes after every read was seen to read in smaller steps and make more calls.
 const RULE_KINDS = ['behavior', 'invariant', 'gotcha', 'convention', 'cochange'];
 const LATE_PRIORITY = { behavior: 0, invariant: 0, gotcha: 1, convention: 2, cochange: 3, fix: 4, rationale: 5, howto: 6, callpath: 7, location: 8, overview: 9 };
 function sessionState(store, session) {
@@ -433,8 +366,9 @@ export function rememberTask(store, session, task) {
   if (!session || !String(task || '').trim() || !store.exists()) return;
   locked(store, session, () => { const { st, save } = sessionState(store, session); st.task = String(task).slice(0, 2000); save(); });
 }
-export function lateNotes(store, { session, client, files, edited = false, on = process.env.THINKER_LATE === 'read' ? 'read' : 'edit', perEvent = 2, perSession = on === 'read' ? 5 : 3, minRel = 0.35 }) {
-  if (on === 'edit' && !edited) return { text: '', included: [] };
+export function lateNotes(store, { session, client, files, edited = false, perEvent = 2, perSession = 3, minRel = 0.35 }) {
+  if (!edited) return { text: '', included: [] };
+  const on = 'edit';
   const rel = [...new Set((files || []).map(f => normPath(store.repo, f)).filter(Boolean))];
   if (!rel.length) return { text: '', included: [] };
   return locked(store, session, () => lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }));
@@ -444,7 +378,7 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   // what git history says changes with the files being edited: free, and told once per file, leaving
   // out partners the session has edited already. The rule notes below need no such list to exist.
   const cc = [];
-  if (on === 'edit' && process.env.THINKER_NO_COCHANGE !== '1') {
+  {
     const idx = loadCochange(store.repo);
     st.edited = [...new Set([...(st.edited || []), ...rel])]; st.ccTold = st.ccTold || [];
     if (idx) for (const f of rel) {
@@ -456,12 +390,10 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   const ccText = cc.length ? `Co-change (from git history): ${cc.join('; ')}. Decide whether this change needs them.` : '';
   if (st.late.length >= perSession) { if (cc.length) { save(); store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: [], cochange: cc.length }); } return { text: cc.length ? `<thinker-cache>\n${ccText}\n</thinker-cache>` : '', included: [] }; }
   let notes = store.list().filter(n => n.status !== 'invalid' && !n.archived && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
-  if (on === 'edit') {
-    notes = notes.filter(n => RULE_KINDS.includes(n.kind));
-    // relevance is measured among all notes: among these few the best one would always score 1
-    if (st.task && notes.length) { const score = new Map(rank(store.list(), { query: st.task, mode: 'lookup' }).map(r => [r.note.id, r.rel])); notes = notes.filter(n => (score.get(n.id) || 0) >= minRel); }
-  }
-  if (!NAIVE) notes = refresh(store, notes);
+  notes = notes.filter(n => RULE_KINDS.includes(n.kind));
+  // relevance is measured among all notes: among these few the best one would always score 1
+  if (st.task && notes.length) { const score = new Map(rank(store.list(), { query: st.task, mode: 'lookup' }).map(r => [r.note.id, r.rel])); notes = notes.filter(n => (score.get(n.id) || 0) >= minRel); }
+  notes = refresh(store, notes);
   notes.sort((a, b) => (LATE_PRIORITY[a.kind] ?? 9) - (LATE_PRIORITY[b.kind] ?? 9) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7));
   const pick = notes.slice(0, Math.min(perEvent, perSession - st.late.length));
   if (!pick.length) { if (cc.length) { save(); store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: [], cochange: cc.length }); } return { text: cc.length ? `<thinker-cache>\n${ccText}\n</thinker-cache>` : '', included: [] }; }
@@ -557,7 +489,7 @@ export function scheduleVerify(store, notes) {
 const STATUS_ORDER = { violated: 0, stale: 1, fresh: 2 };
 export function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false, kind } = {}) {
   const start = Date.now();
-  let notes = NAIVE ? store.list().map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; }) : refresh(store, store.list());
+  let notes = refresh(store, store.list());
   if (kind) notes = notes.filter(n => n.kind === kind);
   // a note id (as listed by orient) returns that note
   const byId = notes.find(n => n.id === String(query).trim());
@@ -650,13 +582,8 @@ export function drilldown(store, { pointer, pointers, client, budget = 2500 } = 
       }
       add(definitionText(repo, file, symbol, block, room, fanout(repo, dep)));
       if (!several) {
-        const known = callers(repo, dep); // resolved by the graph when the checkout is indexed (cbm.js)
-        const refs = known?.length ? null : references(repo, symbol.split('.').pop(), { file, limit: 400 });
-        if (known?.length) {
-          const nf = new Set(known.map(c => c.path || c.qn)).size;
-          const show = known.slice(0, 12).map(c => `- ${c.path ? `${c.path}${c.line ? `:${c.name}:L${c.line}` : ` ${c.name}`}` : c.qn}`);
-          add(`Callers (${known.length} in ${nf} file${nf === 1 ? '' : 's'}):\n${show.join('\n')}${known.length > show.length ? `\n- … ${known.length - show.length} more` : ''}`);
-        } else if (refs) {
+        const refs = references(repo, symbol.split('.').pop(), { file, limit: 400 });
+        if (refs) {
           const callers = refs.lines.filter(l => !l.def && !(l.path === file && l.line >= block.start && l.line < block.start + block.total)).sort((a, b) => (b.call - a.call) || (a.test - b.test));
           const show = callers.slice(0, 10).map(l => `- ${l.path}:L${l.line}  ${l.text.trim().slice(0, 100)}`);
           const nf = new Set(callers.map(l => l.path)).size; add(`Callers and other references${callers.length ? ` (${callers.length}${refs.truncated ? '+' : ''} in ${nf} file${nf === 1 ? '' : 's'}):\n${show.join('\n')}` : ': none'}${callers.length > show.length ? `\n- … ${callers.length - show.length} more (git grep -nw ${symbol.split('.').pop()})` : ''}`);
@@ -709,8 +636,8 @@ export function find(store, { query, path: scope, limit = 12, client } = {}) {
   const lines = r.hits.map((h, i) => `- ${h.path}:${h.symbol}:L${h.line}  (${h.kind}${h.end ? `, ${h.end - h.line + 1} lines` : ''}${fo[i]?.fanout ? `; ${renderFanout(fo[i].fanout)}` : ''})`);
   const notes = store.list().filter(n => n.status !== 'invalid');
   const rel = notes.filter(n => (n.deps || []).some(d => d.symbol && r.hits.some(h => d.path === h.path && d.symbol.split('.').pop() === h.name))).sort((a, b) => (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).slice(0, 4);
-  const text = `Definitions carrying "${String(query).trim()}"${scope ? ` under ${scope}` : ''} (${r.hits.length}${r.more ? '+' : ''}, ${r.engine === 'cbm' ? 'from the code graph' : 'by git grep'}; words: ${r.toks.join(', ')}):\n${lines.join('\n')}${rel.length ? `\n\nCached notes on this code (lookup takes an id):\n${rel.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : ''}\n\nNext: drilldown with the pointers you need (several at once), for their code, callers and callees.`;
-  store.log({ op: 'find', client: client || 'cli', query: String(query).slice(0, 200), scope, hits: r.hits.length, engine: r.engine, durationMs: Date.now() - start, tokens: estTokens(text) });
+  const text = `Definitions carrying "${String(query).trim()}"${scope ? ` under ${scope}` : ''} (${r.hits.length}${r.more ? '+' : ''}, by git grep; words: ${r.toks.join(', ')}):\n${lines.join('\n')}${rel.length ? `\n\nCached notes on this code (lookup takes an id):\n${rel.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : ''}\n\nNext: drilldown with the pointers you need (several at once), for their code, callers and callees.`;
+  store.log({ op: 'find', client: client || 'cli', query: String(query).slice(0, 200), scope, hits: r.hits.length, durationMs: Date.now() - start, tokens: estTokens(text) });
   return { text, hits: r.hits, tokens: estTokens(text) };
 }
 

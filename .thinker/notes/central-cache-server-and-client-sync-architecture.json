@@ -44,12 +44,12 @@
     },
     {
       "path": "src/cli.js",
-      "hash": "sha256:6bbc50463365c6a89ba6e6d2",
+      "hash": "sha256:3f19193fd07b70f4038555e1",
       "missing": false
     },
     {
       "path": "src/maintain.js",
-      "hash": "sha256:c3e1b7253f3451ecd7d64fb9",
+      "hash": "sha256:542eebea2ffb6ac5696b0618",
       "missing": false
     },
     {
@@ -82,8 +82,8 @@
     "type": "agent"
   },
   "created": "2026-10-03T06:37:50.164Z",
-  "verified": "2026-10-04T03:40:29.821Z",
+  "verified": "2026-10-04T05:05:53.185Z",
   "verifiedCommit": "a35ec3bfc80df76bd1bf41b5d2fa0eeaf2cceb32",
-  "confidence": 0.95,
+  "confidence": 1,
   "related": []
 }

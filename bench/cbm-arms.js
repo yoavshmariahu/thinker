@@ -3,17 +3,16 @@
 // worktree with a strict MCP config:
 //   thinker  thinker's notes, with git grep behind drilldown and the blast-radius counts
 //   cbm      CBM's graph alone, as its own MCP server
-//   both     thinker with CBM as its code-graph engine (THINKER_CODEGRAPH=cbm)
 // CBM indexes a worktree by its real path, so each worktree is indexed once before its first run.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { cbmBin, cbmIndex, cbmProject, CBM_VERSION } from '../src/cbm.js';
+import { cbmBin, cbmIndex, cbmProject, CBM_VERSION } from './eval-support/cbm.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const ARMS = ['thinker', 'cbm', 'both'];
+export const ARMS = ['thinker', 'cbm']; // `both` (CBM as thinker's engine) went with the engine
 
 export function cbmBinary() {
   const bin = process.env.THINKER_CBM_BIN || cbmBin() || path.join(ROOT, 'eval-support/cbm/codebase-memory-mcp');

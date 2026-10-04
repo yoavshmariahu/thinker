@@ -11,7 +11,7 @@ import path from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ROOT, cbmBinary, ensureIndexed } from './cbm-arms.js';
-import { codegraphEngine, cbmProject } from '../src/cbm.js';
+import { cbmProject } from './eval-support/cbm.js';
 import { fanout, callers, outline } from '../src/codegraph.js';
 
 const args = process.argv.slice(2);
@@ -40,8 +40,7 @@ try {
   await call('get_code_snippet', { project, qualified_name: qn, max_lines: 20 });
   if (first?.file) await call('get_file_outline', { project, file_path: first.file, limit: 20 });
   // thinker's engine on the same index
-  process.env.THINKER_CODEGRAPH = 'cbm';
-  console.log(`thinker engine: ${codegraphEngine(REPO)} (project ${cbmProject(REPO)})`);
+  console.log(`CBM project for the checkout: ${cbmProject(REPO)}`);
   if (first?.file) {
     const dep = { path: first.file, symbol: first.rows[0][0] };
     console.log(`fanout(${dep.path}:${dep.symbol}):`, JSON.stringify(fanout(REPO, dep)));
