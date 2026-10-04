@@ -705,17 +705,26 @@ Every other kind of note is a claim about the code, and when code and note
 disagree the note yields: verification rewrites or retires it, a review calls
 it `note_outdated`. A `behavior` note (`behavior.js`) is the other way round: a
 person writes down what the system must do and where that is upheld, and from
-then on the code must conform. `thinker system` is the view of them; the MCP
+then on a change must conform, or be called out for not conforming. The
+rule since 2026-10-04: **before a merge the behavior is the truth, after it
+the code is.** A pull request that stops upholding a behavior is told so, in
+full and first (a fixed behavior loudly, see Review below); once the change is
+merged on the default branch the behavior is revised to match the code, with
+the old text in its history. Behaviors are never evaluated against a gold set;
+the review's callout and the person's decision to merge are the check. `thinker system` is the view of them; the MCP
 `lookup` with `kind: "behavior"` returns them to an agent (all of them with no
 query); `thinker system md` writes them as `.thinker/SYSTEM.md` for people who
 read the repository without the tool. They are committed like any shared note
 (`thinker share <id>`) and sync like one.
 
 - **Fields.** A behavior is an ordinary note (title, body with `file:Symbol`
-  pointers, answers, deps) plus `mutability`: `fixed` (never revised; code
-  that stops upholding it is an error) or `mutable` (the default; revised only
-  by a change that edits the note itself). `mutability` is shared content;
-  `violated` is this checkout's state (`store.js:LOCAL_FIELDS`).
+  pointers, answers, deps) plus `mutability`: `fixed` (a review treats a
+  change that stops upholding it as an error and requests changes, with the
+  behavior quoted in full) or `mutable` (the default; a warning, and a pull
+  request may revise it by editing the note itself). Both follow the code
+  once a change is merged. `mutability` and `revised` ({at, commit, reason},
+  set when the merged code rewrote it) are shared content; `violated` is this
+  checkout's state (`store.js:LOCAL_FIELDS`).
 - **Who writes one.** A person: `thinker system add file.json [--fixed]`, or
   `thinker system promote <id> [--fixed]` for a note that already states a
   rule (`thinker system propose` lists the rule notes, the ones the sessions
@@ -726,14 +735,23 @@ read the repository without the tool. They are committed like any shared note
   (`ops.js:archiveReason`), and the commit-time repair leaves one as it is
   (`share-repair.js`).
 - **Verification** (`ops.js:verifyBehavior`, through `verifyNote`): when a dep
-  changes the question is whether the code still upholds the behavior, never
-  whether the note is right. `holds` re-baselines; `broken` sets
-  `status: violated` with the commit and the reason, re-hashes the deps so the
-  note reads as violated rather than stale until the code changes again, and
-  leaves the text alone; `moved` re-points the deps at where the behavior is
-  upheld now (history kept). A behavior found broken is named at the end of
-  the next turn through the maintenance notice (`ops.js:noteUnreported`,
-  `maintain.js:maintenanceNotice`), and served with a `⚠ VIOLATED` banner.
+  changes the question is whether the code still upholds the behavior.
+  `holds` re-baselines; `moved` re-points the deps at where the behavior is
+  upheld now (history kept). `broken` depends on where the code is
+  (`ops.js:onDefaultBranch`: the deps' files committed, and `HEAD` reached by
+  origin's default branch, or a local `main`/`master` without a remote). Not
+  merged (a working tree, a branch, unpushed commits): `status: violated`
+  with the commit and the reason, deps re-hashed so the note reads as
+  violated rather than stale until the code changes again, text untouched,
+  named at the end of the next turn (`ops.js:noteUnreported`,
+  `maintain.js:maintenanceNotice`) and served with a `⚠ VIOLATED` banner.
+  Merged: the model is asked for the behavior as the code upholds it now, the
+  body is replaced (pointers of the new text join the deps), `revised` records
+  the commit and reason, the old body goes to `history`, the verdict is
+  `revised`, the notice says so and `.thinker/SYSTEM.md` is rewritten. A
+  behavior is never retired by verification, and never rewritten for code
+  that is not merged. On the server the clone sits at the default branch, so
+  the behaviors there follow every merge and sync out.
 - **Review** (`review.js:assessBehavior`, and the holistic prompt): the
   verdicts are `violation`, `consistent`, `unrelated` and `revised`; `revised`
   only for a mutable behavior whose note file the change edits
@@ -741,6 +759,13 @@ read the repository without the tool. They are committed like any shared note
   violation. A violation without a placed finding gets one at the first
   definition the change touched. A finding on a fixed behavior is an error,
   on a mutable one at least a warning, so `--strict` exits 2 in CI. The
+  posted pull request review (`review-post.js:buildReview`) opens with a
+  violated fixed behavior before anything else: its title, its full text
+  under "What it requires", what the change does instead (the model's
+  reason), and what merging means (the code becomes the truth and the
+  behavior is revised to match; restore the enforcement if that is not
+  meant). A violated mutable behavior gets the same block under a quieter
+  heading. `renderReview` says the same in one line for the CLI. The
   holistic call may not list a behavior under `outdated`: one it does is turned
   into a finding. The report carries `behaviors`, one line per behavior in
   play (`upheld`, `violated`, `revised`, `unrelated`, or `consulted` on a dry

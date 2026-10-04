@@ -25,6 +25,24 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   const behaviors = r.behaviors || [];
   const violated = behaviors.filter(b => b.outcome === 'violated');
   const L = [MARKER, `### thinker review${r.scope ? ` · ${esc(r.scope)}` : ''}`, ''];
+  // a behavior this change stops upholding, said first and in full: what it required, what the change
+  // does instead, and what merging means. A fixed behavior is the loud case.
+  const fixedBroken = violated.filter(b => b.mutability === 'fixed'), mutableBroken = violated.filter(b => b.mutability !== 'fixed');
+  const quote = s => String(s || '').trim().split('\n').map(l => `> ${esc(l)}`).join('\n');
+  if (fixedBroken.length) {
+    L.push(`## ⛔ This change breaks ${fixedBroken.length === 1 ? 'a fixed behavior' : `${fixedBroken.length} fixed behaviors`} of the system`, '');
+    L.push(`A fixed behavior is a rule the system is held to. Changing it is a decision for the people who own the system, not a side effect of this change.`, '');
+    for (const b of fixedBroken) {
+      L.push(`**${esc(b.title)}** <sub>fixed, ${code(b.id)}</sub>`, '', 'What it requires:', '', quote(b.body), '');
+      if (b.reason) L.push(`What this change does instead: ${esc(b.reason)}`, '');
+      if (b.before) L.push(`<sub>${esc(b.before)}</sub>`, '');
+    }
+    L.push(`**If this is intended**, say so in the pull request: once it is merged on the default branch the code is the truth and ${fixedBroken.length === 1 ? 'this behavior is' : 'these behaviors are'} revised to match it. **If not**, restore the enforcement before merging.`, '', '---', '');
+  } else if (mutableBroken.length) {
+    L.push(`#### ⚠ This change alters ${mutableBroken.length === 1 ? 'a behavior' : `${mutableBroken.length} behaviors`} of the system`, '');
+    for (const b of mutableBroken) { L.push(`**${esc(b.title)}** <sub>mutable, ${code(b.id)}</sub>`, '', quote(b.body), ''); if (b.reason) L.push(`What this change does instead: ${esc(b.reason)}`, ''); }
+    L.push(`A mutable behavior changes with the code: once this change is merged on the default branch ${mutableBroken.length === 1 ? 'it is' : 'they are'} revised to match it. Say in the pull request that the change is meant.`, '', '---', '');
+  }
   if (r.error) L.push(`The review could not run: ${esc(r.error)}`, '');
   else if (r.noCache) L.push('This repository has no `.thinker/` cache, so there is nothing to review against. Run `thinker setup` and commit a few desired behaviors (`thinker system add`).', '');
   else if (r.empty) L.push('Nothing to review: the change holds no code the notes could speak to.', '');

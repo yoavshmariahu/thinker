@@ -713,7 +713,7 @@ function behaviorReport(consulted, report, revisable, dry) {
     const hit = report.findings.filter(f => f.note === n.id || f.notes?.includes(n.id));
     let outcome = dry ? 'consulted' : hit.length ? 'violated' : verdict?.verdict === 'revised' || (revisable.has(n.id) && !verdict) ? 'revised' : verdict?.verdict === 'unrelated' ? 'unrelated' : 'upheld';
     if (dry && revisable.has(n.id)) outcome = 'revised';
-    return { id: n.id, title: n.title, mutability: n.mutability || 'mutable', outcome, before: n.status === 'violated' ? `already not upheld before this change${n.violated?.commit ? ` (since ${String(n.violated.commit).slice(0, 10)})` : ''}` : '', reason: hit[0]?.message || verdict?.reason || '', revised: revisable.has(n.id) };
+    return { id: n.id, title: n.title, mutability: n.mutability || 'mutable', body: n.body, applies: n.applies, outcome, before: n.status === 'violated' ? `already not upheld before this change${n.violated?.commit ? ` (since ${String(n.violated.commit).slice(0, 10)})` : ''}` : '', reason: hit[0]?.message || verdict?.reason || '', revised: revisable.has(n.id) };
   });
 }
 
@@ -749,6 +749,8 @@ export function renderReview(r, { verbose = false } = {}) {
   if (r.behaviors?.length) {
     L.push('', `Desired behaviors (${r.behaviors.length} in play; thinker system lists them all):`);
     for (const b of r.behaviors) L.push(`  ${b.outcome.padEnd(10)} [${b.mutability}] ${b.title} (${b.id})${b.outcome === 'revised' ? '  — the change edits the behavior note' : b.reason && b.outcome === 'violated' ? `: ${b.reason.slice(0, 160)}` : ''}${b.before ? `  [${b.before}]` : ''}`);
+    const broken = r.behaviors.filter(b => b.outcome === 'violated');
+    if (broken.length) L.push(`  ${broken.some(b => b.mutability === 'fixed') ? 'A fixed behavior is a rule the system is held to: changing it is a decision, not a side effect.' : 'A mutable behavior changes with the code.'} Once this change is merged on the default branch the code is the truth, and the ${broken.length === 1 ? 'behavior above is' : 'behaviors above are'} revised to match it.`);
   }
   const cache = [];
   if (n.staleBefore.length) cache.push(`${n.staleBefore.length} consulted note${n.staleBefore.length === 1 ? ' was' : 's were'} already stale before this change (their claims were weighed accordingly): ${n.staleBefore.map(s => `${s.id} (${s.changed.map(c => `${ptr(c)}: ${c.reason}`).join('; ')})`).join('; ')}`);

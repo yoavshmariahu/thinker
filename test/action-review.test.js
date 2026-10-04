@@ -7,7 +7,7 @@ const report = {
   notes: { consulted: 2, assessed: 2, staleBefore: [], outdated: [], uncovered: ['src/other.js'] },
   counts: { error: 1, warning: 1, info: 0 },
   behaviors: [
-    { id: 'invoke-validates', title: 'invoke validates ctx before main', mutability: 'fixed', outcome: 'violated', reason: 'invoke skips validate', before: '' },
+    { id: 'invoke-validates', title: 'invoke validates ctx before main', mutability: 'fixed', body: 'Command.invoke calls validate before main.\nmain assumes ctx is set.', outcome: 'violated', reason: 'invoke skips validate', before: '' },
     { id: 'convert-str', title: 'convert returns str', mutability: 'mutable', outcome: 'upheld', reason: '', before: '' },
   ],
   findings: [
@@ -25,6 +25,11 @@ test('buildReview: findings on changed lines go inline, the rest and the behavio
   assert.match(r.comments[0].body, /\*\*error\*\* Command.invoke skips validate\(ctx\)/);
   assert.match(r.comments[0].body, /invoke validates ctx before main \(invoke-validates\), 90%/);
   assert.ok(r.body.startsWith(MARKER));
+  // a fixed behavior broken: said first, with what it requires, what the change does and what merging means
+  assert.match(r.body, /^<!-- thinker-review -->\n### thinker review[^\n]*\n\n## ⛔ This change breaks a fixed behavior of the system/);
+  assert.match(r.body, /\*\*invoke validates ctx before main\*\* <sub>fixed, `invoke-validates`<\/sub>\n\nWhat it requires:\n\n> Command.invoke calls validate before main\./);
+  assert.match(r.body, /What this change does instead: invoke skips validate/);
+  assert.match(r.body, /once it is merged on the default branch the code is the truth and this behavior is revised to match it/);
   assert.match(r.body, /\| ❌ \| invoke validates ctx before main <sub>fixed, `invoke-validates`<\/sub> \| violated: invoke skips validate \|/);
   assert.match(r.body, /\| ✅ \| convert returns str .* \| upheld \|/);
   assert.match(r.body, /Findings not on a changed line/);
@@ -35,6 +40,9 @@ test('buildReview: findings on changed lines go inline, the rest and the behavio
   assert.equal(buildReview(report, { failOn: 'none' }).fail, false);
   assert.equal(buildReview({ ...report, counts: { error: 0, warning: 1, info: 0 } }, { failOn: 'warning' }).fail, true);
   assert.equal(buildReview({ ...report, counts: { error: 0, warning: 1, info: 0 } }).event, 'COMMENT');
+  // a mutable one broken: the quieter block
+  const m = buildReview({ ...report, counts: { error: 0, warning: 1, info: 0 }, behaviors: [{ ...report.behaviors[0], mutability: 'mutable' }] });
+  assert.ok(!m.body.includes('⛔')); assert.match(m.body, /#### ⚠ This change alters a behavior of the system/); assert.match(m.body, /A mutable behavior changes with the code/);
 });
 
 test('buildReview: nothing to report posts nothing when quiet, the table when not; empty, missing cache and failed reviews are said plainly', () => {
