@@ -1,6 +1,6 @@
 {
   "name": "thinker",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Knowledge cache for coding agents: dependency-keyed notes served over MCP",
   "type": "module",
   "bin": {
