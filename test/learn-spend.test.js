@@ -46,7 +46,7 @@ test('distill --batch makes no model call for a small backlog, and the session e
   const script = path.join(dir, 'model.js');
   fs.writeFileSync(script, `require('fs').appendFileSync(${JSON.stringify(marker)}, 'x'); process.stdin.resume(); process.stdin.on('end', () => console.log(JSON.stringify({ notes: [] })));`);
   const trace = path.join(dir, 'trace.jsonl');
-  fs.writeFileSync(trace, [{ t: 'prompt', text: 'where are rows fetched' }, ...[1, 2, 3].map(i => ({ t: 'tool', name: 'Read', input: { file_path: 'src/a.js' }, result: 'export function fetchRows' + i })), { t: 'say', text: 'in src/a.js:fetchRows' }].map(e => JSON.stringify(e)).join('\n') + '\n');
+  fs.writeFileSync(trace, [{ t: 'prompt', text: 'where are rows fetched' }, ...[1, 2, 3].map(i => ({ t: 'tool', name: 'Read', input: { file_path: 'src/a.js' }, result: 'export function fetchRows' + i })), { t: 'tool', name: 'Edit', input: { file_path: 'src/a.js', old_string: '1', new_string: '2' }, result: 'ok' }, { t: 'say', text: 'in src/a.js:fetchRows' }].map(e => JSON.stringify(e)).join('\n') + '\n');
   const env = { ...process.env, THINKER_LLM_CMD: `node "${script}"`, THINKER_LLM: '', ANTHROPIC_API_KEY: '', THINKER_LOG: 'local', THINKER_QUIET: '1' };
   const run = extra => execFileSync('node', [CLI, 'distill', trace, '--format', 'events', '--incremental', '--session', 's1', '--repo', dir, ...extra], { encoding: 'utf8', env });
   assert.match(run(['--batch']), /left for the end of the session/);
