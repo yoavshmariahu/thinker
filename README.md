@@ -139,25 +139,25 @@ pending corrections. Review archives before distributing them.
 
 ### A central cache for the team
 
-Commits share notes at the pace of pull requests. To have every checkout learn
-from every session, run `thinker-server` (one Node process; `infra/sync/` deploys
-it to EC2 behind TLS) and point each checkout at it once:
+Commits share notes at the pace of pull requests. To have every checkout see
+what every other one learned, run `thinker-server` (one Node process; `infra/sync/`
+deploys it to EC2 behind TLS) and point each checkout at it once:
 
 ```bash
 thinker sync login https://sync.example.com --token <token from the server>
 thinker sync status
 ```
 
-From then on the hooks and background maintenance do the rest: notes the server
-learned arrive in the local cache before the next prompt; notes learned here that
-pass the same trust gate as `thinker share` go up; verifications, corrections and
-retirements travel both ways, with the server's version winning a conflict; and
-each session is streamed to the server as it ends, where it is distilled against
-the server's clone of the repository with one model key for the whole team.
-Merged pull requests reach the server from CI through the GitHub Action in
-`action/` (`action/README.md`). Committed notes in `.thinker/notes/` keep
-working as before and are never overwritten by a pull. `THINKER_SYNC=off`
-switches syncing off for one run; `thinker sync logout` for the checkout.
+From then on the hooks and background maintenance do the rest: notes other
+checkouts learned arrive in the local cache before the next prompt; notes learned
+here that pass the same trust gate as `thinker share` go up; verifications,
+corrections and retirements travel both ways, with the server's version winning a
+conflict. Learning itself stays on each machine: sessions are distilled where
+they ran, through the agent's own login, so the server needs no model key for
+it. Committed notes in `.thinker/notes/` keep working as before and are never
+overwritten by a pull. `THINKER_SYNC=off` switches syncing off for one run;
+`thinker sync logout` for the checkout. The server can also review pull requests
+for CI (`action/review`, `action/README.md`); that is its one model call.
 ## Review a change against the cache
 
 ```bash

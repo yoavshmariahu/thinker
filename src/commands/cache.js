@@ -6,7 +6,7 @@ import { refresh } from '../ops.js';
 import { review, renderReview, resolveScope } from '../review.js';
 import { repairStaged } from '../share-repair.js';
 import { share, validateShare, validatePush } from '../share.js';
-import { syncConfig, syncNotes, pull as syncPull, push as syncPush, pushSessions, login as syncLogin, logout as syncLogout, status as syncStatus, renderStatus as renderSyncStatus } from '../sync.js';
+import { syncConfig, syncNotes, pull as syncPull, push as syncPush, login as syncLogin, logout as syncLogout, status as syncStatus, renderStatus as renderSyncStatus } from '../sync.js';
 import { subsystemForFile } from '../topology.js';
 import { exportCache, importCache } from '../transfer.js';
 import { summarize, renderUsage } from '../usage.js';
@@ -67,21 +67,16 @@ async function importCommand(ctx) {
 
 async function syncCommand(ctx) {
   const { pos, flags, repo, store, out } = ctx;
-  if (pos[0] === 'login') { const c = syncLogin(store, { url: pos[1] || flags.url, token: typeof flags.token === 'string' ? flags.token : undefined, repo: typeof flags.as === 'string' ? flags.as : undefined }); out(c ? `syncing ${c.repo} with ${c.url}` : 'url saved; a token is still needed: thinker sync login <url> --token <t>'); if (c) { const r = await syncNotes(store, c); out(`pulled ${r.pulled}, pushed ${r.pushed}${r.distills ? '' : '; the server cannot distill this repository yet (no checkout or model there)'}`); } return; }
+  if (pos[0] === 'login') { const c = syncLogin(store, { url: pos[1] || flags.url, token: typeof flags.token === 'string' ? flags.token : undefined, repo: typeof flags.as === 'string' ? flags.as : undefined }); out(c ? `syncing ${c.repo} with ${c.url}` : 'url saved; a token is still needed: thinker sync login <url> --token <t>'); if (c) { const r = await syncNotes(store, c); out(`pulled ${r.pulled}, pushed ${r.pushed}`); } return; }
   if (pos[0] === 'logout') { syncLogout(store); out('sync switched off for this checkout'); return; }
   if (pos[0] === 'status') { out(renderSyncStatus(await syncStatus(store))); return; }
   const cfg = syncConfig(store);
   if (!cfg) { out(renderSyncStatus(await syncStatus(store))); process.exitCode = 1; return; }
   if (flags.all) cfg.pushAll = true;
-  const only = flags.pull || flags.push || flags.sessions;
+  const only = flags.pull || flags.push;
   const dry = !!flags.dry, quiet = !!flags.quiet;
   if (!only || flags.pull) { const r = await syncPull(store, cfg, { save: !dry }); if (!quiet) out(`pulled ${r.applied} ${r.applied === 1 ? 'note' : 'notes'}${r.deleted ? `, ${r.deleted} removed` : ''} (cursor ${r.seq})`); }
   if (!only || flags.push) { const r = await syncPush(store, cfg, { dry }); if (!quiet) { out(`${dry ? 'would push' : 'pushed'} ${dry ? r.planned : r.pushed}${r.retired ? `, retired ${r.retired}` : ''}${r.conflicts ? `, ${r.conflicts} taken from the server instead` : ''}${r.rejected ? `, ${r.rejected} rejected` : ''}`); if (flags.verbose) for (const s of r.skipped) out(`  held back ${s.id}: ${s.reasons.join('; ')}`); } }
-  if (flags.sessions) {
-    const sessions = typeof flags.transcript === 'string' ? [{ file: flags.transcript, session: typeof flags.session === 'string' ? flags.session : path.basename(flags.transcript).replace(/\.jsonl?$/, ''), client: typeof flags.client === 'string' ? flags.client : 'claude' }] : undefined;
-    const r = await pushSessions(store, cfg, { sessions, end: !!flags.end, dry, days: Number(flags.days) || 2, idleMin: flags['idle-min'] === undefined ? 0 : Number(flags['idle-min']), max: Number(flags.max) || 20 });
-    if (!quiet) out(`${dry ? 'would stream' : 'streamed'} ${r.events} events of ${r.sessions} ${r.sessions === 1 ? 'session' : 'sessions'}${r.distills === false ? ' (the server cannot distill them yet)' : ''}`);
-  }
   return;
 }
 

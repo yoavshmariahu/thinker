@@ -9,7 +9,7 @@ import { loadCochange } from '../cochange.js';
 import { parseTranscript } from '../distill.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession } from '../ops.js';
-import { syncConfig, streamingPlan, pullDue, syncState } from '../sync.js';
+import { syncConfig, pullDue, syncState } from '../sync.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice } from '../usage.js';
 
@@ -105,12 +105,9 @@ async function hookCommand(ctx) {
     }
     if (flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
     if (!source || !fs.existsSync(source)) return;
-    // a checkout that syncs with the team cache streams the session there, where it is distilled;
-    // it is distilled here as well only while the server cannot (no checkout or model there)
-    const plan = streamingPlan(store);
-    if (plan.stream) spawn('node', [path.join(HERE, 'cli.js'), 'sync', '--sessions', '--end', '--quiet', '--transcript', source, '--session', session, '--client', client, '--repo', repo], { detached: true, stdio: 'ignore', env: process.env }).unref();
-    if (!plan.local) return;
-    // distilling a session is a model call of its own (about 10¢ with Sonnet); it spends from
+    // Sessions are distilled here, through the agent's own login, whether or not this checkout syncs
+    // with a team cache: what they produce reaches the cache as notes, on the next push.
+    // Distilling a session is a model call of its own (about 10¢ with Sonnet); it spends from
     // the same daily budget as maintenance, so a long day of work cannot run up the bill
     const cap = withinDailyCap(store);
     if (!cap.ok) { store.log({ op: 'distill-skipped', reason: 'dailyCap', spent: cap.spent, cap: cap.cap, session, client }); reportCapped(store, cap); return; }

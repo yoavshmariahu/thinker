@@ -4,7 +4,7 @@ The team's central cache (`src/server/`) runs on one Amazon Linux 2023 instance,
 `t4g.small`, behind Caddy, which obtains and renews the TLS certificate for
 `sync.zerotime.dev` (Let's Encrypt). Data is on the instance's encrypted volume
 under `/var/lib/thinker-sync`: one directory per repository with its clone, notes,
-change journal, streamed sessions and queued pull requests, plus `tokens.json`.
+change journal and the pull request reviews CI asked for, plus `tokens.json`.
 No SSH: the instance is reached through Systems Manager Session Manager.
 
 ```sh
@@ -33,9 +33,10 @@ with `GET https://sync.zerotime.dev/health`.
   for; the git token is used when it is unset). Rerun without flags afterwards so
   the instance picks the secret up (bootstrap rewrites the env file and restarts
   the service).
-- Without a model key the server stores notes and sessions but distills nothing;
-  checkouts then keep distilling locally (`sync status` says which). Without a clone
-  it stores what clients push but cannot anchor new notes, so sessions wait.
+- The server learns nothing itself: sessions are distilled on the checkouts and
+  arrive as notes. The model key is for reviewing pull requests (`action/review`);
+  without it the server stores and serves notes and reviews nothing. Without a
+  clone it stores what clients push and reviews fail saying so.
 
 ## Running it locally in a container
 
@@ -87,5 +88,5 @@ aws --profile yoav --region us-east-1 cloudformation delete-stack --stack-name t
 ```
 
 The volume goes with the instance. Export what matters first
-(`thinker export` in a synced checkout holds the notes; the sessions live only on
-the server). The secret and the S3 releases are left in place.
+(`thinker export` in a synced checkout holds the notes). The secret and the S3
+releases are left in place.

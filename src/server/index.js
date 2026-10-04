@@ -4,30 +4,30 @@
 //   GET    /v1/whoami
 //   GET    /v1/repos                               admin   every repository and its state
 //   PUT    /v1/repos/:repo            {clone?}     admin   register a repository (or set its clone url)
-//   GET    /v1/repos/:repo                         read    state: head, notes, sessions, whether it distills
+//   GET    /v1/repos/:repo                         read    state: head, notes, pending reviews
 //   GET    /v1/repos/:repo/notes?since=N           read    notes changed since cursor N, and tombstones
 //   GET    /v1/repos/:repo/notes/:id               read    one note
 //   POST   /v1/repos/:repo/notes      {items}      write   push notes: [{op: put|del, base?, note}]
-//   POST   /v1/repos/:repo/sessions/:session {client?, events}   write   stream a session's events
-//   POST   /v1/repos/:repo/prs        {number, ...} write   a merged pull request to distill
 //   POST   /v1/repos/:repo/reviews    {number, headSha, baseRef, ...}   write   an open pull request to review and post the review on
 //   GET    /v1/repos/:repo/reviews/:number         read    the state and result of that review
 //   POST   /v1/repos/:repo/fetch                   admin   fetch the checkout now
 //   GET    /v1/tokens, POST /v1/tokens {name, repos?, scopes?}, DELETE /v1/tokens/:name   admin
 //
 // :repo is the repository id, github.com/owner/repo, URL-encoded as one segment.
+//
+// The server learns nothing itself: sessions are distilled on the checkouts and arrive as notes.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Repos, REPO_ID, SESSION_ID } from './repos.js';
+import { Repos, REPO_ID } from './repos.js';
 import { Tokens, allows, bearer } from './auth.js';
 import { Worker } from './worker.js';
 import { nearDuplicate } from '../share.js';
 import { provider } from '../llm.js';
 
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json'), 'utf8')).version; } catch { return '0'; } })();
-const LIMITS = { notes: 8 << 20, sessions: 16 << 20, prs: 8 << 20, default: 1 << 20 };
+const LIMITS = { notes: 8 << 20, default: 1 << 20 };
 
 class HttpError extends Error { constructor(status, message) { super(message); this.status = status; } }
 
@@ -46,7 +46,6 @@ export function createServer({ data, adminToken, log = () => {}, worker: workerO
   const tokens = new Tokens(data, { adminToken });
   const worker = new Worker(repos, { log, ...workerOpts });
   if (startWorker) worker.start();
-  const distills = repo => repo.isCloned() && worker.hasModel();
   const reviews = repo => ({ reviews: repo.isCloned() && worker.hasModel(), posts: !!worker.githubToken });
 
   async function route(req, res) {
@@ -72,7 +71,7 @@ export function createServer({ data, adminToken, log = () => {}, worker: workerO
     }
 
     if (kind !== 'repos') throw new HttpError(404, 'not found');
-    if (!repoId) { if (req.method !== 'GET') throw new HttpError(405, 'method not allowed'); need('admin'); return send(200, { repos: repos.list().map(r => ({ ...r.status(), distills: distills(r) })) }); }
+    if (!repoId) { if (req.method !== 'GET') throw new HttpError(405, 'method not allowed'); need('admin'); return send(200, { repos: repos.list().map(r => r.status()) }); }
     if (!REPO_ID.test(repoId)) throw new HttpError(400, 'invalid repository id (github.com/owner/repo)');
 
     if (!sub && req.method === 'PUT') {
@@ -82,12 +81,12 @@ export function createServer({ data, adminToken, log = () => {}, worker: workerO
       const repo = repos.get(repoId, { create: true, clone: b.clone });
       let fetched = null;
       if (b.fetch !== false) fetched = await worker.ensureCheckout(repo, { force: true });
-      return send(200, { ...repo.status(), fetched, distills: distills(repo) });
+      return send(200, { ...repo.status(), fetched });
     }
     const repo = repos.get(repoId);
     if (!repo) throw new HttpError(404, `unknown repository ${repoId}; an admin registers it with PUT /v1/repos/${encodeURIComponent(repoId)}`);
 
-    if (!sub) { if (req.method !== 'GET') throw new HttpError(405, 'method not allowed'); need('read', repoId); return send(200, { ...repo.status(), distills: distills(repo) }); }
+    if (!sub) { if (req.method !== 'GET') throw new HttpError(405, 'method not allowed'); need('read', repoId); return send(200, repo.status()); }
 
     if (sub === 'fetch' && req.method === 'POST') { need('admin'); const ok = await worker.ensureCheckout(repo, { force: true }); return send(200, { ...repo.status(), fetched: ok }); }
 
@@ -96,7 +95,7 @@ export function createServer({ data, adminToken, log = () => {}, worker: workerO
         need('read', repoId);
         if (subId) { const n = repo.note(subId); if (!n) throw new HttpError(404, 'no such note'); return send(200, { note: n, seq: repo.meta().seq || 0 }); }
         const since = Number(url.searchParams.get('since')) || 0;
-        return send(200, { ...repo.changes(since), distills: distills(repo) });
+        return send(200, repo.changes(since));
       }
       if (req.method === 'POST' && !subId) {
         need('write', repoId);
@@ -109,25 +108,6 @@ export function createServer({ data, adminToken, log = () => {}, worker: workerO
       throw new HttpError(405, 'method not allowed');
     }
 
-    if (sub === 'sessions' && subId && req.method === 'POST') {
-      need('write', repoId);
-      if (!SESSION_ID.test(subId)) throw new HttpError(400, 'invalid session id');
-      const b = await readBody(req, LIMITS.sessions);
-      if (!Array.isArray(b.events)) throw new HttpError(400, 'events: a list');
-      const r = repo.appendSession(subId, b.events, { by, client: typeof b.client === 'string' ? b.client.slice(0, 40) : undefined });
-      return send(200, { ...r, distills: distills(repo) });
-    }
-
-    if (sub === 'prs' && req.method === 'POST' && !subId) {
-      need('write', repoId);
-      const b = await readBody(req, LIMITS.prs);
-      const number = Number(b.number);
-      if (!Number.isInteger(number) || number <= 0) throw new HttpError(400, 'number: the pull request number');
-      if (typeof b.title !== 'string' || !b.title.trim()) throw new HttpError(400, 'title: required');
-      if (typeof b.diff !== 'string' || !b.diff.trim()) throw new HttpError(400, 'diff: the unified diff of the pull request');
-      const pr = { number, title: b.title.slice(0, 500), body: String(b.body || '').slice(0, 20000), mergedAt: String(b.mergedAt || new Date().toISOString()), mergeCommit: /^[a-f0-9]{7,64}$/.test(String(b.mergeCommit || '')) ? b.mergeCommit : null, additions: Number(b.additions) || 0, files: Array.isArray(b.files) ? b.files.filter(f => typeof f === 'string').slice(0, 500) : [], diff: b.diff.slice(0, 60000), comments: Array.isArray(b.comments) ? b.comments.filter(c => typeof c === 'string').slice(0, 12) : [], by };
-      return send(202, { ...repo.queuePr(pr), distills: distills(repo) });
-    }
     if (sub === 'reviews') {
       if (req.method === 'GET' && subId) {
         if (!allows(who, 'read', repoId) && !allows(who, 'write', repoId)) need('read', repoId); // the CI token that asked may read the answer

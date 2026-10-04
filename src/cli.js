@@ -69,7 +69,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  sync this checkout with the team's central cache (thinker-server);
                                  the url goes in .thinker/config.json, the token in ~/.thinker/sync.json;
                                  --as names the repository when it is not the GitHub origin
-  sync [--pull] [--push] [--sessions] [--dry] [--all]
+  sync [--pull] [--push] [--dry] [--all]
                                  one round now (default pull and push; hooks and maintenance do this
                                  by themselves); --all pushes unconfirmed notes too
   sync status | sync logout

@@ -1,12 +1,13 @@
 // The central cache, one directory per repository under the server's data directory:
 //
-//   repos/<key>/checkout/            a clone of the repository (its default branch), so notes
-//                                    distilled here are anchored to real files and symbols;
-//                                    the notes live in its .thinker/ through the ordinary Store
+//   repos/<key>/checkout/            a clone of the repository (its default branch): the code a
+//                                    pull request review reads; the notes live in its .thinker/
+//                                    through the ordinary Store
 //   repos/<key>/journal.jsonl        every change to a note, numbered: what clients pull by cursor
-//   repos/<key>/sessions/<id>.jsonl  events streamed by clients' hooks, distilled when idle
-//   repos/<key>/prs/<n>.json         merged pull requests sent by CI, distilled in turn
+//   repos/<key>/reviews/<n>.json     pull request reviews CI asked for, and their results
 //   repos/<key>/repo.json            id, clone url, sequence number, head
+//
+// Notes are learned on the checkouts and pushed here; the server distills nothing.
 //
 // <key> is the repository id (github.com/owner/repo, see store.js:repoId) with '/' as '__'.
 import fs from 'node:fs';
@@ -17,7 +18,6 @@ import { Store, sharedContent, LOCAL_FIELDS } from '../store.js';
 
 export const REPO_ID = /^[a-z0-9][a-z0-9.-]*(\/[a-z0-9._-]+)+$/i;
 export const NOTE_ID = /^[a-z0-9][a-z0-9-]*$/;
-export const SESSION_ID = /^[\w.-]{1,120}$/;
 export const digest = content => crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex').slice(0, 16);
 
 // What is synchronized of a note: its content (store.js:sharedContent) and what sessions anywhere
@@ -50,8 +50,6 @@ export class Repo {
     this.id = id.toLowerCase();
     this.dir = path.join(root, 'repos', this.id.replace(/\//g, '__'));
     this.checkout = path.join(this.dir, 'checkout');
-    this.sessionsDir = path.join(this.dir, 'sessions');
-    this.prsDir = path.join(this.dir, 'prs');
     this.reviewsDir = path.join(this.dir, 'reviews');
     this.journalFile = path.join(this.dir, 'journal.jsonl');
     this.metaFile = path.join(this.dir, 'repo.json');
@@ -62,8 +60,6 @@ export class Repo {
   saveMeta(patch) { const m = { ...this.meta(), ...patch }; fs.mkdirSync(this.dir, { recursive: true }); writeJson(this.metaFile, m); return m; }
   create({ clone } = {}) {
     fs.mkdirSync(this.checkout, { recursive: true });
-    fs.mkdirSync(this.sessionsDir, { recursive: true });
-    fs.mkdirSync(this.prsDir, { recursive: true });
     fs.mkdirSync(this.reviewsDir, { recursive: true });
     if (!this.exists()) this.saveMeta({ id: this.id, seq: 0, clone: clone || defaultClone(this.id), created: new Date().toISOString() });
     else if (clone) this.saveMeta({ clone });
@@ -165,46 +161,6 @@ export class Repo {
     }, by);
   }
 
-  // --- sessions -------------------------------------------------------------------------------------
-  sessionFile(session) {
-    if (!SESSION_ID.test(String(session))) throw new Error('invalid session id');
-    return path.join(this.sessionsDir, `${session}.jsonl`);
-  }
-  sessionMeta(session) { return readJson(this.sessionFile(session).replace(/\.jsonl$/, '.json'), {}); }
-  saveSessionMeta(session, patch) { const f = this.sessionFile(session).replace(/\.jsonl$/, '.json'); const m = { ...this.sessionMeta(session), ...patch }; writeJson(f, m); return m; }
-  appendSession(session, events, { by, client } = {}) {
-    const f = this.sessionFile(session);
-    fs.mkdirSync(this.sessionsDir, { recursive: true });
-    const kept = (events || []).filter(e => e && typeof e === 'object' && ['prompt', 'say', 'tool', 'served', 'end'].includes(e.t));
-    if (kept.length) fs.appendFileSync(f, kept.map(e => JSON.stringify(e)).join('\n') + '\n');
-    const meta = this.sessionMeta(session);
-    const count = (meta.events || 0) + kept.length;
-    const ended = !!(meta.ended || kept.some(e => e.t === 'end'));
-    this.saveSessionMeta(session, { events: count, by: by || meta.by, client: client || meta.client, lastAt: new Date().toISOString(), ended });
-    return { events: count, ended };
-  }
-  sessionEvents(session) { try { return jsonLines(fs.readFileSync(this.sessionFile(session), 'utf8')); } catch { return []; } }
-  sessions() {
-    let files = []; try { files = fs.readdirSync(this.sessionsDir); } catch {}
-    return files.filter(f => f.endsWith('.jsonl')).map(f => f.slice(0, -6));
-  }
-
-  // --- pull requests from CI --------------------------------------------------------------------------
-  prFile(n) { if (!/^\d{1,9}$/.test(String(n))) throw new Error('invalid pull request number'); return path.join(this.prsDir, `${n}.json`); }
-  queuePr(pr) {
-    fs.mkdirSync(this.prsDir, { recursive: true });
-    const f = this.prFile(pr.number);
-    const prev = readJson(f, {});
-    if (prev.done) return { queued: false, done: true };
-    writeJson(f, { ...pr, queuedAt: new Date().toISOString() });
-    return { queued: true };
-  }
-  pendingPrs() {
-    let files = []; try { files = fs.readdirSync(this.prsDir); } catch {}
-    return files.filter(f => /^\d+\.json$/.test(f)).map(f => readJson(path.join(this.prsDir, f), null)).filter(p => p && !p.done).sort((a, b) => String(a.queuedAt).localeCompare(String(b.queuedAt)));
-  }
-  finishPr(n, patch) { const f = this.prFile(n); const pr = readJson(f, { number: n }); delete pr.diff; delete pr.body; delete pr.comments; writeJson(f, { ...pr, ...patch, done: true, doneAt: new Date().toISOString() }); }
-
   // --- pull requests to review ----------------------------------------------------------------------
   // One record per pull request number, the latest request winning: a push replaces the pending
   // request for the same number. {status: queued | running | done | failed, ...}; the record of a
@@ -246,9 +202,9 @@ export class Repo {
   hasCommit(sha) { try { this.git(['cat-file', '-e', `${sha}^{commit}`]); return true; } catch { return false; } }
 
   // --- the checkout ---------------------------------------------------------------------------------
-  // The repository's default branch, cloned once and fetched before a distillation, so notes rest on
-  // files that exist and symbols that resolve. Without access (a private repository and no token)
-  // the checkout stays empty: notes are stored as clients send them, sessions wait.
+  // The repository's default branch, cloned once and fetched before a review, so the review reads
+  // the code as it is. Without access (a private repository and no token) the checkout stays empty:
+  // notes are stored as clients send them, reviews fail and say so.
   isCloned() { return fs.existsSync(path.join(this.checkout, '.git')); }
   gitEnv(token) {
     const env = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
@@ -303,7 +259,7 @@ export class Repo {
     const m = this.meta();
     const store = this.store();
     const notes = store.exists() ? store.list() : [];
-    return { id: this.id, seq: m.seq || 0, clone: m.clone, head: m.head || null, fetchedAt: m.fetchedAt || null, cloned: this.isCloned(), cloneError: m.cloneError || null, notes: notes.length, invalid: notes.filter(n => n.status === 'invalid').length, sessions: this.sessions().length, pendingPrs: this.pendingPrs().length, pendingReviews: this.pendingReviews().length, created: m.created };
+    return { id: this.id, seq: m.seq || 0, clone: m.clone, head: m.head || null, fetchedAt: m.fetchedAt || null, cloned: this.isCloned(), cloneError: m.cloneError || null, notes: notes.length, invalid: notes.filter(n => n.status === 'invalid').length, pendingReviews: this.pendingReviews().length, created: m.created };
   }
 }
 

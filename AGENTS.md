@@ -65,8 +65,8 @@ cache at twice the input price and never read again.
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens and in dollars |
 | `src/prices.js` | dollars per token by model: Anthropic's list prices, the user's for other vendors |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
-| `src/sync.js` | a checkout's side of the central cache: pull and push notes, stream sessions; from the hooks and maintenance once `thinker sync login` has run |
-| `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that distills streamed sessions and CI pull requests and maintains each cache (`worker.js`) |
+| `src/sync.js` | a checkout's side of the central cache: pull and push notes; from the hooks and maintenance once `thinker sync login` has run |
+| `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
 | `action/` | GitHub Actions: `action.yml` sends a merged pull request to the server; `review/` has the server check a pull request against the desired behaviors and post the review (`src/review-post.js` renders and posts) |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
 | `src/review.js` | `thinker review` and the MCP `review` tool: a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; co-change partners missing from the change, removed symbols still referenced |
@@ -620,9 +620,19 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 ## The central cache (`thinker-server`)
 
 Committing notes shares them at the pace of pull requests. A team that wants
-every checkout to learn from every session runs `thinker-server`
+every checkout to see what every other one learned runs `thinker-server`
 (`src/server/`), one process with a data directory, and points checkouts at it
-with `thinker sync login <url> --token <t>`. The url goes in
+with `thinker sync login <url> --token <t>`. The server is a store: it holds
+the notes and a journal of their changes, and reviews pull requests when CI
+asks. It learns nothing itself. Sessions are distilled on the checkout that ran
+them, through the agent's own login, and merged pull requests are mined by each
+checkout's maintenance as in an unsynced repository; what they produce reaches
+the server as notes on the next push. Decided 2026-10-04: a distill costs the
+same wherever it runs, and on a laptop it runs on the agent's subscription
+rather than metered API usage, so the server's share was moved back. The price
+of it is that a merged pull request is mined once per syncing checkout, with
+the duplicates rejected at push (`share.js:nearDuplicate`), rather than once.
+The server's own model work is the pull request review alone. The url goes in
 `.thinker/config.json` (`sync.url`, committable), the token in
 `~/.thinker/sync.json` (`THINKER_HOME`) or `THINKER_SYNC_TOKEN`. A repository is
 named by its origin (`store.js:repoId`, `github.com/owner/repo`), so clones and
@@ -631,18 +641,17 @@ worktrees sync as one; `sync.repo` in the config overrides it.
 Server side, a repository is a directory (`repos.js:Repo`): a clone of the
 repository under `checkout/` with the notes in its `.thinker/` through the
 ordinary `Store` (committed notes of the repository count as shared there too),
-a numbered journal of every note change, the sessions clients streamed, the pull
-requests CI sent. The clone is what anchors notes: `createNote` resolves deps
-against it, `refresh` re-hashes against it, and maintenance (`maintain.js`) runs
-on it when its default branch moved. Private repositories need
-`THINKER_SERVER_GIT_TOKEN` (a fine-grained read token); without a clone the
-server stores what clients push and sessions wait. Model calls go through
-`llm.js`, which on a server means `ANTHROPIC_API_KEY` (the SDK is installed
-beside the release by `infra/sync/bootstrap.sh`); the worker stops for the day
-at `THINKER_SERVER_DAILY_CAP` dollars (default 5), summed from the repositories'
+a numbered journal of every note change, and the pull request reviews CI asked
+for. The clone is the code a review reads, fetched before each one. Private
+repositories need `THINKER_SERVER_GIT_TOKEN` (a fine-grained read token);
+without a clone the server stores what clients push and reviews fail saying so.
+The review's model call goes through `llm.js`, which on a server means
+`ANTHROPIC_API_KEY` (the SDK is installed beside the release by
+`infra/sync/bootstrap.sh`); the worker stops for the day at
+`THINKER_SERVER_DAILY_CAP` dollars (default 5), summed from the repositories'
 logs (`THINKER_LOG=local` on the server).
 
-Three flows (`sync.js`), all automatic once logged in:
+Two flows (`sync.js`), both automatic once logged in:
 
 - **Pull.** `GET /v1/repos/:repo/notes?since=<cursor>` returns the notes touched
   since the cursor and tombstones. They land in the checkout's local tier with a
@@ -662,28 +671,14 @@ Three flows (`sync.js`), all automatic once logged in:
   stops offering that content. What travels (`repos.js:syncContent`) is
   `sharedContent` plus `attest` and `history`, and `status` only as
   fresh/invalid; `prepareContent` strips transcript paths first.
-- **Sessions.** The stop hook, and the catch-up `learn` run, send a session's
-  new events (prompt, tool call with clipped result, agent message, as
-  `transcripts.js` reads them from any agent's transcript or a recorded trace)
-  to `POST /v1/repos/:repo/sessions/:session`, with the ids of the notes served in
-  it (`{t: "served"}`) and `{t: "end"}` when it ends. The server distills a session
-  once it ended or went quiet for three minutes (`worker.js:distillSession`): the
-  same `distillEvents`, `saveNotes` and `attest` as locally, so served notes are
-  confirmed or contradicted on the server and every checkout sees the result on
-  its next pull. A checkout that syncs does not distill locally unless the
-  server cannot (no clone or no model; `sync.js:streamingPlan`, from the
-  `distills` flag in the server's answers). Local PR mining is off for a synced
-  repository; merged pull requests arrive through CI instead.
-
-CI also asks the server to review open pull requests and post the review on them
+CI asks the server to review open pull requests and post the review on them
 (`action/review`, `POST /v1/repos/:repo/reviews`; see [Reviewing a change against
-the cache](#reviewing-a-change-against-the-cache)). For learning, the composite
-action in `action/` runs on `pull_request: closed`, gathers
-the merged pull request's description, files, diff and review comments with the
-workflow's own `GITHUB_TOKEN` and posts them to `POST /v1/repos/:repo/prs`; the
-server distills them with `prs.js:distillPr` against the merge commit and
-records them in its `.thinker/prs.json`, so nothing is distilled twice. The
-model key never enters the workflow. `action/README.md` has the workflow.
+the cache](#reviewing-a-change-against-the-cache)). The model key never enters
+the workflow. `action/README.md` has the workflow. Until 2026-10-04 a second
+action sent merged pull requests to the server to be distilled there
+(`POST /v1/repos/:repo/prs`), and the stop hook streamed sessions to
+`POST /v1/repos/:repo/sessions/:session`; both intakes are gone, and a request
+to them is a 404.
 
 Tokens (`auth.js`): the admin token (`THINKER_SERVER_ADMIN_TOKEN`, or generated
 into `<data>/admin-token`) mints tokens with scopes `read`, `write`, `admin` and

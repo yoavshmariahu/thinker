@@ -31,9 +31,11 @@ Environment: THINKER_SERVER_DATA, THINKER_SERVER_PORT, THINKER_SERVER_HOST,
   <data>/admin-token on first start when unset), THINKER_SERVER_GIT_TOKEN (to clone
   private repositories), THINKER_SERVER_GITHUB_TOKEN (to post pull request reviews;
   pull requests: write; the git token when unset), THINKER_SERVER_GITHUB_API (another
-  GitHub API url, e.g. a local fake for testing), ANTHROPIC_API_KEY (the model; without
-  it the first installed agent CLI with its login: claude, codex, gemini, agent),
-  THINKER_SERVER_DAILY_CAP (USD a day, default 5).
+  GitHub API url, e.g. a local fake for testing), ANTHROPIC_API_KEY (the model that
+  reviews pull requests; without it the first installed agent CLI with its login:
+  claude, codex, gemini, agent), THINKER_SERVER_DAILY_CAP (USD a day, default 5).
+The server learns nothing itself: sessions are distilled on the checkouts and arrive
+here as notes.
 Commands other than start work on the data directory directly, so they can be run
 beside a running server on the same machine.`;
 
@@ -56,7 +58,7 @@ async function main() {
       const port = Number(flags.port || process.env.THINKER_SERVER_PORT) || 8787;
       const log = (where, msg) => process.stderr.write(`${new Date().toISOString()} [${where}] ${msg}\n`);
       const s = await listen({ host, port, data, adminToken: adminToken(), log });
-      log('server', `listening on http://${host}:${s.address.port}, data in ${data}, ${s.repos.list().length} repositories, model ${s.worker.hasModel() ? `available (${provider()})` : 'unavailable (set ANTHROPIC_API_KEY or install an agent CLI)'}, reviews ${s.worker.githubToken ? 'posted to GitHub' : 'not posted (set THINKER_SERVER_GITHUB_TOKEN)'}`);
+      log('server', `listening on http://${host}:${s.address.port}, data in ${data}, ${s.repos.list().length} repositories, review model ${s.worker.hasModel() ? `available (${provider()})` : 'unavailable (set ANTHROPIC_API_KEY or install an agent CLI)'}, reviews ${s.worker.githubToken ? 'posted to GitHub' : 'not posted (set THINKER_SERVER_GITHUB_TOKEN)'}`);
       const stop = () => s.close().then(() => process.exit(0));
       process.on('SIGINT', stop); process.on('SIGTERM', stop);
       break;
@@ -78,7 +80,7 @@ async function main() {
         if (!r) throw new Error('repository id: github.com/owner/repo');
         if (!flags['no-fetch']) { const f = await r.sync({ token: process.env.THINKER_SERVER_GIT_TOKEN }); out(f.ok ? `cloned ${r.meta().clone} at ${f.head.slice(0, 8)}` : `could not clone ${r.meta().clone}: ${f.error}`); }
         out(`registered ${r.id} in ${r.dir}`);
-      } else if (pos[0] === 'list') { for (const r of repos.list()) { const s = r.status(); out(`${s.id.padEnd(44)} seq ${String(s.seq).padEnd(6)} ${s.notes} notes, ${s.sessions} sessions, ${s.pendingPrs} PRs pending, ${s.cloned ? `at ${(s.head || '').slice(0, 8)}` : `not cloned${s.cloneError ? ` (${s.cloneError})` : ''}`}`); } }
+      } else if (pos[0] === 'list') { for (const r of repos.list()) { const s = r.status(); out(`${s.id.padEnd(44)} seq ${String(s.seq).padEnd(6)} ${s.notes} notes, ${s.pendingReviews} reviews pending, ${s.cloned ? `at ${(s.head || '').slice(0, 8)}` : `not cloned${s.cloneError ? ` (${s.cloneError})` : ''}`}`); } }
       else if (pos[0] === 'fetch') { const r = repos.get(pos[1]); if (!r) throw new Error('unknown repository'); const f = await r.sync({ token: process.env.THINKER_SERVER_GIT_TOKEN }); out(f.ok ? `fetched; head ${f.head.slice(0, 8)}` : `failed: ${f.error}`); }
       else out(HELP);
       break;

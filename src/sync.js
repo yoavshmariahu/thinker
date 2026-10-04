@@ -1,4 +1,4 @@
-// Syncing a checkout with the team's central cache (src/server). Three flows, all from the hooks
+// Syncing a checkout with the team's central cache (src/server). Two flows, both from the hooks
 // and maintenance, so nothing has to be run by hand once `thinker sync login` has been done:
 //
 //   pull      notes changed on the server since this checkout's cursor come into the local tier,
@@ -6,8 +6,9 @@
 //   push      local notes worth sharing (fresh, from a trusted source or confirmed by a session),
 //             and synced notes whose content changed here (a verification, a correction), go up;
 //             an update holds only against the content it was pulled from, else the server wins
-//   sessions  what the agents did here, as the events transcripts.js reads, streamed to the
-//             server for distillation there; the ids of notes served in the session go with them
+//
+// Learning stays on the checkout: sessions are distilled here, through the agent's own login, and
+// what they produce goes up as notes. The server stores and journals; it runs no model for learning.
 //
 // Configuration: the url in .thinker/config.json (`sync: {url, repo?}`, committable) or
 // THINKER_SYNC_URL; the token in ~/.thinker/sync.json (THINKER_HOME) or THINKER_SYNC_TOKEN. The
@@ -18,13 +19,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { repoId, LOCAL_FIELDS } from './store.js';
 import { prepareContent, contentErrors } from './share.js';
-import { parseTranscript, findSessions } from './transcripts.js';
-import { injectedIds } from './distill.js';
 import { wire, digest, REPO_ID } from './server/repos.js';
 
 export const PULL_EVERY_MS = 5 * 60_000;
-const CLIP = 6000;
-const CHUNK_BYTES = 2 << 20;
 
 const home = () => process.env.THINKER_HOME || path.join(os.homedir(), '.thinker');
 const credentialsFile = () => path.join(home(), 'sync.json');
@@ -77,7 +74,7 @@ export function logout(store) {
 }
 
 const stateFile = store => path.join(store.localDir, 'sync.json');
-export function syncState(store) { return readJson(stateFile(store), { cursor: 0, sessions: {} }); }
+export function syncState(store) { return readJson(stateFile(store), { cursor: 0 }); }
 function saveState(store, state) {
   fs.mkdirSync(store.localDir, { recursive: true });
   if (!fs.existsSync(path.join(store.localDir, '.gitignore'))) fs.writeFileSync(path.join(store.localDir, '.gitignore'), '*\n');
@@ -120,10 +117,9 @@ export async function pull(store, cfg = syncConfig(store), { state = syncState(s
   let applied = 0, deleted = 0;
   for (const n of r.notes || []) if (applyRemote(store, n, r.seq)) applied++;
   for (const id of r.deleted || []) { const local = store.get(id); if (local?.sync && !store.isShared(id) && store.removeLocal(id)) deleted++; }
-  state.cursor = r.seq; state.pulledAt = new Date().toISOString(); state.distills = !!r.distills;
-  if (r.truncated) state.cursor = state.cursor; // more than one page: the next pull starts from the new cursor and misses nothing journaled after it
+  state.cursor = r.seq; state.pulledAt = new Date().toISOString();
   if (save) saveState(store, state);
-  return { applied, deleted, seq: r.seq, received: (r.notes || []).length, distills: !!r.distills };
+  return { applied, deleted, seq: r.seq, received: (r.notes || []).length };
 }
 
 export function planPush(store, cfg = syncConfig(store) || {}) {
@@ -184,62 +180,9 @@ export async function syncNotes(store, cfg = syncConfig(store), opts = {}) {
   const pulled = await pull(store, cfg, opts);
   const pushed = await push(store, cfg, opts);
   store.log({ op: 'sync', pulled: pulled.applied, deleted: pulled.deleted, pushed: pushed.pushed, retired: pushed.retired, conflicts: pushed.conflicts, rejected: pushed.rejected });
-  return { pulled: pulled.applied, deleted: pulled.deleted, pushed: pushed.pushed, retired: pushed.retired, conflicts: pushed.conflicts, rejected: pushed.rejected, distills: pulled.distills };
+  return { pulled: pulled.applied, deleted: pulled.deleted, pushed: pushed.pushed, retired: pushed.retired, conflicts: pushed.conflicts, rejected: pushed.rejected };
 }
 
-// --- sessions ---------------------------------------------------------------------------------------
-const clip = s => { s = String(s ?? ''); return s.length > CLIP ? s.slice(0, CLIP) + `…[+${s.length - CLIP} chars]` : s; };
-const sessionKey = s => String(s).replace(/[^\w.-]/g, '_').slice(0, 120);
-
-// Events of a session not yet sent, from a transcript of any agent or a trace the hooks recorded.
-export function sessionDelta(store, { file, session }, state) {
-  const key = sessionKey(session);
-  const st = state.sessions[key] || { line: 0, sent: [] };
-  let parsed; try { parsed = parseTranscript(file, { fromLine: st.line || 0 }); } catch { return null; }
-  const events = parsed.events.filter(e => ['prompt', 'say', 'tool'].includes(e.t)).map(e => e.t === 'tool' ? { t: 'tool', name: e.name, input: e.input, result: clip(e.result) } : { t: e.t, text: clip(e.text) });
-  const ids = new Set();
-  if (parsed.format !== 'gemini') for (const id of injectedIds(file, { fromLine: st.line || 0 })) ids.add(id);
-  for (const n of store.list()) if ((n.servedIn || []).includes(session)) ids.add(n.id);
-  const served = [...ids].filter(id => !(st.sent || []).includes(id));
-  return { key, events, served, line: parsed.lineCount, st };
-}
-
-export async function pushSessions(store, cfg = syncConfig(store), { sessions, days = 2, idleMin = 0, max = 20, end = false, dry = false, client } = {}) {
-  if (!cfg) return { skipped: 'not configured' };
-  const state = syncState(store); state.sessions = state.sessions || {};
-  const list = sessions || findSessions(store.repo, { sinceMs: days * 86400_000, storeDir: store.dir }).filter(s => Date.now() - s.mtime >= idleMin * 60_000);
-  const r = { sessions: 0, events: 0, distills: state.distills };
-  for (const s of list.slice(0, max)) {
-    if (!s.file || !fs.existsSync(s.file)) continue;
-    const d = sessionDelta(store, s, state);
-    if (!d) continue;
-    const ending = end && !d.st.ended;
-    if (!d.events.length && !d.served.length && !ending) continue;
-    if (dry) { r.sessions++; r.events += d.events.length; continue; }
-    const payload = [...d.events];
-    if (d.served.length) payload.push({ t: 'served', ids: d.served });
-    if (ending) payload.push({ t: 'end' });
-    // in chunks, so one request stays well under the server's limit
-    let chunk = [], size = 0, res;
-    const flush = async () => { if (!chunk.length) return; res = await request(cfg, 'POST', `${repoPath(cfg)}/sessions/${encodeURIComponent(d.key)}`, { client: client || s.client, events: chunk }, { timeoutMs: 60_000 }); chunk = []; size = 0; };
-    for (const e of payload) { const len = JSON.stringify(e).length; if (size + len > CHUNK_BYTES) await flush(); chunk.push(e); size += len; }
-    await flush();
-    state.sessions[d.key] = { line: d.line, sent: [...new Set([...(d.st.sent || []), ...d.served])].slice(-200), ended: d.st.ended || ending, at: new Date().toISOString(), file: path.basename(s.file) };
-    if (res && typeof res.distills === 'boolean') state.distills = res.distills;
-    r.sessions++; r.events += d.events.length;
-  }
-  r.distills = state.distills;
-  if (!dry) { saveState(store, state); if (r.sessions) store.log({ op: 'sync-sessions', sessions: r.sessions, events: r.events }); }
-  return r;
-}
-
-// For the stop hook: stream when configured; distill here too only when the server cannot.
-export function streamingPlan(store) {
-  const cfg = syncConfig(store);
-  if (!cfg) return { stream: false, local: true };
-  const state = syncState(store);
-  return { stream: true, local: state.distills === false, cfg };
-}
 export function pullDue(store, everyMs = PULL_EVERY_MS) {
   const state = syncState(store);
   return !state.pulledAt || Date.now() - Date.parse(state.pulledAt) > everyMs;
@@ -253,12 +196,12 @@ export async function status(store) {
   const synced = store.localNotes().filter(n => n.sync?.digest).length;
   let server = null, error = null;
   try { server = await request(cfg, 'GET', repoPath(cfg), undefined, { timeoutMs: 10_000 }); } catch (e) { error = e.message; }
-  return { configured: true, url: cfg.url, repo: cfg.repo, cursor: state.cursor || 0, pulledAt: state.pulledAt || null, pushedAt: state.pushedAt || null, synced, toPush: plan.items.length, held: plan.skipped.length, sessions: Object.keys(state.sessions || {}).length, server, error };
+  return { configured: true, url: cfg.url, repo: cfg.repo, cursor: state.cursor || 0, pulledAt: state.pulledAt || null, pushedAt: state.pushedAt || null, synced, toPush: plan.items.length, held: plan.skipped.length, server, error };
 }
 export function renderStatus(s) {
   if (!s.configured) return `sync: off (${s.reason})`;
-  const lines = [`sync: ${s.url} as ${s.repo}`, `  cursor ${s.cursor}; ${s.synced} synced notes here, ${s.toPush} to push, ${s.held} held back; ${s.sessions} sessions streamed`, `  last pull ${s.pulledAt || 'never'}, last push ${s.pushedAt || 'never'}`];
-  if (s.server) lines.push(`  server: ${s.server.notes} notes (${s.server.invalid} retired), seq ${s.server.seq}, ${s.server.sessions} sessions, ${s.server.cloned ? `checkout at ${(s.server.head || '').slice(0, 8)}` : `no checkout${s.server.cloneError ? ` (${s.server.cloneError})` : ''}`}, ${s.server.distills ? 'distills sessions' : 'cannot distill (no checkout or model); sessions are distilled here'}`);
+  const lines = [`sync: ${s.url} as ${s.repo}`, `  cursor ${s.cursor}; ${s.synced} synced notes here, ${s.toPush} to push, ${s.held} held back`, `  last pull ${s.pulledAt || 'never'}, last push ${s.pushedAt || 'never'}`];
+  if (s.server) lines.push(`  server: ${s.server.notes} notes (${s.server.invalid} retired), seq ${s.server.seq}, ${s.server.cloned ? `checkout at ${(s.server.head || '').slice(0, 8)}` : `no checkout${s.server.cloneError ? ` (${s.server.cloneError})` : ''}`}`);
   if (s.error) lines.push(`  server unreachable: ${s.error}`);
   return lines.join('\n');
 }

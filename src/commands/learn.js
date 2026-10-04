@@ -14,7 +14,7 @@ import { refresh, attest, outcome, distillKinds } from '../ops.js';
 import { batchProgress, oneLine } from '../progress.js';
 import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from '../prs.js';
 import { selectMenu, getAgentDisplayName } from '../setup.js';
-import { syncConfig, syncNotes, pushSessions, streamingPlan } from '../sync.js';
+import { syncConfig, syncNotes } from '../sync.js';
 import { discoverAreas } from '../topology.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from '../transcripts.js';
 import { sessionKey } from '../usage.js';
@@ -105,8 +105,7 @@ export async function runMaintain(ctx, { quiet, dry }) {
   const canMine = provider() && (slug ? hasBin('gh') : true);
   const sc = syncConfig(store);
   const r = await maintain(store, repo, { dry, fns: {
-    // merged pull requests reach a synced repository through its CI (action/), not from here
-    minePrs: canMine && !sc ? ({ after, limit }) => minePrs(ctx, slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance' }) : undefined,
+    minePrs: canMine ? ({ after, limit }) => minePrs(ctx, slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance' }) : undefined,
     sync: sc && !dry ? () => syncNotes(store, sc) : undefined,
   } });
   if (!quiet) out(renderMaintain(r));
@@ -124,12 +123,6 @@ export async function learn(ctx, { days, idleMin, max, dry, quiet }) {
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   try {
     const sessions = findSessions(repo, { sinceMs: days * 86400_000, storeDir: store.dir }).filter(s => Date.now() - s.mtime >= idleMin * 60_000);
-    // synced with the team cache: the sessions go there to be distilled; here too only while the server cannot
-    const plan = streamingPlan(store);
-    if (plan.stream) {
-      try { const r = await pushSessions(store, plan.cfg, { sessions, dry, max }); if (!quiet) out(`streamed ${r.events} events of ${r.sessions} sessions to ${plan.cfg.url}`); } catch (e) { if (!quiet) out(`streaming failed: ${String(e.message).slice(0, 160)}`); }
-      if (!plan.local) return;
-    }
     let done = 0;
     for (const s of sessions) {
       const cap = withinDailyCap(store);
