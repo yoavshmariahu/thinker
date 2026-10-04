@@ -1,20 +1,25 @@
 # thinker GitHub Actions
 
-Two composite actions: `action/review` checks every pull request against the
-repository's desired behaviors and posts the result as a review; the action at
-`action/` sends a merged pull request to the team's thinker server to be
-distilled into notes.
+Two composite actions, both talking to the team's thinker server: `action/review`
+has the server check every pull request against the repository's desired
+behaviors and post the result as a review; the action at `action/` sends a
+merged pull request to the server to be distilled into notes.
 
 ## Pull request review (`action/review`)
 
-On `pull_request`, runs `thinker review --kinds behavior --base origin/<base>`
-on the checkout and posts one pull request review: findings on changed lines
-as inline comments, the rest and a table of the desired behaviors in play
-(upheld, violated, revised, unrelated) in the body. A violated fixed behavior
-requests changes and fails the check; a push that fixes it dismisses that
-request. Nothing is posted when there is nothing to report. The cache is the
-committed `.thinker/` of the repository (`thinker system add`, `thinker share`),
-so no server is involved; the model key is a repository secret.
+On `pull_request`, asks the team's thinker server to review the pull request
+and waits for the result. The server fetches the pull request's head into its
+clone, reviews the change since the merge base against the repository's
+desired behaviors (`thinker review --kinds behavior`), and posts one pull
+request review with its own GitHub token: findings on changed lines as inline
+comments, the rest and a table of the behaviors in play (upheld, violated,
+revised, unrelated) in the body. A violated fixed behavior requests changes and
+fails the check; a push that fixes it dismisses that request. Nothing is posted
+when there is nothing to report. The workflow needs only the server's url and a
+token with write scope; no model key and no write permission on the workflow's
+`GITHUB_TOKEN`. The server reviews with whatever model it has: `ANTHROPIC_API_KEY`,
+or an installed agent CLI with its login (a local server on a laptop uses
+`claude -p`).
 
 ```yaml
 # .github/workflows/thinker-review.yml
@@ -28,27 +33,29 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0        # the merge base with the base branch must resolve
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
       - uses: yoavshmariahu/thinker/action/review@main
         with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          url: https://sync.zerotime.dev
+          token: ${{ secrets.THINKER_SYNC_TOKEN }}
           # kinds: behavior      # '' consults every note, not only the behaviors
-          # model: sonnet
           # fail-on: error       # warning | none
           # quiet: 'true'        # 'false' posts the behaviors table even when all is upheld
+          # wait: '600'          # seconds to wait for the result; '0' sends and leaves
 ```
 
-Pull requests from forks get a read-only `GITHUB_TOKEN`: the review is then in
-the job log and the step summary only. Without the key the step says that
-nothing was reviewed and passes. Measured on this repository: about $0.05 per
-behavior in play, under a minute.
+Server side: the repository is registered with a clone the server can fetch
+(`thinker-server repo add github.com/<owner>/<repo>`), `THINKER_SERVER_GITHUB_TOKEN`
+holds a token with pull requests: write on it (the git token when unset), and the
+CI token is minted with `thinker-server token create ci-<repo> --repos
+github.com/<owner>/<repo> --scopes write`. The API is `POST /v1/repos/:repo/reviews`
+(`{number, headSha, headRef, baseRef, baseSha, apiUrl?, kinds?, failOn?, quiet?}`) and
+`GET /v1/repos/:repo/reviews/:number` for the state and result, which the action polls.
+A head the server already reviewed is not reviewed again; a new push is.
+
+Without a server, `anthropic-api-key` runs the review on the runner instead
+(`actions/checkout` with `fetch-depth: 0`, `permissions: pull-requests: write`,
+`post.mjs` posts); the inputs `kinds`, `model`, `fail-on`, `quiet` apply to both.
 
 ## Pull request ingest (`action`)
 

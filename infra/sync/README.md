@@ -27,8 +27,12 @@ with `GET https://sync.zerotime.dev/health`.
 - `--secret-only --set-api-key` writes `ANTHROPIC_API_KEY` from the environment into
   the secret; `--set-git-token` does the same for `THINKER_SERVER_GIT_TOKEN` (a
   fine-grained GitHub token with read access to the repositories' contents, so the
-  server can clone private ones). Rerun without flags afterwards so the instance
-  picks the secret up (bootstrap rewrites the env file and restarts the service).
+  server can clone private ones), and `--set-github-token` for
+  `THINKER_SERVER_GITHUB_TOKEN` (a token with pull requests: write on the
+  repositories, so the server can post the reviews that `action/review` asks
+  for; the git token is used when it is unset). Rerun without flags afterwards so
+  the instance picks the secret up (bootstrap rewrites the env file and restarts
+  the service).
 - Without a model key the server stores notes and sessions but distills nothing;
   checkouts then keep distilling locally (`sync status` says which). Without a clone
   it stores what clients push but cannot anchor new notes, so sessions wait.

@@ -67,7 +67,7 @@ cache at twice the input price and never read again.
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/sync.js` | a checkout's side of the central cache: pull and push notes, stream sessions; from the hooks and maintenance once `thinker sync login` has run |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that distills streamed sessions and CI pull requests and maintains each cache (`worker.js`) |
-| `action/` | GitHub Actions: `action.yml` sends a merged pull request to the server; `review/` checks a pull request against the desired behaviors and posts the review |
+| `action/` | GitHub Actions: `action.yml` sends a merged pull request to the server; `review/` has the server check a pull request against the desired behaviors and post the review (`src/review-post.js` renders and posts) |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
 | `src/review.js` | `thinker review` and the MCP `review` tool: a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; co-change partners missing from the change, removed symbols still referenced |
 | `test/` | unit tests (`node --test`) |
@@ -675,7 +675,10 @@ Three flows (`sync.js`), all automatic once logged in:
   `distills` flag in the server's answers). Local PR mining is off for a synced
   repository; merged pull requests arrive through CI instead.
 
-CI: the composite action in `action/` runs on `pull_request: closed`, gathers
+CI also asks the server to review open pull requests and post the review on them
+(`action/review`, `POST /v1/repos/:repo/reviews`; see [Reviewing a change against
+the cache](#reviewing-a-change-against-the-cache)). For learning, the composite
+action in `action/` runs on `pull_request: closed`, gathers
 the merged pull request's description, files, diff and review comments with the
 workflow's own `GITHUB_TOKEN` and posts them to `POST /v1/repos/:repo/prs`; the
 server distills them with `prs.js:distillPr` against the merge commit and
@@ -842,29 +845,40 @@ tool `review` is the same for an agent before it commits.
   provider for the rest of the process, and a run labelled sonnet was otherwise
   answered mostly by Gemini (kept under `bench/runs/review-eval/*-mixed-provider`,
   not used). Each row records the provider and model that answered (`models`).
-- **On pull requests** (`action/review/`): a composite GitHub Action runs
-  `thinker review --json --base origin/<base>` on the pull request's checkout
-  (`fetch-depth: 0`, so the merge base resolves; the committed notes in
-  `.thinker/` are the cache, no server is involved) and `post.mjs` posts the
-  report as one pull request review: findings on changed lines as inline
-  comments, the rest and a table of the desired behaviors in play (upheld,
-  violated, revised, unrelated) in the body, cache drift under a fold. An
-  error finding (a fixed behavior violated) posts `REQUEST_CHANGES` and fails
-  the step (`fail-on: error | warning | none`); otherwise `COMMENT`, and
-  nothing at all when there is nothing to report (`quiet: false` posts the
-  table anyway). A request for changes from an earlier run is dismissed when
-  a newer run posts, so the push that fixes the violation clears it. A line
-  GitHub will not take a comment on (422) folds the inline findings into the
-  body; a read-only token (a fork) leaves the review in the log and the step
-  summary. Defaults: `kinds: behavior`, `model: sonnet`; `kinds: ''` consults
-  every note. The model key is the `anthropic-api-key` input
-  (`THINKER_LLM=anthropic`, pinned so a provider fallback cannot answer); the
-  step installs the SDK beside the action's own checkout. Telemetry and
-  learning are off in the step (`THINKER_TELEMETRY=off`, `THINKER_NO_LEARN=1`),
-  so runners are not counted as installs and the hooks stay quiet. This
-  repository runs it on itself in `.github/workflows/thinker-review.yml`
-  (needs the `ANTHROPIC_API_KEY` secret; without it the step says so and
-  passes). `test/action-review.test.js` covers the poster with a fake GitHub.
+- **On pull requests** (`action/review/`, `server/worker.js:reviewPrs`): the
+  composite action sends the pull request (`number`, `headSha`, `headRef`,
+  `baseRef`, `baseSha`) to the team's server, `POST /v1/repos/:repo/reviews`,
+  and polls `GET …/reviews/:number` until the record is `done` or `failed`
+  (`send.mjs`; `wait` seconds, default 600). The worker fetches the head into
+  the clone (`repos.js:fetchPrHead`: GitHub's `refs/pull/N/head`, then the
+  branch, then the commit itself), reviews a commit scope from the merge base
+  with the base branch against the clone's notes (the default branch's; the
+  working tree is not touched), and posts one pull request review with the
+  server's GitHub token (`THINKER_SERVER_GITHUB_TOKEN`, pull requests: write;
+  the git token when unset; `THINKER_SERVER_GITHUB_API` points at another API,
+  a local fake for testing). `review-post.js` is the rendering and the posting:
+  findings on changed lines as inline comments, the rest and a table of the
+  behaviors in play (upheld, violated, revised, unrelated) in the body, cache
+  drift under a fold. An error finding (a fixed behavior violated) posts
+  `REQUEST_CHANGES` and the record carries `fail`, so the action fails the step
+  (`failOn: error | warning | none`); otherwise `COMMENT`, and nothing at all
+  when there is nothing to report (`quiet: false` posts the table anyway). A
+  request for changes from an earlier run is dismissed when a newer run posts,
+  so the push that fixes the violation clears it; a line GitHub will not take
+  a comment on (422) folds the inline findings into the body. One record per
+  pull request number (`<repo>/reviews/N.json`): a head already reviewed is
+  answered from the record, a new push replaces it, a failed one is asked
+  again. The model is whatever the server has (`llm.js`): the API key, or an
+  installed agent CLI with its login, so a local server reviews through
+  `claude -p` with no key; the workflow needs no key and no write permission
+  of its own. Defaults: `kinds: behavior`; `kinds: ''` consults every note.
+  Without a server the same action reviews on the runner with
+  `anthropic-api-key` and `post.mjs` posts (`permissions: pull-requests:
+  write`, `fetch-depth: 0`); telemetry and learning are off in that step. This
+  repository runs the server mode on itself in
+  `.github/workflows/thinker-review.yml` (needs the `THINKER_SYNC_TOKEN`
+  secret). Tests: `test/server-review.test.js` runs the server in-process with
+  the model and GitHub faked; `test/action-review.test.js` covers the poster.
 - Fixed along the way: `deps.js:findSymbol` no longer reads an indented Python
   call (`validate(ctx)`) as a C-like method definition; the C-like alternative
   is left out for indentation-based languages. `llm.js:viaCli` retries at once

@@ -58,7 +58,7 @@ export function resolveScope(repo, { base, staged = false, ref, state = false } 
   if (ref) {
     const head = resolve(repo, ref);
     const start = base ? gitLine(repo, ['merge-base', resolve(repo, base), head]) : gitLine(repo, ['rev-parse', '--verify', `${head}^`]);
-    return { base: start || EMPTY_TREE, head, label: `commit ${head.slice(0, 10)}${base ? ` since ${base}` : ''}` };
+    return { base: start || EMPTY_TREE, head, label: `commit ${head.slice(0, 10)}${base ? ` since ${/^[a-f0-9]{40}$/.test(base) ? base.slice(0, 10) : base}` : ''}` };
   }
   const headCommit = gitLine(repo, ['rev-parse', '--verify', 'HEAD']);
   const start = base && headCommit ? gitLine(repo, ['merge-base', resolve(repo, base), headCommit]) : headCommit;

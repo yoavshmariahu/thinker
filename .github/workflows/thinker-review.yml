@@ -1,6 +1,7 @@
 # Every pull request is checked against the desired behaviors of the system (.thinker/SYSTEM.md,
-# `thinker system`); a violated fixed behavior requests changes and fails the check. Needs the
-# repository secret ANTHROPIC_API_KEY; without it the step says so and passes.
+# `thinker system`) by the team's thinker server, which posts the review; a violated fixed behavior
+# requests changes and fails the check. Needs the repository secret THINKER_SYNC_TOKEN (write scope
+# on this repository) and the server's THINKER_SERVER_GITHUB_TOKEN; no model key in the workflow.
 name: thinker review
 on:
   pull_request:
@@ -11,14 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          sparse-checkout: action/review
       - uses: ./action/review
         with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          url: https://sync.zerotime.dev
+          token: ${{ secrets.THINKER_SYNC_TOKEN }}

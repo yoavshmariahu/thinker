@@ -1,11 +1,27 @@
 name: thinker pull request review
-description: Check a pull request against the repository's desired behaviors (and notes) with thinker review, and post the result as a pull request review
+description: Check a pull request against the repository's desired behaviors (and notes) with thinker review, and post the result as a pull request review. With a thinker server (url, token) the server reviews and posts with its own model and GitHub token; without one the review runs here with anthropic-api-key.
 branding:
   icon: shield
   color: purple
 inputs:
+  url:
+    description: The thinker server, e.g. https://sync.example.com. Set, the server reviews the pull request against its clone and posts the review; the runner only sends the request and waits for the result.
+    required: false
+    default: ''
+  token:
+    description: A thinker token with write scope for this repository (a repository secret); with url
+    required: false
+    default: ''
+  repo:
+    description: Repository id on the server; default github.com/<owner>/<repo>
+    required: false
+    default: ''
+  wait:
+    description: Seconds to wait for the server's result so the check can fail on a violation (0 sends and leaves)
+    required: false
+    default: '600'
   anthropic-api-key:
-    description: Model key for the review (a repository secret). Empty means the step reports that nothing was reviewed and passes.
+    description: Without url, the model key for a review on the runner (a repository secret). Empty means the step reports that nothing was reviewed and passes.
     required: false
     default: ''
   base:
@@ -51,7 +67,20 @@ outputs:
 runs:
   using: composite
   steps:
+    - name: Send the pull request to the thinker server and wait for its review
+      if: inputs.url != ''
+      shell: bash
+      run: node "$GITHUB_ACTION_PATH/send.mjs"
+      env:
+        THINKER_SYNC_URL: ${{ inputs.url }}
+        THINKER_SYNC_TOKEN: ${{ inputs.token }}
+        THINKER_REPO: ${{ inputs.repo }}
+        THINKER_REVIEW_KINDS: ${{ inputs.kinds }}
+        THINKER_REVIEW_FAIL_ON: ${{ inputs.fail-on }}
+        THINKER_REVIEW_QUIET: ${{ inputs.quiet }}
+        THINKER_REVIEW_WAIT: ${{ inputs.wait }}
     - name: Prepare thinker
+      if: inputs.url == ''
       shell: bash
       run: |
         set -e
@@ -61,6 +90,7 @@ runs:
       env:
         KEY: ${{ inputs.anthropic-api-key }}
     - name: Fetch the base branch
+      if: inputs.url == ''
       shell: bash
       run: |
         set -e
@@ -69,6 +99,7 @@ runs:
       env:
         BASE: ${{ inputs.base }}
     - name: Review the change
+      if: inputs.url == ''
       id: review
       shell: bash
       run: |
@@ -101,6 +132,7 @@ runs:
         MODEL: ${{ inputs.model }}
         MAX: ${{ inputs.max }}
     - name: Post the review
+      if: inputs.url == ''
       shell: bash
       run: node "$GITHUB_ACTION_PATH/post.mjs" "${{ steps.review.outputs.report }}"
       env:
