@@ -76,11 +76,13 @@ const HELP = `thinker — knowledge cache for coding agents
   share --repair-staged [--cap n] repair or remove invalid staged notes before commit (at most n model checks, default 25)
                                  --strict makes manual/CI checks fail on issues
                                  --ref commit (default HEAD); --pre-push reads git stdin
-  review [paths…] [--staged | --base ref | --ref commit | --state] [--model m] [--max n] [--dry] [--json] [--strict] [--verbose]
+  review [paths…] [--staged | --base ref | --ref commit | --state] [--model m] [--max n] [--kinds k,…] [--dry] [--json]
+        [--strict] [--verbose]
                                  review a change against the cache: two model calls, one with the diff and the code it touched
                                  and one with the notes resting on or bearing on the change, report bugs and violations with
-                                 file, line and evidence; the cache's own staleness is reported, not trusted; plus co-change
-                                 partners missing from the change and removed symbols still referenced. Default: the working
+                                 file, line and evidence; the cache's own staleness is reported, not trusted; plus removed
+                                 symbols still referenced. --kinds behavior: the desired behaviors alone, one call per behavior
+                                 in play (what the pull request action runs). Default: the working
                                  tree against HEAD; --base: the branch since its merge base; --ref: one commit; --state: the
                                  current code of the paths, with no change; --dry: no model calls; --strict: exit 2 on an
                                  error-severity finding (for CI); --mode per-note|holistic|nocache, --verify, --chunks n,
@@ -448,7 +450,8 @@ async function main() {
     case 'review': {
       const scope = resolveScope(repo, { base: typeof flags.base === 'string' ? flags.base : undefined, staged: !!flags.staged, ref: typeof flags.ref === 'string' ? flags.ref : undefined, state: !!flags.state });
       const strategy = { ...(flags.mode ? { mode: flags.mode } : {}), ...(flags['no-related'] ? { related: false } : {}), ...(flags.callers ? { callers: true } : {}), ...(flags.triage ? { triage: true } : {}), ...(flags.verify ? { verify: true } : {}), ...(flags.chunks ? { chunks: Number(flags.chunks) } : {}) };
-      const r = await review(store, { scope, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry, strategy });
+      const kinds = typeof flags.kinds === 'string' ? flags.kinds.split(',').map(k => k.trim()).filter(Boolean) : undefined;
+      const r = await review(store, { scope, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry, strategy, kinds });
       out(flags.json ? JSON.stringify(r, null, 2) : renderReview(r, { verbose: !!flags.verbose }));
       if (flags.strict && r.counts?.error) process.exitCode = 2;
       break;

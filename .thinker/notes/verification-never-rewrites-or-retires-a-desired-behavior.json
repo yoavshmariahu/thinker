@@ -1,0 +1,52 @@
+{
+  "id": "verification-never-rewrites-or-retires-a-desired-behavior",
+  "title": "Verification never rewrites or retires a desired behavior",
+  "kind": "behavior",
+  "mutability": "fixed",
+  "answers": [
+    "can verify change a behavior note",
+    "what happens when the code behind a behavior changes",
+    "does verification retire behaviors"
+  ],
+  "body": "A `behavior` note is a rule a person wrote; when its deps change, verification asks whether the code still upholds it, never whether the note is right. src/ops.js:verifyNote hands every behavior to src/ops.js:verifyBehavior, whose verdicts are `holds` (re-baseline), `broken` (status `violated`, with the commit and reason; the text is left alone) and `moved` (deps re-pointed, history kept). No path sets a behavior to `invalid`, replaces its body, or lowers its confidence. The ordinary note verdicts `update` and `invalid` must never reach a behavior.",
+  "tags": [],
+  "deps": [
+    {
+      "path": "src/ops.js",
+      "symbol": "verifyNote",
+      "hash": "sha256:f350f1c376a9b1e66ded4957",
+      "line": 772,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 8
+      }
+    },
+    {
+      "path": "src/ops.js",
+      "symbol": "verifyBehavior",
+      "hash": "sha256:274983f77d02cb45a8b1df23",
+      "line": 819,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "human"
+  },
+  "created": "2026-10-04T05:12:42.321Z",
+  "verified": "2026-10-04T05:12:42.321Z",
+  "verifiedCommit": "d5a567af5622de4cf9f8be8af51953d615f32ee2",
+  "confidence": 0.95,
+  "related": [
+    "note-staleness-lifecycle-create-baseline-lazy-refresh-verify",
+    "nothing-auto-runs-verifynote-feedback-correction-bypasses-ve",
+    "serving-and-assessment-never-rewrite-a-shared-note-s-committ",
+    "the-prompt-hooks-serve-no-stale-note"
+  ]
+}
