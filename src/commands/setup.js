@@ -39,6 +39,25 @@ async function uninstallCommand(ctx) {
   return;
 }
 
+// thinker ranker [status|fetch]: the cross-encoder the hooks rank with (dense.js). The installer, `thinker update`
+// and `thinker setup` fetch it; this is the by-hand path and the check.
+async function rankerCommand(ctx) {
+  const { pos, flags, out } = ctx;
+  const { rankerStatus, fetchRanker, CE_DEFAULTS } = await import('../dense.js');
+  if (pos[0] === 'fetch') {
+    const before = await rankerStatus();
+    if (!before.runtime) { out(`the ranking runtime (@huggingface/transformers) is not installed: ${before.error || ''}\nrun \`npm ci --omit=dev --ignore-scripts\` in thinker's app directory, or \`thinker update\``); process.exitCode = 1; return; }
+    if (!before.model && !flags.quiet) out(`fetching ${before.modelName} (about 23 MB) into ${before.dir}…`);
+    try { const st = await fetchRanker(); if (!flags.quiet) out(`ranker ready: ${st.modelName} in ${st.dir}`); }
+    catch (e) { out(`the ranking model could not be fetched: ${String(e.message).split('\n')[0].slice(0, 200)}\nnotes are ranked by words alone until it is; run \`thinker ranker fetch\` again when online`); process.exitCode = 1; }
+    return;
+  }
+  const st = await rankerStatus();
+  out(`ranker: ${st.runtime && st.model ? 'on' : 'off'} (${st.modelName}; floor ${CE_DEFAULTS.floor}, ${CE_DEFAULTS.maxNotes} note${CE_DEFAULTS.maxNotes === 1 ? '' : 's'}, request cut to ${CE_DEFAULTS.queryTokens} tokens; \`ce\` in .thinker/config.json adjusts)`);
+  out(`runtime: ${st.runtime ? 'installed' : 'missing' + (st.error ? ` (${st.error})` : '')}\nmodel: ${st.model ? 'present' : 'not fetched (thinker ranker fetch)'} in ${st.dir}`);
+  if (!(st.runtime && st.model)) out('until both are there the hooks rank by words alone');
+}
+
 async function astCommand(ctx) {
   const { pos, flags, out } = ctx;
   const dir = flags.dir || process.env.THINKER_AST_DIR || path.join(thinkerHome(), 'ast');
@@ -309,6 +328,7 @@ export const commands = {
   'setup': setupCommand,
   'uninstall': uninstallCommand,
   'ast': astCommand,
+  'ranker': rankerCommand,
   'switch': updateCommand,
   'rewire': rewireCommand,
   'branch': updateCommand,

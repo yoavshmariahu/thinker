@@ -3,10 +3,9 @@
 // its question side (title, answers, phrasings) and its body side (pointers and body). A request is
 // embedded once per call and scored 0.6 * cos(question) + 0.4 * cos(body). rank.js blends that with the
 // lexical relevance and lets a note through the gate on cosine alone (rank.js:DENSE_FLOOR).
-// Embeddings are cached by content digest in THINKER_DENSE_DIR (default ~/.thinker/dense), so staged
+// Embeddings are cached by content digest under the models directory (THINKER_MODELS_DIR, default ~/.thinker/models), so staged
 // copies of a noteset share one cache; `bench/dense-embed.js` fills it ahead of a run.
-// The runtime (@huggingface/transformers, ONNX) is not a dependency of thinker: it is required lazily
-// and must be installed beside this checkout for the arm to work.
+// The runtime (@huggingface/transformers, ONNX) is a dependency of thinker.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,7 +14,10 @@ import { createHash } from 'node:crypto';
 export const MODEL = 'Xenova/all-MiniLM-L6-v2';
 export const denseMode = () => process.env.THINKER_DENSE || '';
 export const denseEnabled = () => denseMode() === 'minilm';
-const denseDir = () => process.env.THINKER_DENSE_DIR || path.join(process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), 'dense');
+// Where the models live: the cross-encoder the hooks rank with (fetched by the installer, `thinker update` and
+// `thinker setup`; `thinker ranker fetch` by hand) and the bi-encoder of the experiment arm.
+export const modelsDir = () => process.env.THINKER_MODELS_DIR || path.join(process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), 'models');
+const denseDir = modelsDir;
 const cacheFile = () => path.join(denseDir(), 'minilm.json');
 
 export function noteTexts(n) {
@@ -76,10 +78,10 @@ export async function denseScores(notes, query, { maxEmbedNow = 25 } = {}) {
   return scores;
 }
 
-// Cross-encoder rerank, an experiment behind THINKER_CE=on (bench arm `hook-ce`): the request and each of the
-// top CE_K lexically gated candidates are read together by a small cross-encoder (ms-marco-MiniLM-L-6-v2,
-// 23 MB), which gives one relevance logit per pair. Candidates under CE_FLOOR are dropped, the rest reordered
-// by logit. Measured offline on the bare request (2026-10-04, hook top 2): precision grafana-v3 0.28 → 0.41,
+// Cross-encoder rerank, the hooks' ranking (bench arm `hook-ce`): the request and each of the top `k` lexically
+// gated candidates are read together by a small cross-encoder (ms-marco-MiniLM-L-6-v2, 23 MB), which gives one
+// relevance logit per pair. Candidates under the floor are dropped, the rest reordered by logit. The runtime
+// (@huggingface/transformers, ONNX) is a dependency of thinker; the model is fetched into `modelsDir` at install. Measured offline on the bare request (2026-10-04, hook top 2): precision grafana-v3 0.28 → 0.41,
 // posthog-v3 0.72 → 0.79, mitmproxy 0.48 → 0.73, with 6/11, 12/14 and 6/8 (from 7) tasks still hit; 40–220 ms
 // a request for eight pairs. The 12-layer model separated worse; a cosine confirm on top added nothing.
 export const CE_MODEL = 'Xenova/ms-marco-MiniLM-L-6-v2';
@@ -111,6 +113,19 @@ async function loadCe() {
 }
 // what the cross-encoder reads for a note: the search text written at phrasing time (ops.js:phraseNotes), else
 // the title, first answers and the head of the body
+// Is the ranker usable here: the runtime resolves, the model files are in the models directory.
+export async function rankerStatus() {
+  const dir = path.join(modelsDir(), ...CE_MODEL.split('/'));
+  const model = fs.existsSync(path.join(dir, 'onnx', 'model.onnx')) && fs.existsSync(path.join(dir, 'tokenizer.json'));
+  let runtime = true, error = null;
+  try { await import('@huggingface/transformers'); } catch (e) { runtime = false; error = String(e.message).split('\n')[0].slice(0, 160); }
+  return { runtime, model, dir: modelsDir(), modelName: CE_MODEL, error };
+}
+// Fetch the model (a few seconds, ~23 MB) and load it once, so the first hook does not pay the download.
+export async function fetchRanker() {
+  await loadCe();
+  return rankerStatus();
+}
 export const ceText = n => n.search ? `${n.title}. ${n.search}` : `${n.title}. ${(n.answers || []).slice(0, 3).join(' ')} ${(n.body || '').slice(0, 500)}`;
 export async function ceScores(query, notes, { queryTokens = CE_DEFAULTS.queryTokens } = {}) {
   const { tok, model } = await loadCe();

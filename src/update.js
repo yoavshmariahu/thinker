@@ -167,7 +167,14 @@ function installLockedDependencies(cwd) {
     if (hasDependencies) throw new Error('package-lock.json is required before installing dependencies');
     return;
   }
-  execFileSync('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--silent'], { cwd, encoding: 'utf8', timeout: 60_000 });
+  execFileSync('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--silent'], { cwd, encoding: 'utf8', timeout: 300_000 }); // the ranking runtime (onnxruntime) is the bulk of it
+}
+// The cross-encoder the hooks rank with (dense.js): fetched once the dependencies are in place, so no hook pays
+// the download. Failing here (offline, say) does not fail the update: the hooks rank by words until `thinker
+// ranker fetch` succeeds, and the next update tries again.
+function fetchRankerModel(cwd) {
+  try { execFileSync(process.execPath, [path.join(cwd, 'src', 'cli.js'), 'ranker', 'fetch', '--quiet'], { cwd, encoding: 'utf8', timeout: 180_000, stdio: ['ignore', 'pipe', 'pipe'] }); return true; }
+  catch { return false; }
 }
 
 export async function checkUpdate(opts = {}) {
@@ -313,9 +320,11 @@ export async function applyUpdate(opts = {}) {
     // Recreate locked production dependencies without running package scripts.
     try { installLockedDependencies(gitDir); }
     catch (e) { throw new Error(`Updated source but could not install locked dependencies: ${e.message}`); }
+    const ranker = fetchRankerModel(gitDir);
 
     return {
       type: 'git',
+      ranker,
       updated: oldCommit !== newCommit || switchingBranch || force,
       from: oldCommit,
       to: newCommit,
@@ -393,6 +402,7 @@ export async function applyUpdate(opts = {}) {
 
     // Install only the lockfile's production dependencies, without lifecycle scripts.
     installLockedDependencies(sourceDir);
+    const ranker = fetchRankerModel(sourceDir);
     // Atomic directory replacement
     const appOld = path.join(home, 'app.old');
     const appNew = path.join(home, 'app.new');

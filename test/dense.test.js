@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ceConfig, CE_DEFAULTS, ceText } from '../src/dense.js';
+import { ceConfig, CE_DEFAULTS, ceText, rankerStatus, modelsDir } from '../src/dense.js';
 
 const withEnv = (vars, fn) => { const saved = {}; for (const k of Object.keys(vars)) { saved[k] = process.env[k]; if (vars[k] === undefined) delete process.env[k]; else process.env[k] = vars[k]; } try { return fn(); } finally { for (const k of Object.keys(vars)) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; } } };
 const store = cfg => ({ config: () => ({ ce: cfg }) });
@@ -23,4 +23,13 @@ test('the cross-encoder reads the search text when a note has one, else title, a
   const n = { title: 'T', answers: ['a1', 'a2', 'a3', 'a4'], body: 'body text' };
   assert.equal(ceText(n), 'T. a1 a2 a3 body text');
   assert.equal(ceText({ ...n, search: 'S.' }), 'T. S.');
+});
+
+test('rankerStatus reports the runtime, the model files and the models directory', async () => {
+  const st = await rankerStatus();
+  assert.equal(typeof st.runtime, 'boolean'); assert.equal(typeof st.model, 'boolean');
+  assert.equal(st.dir, modelsDir()); assert.match(st.modelName, /ms-marco/);
+  const saved = process.env.THINKER_MODELS_DIR; process.env.THINKER_MODELS_DIR = '/nonexistent/models';
+  try { const off = await rankerStatus(); assert.equal(off.model, false); assert.equal(off.dir, '/nonexistent/models'); }
+  finally { if (saved === undefined) delete process.env.THINKER_MODELS_DIR; else process.env.THINKER_MODELS_DIR = saved; }
 });
