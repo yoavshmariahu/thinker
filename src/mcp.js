@@ -110,18 +110,19 @@ register('drilldown', {
 
 register('review', {
   title: 'Review a change against the cache',
-  description: 'Before committing or opening a pull request: checks the change against the desired behaviors of the system (rules a person wrote; the code must uphold them: a violation of a fixed one is an error, a mutable one may be revised only by a change that edits its note) and against the cached notes that rest on the changed code or bear on it (invariants, conventions, co-change rules, traps). Reports violations and bugs with file:line and evidence, every behavior in play with its outcome (upheld, violated, revised), co-change partners missing from the change, and removed symbols still referenced. Notes that were already stale are reported as cache drift, not as faults of the change. Default scope: the working tree against HEAD. Two model calls, so it takes up to a minute.',
+  description: 'Before committing or opening a pull request: checks the change against the desired behaviors of the system (rules a person wrote; the code must uphold them: a violation of a fixed one is an error, a mutable one may be revised only by a change that edits its note) and against the cached notes that rest on the changed code or bear on it (invariants, conventions, traps). Reports violations and bugs with file:line and evidence, every behavior in play with its outcome (upheld, violated, revised), and removed symbols still referenced. With kinds ["behavior"] only the desired behaviors are consulted, one call per behavior in play. Notes that were already stale are reported as cache drift, not as faults of the change. Default scope: the working tree against HEAD. Two model calls, so it takes up to a minute.',
   inputSchema: {
     paths: z.array(z.string()).optional().describe('Limit the review to these paths.'),
     staged: z.boolean().optional().describe('Review the index instead of the working tree.'),
     base: z.string().optional().describe('A branch or commit: review everything since the merge base with it (e.g. "origin/main").'),
     state: z.boolean().optional().describe('No change: audit the current code of the paths against the notes resting on it.'),
     max: z.number().int().min(1).max(30).optional().describe('Maximum notes to assess with the model (default 12).'),
+    kinds: z.array(z.string()).optional().describe('Consult only notes of these kinds, e.g. ["behavior"] for the desired behaviors alone.'),
   },
-}, async ({ paths, staged, base, state, max }) => {
+}, async ({ paths, staged, base, state, max, kinds }) => {
   try {
     const scope = resolveScope(store.repo, { base, staged, state });
-    const r = await review(store, { scope, paths: paths || [], max: max || 12 });
+    const r = await review(store, { scope, paths: paths || [], max: max || 12, kinds });
     return text(renderReview(r));
   } catch (e) { return text(`review failed: ${String(e.message || e).slice(0, 300)}`); }
 });

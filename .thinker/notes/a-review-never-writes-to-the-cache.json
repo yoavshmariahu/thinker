@@ -1,0 +1,78 @@
+{
+  "id": "a-review-never-writes-to-the-cache",
+  "title": "A review never writes to the cache",
+  "kind": "behavior",
+  "mutability": "fixed",
+  "answers": [
+    "does thinker review change notes",
+    "can a review retire or rewrite a note",
+    "what does review write"
+  ],
+  "body": "`thinker review` and the MCP `review` tool read the notes and the change and write nothing back: no note is created, rewritten, re-hashed, retired or marked stale by a review, whatever the verdict. The only write is the `review` line in the usage log (`store.log` at the end of src/review.js:review). A note the review finds outdated or already stale is reported with the `thinker verify` command that re-checks it; the change under review may never be merged, so it must not move the cache.\nThe per-note assessment (src/review.js:assessNote) and the behavior assessment (src/review.js:assessBehavior) return their verdicts and corrections as data only; the holistic call (src/review.js:assessHolistic) likewise.",
+  "tags": [],
+  "deps": [
+    {
+      "path": "src/review.js",
+      "symbol": "review",
+      "hash": "sha256:ac10e873e94b1bd042f77eb1",
+      "line": 607,
+      "missing": false,
+      "fanout": {
+        "files": 17,
+        "sites": 17,
+        "refs": 124
+      }
+    },
+    {
+      "path": "src/review.js",
+      "symbol": "assessNote",
+      "hash": "sha256:0a8a7fc551eebc1ffd05c6ce",
+      "line": 498,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "src/review.js",
+      "symbol": "assessBehavior",
+      "hash": "sha256:3c4297ae98678a74993d225e",
+      "line": 453,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "src/review.js",
+      "symbol": "assessHolistic",
+      "hash": "sha256:b8f016fdbbf88bec3033f65f",
+      "line": 529,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "src/store.js",
+      "symbol": "log",
+      "hash": "sha256:46277ec95e5bed4163e8e493",
+      "line": 458,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "human"
+  },
+  "created": "2026-10-04T05:12:42.214Z",
+  "verified": "2026-10-04T05:19:24.591Z",
+  "verifiedCommit": "fc12a22f478a172f67161018f3e62967f6e1486f",
+  "confidence": 0.95,
+  "related": []
+}

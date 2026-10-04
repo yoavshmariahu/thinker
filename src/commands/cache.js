@@ -41,7 +41,8 @@ async function shareCommand(ctx) {
 async function reviewCommand(ctx) {
   const { pos, flags, repo, store, out } = ctx;
   const scope = resolveScope(repo, { base: typeof flags.base === 'string' ? flags.base : undefined, staged: !!flags.staged, ref: typeof flags.ref === 'string' ? flags.ref : undefined, state: !!flags.state });
-  const r = await review(store, { scope, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry });
+  const kinds = typeof flags.kinds === 'string' ? flags.kinds.split(',').map(k => k.trim()).filter(Boolean) : undefined;
+  const r = await review(store, { scope, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry, kinds });
   out(flags.json ? JSON.stringify(r, null, 2) : renderReview(r, { verbose: !!flags.verbose }));
   if (flags.strict && r.counts?.error) process.exitCode = 2;
   return;

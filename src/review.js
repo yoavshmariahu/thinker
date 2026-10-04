@@ -4,9 +4,8 @@
 // The cache is evidence, not truth. Every note consulted is first checked against the code as it
 // was before the change (`staleBefore`), so drift of the cache is reported as drift and never as a
 // fault of the change; the model that assesses a note is told to argue from the code shown and to
-// say `note_outdated` when the note is what is wrong. Two findings need no model: a partner file
-// the git history says changes along with a changed file and is not in the change, and a symbol
-// the change removes that the rest of the checkout still refers to.
+// say `note_outdated` when the note is what is wrong. One finding needs no model: a symbol the
+// change removes that the rest of the checkout still refers to.
 //
 // Scopes: the working tree against HEAD (default), the index (`staged`), a branch against its
 // base (`base`), a commit (`ref`), or no change at all (`state`: the current code of some files
@@ -22,7 +21,6 @@ import { execFileSync } from 'node:child_process';
 import { hashText, locateSymbol, repoFile, validDepPath, noteTerms } from './deps.js';
 import { outlineText, references, countable } from './codegraph.js';
 import { buildIndex, bm25, tokenize, stem } from './rank.js';
-import { loadCochange, partners } from './cochange.js';
 import { complete } from './llm.js';
 
 // How a review is run; the defaults are what `thinker review` does: the ensemble, chosen by
@@ -293,20 +291,13 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
   return { direct, related, exposures, symbols, order };
 }
 
-// Findings that need no model. From git history: a file that usually changes with a changed file
-// and is not in the change (a hint, so `info`: legitimate changes leave partners alone all the time). From the checkout: a definition the change removed that is still
-// referred to (working tree and index only; a commit's references cannot be grepped).
-export function deterministicFindings(repo, change, symbols, reader, { cochange = loadCochange(repo), minConf = 0.5, minSupport = 3 } = {}) {
+// The finding that needs no model: a definition the change removed that is still referred to
+// (working tree and index only; a commit's references cannot be grepped). The co-change hint
+// ("X usually changes with Y and is not in this change") was dropped with the co-change notes: it
+// fired on legitimate changes as often as not.
+export function deterministicFindings(repo, change, symbols, reader) {
   const findings = [];
   if (change.state) return findings;
-  const changed = new Set(change.files.flatMap(f => [f.path, f.oldPath]));
-  for (const f of change.files) {
-    if (f.status === 'D') continue;
-    for (const p of partners(cochange, f.path, { minSupport, minConf, limit: 6 })) {
-      if (changed.has(p.file) || reader.after(p.file) === null) continue;
-      findings.push({ severity: 'info', category: 'cochange', file: f.path, line: 0, message: `${p.file} changed together with ${f.path} in ${Math.round(p.conf * 100)}% of its commits (n=${p.support}) and is not in this change`, basis: 'git history' });
-    }
-  }
   if (change.head !== 'commit') {
     for (const s of symbols) for (const r of s.removed) {
       if (!countable(r.name)) continue;
@@ -615,16 +606,19 @@ export async function triageNote(store, note, change, symbols, { model = 'haiku'
 
 // The review. `assess` is the model step (injected by tests). Returns the report as data; render()
 // prints it. Nothing in the cache is rewritten: a note the review finds outdated is reported for
-// `thinker verify`, since the change under review may never be merged.
-export async function review(store, { scope, paths = [], max = 12, model, dry = false, concurrency = 4, assess = assessNote, cochange, strategy = {} } = {}) {
-  const strat = { ...DEFAULT_STRATEGY, ...strategy };
+// `thinker verify`, since the change under review may never be merged. `kinds` narrows the notes
+// consulted to those kinds (`['behavior']`: the desired behaviors alone, which is what a pull
+// request check asks; the no-notes baseline call is then left out, since only the rules are asked).
+export async function review(store, { scope, paths = [], max = 12, model, dry = false, concurrency = 4, assess = assessNote, strategy = {}, kinds } = {}) {
+  const only = Array.isArray(kinds) && kinds.length ? new Set(kinds) : null;
+  const strat = { ...DEFAULT_STRATEGY, ...(only && !strategy.mode ? { mode: 'per-note' } : {}), ...strategy };
   const repo = store.repo;
   scope = scope || resolveScope(repo);
   const reader = makeReader(repo, scope);
   const change = collectChange(repo, scope, { paths });
   change.state = !!scope.state; change.head = scope.head === 'worktree' || scope.head === 'index' ? scope.head : 'commit';
-  const notes = store.list();
-  const report = { scope: scope.label, state: !!scope.state, strategy: strat, files: change.files.map(f => ({ path: f.path, status: f.status, added: f.added, removed: f.removed })), notes: { consulted: 0, direct: 0, related: 0, assessed: 0, staleBefore: [], outdated: [], uncovered: [] }, verdicts: [], findings: [], cost: 0, model: model || store.config().reviewModel || 'sonnet', errors: [] };
+  const notes = only ? store.list().filter(n => only.has(n.kind)) : store.list();
+  const report = { scope: scope.label, state: !!scope.state, strategy: strat, kinds: only ? [...only] : undefined, files: change.files.map(f => ({ path: f.path, status: f.status, added: f.added, removed: f.removed })), notes: { consulted: 0, direct: 0, related: 0, assessed: 0, staleBefore: [], outdated: [], uncovered: [] }, verdicts: [], findings: [], cost: 0, model: model || store.config().reviewModel || 'sonnet', errors: [] };
   if (scope.state) {
     // the current code of the given files (every file the notes rest on when none is named)
     const pathSet = new Set(paths.map(p => p.replace(/^\.\//, '')));
@@ -634,7 +628,7 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
   if (!change.files.length) { report.empty = true; return report; }
   const { direct, related, exposures, symbols, order } = selectNotes(notes, change, reader, { relatedMax: strat.related ? 6 : 0 });
   report.symbols = symbols.filter(s => s.changed.length || s.removed.length).map(s => ({ path: s.path, changed: s.changed, removed: s.removed.map(r => r.qualified) }));
-  report.findings.push(...deterministicFindings(repo, change, symbols, reader, cochange ? { cochange } : {}));
+  report.findings.push(...deterministicFindings(repo, change, symbols, reader));
   const consulted = strat.mode === 'nocache' ? [] : order;
   report.notes.consulted = consulted.length; report.notes.direct = direct.length; report.notes.related = related.length;
   for (const n of consulted) { const e = exposures.get(n.id); if (e.staleBefore.length) report.notes.staleBefore.push({ id: n.id, title: n.title, changed: e.staleBefore }); }
@@ -709,7 +703,7 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
   report.behaviors = behaviorReport(consulted, report, revisable, dry);
   report.findings.sort((a, b) => (SEV[a.severity] ?? 1) - (SEV[b.severity] ?? 1) || (b.confidence || 1) - (a.confidence || 1));
   report.counts = { error: report.findings.filter(f => f.severity === 'error').length, warning: report.findings.filter(f => f.severity === 'warning').length, info: report.findings.filter(f => f.severity === 'info').length };
-  store.log({ op: 'review', scope: scope.label, strategy: JSON.stringify(strat) === JSON.stringify(DEFAULT_STRATEGY) ? undefined : strat, files: change.files.length, consulted: consulted.length, assessed: report.notes.assessed, findings: report.counts, outdated: report.notes.outdated.map(o => o.id), cost: report.cost, metered: true, dry: dry || undefined });
+  store.log({ op: 'review', scope: scope.label, kinds: report.kinds, strategy: JSON.stringify(strat) === JSON.stringify(DEFAULT_STRATEGY) ? undefined : strat, files: change.files.length, consulted: consulted.length, assessed: report.notes.assessed, findings: report.counts, outdated: report.notes.outdated.map(o => o.id), cost: report.cost, metered: true, dry: dry || undefined });
   return report;
 }
 
@@ -744,7 +738,8 @@ export function renderReview(r, { verbose = false } = {}) {
   const L = [];
   if (r.empty) return `thinker review: nothing to review (${r.scope})`;
   const n = r.notes;
-  L.push(`thinker review: ${r.scope}, ${r.files.length} file${r.files.length === 1 ? '' : 's'}; ${r.strategy?.mode === 'nocache' ? 'no notes (baseline)' : `${n.consulted} note${n.consulted === 1 ? '' : 's'} consulted`} (${n.direct} on the changed code, ${n.related} related)${r.toAssess?.length && !n.assessed ? `, ${r.toAssess.length} to assess` : n.assessed ? `, ${n.assessed} assessed with ${r.model}${r.cost ? ` ($${r.cost.toFixed(2)})` : ''}` : ''}${n.skipped ? `, ${n.skipped} left out (--max)` : ''}`);
+  const what = r.kinds?.length === 1 && r.kinds[0] === 'behavior' ? 'desired behavior' : r.kinds?.length ? `${r.kinds.join('/')} note` : 'note';
+  L.push(`thinker review: ${r.scope}, ${r.files.length} file${r.files.length === 1 ? '' : 's'}; ${r.strategy?.mode === 'nocache' ? 'no notes (baseline)' : `${n.consulted} ${what}${n.consulted === 1 ? '' : 's'} consulted`} (${n.direct} on the changed code, ${n.related} related)${r.toAssess?.length && !n.assessed ? `, ${r.toAssess.length} to assess` : n.assessed ? `, ${n.assessed} assessed with ${r.model}${r.cost ? ` ($${r.cost.toFixed(2)})` : ''}` : ''}${n.skipped ? `, ${n.skipped} left out (--max)` : ''}`);
   if (r.findings.length) {
     L.push('', `Findings: ${r.counts.error} error${r.counts.error === 1 ? '' : 's'}, ${r.counts.warning} warning${r.counts.warning === 1 ? '' : 's'}, ${r.counts.info} info`);
     for (const f of r.findings) {
@@ -762,7 +757,7 @@ export function renderReview(r, { verbose = false } = {}) {
   if (n.outdated.length) cache.push(`${n.outdated.length} note${n.outdated.length === 1 ? '' : 's'} the review found outdated: ${n.outdated.map(o => `${o.id} (${o.reason})`).join('; ')}`);
   const fix = [...new Set([...n.staleBefore.map(s => s.id), ...n.outdated.map(o => o.id)])];
   if (fix.length) cache.push(`re-check them: thinker verify ${fix.join(' ')}`);
-  if (n.uncovered.length) cache.push(`no cached knowledge rests on: ${n.uncovered.slice(0, 8).join(', ')}${n.uncovered.length > 8 ? ` (+${n.uncovered.length - 8} more)` : ''}; the review is blind there beyond git history`);
+  if (n.uncovered.length) cache.push(`no ${r.kinds?.length ? what : 'cached knowledge'} rests on: ${n.uncovered.slice(0, 8).join(', ')}${n.uncovered.length > 8 ? ` (+${n.uncovered.length - 8} more)` : ''}; the review is blind there`);
   if (r.errors.length) cache.push(`${r.errors.length} note${r.errors.length === 1 ? '' : 's'} could not be assessed: ${r.errors.map(e => `${e.id} (${e.error})`).join('; ')}`);
   if (cache.length) { L.push('', 'Cache state:'); for (const c of cache) L.push(`  - ${c}`); }
   if (verbose || !n.assessed) {

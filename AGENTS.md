@@ -67,7 +67,7 @@ cache at twice the input price and never read again.
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/sync.js` | a checkout's side of the central cache: pull and push notes, stream sessions; from the hooks and maintenance once `thinker sync login` has run |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that distills streamed sessions and CI pull requests and maintains each cache (`worker.js`) |
-| `action/` | GitHub Action that sends a merged pull request to the server |
+| `action/` | GitHub Actions: `action.yml` sends a merged pull request to the server; `review/` checks a pull request against the desired behaviors and posts the review |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
 | `src/review.js` | `thinker review` and the MCP `review` tool: a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; co-change partners missing from the change, removed symbols still referenced |
 | `test/` | unit tests (`node --test`) |
@@ -739,6 +739,11 @@ read the repository without the tool. They are committed like any shared note
   play (`upheld`, `violated`, `revised`, `unrelated`, or `consulted` on a dry
   run) with whether it was already violated before the change, rendered under
   "Desired behaviors" and returned by the MCP `review` tool.
+- **This repository's own** (`thinker system`, `.thinker/SYSTEM.md`), written
+  2026-10-03: a review never writes to the cache; verification never rewrites
+  or retires a behavior; serving and assessment never rewrite a shared note's
+  committed file; `THINKER_TELEMETRY=off` and test runs send no telemetry (all
+  fixed); the prompt hooks serve no stale note (mutable).
 - **Serving.** A behavior is served like an invariant: at orientation with a
   small kind prior, by the edit hook when a file it rests on is edited
   (`ops.js:lateNotes`, first among the rules), and in `thinker review`'s
@@ -776,12 +781,21 @@ tool `review` is the same for an agent before it commits.
   last ten commits here 30 to 60 notes were, with a dozen consulted per
   review. `toAssess` says why each was chosen. `thinker maintain --dry`
   persists no statuses.
-- **Without a model** (`deterministicFindings`): a co-change partner (confidence
-  ≥ 0.5, support ≥ 3) of a changed file that exists and is not in the change;
-  a definition the change removes that is defined nowhere else and still
-  referenced (`codegraph.js:references`; working tree and index only, since a
-  commit cannot be grepped; a method's name is a warning, a top-level name an
-  error).
+- **Without a model** (`deterministicFindings`): a definition the change
+  removes that is defined nowhere else and still referenced
+  (`codegraph.js:references`; working tree and index only, since a commit
+  cannot be grepped; a method's name is a warning, a top-level name an error).
+  The co-change hint (a partner file of a changed file that is not in the
+  change) was dropped on 2026-10-03 with the co-change notes: it fired on
+  legitimate changes as often as not.
+- **Kinds** (`--kinds behavior`, MCP `kinds: ["behavior"]`): only notes of
+  those kinds are consulted. With the desired behaviors alone the default
+  strategy becomes one call per behavior in play (`per-note`), which gives a
+  verdict for each and leaves out the no-notes baseline, since only the rules
+  are asked; `--mode` overrides it. This is what the pull request action runs
+  (below). Measured once here on a planted violation: four behaviors in play
+  (two of them pulled in by shared identifiers and found unrelated), $0.20,
+  37 seconds.
 - **With a model** (`assessNote`, one call per note, up to `--max`, four at a
   time): the note with its cache state, the diff of the files it rests on (the
   whole diff for a related note), and the code after the change behind each
@@ -828,6 +842,29 @@ tool `review` is the same for an agent before it commits.
   provider for the rest of the process, and a run labelled sonnet was otherwise
   answered mostly by Gemini (kept under `bench/runs/review-eval/*-mixed-provider`,
   not used). Each row records the provider and model that answered (`models`).
+- **On pull requests** (`action/review/`): a composite GitHub Action runs
+  `thinker review --json --base origin/<base>` on the pull request's checkout
+  (`fetch-depth: 0`, so the merge base resolves; the committed notes in
+  `.thinker/` are the cache, no server is involved) and `post.mjs` posts the
+  report as one pull request review: findings on changed lines as inline
+  comments, the rest and a table of the desired behaviors in play (upheld,
+  violated, revised, unrelated) in the body, cache drift under a fold. An
+  error finding (a fixed behavior violated) posts `REQUEST_CHANGES` and fails
+  the step (`fail-on: error | warning | none`); otherwise `COMMENT`, and
+  nothing at all when there is nothing to report (`quiet: false` posts the
+  table anyway). A request for changes from an earlier run is dismissed when
+  a newer run posts, so the push that fixes the violation clears it. A line
+  GitHub will not take a comment on (422) folds the inline findings into the
+  body; a read-only token (a fork) leaves the review in the log and the step
+  summary. Defaults: `kinds: behavior`, `model: sonnet`; `kinds: ''` consults
+  every note. The model key is the `anthropic-api-key` input
+  (`THINKER_LLM=anthropic`, pinned so a provider fallback cannot answer); the
+  step installs the SDK beside the action's own checkout. Telemetry and
+  learning are off in the step (`THINKER_TELEMETRY=off`, `THINKER_NO_LEARN=1`),
+  so runners are not counted as installs and the hooks stay quiet. This
+  repository runs it on itself in `.github/workflows/thinker-review.yml`
+  (needs the `ANTHROPIC_API_KEY` secret; without it the step says so and
+  passes). `test/action-review.test.js` covers the poster with a fake GitHub.
 - Fixed along the way: `deps.js:findSymbol` no longer reads an indented Python
   call (`validate(ctx)`) as a C-like method definition; the C-like alternative
   is left out for indentation-based languages. `llm.js:viaCli` retries at once

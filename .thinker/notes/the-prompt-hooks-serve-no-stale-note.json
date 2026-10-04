@@ -1,0 +1,51 @@
+{
+  "id": "the-prompt-hooks-serve-no-stale-note",
+  "title": "The prompt hooks serve no stale note",
+  "kind": "behavior",
+  "mutability": "mutable",
+  "answers": [
+    "why was a stale note not injected",
+    "do hooks serve stale notes",
+    "what happens to a stale note at prompt time"
+  ],
+  "body": "At prompt time a note whose deps no longer match the working tree is held back, not served: src/ops.js:orient with `freshOnly` takes stale notes out of the servable set, logs them as `held`, and hands them to src/ops.js:scheduleVerify so they are verified in the background as if they had been served; once fresh again they are served on a later turn. In the meantime the stale note is only listed by title, marked STALE, among the notes the agent can `lookup`. `orient` and `lookup` called by the agent itself still return stale notes, with the ⚠ banner, since the agent asked.",
+  "tags": [],
+  "deps": [
+    {
+      "path": "src/ops.js",
+      "symbol": "orient",
+      "hash": "sha256:145592515d9a54abd7db1809",
+      "line": 259,
+      "missing": false,
+      "fanout": {
+        "files": 27,
+        "sites": 48,
+        "refs": 154
+      }
+    },
+    {
+      "path": "src/ops.js",
+      "symbol": "scheduleVerify",
+      "hash": "sha256:a8f4d37aff987a7a6a949dd4",
+      "line": 541,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "human"
+  },
+  "created": "2026-10-04T05:12:42.630Z",
+  "verified": "2026-10-04T05:12:42.630Z",
+  "verifiedCommit": "d5a567af5622de4cf9f8be8af51953d615f32ee2",
+  "confidence": 0.9,
+  "related": [
+    "note-staleness-lifecycle-create-baseline-lazy-refresh-verify",
+    "nothing-auto-runs-verifynote-feedback-correction-bypasses-ve",
+    "verification-never-rewrites-or-retires-a-desired-behavior"
+  ]
+}
