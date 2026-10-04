@@ -200,7 +200,11 @@ async function main() {
       const notesDir = (arm === 'live' || flags['notes-mutable']) ? SRC_NOTES : stageNotes(id);
       let r;
       for (let attempt = 0; ; attempt++) {
-        try { r = await runClaude(task.prompt, { arm, allowEdit: task.type === 'change', cwd, notesDir }); }
+        // the request first, the benchmark's framing paragraph ("Implement the following change… Do not install
+        // dependencies…") after it, for every arm alike: the hook reads the request's first tokens, and a person
+        // types the request, not the framing
+        const agentPrompt = /^Implement the following change/.test(task.prompt) && task.prompt.includes('\n\n') ? task.prompt.split('\n\n').slice(1).join('\n\n') + '\n\n' + task.prompt.split('\n\n')[0] : task.prompt;
+        try { r = await runClaude(agentPrompt, { arm, allowEdit: task.type === 'change', cwd, notesDir }); }
         catch (e) { console.log(`${id} ERROR ${e.message}`); r = null; break; }
         // usage/session limit: do not record garbage; wait and retry
         if ((r.num_turns || 0) <= 1 && /session limit|usage limit|rate limit|limit reached/i.test(r.result || '')) {
