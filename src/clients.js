@@ -389,6 +389,31 @@ export function repoRunsHooks(repo, client) {
   return !!(w && w.hooks);
 }
 
+// The machine-wide wiring, from the checkouts: for each agent that no user-level file wires yet
+// but whose hooks in one of `repos` run this copy (a machine set up before the wiring went
+// machine-wide), install the user-level entries with the options those checkouts were set up
+// with (any of them learning, late notes or the MCP server: all of them). `thinker update` runs
+// this through `rewire`, so an existing user gets the wiring without a step; the checkouts switch
+// to it on their next prompt (`stripRepoWiring`). Codex's user hooks are marked reviewed: the
+// user accepted the same hooks when setting the checkout up. Returns [{client, from, options}].
+export function connectFromCheckouts(repos, { cli, mcpEntry, dry = false } = {}) {
+  const done = [];
+  for (const client of USER_SCOPE_CLIENTS) {
+    if (inferWiring(null, client, { scope: 'user' })) continue;
+    const options = { hooks: false, learn: false, late: false, mcp: false };
+    let from = 0;
+    for (const r of repos) {
+      let w = null; try { w = inferWiring(r, client); } catch { continue; }
+      if (!w || !w.hooks || !w.hookScripts.length || !w.hookScripts.every(sc => sameCopy(sc, cli))) continue;
+      from++; for (const k of Object.keys(options)) options[k] ||= !!w[k];
+    }
+    if (!from) continue;
+    if (!dry) { installClient(client, { scope: 'user', cli, mcpEntry, ...options }); if (client === 'codex') trustCodexUser(); }
+    done.push({ client, from, options });
+  }
+  return done;
+}
+
 // Rewrite the wiring of one checkout (scope 'repo') or of the user's files (scope 'user', `repo`
 // unused) for the copy of thinker at `cli`. Returns what changed:
 // { changed: ['.claude/settings.local.json', …], skipped: [{client, reason}], clients: [...] }.

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initAst, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from '../ast.js';
-import { parseClients, uninstallClients, uninstallWiring, refreshWiring } from '../clients.js';
+import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry } from '../telemetry.js';
@@ -129,6 +129,14 @@ async function rewireCommand(ctx) {
     for (const s of res.skipped) out(`${r}: ${s.client} left alone: ${s.reason}`);
   }
   if (!dry && summary.changed) store.log({ op: 'rewire', repos: summary.changed, files: summary.files.length });
+  // agents the checkouts wire but the user's own settings do not yet: wired there now (clients.js:connectFromCheckouts)
+  if (!flags.here) {
+    try {
+      summary.connected = connectFromCheckouts(repos, { cli, mcpEntry: ctx.userMcpEntry(), dry }).map(c => c.client);
+      if (summary.connected.length && !dry) store.log({ op: 'connect', clients: summary.connected, from: 'rewire' });
+      if (summary.connected.length && !quiet) out(`your settings: ${dry ? 'would wire' : 'wired'} thinker in for ${summary.connected.join(', ')}; the checkouts switch to it on their next prompt`);
+    } catch (e) { if (!quiet) out(`your settings: ${e.message}`); }
+  }
   if (flags.json) { out(JSON.stringify(summary)); return; }
   if (!quiet) out(summary.changed ? `${dry ? 'would rewire' : 'rewired'} ${summary.changed} of ${summary.repos} checkouts` : `${summary.repos} checkouts checked; the wiring is current`);
 }
@@ -141,6 +149,7 @@ function rewireAfterUpdate(newCli, { quiet }) {
   const r = spawnSync('node', [newCli, 'rewire', '--json', '--quiet'], { encoding: 'utf8', timeout: 120_000, env: { ...process.env, THINKER_TELEMETRY: process.env.THINKER_TELEMETRY || 'off' } });
   let summary = null; try { summary = JSON.parse(String(r.stdout || '').trim().split('\n').pop()); } catch {}
   if (summary && !quiet && summary.changed) process.stdout.write(`Rewired the hooks of ${summary.changed} ${summary.changed === 1 ? 'checkout' : 'checkouts'} for the new version.\n`);
+  if (summary?.connected?.length && !quiet) process.stdout.write(`Wired thinker into your own settings for ${summary.connected.join(', ')} (it runs in every repository that is set up); your checkouts switch to it on their next prompt.\n`);
   return summary;
 }
 const newCliOf = (install, home) => install.type === 'git' ? path.join(install.path, 'src', 'cli.js') : path.join(home, 'app', 'src', 'cli.js');

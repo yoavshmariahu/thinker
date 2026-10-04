@@ -112,7 +112,10 @@ named once at the end of the turn; committed wiring (`--shared`, `.mcp.json`)
 stays, and a hook at user scope yields to a checkout whose own files run this
 copy's hooks (`clients.js:repoWiredByCopy`), so nothing fires twice.
 `thinker uninstall --user` removes the machine-wide wiring; the installer's
-`--uninstall` does that outside a repository.
+`--uninstall` does that outside a repository. A machine set up before this
+needs no step: the `rewire` that `thinker update` runs wires the user's
+settings for every agent the known checkouts wire to this copy, with the
+options they were set up with (`clients.js:connectFromCheckouts`).
 
 `thinker setup` connects the agents (above), adds the repository's own pieces
 (git hooks, Cursor's always-applied rule, Codex's trust in the project,
