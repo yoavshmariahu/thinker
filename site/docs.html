@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation — thinker</title>
-  <meta name="description" content="Documentation for thinker: a knowledge cache for your coding agents.">
+  <meta name="description" content="Documentation for thinker: a knowledge cache for your coding agents that serves, learns and keeps itself correct.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <style>
     * {
@@ -499,25 +499,38 @@
         <ul class="sidebar-nav">
           <li class="sidebar-item active"><a href="#what-is-thinker">What is Thinker?</a></li>
           <li class="sidebar-item"><a href="#the-mental-model">The Mental Model</a></li>
+          <li class="sidebar-item"><a href="#install">Install and Set Up</a></li>
         </ul>
       </div>
 
       <div class="sidebar-group">
         <div class="sidebar-heading">Supported Agents</div>
         <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#supported-agents">Coverage</a></li>
           <li class="sidebar-item"><a href="#claude-code">Claude Code</a></li>
-          <li class="sidebar-item"><a href="#cursor">Cursor</a></li>
           <li class="sidebar-item"><a href="#codex-cli">Codex CLI</a></li>
           <li class="sidebar-item"><a href="#gemini-cli">Gemini CLI</a></li>
+          <li class="sidebar-item"><a href="#cursor">Cursor</a></li>
+          <li class="sidebar-item"><a href="#other-agents">Pi, Windsurf, Copilot, OpenCode</a></li>
         </ul>
       </div>
 
       <div class="sidebar-group">
         <div class="sidebar-heading">How It Works</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#the-lifecycle">Distill, Serve, Invalidate</a></li>
           <li class="sidebar-item"><a href="#what-a-note-is">What a Note Is</a></li>
-          <li class="sidebar-item"><a href="#symbol-invalidation">Symbol Invalidation</a></li>
+          <li class="sidebar-item"><a href="#in-a-session">In a Session</a></li>
+          <li class="sidebar-item"><a href="#learning">Learning</a></li>
+          <li class="sidebar-item"><a href="#symbol-invalidation">Staying Correct</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-group">
+        <div class="sidebar-heading">Beyond Serving</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#review">Reviewing a Change</a></li>
+          <li class="sidebar-item"><a href="#behaviors">Desired Behaviors</a></li>
+          <li class="sidebar-item"><a href="#team">Sharing with Your Team</a></li>
         </ul>
       </div>
 
@@ -525,6 +538,7 @@
         <div class="sidebar-heading">Proving Outcomes</div>
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#local-benchmark">Verifying in Your Repo</a></li>
+          <li class="sidebar-item"><a href="#usage">Usage and the Holdout</a></li>
           <li class="sidebar-item"><a href="#what-to-expect">Expected Outcomes</a></li>
         </ul>
       </div>
@@ -533,6 +547,7 @@
         <div class="sidebar-heading">Reference</div>
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#cli-reference">CLI Reference</a></li>
+          <li class="sidebar-item"><a href="#configuration">Configuration</a></li>
           <li class="sidebar-item"><a href="#telemetry">Privacy &amp; Telemetry</a></li>
         </ul>
       </div>
@@ -542,7 +557,7 @@
       <section id="what-is-thinker">
         <h1>thinker documentation</h1>
         <p class="lead">
-          Thinker is a persistent knowledge cache for coding agents. It prevents agents from re-grepping and re-reading your codebase every turn by pre-seeding verified architecture notes, conventions, and invariants.
+          Thinker is a persistent knowledge cache for coding agents. It keeps short, verified notes about your repository, serves the one that fits each request, learns from every session, and keeps itself correct as the code moves.
         </p>
 
         <div class="callout note">
@@ -556,73 +571,124 @@
           Thinker is not a vector database or an ungrounded RAG system. It is a <strong>dependency-keyed knowledge cache</strong> stored locally under <code>.thinker/</code> in your repository.
         </p>
         <p>
-          Thinker maintains concise 3–12 line notes answering recurring architectural questions (callpaths, locations, invariants, gotchas). Each note is explicitly tied to the exact files and symbols it describes via SHA-256 hashes.
+          Each note is 3–12 lines answering a recurring question, with <code>file:Symbol</code> pointers into the code. Every pointer is tied to the exact definition it names by a content hash, so a note knows when the code under it changed.
         </p>
         <div class="flow-steps">
           <div class="step-box">
             <div class="step-header">
               <span class="step-badge">1</span>
-              <span class="step-title">Mine & Distill</span>
+              <span class="step-title">Learn</span>
             </div>
-            <p>During setup, Thinker mines git co-change history, merged PRs, and subsystem areas, synthesizing structured notes with explicit code pointers.</p>
+            <p>Setup can build a cache from merged pull requests and one exploration session per source area. From then on every agent session is distilled into notes when it ends, and the pull requests your team merges are mined in the background.</p>
           </div>
           <div class="step-box">
             <div class="step-header">
               <span class="step-badge">2</span>
-              <span class="step-title">Inject Context</span>
+              <span class="step-title">Serve</span>
             </div>
-            <p>Before your agent begins a turn, Thinker runs BM25 ranking against your prompt with coverage floors and injects the 2–3 most relevant notes via native agent hooks or MCP tools.</p>
+            <p>Each request gets the note that fits it best, chosen by a small local model from the candidates that match it by words, through the agent's native hooks. The agent can ask for more through MCP tools, and the files it edits bring the notes resting on them.</p>
           </div>
           <div class="step-box">
             <div class="step-header">
               <span class="step-badge">3</span>
-              <span class="step-title">Invalidate & Verify</span>
+              <span class="step-title">Keep Correct</span>
             </div>
-            <p>Every note tracks symbol-level content hashes against your working tree. When code changes, notes are flagged stale and verified with a fast model—never serving outdated claims.</p>
+            <p>Every serving re-hashes every note's dependencies against your working tree. A note whose code changed is held back and re-verified with a fast model in the background; what the sessions acted on raises a note's confidence, what they contradicted corrects it. Nothing needs to be run by hand.</p>
           </div>
         </div>
+      </section>
+
+      <section id="install">
+        <h2>Install and Set Up</h2>
+        <p>
+          The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings. Run from inside a repository, it also sets that repository up. Anywhere else, run <code>thinker setup</code> inside a repository later.
+        </p>
+        <pre><code><span class="code-comment"># Set a repository up: connect the agents, then ask whether to build the cache</span>
+thinker setup
+
+<span class="code-comment"># Build without asking: merged pull requests (--prs n, default 60) and one exploration session per source area (--areas n, default 12)</span>
+thinker setup --build
+
+<span class="code-comment"># Wire things up only; the cache grows from your sessions</span>
+thinker setup --no-build</code></pre>
+        <p>
+          Building runs through your agent's own login: about 5.5M tokens and twenty minutes with the defaults, most of them cached prompt reads. The estimate is printed in tokens and minutes before anything runs, and nothing is given in dollars, since most agents run on subscriptions.
+        </p>
+        <div class="callout tip">
+          <strong>Wiring is machine-wide, the cache is per repository.</strong> The hooks and the MCP server are present in every checkout and act only in one that <code>thinker setup</code> has set up. Elsewhere your agents are served nothing and learn nothing.
+        </div>
+        <p>
+          Which note is served is decided by a small local cross-encoder (23 MB) that reads your request together with each candidate note. The installer fetches it and <code>thinker update</code> keeps it; <code>thinker ranker</code> says whether it is in place. Without it, notes are ranked by words alone. Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in.
+        </p>
       </section>
 
       <section id="supported-agents">
         <h2>Supported Agents</h2>
         <p>
-          Thinker hooks into your existing coding tools without changing your daily command workflow.
+          Thinker hooks into your existing coding tools without changing your daily command workflow. Four agents are wired once per machine in their own settings; four more get an extension or hook file in the checkout.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Agent</th>
+              <th>Notes for the request</th>
+              <th>Notes about edited files</th>
+              <th>MCP tools</th>
+              <th>Wiring</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Claude Code, and the Code tab of the Claude desktop app</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
+            <tr><td>Codex CLI and the Codex desktop app</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
+            <tr><td>Gemini CLI</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
+            <tr><td>Cursor</td><td>Through <code>orient</code>, and with the first tool result</td><td>Yes</td><td>Yes</td><td>Machine-wide, plus a rule in the checkout</td></tr>
+            <tr><td>Pi</td><td>Extension</td><td>Yes</td><td>CLI guidance</td><td>The checkout</td></tr>
+            <tr><td>Windsurf Cascade</td><td>Always-on rule asks the agent to orient</td><td>Agent-directed</td><td>CLI guidance</td><td>The checkout</td></tr>
+            <tr><td>GitHub Copilot CLI</td><td>With the first successful tool result</td><td>Yes</td><td>Manual</td><td>The checkout</td></tr>
+            <tr><td>OpenCode</td><td>Plugin</td><td>Yes</td><td>Yes</td><td>The checkout</td></tr>
+          </tbody>
+        </table>
+        <p>
+          <code>thinker setup --clients auto</code> (the default) wires the agents it finds; <code>all</code> or a comma-separated list picks them by hand. <code>--shared</code> also writes the entries into the repository's own files for the team to commit. <code>thinker uninstall</code> takes a repository's pieces out, <code>thinker uninstall --user</code> the machine-wide wiring.
         </p>
 
         <div id="claude-code">
           <h3>Claude Code</h3>
           <p>
-            Thinker configures <code>.claude/settings.local.json</code>:
+            Hooks in <code>~/.claude/settings.json</code>, the MCP server in <code>~/.claude.json</code>:
           </p>
           <ul>
-            <li><strong>Prompt hook:</strong> <code>UserPromptSubmit</code> automatically injects the orientation notes into the prompt bundle.</li>
-            <li><strong>Session learning:</strong> <code>Stop</code> hook condenses turn activity and distills new notes incrementally in the background.</li>
-            <li><strong>Late file notes:</strong> Serves relevant context when Claude opens specific files (<code>--late</code>).</li>
-          </ul>
-        </div>
-
-        <div id="cursor">
-          <h3>Cursor</h3>
-          <p>
-            Thinker writes <code>.cursor/hooks.json</code> and approves the MCP server:
-          </p>
-          <ul>
-            <li>Cursor's prompt hook computes candidate notes and delivers them on the first tool invocation.</li>
-            <li>Cursor's agent can also explicitly call the <code>orient</code> and <code>remember</code> MCP tools.</li>
+            <li><strong>Prompt hook:</strong> <code>UserPromptSubmit</code> adds the orientation notes to the prompt.</li>
+            <li><strong>Edit hook:</strong> <code>PostToolUse</code> brings the notes resting on a file the agent edits.</li>
+            <li><strong>Learning:</strong> <code>Stop</code> and <code>SessionEnd</code> distill the session once, in the background, and show a one-line summary of what was served.</li>
           </ul>
         </div>
 
         <div id="codex-cli">
           <h3>Codex CLI</h3>
           <p>
-            Thinker registers hooks in <code>.codex/hooks.json</code> and marks the project and hook hashes as trusted in <code>~/.codex/config.toml</code>, avoiding repetitive approval prompts.
+            Hooks in <code>~/.codex/hooks.json</code> and the MCP server in <code>~/.codex/config.toml</code>, where the project and the hooks are also marked as trusted, so Codex asks nothing before running them or calling <code>orient</code>. The Codex desktop app reads the same file.
           </p>
         </div>
 
         <div id="gemini-cli">
-          <h3>Gemini CLI / Antigravity</h3>
+          <h3>Gemini CLI</h3>
           <p>
-            Wires prompt-time context injection directly into <code>.gemini/settings.json</code>.
+            Prompt-time context, edit notes and the MCP server in <code>~/.gemini/settings.json</code>. Gemini Code Assist's agent mode reads the same configuration.
+          </p>
+        </div>
+
+        <div id="cursor">
+          <h3>Cursor</h3>
+          <p>
+            Hooks in <code>~/.cursor/hooks.json</code>, the MCP server in <code>~/.cursor/mcp.json</code> (approved by setup), and an always-applied rule in the checkout. Cursor's prompt hook cannot add context, so the notes are computed at prompt time and handed over with the first tool result; the rule also tells the agent to call <code>orient</code>.
+          </p>
+        </div>
+
+        <div id="other-agents">
+          <h3>Pi, Windsurf Cascade, Copilot CLI, OpenCode</h3>
+          <p>
+            Nothing machine-wide: <code>thinker setup --clients pi,windsurf,copilot,opencode</code> writes an extension (<code>.pi/extensions/</code>, <code>.opencode/plugins/</code>), hooks (<code>.windsurf/hooks.json</code>, <code>.github/hooks/</code>) or a rule into the checkout. Restart the host agent after setup. Each host's own trust and hook settings still apply, and where a host offers no channel for notes at prompt time, a rule asks the agent to call thinker itself.
           </p>
         </div>
       </section>
@@ -633,7 +699,7 @@
         <div id="what-a-note-is">
           <h3>What a Note Is</h3>
           <p>
-            A Thinker note answers a recurring developer question, not a redundant restatement of "what this file does":
+            A note answers a recurring question, not "what this file does". There are four kinds:
           </p>
           <table>
             <thead>
@@ -644,45 +710,108 @@
             </thead>
             <tbody>
               <tr>
-                <td><code>callpath</code></td>
-                <td>How control/data flows across files for an operation</td>
-              </tr>
-              <tr>
-                <td><code>location</code></td>
-                <td>Where a recurring concern is handled</td>
-              </tr>
-              <tr>
-                <td><code>cochange</code></td>
-                <td>What files or modules must change together</td>
+                <td><code>map</code></td>
+                <td>Where a recurring concern is handled, how control or data flows across files, the shape of a module area</td>
               </tr>
               <tr>
                 <td><code>howto</code></td>
-                <td>How to build, test, or lint with non-obvious flags</td>
+                <td>How to build, test, run or lint, with the non-obvious flags</td>
               </tr>
               <tr>
-                <td><code>convention</code></td>
-                <td>Local codebase rules an agent would otherwise violate</td>
+                <td><code>rule</code></td>
+                <td>What a change must respect: an invariant, a convention, a trap, a fix not to undo, a reason</td>
               </tr>
               <tr>
-                <td><code>gotcha</code></td>
-                <td>A trap (similar names, hidden ordering, cache invalidation)</td>
+                <td><code>behavior</code></td>
+                <td>A desired behavior of the system a person wrote down; the code must uphold it (see <a href="#behaviors">Desired Behaviors</a>)</td>
               </tr>
             </tbody>
           </table>
+          <p>
+            Each note stores its title, the questions it answers, a body with pointers, the files and symbols it rests on with their content hashes, its source (a session, a person, a pull request), its confidence and its status.
+          </p>
+        </div>
+
+        <div id="in-a-session">
+          <h3>In a Session</h3>
+          <ul>
+            <li><strong>Each request</strong> gets the note that fits it best, with the code behind its pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. A note is served once per session, never while stale, and not at all for a one-word turn of conversation (<code>status?</code>). When nothing fits, nothing is served.</li>
+            <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
+            <li><strong>MCP tools</strong>, for the agent's own questions: <code>orient</code> (up to five notes for a task, with the ones it did not serve listed by title), <code>lookup</code> (a question, or a note by id), <code>find</code> (the definitions whose name or body carry the words of a query, when no note answers it), <code>drilldown</code> (a definition whole, with one hop of callers and callees and the notes on it), <code>review</code> (a change against the notes, before a commit), <code>remember</code> (save a note) and <code>feedback</code> (correct one).</li>
+            <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
+          </ul>
+        </div>
+
+        <div id="learning">
+          <h3>Learning</h3>
+          <ul>
+            <li><strong>Each session is distilled once, when it ends</strong>, through the agent's own login: up to three new notes, and a verdict on every note it was served. <code>confirmed</code> (the agent acted on it) raises confidence; <code>contradicted</code> (the trace shows a claim was wrong) corrects the body, keeps the history, and retires the note when its confidence falls below 0.3; <code>unused</code> lets it decay. A quiet session (nothing served, no edit, no failed command, little exploration) is skipped. Near-duplicates are merged.</li>
+            <li><strong>Merged pull requests</strong> are mined into notes, fixes first, since the record of a fix is what a review draws on most. <code>thinker mine-prs</code> works through history; background maintenance keeps up with new ones. A repository whose work lands by direct commits can mine them instead (<code>--git --fixes</code>).</li>
+            <li><strong>Agents and people</strong> write notes too: the <code>remember</code> tool, <code>thinker add note.json</code>, and <code>thinker system add</code> for a desired behavior.</li>
+          </ul>
         </div>
 
         <div id="symbol-invalidation">
-          <h3>Dependency-Keyed Invalidation</h3>
+          <h3>Staying Correct</h3>
           <p>
-            Traditional documentation goes stale the moment code changes. Thinker avoids this using fine-grained symbol hashing:
+            Traditional documentation goes stale the moment code changes. Thinker avoids this with fine-grained hashing and background upkeep:
           </p>
           <ul>
-            <li>A dependency is tracked as <code>{path, symbol?}</code>. With a symbol, Thinker hashes just that definition block (e.g. <code>AuthManager.verifyToken</code>).</li>
-            <li>A note about <code>AuthManager.verifyToken</code> does not go stale just because an unrelated method in the same file was modified.</li>
-            <li>Every prompt serving re-hashes candidate deps against your working tree, catching uncommitted edits immediately.</li>
-            <li>Stale notes are deprioritized, served with a <code>⚠ STALE</code> banner, and scheduled for background verification.</li>
+            <li>A dependency is <code>{path, symbol?}</code>. With a symbol, Thinker hashes just that definition's block, so a note about <code>AuthManager.verifyToken</code> does not go stale because another method in the same file changed. <code>thinker ast install</code> adds tree-sitter grammars (Python, JavaScript, TypeScript, Go, Rust) for exact boundaries; otherwise a regex heuristic finds the block.</li>
+            <li>Every serving re-hashes the dependencies of every note against your working tree, uncommitted edits included.</li>
+            <li>A stale note is held back by the hooks, verified in the background and served once it is fresh again. <code>orient</code> and <code>lookup</code> called by the agent still return it, under a <code>⚠ STALE</code> banner naming exactly what changed.</li>
+            <li>Verification sends the note, the diff of its changed dependencies and their current text to a small model (Haiku by default), which answers <code>still_valid</code>, <code>update</code> (body rewritten, history kept) or <code>invalid</code> (retired).</li>
+            <li>Maintenance runs by itself, from the prompt hooks at most every ten minutes and after a commit or merge: it re-verifies up to 10 stale notes (the recently served first), writes phrasings for new notes, distills up to 3 newly merged pull requests and archives what the sessions showed is not worth serving, under a cap of 2M tokens a day. What a run did is shown once at the end of the next turn.</li>
           </ul>
         </div>
+      </section>
+
+      <section id="review">
+        <h2>Reviewing a Change</h2>
+        <p>
+          <code>thinker review</code> turns the cache around: instead of serving notes to an agent about to make a change, it checks a change against them. The MCP tool <code>review</code> is the same for an agent before it commits.
+        </p>
+        <pre><code>thinker review                      <span class="code-comment"># the working tree against HEAD</span>
+thinker review --staged             <span class="code-comment"># what is about to be committed</span>
+thinker review --base origin/main   <span class="code-comment"># the branch since its merge base</span>
+thinker review --ref &lt;commit&gt;       <span class="code-comment"># one commit, read from git alone</span>
+thinker review --state src/auth/    <span class="code-comment"># no change: the current code against the notes on it</span></code></pre>
+        <p>
+          A review is for two things: a change that undoes a fix the team already made, and a change that breaks a convention or a desired behavior the cache holds. Measured on real PostHog history, it caught every regression of a fix the cache held a note about, including the ones a plain reading of the diff missed. It is not for bugs in brand-new code, and it says so up front when most of the changed code carries no note.
+        </p>
+        <p>
+          It makes two model calls and merges what they find: one sees the diff and the code it touched, the other sees the notes resting on the changed code and the notes that bear on it. Every finding carries a file, a line, the evidence it rests on and the note it came from. The cache is treated as evidence, not truth: a note that already disagreed with the code before the change is reported as drift of the cache, never charged to the change, and nothing in the cache is rewritten by a review. <code>--kinds behavior</code> consults the desired behaviors alone, <code>--dry</code> makes no model call, <code>--json</code> gives the report as data and <code>--strict</code> exits 2 on an error, for CI.
+        </p>
+      </section>
+
+      <section id="behaviors">
+        <h2>Desired Behaviors</h2>
+        <p>
+          Every other kind of note is a claim about the code, and when they disagree the note yields. A <code>behavior</code> note is the other way round: a person writes down what the system must do and where that is upheld, and from then on a change must conform, or be called out for not conforming.
+        </p>
+        <pre><code>thinker system                      <span class="code-comment"># every behavior, and whether the code upholds it</span>
+thinker system add file.json --fixed
+thinker system promote &lt;id&gt;         <span class="code-comment"># a rule the cache already holds becomes a behavior</span>
+thinker system md                   <span class="code-comment"># write them as .thinker/SYSTEM.md</span></code></pre>
+        <p>
+          A <code>fixed</code> behavior makes a change that stops upholding it an error, with the behavior quoted in full at the top of the review. A <code>mutable</code> one is a warning, and may be revised by a change that edits the note itself. Before a merge the behavior is the truth; once the change is merged, the behavior is revised to match the code, with the old text in its history. Agents can save one with <code>remember</code> (listed as proposed until <code>thinker system accept</code>) and read them all with <code>lookup</code> and <code>kind: "behavior"</code>.
+        </p>
+      </section>
+
+      <section id="team">
+        <h2>Sharing with Your Team</h2>
+        <p>
+          Sessions learn into <code>.thinker/local/notes/</code>, which ignores itself in git. The repository cache lives in <code>.thinker/notes/</code> and travels through ordinary commits and pull requests. Both are served together; usage, staleness and corrections to shared notes stay local, so serving never changes a committed file.
+        </p>
+        <pre><code>thinker share --dry       <span class="code-comment"># the eligible notes, and why others are skipped</span>
+thinker share             <span class="code-comment"># write them into .thinker/notes/</span>
+git add .thinker/notes/   <span class="code-comment"># commit and open your normal pull request</span></code></pre>
+        <p>
+          A note must be fresh, rest on existing code and pass content checks; notes from a person, a document or a merged pull request are eligible, and a session's note needs one confirming assessment. Near-duplicates, home paths and secret-like strings are rejected. <code>thinker list</code> labels notes <code>local</code> or <code>repo</code>.
+        </p>
+        <p>
+          <code>thinker setup</code> installs git hooks: <code>pre-commit</code> checks the shared notes a commit touches against the staged code and repairs or removes what cannot be kept valid (originals go to <code>.thinker/local/quarantine/</code>), <code>pre-push</code> reports issues and always allows the push, and <code>post-commit</code> and <code>post-merge</code> run maintenance in the background. For CI, <code>thinker share --check --base origin/main</code> reports on the committed cache; <code>--strict</code> makes it fail.
+        </p>
       </section>
 
       <section id="local-benchmark">
@@ -701,8 +830,18 @@ thinker benchmark run "explain how permissions are validated on project exports"
 thinker benchmark report</code></pre>
 
         <p>
-          How it works: Thinker makes two read-only agent calls—one without Thinker context and one with the relevant notes—and compares wall time, agent turns, tool calls, and token usage side-by-side. Both answers are saved under <code>.thinker/benchmarks/</code> for human inspection.
+          How it works: Thinker makes two read-only agent calls, one without Thinker context and one with the relevant notes, and compares wall time, agent turns, tool calls, and token usage side by side. Both answers are saved under <code>.thinker/benchmarks/</code> for human inspection. If the cache does not cover the question, no agent call is made and questions it does cover are offered instead.
         </p>
+
+        <div id="usage">
+          <h3>Usage and the Holdout</h3>
+          <p>
+            <code>thinker usage</code> summarizes how the cache has been used on this machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. <code>--here</code> limits it to this repository, <code>--days 7</code> to a period, <code>--json</code> gives the data.
+          </p>
+          <p>
+            One number in it is measured rather than estimated. The hooks serve nothing in 15% of sessions, chosen by a hash of the session id so a session is held out for its whole length, and every session's cost is recorded from its own transcript: tool calls, model turns, input tokens. The Holdout section compares the sessions that got notes with the ones that had notes withheld, as medians per model, once five sessions stand on each side. This is what the notes do for your own work, on your own repository, by your own agent. <code>holdout</code> in the config changes the share or turns it off.
+          </p>
+        </div>
 
         <div id="what-to-expect">
           <h3>What Outcomes to Expect</h3>
@@ -716,7 +855,7 @@ thinker benchmark report</code></pre>
             </li>
             <li>
               <strong>Context &amp; Token Savings (Consistent across all models):</strong>
-              Cuts input context re-reads by <strong>18% to 21%</strong>, directly lowering cost per task by <strong>10% to 16%</strong> across metered models.
+              Cuts input context re-reads by <strong>18% to 21%</strong> and output tokens by <strong>11% to 22%</strong>.
             </li>
             <li>
               <strong>Wall Clock Time (Consistent across all models):</strong>
@@ -743,46 +882,58 @@ thinker benchmark report</code></pre>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td><code>thinker setup</code></td>
-              <td>Interactive 3-stage setup (detect harnesses, build cache, benchmark)</td>
-            </tr>
-            <tr>
-              <td><code>thinker benchmark pr [n]</code></td>
-              <td>Run paired agent benchmark on a recent PR change</td>
-            </tr>
-            <tr>
-              <td><code>thinker benchmark run &lt;query&gt;</code></td>
-              <td>Run paired agent benchmark on an architectural query</td>
-            </tr>
-            <tr>
-              <td><code>thinker benchmark report</code></td>
-              <td>Reprint the latest benchmark comparison table</td>
-            </tr>
-            <tr>
-              <td><code>thinker check</code></td>
-              <td>Check all notes against the current working tree and report stale deps</td>
-            </tr>
-            <tr>
-              <td><code>thinker verify</code></td>
-              <td>Verify stale notes against changed diffs with a fast model</td>
-            </tr>
-            <tr>
-              <td><code>thinker update</code></td>
-              <td>Update Thinker CLI to the latest version</td>
-            </tr>
-            <tr>
-              <td><code>thinker uninstall [--purge]</code></td>
-              <td>Remove agent hooks and MCP registrations (<code>--purge</code> removes notes)</td>
-            </tr>
+            <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set a repository up: connect the agents, then offer to build the cache from merged pull requests and source areas</td></tr>
+            <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
+            <tr><td><code>thinker review [--staged | --base ref | --ref commit | --state]</code></td><td>Check a change against the cache: regressions of known fixes, broken conventions and behaviors</td></tr>
+            <tr><td><code>thinker system [add | promote | accept | propose | md]</code></td><td>The desired behaviors of the system and whether the code upholds each</td></tr>
+            <tr><td><code>thinker share [ids…] [--dry] [--check]</code></td><td>Promote eligible local notes into the repository cache; <code>--check</code> reports on the committed cache for CI</td></tr>
+            <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>, <code>find</code>, <code>drilldown</code></td><td>The MCP tools from the command line</td></tr>
+            <tr><td><code>thinker usage [--here] [--days n]</code></td><td>How the cache has been used, what it cost, and the holdout comparison</td></tr>
+            <tr><td><code>thinker benchmark [pr | run | report]</code></td><td>Paired agent runs with and without the cache</td></tr>
+            <tr><td><code>thinker mine-prs [--git --fixes]</code></td><td>Distill merged pull requests (or fix commits) into notes; nothing is mined twice</td></tr>
+            <tr><td><code>thinker learn</code></td><td>Distill every session a supported agent ran here that has not been distilled yet</td></tr>
+            <tr><td><code>thinker maintain [--dry]</code></td><td>One maintenance run by hand: re-verify, phrase, mine, archive</td></tr>
+            <tr><td><code>thinker check</code>, <code>thinker verify</code></td><td>Mark stale notes against the working tree; re-verify them with a small model</td></tr>
+            <tr><td><code>thinker archive [--list | --restore]</code></td><td>Notes taken out of serving but kept for review</td></tr>
+            <tr><td><code>thinker list</code>, <code>show</code>, <code>add</code>, <code>rm</code></td><td>Notes by hand</td></tr>
+            <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>The local ranking model, and tree-sitter grammars for exact symbol boundaries</td></tr>
+            <tr><td><code>thinker update</code>, <code>thinker rewire</code></td><td>Update the CLI (daily in the background); rewrite every checkout's hooks for the installed version</td></tr>
+            <tr><td><code>thinker uninstall [--purge] [--user]</code></td><td>Remove a repository's hooks and MCP registration (<code>--purge</code> removes notes; <code>--user</code> the machine-wide wiring)</td></tr>
           </tbody>
         </table>
+        <p><code>thinker --help</code> lists every command and flag.</p>
+      </section>
+
+      <section id="configuration">
+        <h2>Configuration</h2>
+        <p>Everything in <code>.thinker/config.json</code> is optional.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Effect</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>learn</code></td><td><code>{"sessions": false}</code> stops distilling sessions; pull requests and re-verification go on</td></tr>
+            <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (2,000,000), <code>verifyPerRun</code> (10), <code>phrasePerRun</code> (8), <code>prsPerRun</code> (3)</td></tr>
+            <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
+            <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
+            <tr><td><code>ce</code></td><td>The cross-encoder: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to rank by words alone</td></tr>
+            <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
+            <tr><td><code>distillModel</code>, <code>verifyModel</code>, <code>reviewModel</code></td><td>The model for each kind of call</td></tr>
+            <tr><td><code>telemetry</code></td><td><code>false</code>: no metrics sent</td></tr>
+          </tbody>
+        </table>
+        <p>
+          In the environment, <code>THINKER_NO_LEARN=1</code> turns learning and maintenance off, <code>THINKER_HOOKS=off</code> silences the hooks, <code>THINKER_MCP=off</code> makes the MCP server offer no tools, and <code>THINKER_LLM</code> picks the agent that answers model calls (<code>claude</code>, <code>codex</code>, <code>cursor</code>, <code>gemini</code>, or <code>anthropic</code> with <code>ANTHROPIC_API_KEY</code>).
+        </p>
       </section>
 
       <section id="telemetry">
         <h2>Privacy & Telemetry</h2>
         <p>
-          Thinker collects anonymous daily effectiveness metrics (cache hit rate, total note count, estimated token savings) to monitor cache quality.
+          Thinker collects pseudonymous daily effectiveness metrics (cache hit rate, total note count, estimated token savings) to monitor cache quality.
         </p>
         <p>
           <strong>No code snippets, note bodies, prompt text, file paths, or repository URLs are ever collected or transmitted.</strong>

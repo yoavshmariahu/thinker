@@ -10,6 +10,7 @@ import { syncConfig, syncNotes, pull as syncPull, push as syncPush, login as syn
 import { subsystemForFile } from '../topology.js';
 import { exportCache, importCache } from '../transfer.js';
 import { summarize, renderUsage } from '../usage.js';
+import { stats, renderStats } from '../stats.js';
 
 async function shareCommand(ctx) {
   const { pos, flags, repo, store, out, readStdin } = ctx;
@@ -147,12 +148,13 @@ async function healthCommand(ctx) {
 }
 
 async function statsCommand(ctx) {
-  const { repo, store, out } = ctx;
-  const notes = store.list();
-  const by = {}; for (const n of notes) by[n.status] = (by[n.status] || 0) + 1;
-  const kinds = {}; for (const n of notes) kinds[n.kind] = (kinds[n.kind] || 0) + 1;
-  out(JSON.stringify({ repo, notes: notes.length, status: by, kinds, uses: notes.reduce((s, n) => s + (n.uses || 0), 0) }, null, 2));
-  return;
+  const { flags, store, out } = ctx;
+  const days = flags.days === undefined ? undefined : Number(flags.days);
+  if (flags.days !== undefined && (typeof flags.days === 'boolean' || !Number.isFinite(days) || days <= 0)) {
+    throw new Error('--days must be a positive number');
+  }
+  const result = stats(store, { here: !!flags.here, days });
+  out(flags.json ? JSON.stringify(result, null, 2) : renderStats(result));
 }
 
 async function usageCommand(ctx) {

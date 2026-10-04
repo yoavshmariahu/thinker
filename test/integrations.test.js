@@ -54,10 +54,10 @@ test('generated extension modules load and option flags suppress learning handle
     const loaded = await import(pathToFileURL(path.join(repo, file)).href);
     if (client === 'pi') {
       const handlers = {}; loaded.default({ on: (ev, fn) => { handlers[ev] = fn; } });
-      assert.deepEqual(Object.keys(handlers), ['before_agent_start']);
+      assert.deepEqual(Object.keys(handlers), ['before_agent_start', 'agent_end']);
     } else {
       const handlers = await loaded.default({});
-      assert.equal(handlers.event, undefined); assert.equal(handlers['tool.execute.after'], undefined);
+      assert.equal(typeof handlers.event, 'function'); assert.equal(handlers['tool.execute.after'], undefined);
     }
   }
 });
@@ -78,4 +78,22 @@ test('extension runner launches Node even when the host executable is not Node',
   process.execPath = '/not/a/node/host';
   try { assert.equal(await hookRunner({ ...config, repo, cli: script })('prompt', {}), 'node works'); }
   finally { process.execPath = original; }
+});
+
+
+test('native extensions display stop notices with learning disabled', async () => {
+  const cfg = { ...config, learn: false };
+  const handlers = {}, notices = [];
+  piExtension({ on: (name, fn) => { handlers[name] = fn; } }, cfg, async () => 'cache hit');
+  await handlers.agent_end({ messages: [] }, { sessionManager: { getSessionId: () => 'pi' }, hasUI: true, ui: { notify: (text, kind) => notices.push([text, kind]) } });
+  assert.deepEqual(notices, [['cache hit', 'info']]);
+  assert.equal(handlers.session_shutdown, undefined);
+  const toasts = [];
+  let text = 'cache hit';
+  const oc = await opencodePlugin({ ...cfg, client: 'opencode' }, async () => text)({ client: { tui: { showToast: async event => toasts.push(event) } } });
+  await oc.event({ event: { type: 'session.idle', properties: { sessionID: 'oc' } } });
+  assert.deepEqual(toasts, [{ body: { message: 'cache hit', variant: 'info' } }]);
+  text = '';
+  await oc.event({ event: { type: 'session.idle', properties: { sessionID: 'oc' } } });
+  assert.equal(toasts.length, 1, 'empty output does not display a notice');
 });

@@ -1,6 +1,6 @@
 import { hookRunner } from './runner.js';
 export function opencodePlugin(config, run = hookRunner(config)) {
-  return async () => ({
+  return async ({ client } = {}) => ({
     ...(config.mcp ? { config: async c => { c.mcp = { ...c.mcp, thinker: { type: 'local', command: [config.mcpEntry.command, ...config.mcpEntry.args], environment: config.mcpEntry.env || {}, enabled: true } }; } } : {}),
     ...(config.hooks ? {
       'chat.message': async (input, output) => {
@@ -14,10 +14,15 @@ export function opencodePlugin(config, run = hookRunner(config)) {
         const text = await run('tool', { session_id: input.sessionID, tool_name: input.tool, tool_input: input.args, tool_response: output.output });
         if (text) output.output += '\n\n' + text;
       } } : {}),
-      ...(config.learn ? { event: async ({ event }) => {
-        if (event.type === 'session.idle') await run('stop', { session_id: event.properties.sessionID });
-        if (event.type === 'session.deleted') await run('stop', { session_id: event.properties.info.id, hook_event_name: 'SessionEnd' });
-      } } : {}),
+      event: async ({ event }) => {
+        if (event.type === 'session.idle') {
+          const notice = await run('stop', { session_id: event.properties.sessionID });
+          if (notice) {
+            try { await client?.tui?.showToast({ body: { message: notice, variant: 'info' } }); } catch {}
+          }
+        }
+        if (config.learn && event.type === 'session.deleted') await run('stop', { session_id: event.properties.info.id, hook_event_name: 'SessionEnd' });
+      },
     } : {}),
   });
 }

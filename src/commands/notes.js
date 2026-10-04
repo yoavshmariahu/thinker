@@ -6,11 +6,11 @@ import path from 'node:path';
 import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBehaviors, writeSystemMarkdown } from '../behavior.js';
 import { annotateFanout } from '../codegraph.js';
 import { formatTokens } from '../model-usage.js';
-import { orient, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
+import { orient, trackTurn, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
 
 async function orientCommand(ctx) {
   const { pos, flags, store, out } = ctx;
-  const r = await orient(store, { task: pos.join(' '), file: flags.file, client: flags.client || 'cli', budget: Number(flags.budget) || 1000, snippets: !!flags.snippets });
+  const r = await orient(store, { task: pos.join(' '), file: flags.file, session: flags.session || process.env.THINKER_SESSION, client: flags.client || 'cli', budget: Number(flags.budget) || 1000, snippets: !!flags.snippets });
   out(r.included.length ? r.text : '(no matching notes)');
   return;
 }
@@ -18,6 +18,7 @@ async function orientCommand(ctx) {
 async function lookupCommand(ctx) {
   const { pos, flags, store, out } = ctx;
   const r = lookup(store, { query: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3, snippets: !!flags.snippets, kind: typeof flags.kind === 'string' ? flags.kind : undefined });
+  trackTurn(store, flags.session || process.env.THINKER_SESSION, r.included.map(note => note.id));
   out(r.included.length ? r.text : '(nothing cached about that)');
   return;
 }

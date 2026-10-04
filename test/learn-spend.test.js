@@ -64,7 +64,8 @@ test('Claude Code gets a SessionEnd hook beside Stop when learning is on', () =>
   assert.ok(hooks.SessionEnd[0].hooks[0].command.endsWith('hook stop'));
   installClient('claude', { repo: dir, cli: CLI, mcpEntry: { command: 'node', args: ['/x/mcp.js'] }, hooks: true, learn: false, late: false, shared: false, mcp: false });
   const again = JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.local.json'), 'utf8')).hooks;
-  assert.ok(!again.SessionEnd && !again.Stop, 'learning off: neither');
+  assert.ok(!again.SessionEnd && again.Stop, 'learning off: keep the turn notice only');
+  assert.match(again.Stop[0].hooks[0].command, / --no-distill$/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

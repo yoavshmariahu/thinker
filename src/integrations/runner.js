@@ -6,6 +6,7 @@ export function hookRunner(config) {
     if (process.env.THINKER_IN_LLM) return resolve('');
     const args = [config.cli, 'hook', what, '--client', config.client, '--repo', config.repo];
     if (config.learn) args.push('--record');
+    else if (what === 'stop') args.push('--no-distill');
     if (config.late && what === 'tool') args.push('--late');
     // The host may be a Bun executable (OpenCode), not a Node executable.
     const child = execFile('node', args, { cwd: config.repo, timeout: 15000, maxBuffer: 1024 * 1024, env: process.env }, (err, stdout) => resolve(err ? '' : stdout.trim()));

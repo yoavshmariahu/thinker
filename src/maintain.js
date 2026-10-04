@@ -57,11 +57,21 @@ export function withinDailyCap(store, { now = new Date(), spentFn = spentToday }
   return { ok: spent < cap, spent, cap };
 }
 
-// Said once, at the end of a turn: learning stopped because the day's tokens are used up.
-export function reportCapped(store, { spent, cap }) {
+function capDay(now) {
+  return [now.getFullYear(), now.getMonth() + 1, now.getDate()].join('-');
+}
+function capNoticeFile(store) { return path.join(store.dir, 'state', 'cap-notice.json'); }
+function capWasReported(store, day) {
+  try { return JSON.parse(fs.readFileSync(capNoticeFile(store), 'utf8')).day === day; } catch { return false; }
+}
+
+// Said once per local day, at the end of a turn: learning stopped because the day's tokens are used up.
+export function reportCapped(store, { spent, cap }, { now = new Date() } = {}) {
+  const day = capDay(now);
+  if (capWasReported(store, day)) return;
   const state = readState(store);
   const u = state.unreported || {};
-  u.capped = { spent, cap };
+  u.capped = { spent, cap, day };
   state.unreported = u;
   try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
 }
@@ -181,7 +191,7 @@ export function reportPruned(store, lines) {
   try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
 }
 
-export function maintenanceNotice(store) {
+export function maintenanceNotice(store, { now = new Date() } = {}) {
   const state = readState(store);
   const u = state.unreported;
   if (!u) return '';
@@ -196,7 +206,16 @@ export function maintenanceNotice(store) {
   if (u.pulled || u.pushed) parts.push(`team cache: ${[u.pulled ? `${u.pulled} ${u.pulled === 1 ? 'note' : 'notes'} pulled` : '', u.pushed ? `${u.pushed} pushed` : ''].filter(Boolean).join(', ')}`);
   if (u.share) parts.push(u.share);
   if (u.pruned?.length) parts.push(...u.pruned);
-  if (u.capped) parts.push(`learning paused for today: ${formatTokens(u.capped.spent)} of the ${formatTokens(u.capped.cap)} tokens it may use a day are used (maintain.dailyTokens in .thinker/config.json raises it)`);
+  if (u.capped) {
+    const day = capDay(now);
+    if ((!u.capped.day || u.capped.day === day) && !capWasReported(store, day)) {
+      parts.push(`learning paused for today: ${formatTokens(u.capped.spent)} of the ${formatTokens(u.capped.cap)} tokens it may use a day are used (maintain.dailyTokens in .thinker/config.json raises it)`);
+      // Separate from maintain.json: a background run can rewrite that state after this notice.
+      try { fs.writeFileSync(capNoticeFile(store), JSON.stringify({ day })); } catch {}
+    }
+    delete u.capped;
+    try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
+  }
   if (u.revised?.length) parts.push(`✎ ${u.revised.length === 1 ? 'a desired behavior was' : `${u.revised.length} desired behaviors were`} revised to match the merged code: ${u.revised.slice(0, 3).map(v => `"${v.title}" (${v.id}${v.commit ? ` at ${String(v.commit).slice(0, 10)}` : ''}${v.reason ? `: ${v.reason.slice(0, 120)}` : ''})`).join('; ')}${u.revised.length > 3 ? ', …' : ''}; thinker system shows the new text`);
   if (u.violated?.length) parts.push(`⚠ ${u.violated.length === 1 ? 'a desired behavior is' : `${u.violated.length} desired behaviors are`} no longer upheld by the code: ${u.violated.slice(0, 3).map(v => `"${v.title}" (${v.id}${v.reason ? `: ${v.reason.slice(0, 120)}` : ''})`).join('; ')}${u.violated.length > 3 ? '; …' : ''}; restore the code or revise the behavior (thinker system)`);
   if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} left stale after being re-verified ${maintainConfig(store).verifyChurn}+ times this week (${u.churning.slice(0, 3).join(', ')}${u.churning.length > 3 ? ', …' : ''}): their code is changing; narrow their pointers or retire them`);
