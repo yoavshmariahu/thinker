@@ -143,4 +143,7 @@ test('pickPrs takes fixes first, leaves a share for other changes, and never mor
   assert.deepEqual(pickPrs(fixes, 2).map(p => /fix|correct/i.test(p.title)), [true, true], 'only fixes: all slots are fixes');
   assert.deepEqual(pickPrs(feats, 2).length, 2);
   assert.equal(pickPrs([...feats, ...fixes], 10).length, 6);
+  const many = [...Array.from({ length: 8 }, (_, i) => pr(10 + i, `fix: thing ${i}`)), pr(30, 'feat: one feature')];
+  assert.equal(pickPrs(many, 6).length, 6, 'a lone non-fix does not leave fix slots idle');
+  assert.equal(pickPrs(many, 6).filter(p => /^fix/.test(p.title)).length, 5);
 });

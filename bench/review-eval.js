@@ -126,7 +126,8 @@ function prepare(repo, c, review) {
 }
 
 const at = (file, line, expect) => expect.files.includes(file) && (expect.anyLine || (line > 0 && (expect.lines[file] || []).some(l => Math.abs(l - line) <= 6)));
-const isHit = (f, expect) => (f.severity === 'error' || f.severity === 'warning') && (at(f.file, f.line, expect) || (f.locations || []).some(l => at(l.file, l.line, expect)));
+const signalAt = x => x.severity === 'error' || x.severity === 'warning';
+const isHit = (f, expect) => (signalAt(f) && at(f.file, f.line, expect)) || (f.locations || []).some(l => signalAt(l) && at(l.file, l.line, expect));
 
 async function run() {
   const repo = path.resolve(flags.repo || '.');

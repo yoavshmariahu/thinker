@@ -43,8 +43,9 @@ function removedRanges(sha) {
   const text = git(['diff', '--no-color', '-U0', `${sha}^`, sha, '--', '.']);
   const ranges = {}; let file = null;
   for (const line of text.split('\n')) {
-    if (line.startsWith('--- ')) { const p = line.slice(4).replace(/^a\//, ''); file = p === '/dev/null' ? null : p; continue; }
-    if (line.startsWith('+++ ')) continue;
+    const h = line.match(/^diff --git a\/(.*) b\/(.*)$/); // the header, not a removed line that happens to start with "--"
+    if (h) { file = h[1]; continue; }
+    if (line.startsWith('--- ') || line.startsWith('+++ ')) continue;
     const m = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
     if (m && file && isCode(file)) {
       const start = Number(m[1]), len = m[2] === undefined ? 1 : Number(m[2]);
@@ -68,38 +69,6 @@ function blame(sha, file, ranges) {
   return hits;
 }
 
-function afterBase(sha) { try { execFileSync('git', ['merge-base', '--is-ancestor', base, sha], { cwd: repo, stdio: 'ignore' }); return sha !== git(['rev-parse', base]).trim(); } catch { return false; } }
-
-const log = git(['log', '--first-parent', '--format=%H%x09%ad%x09%s', '--date=short', `${base}..${head}`]).trim().split('\n').filter(Boolean).map(l => { const [sha, date, subject] = l.split('\t'); return { sha, date, subject, pr: prNumber(subject) }; });
-const bySha = new Map(log.map(c => [c.sha, c]));
-const fixes = log.filter(c => FIX_LIKE.test(c.subject) && !/^revert/i.test(c.subject) && c.pr);
-process.stderr.write(`${log.length} commits since ${base}; ${fixes.length} look like fixes\n`);
-
-const cases = [], blamed = new Set();
-for (const f of fixes) {
-  if (cases.length >= limit) break;
-  const s = stat(f.sha);
-  if (!s.codeFiles.length || s.removed + s.added > maxFixLines * 2 || s.removed > maxFixLines) continue;
-  const ranges = removedRanges(f.sha);
-  const hits = [];
-  for (const [file, rs] of Object.entries(ranges)) hits.push(...blame(f.sha, file, rs));
-  if (!hits.length) continue;
-  const count = new Map();
-  for (const h of hits) count.set(h.sha, (count.get(h.sha) || 0) + 1);
-  const [top, n] = [...count.entries()].sort((a, b) => b[1] - a[1])[0];
-  for (const sha of count.keys()) blamed.add(sha);
-  const share = n / hits.length;
-  if (share < minShare || !bySha.has(top) || top === f.sha) continue;
-  const inducing = bySha.get(top);
-  if (!inducing.pr || /^revert/i.test(inducing.subject)) continue;
-  const ps = stat(top);
-  if (ps.added + ps.removed > maxPrLines || ps.codeFiles.length > maxPrFiles) { process.stderr.write(`  skip ${f.pr} <- ${inducing.pr}: inducing PR too large (${ps.added + ps.removed} lines, ${ps.codeFiles.length} files)\n`); continue; }
-  const lines = {};
-  for (const h of hits.filter(h => h.sha === top)) (lines[h.origFile] ||= new Set()).add(h.origLine);
-  const expect = { files: Object.keys(lines), lines: Object.fromEntries(Object.entries(lines).map(([k, v]) => [k, [...v].sort((a, b) => a - b)])) };
-  cases.push({ id: `I-${inducing.pr}-fixed-by-${f.pr}`, kind: 'inducing', sha: top.slice(0, 11), pr: inducing.pr, inducingDate: inducing.date, inducingSubject: inducing.subject, fix: { sha: f.sha.slice(0, 11), pr: f.pr, date: f.date, subject: f.subject, removed: hits.length, share: Math.round(share * 100) / 100 }, size: { lines: ps.added + ps.removed, files: ps.codeFiles.length }, expect });
-  process.stderr.write(`  ${f.date} fix #${f.pr} "${f.subject.slice(0, 70)}"\n      <- #${inducing.pr} (${inducing.date}, ${ps.added + ps.removed} lines, ${ps.codeFiles.length} files) share ${share.toFixed(2)} lines ${Object.entries(expect.lines).map(([k, v]) => `${k}:${v.join(',')}`).join(' ').slice(0, 120)}\n`);
-}
 
 // Controls: non-fix commits of similar size, never blamed by any fix in the range, oldest first so
 // they sit close to the base.

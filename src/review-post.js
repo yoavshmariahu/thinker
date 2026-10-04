@@ -22,15 +22,16 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   const titles = new Map([...(r.behaviors || []), ...(r.toAssess || [])].map(n => [n.id, n.title]));
   const label = f => { const ids = f.notes?.length ? f.notes : f.note ? [f.note] : []; return ids.length ? ids.map(id => titles.has(id) ? `${titles.get(id)} (${id})` : id).join(', ') : f.basis || 'from the code'; };
   const findings = [...(r.findings || [])].sort((a, b) => (SEV[a.severity] ?? 1) - (SEV[b.severity] ?? 1) || (b.confidence || 0) - (a.confidence || 0));
+  const onLine = x => !!(x && x.file && x.line > 0 && x.inChange);
   const inline = [], rest = [];
-  for (const f of findings) (f.file && f.line > 0 && f.inChange ? inline : rest).push(f);
+  for (const f of findings) (onLine(f) || (f.locations || []).some(onLine) ? inline : rest).push(f);
   const one = f => `**${f.severity}** ${esc(f.message)}${f.evidence ? `\n\n> ${esc(f.evidence).split('\n').map(s => s.trim()).filter(Boolean).join('\n> ')}` : ''}\n\n<sub>${esc(label(f))}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}</sub>`;
   // one inline comment per place a finding was seen on a changed line: its own, and each location
   // the clustering folded into it (the same regression in the serializer, the test, the docs)
   const comments = [];
   for (const f of findings) {
-    if (f.file && f.line > 0 && f.inChange) comments.push({ path: f.file, line: f.line, side: 'RIGHT', body: `${MARKER}\n${one(f)}` });
-    for (const l of f.locations || []) if (l.file && l.line > 0 && l.inChange) comments.push({ path: l.file, line: l.line, side: 'RIGHT', body: `${MARKER}\n${one({ ...f, message: l.message, evidence: l.evidence, severity: l.severity || f.severity, confidence: l.confidence })}` });
+    if (onLine(f)) comments.push({ path: f.file, line: f.line, side: 'RIGHT', body: `${MARKER}\n${one(f)}` });
+    for (const l of f.locations || []) if (onLine(l)) comments.push({ path: l.file, line: l.line, side: 'RIGHT', body: `${MARKER}\n${one({ ...f, message: l.message, evidence: l.evidence, severity: l.severity || f.severity, confidence: l.confidence })}` });
   }
   const also = f => f.locations?.length ? ` <sub>also at ${f.locations.slice(0, 6).map(l => code(`${l.file}${l.line ? ':' + l.line : ''}`)).join(', ')}${f.locations.length > 6 ? ` (+${f.locations.length - 6} more)` : ''}</sub>` : '';
   const behaviors = r.behaviors || [];
@@ -71,7 +72,7 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
       for (const f of rest) L.push(`- **${f.severity}** ${f.file ? code(`${f.file}${f.line ? ':' + f.line : ''}`) + ' ' : ''}${esc(f.message)} <sub>${esc(label(f))}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}</sub>${also(f)}`);
       L.push('');
     }
-    if (inline.length) L.push(`${inline.length} finding${inline.length === 1 ? '' : 's'} on changed lines ${inline.length === 1 ? 'is' : 'are'} commented inline.`, '');
+    if (comments.length) L.push(`${comments.length} comment${comments.length === 1 ? '' : 's'} on changed lines ${comments.length === 1 ? 'is' : 'are'} posted inline${inline.length !== comments.length ? ` (${inline.length} finding${inline.length === 1 ? '' : 's'})` : ''}.`, '');
     const cache = [];
     const n = r.notes || {};
     if (n.staleBefore?.length) cache.push(`${n.staleBefore.length} consulted note${n.staleBefore.length === 1 ? ' was' : 's were'} already stale before this change: ${n.staleBefore.map(s => code(s.id)).join(', ')}`);
@@ -84,7 +85,9 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   const body = L.join('\n');
   const fail = failOn === 'error' ? counts.error > 0 : failOn === 'warning' ? counts.error + counts.warning > 0 : false;
   const event = counts.error > 0 ? 'REQUEST_CHANGES' : 'COMMENT';
-  const something = !!(r.error || findings.length || violated.length || (!r.empty && !r.noCache && blindSpot(r)));
+  // a blind spot is said whenever a review is posted, and never the reason to post one: on a young
+  // cache most pull requests would get a comment saying the cache knows nothing yet
+  const something = !!(r.error || findings.length || violated.length);
   const post = something || !quiet && !r.empty && !r.noCache && (behaviors.length > 0 || (r.notes?.consulted ?? 0) > 0);
   const summary = r.error ? `review failed: ${r.error}` : r.noCache ? 'no cache in this repository' : r.empty ? 'nothing to review' : `${counts.error} errors, ${counts.warning} warnings; ${violated.length} of ${behaviors.length} behaviors violated`;
   return { post, event, body, comments, fail, summary };

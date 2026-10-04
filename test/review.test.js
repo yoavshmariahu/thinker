@@ -268,6 +268,16 @@ test('findings resting on one note at several files become one finding with loca
   assert.deepEqual(one.notes.sort(), ['n1', 'n2']); // the nearby finding of n2 joined within the file first
   assert.deepEqual(one.locations.map(l => l.file).sort(), ['a/model.py', 'tests/test_model.py']);
   assert.equal(out.find(f => f.file === 'b/other.py').locations, undefined);
+  // idempotent: clustering a clustered report keeps the notes and locations
+  const again = clusterFindings(out);
+  assert.equal(again.length, 2); assert.deepEqual(again.find(f => f.notes.includes('n1')).notes.sort(), ['n1', 'n2']); assert.equal(again.find(f => f.notes.includes('n1')).locations.length, 2);
+  // transitive: a finding citing two notes joins the clusters of both
+  const tri = clusterFindings([
+    { severity: 'warning', file: 'x.py', line: 1, message: 'A', confidence: 0.7, note: 'a', inChange: true },
+    { severity: 'warning', file: 'y.py', line: 1, message: 'B', confidence: 0.7, note: 'b', inChange: true },
+    { severity: 'error', file: 'z.py', line: 1, message: 'A and B', confidence: 0.9, notes: ['a', 'b'], note: 'a', inChange: true },
+  ]);
+  assert.equal(tri.length, 1); assert.equal(tri[0].file, 'z.py'); assert.deepEqual(tri[0].locations.map(l => l.file).sort(), ['x.py', 'y.py']);
   const text = renderReview({ scope: 'x', files: [{ path: 'a/model.py', status: 'M' }], notes: { consulted: 1, direct: 1, related: 0, assessed: 1, staleBefore: [], outdated: [], uncovered: [] }, findings: out, counts: { error: 1, warning: 1, info: 0 }, errors: [], verdicts: [], strategy: { mode: 'ensemble' } });
   assert.match(text, /also at: a\/model.py:10 \(guard removed\); tests\/test_model.py/);
 });

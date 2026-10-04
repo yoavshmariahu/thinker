@@ -725,8 +725,9 @@ export function clusterFindings(findings, { span = 8 } = {}) {
   const out = [];
   for (const f of [...findings].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)) {
     const c = f.file && f.line ? out.find(m => m.file === f.file && m.line && Math.abs(m.line - f.line) <= span) : null;
-    if (!c) { out.push({ ...f, notes: f.note ? [f.note] : [] }); continue; }
-    if (f.note && !c.notes.includes(f.note)) c.notes.push(f.note);
+    if (!c) { out.push({ ...f, notes: f.notes?.length ? [...f.notes] : f.note ? [f.note] : [], ...(f.locations?.length ? { locations: [...f.locations] } : {}) }); continue; } // a finding clustered before keeps its notes and locations
+    for (const id of f.notes?.length ? f.notes : f.note ? [f.note] : []) if (!c.notes.includes(id)) c.notes.push(id);
+    if (f.locations?.length) c.locations = [...(c.locations || []), ...f.locations];
     if ((SEV[f.severity] ?? 1) < (SEV[c.severity] ?? 1)) c.severity = f.severity;
     if ((f.confidence || 0) > (c.confidence || 0)) Object.assign(c, { message: f.message, evidence: f.evidence, confidence: f.confidence, note: f.note, category: f.category, inChange: f.inChange, line: f.line });
   }
@@ -735,17 +736,22 @@ export function clusterFindings(findings, { span = 8 } = {}) {
   // described it, and each was a finding of its own (on the PostHog regressions, two findings a
   // review against the baseline's one; bench/RESULTS.md, "Real bugs on PostHog"). Findings resting
   // on a shared note become one, placed where the model was surest, the rest kept as `locations`.
+  // on `locations`. Transitive: a cluster sharing a note with two earlier ones joins them too.
   const merged = [];
   const rank = f => (2 - (SEV[f.severity] ?? 1)) * 10 + (f.confidence || 0);
   const place = f => ({ file: f.file, line: f.line, message: f.message, evidence: f.evidence, severity: f.severity, confidence: f.confidence, inChange: f.inChange });
   for (const c of out) {
-    const home = c.notes.length ? merged.find(m => m.notes.some(id => c.notes.includes(id))) : null;
-    if (!home) { merged.push(c); continue; }
-    const locations = [...(home.locations || []), ...(c.locations || [])];
-    if (rank(c) > rank(home)) { locations.push(place(home)); Object.assign(home, place(c), { note: c.note, category: c.category }); }
-    else locations.push(place(c));
-    for (const id of c.notes) if (!home.notes.includes(id)) home.notes.push(id);
-    home.locations = locations;
+    const kin = c.notes.length ? merged.filter(m => m.notes.some(id => c.notes.includes(id))) : [];
+    if (!kin.length) { merged.push(c); continue; }
+    const home = kin[0];
+    for (const other of [c, ...kin.slice(1)]) {
+      if (other !== c) merged.splice(merged.indexOf(other), 1);
+      const locations = [...(home.locations || []), ...(other.locations || [])];
+      if (rank(other) > rank(home)) { locations.push(place(home)); Object.assign(home, place(other), { note: other.note, category: other.category }); }
+      else locations.push(place(other));
+      for (const id of other.notes) if (!home.notes.includes(id)) home.notes.push(id);
+      home.locations = locations;
+    }
   }
   return merged;
 }

@@ -2,7 +2,8 @@
 // Regression cases for review-eval: fix commits merged before the base (the commit the noteset was
 // built at) whose revert still applies to it, so the bug the fix removed comes back as the change
 // under review. Marked with whether the noteset holds a note mined from that very pull request
-// (`noted`: the cache knows the fix) so the two can be reported apart.
+// (`noted`: the cache knows the fix) so the two can be reported apart. Noted fixes are taken first,
+// so under --limit the unnoted side is whatever was left, not a random sample of the window.
 //
 //   node bench/review-eval-mine-reverts.js --repo bench/repos/posthog --base a3b3c3685bc --notes bench/notesets/posthog-v3/notes
 //        [--days 21] [--max-fix-lines 120] [--limit 30] --out file.json

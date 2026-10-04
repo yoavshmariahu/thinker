@@ -50,6 +50,15 @@ test('buildReview: nothing to report posts nothing when quiet, the table when no
   const q = buildReview(clean);
   assert.equal(q.post, false); assert.equal(q.fail, false); assert.equal(q.event, 'COMMENT');
   assert.equal(buildReview(clean, { quiet: false }).post, true);
+  // a blind spot (most changed code files carry no note) is said when a review posts, and never the reason to post one
+  const blind = { ...clean, kinds: undefined, strategy: { mode: 'ensemble' }, files: [{ path: 'src/a.js', status: 'M' }, { path: 'src/b.js', status: 'M' }], notes: { ...clean.notes, uncovered: ['src/a.js', 'src/b.js'] } };
+  assert.equal(buildReview(blind).post, false);
+  assert.match(buildReview(blind, { quiet: false }).body, /⚠ Blind on all 2 changed code files: no note rests on them/);
+  // a merged finding whose home is off the diff but whose locations are on it is commented at each location and counted as inline
+  const folded = { ...report, findings: [{ severity: 'error', file: 'src/core.py', line: 0, message: 'guard gone', confidence: 0.9, notes: ['n1'], inChange: false, locations: [{ file: 'src/core.py', line: 4, message: 'the check was removed here', severity: 'error', confidence: 0.9, inChange: true }, { file: 'tests/test_core.py', line: 9, message: 'its test too', severity: 'warning', confidence: 0.8, inChange: true }] }] };
+  const fb = buildReview(folded);
+  assert.equal(fb.comments.length, 2); assert.deepEqual(fb.comments.map(c => `${c.path}:${c.line}`), ['src/core.py:4', 'tests/test_core.py:9']);
+  assert.match(fb.body, /2 comments on changed lines are posted inline \(1 finding\)/); assert.doesNotMatch(fb.body, /#### Findings/);
   assert.match(buildReview(clean, { quiet: false }).body, /\| ✅ \| invoke validates ctx before main/);
   const empty = buildReview({ empty: true, scope: 'x' });
   assert.equal(empty.post, false); assert.match(empty.body, /Nothing to review/);

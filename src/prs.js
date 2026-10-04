@@ -183,8 +183,8 @@ export function stratifyPrs(prs, limit = 20) {
 
   for (const list of groups.values()) {
     list.sort((a, b) => {
-      const aFix = /fix|bug|issue|resolve|crash|regression/i.test(a.title) ? 2 : 0;
-      const bFix = /fix|bug|issue|resolve|crash|regression/i.test(b.title) ? 2 : 0;
+      const aFix = FIX_LIKE.test(a.title) ? 2 : 0;
+      const bFix = FIX_LIKE.test(b.title) ? 2 : 0;
       const aBody = (a.body || '').length > 250 ? 1 : 0;
       const bBody = (b.body || '').length > 250 ? 1 : 0;
       return (bFix + bBody) - (aFix + aBody) || String(b.mergedAt).localeCompare(String(a.mergedAt));
@@ -219,7 +219,7 @@ export function stratifyPrs(prs, limit = 20) {
 export function pickPrs(candidates, limit = 20) {
   const isFix = p => FIX_LIKE.test(`${p.title}\n${(p.body || '').slice(0, 400)}`);
   const fixes = candidates.filter(isFix), rest = candidates.filter(p => !isFix(p));
-  const share = rest.length ? Math.max(1, Math.ceil(limit * 2 / 3)) : limit;
+  const share = rest.length ? Math.max(1, Math.ceil(limit * 2 / 3), limit - rest.length) : limit; // the rest fills what is left, never idle slots
   const first = stratifyPrs(fixes, Math.min(share, limit));
   return [...first, ...stratifyPrs(rest, limit - first.length)];
 }
