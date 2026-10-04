@@ -1,5 +1,13 @@
 {
   "version": 1,
   "verifyModel": "haiku",
-  "distillModel": "sonnet"
+  "distillModel": "haiku",
+  "learn": {
+    "sessions": true
+  },
+  "learnTrial": {
+    "since": "2026-10-04",
+    "model": "haiku",
+    "note": "30-day trial of Haiku distill with quiet-session skipping; compare thinker usage distillation yield and acted-on rate against the Sonnet weeks"
+  }
 }
