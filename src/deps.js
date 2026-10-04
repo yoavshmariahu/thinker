@@ -200,10 +200,26 @@ export function hashDepAtIndex(repo, dep, opts = {}) {
 export function checkNote(repo, note, { ref, index = false, narrow = false } = {}) {
   const changed = [];
   let upgraded = false;
+  // A stored hash that no longer matches is not always the code moving: the hasher moves too.
+  // When `findSymbol` is changed, every symbol it now cuts differently hashes differently on code
+  // nobody touched (33 of 692 notes of one cache went stale on an identical checkout after one such
+  // change). The current hasher applied to the code as it was at `verifiedCommit` settles it: the
+  // same hash then and now means the code is as it was verified, and the record is simply
+  // brought up to date, as when the parser arrives.
+  const unchangedSinceVerified = (d, now) => {
+    if (!d.symbol || !note.verifiedCommit || !now.hash) return false;
+    const then = hashDepAt(repo, { path: d.path, symbol: d.symbol }, note.verifiedCommit);
+    return !then.missing && then.hash === now.hash;
+  };
   const deps = (note.deps || []).flatMap(d => {
     let now = index ? hashDepAtIndex(repo, d) : ref ? hashDepAt(repo, d, ref) : hashDep(repo, d);
     if (now.missing) changed.push({ path: d.path, symbol: d.symbol, reason: 'file removed' });
-    else if (now.symbolMissing && !d.symbolMissing) changed.push({ path: d.path, symbol: d.symbol, reason: 'symbol not found' });
+    else if (now.symbolMissing && !d.symbolMissing) {
+      // the current hasher does not find the symbol now; if it did not find it at verification either, it never
+      // went away since, an older hasher recorded it, and the record follows the hasher as above
+      if (unchangedSinceVerified(d, now)) upgraded = true;
+      else changed.push({ path: d.path, symbol: d.symbol, reason: 'symbol not found' });
+    }
     else if (d.hash && now.hash !== d.hash) {
       // a co-change note says its files change together: a partner file changing is what it predicts,
       // not evidence against it. Only a removed file or a changed named symbol counts; the hash moves on.
@@ -218,6 +234,7 @@ export function checkNote(repo, note, { ref, index = false, narrow = false } = {
         if (narrowed) { upgraded = true; return narrowed; }
         changed.push({ path: d.path, symbol: d.symbol, reason: 'file changed' });
       }
+      else if (unchangedSinceVerified(d, now)) upgraded = true; // the hasher changed, the code did not: store its hash
       else changed.push({ path: d.path, symbol: d.symbol, reason: d.symbol && !now.symbolMissing ? 'symbol body changed' : 'file changed' });
     }
     if (d.fanout) now.fanout = d.fanout; // reference counts (codegraph.js) are kept until the note is re-verified

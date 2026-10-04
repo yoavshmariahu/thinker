@@ -7,6 +7,7 @@ import { findSymbol, hashDep, checkNote, repoFile } from '../src/deps.js';
 import { extractDeps, createNote, refresh } from '../src/ops.js';
 import { Store } from '../src/store.js';
 import { rank, pack, tokenize } from '../src/rank.js';
+import { execFileSync } from 'node:child_process';
 
 const PY = `import os\n\nclass Foo:\n    def bar(self, x):\n        return x + 1\n\n    def baz(self):\n        return 2\n\ndef bar():\n    return 0\n\n@decorator\ndef top():\n    pass\n`;
 const JS = `export function foo(a) {\n  return a;\n}\nconst bar = (x) => {\n  return x;\n};\nexport class Baz {\n  qux() { return 1; }\n}\n`;
@@ -116,4 +117,24 @@ test('rank serves nothing when no note covers the request, though one of them is
   const old = process.env.THINKER_MIN_COVER; process.env.THINKER_MIN_COVER = '0,0';
   try { assert.equal(rank(notes, { query: request })[0]?.note.id, 'order'); } finally { if (old === undefined) delete process.env.THINKER_MIN_COVER; else process.env.THINKER_MIN_COVER = old; }
   assert.equal(rank(notes, { query: 'When a bulk invite has some addresses that fail, the invites that failed are not reported and the rest are not sent' })[0].note.id, 'invite');
+});
+
+test('a hash that moved because the hasher changed, not the code, is brought up to date rather than marked stale', () => {
+  const repo = tmpRepo();
+  const git = (...a) => execFileSync('git', a, { cwd: repo, stdio: 'ignore' });
+  git('init', '-q'); git('add', '-A'); git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'base');
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
+  const dep = hashDep(repo, { path: 'src/a.py', symbol: 'Foo.bar' });
+  // an older hasher stored a different hash (and found a symbol this one does not) for the same, unchanged code
+  const note = { verifiedCommit: head, deps: [{ ...dep, hash: 'sha256:old-hasher' }, { path: 'src/a.py', symbol: 'nosuch', hash: 'sha256:old-hasher-too' }] };
+  const r = checkNote(repo, note);
+  assert.deepEqual(r.changed, []);
+  assert.equal(r.upgraded, true);
+  assert.equal(r.deps[0].hash, dep.hash);
+  assert.equal(r.deps[1].symbolMissing, true);
+  // the same mismatch on code that did change since verification is still a change
+  fs.writeFileSync(path.join(repo, 'src/a.py'), PY.replace('return x + 1', 'return x + 2'));
+  assert.equal(checkNote(repo, note).changed[0].reason, 'symbol body changed');
+  // and a note without a verifiedCommit is judged as before
+  assert.equal(checkNote(repo, { deps: [{ ...dep, hash: 'sha256:old-hasher' }] }).changed[0].reason, 'symbol body changed');
 });
