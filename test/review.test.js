@@ -10,6 +10,9 @@ import { hashDep } from '../src/deps.js';
 import { parseDiff, resolveScope, makeReader, collectChange, changedSymbols, noteExposure, selectNotes, deterministicFindings, review, renderReview } from '../src/review.js';
 
 const cli = fileURLToPath(new URL('../src/cli.js', import.meta.url));
+// reviews log a line each; from a test that line must not land in the machine's log (~/.thinker/log.jsonl)
+process.env.THINKER_LOG = 'local';
+process.env.THINKER_TELEMETRY = 'off';
 const CORE = `import os\n\nclass Command:\n    def invoke(self, ctx):\n        validate(ctx)\n        return self.main(ctx)\n\n    def main(self, ctx):\n        return run_callback(ctx)\n\ndef validate(ctx):\n    if ctx is None:\n        raise ValueError("ctx")\n\ndef run_callback(ctx):\n    return ctx\n`;
 const CLI = `from core import Command, run_callback, validate\n\ndef entry(ctx):\n    validate(ctx)\n    cmd = Command()\n    return cmd.invoke(ctx)\n`;
 const TYPES = `def convert(value):\n    return str(value)\n`;

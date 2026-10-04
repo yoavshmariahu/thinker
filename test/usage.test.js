@@ -16,6 +16,8 @@ function repoWith(notes) {
   const dir = tmp('thinker-usage-');
   fs.writeFileSync(path.join(dir, 'a.js'), 'x'.repeat(3600));
   fs.writeFileSync(path.join(dir, 'b.js'), 'x'.repeat(360000));
+  fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude', 'settings.local.json'), 'x'.repeat(720));
   const store = new Store(dir).init();
   for (const [id, deps] of Object.entries(notes)) store.put({ id, kind: 'location', title: id, body: 'body', deps: deps.map(p => ({ path: p })) });
   return store;
@@ -179,7 +181,7 @@ test('the notice names the notes and the code they point at, not a saving', () =
   assert.equal(formatSeconds(90), '1.5min');
 
   const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
-  assert.deepEqual(cacheHitSavings(one.repo, [one.get('n1'), one.get('n2')]), { calls: 2, tokens: 7000, seconds: 2 * SECONDS_PER_READ });
+  assert.deepEqual(cacheHitSavings(one.repo, [one.get('n1'), one.get('n2')]), { calls: 2, tokens: 7000, uncounted: 0, seconds: 2 * SECONDS_PER_READ });
   // a note whose files are missing still stands for one read's worth of time
   assert.equal(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]).seconds, SECONDS_PER_READ);
 
@@ -235,4 +237,28 @@ test('both sides of the balance are priced at the model of the session, and what
     assert.equal(v.saved.pricedServings, 2); assert.equal(v.saved.byModel['gpt-6-sol'].usd, 0.03);
     assert.equal(v.spending.unpricedCalls, 0); assert.equal(Math.round(v.spending.estimatedCost * 1000) / 1000, 1.007);
   });
+});
+
+test('a note resting on the agent\'s own configuration is not credited with reading avoided', () => {
+  const one = repoWith({
+    cfg: ['.claude/settings.local.json'],
+    mixed: ['.claude/settings.local.json', 'a.js'],
+    code: ['a.js'],
+  });
+
+  // nobody learns the permission rules by reading the settings file: the anchor is not a read
+  assert.deepEqual(savingOf(one.repo, one.get('cfg')), { calls: 0, tokens: 0 });
+  assert.deepEqual(cacheHitSavings(one.repo, [one.get('cfg')]), { calls: 0, tokens: 0, uncounted: 1, seconds: 0 });
+  // and the notice says how many notes there were rather than `~0 tokens of code`
+  assert.equal(turnNotice(one.repo, [one.get('cfg')]), '🧠 thinker: 1 note this turn');
+
+  // the floor for a missing file must not sneak the figure back in
+  assert.doesNotMatch(turnNotice(one.repo, [one.get('cfg')]), /tokens of code/);
+
+  // a note resting on both counts only the code
+  assert.deepEqual(savingOf(one.repo, one.get('mixed')), savingOf(one.repo, one.get('code')));
+  assert.equal(turnNotice(one.repo, [one.get('mixed')]), '🧠 thinker: 1 note this turn (pointing at 1 file, ~1k tokens of code)');
+
+  // a note whose code is merely missing from disk still stands for one read, as before
+  assert.equal(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]).seconds, SECONDS_PER_READ);
 });

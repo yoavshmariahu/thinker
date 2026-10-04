@@ -325,8 +325,10 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
       const target = path.join(repo, '.claude', shared ? 'settings.json' : 'settings.local.json');
       const entries = [['UserPromptSubmit', { matcher: '', hooks: [{ type: 'command', command: `node "${cli}" hook prompt`, timeout: 15 }] }]];
       if (late) entries.push(['PostToolUse', { matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `node "${cli}" hook tool`, timeout: 10 }] }]);
-      if (learn) entries.push(['Stop', { matcher: '', hooks: [{ type: 'command', command: `node "${cli}" hook stop`, timeout: 10 }] }]);
-      mergeJson(target, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'Stop', 'PostToolUse'], entries) }));
+      // Stop ends a turn and distills only a large backlog; SessionEnd distills what is left
+      if (learn) entries.push(['Stop', { matcher: '', hooks: [{ type: 'command', command: `node "${cli}" hook stop`, timeout: 10 }] }],
+        ['SessionEnd', { matcher: '', hooks: [{ type: 'command', command: `node "${cli}" hook stop`, timeout: 10 }] }]);
+      mergeJson(target, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'Stop', 'SessionEnd', 'PostToolUse'], entries) }));
       // Claude Code runs both files: thinker's hooks live in one of them
       const other = path.join(repo, '.claude', shared ? 'settings.local.json' : 'settings.json');
       if (stripThinkerHooks(other)) done.push(`Claude Code: removed thinker's hooks from ${rel(other)}; they are in ${rel(target)} now`);

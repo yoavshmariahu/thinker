@@ -4,8 +4,8 @@ import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
-import { hashDep, checkNote, symbolText, symbolBlock, repoFile } from './deps.js';
-import { rank, pack, renderNote, renderPointers, estTokens } from './rank.js';
+import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation } from './deps.js';
+import { rank, pack, renderNote, renderPointers, estTokens, MIN_COVER } from './rank.js';
 import { annotateFanout, fanout, callers, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
@@ -22,7 +22,16 @@ function normPath(repo, p) {
   return r.replace(/:\d+(:\d+)?$/, '');
 }
 
-// Resolve user/agent-provided deps: normalize paths, drop nonexistent files,
+// Output of a build or of a run: it is rewritten or removed by the next one, so a note anchored
+// to it is stale or orphaned within the day and says nothing about the code either way. One
+// served note here rested on nothing but a 223-byte benchmark log that git ignores. thinker's own
+// state is excluded for the same reason. The agents' configuration (.claude/, .codex/, .cursor/,
+// .gemini/, .mcp.json) is NOT: a note about hooks or about the permission classifier has nowhere
+// better to rest, and those notes are worth keeping. They are excluded from the saving estimate
+// instead (usage.js:countsAsReading), not from the cache.
+const TRANSIENT = /(^|\/)(node_modules|dist|coverage|\.next|__pycache__)\/|^bench\/runs\/|^\.thinker\/|\.log$|\.tmp$/;
+
+// Resolve user/agent-provided deps: normalize paths, drop nonexistent files and build output,
 // downgrade unknown symbols to file-level deps. Returns {deps, dropped}.
 export function resolveDeps(repo, deps) {
   const out = [], dropped = [];
@@ -31,6 +40,7 @@ export function resolveDeps(repo, deps) {
     const p = normPath(repo, d.path);
     const abs = p && repoFile(repo, p);
     if (!abs || !fs.existsSync(abs) || fs.statSync(abs).isDirectory()) { dropped.push({ ...d, reason: 'outside repository, symlinked outside, or no such file' }); continue; }
+    if (TRANSIENT.test(p)) { dropped.push({ ...d, reason: 'build or run output; point at the code that produces it' }); continue; }
     const key = p + '|' + (d.symbol || '');
     if (seen.has(key)) continue;
     seen.add(key);
@@ -105,7 +115,7 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
   const extra = extractDeps(repo, String(input.body || ''), input.deps || []);
   const { deps: resolved, dropped } = resolveDeps(repo, [...(input.deps || []), ...extra]);
   if (!resolved.length) return { error: 'no resolvable dependencies; a note must point at at least one existing file', dropped };
-  const deps = annotateFanout(repo, dropShadowedFileDeps(resolved)); // blast radius of each symbol pointer, shown beside it when served
+  const deps = annotateFanout(repo, dropShadowedFileDeps(narrowAtCreation(repo, resolved, String(input.body || '')))); // blast radius of each symbol pointer, shown beside it when served
   const kind = KINDS.includes(input.kind) ? input.kind : 'location';
   const id = reuseId && input.id ? input.id : input.id && !store.get(input.id) ? slugify(input.id) : uniqueId(store, slugify(input.title));
   const now = new Date().toISOString();
@@ -133,8 +143,11 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
     const wasStale = n.status === 'stale';
     if (changed.length) {
       const stale = { since: n.stale?.since || new Date().toISOString(), changed };
-      const next = { ...n, status: 'stale', stale };
-      if (persist && (!wasStale || JSON.stringify(n.stale?.changed) !== JSON.stringify(changed))) store.put(next);
+      // a whole-file dep narrowed to definitions (checkNote with narrow) is kept although the note
+      // stays stale: the changed definitions carry their hash from the verified commit, so they
+      // still read as changed, and the verification sees symbols rather than the file
+      const next = { ...n, status: 'stale', stale, ...(upgraded ? { deps } : {}) };
+      if (persist && (!wasStale || upgraded || JSON.stringify(n.stale?.changed) !== JSON.stringify(changed))) store.put(next);
       return next;
     }
     if (wasStale) { const next = { ...n, status: 'fresh', deps }; delete next.stale; if (persist) store.put(next); return next; }
@@ -265,7 +278,9 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
   if (NAIVE) notes = notes.map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; });
   if (refreshFirst) notes = refresh(store, notes);
-  let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient' });
+  // the agent's own call (more than the hook's two notes) asks with a sentence; a higher body floor keeps
+  // the notes that merely share its words out (rank.js:MIN_COVER.agentBody)
+  let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', minBody: maxNotes > 2 ? MIN_COVER.agentBody : undefined });
   if (process.env.THINKER_FORCE === '1') ranked = rank(notes, { query: '', mode: 'orient' }).map(r => ({ ...r, rel: 1 })); // control arm: inject regardless of relevance
   let chosen = false;
   if (process.env.THINKER_FORCE !== '1' && rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
@@ -724,16 +739,28 @@ function gitDiffFor(repo, fromCommit, paths) {
   } catch { return ''; }
 }
 
-const VERIFY_SCHEMA = {
+// The answer is a verdict and one sentence; a body only when the note is rewritten. The verify
+// calls of a week on this repository averaged 2,900 output tokens for what is mostly
+// `still_valid`: the schema and the system prompt now ask for less, and the call is capped.
+export const VERIFY_SCHEMA = {
   type: 'object',
   properties: {
     verdict: { type: 'string', enum: ['still_valid', 'update', 'invalid'] },
-    reason: { type: 'string' },
-    body: { type: 'string', description: 'revised note body when verdict=update; else empty' },
-    confidence: { type: 'number' },
+    reason: { type: 'string', description: 'one sentence' },
+    body: { type: 'string', description: 'only when verdict=update: the revised note body, as short as the original, keeping file:symbol pointers' },
+    confidence: { type: 'number', description: 'only when verdict=update' },
   },
-  required: ['verdict', 'reason', 'body', 'confidence'],
+  required: ['verdict', 'reason'],
 };
+export const VERIFY_MAX_TOKENS = 1500;
+
+// A body the model wrote back sometimes starts with the framing it was shown: `NOTE (kind=gotcha)
+// "title"` or the title alone on the first line. One live note here began that way. Those lines go.
+export function cleanBody(body, title) {
+  const lines = String(body || '').trim().split('\n');
+  while (lines.length > 1 && (/^NOTE \(kind=\w+\)/.test(lines[0]) || (title && lines[0].replace(/^#+\s*|\*\*/g, '').trim() === String(title).trim()) || !lines[0].trim())) lines.shift();
+  return lines.join('\n').trim();
+}
 
 // Re-verify a stale note with a small model, using the diff of its changed
 // dependencies plus the current text of each dependency symbol.
@@ -744,17 +771,17 @@ export async function verifyNote(store, note, { model } = {}) {
   const paths = [...new Set(changed.map(c => c.path))];
   const diff = gitDiffFor(repo, note.verifiedCommit, paths);
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
-  const system = 'You verify cached notes about a codebase after the code changed. Be strict: a note that is subtly wrong is worse than no note. Only answer still_valid when every concrete claim in the note (file paths, symbol names, call order, what must change together, commands) is still true given the current code shown. Answer update if the note is mostly right but some claim needs correction, and give the full corrected body (keep it as short as the original, keep file:symbol pointers). Answer invalid if the thing the note describes no longer exists or the approach changed fundamentally.';
+  const system = 'You verify cached notes about a codebase after the code changed. Be strict: a note that is subtly wrong is worse than no note. Only answer still_valid when every concrete claim in the note (file paths, symbol names, call order, what must change together, commands) is still true given the current code shown. Answer update if the note is mostly right but some claim needs correction, and give the full corrected body (keep it as short as the original, keep file:symbol pointers). Answer invalid if the thing the note describes no longer exists or the approach changed fundamentally. Answer with the JSON alone: the verdict, one sentence of reason, and a body only for update.';
   const prompt = `NOTE (kind=${note.kind}) "${note.title}"\n${note.body}\n\nDEPENDENCIES THAT CHANGED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'unknown'}\n\nGIT DIFF SINCE THE NOTE WAS VERIFIED (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE OF EACH DEPENDENCY:\n${current.slice(0, 40000)}`;
-  const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA });
-  const v = res.json;
+  const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
+  const v = res.json || {};
   const now = new Date().toISOString();
   let next;
   if (v.verdict === 'still_valid') {
     next = { ...note, deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.min(1, (note.confidence ?? 0.7) + 0.05) };
     delete next.stale;
-  } else if (v.verdict === 'update' && v.body && v.body.trim()) {
-    next = { ...note, body: v.body.trim(), deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.max(0.3, Math.min(1, Number(v.confidence) || note.confidence || 0.6)), history: [...(note.history || []), { at: now, reason: v.reason, prevBody: note.body }].slice(-5) };
+  } else if (v.verdict === 'update' && cleanBody(v.body, note.title)) {
+    next = { ...note, body: cleanBody(v.body, note.title), deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.max(0.3, Math.min(1, Number(v.confidence) || note.confidence || 0.6)), history: [...(note.history || []), { at: now, reason: v.reason, prevBody: note.body }].slice(-5) };
     delete next.stale;
   } else {
     next = { ...note, status: 'invalid', invalidReason: v.reason, verified: now };
@@ -813,6 +840,14 @@ export function holdoutSession(store, session) {
 // state is this checkout's (`archived` is a LOCAL_FIELDS entry), never shared or pushed.
 // `archive` in .thinker/config.json: `{ kinds: [...], unservedDays: 30 }`, or false.
 export const ARCHIVE_DEFAULTS = { kinds: ['location', 'fix', 'cochange', 'convention'], unservedDays: 30 };
+// The kinds `thinker review` reasons with (review.js:KIND_WEIGHT): rules, traps, past fixes and
+// why. An archived kind among them is still worth distilling, since review reads the archive;
+// an archived kind outside them (location: `find` answers it) is not worth a note at all.
+export const REVIEW_KINDS = ['gotcha', 'invariant', 'convention', 'fix', 'cochange', 'rationale'];
+export function distillKinds(store) {
+  const arch = archiveConfig(store);
+  return arch.enabled ? KINDS.filter(k => !arch.kinds.includes(k) || REVIEW_KINDS.includes(k)) : [...KINDS];
+}
 export function archiveConfig(store) {
   const c = store.config().archive;
   if (c === false) return { ...ARCHIVE_DEFAULTS, enabled: false };

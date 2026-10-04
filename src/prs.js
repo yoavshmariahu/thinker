@@ -14,6 +14,11 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
   return JSON.parse(gh('pr', 'list', '--repo', slug, '--state', 'merged', '--limit', String(limit), '--search', q, '--json', 'number,title,body,mergedAt,additions,files'));
 }
 
+// Changes whose message says they fix something: the records review draws on most (bench/RESULTS.md,
+// "Review strategies": the one PostHog bug the notes caught over the baseline came from a fix PR's
+// note). `thinker mine-prs --fixes` keeps only these; a repository developed by direct commits has
+// no pull requests, and its fix commits are what review wants.
+export const FIX_LIKE = /\b(fix(e[sd])?|bug|regression|crash|broke|broken|wrong|incorrect|leak|race|hang|flak\w*|off[- ]by[- ]one|corrupt\w*)\b/i; // not "stale" or "revert": a word of this repository, and a revert is not a fix record
 export function listMergedCommits(repo, { before, after, limit = 100 } = {}) {
   const args = ['log', '--first-parent', '-n', String(Math.max(limit * 2, 60)), '--format=%H%x1f%P%x1f%aI%x1f%s%x1f%b%x1e'];
   if (before) args.push(`--before=${before}`);
@@ -233,7 +238,7 @@ Allowed kinds and what each must contain:
 Rules:
 - Only claims the diff, description or review comments support. No speculation.
 - Do not restate the PR. A note that only says what this PR did is useless; extract what stays true afterwards.
-- 3-8 lines per note, with file:symbol pointers to code that exists AFTER the PR. Paths must be exactly as in the diff.
+- 3-8 lines per note, with file:symbol pointers to code that exists AFTER the PR. Paths must be exactly as in the diff. A dep on a code file names the definition it rests on (symbol); a dep on a whole file is for configs, scripts and documents only, since a whole code file changes with every unrelated commit.
 - answers: 2-4 phrasings a future agent or user might use, including product-vocabulary phrasings of the symptom or feature.
 - applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
 - Return an empty list for dependency bumps, pure refactors, generated-file churn, or PRs with nothing reusable.`;

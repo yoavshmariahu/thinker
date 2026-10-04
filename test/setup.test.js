@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+// the helpers color their output when stdout is a terminal or npm sets FORCE_COLOR: the assertions below are on plain text
+process.env.NO_COLOR = '1';
 import { EventEmitter } from 'node:events';
 import { Store } from '../src/store.js';
 import {

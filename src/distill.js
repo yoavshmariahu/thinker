@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { complete } from './llm.js';
-import { createNote, KINDS } from './ops.js';
-import { tokenize } from './rank.js';
+import { createNote, KINDS, looksLikeCorrection } from './ops.js';
+import { tokenize, rank } from './rank.js';
 
 const EXPLORE_TOOLS = new Set(['Grep', 'Glob', 'Read', 'Bash', 'Agent', 'Task', 'LS', 'WebFetch']);
 
@@ -20,6 +20,41 @@ export function injectedIds(file, { fromLine = 0 } = {}) {
 
 export function exploreCount(events) {
   return events.filter(e => e.t === 'tool' && EXPLORE_TOOLS.has(e.name)).length;
+}
+
+// What a session put at stake: edits made, tool calls that failed, prompts that corrected the
+// agent. A session with none of these and little exploration is a question answered, and in a
+// week on this repository distilling such sessions was a model call (about 10¢ with Sonnet) that
+// in 30% of runs saved no note; with nothing served in it there is no assessment to make either.
+// The hooks skip it below QUIET_MIN_EXPLORE exploration calls (`learn.quietExplore` in the
+// config; 0 distills every session as before).
+const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'apply_patch']);
+const WRITES_FILE = /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/;
+const FAILED = /\b(\w*error\w*|exception|traceback|failed|failing|fatal|cannot|denied)\b|not found|✖/i;
+export const QUIET_MIN_EXPLORE = 8;
+export function sessionStakes(events) {
+  const s = { edits: 0, failures: 0, corrections: 0 };
+  let prompts = 0;
+  for (const e of events) {
+    if (e.t === 'prompt') { if (prompts++ && looksLikeCorrection(e.text)) s.corrections++; continue; }
+    if (e.t !== 'tool') continue;
+    if (EDIT_TOOLS.has(e.name) || (e.name === 'Bash' && WRITES_FILE.test(String(e.input?.command || '')))) s.edits++;
+    if (FAILED.test(String(e.result || '').slice(0, 400))) s.failures++;
+  }
+  s.any = s.edits + s.failures + s.corrections > 0;
+  return s;
+}
+export function quietSession(events, { served = 0, minExplore = QUIET_MIN_EXPLORE } = {}) {
+  if (served || minExplore <= 0) return false;
+  return exploreCount(events) < minExplore && !sessionStakes(events).any;
+}
+
+// At the end of a turn a session is distilled only once its undistilled part nears the trace limit
+// (`condense`, 70,000 chars, past which the middle is cut): a call carries the prompt, the schema and
+// the related notes whatever the trace, and on 2026-10-03 one session was distilled 13 times.
+export const BATCH_CHARS = 45000;
+export function batchDue(events, { chars = BATCH_CHARS } = {}) {
+  return condense(events, { maxChars: Infinity }).length >= chars;
 }
 
 function short(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + `…[+${s.length - n} chars]` : s; }
@@ -54,11 +89,15 @@ export function condense(events, { maxChars = 70000 } = {}) {
   return text;
 }
 
+// At most this many notes from one distill. In a week on this repository 158 distills made 328 notes,
+// of which 190 of the cache's 300 were never served; most sessions establish one thing worth keeping.
+export const MAX_NOTES = 3;
 const NOTE_SCHEMA = {
   type: 'object',
   properties: {
     notes: {
       type: 'array',
+      maxItems: MAX_NOTES,
       items: {
         type: 'object',
         properties: {
@@ -116,12 +155,15 @@ Write a note ONLY for understanding that (a) took the agent real effort to estab
 Rules:
 - Do NOT write "this file contains ..." summaries. Do NOT restate the task or what the agent changed in this session unless that reveals a reusable rule.
 - Every claim must be grounded in what the agent actually observed in the trace (file contents, grep hits, command output), not in what it assumed.
-- Bodies are 3-12 lines of markdown, dense, with \`path:Symbol\` pointers. Prefer symbol pointers over line numbers.
-- deps: list every file the note's claims rest on; add the symbol when the claim is about a specific function/class. The cache hashes these to detect staleness, so be precise and do not list files the note does not depend on.
+- Bodies are 3-12 lines of markdown, dense, with \`path:Symbol\` pointers. Prefer symbol pointers over line numbers. State claims as present-tense facts about the code ("X does Y; Z must run before W"), never as a narrative of this session ("the session found", "in this run", "the agent then"): a future reader checks claims against code, and a story about one run cannot be checked. A claim that held only in this run is left out.
+- deps: list every file the note's claims rest on, and for a code file name the definition (symbol) the claim rests on. A dep on a whole code file is almost never right: the file changes with every unrelated commit and the note goes stale for nothing; whole-file deps are for configs, scripts and documents. The cache hashes these to detect staleness, so be precise and do not list files the note does not depend on.
 - applies: for gotcha / convention / rationale / cochange notes, one line stating when the rule applies and when it does not (e.g. "only for options with multiple=True; arguments use a different path"). Generic lessons without such constraints are useless.
 - answers: 2-5 short question phrasings a future agent might ask that this note answers (used for retrieval).
 - confidence: 0.9+ only when the agent read the actual code; 0.6-0.8 for things inferred from grep hits or partial reads.
-- Typical yield is 1-4 notes: the main callpath/location the session established, plus any gotcha, convention, cochange rule or howto the trace shows. Split distinct topics into separate notes rather than one long note. 0 notes is fine for a trivial session.
+- Typical yield is 0 or 1 note; 2-3 only when the session clearly established distinct things, never more than 3. Most turns of a session only apply what is already known: 0 notes is the right answer for them. When in doubt, leave it out: a missing note costs one search later, a weak one is served to every later task it resembles.
+- Not news: do not write what changed ("X now does Y", "merged to main", "was added in this session"). Write the rule or the map a later task needs, in the present tense, as if it had always been so.
+- Not the state of one machine or one day: which copy is installed, a leftover file or hook, a credential, what a log or a dashboard showed, how the agent's own harness asked for permission. These are not facts about the repository's code.
+- Not what the repository's own docs already say (README, AGENTS.md, CLAUDE.md and the like): agents read those at the start of every session. A note is for what the docs leave out or get wrong.
 - The agent's final answer is usually the best-synthesized source; mine it, but only keep claims backed by the trace.`;
 
 export const ASSESS_RULES = `
@@ -134,7 +176,7 @@ Be strict about "contradicted": only when the trace shows evidence, not when the
 
 export const EXISTING_RULES = `
 
-EXISTING NOTES: the cache already holds notes on the files this session touched (listed below with ids). Do not write a note that restates one of them, even in other words. When the session establishes something that completes or corrects one of them, return that note with \`extends\` set to its id and the full merged body (its claims that still hold, plus the new ones, same length rules). A new note is for understanding none of them holds.`;
+EXISTING NOTES: the cache already holds notes on the files this session touched or on the topic it worked on (listed below with ids). Do not write a note that restates one of them, even in other words. When the session establishes something that completes or corrects one of them, return that note with \`extends\` set to its id and the full merged body (its claims that still hold, plus the new ones, same length rules). Prefer extending to writing a new note on a neighbouring topic. A new note is for understanding none of them holds.`;
 
 // Files the session read, searched or edited, from the tool events.
 export function touchedFiles(events, repo = '') {
@@ -151,20 +193,40 @@ export function touchedFiles(events, repo = '') {
 
 // Notes resting on files the session touched, most overlapping first: what the distiller is shown
 // so it extends what is there instead of writing it again (189 notes from 109 sessions merged twice).
-export function relatedNotes(store, events, { max = 12 } = {}) {
+// Then the notes on the topic of the session's requests, which share no file with it when the session
+// ran commands rather than reading code: of the howto notes on running this repository's tests, five
+// were written by five sessions, none shown the others.
+export function relatedNotes(store, events, { max = 12, topical = 4 } = {}) {
   const files = new Set(touchedFiles(events, store.repo));
-  if (!files.size) return [];
-  return store.list().filter(n => n.status !== 'invalid')
+  const live = store.list().filter(n => n.status !== 'invalid');
+  const byFile = !files.size ? [] : live
     .map(n => ({ n, hit: new Set((n.deps || []).map(d => d.path).filter(p => files.has(p))).size }))
     .filter(x => x.hit > 0)
     .sort((a, b) => b.hit - a.hit || (b.n.uses || 0) - (a.n.uses || 0))
-    .slice(0, max).map(x => x.n);
+    .map(x => x.n);
+  const query = events.filter(e => e.t === 'prompt').map(e => String(e.text || '').replace(/<[^>]+>[\s\S]*?<\/[^>]+>/g, ' ')).join('\n').slice(0, 2000);
+  const byTopic = query.trim() ? rank(live, { query, mode: 'lookup' }).filter(r => r.rel > 0).map(r => r.note) : [];
+  const out = byFile.slice(0, max - Math.min(topical, byTopic.length));
+  for (const n of byTopic) { if (out.length >= max) break; if (!out.includes(n)) out.push(n); }
+  for (const n of byFile) { if (out.length >= max) break; if (!out.includes(n)) out.push(n); }
+  return out;
 }
 
-export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], existing = [], accounting } = {}) {
+// kinds: what the distiller may produce. The caller leaves out the kinds this checkout archives
+// (ops.js:archiveConfig): a note of a kind that is never served is a model call for nothing, and
+// what location and cochange notes would say is found by code search and git history.
+export function distillSpec({ kinds = KINDS } = {}) {
+  const left = KINDS.filter(k => !kinds.includes(k));
+  if (!left.length) return { system: DISTILL_SYSTEM, schema: NOTE_SCHEMA };
+  const schema = JSON.parse(JSON.stringify(NOTE_SCHEMA));
+  schema.properties.notes.items.properties.kind.enum = KINDS.filter(k => kinds.includes(k));
+  const system = DISTILL_SYSTEM + `\n\nDo not produce notes of these kinds: ${left.join(', ')}. This repository does not serve them (code search and git history answer what they would say); fold anything of theirs that matters into a note of another kind, or leave it out.`;
+  return { system, schema };
+}
+export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], existing = [], kinds = KINDS, accounting } = {}) {
   const trace = condense(events);
   let prompt = `Repository: ${repoHint}\n\nSESSION TRACE (tool calls with truncated results):\n\n${trace}`;
-  let system = DISTILL_SYSTEM, schema = NOTE_SCHEMA;
+  let { system, schema } = distillSpec({ kinds });
   const servedIds = new Set(served.map(n => n.id));
   const shown = existing.filter(n => !servedIds.has(n.id));
   if (shown.length) {
@@ -172,12 +234,13 @@ export async function distillEvents(events, { model = 'sonnet', repoHint = '', s
     prompt += `\n\nEXISTING NOTES ON THE FILES THIS SESSION TOUCHED:\n` + shown.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${(n.body || '').split('\n').slice(0, 3).join('\n').slice(0, 400)}`).join('\n\n');
   }
   if (served.length) {
-    system += ASSESS_RULES; schema = ASSESS_SCHEMA;
+    system += ASSESS_RULES; schema = { ...ASSESS_SCHEMA, properties: { ...ASSESS_SCHEMA.properties, notes: schema.properties.notes } };
     prompt += `\n\nINJECTED NOTES TO ASSESS:\n` + served.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body}`).join('\n\n');
     prompt += `\n\nProduce the notes JSON (new notes for reusable understanding this session established that the injected notes do not already cover) and one assessment per injected note.`;
   } else prompt += `\n\nProduce the notes JSON.`;
   const res = await complete({ system, prompt, model, schema, maxTokens: 12000, accounting });
-  return { notes: res.json?.notes || [], assessments: res.json?.assessments || [], cost: res.cost, usage: res.usage, traceChars: trace.length };
+  const notes = (res.json?.notes || []).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).slice(0, MAX_NOTES);
+  return { notes, assessments: res.json?.assessments || [], cost: res.cost, usage: res.usage, traceChars: trace.length };
 }
 
 function jaccard(a, b) {
@@ -199,10 +262,11 @@ export function cochangeMechanism(n) {
 }
 
 // Save distilled notes, merging near-duplicates (same topic → keep higher confidence, refresh deps).
-export function saveNotes(store, notes, { source }) {
+export function saveNotes(store, notes, { source, kinds = KINDS }) {
   const existing = store.list();
   const saved = [], merged = [], skipped = [];
   for (const n of notes) {
+    if (KINDS.includes(n.kind) && !kinds.includes(n.kind)) { skipped.push({ title: n.title, reason: `kind ${n.kind} is not served in this repository (archived by thinker archive)` }); continue; }
     if (!cochangeMechanism(n)) { skipped.push({ title: n.title, reason: 'co-change without a mechanism: git history already records which files changed together' }); continue; }
     const key = tokenize(n.title + ' ' + (n.answers || []).join(' '));
     const named = n.extends && existing.find(e => e.id === n.extends);

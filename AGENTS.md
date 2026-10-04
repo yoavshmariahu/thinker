@@ -37,7 +37,11 @@ All agents working on this repository MUST perform code changes, scratch experim
 
 Model calls go through the Anthropic SDK when `ANTHROPIC_API_KEY` is set,
 otherwise through the first installed agent CLI (`claude`, `codex`, `gemini`,
-`agent`), so no extra credentials are needed.
+`agent`), so no extra credentials are needed. `claude -p` is run with its
+system prompt replaced (`--system-prompt`, `--setting-sources ''`,
+`--disable-slash-commands`; `llm.js:viaCliOnce`): appended to, Claude Code's
+own prompt added ~7k tokens to every call, written to the one-hour prompt
+cache at twice the input price and never read again.
 
 | path | contents |
 |---|---|
@@ -118,7 +122,12 @@ written for this checkout only and kept out of commits through
 To mine more pull requests later, run `thinker mine-prs` (or `thinker learn
 --prs`, which distills new sessions first). With no arguments it takes the
 GitHub `origin`, mines what was merged since the last run and then goes
-further back in history, 20 at a time (`--limit n`). Every pull request it
+further back in history, 20 at a time (`--limit n`). Without GitHub, or
+with `--git`, it mines commits from git history; `--fixes` keeps only those
+whose message says they fix something (`prs.js:FIX_LIKE`), the records
+review draws on most; a repository whose work lands by direct commits has
+few pull requests, and this one had 8 to mine against 17 fix commits. Every
+pull request it
 has looked at is recorded in `.thinker/prs.json`, which is committed with the
 notes, so none is distilled twice, by you or by a teammate. Pull requests merged
 after thinker was set up are distilled by background maintenance (see [The
@@ -148,6 +157,33 @@ the tool calls and tokens saved. The estimate counts only servings a session
 was seen to act on (`confirmed`), as one read per file the note rests on (at
 most 5) at the file's size (at most 6,000 tokens). It is not a measurement;
 measured effects are in `bench/RESULTS.md`.
+
+A dep that is not code a session would have read counts as nothing
+(`usage.js:countsAsReading`): the agents' own configuration (`.claude/`,
+`.codex/`, `.cursor/`, `.gemini/`, `.mcp.json`), git's internals, `.thinker/`
+itself, and build or run output. Every note must rest on an existing file
+(`ops.js:createNote`), so a note about the permission classifier or about
+duplicate hooks rests on `.claude/settings.local.json` for want of anywhere
+better; what it saves is a wrong action, not a read, and crediting it with the
+size of that file made the turn notice claim reading nobody would have done.
+Such notes keep their anchors and are ranked and served exactly as before —
+only the estimate ignores them, and `cacheHitSavings` reports how many deps it
+passed over as `uncounted`. The floor that gives a note whose files are missing
+one read's worth is not applied when every dep was passed over this way, and
+the turn notice then names the notes and stops rather than printing `~0 tokens
+of code`. On this repository 29 of 754 deps stopped counting. The limit is that
+nothing distinguishes a note *about* a file from a note about the behaviour
+around it: a gotcha resting on a real 525-token script still counts as that
+script's size.
+
+Build and run output is refused as an anchor outright
+(`ops.js:TRANSIENT`: `node_modules/`, `dist/`, `coverage/`, `.next/`,
+`__pycache__/`, `bench/runs/`, `.thinker/`, `*.log`, `*.tmp`), since the next
+run rewrites or removes it. One served note here rested on nothing but a
+223-byte benchmark log that git ignores. The check is at creation only, so
+notes already stored keep their deps; a note left with no other anchor is
+refused with `no resolvable dependencies`. Agent configuration is deliberately
+not refused — those notes are worth keeping.
 
 Model work is also logged as `op: "model"`, with `purpose`, `phase` (init / learning /
 maintenance), provider, resolved model, raw usage, normalized token counters and
@@ -221,14 +257,26 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 - Every `orient`/`lookup` re-hashes the deps of every note against the
   working tree, so uncommitted edits are caught too. A whole-file dep on a
   file the note also points into by symbol is dropped when the note is
-  created or verified (`ops.js:dropShadowedFileDeps`). Maintenance and
-  `thinker check` judge a changed whole-file dep further
-  (`deps.js:narrowFileDep`, `checkNote` with `narrow`): when the body names
-  definitions in the file and none of them changed since `verifiedCommit`,
-  the dep becomes those symbol deps; when it names none and no changed line
-  of the diff since `verifiedCommit` holds a term the note uses, the dep
-  keeps the file and takes the new hash. Either way the note stays fresh
-  and the outcome is persisted, so the per-prompt check sees it. A
+  created or verified (`ops.js:dropShadowedFileDeps`). A whole-file dep on
+  a code file whose definitions the body names becomes those symbol deps
+  when the note is created (`deps.js:narrowAtCreation`; configs, scripts
+  and documents stay whole), and the distiller is told to name the
+  definition for a code file. Maintenance and `thinker check` judge a
+  changed whole-file dep further (`deps.js:narrowFileDep`, `checkNote` with
+  `narrow`): when the body names definitions in the file, the dep becomes
+  those symbol deps, the note is stale only on the ones that changed since
+  `verifiedCommit` (each carrying its hash from that commit, so the change
+  stays visible), and the narrowed deps are persisted whether the note is
+  fresh or stale, so the next check and the verification see symbols, not
+  the file; when it names none and no changed line of the diff since
+  `verifiedCommit` holds a term the note uses, the dep keeps the file and
+  takes the new hash. `checkNote` returns deps that are safe to store in
+  either case: a dep the change altered keeps its stored record. On this
+  repository (two hundred commits a week) 74 of 137 stale notes rested on
+  nothing but whole-file deps on hub files (`src/cli.js` in 48), and
+  neither the term rule nor a line-anchored variant could clear them, since
+  a week of diff to a hub file holds every word; anchoring to definitions
+  is what helps, and it helps the next time, not retroactively. A
   `cochange` note's whole-file deps are existence-only: a partner file
   changing is what the note predicts.
   Stale notes are ranked lower and served with a `⚠ STALE` banner listing
@@ -239,16 +287,24 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
   its changed deps since `verifiedCommit`, and the current text of every dep
   to a small model (Haiku by default) which answers `still_valid` (re-hash,
   bump confidence), `update` (rewrite body, keep history) or `invalid`
-  (retire).
+  (retire). The answer is the verdict and one sentence, a body only for
+  `update`, capped at 1,500 tokens (`ops.js:VERIFY_SCHEMA`,
+  `VERIFY_MAX_TOKENS`): a week of verify calls here averaged 2,900 output
+  tokens for verdicts that were 64% `still_valid`. A rewritten body that
+  starts with the framing the model was shown (`NOTE (kind=…) "title"`, or
+  the title) loses that line (`ops.js:cleanBody`).
 
 ## Capture
 
 1. **Automatic**: `thinker distill <transcript.jsonl>` condenses a session
    (prompts, tool calls with truncated results, the agent's final answer)
-   and asks a model for 0–4 notes with deps. The end-of-turn hook runs this
-   incrementally in the background (on by default; see below). The distiller
-   is shown the notes already resting on the files the session touched
-   (`distill.js:relatedNotes`) and may return one with `extends: <id>` and
+   and asks a model for 0–3 notes with deps (`distill.js:MAX_NOTES`; the
+   prompt expects 0 or 1, and rules out news of what changed, the state of
+   one machine, and what the repository's own docs say). The hooks run this
+   in the background once per session (on by default; see below). The
+   distiller is shown the notes already resting on the files the session
+   touched, and up to four on the topic of its requests by BM25
+   (`distill.js:relatedNotes`), and may return one with `extends: <id>` and
    the merged body instead of a new note. Near-duplicate notes (same kind,
    ≥0.5 Jaccard on title+answers) are merged, keeping history. A `cochange`
    note must name a mechanism (a generator, registry, schema, mirror or
@@ -264,7 +320,7 @@ Each session both consumes and improves the cache:
 
 1. `UserPromptSubmit` hook injects the orientation bundle and records which
    note ids were served in this session.
-2. At `Stop`, the distiller sees the trace **and the injected notes**, and
+2. Once per session, the distiller sees the trace **and the injected notes**, and
    returns new notes plus one assessment per injected note:
    `confirmed` (the agent acted on the pointer, nothing contradicted it:
    confidence +0.05), `contradicted` (the trace shows a claim is wrong:
@@ -327,12 +383,22 @@ Learning is on by default in `setup` and the installer. Evals keep
 the cache fixed with `--no-learn` at install time, or `THINKER_NO_LEARN=1` in
 the environment, which also silences hooks that are already installed.
 `learn: {"sessions": false}` in `.thinker/config.json` switches off learning
-from sessions alone (the end-of-turn distill and the catch-up `learn`), while
+from sessions alone (the session distill and the catch-up `learn`), while
 learning from code changes goes on: pull requests and re-verification in
 maintenance, `share --repair-staged` at commit, `thinker distill <file>` by
 hand. Each session distilled is a model call, about 10¢ with Sonnet, and in a
 week on this repository 30% of them produced no note; without them there are
-also no assessments, so `thinker usage` counts no servings as acted on.
+also no assessments, so `thinker usage` counts no servings as acted on. The
+hooks skip a quiet session (`distill.js:quietSession`): nothing served in it
+to assess, no edit, no failed tool call, no correcting prompt, and under eight
+exploration calls; logged as `distill-skipped` with `reason: quiet`.
+`learn.quietExplore` in the config moves the line (0: distill every session);
+`thinker distill <file>` by hand distills regardless. The distiller is asked
+only for the kinds worth a note here (`ops.js:distillKinds`): the kinds this
+checkout serves, plus the kinds review reads from the archive (`REVIEW_KINDS`:
+gotcha, invariant, convention, fix, cochange, rationale). With the default
+archive that leaves out `location`, which `find` answers; a note of a left-out
+kind that comes back anyway is skipped by `saveNotes`.
 
 Controls for experiments: `THINKER_NO_LINKS=1`, `THINKER_NO_COCHANGE=1`,
 `THINKER_MCP=off` (the MCP server offers no tools),
@@ -354,13 +420,18 @@ queries; `0,0` turns them off).
   or `snippets: false` in `.thinker/config.json` turns them off. Measured
   against Qartez on click, the agent spent its advantage on reading whole
   files after orienting; this is what the snippets are for.
+- When `orient` or `lookup` over MCP finds no note, its answer carries the first
+  six definitions `find` returns for the request (`mcp.js:codeFallback`, logged
+  as `client: "mcp-fallback"`), and the prompt hook's bundle names `find`: in
+  the week before, real sessions never called `find` (Claude Code defers MCP
+  tools until searched for), only the benchmark arms did.
 - `find(query, path?, limit?)` answers "where is this defined / handled" when
   no note does: the definitions whose name or body carry the words of the
   query (`codegraph.js:findSymbols`), as `path:Symbol:L12` pointers with their
   size and, for the first three, blast radius, plus the notes resting on them.
   One `git grep -c -F -i` for the words over the source files (a second or
   two on PostHog), the lines of the 50 files with most mentions attributed to
-  the enclosing definition through `outline` (parser, graph, or regex), and the
+  the enclosing definition through `outline` (parser, graph, or regex; a regex definition ends where its braces or indentation close, and no later than the next definition indented no deeper, so a one-line `const` is not credited with the text below it), and the
   graph's name search added when the checkout is indexed. A word in the name
   outweighs one in the body, which outweighs one in the path; words on many
   lines weigh less; a definition covering more of the words comes first; tests
@@ -453,7 +524,11 @@ queries; `0,0` turns them off).
   the request's term weight: 0.20 with its body and pointers, 0.05 with its
   title, answers and tags (`rank.js:MIN_COVER`; on the benchmark task sets
   the body floor separates on-target from off-target servings, 0.10 did
-  not). A short query must be covered by more: the weight of about three of
+  not). When the agent calls `orient` itself (up to five notes, a sentence
+  as the request) the body floor is 0.30 (`MIN_COVER.agentBody`): on the
+  offline sets this took grafana's agent-path precision from 0.12 to 0.17 and
+  mitmproxy's from 0.56 to 0.64 with no task losing its on-target note,
+  posthog unchanged at 0.80; 0.35 cost posthog a task. A short query must be covered by more: the weight of about three of
   its words. A request of two or three content words must share two of them
   with the note's title, answers or tags ("run the tests"); a request of one
   content word ("status?") is a turn of conversation and is served nothing.
@@ -547,7 +622,15 @@ queries; `0,0` turns them off).
   first, then the most served; the rest are left for maintenance, since a
   commit to a central file otherwise meant dozens of model calls through the
   agent's CLI before the commit went through), and updates
-  or removes bad notes in the index. Original bytes go to
+  or removes bad notes in the index. Only a note file the commit itself adds
+  or changes can be removed, and only for a settled reason (malformed, a
+  duplicate, unsafe content, retired, or a model verdict of `invalid`); a
+  note reached only through the code it rests on is never removed by a
+  commit, and neither is one whose check failed, gave no usable answer, or
+  misread the request (`share-repair.js:misread`: Haiku answered "No cache
+  note was provided" for a note it was shown, four times out of four, and
+  the hook removed it). Such a note is `left` as it is, goes stale, and
+  maintenance verifies it. Original bytes go to
   `.thinker/local/quarantine/`; unstaged working-copy edits are preserved.
   `setup` installs pre-commit, pre-push, post-merge and post-commit through
   `git-hooks.js`, preserving custom hooks; uninstall removes only thinker hooks.
@@ -657,7 +740,15 @@ tool `review` is the same for an agent before it commits.
   `codegraph.js:outlineText` on either side's text) and the most frequent
   identifiers in the added lines, needing two discriminative terms on the
   question side or three on the body side. Rules and traps weigh more than
-  maps (`KIND_WEIGHT`).
+  maps (`KIND_WEIGHT`). Among the direct notes, those resting on a definition
+  the change altered come first, ordered by whether the changed lines inside
+  that definition name what the note names and by how many of them there are
+  (`review.js:specificity`; words a sixth of the cache's notes share do not
+  count, `commonTerms`), then by kind and confidence; a note on a hub
+  definition (`cli.js:main`) is touched by nearly every commit, and on the
+  last ten commits here 30 to 60 notes were, with a dozen consulted per
+  review. `toAssess` says why each was chosen. `thinker maintain --dry`
+  persists no statuses.
 - **Without a model** (`deterministicFindings`): a co-change partner (confidence
   ≥ 0.5, support ≥ 3) of a changed file that exists and is not in the change;
   a definition the change removes that is defined nowhere else and still
@@ -814,11 +905,16 @@ path below. Nothing in it is tied to one vendor:
   them to one event form: prompt, tool call with result, agent message. Tool
   names are mapped to one vocabulary, so `read_file`, `Read` and a shell `cat`
   are all seen as reading.
-- **When.** At the end of a turn (`Stop`, `AfterAgent`, `stop`), and by
-  catch-up: `thinker learn` finds every session any of these agents ran in
-  the repository and distills what is new. Hooks start it in the background
-  at most every ten minutes, so modes that fire no end-of-session hook are
-  covered too.
+- **When.** Once per session, not per turn: each call carries the prompt,
+  schema and related notes whatever the size of the trace, and on 2026-10-03
+  one session was distilled 13 times. At the end of a turn (`Stop`,
+  `AfterAgent`, `stop`) the hook distills only a backlog near the trace limit
+  (`distill --batch`, `distill.js:batchDue`, 45,000 condensed chars); the end
+  of the session (Claude Code's `SessionEnd`, Cursor's `sessionEnd`) distills
+  the rest. Catch-up covers agents that fire no end: `thinker learn` finds
+  every session any of these agents ran in the repository and distills what
+  is new in those quiet for 20 minutes (`cli.js:LEARN_IDLE_MIN`). Hooks start
+  it in the background at most every ten minutes.
 - **What the agent's record leaves out.** Where an agent gives no transcript,
   the hooks record the session themselves (`.thinker/state/trace-*.jsonl`).
   Cursor records tool calls without their output; reads and searches are

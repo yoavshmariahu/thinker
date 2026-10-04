@@ -6,7 +6,7 @@
 // next to a pointer and to spare the agent its own greps.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { repoFile, symbolBlock } from './deps.js';
+import { repoFile, symbolBlock, locateSymbol } from './deps.js';
 import { definitions, astReady } from './ast.js';
 import { codegraphEngine, cbmProject, cbmNeighbors, cbmSearch, cbmOutline } from './cbm.js';
 import { tokenize } from './rank.js';
@@ -205,7 +205,20 @@ export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 
       try { if (fs.statSync(repoFile(repo, file)).size > 400_000 ) continue; } catch { continue; } // generated or vendored: not where a definition is looked for
       const defs = (outline(repo, file, { limit: 5000 }) || []).slice().sort((a, b) => a.line - b.line);
       if (!defs.length) continue;
-      for (let i = 0; i < defs.length; i++) if (!defs[i].end) defs[i].end = (i + 1 < defs.length ? defs[i + 1].line - 1 : Infinity); // regex outline: until the next definition
+      // the regex outline gives no end: the block by brace or indentation matching, else until the next
+      // definition. Taking the next definition always gave a one-line const the lines after it (the
+      // CLI's help text after `const mcpEntry = () => ...`), and it came first for unrelated queries.
+      // The block matcher is thrown off by braces in strings, so the block also ends before the next
+      // definition indented no deeper than this one.
+      let lines = null; try { lines = fs.readFileSync(repoFile(repo, file), 'utf8').split('\n'); } catch {}
+      const indent = d => lines ? /^\s*/.exec(lines[d.line - 1] || '')[0].length : 0;
+      for (let i = 0; i < defs.length; i++) {
+        if (defs[i].end) continue;
+        const sibling = defs.slice(i + 1).find(d => d.line > defs[i].line && indent(d) <= indent(defs[i]));
+        const cap = sibling ? sibling.line - 1 : Infinity;
+        const loc = lines && locateSymbol(lines.join('\n'), defs[i].parent ? `${defs[i].parent}.${defs[i].name}` : defs[i].name, file);
+        defs[i].end = loc && loc.start + 1 === defs[i].line ? Math.min(loc.end, cap) : (i + 1 < defs.length ? defs[i + 1].line - 1 : Infinity);
+      }
       for (const d of defs) cand(file, d);
       for (const r of rows) {
         let enc = null; // the innermost definition enclosing the line

@@ -138,3 +138,40 @@ test('a hash that moved because the hasher changed, not the code, is brought up 
   // and a note without a verifiedCommit is judged as before
   assert.equal(checkNote(repo, { deps: [{ ...dep, hash: 'sha256:old-hasher' }] }).changed[0].reason, 'symbol body changed');
 });
+
+test('a note may rest on an agent config file but not on build or run output', () => {
+  const repo = tmpRepo();
+  fs.mkdirSync(path.join(repo, '.claude'), { recursive: true });
+  fs.mkdirSync(path.join(repo, 'bench', 'runs'), { recursive: true });
+  fs.writeFileSync(path.join(repo, '.claude', 'settings.local.json'), '{"permissions":{}}');
+  fs.writeFileSync(path.join(repo, 'bench', 'runs', 'r1.log'), '[DONE] x: 3s\n');
+  fs.writeFileSync(path.join(repo, 'out.log'), 'noise\n');
+  const store = new Store(repo).init();
+
+  // the permission classifier is a real trap and .claude/ is the only place it rests on
+  const cfg = createNote(store, {
+    title: 'Deploy commands are refused in auto mode', kind: 'gotcha',
+    answers: ['can I deploy'], body: 'The classifier refuses the upload.',
+    deps: [{ path: '.claude/settings.local.json' }],
+  });
+  assert.ok(cfg.note, 'a note resting only on agent configuration is still created');
+  assert.deepEqual(cfg.note.deps.map(d => d.path), ['.claude/settings.local.json']);
+
+  // a benchmark log is rewritten by the next run and says nothing about the code
+  const log = createNote(store, {
+    title: 'Watch a benchmark run', kind: 'howto', answers: ['is the run done'],
+    body: 'grep the log for [DONE].',
+    deps: [{ path: 'bench/runs/r1.log' }, { path: 'out.log' }, { path: 'src/a.py', symbol: 'Foo.bar' }],
+  });
+  assert.deepEqual(log.note.deps.map(d => d.path), ['src/a.py'], 'run output is not an anchor');
+  assert.deepEqual(log.dropped.map(d => d.path).sort(), ['bench/runs/r1.log', 'out.log']);
+  for (const d of log.dropped) assert.match(d.reason, /build or run output/);
+
+  // with nothing but run output to rest on, the note is refused rather than anchored to it
+  const only = createNote(store, {
+    title: 'Run output only', kind: 'howto', answers: ['q'], body: 'no code here.',
+    deps: [{ path: 'bench/runs/r1.log' }],
+  });
+  assert.ok(!only.note);
+  assert.match(only.error, /no resolvable dependencies/);
+});
