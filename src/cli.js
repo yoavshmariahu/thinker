@@ -89,6 +89,8 @@ const HELP = `thinker — knowledge cache for coding agents
   drilldown <pointer…> [--budget n]
                                  each definition whole with its lines (path:Symbol, path, or Symbol; several at once),
                                  one hop of callers and callees for a single pointer, and the notes on the code
+  ranker [status|fetch]          the cross-encoder the hooks rank notes with: status says whether its runtime and
+                                 model are in place; fetch gets the model (~23 MB, under ~/.thinker/models)
   ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
                                  web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
   list [--stale] [--all]         list notes

@@ -73,6 +73,16 @@ export async function runSetup({
     out,
   });
 
+  // The ranker: the model the hooks rank notes with is fetched once here (the installer and `thinker update` do
+  // it too), so the first prompt does not pay the download
+  try {
+    const { rankerStatus, fetchRanker } = await import('./dense.js');
+    const st = await rankerStatus();
+    if (st.runtime && !st.model) { out(`  ${c.dim('Fetching the ranking model (about 23 MB)…')}`); await fetchRanker(); }
+    const now = await rankerStatus();
+    out(now.runtime && now.model ? `  ${c.green('✓')} Ranking model ready ${c.dim(`(${now.modelName})`)}` : `  ${c.yellow('○')} Ranking model not in place ${c.dim(now.runtime ? '(fetch failed; thinker ranker fetch)' : '(runtime missing: npm ci in the app directory, or thinker update)')}; notes are ranked by words alone until then`);
+  } catch (e) { out(`  ${c.yellow('○')} Ranking model not fetched: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
+
   // Step 2: Build Knowledge Cache
   const slug = githubSlug(repo);
 

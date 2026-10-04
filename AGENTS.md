@@ -597,10 +597,12 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   phrased before are done again); on raw note text the cross-encoder did
   not tell important notes from irrelevant ones, on this text it did. An
   agent's own `orient` (more than two notes) and `lookup` keep the lexical
-  ranking. The runtime (`@huggingface/transformers`) is not a dependency: it
-  is required lazily, must be installed beside the checkout, caches the
-  model under `THINKER_DENSE_DIR` (default `~/.thinker/dense`), and when it
-  is missing the hook logs `ce-error` once and serves the lexical ranking.
+  ranking. The runtime (`@huggingface/transformers`, ONNX; most of the installed
+  dependencies' size) is a dependency; the model (23 MB) is fetched into
+  `~/.thinker/models` (`THINKER_MODELS_DIR`) by the installer, `thinker
+  update` and `thinker setup`, and by `thinker ranker fetch`; `thinker ranker`
+  says whether both are in place. When either is missing the hook logs
+  `ce-error` once and serves the lexical ranking.
   The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
   embeddings blended into the score) is the measured negative kept beside
   it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.

@@ -37,7 +37,11 @@ grows from your own sessions). A repository that has not been set up is served
 nothing and learns nothing.
 
 Then work with your agent as usual. Notes are added to each request
-automatically.
+automatically. Which note is added is decided by a small local model (a
+cross-encoder, 23 MB) that reads your request together with each candidate
+note; the installer fetches it, and `thinker update` keeps it. Its runtime is
+the bulk of thinker's installed size (a few hundred MB). `thinker ranker` says
+whether it is in place; without it, notes are ranked by words alone.
 
 To check the value on your own repository after setup, run the paired onboarding benchmark on a question the cache covers or a recent PR change:
 

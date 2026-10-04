@@ -268,17 +268,18 @@ EOF
 
   # every path but a bare --no-build wires up whatever agents are on this machine
   if [ -z "$clients" ] && { [ "$build" != 0 ] || [ -n "$cache" ]; }; then clients="auto"; fi
-  # Cursor is served through the MCP server, which needs its dependencies
   case "$clients" in *cursor*|all|auto) mcp=1 ;; esac
-  # outside a repository, nothing is set up here; `thinker setup` registers the MCP server, so its dependencies are installed now
   [ -z "$repo" ] && mcp=1
-  if [ "$mcp" = 1 ] && [ -z "$repo" ] && ! command -v npm >/dev/null; then
-    say "npm was not found: the MCP server's dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev to install them later)"; mcp=0
-  fi
-  if [ "$mcp" = 1 ]; then
-    command -v npm >/dev/null || die "--mcp needs npm to install the MCP server's dependencies"
-    say "  Installing agent integration…"
-    (cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent)
+  # The dependencies are always installed: the hooks rank notes with a local cross-encoder whose runtime is one
+  # of them (and the MCP server needs its SDK). Without npm the hooks still work, ranking by words alone.
+  if command -v npm >/dev/null; then
+    say "  Installing dependencies (the ranking runtime is most of it)…"
+    (cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent) || die "npm ci failed in $home/app"
+    say "  Fetching the ranking model…"
+    "$thinker" ranker fetch --quiet || say "  The ranking model could not be fetched (offline?); notes are ranked by words until 'thinker ranker fetch' succeeds."
+  else
+    say "npm was not found: the dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev --ignore-scripts, then thinker ranker fetch). Notes are ranked by words alone until then."
+    mcp=0
   fi
 
   if [ -z "$repo" ]; then
