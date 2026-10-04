@@ -222,6 +222,7 @@ A note answers a recurring question, not "what this file does":
 | `gotcha`    | a trap (similar names, ordering, caches)                      |
 | `rationale` | why: rejected approaches, incident-driven constraints         |
 | `overview`  | a compact map of a module area                                |
+| `behavior`  | a desired behavior of the system a person wrote; the code must uphold it (see [Desired behaviors](#desired-behaviors)) |
 
 Each note stores: `title`, `answers` (question phrasings, for retrieval),
 `body` (3–12 lines with `file:Symbol` pointers), `deps` (files/symbols it
@@ -717,6 +718,58 @@ Deployment to EC2 is `infra/sync/` (`deploy.mjs`, `stack.yaml`, `bootstrap.sh`,
 in Secrets Manager, releases in S3, updates through Systems Manager. Tests:
 `test/sync.test.js` runs the server in-process against temporary checkouts,
 with the model mocked.
+## Desired behaviors
+
+Every other kind of note is a claim about the code, and when code and note
+disagree the note yields: verification rewrites or retires it, a review calls
+it `note_outdated`. A `behavior` note (`behavior.js`) is the other way round: a
+person writes down what the system must do and where that is upheld, and from
+then on the code must conform. `thinker system` is the view of them; the MCP
+`lookup` with `kind: "behavior"` returns them to an agent (all of them with no
+query); `thinker system md` writes them as `.thinker/SYSTEM.md` for people who
+read the repository without the tool. They are committed like any shared note
+(`thinker share <id>`) and sync like one.
+
+- **Fields.** A behavior is an ordinary note (title, body with `file:Symbol`
+  pointers, answers, deps) plus `mutability`: `fixed` (never revised; code
+  that stops upholding it is an error) or `mutable` (the default; revised only
+  by a change that edits the note itself). `mutability` is shared content;
+  `violated` is this checkout's state (`store.js:LOCAL_FIELDS`).
+- **Who writes one.** A person: `thinker system add file.json [--fixed]`, or
+  `thinker system promote <id> [--fixed]` for a note that already states a
+  rule (`thinker system propose` lists the invariant, convention and gotcha
+  notes, the ones the sessions acted on first). An agent may save one with
+  `remember` (kind `behavior`); it is listed as *proposed* until `thinker
+  system accept <id>`. Distillation and PR mining are not offered the kind
+  (`distill.js:distillSpec`, `prs.js`), archiving never takes one
+  (`ops.js:archiveReason`), and the commit-time repair leaves one as it is
+  (`share-repair.js`).
+- **Verification** (`ops.js:verifyBehavior`, through `verifyNote`): when a dep
+  changes the question is whether the code still upholds the behavior, never
+  whether the note is right. `holds` re-baselines; `broken` sets
+  `status: violated` with the commit and the reason, re-hashes the deps so the
+  note reads as violated rather than stale until the code changes again, and
+  leaves the text alone; `moved` re-points the deps at where the behavior is
+  upheld now (history kept). A behavior found broken is named at the end of
+  the next turn through the maintenance notice (`ops.js:noteUnreported`,
+  `maintain.js:maintenanceNotice`), and served with a `⚠ VIOLATED` banner.
+- **Review** (`review.js:assessBehavior`, and the holistic prompt): the
+  verdicts are `violation`, `consistent`, `unrelated` and `revised`; `revised`
+  only for a mutable behavior whose note file the change edits
+  (`review.js:noteFileChanged`, in the scope under review), otherwise it is a
+  violation. A violation without a placed finding gets one at the first
+  definition the change touched. A finding on a fixed behavior is an error,
+  on a mutable one at least a warning, so `--strict` exits 2 in CI. The
+  holistic call may not list a behavior under `outdated`: one it does is turned
+  into a finding. The report carries `behaviors`, one line per behavior in
+  play (`upheld`, `violated`, `revised`, `unrelated`, or `consulted` on a dry
+  run) with whether it was already violated before the change, rendered under
+  "Desired behaviors" and returned by the MCP `review` tool.
+- **Serving.** A behavior is served like an invariant: at orientation with a
+  small kind prior, by the edit hook when a file it rests on is edited
+  (`ops.js:lateNotes`, first among the rules), and in `thinker review`'s
+  consulted set with the highest kind weight.
+
 ## Reviewing a change against the cache
 
 `thinker review` (`review.js`) turns the cache around: instead of serving notes

@@ -37,7 +37,7 @@ test('a quiet session is one with nothing served, nothing at stake and little ex
 
 test('the distiller is not asked for archived kinds, and a note of one is not saved', () => {
   const all = distillSpec({});
-  assert.deepEqual(all.schema.properties.notes.items.properties.kind.enum, KINDS);
+  assert.deepEqual(all.schema.properties.notes.items.properties.kind.enum, KINDS.filter(k => k !== 'behavior')); // a desired behavior is a person's (behavior.js)
   assert.ok(!/Do not produce notes of these kinds/.test(all.system));
   const some = distillSpec({ kinds: KINDS.filter(k => !['location', 'fix', 'cochange', 'convention'].includes(k)) });
   assert.deepEqual(some.schema.properties.notes.items.properties.kind.enum, ['callpath', 'howto', 'rationale', 'gotcha', 'overview', 'invariant']);
@@ -46,12 +46,12 @@ test('the distiller is not asked for archived kinds, and a note of one is not sa
   // convention and cochange notes from the archive, so they are still distilled
   const dir0 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-spend-')));
   const s0 = new Store(dir0).init();
-  assert.deepEqual(distillKinds(s0), KINDS.filter(k => k !== 'location'));
+  assert.deepEqual(distillKinds(s0), KINDS.filter(k => k !== 'location' && k !== 'behavior'));
   assert.ok(REVIEW_KINDS.includes('fix') && REVIEW_KINDS.includes('convention'));
   fs.writeFileSync(path.join(s0.dir, 'config.json'), JSON.stringify({ archive: { kinds: ['overview'] } }));
-  assert.deepEqual(distillKinds(new Store(dir0)), KINDS.filter(k => k !== 'overview'));
+  assert.deepEqual(distillKinds(new Store(dir0)), KINDS.filter(k => k !== 'overview' && k !== 'behavior'));
   fs.writeFileSync(path.join(s0.dir, 'config.json'), JSON.stringify({ archive: false }));
-  assert.deepEqual(distillKinds(new Store(dir0)), KINDS);
+  assert.deepEqual(distillKinds(new Store(dir0)), KINDS.filter(k => k !== 'behavior'));
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-spend-')));
   fs.mkdirSync(path.join(dir, 'src')); fs.writeFileSync(path.join(dir, 'src/a.js'), 'export function f() {}\n');
   const store = new Store(dir).init();

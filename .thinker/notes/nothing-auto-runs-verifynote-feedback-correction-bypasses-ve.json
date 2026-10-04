@@ -19,19 +19,19 @@
       "path": "src/ops.js",
       "symbol": "feedback",
       "hash": "sha256:00e9ec0992e125519c913afc",
-      "line": 761,
+      "line": 861,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "orient",
-      "hash": "sha256:9da8b87f6b6c41ab3db8675b",
-      "line": 242,
+      "hash": "sha256:145592515d9a54abd7db1809",
+      "line": 259,
       "missing": false
     },
     {
       "path": "src/cli.js",
-      "hash": "sha256:86ad26d75e5ae83657dbe6f4",
+      "hash": "sha256:6bbc50463365c6a89ba6e6d2",
       "missing": false
     }
   ],
@@ -39,6 +39,6 @@
     "type": "agent"
   },
   "created": "2026-09-26T09:33:10.434Z",
-  "verified": "2026-10-03T08:21:07.171Z",
-  "confidence": 0.8
+  "verified": "2026-10-04T03:43:12.481Z",
+  "confidence": 0.85
 }

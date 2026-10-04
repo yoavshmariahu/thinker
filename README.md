@@ -189,6 +189,26 @@ Cache state:
   - no cached knowledge rests on: src/new_module.py; the review is blind there beyond git history
 ```
 
+Desired behaviors are the exception. A `behavior` note is a rule a person
+wrote down about what the system must do and where that is upheld (`thinker
+system add`, or `thinker system promote <id>` for an invariant the cache
+already holds); the code must conform to it, and a review never finds one
+outdated. A `fixed` behavior is never revised and code that stops upholding it
+is an error; a `mutable` one may be revised, but only by a change that edits
+the note itself. Every behavior in play is listed in the report with its
+outcome, and `thinker system` shows all of them with whether the code upholds
+each (`thinker system md` writes them as `.thinker/SYSTEM.md`):
+
+```
+Desired behaviors (2 in play; thinker system lists them all):
+  violated   [fixed] Every command validates its context before running (ctx-validated-before-main): fixed behavior ... is no longer upheld
+  revised    [mutable] The CLI entry validates before invoking (entry-validates-too)  — the change edits the behavior note
+```
+
+Agents reach them the same way: the MCP `review` tool returns the section
+above, and `lookup` with `kind: "behavior"` lists every behavior (or the ones
+about a query) before a change is made.
+
 The cache is treated as evidence, not truth. Before anything is assessed, each
 consulted note is re-hashed against the code **before** the change: a note that
 already disagreed with the code is reported as drift of the cache, the model is

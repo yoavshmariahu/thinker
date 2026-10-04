@@ -114,7 +114,7 @@ function pathAffinity(note, file) {
   return best;
 }
 
-const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0, callpath: 0.05, location: 0.05, rationale: 0.05, overview: 0.1, invariant: 0.1, fix: 0.1 };
+const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0, callpath: 0.05, location: 0.05, rationale: 0.05, overview: 0.1, invariant: 0.1, fix: 0.1, behavior: 0.12 };
 
 // What a request tells the agent not to do is not what it is about: "do not run the test suite"
 // would otherwise bring up the notes on running tests. Only instructions: "it never updates" and
@@ -187,20 +187,22 @@ export const renderFanout = f => f.files === 0 ? 'no references' : `${f.sites ||
 // Pointers-only rendering: where to look, without prose that could be read as the whole picture.
 export function renderPointers(n) {
   const deps = [...(n.deps || []).filter(d => d.symbol), ...(n.deps || []).filter(d => !d.symbol)].slice(0, Number(process.env.THINKER_MAX_POINTERS) || 6).map(renderPointer).join(', ');
-  const stale = n.status === 'stale' ? ' (STALE: confirm)' : '';
+  const stale = n.status === 'stale' ? ' (STALE: confirm)' : n.status === 'violated' ? ' (VIOLATED by the code)' : '';
   return `- [${n.kind}] ${n.title}${stale}  (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%)\n  → ${deps}`;
 }
 
 export function renderNote(n, { full = true } = {}) {
   const flag = n.status === 'stale'
     ? `\n> ⚠ STALE: ${(n.stale?.changed || []).map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'dependencies changed'} since this was verified. Confirm against the code before relying on it.`
+    : n.status === 'violated'
+    ? `\n> ⚠ VIOLATED: the code no longer upholds this ${n.mutability || 'mutable'} behavior${n.violated?.commit ? ` since commit ${String(n.violated.commit).slice(0, 10)}` : ''}${n.violated?.reason ? `: ${n.violated.reason}` : ''}. ${n.mutability === 'fixed' ? 'Restore it; a fixed behavior is not revised.' : 'Restore it, or revise the behavior note on purpose.'}`
     : '';
   const maxPtr = Number(process.env.THINKER_MAX_POINTERS) || 6;
   const all = (n.deps || []);
   // symbol-level pointers first: they are the precise ones
   const shown = [...all.filter(d => d.symbol), ...all.filter(d => !d.symbol)].slice(0, maxPtr);
   const deps = shown.map(renderPointer).join(', ') + (all.length > shown.length ? ` (+${all.length - shown.length} more)` : '');
-  const head = `### [${n.kind}] ${n.title}  (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%)`;
+  const head = `### [${n.kind}${n.kind === 'behavior' ? `, ${n.mutability || 'mutable'}` : ''}] ${n.title}  (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%)`;
   if (!full) return `${head}${flag}\n${(n.body || '').split('\n')[0].slice(0, 200)}\n→ ${deps}`;
   const applies = n.applies ? `\nApplies: ${n.applies}` : '';
   return `${head}${flag}\n${n.body}${applies}\n→ pointers: ${deps}`;

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import fs from 'node:fs';
 import { Store, findRepoRoot } from './store.js';
 import { orient, lookup, drilldown, find, createNote, feedback, snippetsOn, KINDS } from './ops.js';
+import { listBehaviors, behaviorsSummary } from './behavior.js';
 import { initAst } from './ast.js';
 import { review, renderReview, resolveScope } from './review.js';
 import { CACHE_USAGE_GUIDE, CACHE_LEARNING_GUIDE, MORE_NOTES_INTRO } from './cache-guidance.js';
@@ -66,14 +67,20 @@ register('orient', {
 
 register('lookup', {
   title: 'Look up cached knowledge',
-  description: 'Use for one specific unanswered question, or a listed note id that directly covers it. Do not fetch every title returned by orient. If no note answers the question, search the code.',
+  description: 'Use for one specific unanswered question, or a listed note id that directly covers it. Do not fetch every title returned by orient. If no note answers the question, search the code. With kind "behavior" it returns the desired behaviors of the system (rules a person wrote that the code must uphold; a review checks changes against them): all of them with an empty query, or the ones about the query.',
   inputSchema: {
-    query: z.string().describe('The question or topic, or a note id listed by orient.'),
+    query: z.string().describe('The question or topic, or a note id listed by orient. Empty with kind "behavior" lists every desired behavior.'),
+    kind: z.enum(KINDS).optional().describe('Only notes of this kind; "behavior" for the desired behaviors of the system.'),
     budget: z.number().int().min(200).max(8000).optional(),
     maxNotes: z.number().int().min(1).max(10).optional().describe('Maximum number of notes to return (default 3)'),
   },
-}, async ({ query, budget, maxNotes }) => {
-  const r = lookup(store, { query, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
+}, async ({ query, kind, budget, maxNotes }) => {
+  const r = lookup(store, { query: query || '', kind, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
+  if (kind === 'behavior' && !String(query || '').trim()) {
+    const rows = listBehaviors(store);
+    if (!rows.length) return text('No desired behaviors are written down for this repository yet (a person adds them with `thinker system add`).');
+    return text(`Desired behaviors of the system (${rows.length}; the code must uphold each; a review checks changes against them):\n${behaviorsSummary(rows)}\n\n${r.text}${r.omitted?.length ? `\n\n(${r.omitted.length} more not shown for the budget; lookup by id for one)` : ''}`);
+  }
   if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query) || 'Try fewer or different words, or an identifier from the code. '}`);
   return text(r.text);
 });
@@ -105,7 +112,7 @@ register('drilldown', {
 
 register('review', {
   title: 'Review a change against the cache',
-  description: 'Before committing or opening a pull request: checks the change against the cached notes that rest on the changed code or bear on it (invariants, conventions, co-change rules, traps), reports violations and bugs with file:line and evidence, co-change partners missing from the change, and removed symbols still referenced. Notes that were already stale are reported as cache drift, not as faults of the change. Default scope: the working tree against HEAD. Runs a model per note, so it takes up to a minute.',
+  description: 'Before committing or opening a pull request: checks the change against the desired behaviors of the system (rules a person wrote; the code must uphold them: a violation of a fixed one is an error, a mutable one may be revised only by a change that edits its note) and against the cached notes that rest on the changed code or bear on it (invariants, conventions, co-change rules, traps). Reports violations and bugs with file:line and evidence, every behavior in play with its outcome (upheld, violated, revised), co-change partners missing from the change, and removed symbols still referenced. Notes that were already stale are reported as cache drift, not as faults of the change. Default scope: the working tree against HEAD. Two model calls, so it takes up to a minute.',
   inputSchema: {
     paths: z.array(z.string()).optional().describe('Limit the review to these paths.'),
     staged: z.boolean().optional().describe('Review the index instead of the working tree.'),
@@ -123,10 +130,11 @@ register('review', {
 
 register('remember', {
   title: 'Save a reusable note',
-  description: `Save something you had to work out that a future agent would otherwise re-derive with several greps/reads. Good notes answer a recurring question: WHERE something happens, a CALL PATH across files, what must CHANGE TOGETHER, HOW TO build/test/run, a local CONVENTION, a GOTCHA, or WHY something is the way it is (rejected approaches, incident-driven constraints). Do NOT save plain summaries of what a file does. Be concrete: name files and symbols. Every note must list the files/symbols it depends on; the cache hashes them and flags the note stale when they change. Kinds: ${KINDS.join(', ')}.`,
+  description: `Save something you had to work out that a future agent would otherwise re-derive with several greps/reads. Good notes answer a recurring question: WHERE something happens, a CALL PATH across files, what must CHANGE TOGETHER, HOW TO build/test/run, a local CONVENTION, a GOTCHA, or WHY something is the way it is (rejected approaches, incident-driven constraints). Do NOT save plain summaries of what a file does. Be concrete: name files and symbols. Every note must list the files/symbols it depends on; the cache hashes them and flags the note stale when they change. Kinds: ${KINDS.join(', ')}. A note of kind behavior is a desired behavior of the system the code must keep upholding (say where it is enforced); from an agent it is a proposal until a person accepts it with thinker system accept.`,
   inputSchema: {
     title: z.string().describe('Short, specific title, e.g. "How a CLI option value reaches the callback"'),
     kind: z.enum(KINDS),
+    mutability: z.enum(['fixed', 'mutable']).optional().describe('For kind behavior: fixed (never revised) or mutable (revised only by a change that edits the note; the default).'),
     answers: z.array(z.string()).describe('Question forms this note answers, used for retrieval, e.g. ["where is option parsing", "how does type conversion happen for params"]'),
     body: z.string().describe('The note, 3-12 lines of markdown. Use file:symbol pointers. Include the non-obvious parts, not the obvious ones.'),
     applies: z.string().optional().describe('When this applies and when it does not (for gotchas, conventions, rationale, co-change rules).'),

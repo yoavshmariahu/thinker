@@ -123,6 +123,8 @@ export async function repairStaged(store, { dry = false, decide = modelDecision,
       if (file !== `.thinker/notes/${id}.json`) reason = 'note is outside the shared notes directory';
       if (!reason && (!note || typeof note !== 'object' || Array.isArray(note))) reason = 'invalid JSON or note object';
       if (!reason && note.status === 'invalid') reason = 'already retired';
+      // a desired behavior (behavior.js) is a person's rule: the model at commit time neither corrects nor removes it
+      if (!reason && note.kind === 'behavior') { actions.push({ id, action: 'left', reason: 'desired behavior; only a person changes it (thinker system)' }); continue; }
       if (!reason) {
         note = { ...note, id };
         if ((!note.title || !String(note.title).trim()) && Array.isArray(note.answers) && typeof note.answers[0] === 'string') note.title = note.answers[0].trim();
