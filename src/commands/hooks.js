@@ -38,6 +38,8 @@ async function hookCommand(ctx) {
   if (userScope) {
     const cwd = ev.cwd || ev.workspace_roots?.[0] || ev.workspaceRoots?.[0];
     if (cwd) { const r = findRepoRoot(cwd); if (r !== ctx.repo) { const base = ctx; ctx = { ...ctx, repo: r, store: new Store(r), mcpEntry: () => base.mcpEntry(r) }; } }
+    // not a git checkout (a session in the home directory, say, where .thinker/ is thinker's own home): nothing
+    if (!fs.existsSync(path.join(ctx.repo, '.git'))) return;
     if (ctx.store.exists()) {
       try { const moved = stripRepoWiring(ctx.repo, { cli, clients: [client] }); if (moved.length) { ctx.store.log({ op: 'prune', removed: moved.map(file => ({ file, what: 'repo-scope' })) }); reportPruned(ctx.store, [`moved thinker's hooks for ${client} out of ${moved.join(', ')}: they run from your own settings now, in every repository that is set up`]); } } catch {}
       if (repoRunsHooks(ctx.repo, client)) return;
