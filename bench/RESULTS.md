@@ -600,6 +600,23 @@ rule unchanged (an error or warning within six lines). Files:
   are co-change notes on manifests and generated files. The cache has nothing
   to say about new code; this set measures the baseline model, at about $14
   for both arms.
+- **Bug-introducing pull requests, run** (later the same day, runs
+  `2026-10-04-posthog-inducing-{codex,sonnet}`): through Codex (gpt-6-luna)
+  neither arm caught any of the 20 bugs reached (`nocache` 0/20 with 1
+  finding in all, `ensemble` 0/19 with 4), about 35 seconds a review; the
+  Sonnet baseline was stopped after 0/3. The fix diffs say why: three of the
+  eight read were facts about an outside service (Fly.io capitalizes
+  `Regions`, Featurebase's tags endpoint rejects `limit`, Snowflake's timeout
+  error text), four were knowledge that was in the repository but in no note
+  (a paused experiment keeps status RUNNING; the sweep worker and the web
+  fleet share one Redis; every source returns a `SourceResponse`), one a
+  design choice. Each fix wrote the fact into a comment: those are the notes
+  the cache mines afterwards. Decided 2026-10-04: the review is for
+  regressions of what the team learned and for its written conventions, not
+  for bugs in new code, where the result is the model's and the cache has
+  nothing to add until it covers the area. An arm that shows the model one
+  sibling of a new definition (another source in the same directory) is the
+  untried idea for the four knowledge cases.
 - **Changed on the strength of this** (2026-10-04): maintenance mines fixes
   first and no longer loses candidates to its per-run cap (`prs.js:pickPrs`);
   the pull request action and the server consult every note by default

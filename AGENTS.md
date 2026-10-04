@@ -858,7 +858,14 @@ read the repository without the tool. They are committed like any shared note
 
 `thinker review` (`review.js`) turns the cache around: instead of serving notes
 to an agent about to make a change, it checks a change against them. The MCP
-tool `review` is the same for an agent before it commits.
+tool `review` is the same for an agent before it commits. What it is for,
+decided 2026-10-04 on real PostHog history (`bench/RESULTS.md`, "Real bugs on
+PostHog"): regressions of a fix the cache holds a note about (caught 12 of 12,
+including the ones the diff alone missed) and violations of written
+conventions and behaviors; not bugs in new code, where neither the baseline
+nor the cache caught any of 20 and the knowledge that would have was in no
+note yet. Work on detection goes to coverage and fix mining, not to the
+review prompt.
 
 - **Scope** (`review.js:resolveScope`): the working tree against HEAD (default,
   untracked code files included as additions), the index (`--staged`), the

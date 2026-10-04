@@ -153,25 +153,35 @@ thinker review --ref <commit>       # one commit, read from git alone
 thinker review --state src/auth/    # no change: the current code against the notes on it
 ```
 
-A review makes two model calls and merges what they find: one sees the diff
-and the code it touched, as any reviewer would; the other sees the notes
-resting on the changed code and the notes that bear on it by the identifiers
-it writes (a convention written against other files, say). Every finding
-carries a file, a line, the evidence it rests on and the note it came from,
-when one does:
+A review is for two things: a change that undoes a fix the team already made,
+and a change that breaks a convention or a desired behavior the cache holds.
+Measured on real PostHog history, it caught every regression of a fix the
+cache held a note about, including the ones a plain reading of the diff
+missed, and nothing in brand-new code beyond what the model finds unaided,
+which on real new-code bugs was close to nothing. So it says up front when
+most of the changed code carries no note: there it is only a model reading a
+diff.
+
+It makes two model calls and merges what they find: one sees the diff and the
+code it touched, as any reviewer would; the other sees the notes resting on
+the changed code and the notes that bear on it by the identifiers it writes
+(a convention written against other files, say). Every finding carries a
+file, a line, the evidence it rests on and the note it came from, when one
+does; the same regression seen in the code, its test and its docs is one
+finding with its other places listed:
 
 ```
 thinker review: working tree against HEAD, 2 files; 3 notes consulted (2 on the changed code, 1 related), 3 assessed with sonnet (~60k tokens)
 
-Findings: 1 error, 1 warning, 0 info
+Findings: 1 error, 0 warnings, 0 info
   error    src/core.py:5  Command.invoke no longer calls validate(ctx); main dereferences ctx  [note validate-before-main, 90%]
            evidence: -        validate(ctx) | return self.main(ctx)
-  warning  src/core.py  src/cli.py changed together with src/core.py in 80% of its commits (n=12) and is not in this change  [git history]
+           also at: tests/test_core.py:12 (the test that covered the check was deleted)
 
 Cache state:
   - 1 consulted note was already stale before this change (its claims were weighed accordingly): cli-and-core-change-together (src/cli.py:entry: symbol body changed)
   - re-check it: thinker verify cli-and-core-change-together
-  - no cached knowledge rests on: src/new_module.py; the review is blind there beyond git history
+  - no cached knowledge rests on: src/new_module.py; the review is blind there
 ```
 
 Desired behaviors are the exception. A `behavior` note is a rule a person
