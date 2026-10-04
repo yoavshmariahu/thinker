@@ -14,8 +14,8 @@
     {
       "path": "src/ops.js",
       "symbol": "orient",
-      "hash": "sha256:e00963b61bbc35caf25cdeb8",
-      "line": 217,
+      "hash": "sha256:2e6e7121545eb5c77deb5627",
+      "line": 216,
       "missing": false,
       "fanout": {
         "files": 27,
@@ -27,7 +27,7 @@
       "path": "src/ops.js",
       "symbol": "scheduleVerify",
       "hash": "sha256:a8f4d37aff987a7a6a949dd4",
-      "line": 473,
+      "line": 451,
       "missing": false,
       "fanout": {
         "files": 2,
@@ -40,8 +40,8 @@
     "type": "human"
   },
   "created": "2026-10-04T05:12:42.630Z",
-  "verified": "2026-10-04T05:52:35.098Z",
-  "verifiedCommit": "907a273a640899608131d1ec2482b0b547c54e95",
+  "verified": "2026-10-04T07:34:01.469Z",
+  "verifiedCommit": "a172098f3e7797398b5dfea3048da24b16ca15ca",
   "confidence": 0.9,
   "related": [
     "note-staleness-lifecycle-create-baseline-lazy-refresh-verify",
