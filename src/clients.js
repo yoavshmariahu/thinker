@@ -20,6 +20,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { gitHookPath } from './store.js';
+import { HOOKS, installGitHooks } from './git-hooks.js';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini'];
 
@@ -27,8 +29,12 @@ export function mergeJson(file, patch) {
   let cur = {};
   try { cur = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
   const next = patch(cur);
+  const text = JSON.stringify(next, null, 2) + '\n';
+  // an unchanged file is not touched: the prompt hook refreshes the wiring on every prompt, and a
+  // client that watches its settings file would otherwise see a change each time
+  try { if (fs.readFileSync(file, 'utf8') === text) return; } catch {}
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(next, null, 2) + '\n');
+  fs.writeFileSync(file, text);
 }
 
 const onPath = bin => (process.env.PATH || '').split(path.delimiter).some(d => d && fs.existsSync(path.join(d, bin)));
@@ -171,6 +177,119 @@ function codexTomlBlock(mcpEntry) {
 }
 const HOOK_FILES = { claude: ['.claude/settings.json', '.claude/settings.local.json'], codex: ['.codex/hooks.json'], gemini: ['.gemini/settings.json'], cursor: ['.cursor/hooks.json'] };
 const MCP_FILES = { claude: ['.mcp.json'], gemini: ['.gemini/settings.json'], cursor: ['.cursor/mcp.json'] };
+
+// --- keeping a checkout's wiring in step with the installed copy ----------------------------------
+// The hook and MCP entries are written once, by `thinker setup`, in the shape that version knew.
+// A later version may add an event (SessionEnd for the final distill of a session, say) or change
+// a command, and nothing rewrote the entries: a checkout kept the old shape until setup was rerun.
+// `refreshWiring` rewrites them from what is there. For each client it reads the options the
+// wiring was installed with (inferWiring: whether hooks, late notes, learning, the MCP entry, and
+// which Claude settings file), and reinstalls them for `cli` when the entries point at this copy
+// (by the script's install root) or at a copy that is gone. Entries that point at another living
+// copy (a development checkout, say) are left alone, and so is a hand-tuned command (an env prefix,
+// a --budget: what a benchmark arm writes). `thinker rewire` runs it for every repository on the
+// machine, `thinker update` after an update, and the prompt hook for its own checkout.
+const HOOK_COMMAND = /^node "[^"]+" hook (prompt|tool|stop)(?: --client \w+)?(?: --repo "[^"]+")?(?: --late)?(?: --record)?$/;
+const WIRING_FILES = ['.claude/settings.json', '.claude/settings.local.json', '.mcp.json', '.codex/hooks.json', '.codex/config.toml', '.gemini/settings.json', '.cursor/hooks.json', '.cursor/mcp.json', '.cursor/rules/thinker.mdc'];
+const readJsonOr = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
+const ourGroups = (hooks, ev) => (hooks?.[ev] || []).filter(isOurs);
+const commandOf = g => (g?.hooks ? g.hooks[0] : g)?.command;
+const codexMcpScript = text => { const a = text.indexOf(TOML_START), b = a < 0 ? -1 : text.indexOf(TOML_END, a); if (a < 0 || b < 0) return null; const m = text.slice(a, b).match(/^args = \[(.*)\]$/m); try { return m ? JSON.parse(`[${m[1]}]`).map(String).find(x => /mcp\.js$/.test(x)) || null : null; } catch { return null; } };
+
+// What one client's files say about how thinker was wired into the checkout: null when it was not.
+// `scripts` are the thinker scripts the entries run; `custom` names a command the installer
+// would not have written as it stands.
+export function inferWiring(repo, client) {
+  const scripts = new Set(), custom = [];
+  const see = g => { const c = commandOf(g); const sc = scriptOf(c); if (sc) scripts.add(sc); if (c && !HOOK_COMMAND.test(String(c))) custom.push(String(c)); };
+  const w = { hooks: false, learn: false, late: false, shared: false, mcp: false };
+  if (client === 'claude') {
+    for (const [f, shared] of [['.claude/settings.local.json', false], ['.claude/settings.json', true]]) {
+      const hooks = readJsonOr(path.join(repo, f), {}).hooks;
+      if (!ourGroups(hooks, 'UserPromptSubmit').length) continue;
+      w.hooks = true; w.shared = shared; w.learn = ourGroups(hooks, 'Stop').length > 0 || ourGroups(hooks, 'SessionEnd').length > 0; w.late = ourGroups(hooks, 'PostToolUse').length > 0;
+      for (const ev of ['UserPromptSubmit', 'Stop', 'SessionEnd', 'PostToolUse']) ourGroups(hooks, ev).forEach(see);
+      break;
+    }
+    const mcp = readJsonOr(path.join(repo, '.mcp.json'), {}).mcpServers?.thinker;
+    if (mcp) { w.mcp = true; const sc = mcpScript(mcp); if (sc) scripts.add(sc); }
+  }
+  if (client === 'codex') {
+    const hooks = readJsonOr(path.join(repo, '.codex', 'hooks.json'), {}).hooks;
+    if (ourGroups(hooks, 'UserPromptSubmit').length) {
+      w.hooks = true; w.learn = ourGroups(hooks, 'Stop').length > 0;
+      w.late = ourGroups(hooks, 'PostToolUse').some(g => / --late\b/.test(commandOf(g) || ''));
+      for (const ev of ['UserPromptSubmit', 'PostToolUse', 'Stop']) ourGroups(hooks, ev).forEach(see);
+    }
+    const sc = codexMcpScript(readText(path.join(repo, '.codex', 'config.toml')));
+    if (sc) { w.mcp = true; scripts.add(sc); }
+    w.shared = !excludedLocally(repo, '.codex/hooks.json');
+  }
+  if (client === 'gemini') {
+    const cfg = readJsonOr(path.join(repo, '.gemini', 'settings.json'), {});
+    if (ourGroups(cfg.hooks, 'BeforeAgent').length) {
+      w.hooks = true; w.learn = ourGroups(cfg.hooks, 'AfterAgent').length > 0;
+      w.late = ourGroups(cfg.hooks, 'AfterTool').some(g => / --late\b/.test(commandOf(g) || ''));
+      for (const ev of ['BeforeAgent', 'AfterTool', 'AfterAgent']) ourGroups(cfg.hooks, ev).forEach(see);
+    }
+    if (cfg.mcpServers?.thinker) { w.mcp = true; const sc = mcpScript(cfg.mcpServers.thinker); if (sc) scripts.add(sc); }
+    w.shared = !excludedLocally(repo, '.gemini/settings.json');
+  }
+  if (client === 'cursor') {
+    const hooks = readJsonOr(path.join(repo, '.cursor', 'hooks.json'), {}).hooks;
+    if (ourGroups(hooks, 'beforeSubmitPrompt').length) {
+      w.hooks = true; w.learn = ourGroups(hooks, 'stop').length > 0 || ourGroups(hooks, 'sessionEnd').length > 0;
+      w.late = ourGroups(hooks, 'postToolUse').some(g => / --late\b/.test(commandOf(g) || ''));
+      for (const ev of ['beforeSubmitPrompt', 'postToolUse', 'afterShellExecution', 'stop', 'sessionEnd']) ourGroups(hooks, ev).forEach(see);
+    }
+    const mcp = readJsonOr(path.join(repo, '.cursor', 'mcp.json'), {}).mcpServers?.thinker;
+    if (mcp) { w.mcp = true; const sc = mcpScript(mcp); if (sc) scripts.add(sc); }
+    w.shared = !excludedLocally(repo, '.cursor/hooks.json') && !excludedLocally(repo, '.cursor/mcp.json');
+  }
+  if (!w.hooks && !w.mcp) return null;
+  return { ...w, scripts: [...scripts], custom };
+}
+function excludedLocally(repo, entry) {
+  try {
+    const dir = execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return readText(path.join(path.resolve(repo, dir), 'info', 'exclude')).split('\n').includes(entry);
+  } catch { return false; }
+}
+const gitHooksOurs = repo => { try { const f = gitHookPath(repo, 'pre-commit'); const t = f ? readText(f) : ''; return t.includes('# thinker:') ? (t.match(/node '([^']+)'/) || [])[1] || null : null; } catch { return null; } };
+
+// Rewrite the wiring of one checkout for the copy of thinker at `cli`. Returns what changed:
+// { changed: ['.claude/settings.local.json', …], skipped: [{client, reason}], clients: [...] }.
+// With `dry` nothing is written. `mcpEntry` is this copy's MCP entry for the checkout.
+export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIENTS } = {}) {
+  const mine = real(installRoot(cli));
+  const ours = script => { if (!script) return true; const r = real(installRoot(script)); return r === mine || !fs.existsSync(script); };
+  const files = [...WIRING_FILES.map(f => path.join(repo, f)), ...HOOKS.map(h => gitHookPath(repo, h)).filter(Boolean)];
+  const snapshot = () => Object.fromEntries(files.map(f => [f, fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : null]));
+  const before = snapshot();
+  const r = { changed: [], skipped: [], clients: [] };
+  try {
+    for (const client of clients) {
+      const w = inferWiring(repo, client);
+      if (!w) continue;
+      if (!w.scripts.every(ours)) { r.skipped.push({ client, reason: `wired to another copy of thinker (${[...new Set(w.scripts.filter(s => !ours(s)).map(installRoot))].join(', ')})` }); continue; }
+      if (w.custom.length) { r.skipped.push({ client, reason: `a hook command was written by hand: ${w.custom[0]}` }); continue; }
+      installClient(client, { repo, cli, mcpEntry, hooks: w.hooks, learn: w.learn, late: w.late, shared: w.shared, mcp: w.mcp });
+      r.clients.push(client);
+    }
+    const gitCli = gitHooksOurs(repo);
+    if (gitCli && ours(gitCli)) {
+      const learn = /maintain/.test(readText(gitHookPath(repo, 'post-commit')));
+      installGitHooks(repo, cli, learn);
+    } else if (gitCli) r.skipped.push({ client: 'git', reason: `git hooks run another copy of thinker (${installRoot(gitCli)})` });
+  } finally {
+    const after = snapshot();
+    for (const f of files) if (before[f] !== after[f]) r.changed.push(path.relative(repo, f));
+    if (dry) for (const f of files) { if (before[f] === after[f]) continue; if (before[f] === null) fs.rmSync(f, { force: true }); else fs.writeFileSync(f, before[f]); }
+  }
+  // Codex keeps a hash of each reviewed hook: a rewritten hook needs its hash again, where the project was trusted before
+  if (!dry && r.clients.includes('codex') && r.changed.includes('.codex/hooks.json') && readText(codexConfig()).includes(`[projects.${tomlStr(real(repo))}]`)) trustCodex(repo);
+  return r;
+}
 
 // Take the entries of other copies of thinker out of this checkout's client configuration.
 // `cli` is this copy's cli.js. Hooks of another copy are removed; an MCP entry of another copy
@@ -390,7 +509,7 @@ export function installClient(client, { repo, cli, mcpEntry, hooks, learn, late,
       mergeJson(path.join(repo, '.cursor', 'mcp.json'), c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpEntry } }));
       const rule = path.join(repo, '.cursor', 'rules', 'thinker.mdc');
       fs.mkdirSync(path.dirname(rule), { recursive: true });
-      fs.writeFileSync(rule, CURSOR_RULE);
+      if (readText(rule) !== CURSOR_RULE) fs.writeFileSync(rule, CURSOR_RULE);
       done.push('Cursor: registered MCP server in .cursor/mcp.json and added the rule .cursor/rules/thinker.mdc');
       generated.push('.cursor/mcp.json', '.cursor/rules/thinker.mdc');
     }

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { MORE_NOTES_INTRO } from '../cache-guidance.js';
-import { pruneInstalls, prunedLines, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from '../clients.js';
+import { pruneInstalls, prunedLines, refreshWiring, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from '../clients.js';
 import { loadCochange } from '../cochange.js';
 import { parseTranscript } from '../distill.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
@@ -33,6 +33,8 @@ async function hookCommand(ctx) {
     if (store.exists()) pullInBackground(ctx);
     // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
     if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
+    // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command)
+    if (store.exists()) { try { const w = refreshWiring(repo, { cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
     if (!store.exists() || !store.list().length) return;
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
     if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });

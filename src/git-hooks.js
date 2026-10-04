@@ -25,8 +25,11 @@ export function installGitHooks(repo, cli, learn, out = () => {}) {
     if (fs.existsSync(file) && !fs.readFileSync(file, 'utf8').includes('# thinker:')) {
       out(`skipped git ${name} hook: existing hook is not ours`); continue;
     }
+    const text = name === 'pre-push' ? prePushHook(cli) : name === 'pre-commit' ? preCommitHook(cli) : postCommitHook(cli, repo, learn);
+    let cur = null; try { cur = fs.readFileSync(file, 'utf8'); } catch {}
+    if (cur === text) { out(`git ${name} hook already in place`); continue; }
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, name === 'pre-push' ? prePushHook(cli) : name === 'pre-commit' ? preCommitHook(cli) : postCommitHook(cli, repo, learn), { mode: 0o755 });
+    fs.writeFileSync(file, text, { mode: 0o755 });
     fs.chmodSync(file, 0o755);
     out(`installed git ${name} hook`);
   }

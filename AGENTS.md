@@ -912,6 +912,24 @@ tool `review` is the same for an agent before it commits.
   each other out, and a newer copy is left to do the cleaning. What was removed
   is logged (`op: "prune"`) and said once at the end of the turn through the
   maintenance notice. Only the entries go; the old copy's files are not deleted.
+- The wiring follows the installed version (`clients.js:refreshWiring`). The
+  hook and MCP entries are written in the shape the version that ran `setup`
+  knew; a later version that adds an event (`SessionEnd` for the final distill
+  of a session) or changes a command rewrites them from what is there:
+  `inferWiring` reads from each client's files whether hooks, late notes,
+  learning and the MCP entry were installed and which Claude settings file
+  holds them, and `installClient` is run again with those options. Only
+  entries that run this copy (by the script's install root) or a copy that is
+  gone are rewritten; entries of another living copy (a development checkout)
+  and hand-tuned commands (an env prefix, a `--budget`: a benchmark arm's) are
+  left alone and named. Git hooks of this copy are rewritten the same way.
+  `thinker update` runs `thinker rewire` from the new copy after an update, for
+  every checkout the machine's log names that is still set up; the prompt hook
+  runs it for its own checkout on every prompt (`mergeJson` and
+  `installGitHooks` leave an unchanged file untouched, so a client watching its
+  settings file sees nothing); `thinker rewire [--here] [--dry]` is the command
+  by hand. Before 2026-10-04 nothing did this, and this repository ran without
+  `SessionEnd` and `PostToolUse` hooks for weeks after both were added.
 - Cursor's prompt hook can allow or block a prompt but cannot add context, so
   thinker computes the notes at prompt time and hands them over with the first
   tool result. An always-applied rule also tells the agent to call `orient`.

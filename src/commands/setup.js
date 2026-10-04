@@ -4,13 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initAst, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from '../ast.js';
-import { parseClients, uninstallClients } from '../clients.js';
+import { parseClients, uninstallClients, refreshWiring } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup } from '../setup.js';
 import { unscheduleTelemetry } from '../telemetry.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, getLaunchAgentPath } from '../update.js';
 import { githubSlug } from './shared.js';
 import { seed, minePrs } from './learn.js';
+import { readLog } from '../usage.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -55,6 +56,51 @@ async function astCommand(ctx) {
   out(st.available ? `tree-sitter: on (${st.dir}); grammars: ${st.grammars.join(', ')}` : `tree-sitter: off (regex heuristics in use)${st.error ? `: ${st.error}` : ''}\nlooked in: ${astDirs().join(', ')}\ninstall with: thinker ast install   (grammars: ${GRAMMAR_NAMES.join(', ')})`);
   return;
 }
+
+// The checkouts thinker has been wired into on this machine: every path the machine's log names
+// that still exists and is set up, and the current one. The log is the only record there is.
+function knownRepos(store, repo) {
+  const seen = new Map();
+  const add = p => { try { const r = fs.realpathSync(p); if (fs.existsSync(path.join(r, '.thinker'))) seen.set(r, true); } catch {} };
+  if (store.exists()) add(repo);
+  try { for (const e of readLog(store, { all: true })) if (e.repo && typeof e.repo === 'string') add(e.repo); } catch {}
+  return [...seen.keys()];
+}
+
+// Rewrite the hook and MCP entries of every known checkout (or this one, --here) for this copy of
+// thinker: clients.js:refreshWiring. `thinker update` runs it after an update; the prompt hook does
+// the same for its own checkout; this is the command for doing it by hand.
+async function rewireCommand(ctx) {
+  const { flags, repo, store, out, HERE } = ctx;
+  const cli = path.join(HERE, 'cli.js');
+  const repos = flags.here ? (store.exists() ? [repo] : []) : knownRepos(store, repo);
+  const dry = !!flags.dry, quiet = !!flags.quiet;
+  const summary = { repos: 0, changed: 0, files: [] };
+  for (const r of repos) {
+    let res;
+    try { res = refreshWiring(r, { cli, mcpEntry: { command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: r } }, dry }); } catch (e) { if (!quiet) out(`${r}: ${e.message}`); continue; }
+    summary.repos++;
+    if (res.changed.length) { summary.changed++; summary.files.push(...res.changed.map(f => path.join(r, f))); }
+    if (quiet) continue;
+    if (res.changed.length) out(`${r}: ${dry ? 'would rewrite' : 'rewrote'} ${res.changed.join(', ')}`);
+    for (const s of res.skipped) out(`${r}: ${s.client} left alone: ${s.reason}`);
+  }
+  if (flags.json) { out(JSON.stringify(summary)); return; }
+  if (!quiet) out(summary.changed ? `${dry ? 'would rewire' : 'rewired'} ${summary.changed} of ${summary.repos} checkouts` : `${summary.repos} checkouts checked; the wiring is current`);
+  if (!dry && summary.changed) store.log({ op: 'rewire', repos: summary.changed, files: summary.files.length });
+}
+
+// After an update the new copy rewrites the hooks of every checkout it is wired into, so a new
+// event or command reaches them without `thinker setup` being rerun. The new code knows the new
+// shape, so it is the new cli that runs, not this process.
+function rewireAfterUpdate(newCli, { quiet }) {
+  if (!fs.existsSync(newCli)) return null;
+  const r = spawnSync('node', [newCli, 'rewire', '--json', '--quiet'], { encoding: 'utf8', timeout: 120_000, env: { ...process.env, THINKER_TELEMETRY: process.env.THINKER_TELEMETRY || 'off' } });
+  let summary = null; try { summary = JSON.parse(String(r.stdout || '').trim().split('\n').pop()); } catch {}
+  if (summary && !quiet && summary.changed) process.stdout.write(`Rewired the hooks of ${summary.changed} ${summary.changed === 1 ? 'checkout' : 'checkouts'} for the new version.\n`);
+  return summary;
+}
+const newCliOf = (install, home) => install.type === 'git' ? path.join(install.path, 'src', 'cli.js') : path.join(home, 'app', 'src', 'cli.js');
 
 async function updateCommand(ctx) {
   const { cmd, pos, flags, store, out, HERE } = ctx;
@@ -131,8 +177,9 @@ async function updateCommand(ctx) {
       if (chk.available) {
         const res = await applyUpdate({ home, install, quiet: true, background: true });
         if (res.updated) {
+          const rewired = rewireAfterUpdate(newCliOf(install, home), { quiet: true });
           const noticeFile = path.join(home, 'state', 'update-notice.json');
-          fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, at: new Date().toISOString() }));
+          fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, rewired: rewired?.changed || 0, at: new Date().toISOString() }));
           store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: true });
         }
       }
@@ -193,6 +240,9 @@ async function updateCommand(ctx) {
     if (!flags.quiet) {
       const branchInfo = res.branch ? ` on branch ${res.branch}` : (res.ref ? ` on ref ${res.ref}` : '');
       out(`Updated thinker${branchInfo} to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
+    }
+    rewireAfterUpdate(newCliOf(install, home), { quiet: !!flags.quiet });
+    if (!flags.quiet) {
       if (!isScheduled(home)) {
         out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
       }
@@ -258,6 +308,7 @@ export const commands = {
   'uninstall': uninstallCommand,
   'ast': astCommand,
   'switch': updateCommand,
+  'rewire': rewireCommand,
   'branch': updateCommand,
   'update': updateCommand,
   'upgrade': updateCommand,

@@ -303,7 +303,9 @@ scheduler; they are not an immediate push to every client.
 Linux containers without `crontab` use the invocation check automatically.
 Pass `--no-auto-update` to the installer to skip OS scheduling. To also disable
 invocation checks, set `THINKER_NO_AUTO_UPDATE=1` when running thinker;
-`thinker update` remains available for manual updates.
+`thinker update` remains available for manual updates. After an update the new version
+rewrites the hooks and MCP entries of every repository it is wired into, so a new hook
+event reaches them without `thinker setup` being rerun (`thinker rewire` does it by hand).
 
 Clients installed before 0.1.1 may be unable to update without GitHub access.
 Refresh the updater once: sign in at [zerotime.dev](https://zerotime.dev), copy

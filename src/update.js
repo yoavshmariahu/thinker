@@ -620,7 +620,7 @@ export function checkPendingNotice(home = thinkerHome()) {
       const data = JSON.parse(fs.readFileSync(noticeFile, 'utf8'));
       fs.rmSync(noticeFile, { force: true });
       if (data.to) {
-        return `auto-updated to ${data.to.slice(0, 7)}${data.version ? ` (v${data.version})` : ''}`;
+        return `auto-updated to ${data.to.slice(0, 7)}${data.version ? ` (v${data.version})` : ''}${data.rewired ? `; the hooks of ${data.rewired} ${data.rewired === 1 ? 'checkout were' : 'checkouts were'} rewritten for it` : ''}`;
       }
     }
   } catch {}

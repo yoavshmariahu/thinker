@@ -137,6 +137,8 @@ const HELP = `thinker — knowledge cache for coding agents
   switch <branch>                switch thinker CLI to a specific branch version
   branch                         show current branch or ref
   upgrade                        alias for update
+  rewire [--here] [--dry]        rewrite the hooks and MCP entries of every checkout set up on this machine for this
+                                 version (update runs it; the prompt hook does it for its own checkout)
   stats
   telemetry [--send] [--json] [--force] [--event name] [--schedule] [--unschedule] [--status]
                                  cache effectiveness and size metrics sent to the metrics service;
