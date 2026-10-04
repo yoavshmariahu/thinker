@@ -614,9 +614,13 @@ rule unchanged (an error or warning within six lines). Files:
   the cache mines afterwards. Decided 2026-10-04: the review is for
   regressions of what the team learned and for its written conventions, not
   for bugs in new code, where the result is the model's and the cache has
-  nothing to add until it covers the area. An arm that shows the model one
-  sibling of a new definition (another source in the same directory) is the
-  untried idea for the four knowledge cases.
+  nothing to add until it covers the area. The one idea tried for the four
+  knowledge cases, an arm showing the model one neighbouring file per new or
+  changed file for conventions by example (`2026-10-04-posthog-inducing-siblings`,
+  Sonnet, the neighbour chosen by shared identifiers: the Adroll source beside
+  the Cloudinary one, another Fly.io file beside the regions bug), caught
+  nothing in 12 answered reviews (one proximity hit on an unrelated decorator,
+  two timeouts), at $0.19 and 160 seconds a review. Not kept.
 - **Changed on the strength of this** (2026-10-04): maintenance mines fixes
   first and no longer loses candidates to its per-run cap (`prs.js:pickPrs`);
   the pull request action and the server consult every note by default
