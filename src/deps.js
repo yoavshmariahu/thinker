@@ -200,8 +200,12 @@ export function hashDepAtIndex(repo, dep, opts = {}) {
 export function checkNote(repo, note, { ref, index = false, narrow = false } = {}) {
   const changed = [];
   let upgraded = false;
+  // `deps` is safe to store whatever the outcome: a dep the change altered keeps its stored record
+  // (its hash from the last verification), so a stale note's deps can be persisted without the
+  // change disappearing from the next check; the others take their present hash
   const deps = (note.deps || []).flatMap(d => {
     let now = index ? hashDepAtIndex(repo, d) : ref ? hashDepAt(repo, d, ref) : hashDep(repo, d);
+    const before = changed.length;
     if (now.missing) changed.push({ path: d.path, symbol: d.symbol, reason: 'file removed' });
     else if (now.symbolMissing && !d.symbolMissing) changed.push({ path: d.path, symbol: d.symbol, reason: 'symbol not found' });
     else if (d.hash && now.hash !== d.hash) {
@@ -212,14 +216,21 @@ export function checkNote(repo, note, { ref, index = false, narrow = false } = {
       else if (d.symbol && now.engine === 'ast' && !d.engine && now.hashRegex === d.hash) upgraded = true; // the parser arrived here: store its hash
       else if (d.symbol && !now.engine && d.engine === 'ast' && d.hashRegex === now.hash) now = { ...d }; // no parser here: keep the record of the checkout that has one
       else if (!d.symbol && narrow && !ref && !index) {
-        // the file changed somewhere; when every definition the note names in it is as it was, the
-        // change cannot touch the note's claims, and the dep narrows to those definitions
+        // the file changed somewhere. When the note names definitions in it, the dep narrows to those
+        // definitions: the note is stale only on the ones that changed, and the narrowed deps are kept
+        // either way (`persist`), so the next check and the verification see symbols, not the file.
+        // When it names none, the change is still unrelated if no changed line holds a term of the note.
         const narrowed = narrowFileDep(repo, d, note);
-        if (narrowed) { upgraded = true; return narrowed; }
+        if (narrowed) {
+          upgraded = true;
+          for (const c of narrowed.changed) changed.push({ path: d.path, symbol: c, reason: 'symbol body changed' });
+          return narrowed.deps;
+        }
         changed.push({ path: d.path, symbol: d.symbol, reason: 'file changed' });
       }
       else changed.push({ path: d.path, symbol: d.symbol, reason: d.symbol && !now.symbolMissing ? 'symbol body changed' : 'file changed' });
     }
+    if (changed.length > before) return [{ ...d }];
     if (d.fanout) now.fanout = d.fanout; // reference counts (codegraph.js) are kept until the note is re-verified
     return [now];
   });
@@ -243,25 +254,29 @@ export function bodyIdentifiers(body, max = 40) {
 }
 
 // A whole-file dep whose file changed since the note was verified. When the body names definitions
-// in that file and none of them changed between the verified commit and now, the change is elsewhere
-// in the file: returns those definitions as symbol deps, hashed now, to replace the file dep. Null
-// when nothing can be told (no named definition, no verified commit, or one of them did change):
-// the note is then stale as before. Working tree only; commit checks (share --check) keep file hashes.
+// in that file, the dep becomes those definitions: {deps, changed} with each definition hashed as
+// it was at the verified commit when it changed since (so it still reads as changed, and a
+// verification sees that symbol rather than the file) and as it is now when it did not; `changed`
+// names the ones that changed. On a repository with two hundred commits a week, a whole-file dep on
+// a hub file was stale by construction: 74 of 137 stale notes here rested on nothing else. Null when
+// nothing can be told (no named definition, no verified commit): the note is then stale as before,
+// unless the changed lines hold no term of the note. Working tree only; commit checks
+// (share --check) keep file hashes.
 export function narrowFileDep(repo, dep, note, { max = 4 } = {}) {
   if (dep.symbol || !note?.verifiedCommit) return null;
   const abs = repoFile(repo, dep.path);
   if (!abs) return null;
   let text; try { text = fs.readFileSync(abs, 'utf8'); } catch { return null; }
-  const syms = [];
+  const syms = [], changedSyms = [];
   for (const name of bodyIdentifiers(note.body)) {
     const now = hashText(text, { path: dep.path, symbol: name });
     if (now.symbolMissing) continue; // not a definition in this file
     const then = hashDepAt(repo, { path: dep.path, symbol: name }, note.verifiedCommit);
-    if (then.missing || then.symbolMissing || then.hash !== now.hash) return null; // a named definition changed: a real change
-    syms.push(now);
+    if (then.missing || then.symbolMissing || then.hash !== now.hash) { syms.push(then.missing || then.symbolMissing ? { path: dep.path, symbol: name, hash: 'changed' } : then); changedSyms.push(name); }
+    else syms.push(now);
     if (syms.length >= max) break;
   }
-  if (syms.length) return syms;
+  if (syms.length) return { deps: syms, changed: changedSyms };
   // no definition named: the file is read as a whole (a script, a config, a switch of cases). The
   // change is still unrelated when no changed line holds a term the note uses; the dep then keeps
   // the file and takes the new hash. The diff is from the verified commit, so later changes are
@@ -274,7 +289,28 @@ export function narrowFileDep(repo, dep, note, { max = 4 } = {}) {
     if (!/^[+-]/.test(line) || /^(\+\+\+|---)/.test(line)) continue;
     for (const w of line.toLowerCase().match(/[a-z_][a-z0-9_]{3,}/g) || []) if (terms.has(stem(w))) return null;
   }
-  return [hashText(text, { path: dep.path })];
+  return { deps: [hashText(text, { path: dep.path })], changed: [] };
+}
+
+// At creation: a whole-file dep on a code file whose definitions the note's body names becomes
+// those symbol deps, so the note starts anchored to what it talks about rather than to a file that
+// every unrelated commit changes. Deps on files that are not code (configs, scripts, docs), and on
+// code files the body names nothing in, stay as they are. Of this repository's live notes, 44 had
+// a whole-file dep that could have been narrowed this way when they were written.
+export function narrowAtCreation(repo, deps, body, { max = 4 } = {}) {
+  return deps.flatMap(d => {
+    if (d.symbol || langOf(d.path) === 'auto') return [d];
+    const abs = repoFile(repo, d.path);
+    let text; try { text = fs.readFileSync(abs, 'utf8'); } catch { return [d]; }
+    const syms = [];
+    for (const name of bodyIdentifiers(body)) {
+      const h = hashText(text, { path: d.path, symbol: name });
+      if (h.symbolMissing) continue;
+      syms.push(h);
+      if (syms.length >= max) break;
+    }
+    return syms.length ? syms : [d];
+  });
 }
 
 function diffSince(repo, commit, file) {

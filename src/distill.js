@@ -143,8 +143,8 @@ Write a note ONLY for understanding that (a) took the agent real effort to estab
 Rules:
 - Do NOT write "this file contains ..." summaries. Do NOT restate the task or what the agent changed in this session unless that reveals a reusable rule.
 - Every claim must be grounded in what the agent actually observed in the trace (file contents, grep hits, command output), not in what it assumed.
-- Bodies are 3-12 lines of markdown, dense, with \`path:Symbol\` pointers. Prefer symbol pointers over line numbers.
-- deps: list every file the note's claims rest on; add the symbol when the claim is about a specific function/class. The cache hashes these to detect staleness, so be precise and do not list files the note does not depend on.
+- Bodies are 3-12 lines of markdown, dense, with \`path:Symbol\` pointers. Prefer symbol pointers over line numbers. State claims as present-tense facts about the code ("X does Y; Z must run before W"), never as a narrative of this session ("the session found", "in this run", "the agent then"): a future reader checks claims against code, and a story about one run cannot be checked. A claim that held only in this run is left out.
+- deps: list every file the note's claims rest on, and for a code file name the definition (symbol) the claim rests on. A dep on a whole code file is almost never right: the file changes with every unrelated commit and the note goes stale for nothing; whole-file deps are for configs, scripts and documents. The cache hashes these to detect staleness, so be precise and do not list files the note does not depend on.
 - applies: for gotcha / convention / rationale / cochange notes, one line stating when the rule applies and when it does not (e.g. "only for options with multiple=True; arguments use a different path"). Generic lessons without such constraints are useless.
 - answers: 2-5 short question phrasings a future agent might ask that this note answers (used for retrieval).
 - confidence: 0.9+ only when the agent read the actual code; 0.6-0.8 for things inferred from grep hits or partial reads.

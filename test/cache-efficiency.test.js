@@ -76,9 +76,11 @@ test('a changed whole-file dep narrows to the definitions the note names when no
   assert.deepEqual(r.changed, []);
   assert.ok(r.upgraded);
   assert.deepEqual(r.deps.map(d => `${d.path}:${d.symbol}`), ['src/a.js:fetchRows']);
-  // the named definition changes: stale
+  // the named definition changes: stale on that definition, which the dep now names
   fs.writeFileSync(path.join(repo, 'src/a.js'), fs.readFileSync(path.join(repo, 'src/a.js'), 'utf8').replace('return 1', 'return 11'));
-  assert.deepEqual(checkNote(repo, note, { narrow: true }).changed.map(c => c.reason), ['file changed']);
+  const after = checkNote(repo, note, { narrow: true });
+  assert.deepEqual(after.changed, [{ path: 'src/a.js', symbol: 'fetchRows', reason: 'symbol body changed' }]);
+  assert.deepEqual(after.deps.map(d => `${d.path}:${d.symbol}`), ['src/a.js:fetchRows']);
   fs.rmSync(repo, { recursive: true, force: true });
 });
 

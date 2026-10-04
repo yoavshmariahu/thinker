@@ -4,7 +4,7 @@ import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
-import { hashDep, checkNote, symbolText, symbolBlock, repoFile } from './deps.js';
+import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation } from './deps.js';
 import { rank, pack, renderNote, renderPointers, estTokens } from './rank.js';
 import { annotateFanout, fanout, callers, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
 import { servedFields } from './usage.js';
@@ -115,7 +115,7 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
   const extra = extractDeps(repo, String(input.body || ''), input.deps || []);
   const { deps: resolved, dropped } = resolveDeps(repo, [...(input.deps || []), ...extra]);
   if (!resolved.length) return { error: 'no resolvable dependencies; a note must point at at least one existing file', dropped };
-  const deps = annotateFanout(repo, dropShadowedFileDeps(resolved)); // blast radius of each symbol pointer, shown beside it when served
+  const deps = annotateFanout(repo, dropShadowedFileDeps(narrowAtCreation(repo, resolved, String(input.body || '')))); // blast radius of each symbol pointer, shown beside it when served
   const kind = KINDS.includes(input.kind) ? input.kind : 'location';
   const id = reuseId && input.id ? input.id : input.id && !store.get(input.id) ? slugify(input.id) : uniqueId(store, slugify(input.title));
   const now = new Date().toISOString();
@@ -143,8 +143,11 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
     const wasStale = n.status === 'stale';
     if (changed.length) {
       const stale = { since: n.stale?.since || new Date().toISOString(), changed };
-      const next = { ...n, status: 'stale', stale };
-      if (persist && (!wasStale || JSON.stringify(n.stale?.changed) !== JSON.stringify(changed))) store.put(next);
+      // a whole-file dep narrowed to definitions (checkNote with narrow) is kept although the note
+      // stays stale: the changed definitions carry their hash from the verified commit, so they
+      // still read as changed, and the verification sees symbols rather than the file
+      const next = { ...n, status: 'stale', stale, ...(upgraded ? { deps } : {}) };
+      if (persist && (!wasStale || upgraded || JSON.stringify(n.stale?.changed) !== JSON.stringify(changed))) store.put(next);
       return next;
     }
     if (wasStale) { const next = { ...n, status: 'fresh', deps }; delete next.stale; if (persist) store.put(next); return next; }
@@ -749,6 +752,14 @@ export const VERIFY_SCHEMA = {
 };
 export const VERIFY_MAX_TOKENS = 1500;
 
+// A body the model wrote back sometimes starts with the framing it was shown: `NOTE (kind=gotcha)
+// "title"` or the title alone on the first line. One live note here began that way. Those lines go.
+export function cleanBody(body, title) {
+  const lines = String(body || '').trim().split('\n');
+  while (lines.length > 1 && (/^NOTE \(kind=\w+\)/.test(lines[0]) || (title && lines[0].replace(/^#+\s*|\*\*/g, '').trim() === String(title).trim()) || !lines[0].trim())) lines.shift();
+  return lines.join('\n').trim();
+}
+
 // Re-verify a stale note with a small model, using the diff of its changed
 // dependencies plus the current text of each dependency symbol.
 export async function verifyNote(store, note, { model } = {}) {
@@ -767,8 +778,8 @@ export async function verifyNote(store, note, { model } = {}) {
   if (v.verdict === 'still_valid') {
     next = { ...note, deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.min(1, (note.confidence ?? 0.7) + 0.05) };
     delete next.stale;
-  } else if (v.verdict === 'update' && v.body && v.body.trim()) {
-    next = { ...note, body: v.body.trim(), deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.max(0.3, Math.min(1, Number(v.confidence) || note.confidence || 0.6)), history: [...(note.history || []), { at: now, reason: v.reason, prevBody: note.body }].slice(-5) };
+  } else if (v.verdict === 'update' && cleanBody(v.body, note.title)) {
+    next = { ...note, body: cleanBody(v.body, note.title), deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.max(0.3, Math.min(1, Number(v.confidence) || note.confidence || 0.6)), history: [...(note.history || []), { at: now, reason: v.reason, prevBody: note.body }].slice(-5) };
     delete next.stale;
   } else {
     next = { ...note, status: 'invalid', invalidReason: v.reason, verified: now };

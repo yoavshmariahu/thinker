@@ -118,7 +118,10 @@ written for this checkout only and kept out of commits through
 To mine more pull requests later, run `thinker mine-prs` (or `thinker learn
 --prs`, which distills new sessions first). With no arguments it takes the
 GitHub `origin`, mines what was merged since the last run and then goes
-further back in history, 20 at a time (`--limit n`). Every pull request it
+further back in history, 20 at a time (`--limit n`). Without GitHub it
+mines commits from git history; `--fixes` keeps only those whose message
+says they fix something (`prs.js:FIX_LIKE`), the records review draws on
+most. Every pull request it
 has looked at is recorded in `.thinker/prs.json`, which is committed with the
 notes, so none is distilled twice, by you or by a teammate. Pull requests merged
 after thinker was set up are distilled by background maintenance (see [The
@@ -248,14 +251,26 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 - Every `orient`/`lookup` re-hashes the deps of every note against the
   working tree, so uncommitted edits are caught too. A whole-file dep on a
   file the note also points into by symbol is dropped when the note is
-  created or verified (`ops.js:dropShadowedFileDeps`). Maintenance and
-  `thinker check` judge a changed whole-file dep further
-  (`deps.js:narrowFileDep`, `checkNote` with `narrow`): when the body names
-  definitions in the file and none of them changed since `verifiedCommit`,
-  the dep becomes those symbol deps; when it names none and no changed line
-  of the diff since `verifiedCommit` holds a term the note uses, the dep
-  keeps the file and takes the new hash. Either way the note stays fresh
-  and the outcome is persisted, so the per-prompt check sees it. A
+  created or verified (`ops.js:dropShadowedFileDeps`). A whole-file dep on
+  a code file whose definitions the body names becomes those symbol deps
+  when the note is created (`deps.js:narrowAtCreation`; configs, scripts
+  and documents stay whole), and the distiller is told to name the
+  definition for a code file. Maintenance and `thinker check` judge a
+  changed whole-file dep further (`deps.js:narrowFileDep`, `checkNote` with
+  `narrow`): when the body names definitions in the file, the dep becomes
+  those symbol deps, the note is stale only on the ones that changed since
+  `verifiedCommit` (each carrying its hash from that commit, so the change
+  stays visible), and the narrowed deps are persisted whether the note is
+  fresh or stale, so the next check and the verification see symbols, not
+  the file; when it names none and no changed line of the diff since
+  `verifiedCommit` holds a term the note uses, the dep keeps the file and
+  takes the new hash. `checkNote` returns deps that are safe to store in
+  either case: a dep the change altered keeps its stored record. On this
+  repository (two hundred commits a week) 74 of 137 stale notes rested on
+  nothing but whole-file deps on hub files (`src/cli.js` in 48), and
+  neither the term rule nor a line-anchored variant could clear them, since
+  a week of diff to a hub file holds every word; anchoring to definitions
+  is what helps, and it helps the next time, not retroactively. A
   `cochange` note's whole-file deps are existence-only: a partner file
   changing is what the note predicts.
   Stale notes are ranked lower and served with a `⚠ STALE` banner listing
@@ -269,7 +284,9 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
   (retire). The answer is the verdict and one sentence, a body only for
   `update`, capped at 1,500 tokens (`ops.js:VERIFY_SCHEMA`,
   `VERIFY_MAX_TOKENS`): a week of verify calls here averaged 2,900 output
-  tokens for verdicts that were 64% `still_valid`.
+  tokens for verdicts that were 64% `still_valid`. A rewritten body that
+  starts with the framing the model was shown (`NOTE (kind=…) "title"`, or
+  the title) loses that line (`ops.js:cleanBody`).
 
 ## Capture
 

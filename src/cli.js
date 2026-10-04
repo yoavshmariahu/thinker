@@ -10,7 +10,7 @@ import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, dril
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
 import { installCbm, cbmBin, cbmDir, cbmIndex, cbmForget, cbmStatus, codegraphEngine, CBM_VERSION } from './cbm.js';
-import { listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
+import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from './prs.js';
 import { discoverAreas, subsystemForFile } from './topology.js';
 import { loadCochange } from './cochange.js';
 import { mineCochange, partners } from './cochange.js';
@@ -133,9 +133,10 @@ const HELP = `thinker — knowledge cache for coding agents
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   seed [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: one exploration session per source area
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
-  mine-prs [owner/repo] [--limit n] [--dry]
+  mine-prs [owner/repo] [--limit n] [--dry] [--fixes]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,
-                                 then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice
+                                 then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
+                                 without GitHub, commits from git history (--fixes: only those whose message says they fix something)
                                  (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = early injection, tool = late file-keyed injection, stop = nudge + distill
   usage [--here] [--days n] [--json]
@@ -706,7 +707,7 @@ async function main() {
     }
     case 'mine-prs': {
       // thinker mine-prs [owner/repo] [--limit n] [--dry]; a window by hand: --before <iso> [--after <iso>] [--again]
-      await mineMore({ slug: pos[0], before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry });
+      await mineMore({ slug: pos[0], before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes });
       break;
     }
     case 'outcome': {
@@ -1036,7 +1037,7 @@ async function mineMore({ slug, ...opts }) {
   return minePrs(slug, { ...opts, repo });
 }
 
-async function minePrs(slug, { before, after, again, limit = 20, model, dry, repo = process.cwd(), phase = 'maintenance' } = {}) {
+async function minePrs(slug, { before, after, again, limit = 20, model, dry, fixes = false, repo = process.cwd(), phase = 'maintenance' } = {}) {
   const useGit = !slug || !hasBin('gh');
   const recSlug = slug || 'local';
   const rec = minedPrs(store, recSlug);
@@ -1056,7 +1057,10 @@ async function minePrs(slug, { before, after, again, limit = 20, model, dry, rep
   const filtered = listed
     .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) &&
       (p.body || '').length > (useGit ? 10 : 120) && p.additions <= 800 && p.additions >= 3);
-  const candidates = filtered.length ? filtered : listed.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
+  let candidates = filtered.length ? filtered : listed.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
+  // --fixes: only changes whose message says they fix something (git history has no labels; a repository
+  // developed by direct commits has no pull requests to mine, and its fix commits are what review wants)
+  if (fixes) candidates = candidates.filter(p => FIX_LIKE.test(`${p.title}\n${(p.body || '').slice(0, 400)}`));
   const prs = stratifyPrs(candidates, limit);
   out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
   const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose) });
