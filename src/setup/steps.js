@@ -5,7 +5,7 @@ import readlinePromises from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
 import { installGitHooks } from '../git-hooks.js';
 import { linkNotes, phraseNotes } from '../ops.js';
-import { CLIENTS, detectClients, installClient, trustCodex } from '../clients.js';
+import { CLIENTS, USER_SCOPE_CLIENTS, detectClients, installClient, installCursorRule, stripRepoWiring, trustCodex, trustCodexUser } from '../clients.js';
 import { available, provider, findBin } from '../llm.js';
 import { cleanErrorMessage } from '../benchmark.js';
 import { oneLine } from '../progress.js';
@@ -15,9 +15,15 @@ import { githubSlug } from './agents.js';
 
 // --- Step 1: Connect Harness CLIs --------------------------------------------
 
-export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks = true, learn = true, late = false, shared = true, mcp = true, gitHook = true, noTrust = false, yes = false, out = console.log }) {
+// Wire the agents into their own settings (user scope: read in every checkout, and by the desktop
+// apps that read no project files), and, when `repo` is given, the checkout's own pieces: git
+// hooks, Cursor's rule, Codex's trust in the project, and with `shared` the committed wiring
+// files for the team. Setup wrote per-checkout files until 2026-10-04; this copy's machine-local
+// ones are taken out of the checkout, since the user's now run there.
+export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpEntry, clients, hooks = true, learn = true, late = false, shared = false, mcp = true, gitHook = true, noTrust = false, yes = false, out = console.log }) {
   const detected = detectClients();
   const targetClients = clients || detected;
+  const userEntry = userMcpEntry || { command: mcpEntry.command, args: mcpEntry.args };
 
   const clientMeta = {
     pi: { name: 'Pi' },
@@ -45,35 +51,37 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
       continue;
     }
 
+    // Pi, Windsurf, Copilot and OpenCode are wired into the checkout alone (an extension or rule file there)
+    if (!USER_SCOPE_CLIENTS.includes(client) && !repo) { results.push({ client, status: 'skipped', detail: 'wired per repository: run thinker setup inside one' }); continue; }
     try {
-      const logs = installClient(client, {
-        repo,
-        cli: cliPath,
-        mcpEntry,
-        hooks,
-        learn,
-        late,
-        shared,
-        mcp,
-      });
+      const logs = USER_SCOPE_CLIENTS.includes(client)
+        ? installClient(client, { scope: 'user', cli: cliPath, mcpEntry: userEntry, hooks, learn, late, mcp })
+        : installClient(client, { scope: 'repo', repo, cli: cliPath, mcpEntry, hooks, learn, late, shared, mcp });
+      if (repo && USER_SCOPE_CLIENTS.includes(client)) {
+        const moved = stripRepoWiring(repo, { cli: cliPath, clients: [client] });
+        if (moved.length) logs.push(`${(clientMeta[client]?.name || client)}: moved thinker's entries out of ${moved.join(', ')}: they run from your own settings now`);
+        if (shared) logs.push(...installClient(client, { scope: 'repo', repo, cli: cliPath, mcpEntry, hooks, learn, late, shared: true, mcp }));
+        if (client === 'cursor' && mcp) installCursorRule(repo);
+      }
 
       // Special handling for Codex trust
       if (client === 'codex' && (hooks || mcp) && !noTrust) {
         let ok = Boolean(yes);
         if (!ok && process.stdin.isTTY) {
           const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout });
-          const a = await rl.question(`  Codex: Mark repository as trusted and hooks as reviewed in ~/.codex/config.toml? [Y/n] `);
+          const a = await rl.question(`  Codex: Mark ${repo ? 'this repository as trusted and ' : ''}thinker's hooks as reviewed in ~/.codex/config.toml? [Y/n] `);
           rl.close();
           ok = !/^n/i.test(a.trim());
         }
         if (ok) {
-          trustCodex(repo);
-          logs.push('Codex: project trust & reviewed hook hashes saved in ~/.codex/config.toml');
+          if (repo) trustCodex(repo);
+          trustCodexUser();
+          logs.push(`Codex: ${repo ? 'project trust & ' : ''}reviewed hook hashes saved in ~/.codex/config.toml`);
         }
       }
 
       // Special handling for Cursor MCP workspace approval
-      if (client === 'cursor' && mcp) {
+      if (client === 'cursor' && mcp && repo) {
         const agentBin = findBin(['agent', 'cursor-agent']);
         if (agentBin) {
           try {
@@ -104,7 +112,7 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
     }
   }
 
-  if (gitHook) installGitHooks(repo, cliPath, learn, () => {});
+  if (gitHook && repo) installGitHooks(repo, cliPath, learn, () => {});
 
   const connectedCount = results.filter(r => r.status === 'connected').length;
   out(`\n  ${c.cyan('Summary:')} ${c.bold(connectedCount)} of ${targetClients.length} selected agents connected.`);

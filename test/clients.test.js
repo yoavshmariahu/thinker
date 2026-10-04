@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, pruneInstalls, prunedLines, compareVersions, trustCodex, codexHookHash, toolFiles, hookClient, refreshWiring, inferWiring } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, uninstallWiring, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, refreshWiring, inferWiring } from '../src/clients.js';
 import { installGitHooks, preCommitHook } from '../src/git-hooks.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
@@ -196,12 +196,19 @@ test('cursor: the bundle waits past MCP calls and is dropped when the agent aske
   assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c6', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
 });
 
-test('init learns from sessions by default; --no-learn and THINKER_NO_LEARN switch it off', () => {
+// a home of its own for a test that wires the agents' settings: the user's own files are never touched
+const fakeHome = () => { const h = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-home-')); return { HOME: h, CODEX_HOME: path.join(h, '.codex'), CLAUDE_CONFIG_DIR: '' }; };
+const inHome = (env, fn) => { const old = {}; for (const k of Object.keys(env)) { old[k] = process.env[k]; if (env[k] === '') delete process.env[k]; else process.env[k] = env[k]; } try { return fn(); } finally { for (const k of Object.keys(env)) { if (old[k] === undefined) delete process.env[k]; else process.env[k] = old[k]; } } };
+
+test('setup learns from sessions by default; --no-learn and THINKER_NO_LEARN switch it off', () => {
   const run = (args, env = {}) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-learn-'));
     execFileSync('git', ['init', '-q'], { cwd: dir });
-    execFileSync('node', [CLI, 'setup', '--no-build', '--no-mcp', '--clients', 'claude', '--repo', dir, ...args], { env: { ...process.env, THINKER_NO_LEARN: '', THINKER_TELEMETRY: 'off', ...env }, stdio: 'pipe' });
-    const f = path.join(dir, '.claude', 'settings.local.json');
+    const home = fakeHome();
+    execFileSync('node', [CLI, 'setup', '--no-build', '--no-mcp', '--clients', 'claude', '--repo', dir, ...args], { env: { ...process.env, THINKER_NO_LEARN: '', THINKER_TELEMETRY: 'off', ...home, ...env }, stdio: 'pipe' });
+    // the hooks go into the user's own settings, for every checkout; nothing into the checkout
+    assert.ok(!fs.existsSync(path.join(dir, '.claude')), 'nothing written into the checkout');
+    const f = path.join(home.HOME, '.claude', 'settings.json');
     return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')).hooks || {} : null;
   };
   const on = run([]);
@@ -307,7 +314,7 @@ test('refreshWiring brings a checkout\'s entries to this version\'s shape, keeps
   const cur = read(dir, '.claude/settings.local.json');
   delete cur.hooks.SessionEnd; cur.permissions = { allow: ['Bash(ls)'] };
   fs.writeFileSync(file, JSON.stringify(cur, null, 2) + '\n');
-  assert.deepEqual(inferWiring(dir, 'claude'), { hooks: true, learn: true, late: true, shared: false, mcp: true, scripts: [CLI, MCP], custom: [] });
+  assert.deepEqual(inferWiring(dir, 'claude'), { hooks: true, learn: true, late: true, shared: false, mcp: true, scripts: [CLI, MCP], hookScripts: [CLI], custom: [] });
   const dry = refreshWiring(dir, { cli: CLI, mcpEntry: mine.mcpEntry, dry: true });
   assert.deepEqual(dry.changed, ['.claude/settings.local.json']);
   assert.equal(read(dir, '.claude/settings.local.json').hooks.SessionEnd, undefined, 'a dry run writes nothing');
@@ -431,4 +438,111 @@ test('Pi and OpenCode generated extensions retrieve a real note through the CLI'
   const output = { parts: [{ type: 'text', text: PROMPT }] };
   await plugin['chat.message']({ sessionID: 'opencode-real' }, output);
   assert.match(output.parts[0].text, /RateLimiter/);
+});
+
+test('connect wires the agents into their own settings, once per machine: no --repo in the hooks, no pinned repository in the MCP entry', () => {
+  const home = fakeHome();
+  inHome(home, () => {
+    const MCP = path.join(path.dirname(CLI), 'mcp.js');
+    const entry = { command: 'node', args: [MCP] };
+    fs.mkdirSync(path.join(home.HOME, '.claude'));
+    fs.writeFileSync(path.join(home.HOME, '.claude', 'settings.json'), JSON.stringify({ model: 'opus', hooks: { Stop: [{ hooks: [{ type: 'command', command: 'other' }] }] } }));
+    fs.writeFileSync(path.join(home.HOME, '.claude.json'), JSON.stringify({ numStartups: 3, mcpServers: { other: { command: 'x' } } }));
+    fs.mkdirSync(home.CODEX_HOME);
+    fs.writeFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'model = "gpt-5"\n');
+    const o = { scope: 'user', cli: CLI, mcpEntry: entry, hooks: true, learn: true, late: true, mcp: true };
+    const lines = [];
+    for (const c of ['claude', 'codex', 'cursor', 'gemini']) lines.push(...installClient(c, o));
+    for (const c of ['claude', 'codex']) installClient(c, o); // idempotent
+    assert.ok(lines.some(l => l.includes('~/.claude/settings.json')) && lines.some(l => l.includes('~/.claude.json')), lines.join('\n'));
+
+    const claude = JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude', 'settings.json'), 'utf8'));
+    assert.equal(claude.model, 'opus', 'what else is in the file stays');
+    assert.equal(claude.hooks.UserPromptSubmit[0].hooks[0].command, `node "${CLI}" hook prompt --client claude --user`);
+    assert.equal(claude.hooks.Stop.length, 2); assert.equal(claude.hooks.SessionEnd.length, 1);
+    const cj = JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude.json'), 'utf8'));
+    assert.equal(cj.numStartups, 3);
+    assert.deepEqual(cj.mcpServers.thinker, entry); assert.equal(cj.mcpServers.other.command, 'x');
+
+    const codex = JSON.parse(fs.readFileSync(path.join(home.CODEX_HOME, 'hooks.json'), 'utf8')).hooks;
+    assert.equal(codex.UserPromptSubmit[0].hooks[0].command, `node "${CLI}" hook prompt --client codex --user --record`);
+    const toml = fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8');
+    assert.ok(toml.startsWith('model = "gpt-5"'));
+    assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1);
+    assert.ok(!toml.includes('THINKER_REPO') && !toml.includes('[mcp_servers.thinker.env]'), 'no pinned repository');
+    // Codex reviews the user's hooks too: their hashes, keyed by the user's hooks.json
+    assert.deepEqual(trustCodexUser().length, 1);
+    const trusted = fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8');
+    const hf = fs.realpathSync(path.join(home.CODEX_HOME, 'hooks.json'));
+    assert.ok(trusted.includes(`[hooks.state.${JSON.stringify(hf + ':user_prompt_submit:0:0')}]\ntrusted_hash = "${codexHookHash('user_prompt_submit', codex.UserPromptSubmit[0].hooks[0])}"`));
+    assert.ok(trusted.includes(':post_tool_use:0:0"]') && trusted.includes(':stop:0:0"]') && !trusted.includes('[projects.'));
+
+    const gem = JSON.parse(fs.readFileSync(path.join(home.HOME, '.gemini', 'settings.json'), 'utf8'));
+    assert.ok(gem.hooks.BeforeAgent[0].hooks[0].command.endsWith('--client gemini --user --record') && gem.mcpServers.thinker);
+    const cur = JSON.parse(fs.readFileSync(path.join(home.HOME, '.cursor', 'hooks.json'), 'utf8'));
+    assert.ok(cur.hooks.beforeSubmitPrompt[0].command.endsWith('--client cursor --user --record'));
+    assert.ok(JSON.parse(fs.readFileSync(path.join(home.HOME, '.cursor', 'mcp.json'), 'utf8')).mcpServers.thinker);
+    assert.ok(!fs.existsSync(path.join(home.HOME, '.cursor', 'rules')), 'the Cursor rule is a checkout file');
+
+    // what the files say, and the rewrite for a new version: nothing to change
+    assert.deepEqual(inferWiring(null, 'claude', { scope: 'user' }), { hooks: true, learn: true, late: true, shared: false, mcp: true, scripts: [CLI, MCP], hookScripts: [CLI], custom: [] });
+    assert.deepEqual(refreshWiring(null, { scope: 'user', cli: CLI, mcpEntry: entry }).changed, []);
+    const old = JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude', 'settings.json'), 'utf8')); delete old.hooks.SessionEnd;
+    fs.writeFileSync(path.join(home.HOME, '.claude', 'settings.json'), JSON.stringify(old));
+    assert.deepEqual(refreshWiring(null, { scope: 'user', cli: CLI, mcpEntry: entry }).changed, ['~/.claude/settings.json']);
+    // and the command, which does the user's files first
+    const outp = execFileSync('node', [CLI, 'rewire', '--here', '--dry', '--repo', os.tmpdir()], { encoding: 'utf8', env: { ...process.env, ...home, THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' } });
+    assert.match(outp, /the wiring is current/);
+
+    uninstallWiring({ scope: 'user' });
+    const left = JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude', 'settings.json'), 'utf8'));
+    assert.deepEqual(left, { model: 'opus', hooks: { Stop: [{ hooks: [{ type: 'command', command: 'other' }] }] } });
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude.json'), 'utf8')).mcpServers, { other: { command: 'x' } });
+    assert.ok(!fs.existsSync(path.join(home.CODEX_HOME, 'hooks.json')));
+    const t2 = fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8');
+    assert.equal(t2.trim(), 'model = "gpt-5"');
+    assert.ok(!fs.existsSync(path.join(home.HOME, '.gemini', 'settings.json')) && !fs.existsSync(path.join(home.HOME, '.cursor', 'mcp.json')));
+  });
+});
+
+test('a hook at user scope takes the checkout from the agent\'s input: notes where it is set up, nothing elsewhere, and the checkout\'s own hooks of this copy are moved out of its way', () => {
+  const home = fakeHome();
+  const env = { ...process.env, ...home, THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local', THINKER_TELEMETRY: 'off' };
+  const userHook = (what, ev) => execFileSync('node', [CLI, 'hook', what, '--client', 'claude', '--user'], { input: JSON.stringify(ev), encoding: 'utf8', env, cwd: os.tmpdir() }).trim();
+  const dir = repo();
+  inHome(home, () => installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: ['/x/mcp.js'] }, hooks: true, learn: false, late: true, mcp: true }));
+  // a checkout that is set up: the bundle, from the checkout the input names, not the hook's working directory
+  assert.match(userHook('prompt', { session_id: 's1', prompt: PROMPT, cwd: dir }), /<thinker-cache>[\s\S]*upload rate limiting/);
+  // one that is not: nothing, and nothing created there
+  const other = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nocache-')); execFileSync('git', ['init', '-q'], { cwd: other });
+  assert.equal(userHook('prompt', { session_id: 's2', prompt: PROMPT, cwd: other }), '');
+  assert.ok(!fs.existsSync(path.join(other, '.thinker')));
+  // Cursor names its workspace differently; its prompt-time bundle is parked in the checkout it names
+  execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'cursor', '--user'], { input: JSON.stringify({ conversation_id: 's3', prompt: PROMPT, workspace_roots: [dir] }), encoding: 'utf8', env, cwd: os.tmpdir() });
+  assert.ok(fs.existsSync(path.join(dir, '.thinker', 'state', 'pending-s3.json')));
+
+  // the checkout's own files run this copy's hooks (set up before the wiring went machine-wide): the
+  // machine-local ones go, and the user is told once
+  installClient('claude', opts(dir));
+  assert.ok(fs.existsSync(path.join(dir, '.claude/settings.local.json')));
+  userHook('prompt', { session_id: 's4', prompt: PROMPT, cwd: dir });
+  assert.ok(!fs.existsSync(path.join(dir, '.claude/settings.local.json')), 'this copy\'s local hooks are taken out of the checkout');
+  assert.ok(JSON.parse(fs.readFileSync(path.join(dir, '.mcp.json'), 'utf8')).mcpServers.thinker, 'a committable file is left to the team');
+  const stop = JSON.parse(userHook('stop', { session_id: 's4', transcript_path: '/nonexistent', cwd: dir }));
+  assert.match(stop.systemMessage, /moved thinker's hooks for claude out of \.claude\/settings\.local\.json/);
+  // committed hooks (--shared) stay, and the hook at user scope yields to them
+  installClient('claude', { ...opts(dir), shared: true });
+  assert.equal(userHook('prompt', { session_id: 's5', prompt: PROMPT, cwd: dir }), '');
+  assert.ok(fs.existsSync(path.join(dir, '.claude/settings.json')));
+  // so does it to a checkout wired to another copy of thinker (a benchmark arm's), whose hooks fire by themselves
+  fs.rmSync(path.join(dir, '.claude'), { recursive: true });
+  wire(dir, otherInstall('0.0.1'), '.claude/settings.local.json');
+  assert.equal(userHook('prompt', { session_id: 's6', prompt: PROMPT, cwd: dir }), '');
+  assert.ok(fs.existsSync(path.join(dir, '.claude/settings.local.json')), 'another copy\'s wiring is not this hook\'s to remove');
+  fs.rmSync(path.join(dir, '.claude'), { recursive: true });
+  // and THINKER_HOOKS=off silences it, for an arm that must see no notes
+  assert.equal(execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--user'], { input: JSON.stringify({ session_id: 's7', prompt: PROMPT, cwd: dir }), encoding: 'utf8', env: { ...env, THINKER_HOOKS: 'off' }, cwd: os.tmpdir() }).trim(), '');
+  assert.match(userHook('prompt', { session_id: 's8', prompt: PROMPT, cwd: dir }), /<thinker-cache>/);
+  const log = fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse);
+  assert.ok(log.some(l => l.op === 'prune' && l.removed[0].what === 'repo-scope'));
 });
