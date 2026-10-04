@@ -919,10 +919,12 @@ tool `review` is the same for an agent before it commits.
   `inferWiring` reads from each client's files whether hooks, late notes,
   learning and the MCP entry were installed and which Claude settings file
   holds them, and `installClient` is run again with those options. Only
-  entries that run this copy (by the script's install root) or a copy that is
-  gone are rewritten; entries of another living copy (a development checkout)
-  and hand-tuned commands (an env prefix, a `--budget`: a benchmark arm's) are
-  left alone and named. Git hooks of this copy are rewritten the same way.
+  entries that run this copy (by the script's install root) are rewritten;
+  entries of another copy, alive (a development checkout) or gone (a deleted
+  worktree: the benchmark checkouts pointed at one, and rewriting them would
+  have given them live hooks), and hand-tuned commands (an env prefix, a
+  `--budget`: a benchmark arm's) are left alone and named. Checkouts under the
+  temp directory are not visited. Git hooks of this copy are rewritten the same way.
   `thinker update` runs `thinker rewire` from the new copy after an update, for
   every checkout the machine's log names that is still set up; the prompt hook
   runs it for its own checkout on every prompt (`mergeJson` and

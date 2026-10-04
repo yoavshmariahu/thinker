@@ -299,18 +299,19 @@ test('compareVersions orders release versions', () => {
 
 test('refreshWiring brings a checkout\'s entries to this version\'s shape, keeps the options they were installed with, and leaves other copies and hand-written commands alone', () => {
   const dir = repo();
-  installClient('claude', { ...opts(dir), learn: true });
+  const MCP = path.join(path.dirname(CLI), 'mcp.js');
+  const mine = { ...opts(dir), learn: true, mcpEntry: { command: 'node', args: [MCP], env: { THINKER_REPO: dir } } };
+  installClient('claude', mine);
   const file = path.join(dir, '.claude/settings.local.json');
   // what an older version left: learning on (Stop), late notes on, but no SessionEnd, and the user's own settings beside it
   const cur = read(dir, '.claude/settings.local.json');
   delete cur.hooks.SessionEnd; cur.permissions = { allow: ['Bash(ls)'] };
   fs.writeFileSync(file, JSON.stringify(cur, null, 2) + '\n');
-  assert.deepEqual(inferWiring(dir, 'claude'), { hooks: true, learn: true, late: true, shared: false, mcp: true, scripts: [CLI, '/x/mcp.js'], custom: [] });
-  // the other copy's MCP script does not exist: that counts as gone, and is replaced
-  const dry = refreshWiring(dir, { cli: CLI, mcpEntry: opts(dir).mcpEntry, dry: true });
+  assert.deepEqual(inferWiring(dir, 'claude'), { hooks: true, learn: true, late: true, shared: false, mcp: true, scripts: [CLI, MCP], custom: [] });
+  const dry = refreshWiring(dir, { cli: CLI, mcpEntry: mine.mcpEntry, dry: true });
   assert.deepEqual(dry.changed, ['.claude/settings.local.json']);
   assert.equal(read(dir, '.claude/settings.local.json').hooks.SessionEnd, undefined, 'a dry run writes nothing');
-  const r = refreshWiring(dir, { cli: CLI, mcpEntry: opts(dir).mcpEntry });
+  const r = refreshWiring(dir, { cli: CLI, mcpEntry: mine.mcpEntry });
   assert.deepEqual(r.changed, ['.claude/settings.local.json']); assert.deepEqual(r.clients, ['claude']);
   const after = read(dir, '.claude/settings.local.json');
   assert.equal(after.hooks.SessionEnd.length, 1, 'the new event is added');
@@ -318,21 +319,25 @@ test('refreshWiring brings a checkout\'s entries to this version\'s shape, keeps
   assert.deepEqual(after.permissions, { allow: ['Bash(ls)'] }, 'what else is in the file stays');
   assert.ok(!fs.existsSync(path.join(dir, '.claude/settings.json')), 'the local file stays the one in use');
   const mtime = fs.statSync(file).mtimeMs;
-  const again = refreshWiring(dir, { cli: CLI, mcpEntry: opts(dir).mcpEntry });
+  const again = refreshWiring(dir, { cli: CLI, mcpEntry: mine.mcpEntry });
   assert.deepEqual(again.changed, []); assert.equal(fs.statSync(file).mtimeMs, mtime, 'an unchanged file is not touched');
 
   // hooks that run another, living copy of thinker are not this copy's to rewrite
   const other = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-other-'));
   fs.mkdirSync(path.join(other, 'src')); fs.writeFileSync(path.join(other, 'src/cli.js'), ''); fs.writeFileSync(path.join(other, 'package.json'), '{"version":"0.0.1"}');
   installClient('codex', { ...opts(dir), cli: path.join(other, 'src/cli.js'), mcp: false });
+  // a copy that is gone (a deleted worktree) is not this copy's either: its entries wait for the prompt hook's prune
+  installClient('cursor', { ...opts(dir), cli: '/gone/thinker/src/cli.js', mcp: false });
   // and a command tuned by hand (a benchmark arm's env prefix) is left as it is
   fs.mkdirSync(path.join(dir, '.gemini'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.gemini/settings.json'), JSON.stringify({ hooks: { BeforeAgent: [{ hooks: [{ name: 'thinker-prompt', type: 'command', command: `THINKER_LOG=local node "${CLI}" hook prompt --client gemini --repo "${dir}" --budget 750`, timeout: 15000 }] }] } }));
   const codexBefore = fs.readFileSync(path.join(dir, '.codex/hooks.json'), 'utf8'), gemBefore = fs.readFileSync(path.join(dir, '.gemini/settings.json'), 'utf8');
-  const r2 = refreshWiring(dir, { cli: CLI, mcpEntry: opts(dir).mcpEntry });
+  const r2 = refreshWiring(dir, { cli: CLI, mcpEntry: mine.mcpEntry });
   assert.deepEqual(r2.changed, []);
   assert.match(r2.skipped.find(s => s.client === 'codex').reason, /another copy of thinker/);
   assert.match(r2.skipped.find(s => s.client === 'gemini').reason, /written by hand/);
+  assert.match(r2.skipped.find(s => s.client === 'cursor').reason, /\/gone\/thinker, no longer there/);
+  assert.ok(read(dir, '.cursor/hooks.json').hooks.beforeSubmitPrompt[0].command.includes('/gone/thinker'));
   assert.equal(fs.readFileSync(path.join(dir, '.codex/hooks.json'), 'utf8'), codexBefore);
   assert.equal(fs.readFileSync(path.join(dir, '.gemini/settings.json'), 'utf8'), gemBefore);
 
@@ -340,14 +345,13 @@ test('refreshWiring brings a checkout\'s entries to this version\'s shape, keeps
   installGitHooks(dir, CLI, true);
   const pre = path.join(dir, '.git/hooks/pre-commit');
   fs.writeFileSync(pre, `#!/bin/sh\n# thinker: old shape\nnode '${CLI}' share --repair-staged\n`);
-  const r3 = refreshWiring(dir, { cli: CLI, mcpEntry: opts(dir).mcpEntry });
+  const r3 = refreshWiring(dir, { cli: CLI, mcpEntry: mine.mcpEntry });
   assert.deepEqual(r3.changed, ['.git/hooks/pre-commit']);
   assert.equal(fs.readFileSync(pre, 'utf8'), preCommitHook(CLI));
 
   // the command, for one checkout
-  // the command, for one checkout: the real copy's MCP script replaces the test's /x/mcp.js
+  // the command, for one checkout
   const outp = execFileSync('node', [CLI, 'rewire', '--here', '--dry', '--repo', dir], { encoding: 'utf8', env: { ...process.env, THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' } });
-  assert.match(outp, /would rewrite \.mcp\.json/); assert.match(outp, /codex left alone/); assert.match(outp, /would rewire 1 of 1 checkouts/);
-  assert.equal(read(dir, '.mcp.json').mcpServers.thinker.args[0], '/x/mcp.js', 'a dry run writes nothing');
+  assert.match(outp, /codex left alone/); assert.match(outp, /cursor left alone/); assert.match(outp, /1 checkouts checked; the wiring is current/);
   fs.rmSync(other, { recursive: true, force: true });
 });

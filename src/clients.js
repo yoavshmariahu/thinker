@@ -185,9 +185,11 @@ const MCP_FILES = { claude: ['.mcp.json'], gemini: ['.gemini/settings.json'], cu
 // `refreshWiring` rewrites them from what is there. For each client it reads the options the
 // wiring was installed with (inferWiring: whether hooks, late notes, learning, the MCP entry, and
 // which Claude settings file), and reinstalls them for `cli` when the entries point at this copy
-// (by the script's install root) or at a copy that is gone. Entries that point at another living
-// copy (a development checkout, say) are left alone, and so is a hand-tuned command (an env prefix,
-// a --budget: what a benchmark arm writes). `thinker rewire` runs it for every repository on the
+// (by the script's install root). Entries that point at another copy are left alone, whether it
+// is alive (a development checkout, say) or gone (a deleted worktree: the benchmark checkouts here
+// pointed at one, and rewriting them would have given them live hooks; the prompt hook's prune
+// takes a gone copy's entries out), and so is a hand-tuned command (an env prefix, a --budget:
+// what a benchmark arm writes). `thinker rewire` runs it for every repository on the
 // machine, `thinker update` after an update, and the prompt hook for its own checkout.
 const HOOK_COMMAND = /^node "[^"]+" hook (prompt|tool|stop)(?: --client \w+)?(?: --repo "[^"]+")?(?: --late)?(?: --record)?$/;
 const WIRING_FILES = ['.claude/settings.json', '.claude/settings.local.json', '.mcp.json', '.codex/hooks.json', '.codex/config.toml', '.gemini/settings.json', '.cursor/hooks.json', '.cursor/mcp.json', '.cursor/rules/thinker.mdc'];
@@ -262,7 +264,8 @@ const gitHooksOurs = repo => { try { const f = gitHookPath(repo, 'pre-commit'); 
 // With `dry` nothing is written. `mcpEntry` is this copy's MCP entry for the checkout.
 export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIENTS } = {}) {
   const mine = real(installRoot(cli));
-  const ours = script => { if (!script) return true; const r = real(installRoot(script)); return r === mine || !fs.existsSync(script); };
+  const ours = script => !script || real(installRoot(script)) === mine;
+  const where = scripts => [...new Set(scripts.filter(s => !ours(s)).map(s => `${installRoot(s)}${fs.existsSync(s) ? '' : ', no longer there'}`))].join('; ');
   const files = [...WIRING_FILES.map(f => path.join(repo, f)), ...HOOKS.map(h => gitHookPath(repo, h)).filter(Boolean)];
   const snapshot = () => Object.fromEntries(files.map(f => [f, fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : null]));
   const before = snapshot();
@@ -271,7 +274,7 @@ export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIE
     for (const client of clients) {
       const w = inferWiring(repo, client);
       if (!w) continue;
-      if (!w.scripts.every(ours)) { r.skipped.push({ client, reason: `wired to another copy of thinker (${[...new Set(w.scripts.filter(s => !ours(s)).map(installRoot))].join(', ')})` }); continue; }
+      if (!w.scripts.every(ours)) { r.skipped.push({ client, reason: `wired to another copy of thinker (${where(w.scripts)})` }); continue; }
       if (w.custom.length) { r.skipped.push({ client, reason: `a hook command was written by hand: ${w.custom[0]}` }); continue; }
       installClient(client, { repo, cli, mcpEntry, hooks: w.hooks, learn: w.learn, late: w.late, shared: w.shared, mcp: w.mcp });
       r.clients.push(client);
@@ -280,7 +283,7 @@ export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIE
     if (gitCli && ours(gitCli)) {
       const learn = /maintain/.test(readText(gitHookPath(repo, 'post-commit')));
       installGitHooks(repo, cli, learn);
-    } else if (gitCli) r.skipped.push({ client: 'git', reason: `git hooks run another copy of thinker (${installRoot(gitCli)})` });
+    } else if (gitCli) r.skipped.push({ client: 'git', reason: `git hooks run another copy of thinker (${where([gitCli])})` });
   } finally {
     const after = snapshot();
     for (const f of files) if (before[f] !== after[f]) r.changed.push(path.relative(repo, f));

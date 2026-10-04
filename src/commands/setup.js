@@ -1,6 +1,7 @@
 // Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
 // updating thinker itself (update, upgrade, switch, branch).
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initAst, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from '../ast.js';
@@ -61,7 +62,8 @@ async function astCommand(ctx) {
 // that still exists and is set up, and the current one. The log is the only record there is.
 function knownRepos(store, repo) {
   const seen = new Map();
-  const add = p => { try { const r = fs.realpathSync(p); if (fs.existsSync(path.join(r, '.thinker'))) seen.set(r, true); } catch {} };
+  const tmp = [os.tmpdir(), '/tmp', '/private/tmp', '/private/var/folders', '/var/folders'].map(d => { try { return fs.realpathSync(d); } catch { return d; } });
+  const add = p => { try { const r = fs.realpathSync(p); if (tmp.some(t => r.startsWith(t + path.sep))) return; if (fs.existsSync(path.join(r, '.thinker'))) seen.set(r, true); } catch {} };
   if (store.exists()) add(repo);
   try { for (const e of readLog(store, { all: true })) if (e.repo && typeof e.repo === 'string') add(e.repo); } catch {}
   return [...seen.keys()];
