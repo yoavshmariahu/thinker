@@ -1,0 +1,155 @@
+{
+  "id": "apps-provisioning-pkg-architecture-control-flow-map",
+  "title": "apps/provisioning/pkg — architecture & control-flow map",
+  "kind": "map",
+  "answers": [
+    "Where does provisioning admission/mutation get wired up?",
+    "How does a Repository/Connection get built from its CRD?",
+    "What is apps/provisioning vs pkg/registry/apis/provisioning?",
+    "Where is the composition root for provisioning extras?"
+  ],
+  "body": "apps/provisioning is a separate Go module (own go.mod, listed in go.work) holding the provisioning app's API types (`pkg/apis/provisioning/v0alpha1/types.go`, generated from CUE in `apps/provisioning/kinds/*.cue`), admission plumbing (`pkg/apis/admission/`), the `Repository`/`Connection` abstractions + backend impls (`pkg/repository/`, `pkg/repository/git|github|local`, `pkg/connection/`), and status-patch helpers (`pkg/controller/status.go`). It does NOT run jobs/workers or expose the HTTP API — that lives in the main module at `pkg/registry/apis/provisioning/` (jobs drivers, webhooks, storage), which depends on this module, never the reverse.\n\nComposition root: `pkg/registry/apis/provisioning/extras/register.go:ProvideProvisioningOSSRepositoryExtras` builds the `repository.Extra`/`connection.Extra` list (local/git/github) and feeds `repository.ProvideFactory` (apps/provisioning/pkg/repository/factory.go:ProvideFactory) and `connection.ProvideFactory` (apps/provisioning/pkg/connection/factory.go:ProvideFactory). `pkg/registry/apis/provisioning/register.go` (~line 844) creates `admission.NewHandler()` (apps/provisioning/pkg/apis/admission/admission.go:NewHandler) and registers per-resource Mutator/Validator for Repository, Connection, Job.\n\nInbound flow: API-server admission on Repository/Connection/Job → `admission.Handler.Mutate/Validate` dispatches by resource name → `repository.Factory.Mutate/Validate` or `connection.Factory.Mutate/Validate` → dispatches by `Spec.Type` to the matching `Extra` (e.g. apps/provisioning/pkg/repository/git/extra.go:extra.Validate).\nOutbound flow: `repository.Factory.Build` (apps/provisioning/pkg/repository/factory.go) is the single chokepoint every caller (job drivers, HTTP handlers, controllers in pkg/registry/apis/provisioning) uses to construct a live Repository; `controller.RepositoryStatusPatcher.Patch` (apps/provisioning/pkg/controller/status.go) writes job/sync results back onto the CR status subresource via the generated typed client.",
+  "tags": [
+    "provisioning",
+    "architecture",
+    "app-sdk"
+  ],
+  "deps": [
+    {
+      "path": "apps/provisioning/pkg/repository/factory.go",
+      "symbol": "ProvideFactory",
+      "hash": "sha256:e22744a5e8b4e15258638093",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 67,
+        "refs": 71
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/connection/factory.go",
+      "symbol": "ProvideFactory",
+      "hash": "sha256:44fb50b2cf2f3277af7430e5",
+      "line": 46,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 67,
+        "refs": 71
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/apis/admission/admission.go",
+      "symbol": "NewHandler",
+      "hash": "sha256:58ec19ab0d7977240725c878",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 23,
+        "sites": 53,
+        "refs": 57
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/controller/status.go",
+      "symbol": "RepositoryStatusPatcher",
+      "hash": "sha256:997d7292b066e14a9224f0c1",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/extras/register.go",
+      "symbol": "ProvideProvisioningOSSRepositoryExtras",
+      "hash": "sha256:57012bacc6a99f2394be95f5",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/register.go",
+      "symbol": "Validate",
+      "hash": "sha256:1df42092117d89571f681679",
+      "line": 985,
+      "missing": false,
+      "fanout": {
+        "files": 296,
+        "sites": 472,
+        "refs": 766
+      }
+    },
+    {
+      "path": "apps/provisioning/go.mod",
+      "hash": "sha256:7eb8988be929d84f99b0dd81",
+      "missing": false
+    },
+    {
+      "path": "go.work",
+      "hash": "sha256:22134044360c3bda84afa05f",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/apis/provisioning/v0alpha1/types.go",
+      "symbol": "Repository",
+      "hash": "sha256:09f3a84a4868abf47a882f68",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 209,
+        "sites": 2,
+        "refs": 1995
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/git/extra.go",
+      "symbol": "Validate",
+      "hash": "sha256:17317c3e24464b48a20e4cc8",
+      "line": 68,
+      "missing": false,
+      "fanout": {
+        "files": 296,
+        "sites": 472,
+        "refs": 766
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/git/extra.go",
+      "symbol": "Extra",
+      "hash": "sha256:35231c54ac1aa441e4c9bc6b",
+      "line": 21,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "a935daa7-01a1-4fee-926e-80c27d3f93c1"
+  },
+  "created": "2026-10-04T05:55:30.122Z",
+  "verified": "2026-10-04T05:55:30.122Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-repository-connection-type-or-job-action-requires-e",
+    "local-file-provisioning-uses-the-same-repository-crd-as-git"
+  ],
+  "says": [
+    "Where is provisioning admission validation configured and wired?",
+    "How are repository and connection objects built from records?",
+    "What is the provisioning app versus the provisioning API?",
+    "Where is the provisioning system's composition root initialized?",
+    "How are provisioning extras registered in the main system?"
+  ],
+  "saysFor": "2065:apps-provisioning-pkg-ar",
+  "search": "apps/provisioning is a separate Go module (go.mod, go.work) that holds API types, admission plumbing, Repository/Connection abstractions, and status-patch helpers, but does NOT run jobs or expose HTTP API — that responsibility belongs to pkg/registry/apis/provisioning in the main module, which depends on apps/provisioning but never reverse. Entry points are ProvideFactory functions (apps/provisioning/pkg/repository/factory.go:ProvideFactory, apps/provisioning/pkg/connection/factory.go:ProvideFactory), NewHandler (apps/provisioning/pkg/apis/admission/admission.go:NewHandler), RepositoryStatusPatcher (apps/provisioning/pkg/controller/status.go), and the composition root ProvideProvisioningOSSRepositoryExtras (pkg/registry/apis/provisioning/extras/register.go). The inbound flow dispatches API-server admission on Repository/Connection/Job to matching backends by Spec.Type; the outbound flow funnels all Repository construction through repository.Factory.Build and status writes through RepositoryStatusPatcher.Patch. Apply this to understand control flow in provisioning subsystem and avoid circular dependencies between modules."
+}

@@ -62,5 +62,6 @@
     "Why events retention was removed from project fields and where to access it now",
     "Adding retention settings back to project API broke client assumptions about configuration"
   ],
-  "saysFor": "972:events-retention-window-"
+  "saysFor": "972:events-retention-window-",
+  "search": "Events retention window is exposed only via the read-only `/events_retention/` endpoint, never as project fields in the `/api/projects/:id` response. EventsRetentionViewSet.list at `GET /api/projects/:id/events_retention/` returns `retention_months`, `retained_from`, and `docs_url`; this constraint was enforced by removing such fields from the project serializer (PR 100207) because API agents read them as user-modifiable settings. The source of truth remains `Team.event_retention_months`, read through `events_retention_months_for_team` in `posthog/models/team/event_retention.py`. The endpoint is a `viewsets.ViewSet` with only `list` action, so writes return 405; keep it read-only. The `retained_from` value must be computed in the project's timezone using `events_retention_floor_date(team, months)`. Applies to events retention API and anything surfacing the retention window to callers or the UI."
 }

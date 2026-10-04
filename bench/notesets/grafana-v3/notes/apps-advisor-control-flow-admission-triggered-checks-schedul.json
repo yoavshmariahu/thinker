@@ -1,0 +1,174 @@
+{
+  "id": "apps-advisor-control-flow-admission-triggered-checks-schedul",
+  "title": "apps/advisor control flow: admission-triggered checks, scheduler, registry",
+  "kind": "map",
+  "answers": [
+    "How does a Check actually get run in apps/advisor?",
+    "What triggers a check run / retry in the advisor app?",
+    "Where is the advisor check scheduler and how does MT vs ST work?",
+    "How does the frontend plugin talk to apps/advisor?"
+  ],
+  "body": "apps/advisor is its own Go module (apps/advisor/go.mod, no TS codegen: kinds/manifest.cue codegen.ts.enabled=false) with no frontend in this repo — the external `grafana-advisor-app` plugin renders results, reached from public/app only via usePluginFunctions extension points (public/app/features/connections/hooks/useDatasourceAdvisorChecks.tsx).\nControl flow for running a check: `app.go:New` registers an admission Validator on the `Check` kind; AdmissionActionCreate spawns `utils.go:processCheck`, a retry-annotation update spawns `utils.go:processCheckRetry` — there is no RPC to \"run a check\", you create/patch a `Check` object and the webhook does the work async.\nTwo background Runnables drive creation: `checktyperegisterer.Runner.Run` (checktyperegisterer.go) upserts one CheckType per registered check per namespace on boot; `checkscheduler.Runner.Run` (checkscheduler.go) picks `runST` or `runMT` (mtcheckscheduler.go, cluster-wide namespace discovery + fan-out capped at maxConcurrency=10) via `isMT()`, and on a timer creates a fresh `Check` per type, which fires the admission webhook above.\nBoth Runnables iterate `checkregistry.Service.Checks()` (checkregistry.go) — this is the single DI seam/source of truth for \"what checks exist\".\nWired into the server via pkg/registry/apps/advisor/register.go:ProvideAppInstaller → apps/advisor/pkg/app/app.go:ProvideAppInstaller → pkg/server/wireext/oss.go.\nCustom app routes: POST .../register → checktyperegisterer; GET .../translations → translations.Get (serves embedded i18n JSON to the plugin).",
+  "tags": [
+    "apps/advisor",
+    "go",
+    "app-sdk",
+    "control-flow"
+  ],
+  "deps": [
+    {
+      "path": "apps/advisor/pkg/app/app.go",
+      "symbol": "New",
+      "hash": "sha256:ef02f25e1f5fc60924e4c3bc",
+      "line": 38,
+      "missing": false
+    },
+    {
+      "path": "apps/advisor/pkg/app/utils.go",
+      "symbol": "processCheck",
+      "hash": "sha256:f46c825017cf2e06aa6b7546",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/app/checkscheduler/checkscheduler.go",
+      "symbol": "runST",
+      "hash": "sha256:3959e92bc4d3ef82d44cc153",
+      "line": 121,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/app/checkscheduler/checkscheduler.go",
+      "symbol": "isMT",
+      "hash": "sha256:76f5dc4b67ebb3daa7c911b8",
+      "line": 105,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/app/checkscheduler/mtcheckscheduler.go",
+      "symbol": "runMT",
+      "hash": "sha256:a9ae85c663283af36faa5507",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 4
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/app/checkscheduler/mtcheckscheduler.go",
+      "symbol": "maxConcurrency",
+      "hash": "sha256:ce7fd4eb892511f9be1e42bf",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/app/checktyperegisterer/checktyperegisterer.go",
+      "hash": "sha256:856bd55ee37c4b29d591b2ef",
+      "missing": false
+    },
+    {
+      "path": "apps/advisor/pkg/app/checkregistry/checkregistry.go",
+      "hash": "sha256:b6beaafb060c69182c3c9428",
+      "missing": false
+    },
+    {
+      "path": "apps/advisor/kinds/manifest.cue",
+      "hash": "sha256:eceafbca6ac42a411bf60e40",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/connections/hooks/useDatasourceAdvisorChecks.tsx",
+      "symbol": "CheckType",
+      "hash": "sha256:1826d37021bb5cb7c1c25f16",
+      "line": 6,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 36
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/app/utils.go",
+      "symbol": "processCheckRetry",
+      "hash": "sha256:d1510feff9001d036388f1d6",
+      "line": 112,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 10,
+        "refs": 10
+      }
+    },
+    {
+      "path": "pkg/registry/apps/advisor/register.go",
+      "symbol": "ProvideAppInstaller",
+      "hash": "sha256:d27592aeffcd2f11d4ae6d8b",
+      "line": 28,
+      "missing": false
+    },
+    {
+      "path": "apps/advisor/pkg/app/app.go",
+      "symbol": "ProvideAppInstaller",
+      "hash": "sha256:d33213e25e5b675c8881b55a",
+      "line": 255,
+      "missing": false
+    },
+    {
+      "path": "pkg/server/wireext/oss.go",
+      "hash": "sha256:bb13b5c6ce5bd862ee0d64b3",
+      "missing": false
+    },
+    {
+      "path": "apps/advisor/pkg/app/checkscheduler/checkscheduler.go",
+      "symbol": "isMT",
+      "hash": "sha256:76f5dc4b67ebb3daa7c911b8",
+      "line": 105,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "447b8e7f-b57e-4344-a95d-135fe2876da6"
+  },
+  "created": "2026-10-04T06:17:47.445Z",
+  "verified": "2026-10-04T06:17:47.445Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-changing-an-advisor-check-must-update-registry-transl"
+  ],
+  "says": [
+    "How are advisor checks actually triggered to run and execute",
+    "What starts an advisor check and how retries are managed",
+    "Advisor check scheduling differences in single and multi-tenant deployments",
+    "Creating and updating Check objects to run advisor analysis",
+    "Background processes that handle advisor check execution and scheduling"
+  ],
+  "saysFor": "1633:apps-advisor-control-flo",
+  "search": "apps/advisor is a standalone Go module (apps/advisor/go.mod, no TS codegen) with no frontend in this repo; results are rendered by an external grafana-advisor-app plugin via usePluginFunctions hooks. Checks are triggered via admission webhooks on Check kind—AdmissionActionCreate spawns utils.go:processCheck asynchronously and retry annotations spawn utils.go:processCheckRetry; there is no RPC to run a check, you create/patch a Check object instead. Two background Runnables orchestrate: checktyperegisterer upserts one CheckType per namespace on boot, and checkscheduler (picking runST or runMT via isMT(), maxConcurrency=10) creates fresh Check objects on a timer; both enumerate via checkregistry.Service.Checks(), the single DI seam. Custom routes: POST .../register and GET .../translations. This guidance applies when modifying check registration, scheduling, webhook behavior, async execution, or translation routes. Entry points: apps/advisor/pkg/app/app.go:New, apps/advisor/pkg/app/app.go:ProvideAppInstaller."
+}

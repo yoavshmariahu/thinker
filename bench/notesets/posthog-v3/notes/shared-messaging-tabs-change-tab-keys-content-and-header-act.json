@@ -63,5 +63,6 @@
     "Adding shared tab incomplete across all sections",
     "Tab content inconsistent between workflows and broadcasts"
   ],
-  "saysFor": "994:shared-messaging-tabs-ch"
+  "saysFor": "994:shared-messaging-tabs-ch",
+  "search": "Shared messaging tabs (library, channels, opt-outs, suppression, reputation) defined in messagingTabs.tsx with MESSAGING_NAV_TAB_KEYS, MESSAGING_TAB_CONTENT, and messagingNavTabs require coordinated updates across tab keys, content, header actions (MessagingTabActions), and manifest routes. Renaming path segments in MESSAGING_NAV_TAB_KEYS breaks bookmarks since they are pinned identifiers. Adding or renaming a tab requires updates to: the keys array, content map, MessagingTabActions (which holds channelsUrl for Slack authorize), and literal routes for both /workflows and /broadcasts in manifest.tsx (plus regenerated products.tsx). BroadcastsScene derives the current tab from the last pathname segment since routes are literal, not parameterized. Both WorkflowsScene and BroadcastsScene render tabs with their own link builders (urls.workflows and urls.broadcasts)."
 }

@@ -82,5 +82,6 @@
     "Can I retry failed bulk invites without resending to others",
     "Bulk invite partially succeeds but doesn't say which rows failed"
   ],
-  "saysFor": "920:bulk-invite-partial-fail"
+  "saysFor": "920:bulk-invite-partial-fail",
+  "search": "Bulk invite partial failure semantics: serializer.is_valid() validates all-or-nothing upfront, but save() creates invitations per row without transaction.atomic(), so already-a-member checks in create() raise after earlier rows are persisted and emailed, returning 400 with partial success. Duplicate emails in one request trigger delete_existing_invites per create, so last email wins; client retries re-create already-saved invites by keeping failed rows in invitesToSend. Analytics reports team_member_invited per row and bulk_invited once, skipping the latter on save() failure. Applies only to invites/bulk/ endpoint; validation-stage failures save nothing, create-stage failures do. Relevant files: posthog/api/organization_invite.py (OrganizationInviteViewSet.bulk, OrganizationInviteManager.delete_existing_invites), frontend/src/scenes/settings/organization/inviteLogic.ts."
 }

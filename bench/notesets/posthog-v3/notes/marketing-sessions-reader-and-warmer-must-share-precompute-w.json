@@ -58,5 +58,6 @@
     "Where is the cutoff for which dates get precomputed for sessions",
     "Attribution cache coverage too narrow when querying historical data"
   ],
-  "saysFor": "969:marketing-sessions-reade"
+  "saysFor": "969:marketing-sessions-reade",
+  "search": "The cache coverage boundary for marketing analytics attribution is enforced by a single function: `precompute_window_start(team, end)` in products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py. The writer/warmer uses it as `start` in `ensure_marketing_sessions_precompute_op` (products/marketing_analytics/dags/marketing_sessions_precompute.py), and the reader checks eligibility in `ineligible_reason` (products/marketing_analytics/backend/hogql_queries/attribution_sessions_read.py) by comparing `read.start - SESSION_READ_REACHBACK_DAYS` against the same boundary. The boundary is computed as local midnight (team.timezone_info) minus PRECOMPUTE_WINDOW_DAYS, converted to UTC, minus attribution_window_days plus SESSION_READ_REACHBACK_DAYS as elapsed UTC days. If reader and warmer use different boundary logic (e.g. elapsed seconds versus calendar day), relative ranges like -90d wrongly become ineligible. Both must be changed together."
 }

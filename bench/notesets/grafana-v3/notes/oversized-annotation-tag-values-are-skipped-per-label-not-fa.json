@@ -1,0 +1,52 @@
+{
+  "id": "oversized-annotation-tag-values-are-skipped-per-label-not-fa",
+  "title": "Oversized annotation tag values are skipped per-label, not fatal to the batch",
+  "kind": "rule",
+  "answers": [
+    "Alert history save fails because one label is too long",
+    "Why does one oversized label just vanish instead of erroring?",
+    "How are over-limit annotation tags handled?"
+  ],
+  "body": "Symptom: a single overly long label (key or value) must not abort saving the whole annotation/history batch.\nRoot cause: convertLabelsToTagsWithLogger in pkg/services/ngalert/state/historian/annotation.go filters out individual labels exceeding column limits (or the configured total tags length) and logs a warning, continuing with the rest.\nFix pattern: when adding new length/size guards on tags, skip-and-warn per offending label rather than erroring the batch; include labelKey, labelValueLength and maxLabelValueLength in the warn log context, but never log the actual oversized value (PII/size risk).\nConstraints: applies to both the per-column limit (annotationTagValueColumnMaxLength) and the separate configured total-tags-length budget passed into convertLabelsToTagsWithLogger; both paths must keep logging only metadata, not raw values.",
+  "applies": "pkg/services/ngalert/state/historian annotation tag building/logging logic",
+  "tags": [
+    "alerting",
+    "annotations",
+    "historian",
+    "logging"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/state/historian/annotation.go",
+      "symbol": "convertLabelsToTagsWithLogger",
+      "hash": "sha256:be49efbb4192ada7118e486a",
+      "line": 311,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132671"
+  },
+  "created": "2026-10-04T06:48:57.036Z",
+  "verified": "2026-10-04T06:48:57.036Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Alert history save fails when one annotation label exceeds limit",
+    "Single oversized tag makes entire alert history batch fail",
+    "Why does one long label cause whole annotation save to fail",
+    "Oversized annotation label blocks entire history save batch",
+    "Alert history stops saving because one label is too long"
+  ],
+  "saysFor": "927:oversized-annotation-tag",
+  "search": "In pkg/services/ngalert/state/historian/annotation.go:convertLabelsToTagsWithLogger, individual labels exceeding column limits (annotationTagValueColumnMaxLength) or the configured total-tags-length budget are skipped per-label with a warning log, never aborting the entire annotation batch. Log context must include labelKey, labelValueLength, and maxLabelValueLength but never the actual oversized value due to PII and size concerns. This per-label skip-and-continue behavior applies to both per-column and total-tags-length guards."
+}

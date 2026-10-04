@@ -1,0 +1,91 @@
+{
+  "id": "dashboardplanpreview-owns-plan-preview-page-navigation-not-t",
+  "title": "DashboardPlanPreview owns plan-preview page navigation, not the mutation client",
+  "kind": "map",
+  "answers": [
+    "Where does navigating to /dashboard/new for a plan preview, or returning to the previous page on dismiss, happen?",
+    "How does Grafana Assistant preview a dashboard plan without being on a dashboard page?",
+    "Why does RENDER_PLAN work even when no dashboard is currently mounted?"
+  ],
+  "body": "DashboardPlanPreview (public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/DashboardPlanPreview.ts) is the single process-wide owner of plan-preview navigation: it navigates to /dashboard/new, polls for the newly mounted DashboardMutationClient, remembers the origin page, and on END_PLANNING with restoreUserLocation returns there via locationService.replace — all before any command reaches the dashboard scene. dashboardMutationApi.execute routes RENDER_PLAN/END_PLANNING to this coordinator first (public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts), falling back to currentClient() for other mutations. It tracks client deactivation via onClientDeactivated to avoid restoring/acting on a stale session when a newer preview or manual navigation has superseded it. Future work on preview navigation, multi-preview races, or 'stay on dashboard vs return' behavior belongs here, not in renderPlan.ts/endPlanning.ts.",
+  "applies": "Dashboard plan preview navigation triggered through the restricted Grafana Mutation API",
+  "tags": [
+    "dashboard-plan",
+    "navigation",
+    "mutation-api",
+    "assistant"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/DashboardPlanPreview.ts",
+      "symbol": "DashboardPlanPreview",
+      "hash": "sha256:ef883007b77b70b05814fba4",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 6
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "dashboardMutationApi",
+      "hash": "sha256:6487bfbc284b2d02c21f3789",
+      "line": 79,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 27
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "execute",
+      "hash": "sha256:8cf0f2ea43252ac335506a18",
+      "line": 80,
+      "missing": false,
+      "fanout": {
+        "files": 119,
+        "sites": 463,
+        "refs": 573
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "currentClient",
+      "hash": "sha256:2bdbb1b46bc6254c2180743d",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133029"
+  },
+  "created": "2026-10-04T05:56:28.258Z",
+  "verified": "2026-10-04T05:56:28.258Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "render-plan-must-stay-listed-as-available-even-with-no-dashb",
+    "restrictedgrafanaapis-how-to-add-a-new-restricted-api-and-wi"
+  ],
+  "says": [
+    "Where does preview feature navigate when showing planned changes",
+    "How does plan preview display without leaving current page",
+    "Dashboard plan preview requires navigation to new page",
+    "Returning to previous page after dismissing plan preview",
+    "Plan preview feature navigates away from dashboard view"
+  ],
+  "saysFor": "1074:dashboardplanpreview-own",
+  "search": "DashboardPlanPreview (public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/DashboardPlanPreview.ts) is the single process-wide owner of plan-preview navigation: it navigates to /dashboard/new, polls for DashboardMutationClient mount, remembers origin, and on END_PLANNING restores location via locationService.replace before commands reach the dashboard scene. dashboardMutationApi.execute routes RENDER_PLAN/END_PLANNING to this coordinator first, falling back to currentClient() for other mutations, and tracks client deactivation to block stale-session actions when newer previews or manual navigation have superseded it. Future work on preview navigation, multi-preview races, or restore-vs-stay behavior belongs in DashboardPlanPreview, not renderPlan.ts/endPlanning.ts. Applies to dashboard plan preview navigation triggered through the restricted Grafana Mutation API."
+}

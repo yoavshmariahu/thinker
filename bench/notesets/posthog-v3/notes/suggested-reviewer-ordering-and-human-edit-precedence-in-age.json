@@ -57,5 +57,6 @@
     "Owner priority not respected in reviewer suggestions",
     "Automatic selection ignoring my manual choice"
   ],
-  "saysFor": "1025:suggested-reviewer-order"
+  "saysFor": "1025:suggested-reviewer-order",
+  "search": "Agentic report suggested reviewers follow a specific order: owners.yaml owner first, then a different CODEOWNERS owner, then commit-author fallbacks, capped at MAX_SUGGESTED_REVIEWERS. Human edits take precedence: _append_agentic_report_artefacts locks the SignalReport row (select_for_update) and skips the SuggestedReviewers draft if a SUGGESTED_REVIEWERS artefact with actor_kind=USER already exists; omitting the lock lets later runs replace a person's choice. Ownership matching in suggest_repository_owners yields at most one reviewer per source and prefers logins already in commit-author reviewers. The wrote_reviewers flag gates the capture_suggested_reviewers_resolved event; use it to tie analytics to actual writes."
 }

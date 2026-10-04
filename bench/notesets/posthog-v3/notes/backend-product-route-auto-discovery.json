@@ -68,5 +68,6 @@
     "Feature API endpoints don't register when auto-discovery mechanism misconfigured",
     "Product webhooks require special registration setup to fire correctly"
   ],
-  "saysFor": "977:backend-product-route-au"
+  "saysFor": "977:backend-product-route-au",
+  "search": "Backend product routes auto-discover via products/<name>/backend/routes.py:register_routes(routers), eagerly loaded at ROOT_URLCONF import by posthog/api/rest_router.py iterating load_product_modules('routes'); RouterRegistry (posthog/api/routing.py) rejects callers under products. and discovery never runs for celery or management commands. routes.py may define api_urlpatterns or webhook_urlpatterns, validated and mounted by posthog/product_urls.py. New products require an AppConfig in posthog/settings/web.py:PRODUCTS_APPS and a tach.toml block; no rest_router.py edits needed."
 }

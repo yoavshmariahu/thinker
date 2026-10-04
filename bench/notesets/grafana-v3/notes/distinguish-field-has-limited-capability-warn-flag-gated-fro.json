@@ -1,0 +1,81 @@
+{
+  "id": "distinguish-field-has-limited-capability-warn-flag-gated-fro",
+  "title": "Distinguish 'field has limited capability' (warn, flag-gated) from 'field is not nameable' (always 400)",
+  "kind": "rule",
+  "answers": [
+    "Should a new search request validation always error or just warn?",
+    "When should a search field check be feature-flagged?",
+    "Pattern for rejecting invalid search request fields"
+  ],
+  "body": "pkg/storage/unified/search/bleve.go:toBleveSearchRequest runs a chain of request-field checks before executing a query (rejectInternalFields, validateTrashRequest, rejectTrashFieldsOnLiveSearch). The sort-capability check is off by default and only warns because it concerns a field whose capabilities merely fall short. rejectInternalFields and the trash-field checks are unconditional 400s because they concern a field the request may never name at all (internal index-only field, or a field that only deleted documents carry). When adding a new check here, decide which category it is: a capability shortfall gets a flag and a warning, a field that is categorically not usable in this context gets an unconditional bad-request error.",
+  "applies": "Any new validation added to pkg/storage/unified/search/bleve.go's request-building path.",
+  "tags": [
+    "search",
+    "bleve",
+    "validation",
+    "feature-flag"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "toBleveSearchRequest",
+      "hash": "sha256:e2a96441d922dfb558b74c9a",
+      "line": 2600,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 14,
+        "refs": 16
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "rejectInternalFields",
+      "hash": "sha256:fb3a4220abf2f8323f39d056",
+      "line": 2989,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "validateTrashRequest",
+      "hash": "sha256:a5e6629d024ab44dc821163b",
+      "line": 2972,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132666"
+  },
+  "created": "2026-10-04T06:50:15.262Z",
+  "verified": "2026-10-04T06:50:15.262Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bleve-build-info-must-record-mapped-selectable-fields-not-ju",
+    "batchauthzsearcher-warns-when-a-search-matches-documents-but",
+    "large-int64-values-resource-version-must-be-stored-as-string",
+    "selectable-field-filters-must-be-checked-against-what-the-in"
+  ],
+  "says": [
+    "Should my search field validation always error or just warn?",
+    "When should a search field check be feature-flagged versus hard error?",
+    "How to decide between warning and rejecting potentially invalid search fields?",
+    "Pattern for distinguishing field capability limits from categorically invalid fields",
+    "Why do some search field checks warn while others cause errors?"
+  ],
+  "saysFor": "840:distinguish-field-has-li",
+  "search": "When adding validation to pkg/storage/unified/search/bleve.go's request-building chain (toBleveSearchRequest, rejectInternalFields, validateTrashRequest, rejectTrashFieldsOnLiveSearch), distinguish a field with capability shortfalls (which gets a flag-gated warning) from a field that is categorically not nameable in that context (which gets an unconditional 400 bad-request error). The sort-capability check is off by default and warns because the field's capabilities merely fall short; rejectInternalFields and trash-field checks are unconditional 400s because they concern fields the request may never name at all (internal index-only fields or fields only deleted documents carry). Applies to any new validation added to pkg/storage/unified/search/bleve.go's request-field checks."
+}

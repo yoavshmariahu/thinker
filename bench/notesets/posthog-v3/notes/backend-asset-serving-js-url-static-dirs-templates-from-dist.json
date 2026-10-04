@@ -61,5 +61,6 @@
     "JavaScript URL configuration controls which bundled frontend version gets served",
     "Asset serving points to wrong location after frontend build directory reorganization"
   ],
-  "saysFor": "969:backend-asset-serving-js"
+  "saysFor": "969:backend-asset-serving-js",
+  "search": "Backend asset serving uses hashed JS filenames baked by esbuild into dist/index.html; get_js_url (posthog/utils.py) returns settings.JS_URL (http://localhost:8234 in DEBUG, else empty) with localhost hostname rewritten to request origin under DEBUG non-secure requests. Static assets come from STATIC_URL=/static/ and STATICFILES_DIRS=[frontend/dist]; TEMPLATES load from frontend/dist first. In DEBUG (non-test), template context includes vite_dev_scripts pointing to src/index.tsx, src/exporter/index.tsx, src/render-query/index.tsx; head.html sets window.JS_URL."
 }

@@ -1,0 +1,103 @@
+{
+  "id": "watch-must-treat-grpc-unavailable-on-send-as-consumer-discon",
+  "title": "Watch must treat gRPC Unavailable on Send as consumer disconnect, not an error",
+  "kind": "rule",
+  "answers": [
+    "Watch stream logs errors when the client disconnects",
+    "how to handle srv.Send failing because consumer is unavailable",
+    "spurious errors in Watch when gRPC transport closes",
+    "Unavailable error sending events to Watch consumer"
+  ],
+  "body": "Symptom: Watch() returned/logged an error whenever srv.Send failed because the consumer disconnected or its backend became unavailable (observed as transport-level codes.Unavailable).\nRoot cause: pkg/storage/unified/resource/server.go Watch() propagated raw srv.Send() errors (bookmark send, catch-up iterator send, live event send) up the call chain.\nFix pattern: wrap every srv.Send error with watchSendError(err) (server.go), which detects status.Code(err)==codes.Unavailable and wraps it in sentinel errWatchSendUnavailable; the deferred cleanup in Watch() converts that sentinel to a nil return, matching the existing clean-shutdown handling for context cancellation.\nConstraints: only gRPC Unavailable is treated as clean shutdown; other codes and context errors from unrelated contexts must still propagate. Apply watchSendError() at every new srv.Send call site added to Watch().",
+  "applies": "pkg/storage/unified/resource/server.go Watch() and any new srv.Send call sites added there",
+  "tags": [
+    "unified-storage",
+    "watch",
+    "grpc",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "symbol": "watchSendError",
+      "hash": "sha256:c56760be7fcd5cebec9200bc",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "symbol": "Watch",
+      "hash": "sha256:c278cdf5cb7d29657ac9f246",
+      "line": 2006,
+      "missing": false,
+      "fanout": {
+        "files": 60,
+        "sites": 118,
+        "refs": 204
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "symbol": "watchSendError",
+      "hash": "sha256:c56760be7fcd5cebec9200bc",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "symbol": "errWatchSendUnavailable",
+      "hash": "sha256:6ae77a551b6c151ab2f0e7ea",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "symbol": "Watch",
+      "hash": "sha256:c278cdf5cb7d29657ac9f246",
+      "line": 2006,
+      "missing": false,
+      "fanout": {
+        "files": 60,
+        "sites": 118,
+        "refs": 204
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132830"
+  },
+  "created": "2026-10-04T06:23:46.738Z",
+  "verified": "2026-10-04T06:23:46.738Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "list-falls-back-from-search-to-store-scan-only-on-the-first"
+  ],
+  "says": [
+    "Watch stream logs error on normal client disconnect",
+    "Spurious error in Watch when consumer unavailable",
+    "Client disconnection should not fail Watch stream",
+    "Watch throws error instead of closing cleanly",
+    "Transport unavailable error should close Watch gracefully"
+  ],
+  "saysFor": "966:watch-must-treat-grpc-un",
+  "search": "Watch must treat gRPC Unavailable on Send (codes.Unavailable) as clean consumer disconnect, not an error, by wrapping every srv.Send call with watchSendError() from pkg/storage/unified/resource/server.go. This wrapper detects codes.Unavailable and converts it to sentinel errWatchSendUnavailable, which the deferred cleanup converts to nil return matching context-cancellation shutdown. Only Unavailable qualifies as clean shutdown; other status codes and unrelated context errors must propagate. Apply watchSendError() at every new srv.Send call site added to Watch()."
+}

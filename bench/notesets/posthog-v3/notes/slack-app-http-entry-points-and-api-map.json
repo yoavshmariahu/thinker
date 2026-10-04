@@ -67,5 +67,6 @@
     "Slack interaction not being handled properly",
     "Map Slack API callbacks to request handlers"
   ],
-  "saysFor": "1378:slack-app-http-entry-poi"
+  "saysFor": "1378:slack-app-http-entry-poi",
+  "search": "Slack app HTTP entry points are registered in posthog/urls.py (not routes.py): slack/event-callback routes to posthog_code_event_handler, slack/interactivity-callback to posthog_code_interactivity_handler, and slash commands to slack_app_command_handler (backend/views/slack_command.py). The main api.py module (~4,900 lines) routes events through resolve_region_or_terminal_route to _route_* helpers (assistant, app_home_opened, reaction_added, member_joined_channel, team_join), and interactivity to _handle_repo_picker_*, _handle_channel_approval_*, _handle_untagged_followup_*, _handle_insight_alert_snooze, _handle_fork_thread_submit, _handle_signals_dismiss_report. Workflows start via _start_mention_workflow, _start_posthog_code_workflow, _start_command_workflow; user resolution uses resolve_slack_user and resolve_posthog_user_from_event. Critical: US and EU share Slack apps; check send_region_proxy_request and slack_workspace_claims_view for missing events. Cross-product access flows through backend/facade/api.py (slack_channel_is_approved, slack_followup_invite, invalidate_slack_integration_auth_state). Use this for adding event handlers, tracing request flow, or debugging region routing."
 }

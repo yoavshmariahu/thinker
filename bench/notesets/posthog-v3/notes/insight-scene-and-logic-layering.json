@@ -92,5 +92,6 @@
     "How is insight data logic separated from visualization and URL handling?",
     "Where are the per-visualization-type logics implemented for different insight displays?"
   ],
-  "saysFor": "917:insight-scene-and-logic-"
+  "saysFor": "917:insight-scene-and-logic-",
+  "search": "InsightScene is a SceneExport that uses insightSceneLogic to manage URL and mode; it coordinates multiple layered logics (insightSceneLogic, insightLogic, insightDataLogic, insightVizDataLogic) all keyed by insightProps. Per-type logics (trends/funnels/retention) live in products/product_analytics/frontend/insights/* as xLogic(insightProps). InsightViz mounts and binds these logics via useAttachedLogic and BindLogic, allowing child components to useValues(insightLogic) without passing props explicitly. The layering applies to rendering insight components, modifying logic architecture, and adding new insight types."
 }

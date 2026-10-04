@@ -1,0 +1,92 @@
+{
+  "id": "managedroute-identity-uid-is-separate-from-the-name-echoed-t",
+  "title": "ManagedRoute: identity (UID) is separate from the name echoed to callers",
+  "kind": "rule",
+  "answers": [
+    "Why does the routing tree API echo a different name than the UID?",
+    "How do I support a legacy alias for a resource name without breaking RBAC scopes?",
+    "Default routing tree alias response shows wrong/changed name",
+    "Route response ObjectMeta.Name doesn't match what I expect"
+  ],
+  "body": "Symptom: API response for a resource that supports a legacy name alias (e.g. the default routing tree's 'user-defined' alias) either loses the alias in the response or diverges in RBAC scope depending on which name was used to address it.\nRoot cause: previously ManagedRoute.Name conflated stable identity and caller-facing display name; GetUID() re-canonicalized r.Name on every call (old pkg/services/ngalert/notifier/legacy_storage/v1/routes.go GetUID).\nFix pattern: keep only the canonical identity on the domain model (ResourceMetadata.UID), and pass the caller's requested display name explicitly at the k8s conversion/edge-API boundary instead of storing it on the service-level model.\nConstraints: applies to resources that must support an alias resolving to the same underlying object while echoing the caller's spelling back in metadata.name; not needed for resources without alias ambiguity.",
+  "applies": "pkg/registry/apps/alerting/notifications/routingtree and pkg/services/ngalert/notifier/legacy_storage/v1 ManagedRoute handling",
+  "tags": [
+    "alerting",
+    "routing-tree",
+    "resource-identity",
+    "api-compat"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/alerting/notifications/routingtree/conversions.go",
+      "symbol": "ConvertToK8sResource",
+      "hash": "sha256:3ab7dd1746187f827a428376",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 15,
+        "refs": 15
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/routes.go",
+      "symbol": "ManagedRoute",
+      "hash": "sha256:798bc99340dddec614b2ffa3",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 19,
+        "sites": 0,
+        "refs": 81
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/routes.go",
+      "symbol": "GetUID",
+      "hash": "sha256:068e3fbcb5184fc413ac5130",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 77,
+        "sites": 180,
+        "refs": 193
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/routes.go",
+      "symbol": "GetUID",
+      "hash": "sha256:068e3fbcb5184fc413ac5130",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 77,
+        "sites": 180,
+        "refs": 193
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132955"
+  },
+  "created": "2026-10-04T06:04:26.625Z",
+  "verified": "2026-10-04T06:04:26.625Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "managedroute-managedroutes-domain-types-live-in-legacy-stora",
+    "route-uid-canonicalization-must-happen-via-routeuid-not-inli"
+  ],
+  "says": [
+    "Why does the routing tree API response show a different resource name?",
+    "How do I support legacy aliases for resource names in the API?",
+    "Route API response echoes a name different from the requested one",
+    "Default routing tree response uses an unexpected alias for the resource",
+    "Resource identity should be separate from the display name in responses"
+  ],
+  "saysFor": "975:managedroute-identity-ui",
+  "search": "ManagedRoute must separate stable identity (ResourceMetadata.UID) from caller-facing display name to prevent API response divergence and RBAC scope inconsistencies. Keep canonical identity on the domain model; pass the caller's requested name spelling explicitly at the k8s conversion and edge-API boundary (pkg/registry/apps/alerting/notifications/routingtree/conversions.go:ConvertToK8sResource, pkg/services/ngalert/notifier/legacy_storage/v1/routes.go:ManagedRoute, GetUID). This applies only to resources supporting alias resolution (e.g., the 'user-defined' alias) that must echo the caller's spelling in response metadata while maintaining a single underlying identity. Conflating Name with both identity and display name causes the legacy GetUID() re-canonicalization to lose the alias in responses or create RBAC divergence depending on which name addressed the resource. Relevant for routingtree and legacy_storage/v1 ManagedRoute handling."
+}

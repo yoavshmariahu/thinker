@@ -1,0 +1,78 @@
+{
+  "id": "zero-served-group-versions-must-error-explicitly-not-be-allo",
+  "title": "Zero served group versions must error explicitly, not be allowed through",
+  "kind": "rule",
+  "answers": [
+    "Plugin API server fails to start with no clear error after removing settings",
+    "InstallSchema or pluginopenapi Build panics/fails silently for a plugin with no served versions",
+    "Why must GetGroupVersions never return an empty slice unguarded?"
+  ],
+  "body": "Root cause: once settings can be omitted (includeSettings()==false) and a manifest has no served kinds either, GetGroupVersions() can return an empty slice; generic apiserver's SetVersionPriority requires exactly one+ versions per group and fails deep inside startup with a confusing error if it gets none.\nFix pattern: callers that consume GetGroupVersions must check len(gvs)==0 and return a clear error immediately — done in pkg/registry/apis/appplugin/register.go:InstallSchema (\"plugin %s has no served versions\") and pkg/registry/apis/appplugin/pluginopenapi/spec.go:Build.\nConstraints: apply this check anywhere GetGroupVersions/Versions() output is relied on to be non-empty before touching the scheme or OpenAPI builder.",
+  "applies": "pkg/registry/apis/appplugin and pkg/registry/apis/appplugin/pluginopenapi, wherever GetGroupVersions/Versions() output feeds scheme or OpenAPI building",
+  "tags": [
+    "appplugin",
+    "startup",
+    "invariant",
+    "versions"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/appplugin/register.go",
+      "symbol": "InstallSchema",
+      "hash": "sha256:bf7dd7c52478caed389471c0",
+      "line": 308,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 13,
+        "refs": 20
+      }
+    },
+    {
+      "path": "pkg/registry/apis/appplugin/pluginopenapi/spec.go",
+      "symbol": "Build",
+      "hash": "sha256:25a9798efc77d36da6bd7e34",
+      "line": 87,
+      "missing": false,
+      "fanout": {
+        "files": 283,
+        "sites": 530,
+        "refs": 789
+      }
+    },
+    {
+      "path": "pkg/registry/apis/appplugin/register.go",
+      "symbol": "GetGroupVersions",
+      "hash": "sha256:02311caf5da9405de1e679a2",
+      "line": 275,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 27,
+        "refs": 28
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132852"
+  },
+  "created": "2026-10-04T06:20:56.746Z",
+  "verified": "2026-10-04T06:20:56.746Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "manifest-backed-app-plugins-hide-settings-health-resources-p"
+  ],
+  "says": [
+    "Plugin API startup fails unclear when no types configured",
+    "Plugin crashes confusingly after optional settings are removed",
+    "Plugin server doesn't explain why it won't start",
+    "Plugin initialization fails with unclear error about missing configuration",
+    "Removing plugin settings causes silent API startup failure"
+  ],
+  "saysFor": "802:zero-served-group-versio",
+  "search": "GetGroupVersions() in pkg/registry/apis/appplugin/register.go can return an empty slice when settings are omitted and no served kinds exist, causing deep startup failures in SetVersionPriority rather than clear errors. Callers must check len(gvs)==0 and return explicit errors immediately—implemented in pkg/registry/apis/appplugin/register.go:InstallSchema with message \"plugin %s has no served versions\" and pkg/registry/apis/appplugin/pluginopenapi/spec.go:Build. This validation applies wherever GetGroupVersions() or Versions() output feeds into scheme or OpenAPI builder operations that require at least one version. The constraint prevents confusing deep-stack initialization errors by catching zero versions early in pkg/registry/apis/appplugin and pkg/registry/apis/appplugin/pluginopenapi."
+}

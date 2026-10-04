@@ -76,5 +76,6 @@
     "Where should new product routes be configured?",
     "Product API not responding after adding feature endpoint"
   ],
-  "saysFor": "1093:router-registration-core"
+  "saysFor": "1093:router-registration-core",
+  "search": "Core viewsets register via posthog/api/rest_router.py with parent lookup kwargs; product plugins register via register_routes() in products/<name>/backend/routes.py, auto-discovered by INSTALLED_APPS without modifying rest_router.py. RouterRegistry.add() raises if called from products (parents are core-owned). Endpoints nest under routers.projects with project_<name> basename; trailing slash optional /?. Legacy /api/environments/ is a rewrite alias via EnvironmentsRewriteMiddleware, not direct routing. Applies to DRF viewset registration only; see posthog/api/routing.py:DefaultRouterPlusPlus, posthog/api/routing.py:RouterRegistry, posthog/api/project.py:RootProjectViewSet."
 }

@@ -51,5 +51,6 @@
     "Row count alone cannot distinguish at-cap from above-cap results",
     "Setup context surface lists report whether they were truncated or complete"
   ],
-  "saysFor": "725:detect-list-truncation-b"
+  "saysFor": "725:detect-list-truncation-b",
+  "search": "Capped lists in setup_context.py expose a *_truncated boolean flag rather than making agents infer truncation from row count. Query `limit = MAX + 1`, slice rows to `rows[:MAX]` for the list, and set `truncated = len(rows) > MAX` (not >=, which is a common pitfall). The pattern appears in _compute_target_surface and applies to existing flags: sdk_profile.libs_truncated, sdk_profile.libs_on_any_event_truncated, and shared_metrics.metric_event_match_truncated. Tests in test_setup_context.py must cover both the at-cap case (false) and above-cap case (true) to catch > vs >= bugs. Skills and downstream code must read the flag, not infer from row count. Applies to any capped list in setup_context.py where distinguishing full results from truncated results matters."
 }

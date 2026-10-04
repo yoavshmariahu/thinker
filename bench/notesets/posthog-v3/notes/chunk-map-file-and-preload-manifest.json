@@ -1,7 +1,7 @@
 {
   "id": "chunk-map-file-and-preload-manifest",
   "title": "Chunk map file and preload manifest",
-  "kind": "callpath",
+  "kind": "map",
   "answers": [
     "What is chunk-map-*.js?",
     "How does the preload manifest get produced and consumed?",
@@ -53,7 +53,7 @@
   "verified": "2026-09-26T20:35:13.132Z",
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.85,
-  "status": "stale",
+  "status": "fresh",
   "uses": 6,
   "related": [
     "build-output-naming-must-stay-in-sync-with-server-preload-ma",
@@ -69,20 +69,6 @@
     "01de268d-b79f-4536-878a-05cd626d33e6",
     "14bdd8ea-719f-4bca-937b-f2b36407619a"
   ],
-  "stale": {
-    "since": "2026-09-27T22:01:53.220Z",
-    "changed": [
-      {
-        "path": "frontend/build.mjs",
-        "symbol": "writePreloadManifest",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "frontend/src/index.html",
-        "reason": "file changed"
-      }
-    ]
-  },
   "says": [
     "What is the chunk-map file and how does it work",
     "Preload manifest out of sync with the emitted build chunks",
@@ -90,5 +76,6 @@
     "How does chunk splitting information reach the frontend",
     "Preload manifest generation and consumption by the frontend"
   ],
-  "saysFor": "1110:chunk-map-file-and-prelo"
+  "saysFor": "1110:chunk-map-file-and-prelo",
+  "search": "JavaScript chunk loader generates chunk-map-<entry>-<8hex sha256>.js (hashed from emitted bytes) as immutable static file setting window.ESBUILD_CHUNK_MAP; only the index is inlined in HTML. Frontend/build.mjs:writePreloadManifest generates dist/preload-manifest.json with css, fonts, and js >= PRELOAD_MIN_CHUNK_BYTES (50KB) plus authenticatedJs, which backend posthog/utils.py:_resolve_entry_assets reads and injects as preload_css_url/preload_js_urls/preload_font_url into index.html context only. ESBUILD_LOAD_CHUNKS skips cached chunks; scenes queue in ESBUILD_PENDING_CHUNK_SCENES until map arrives; manifest is cached per process and empty in debug/test. Preload is optimization-only; applies to frontend chunk loading and backend template rendering."
 }

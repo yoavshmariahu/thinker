@@ -1,0 +1,67 @@
+{
+  "id": "search-response-parser-must-branch-on-resultformat",
+  "title": "Search response parser must branch on ResultFormat",
+  "kind": "rule",
+  "answers": [
+    "Why does team search return empty/garbled hits after changing the search request?",
+    "How do I add support for a new ResourceSearchRequest.ResultFormat?",
+    "Team search results don't decode correctly with FIELD_VALUES"
+  ],
+  "body": "Symptom: a search handler sets ResourceSearchRequest.ResultFormat to a new value but the response parser silently returns empty/wrong hits. Root cause: pkg/services/team/search/search.go:ParseResults used to assume RESOURCE_TABLE rows only. Fix pattern: switch on result.GetResultFormat() and dispatch to a format-specific parser (parseTableResults vs parseFieldValueResults), keeping RESOURCE_TABLE/UNSPECIFIED as the legacy-server fallback. Constraints: any handler that sets ResultFormat (e.g. pkg/registry/apis/iam/team/search.go:DoTeamSearch) must have a matching branch in its parser, and RESOURCE_TABLE support must be kept for compatibility with older servers that don't honor the field.",
+  "applies": "Any resource search handler/parser pair that sets ResourceSearchRequest.ResultFormat",
+  "tags": [
+    "search",
+    "iam",
+    "team-search",
+    "resourcepb"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/team/search/search.go",
+      "symbol": "ParseResults",
+      "hash": "sha256:384e5acc11d8eb11e46b617c",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 35,
+        "refs": 35
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/team/search.go",
+      "symbol": "DoTeamSearch",
+      "hash": "sha256:d0a886ad1d8693a578349d97",
+      "line": 256,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132811"
+  },
+  "created": "2026-10-04T06:26:14.677Z",
+  "verified": "2026-10-04T06:26:14.677Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "field-values-search-format-never-returns-explain",
+    "team-search-must-not-request-explain-with-field-values-resul"
+  ],
+  "says": [
+    "Team search results return empty or garbled after format change",
+    "How do I add support for a new search result format type?",
+    "Search results display incorrectly when using field value format",
+    "Search parser does not handle multiple result format options",
+    "Search returns nothing when result format type changes"
+  ],
+  "saysFor": "746:search-response-parser-m",
+  "search": "Search response parser must switch on result.GetResultFormat() and dispatch to format-specific parsers, not assume RESOURCE_TABLE rows only. Any handler setting ResourceSearchRequest.ResultFormat to a new value requires a matching branch in its parser (parseTableResults vs parseFieldValueResults). RESOURCE_TABLE support must be retained as a legacy-server fallback for compatibility with older servers that ignore the field. Applies to resource search handler/parser pairs in pkg/services/team/search/search.go:ParseResults and pkg/registry/apis/iam/team/search.go:DoTeamSearch that set ResultFormat and receive empty or incorrect results despite valid data."
+}

@@ -1,0 +1,51 @@
+{
+  "id": "data-source-permissions-role-picker-only-supports-basic-org",
+  "title": "Data source Permissions 'Role' picker only supports basic org roles",
+  "kind": "rule",
+  "answers": [
+    "Why can't I assign a custom/fixed RBAC role on a data source's Permissions tab?",
+    "What roles show up in the data source permission Role picker?",
+    "How do I give a custom-role user query access to a data source?",
+    "Data source permission Role dropdown is missing my custom role"
+  ],
+  "body": "Invariant: the Role option in a data source's Permissions tab only offers the basic organization roles Viewer, Editor, Admin — custom and fixed RBAC roles never appear there. Enforced by the UI using the OrgRole enum in public/app/features/datasources/components/AddPermission.tsx and by the backend API, which only accepts basic roles at POST .../builtInRoles/:builtInRole. To grant access to users with custom/fixed roles, assign the permission directly to the user, service account, or team, or grant the datasources:query action via RBAC — do not expect the Role picker to list custom roles. Docs describing this flow live in docs/sources/administration/data-source-management/_index.md and docs/sources/administration/roles-and-permissions/_index.md; keep them in sync if the picker's role set ever changes.",
+  "applies": "Grafana data source permissions UI/API (Permissions tab 'Role' assignment), OSS/Enterprise/Cloud",
+  "tags": [
+    "data-source-permissions",
+    "rbac",
+    "docs",
+    "roles"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/administration/data-source-management/_index.md",
+      "hash": "sha256:087e0c6f2fdd1b21672ed0be",
+      "missing": false
+    },
+    {
+      "path": "docs/sources/administration/roles-and-permissions/_index.md",
+      "hash": "sha256:8bd18ff7d170a1f94c8447ed",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133131"
+  },
+  "created": "2026-10-04T05:49:17.398Z",
+  "verified": "2026-10-04T05:49:17.398Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why can't I set a custom role in permissions",
+    "Data source permission settings don't show my custom roles",
+    "How do I grant access using custom permission roles",
+    "Permission role dropdown is missing certain organization roles",
+    "Custom roles don't appear in data source permission picker"
+  ],
+  "saysFor": "880:data-source-permissions-",
+  "search": "Data source Permissions 'Role' picker only offers basic organization roles (Viewer, Editor, Admin) and never includes custom or fixed RBAC roles, enforced by OrgRole enum in public/app/features/datasources/components/AddPermission.tsx and the backend API at POST .../builtInRoles/:builtInRole endpoint. To grant data source access to users/service accounts/teams with custom or fixed roles, assign the permission directly to that principal or grant datasources:query via RBAC—the Role picker will not list those roles. Documentation in docs/sources/administration/data-source-management/_index.md and docs/sources/administration/roles-and-permissions/_index.md must be kept in sync if the picker's role set changes. Applies to Grafana data source permissions UI/API (Permissions tab 'Role' assignment) across OSS, Enterprise, and Cloud."
+}

@@ -1,0 +1,76 @@
+{
+  "id": "hybrid-search-primary-lexical-decode-errors-fail-the-request",
+  "title": "Hybrid search: primary lexical decode errors fail the request, enrichment decode errors fail open",
+  "kind": "rule",
+  "answers": [
+    "Why does hybrid search return an error instead of just skipping a bad row?",
+    "Should managed-by/folder-title lookup failures fail the whole search?",
+    "What's the error-handling convention for new hybrid search enrichment lookups?"
+  ],
+  "body": "Symptom: hybrid search either fails hard on any malformed field, or silently drops managed-by/folder-title info depending on which leg hit the problem.\nRoot cause: decoded search values are `any`-typed; a schema mismatch can't be safely ignored for the primary results, but optional enrichment data was always allowed to be incomplete.\nFix pattern: the lexical leg (pkg/storage/unified/resource/search_hybrid.go:hybridLexicalLeg) wraps decode errors from lexicalHitsFromResponse and returns them, failing the whole HybridSearch call. resolveManagedBy and resolveFolderTitles (same file) instead log a Warn and return on decode error, leaving those fields empty — same pattern already used for the searchCallError check on these two calls.\nConstraints: apply this split to any new enrichment lookup added to hybrid search: primary data path propagates decode/format errors, best-effort enrichment paths log and continue without failing the request.",
+  "applies": "pkg/storage/unified/resource/search_hybrid.go hybrid search lexical/managed-by/folder-title lookups",
+  "tags": [
+    "hybrid-search",
+    "error-handling",
+    "storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/search_hybrid.go",
+      "symbol": "hybridLexicalLeg",
+      "hash": "sha256:c3d526e997ab1750168624bd",
+      "line": 178,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/search_hybrid.go",
+      "symbol": "resolveManagedBy",
+      "hash": "sha256:35435a4fcccf6bec01341b6f",
+      "line": 265,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/search_hybrid.go",
+      "symbol": "resolveFolderTitles",
+      "hash": "sha256:47657038d91e7b273662460c",
+      "line": 315,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132893"
+  },
+  "created": "2026-10-04T06:16:09.469Z",
+  "verified": "2026-10-04T06:16:09.469Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "resourcesearchresponse-must-be-decoded-according-to-its-resu"
+  ],
+  "says": [
+    "Hybrid search fails completely when encountering a malformed field",
+    "Why does one bad row break the entire search?",
+    "Missing folder title shouldn't fail the whole search request",
+    "How should enrichment lookup failures affect hybrid search results?"
+  ],
+  "saysFor": "1045:hybrid-search-primary-le",
+  "search": "Hybrid search (pkg/storage/unified/resource/search_hybrid.go) distinguishes between primary and enrichment data paths: lexical leg failures propagate decode errors and fail the entire HybridSearch call; enrichment lookups (resolveManagedBy, resolveFolderTitles) log Warn and return on decode error without failing the request. Constraint: apply this split consistently to any new enrichment lookup — primary data path must propagate decode/format errors as critical, best-effort enrichment paths log and continue. This prevents optional managed-by and folder-title info from breaking the core search results when schema mismatches occur. Applies when implementing hybrid search or adding new enrichment data sources."
+}

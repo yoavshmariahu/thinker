@@ -53,5 +53,6 @@
     "The pipeline should reject empty team configurations first",
     "Pre-aggregated table was truncated and lost customer data"
   ],
-  "saysFor": "713:pre-aggregation-must-fai"
+  "saysFor": "713:pre-aggregation-must-fai",
+  "search": "Pre-aggregation in pre_aggregate_web_analytics_data (products/web_analytics/dags/web_preaggregated.py) must check count_selected_teams early and raise dagster.Failure when zero, before SQL generation and cluster calls. Without this guard, empty team selection creates empty staging partitions that swap over existing data. Any refactor must preserve this check ahead of all table-changing steps; test_web_preaggregated_utils.py verifies sql_generator and cluster.map_all_hosts are never called when count is zero."
 }

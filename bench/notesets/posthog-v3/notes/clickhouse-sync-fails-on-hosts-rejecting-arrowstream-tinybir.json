@@ -58,5 +58,6 @@
     "Why does the data sync fail with arrow stream errors",
     "Syncing logs from Tinybird or non-standard ClickHouse instance fails"
   ],
-  "saysFor": "1026:clickhouse-sync-fails-on"
+  "saysFor": "1026:clickhouse-sync-fails-on",
+  "search": "ClickHouse sync extraction fails when the host rejects ArrowStream format (403 in Tinybird, UNKNOWN_FORMAT in no-Arrow builds) even though table discovery succeeds via Native format. The fix in _stream_record_batches catches ClickHouseError, checks if the message contains \"format ArrowStream\", and retries the query with query_column_block_stream, converting each Native block to RecordBatch. Only fall back on the specific format-rejection message; other errors must re-raise because the server rejects before sending rows. Arrow format remains the first choice since Native is ~5x slower; large-result limits on hosts like Tinybird are not handled and would require paged queries. Applies to products/warehouse_sources ClickHouse source extraction (get_rows, _stream_record_batches, _is_arrow_format_rejected)."
 }

@@ -1,0 +1,53 @@
+{
+  "id": "long-unbroken-strings-urls-in-flex-layouts-cause-horizontal",
+  "title": "Long unbroken strings (URLs) in flex layouts cause horizontal page overflow",
+  "kind": "rule",
+  "answers": [
+    "Why does the page scroll sideways when a datasource error shows?",
+    "Long error message with a URL widens the panel/page",
+    "Query error text overflows its container instead of wrapping",
+    "How to fix flex item growing past its parent due to long unbreakable text"
+  ],
+  "body": "Symptom: A datasource/query error containing a long unbroken string (typically a request URL with no spaces) widens its row/panel and causes the whole page to scroll horizontally.\nRoot cause: The error text container is a flex item with flex: 1 but no min-width override; browsers default a flex item's min-width to its content's min-content width, and a string with no break points has min-content width equal to its full length, so the item (and its ancestors) can't shrink below that.\nFix pattern: On the text element, set minWidth: 0 to remove the implicit flex min-width floor, and overflowWrap: 'anywhere' (not just word-break) to allow mid-word breaking for unbreakable tokens like URLs.\nConstraints: Apply this to any flex/grid child rendering arbitrary/unbounded text (error messages, URLs, stack traces); not needed for text known to be short or already wrapped in a block (non-flex) container.",
+  "applies": "Any flex-layout component rendering long, space-less text such as error messages/URLs in Grafana's query editor or similar shared components.",
+  "tags": [
+    "css",
+    "flexbox",
+    "overflow",
+    "query-editor"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/query/components/QueryErrorAlert.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:a97ccc1f456fe8aede6ba25e",
+      "line": 92,
+      "missing": false,
+      "fanout": {
+        "files": 903,
+        "sites": 72,
+        "refs": 1104
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132861"
+  },
+  "created": "2026-10-04T06:18:54.636Z",
+  "verified": "2026-10-04T06:18:54.636Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does the page scroll sideways when showing query error messages?",
+    "Long unbreakable strings in error messages cause horizontal page overflow",
+    "Query error text containing URLs breaks out of its container",
+    "Datasource error with long URL causes the page to scroll horizontally",
+    "How do I prevent long URLs from widening the entire page?"
+  ],
+  "saysFor": "980:long-unbroken-strings-ur",
+  "search": "Long unbroken strings (URLs, request bodies) in flex layouts cause horizontal page overflow; apply minWidth: 0 and overflowWrap: 'anywhere' to the text element to prevent this. Browsers default a flex item's min-width to its content's min-content width, and a string with no break points (like a URL) has min-content width equal to its full length, preventing the item from shrinking below that width. Set minWidth: 0 to remove the implicit flex min-width floor, and use overflowWrap: 'anywhere' (not just word-break) to allow mid-word breaking for unbreakable tokens. This constraint applies to any flex/grid child rendering arbitrary or unbounded text (error messages, stack traces, URLs); not needed for text known to be short or already in a non-flex block container. Common in error display components like QueryErrorAlert.tsx:getStyles."
+}

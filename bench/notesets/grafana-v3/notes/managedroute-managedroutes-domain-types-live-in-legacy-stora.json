@@ -1,0 +1,88 @@
+{
+  "id": "managedroute-managedroutes-domain-types-live-in-legacy-stora",
+  "title": "ManagedRoute/ManagedRoutes domain types live in legacy_storage/v1, not legacy_storage",
+  "kind": "rule",
+  "answers": [
+    "Where is ManagedRoute defined now?",
+    "Why can't I add ManagedRoute fields in legacy_storage package?",
+    "Import cycle error referencing legacy_storage and legacy_storage/v1",
+    "Where should CalculateRouteFingerprint / NewManagedRoute live?"
+  ],
+  "body": "ManagedRoute, ManagedRoutes and CalculateRouteFingerprint (with their methods: GetUID, ResourceType, ResourceID, NewManagedRoute, Sort, Contains) live in pkg/services/ngalert/notifier/legacy_storage/v1 alongside the other domain types (Route, AMConfigV1) they operate on. legacy_storage only keeps functions that must cross-reference both packages, e.g. GeneratedSubRoute and WithManagedRoutes, because they call ManagedRouteToRoute (legacy_storage/compat.go), which converts v1.ManagedRoute -> v1.Route via legacy_storage-specific defaulting logic and can't move into v1 without creating an import cycle (v1 would need to import legacy_storage conventions, legacy_storage already imports v1). When adding new fields or helpers for ManagedRoute, put pure data/behavior on the type itself in v1/routes.go; put anything needing ManagedRouteToRoute or other legacy_storage compat functions in legacy_storage.",
+  "applies": "pkg/services/ngalert/notifier/legacy_storage and pkg/services/ngalert/notifier/legacy_storage/v1, and any caller referencing ManagedRoute/ManagedRoutes types (routes service, accesscontrol RouteAccess, routingtree k8s conversions)",
+  "tags": [
+    "alerting",
+    "notifier",
+    "legacy_storage",
+    "layering",
+    "import-cycle"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/routes.go",
+      "symbol": "ManagedRoute",
+      "hash": "sha256:798bc99340dddec614b2ffa3",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 19,
+        "sites": 0,
+        "refs": 81
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/compat.go",
+      "symbol": "ManagedRouteToRoute",
+      "hash": "sha256:36350a5aa58b9283e379440b",
+      "line": 160,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/routes.go",
+      "symbol": "GeneratedSubRoute",
+      "hash": "sha256:a53876df2fd5cac1f2884967",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/compat.go",
+      "hash": "sha256:20f881923fcf8d194fee2906",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132954"
+  },
+  "created": "2026-10-04T06:04:56.123Z",
+  "verified": "2026-10-04T06:04:56.123Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "managedroute-identity-uid-is-separate-from-the-name-echoed-t",
+    "compat-go-bridges-flat-amconfigv1-receivers-to-nested-db-api",
+    "receiver-uid-is-still-hash-name-in-several-places-marked-tod",
+    "route-uid-canonicalization-must-happen-via-routeuid-not-inli"
+  ],
+  "says": [
+    "Where should I define new ManagedRoute types and utility methods?",
+    "Why do I get import cycle errors adding ManagedRoute fields?",
+    "Where do domain types like ManagedRoute and Routes belong in the code?",
+    "Placing ManagedRoute in legacy_storage instead of v1 causes import cycles",
+    "Which package should CalculateRouteFingerprint and related helpers live in?"
+  ],
+  "saysFor": "991:managedroute-managedrout",
+  "search": "ManagedRoute and ManagedRoutes domain types (including methods GetUID, ResourceType, ResourceID, NewManagedRoute, Sort, Contains, and CalculateRouteFingerprint) must reside in pkg/services/ngalert/notifier/legacy_storage/v1, not legacy_storage, to keep data/behavior colocated with the Route and AMConfigV1 types they operate on. Only cross-referencing functions like GeneratedSubRoute and WithManagedRoutes that require ManagedRouteToRoute conversion stay in legacy_storage/compat.go to avoid import cycles (v1 cannot import legacy_storage conventions without creating circular dependency). When adding new fields or helpers, place pure data and behavior directly on the ManagedRoute type in v1/routes.go; place only those needing ManagedRouteToRoute or other legacy_storage compat logic in legacy_storage. Applies to routes service, accesscontrol RouteAccess, and routingtree k8s conversions."
+}

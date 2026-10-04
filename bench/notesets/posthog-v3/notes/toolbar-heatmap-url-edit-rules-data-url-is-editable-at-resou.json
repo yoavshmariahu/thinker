@@ -62,5 +62,6 @@
     "Object-only permission blocks me from retargeting heatmap URL",
     "Updating heatmap page URL kept returning access denied"
   ],
-  "saysFor": "1225:toolbar-heatmap-url-edit"
+  "saysFor": "1225:toolbar-heatmap-url-edit",
+  "search": "SavedHeatmap partial_update treats data_url as non-render field (editable without re-screenshot) while url and block_consent_modals remain render-locked (rejected by ValidationError in products/web_analytics/backend/api/heatmaps_api.py). Object-level editors cannot retarget url or data_url because HeatmapAggregateQueryScopingPermission matches url_exact against caller's object grants; retargeting would widen access (test_heatmap_access_control.py::test_object_level_editor_cannot_retarget_heatmap_url). Frontend mirror: dataUrlEditDisabledReason in heatmapLogic.ts requires resource-level Heatmap editor access, while urlEditDisabledReason and renderSettingsEditDisabledReason lock toolbar captures; HeatmapPageFields.tsx uses these gates. Backend and frontend gating must stay synchronized when editing either products/web_analytics/backend or products/web_analytics/frontend."
 }

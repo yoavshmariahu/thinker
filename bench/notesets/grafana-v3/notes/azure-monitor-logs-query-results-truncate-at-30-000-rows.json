@@ -1,0 +1,50 @@
+{
+  "id": "azure-monitor-logs-query-results-truncate-at-30-000-rows",
+  "title": "Azure Monitor Logs query results truncate at 30,000 rows",
+  "kind": "rule",
+  "answers": [
+    "Why does my Azure Monitor Logs query only return 30,000 rows?",
+    "Logs panel shows a notice that the row limit was reached",
+    "How do I disable the Azure Monitor Logs row limit?",
+    "Azure Monitor logs results truncated / cut off"
+  ],
+  "body": "Symptom: an Azure Monitor query using the Logs result format returns exactly 30,000 rows even though more data exists, with a UI notice that the limit was reached.\nRoot cause: the Logs result format renders every row at once in the frontend table, so the backend truncates to prevent the browser tab from crashing (pkg/tsdb/azuremonitor/loganalytics/azure-response-table-frame.go).\nFix pattern: gate the truncation behind a feature toggle so users can opt out when they accept the performance tradeoff, rather than hardcoding the limit unconditionally.\nConstraints: only applies to the Logs result format (not time series/table-for-graph formats); opt-out is the `azureMonitorDisableLogLimit` feature toggle checked in pkg/tsdb/azuremonitor/loganalytics/azure-log-analytics-datasource.go. Recommend `summarize`/narrower time range/filters as alternatives to disabling it.",
+  "applies": "Azure Monitor datasource Logs queries (pkg/tsdb/azuremonitor/loganalytics)",
+  "tags": [
+    "azure-monitor",
+    "logs",
+    "feature-toggle",
+    "truncation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/tsdb/azuremonitor/loganalytics/azure-response-table-frame.go",
+      "hash": "sha256:a787d8f9eaa4f9a29aee336e",
+      "missing": false
+    },
+    {
+      "path": "pkg/tsdb/azuremonitor/loganalytics/azure-log-analytics-datasource.go",
+      "hash": "sha256:8454e6fd2a6ef4a065503f32",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133020"
+  },
+  "created": "2026-10-04T05:57:51.573Z",
+  "verified": "2026-10-04T05:57:51.573Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does my Azure Monitor logs query only return 30000 rows?",
+    "Logs panel shows a notice that the row limit was reached",
+    "How do I disable the Azure Monitor logs row limit?",
+    "Azure Monitor logs output is truncated or shows partial results"
+  ],
+  "saysFor": "928:azure-monitor-logs-query",
+  "search": "The Logs result format in Azure Monitor truncates at 30,000 rows (pkg/tsdb/azuremonitor/loganalytics/azure-response-table-frame.go) because the frontend renders every row without virtualization, creating crash risk. The truncation is gated by the azureMonitorDisableLogLimit feature toggle checked in azure-log-analytics-datasource.go, allowing opt-out while defaulting to safety. Only the Logs result format applies; time-series and table-for-graph formats are not truncated. Recommend alternatives like summarize, time-range narrowing, or filtering before users disable the limit."
+}

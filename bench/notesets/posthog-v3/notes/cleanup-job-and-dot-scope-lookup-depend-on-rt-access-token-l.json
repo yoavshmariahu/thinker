@@ -52,5 +52,6 @@
     "Access token expiry determines how long refresh tokens remain valid",
     "Which access token defines the scope ceiling for refresh tokens"
   ],
-  "saysFor": "764:cleanup-job-and-dot-scop"
+  "saysFor": "764:cleanup-job-and-dot-scop",
+  "search": "For non-rotating refresh tokens, OAuthRefreshToken.access_token must point to the most recent access token, enforced in posthog/api/oauth/views.py:_save_bearer_token, because cleanup deletes RTs by AT expiry, django-oauth-toolkit reads next-refresh scopes from the linked AT, and upstream revoke targets the linked AT. Failure to maintain this link causes in-use RTs to be deleted and scope narrowing/ceiling_scopes to behave inconsistently. Tests must watch the auth-code AT (unlinked, not just the linked one) to verify no unintended session sweep; see test_dcr_client_refresh_token_is_not_rotated. Applies to OAuth refresh, revoke, and scope logic in posthog/api/oauth/views.py."
 }

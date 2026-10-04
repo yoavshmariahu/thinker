@@ -39,5 +39,6 @@
     "Load generator stopped working when we updated key structure",
     "Unit test assertion fails on every person update event"
   ],
-  "saysFor": "557:person-update-event-sign"
+  "saysFor": "557:person-update-event-sign",
+  "search": "Function `person_update_event(base, event, user)` in `rust/capture-load-gen/src/event.rs` receives the distinct id at call site via `&self.distinct_ids[index]`. The unit test in the same file derives the key using `format!(\"loadgen_last_update_{user}\")` from the event's distinct_id. If the key format changes, both the generator and test lookup must be updated together. The test asserts every update value is unique, so values must remain unique per event. Applies to changes in key format or person_update_event signature in the load generator."
 }

@@ -1,0 +1,56 @@
+{
+  "id": "list-to-search-routing-guard-must-reject-rv-name-and-keysonl",
+  "title": "List-to-search routing guard must reject RV, Name, and KeysOnly",
+  "kind": "rule",
+  "answers": [
+    "Why does an allowlisted resource list fall back to the store path instead of search?",
+    "List with ResourceVersion or a Name returns stale/wrong results when routed to search",
+    "How does the server decide whether to serve a LIST via the search index vs the revision-aware store?"
+  ],
+  "body": "Symptom: a LIST for an allowlisted (or selector-bearing) resource with a non-zero ResourceVersion, a non-empty Options.Key.Name, or KeysOnly=true was returned from search and was wrong (newer-than-requested objects, every object instead of the named one, or search-specific fields on a keys-only call).\nRoot cause: pkg/storage/unified/resource/list_with_selectors.go:shouldUseSearchForList routes requests to the ResourceSearchRequest path, but that request has no RV constraint, no name filter (ListOptions contract excludes name for search), and isn't meant for keys-only lists.\nFix pattern: any list-routing decision in this function must early-return false for req.ResourceVersion > 0, req.Options.Key.Name != \"\", req.KeysOnly, and cross-namespace (Options.Key.Namespace == \"\") before considering selectors or the allowlist.\nConstraints: applies to any future change that widens what goes through search-backed list (e.g. adding more allowlist entries or selector types); does not apply to Watch requests, which legitimately combine selectors with RV.",
+  "applies": "pkg/storage/unified/resource list routing between search and the revision-aware store backend",
+  "tags": [
+    "unified-storage",
+    "list",
+    "search",
+    "resource-version"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "shouldUseSearchForList",
+      "hash": "sha256:7ef8344d65dc9f969f6324a3",
+      "line": 364,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132660"
+  },
+  "created": "2026-10-04T06:50:41.418Z",
+  "verified": "2026-10-04T06:50:41.418Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "list-falls-back-from-search-to-store-scan-only-on-the-first",
+    "list-routing-label-only-lists-can-use-search-for-any-kind-fi",
+    "search-backed-list-must-emit-continuation-token-when-auth-fi"
+  ],
+  "says": [
+    "List returns items newer than the requested version",
+    "Searching by name returns all items instead of one",
+    "Keys-only list returns complete objects instead of keys",
+    "Resource version constraints are ignored when listing",
+    "Name filter doesn't work when listing resources"
+  ],
+  "saysFor": "1119:list-to-search-routing-g",
+  "search": "List-to-search routing guard in shouldUseSearchForList must early-return false for req.ResourceVersion > 0, req.Options.Key.Name != \"\", req.KeysOnly, or cross-namespace (Options.Key.Namespace == \"\") before evaluating selectors or allowlist entries. Routing these cases to ResourceSearchRequest causes wrong results: non-zero RV returns newer-than-requested objects (no RV constraint in search), Name filters return every object (search lacks name filter per ListOptions contract), and KeysOnly=true gets search-specific fields. Does not apply to Watch requests which legitimately combine selectors with RV. Applies to pkg/storage/unified/resource list routing between search and the revision-aware store backend."
+}

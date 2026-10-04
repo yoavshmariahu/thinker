@@ -1,0 +1,64 @@
+{
+  "id": "solid-button-active-must-differ-from-hover-color",
+  "title": "Solid button :active must differ from :hover color",
+  "kind": "rule",
+  "answers": [
+    "Why does clicking a solid button in the new theme look the same as hovering it?",
+    "Solid button has no pressed/active visual feedback",
+    "How should active vs hover background be chosen for solid buttons?"
+  ],
+  "body": "Symptom: in the visual-refresh theme, clicking a solid-fill button (primary/secondary/etc.) gave no visible feedback distinct from the hover state. Root cause: packages/grafana-ui/src/components/Button/Button.tsx:getActiveButtonStyles and getButtonVariantStyles used the same emphasis token (color.mainEmphasis/backgroundEmphasis) for both hover and active. Fix pattern: for visualRefreshEnabled solid fills, hover uses color.backgroundEmphasis while active uses the base color.background, so the two states are visually distinct; outline/transparent fills instead use color.subtleBackground on hover and aren't affected. Constraints: applies only when fill === 'solid' and theme.flags.visualDesignRefresh is true; the 'secondary' solid button is the sole exception that also sets its border to color.subtleBorder (normal) / color.border (hover) since it's the only solid variant with a visible border.",
+  "applies": "grafana-ui Button component, visual-refresh theme, solid-fill variants",
+  "tags": [
+    "grafana-ui",
+    "button",
+    "theme",
+    "visual-refresh"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Button/Button.tsx",
+      "symbol": "getActiveButtonStyles",
+      "hash": "sha256:6a1deef4bbc6e31a4f5c6f20",
+      "line": 317,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 8
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Button/Button.tsx",
+      "symbol": "getButtonVariantStyles",
+      "hash": "sha256:598fa5d8a4bce2c7a57c44cf",
+      "line": 327,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132855"
+  },
+  "created": "2026-10-04T06:19:59.836Z",
+  "verified": "2026-10-04T06:19:59.836Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Solid button looks identical when clicked as when hovered over.",
+    "Clicking solid button shows no visual feedback distinct from hover.",
+    "Button active and hover states have same background color.",
+    "How should solid button background differ on press versus hover?",
+    "Pressed solid button should look darker or different from hovered."
+  ],
+  "saysFor": "953:solid-button-active-must",
+  "search": "Button component active state styling must differ from hover state in visual-refresh theme. Applies to solid-fill buttons (primary, secondary, etc.) via getActiveButtonStyles and getButtonVariantStyles in packages/grafana-ui/src/components/Button/Button.tsx when fill === 'solid' and theme.flags.visualDesignRefresh is true. Hover uses color.backgroundEmphasis, active uses color.background for visual distinction; secondary variant is the sole exception with color.subtleBorder (normal) / color.border (hover) for its border. Guidance applies when fixing visual feedback on button click interactions in visual-refresh theme."
+}

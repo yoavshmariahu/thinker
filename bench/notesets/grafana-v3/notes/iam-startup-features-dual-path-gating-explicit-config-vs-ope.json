@@ -1,0 +1,115 @@
+{
+  "id": "iam-startup-features-dual-path-gating-explicit-config-vs-ope",
+  "title": "IAM startup Features: dual-path gating (explicit config vs OpenFeature)",
+  "kind": "rule",
+  "answers": [
+    "How do I add a new gated IAM API?",
+    "Why is my IAM API still flag-gated even though I set an explicit startup config?",
+    "How does the IAM builder decide between OpenFeature and explicit feature config?"
+  ],
+  "body": "Any IAM API gate in the builder must go through IdentityAccessManagementAPIBuilder.featureEnabled(ctx, flagKey, func(Features) bool), which uses the explicit b.features snapshot when set and falls back to b.ofClient OpenFeature evaluation otherwise. Adding a new gated IAM API requires updating all of: the API const + supportedAPIs list, the Features struct field, Features.SetAPIs, featureForAPI's switch (used by EnabledAPIs), and a new featureEnabled call site in InstallSchema/UpdateAPIGroupInfo/GetAPIRoutes. Missing any of these means the explicit-config path silently ignores the new API and it stays OpenFeature-only.",
+  "applies": "pkg/registry/apis/iam register.go and features.go when adding/gating a new IAM API",
+  "tags": [
+    "iam",
+    "feature-flags",
+    "openfeature",
+    "startup-config"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "func",
+      "hash": "sha256:677c0ee9719a185e67e3274f",
+      "line": 271,
+      "missing": false,
+      "fanout": {
+        "files": 209,
+        "sites": 1487,
+        "refs": 2000
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "featureEnabled",
+      "hash": "sha256:24f578a1681c61fdab04c51d",
+      "line": 1103,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 23,
+        "refs": 42
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "InstallSchema",
+      "hash": "sha256:d02405bdfce9a1e1a39aed6d",
+      "line": 346,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 13,
+        "refs": 20
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateAPIGroupInfo",
+      "hash": "sha256:428e2b592c23d4c4dfe6cd32",
+      "line": 400,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 11,
+        "refs": 22
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/features.go",
+      "symbol": "Features",
+      "hash": "sha256:5b8f6d13f71ebbf33b051b6d",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 78,
+        "sites": 0,
+        "refs": 240
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/features.go",
+      "symbol": "featureForAPI",
+      "hash": "sha256:ac4aadbf2cb505e8537b4c81",
+      "line": 109,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133036"
+  },
+  "created": "2026-10-04T05:54:56.349Z",
+  "verified": "2026-10-04T05:54:56.349Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "teams-membership-endpoints-gate-once-at-startup-not-per-requ",
+    "nested-iam-rest-handlers-need-a-withfeature-constructor-to-h",
+    "iam-features-validate-enforces-api-dependency-invariants"
+  ],
+  "says": [
+    "How do I add a new feature that's startup-configurable?",
+    "Why is my explicit startup setting being ignored for this API?",
+    "How does the system choose between startup config and feature flags?",
+    "New API stays controlled by flags despite explicit startup configuration"
+  ],
+  "saysFor": "698:iam-startup-features-dua",
+  "search": "IAM API startup gating uses dual-path logic in pkg/registry/apis/iam/register.go and features.go: IdentityAccessManagementAPIBuilder.featureEnabled(ctx, flagKey, func(Features) bool) checks explicit b.features snapshot first, then falls back to b.ofClient OpenFeature evaluation. Adding a new gated IAM API requires updates to: API const and supportedAPIs list, Features struct field, Features.SetAPIs, featureForAPI switch (used by EnabledAPIs), and featureEnabled call sites in InstallSchema/UpdateAPIGroupInfo/GetAPIRoutes. Missing any update means the explicit-config path silently ignores the new API and it remains OpenFeature-only, with no error signaling the misconfiguration."
+}

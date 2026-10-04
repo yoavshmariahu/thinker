@@ -67,5 +67,6 @@
     "Nav rail width is hardcoded and won't respect settings",
     "Updating nav rail size across every component"
   ],
-  "saysFor": "847:nav-rail-size-must-come-"
+  "saysFor": "847:nav-rail-size-must-come-",
+  "search": "Nav rail dimensions must be derived from `useNavRailMetrics()` hook in navRailSize.ts, not fixed constants; the removed `NAV_RAIL_WIDTH` constant is no longer available. The size (small/medium/large) is read from `useSettingsStore`'s `navRailSize` and set on AppearanceSettings.tsx. Components that size against the rail—NavRail.tsx, ChannelsSidebar.tsx (for edge-hover peek `offset`), ChannelsFab.tsx (rail icon size)—must all use the hook, which returns width, iconSize, and gapClassName. Navigation items use shared `NavRailTile` component; destinations in railDestinations.ts can use optional `shortLabel` captions and `placement: \"more\"` to appear under a More hover item. New settings pages require entries in SETTINGS_PAGES (SettingsPageContent.tsx) and sidebar groups (SettingsPanel.tsx). Applies to desktop channels-layout nav rail and Appearance settings page."
 }

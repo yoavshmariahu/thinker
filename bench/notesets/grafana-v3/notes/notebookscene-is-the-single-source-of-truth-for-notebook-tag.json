@@ -1,0 +1,51 @@
+{
+  "id": "notebookscene-is-the-single-source-of-truth-for-notebook-tag",
+  "title": "NotebookScene is the single source of truth for notebook tags",
+  "kind": "rule",
+  "answers": [
+    "Where are notebook tags stored and saved from?",
+    "Why did my tag change not get saved or not show in the layout?",
+    "Which object owns notebook tags state?"
+  ],
+  "body": "Invariant: NotebookScene.state.tags is the authoritative copy of tags, read by transformNotebookSceneToSaveModel when saving; the layout manager's own tags copy is kept in sync only via a subscription to scene state, never written to directly. Any new code path that changes tags must go through NotebookScene.onTagsChange (which also now records the change on editHistory) rather than mutating the layout manager's tags, or the two copies will drift and the change won't be undoable/saved correctly.",
+  "applies": "public/app/features/notebook/scene — tag reads/writes and save-model generation.",
+  "tags": [
+    "notebooks",
+    "state-sync",
+    "save-model"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/notebook/scene/NotebookScene.tsx",
+      "symbol": "NotebookScene",
+      "hash": "sha256:2a7b13ac1a89fe7ae5ca86de",
+      "line": 122,
+      "missing": false,
+      "fanout": {
+        "files": 40,
+        "sites": 18,
+        "refs": 123
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132947"
+  },
+  "created": "2026-10-04T06:05:28.615Z",
+  "verified": "2026-10-04T06:05:28.615Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Notebook tag changes not saved or not visible after saving",
+    "Where are notebook tags actually stored and persisted",
+    "Modifying tags in notebook layout doesn't update the save",
+    "Notebook tag changes missing from undo history",
+    "Which component holds the authoritative notebook tags state"
+  ],
+  "saysFor": "562:notebookscene-is-the-sin",
+  "search": "NotebookScene.state.tags is the authoritative copy of tags read during save-model generation; the layout manager's tags copy synchronizes only via state subscription, never direct writes. Any tag modification must route through NotebookScene.onTagsChange (which records changes to editHistory) rather than mutating the layout manager directly, or the copies will diverge and changes will neither save correctly nor support undo. Applies to tag reads/writes in public/app/features/notebook/scene and transformNotebookSceneToSaveModel call sites."
+}

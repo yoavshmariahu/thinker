@@ -1,0 +1,53 @@
+{
+  "id": "mock-isgrafanadevmode-directly-not-via-utils-or-config-build",
+  "title": "Mock isGrafanaDevMode directly, not via utils or config.buildInfo",
+  "kind": "rule",
+  "answers": [
+    "How do I mock the dev-mode check in plugin extension tests?",
+    "jest.mock('./utils') no longer toggles dev mode for extensions tests",
+    "How to simulate development vs production mode in usePluginComponent/usePluginLinks tests"
+  ],
+  "body": "Symptom: tests that mutate `config.buildInfo.env` to switch dev/prod behavior in plugin-extensions code stop having an effect. Root cause: isGrafanaDevMode (public/app/features/plugins/extensions/isGrafanaDevMode.ts) was extracted out of utils.tsx into its own leaf module to break a circular import; registries (AddedComponentsRegistry, AddedFunctionsRegistry, AddedLinksRegistry, ExposedComponentsRegistry, Registry) and hooks (usePluginComponent, usePluginComponents, usePluginFunctions, usePluginLinks, validateExtensionPoint) now import it from that file, not from ./utils. Fix pattern: `jest.mock('./isGrafanaDevMode', () => ({ isGrafanaDevMode: jest.fn().mockReturnValue(false) }))` and toggle per-test with `jest.mocked(isGrafanaDevMode).mockReturnValue(true/false)`, rather than mocking ./utils wholesale or setting config.buildInfo.env.",
+  "applies": "public/app/features/plugins/extensions/** tests that depend on dev vs production behavior",
+  "tags": [
+    "testing",
+    "jest-mock",
+    "plugin-extensions"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/plugins/extensions/isGrafanaDevMode.ts",
+      "symbol": "isGrafanaDevMode",
+      "hash": "sha256:aec572b29bc6a9dac3aed136",
+      "line": 3,
+      "missing": false,
+      "fanout": {
+        "files": 13,
+        "sites": 18,
+        "refs": 72
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133018"
+  },
+  "created": "2026-10-04T05:58:28.572Z",
+  "verified": "2026-10-04T05:58:28.572Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "break-circular-deps-by-extracting-constants-predicates-to-le"
+  ],
+  "says": [
+    "How do I test plugin extensions in dev and production?",
+    "Mocking development mode in extension tests no longer works",
+    "Plugin extension tests can't switch development and production behavior",
+    "Testing plugin component behavior differently in each environment",
+    "Why can't I simulate different dev modes in tests"
+  ],
+  "saysFor": "912:mock-isgrafanadevmode-di",
+  "search": "Plugin-extensions dev/prod behavior tests must mock isGrafanaDevMode directly, not via utils.tsx or config.buildInfo.env mutations. The function was extracted to public/app/features/plugins/extensions/isGrafanaDevMode.ts to break circular imports; registries (AddedComponentsRegistry, AddedFunctionsRegistry, AddedLinksRegistry, ExposedComponentsRegistry, Registry) and hooks (usePluginComponent, usePluginComponents, usePluginFunctions, usePluginLinks, validateExtensionPoint) now import from that leaf module, not ./utils. Use jest.mock('./isGrafanaDevMode', () => ({ isGrafanaDevMode: jest.fn().mockReturnValue(false) })) and toggle per-test with jest.mocked(isGrafanaDevMode).mockReturnValue(true/false). Applies to public/app/features/plugins/extensions/** tests that depend on dev vs production behavior."
+}

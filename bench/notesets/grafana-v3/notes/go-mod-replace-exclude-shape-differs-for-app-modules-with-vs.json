@@ -1,0 +1,42 @@
+{
+  "id": "go-mod-replace-exclude-shape-differs-for-app-modules-with-vs",
+  "title": "go.mod replace/exclude shape differs for app modules with vs without a core dependency",
+  "kind": "map",
+  "answers": [
+    "What should apps/<name>/go.mod's replace block look like?",
+    "Why does apps/quotas/go.mod only have one replace line now?",
+    "Do app modules need the k8s.io/client-go exclude directive?"
+  ],
+  "body": "App modules that do NOT depend on grafana core (apps/example, apps/shorturl, and now apps/quotas) need only a replace for the standalone sibling packages they actually import — for apps/quotas that's just `github.com/grafana/grafana/pkg/storage/unified/resourcepb => ../../pkg/storage/unified/resourcepb` — and no `exclude k8s.io/client-go v12.0.0+incompatible` line, since that exclude only matters when core is in the dependency graph. Modules that still depend on core (advisor, dashvalidator, iam, plugins as of this PR) still need the full replace block covering every sibling app plus `grafana => ../..`.\nUse apps/example/go.mod or apps/shorturl/go.mod as the template when pruning a replace block after removing a core dependency.",
+  "applies": "editing go.mod for any apps/* module, especially when adding or removing a dependency on github.com/grafana/grafana",
+  "tags": [
+    "go.mod",
+    "apps",
+    "monorepo-modules"
+  ],
+  "deps": [
+    {
+      "path": "apps/quotas/go.mod",
+      "hash": "sha256:9afb40738990ebe241794aad",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132839"
+  },
+  "created": "2026-10-04T06:23:14.418Z",
+  "verified": "2026-10-04T06:23:14.418Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "What should module replacement blocks contain?",
+    "Why do application modules have fewer replacement lines now?",
+    "Do independent app modules need Kubernetes client excludes?"
+  ],
+  "saysFor": "824:go-mod-replace-exclude-s",
+  "search": "App modules without grafana core dependency use a minimal go.mod replace block (only for actually imported sibling packages, e.g., github.com/grafana/grafana/pkg/storage/unified/resourcepb => ../../pkg/storage/unified/resourcepb), while those still depending on core need the full replace block covering every sibling app plus grafana => ../.. and an exclude k8s.io/client-go v12.0.0+incompatible directive. The exclude directive only matters when core is in the dependency graph; omit it when removing a core dependency. Use apps/example/go.mod or apps/shorturl/go.mod as templates when pruning a replace block. Applies when editing go.mod for apps/* modules, especially when adding or removing a dependency on github.com/grafana/grafana."
+}

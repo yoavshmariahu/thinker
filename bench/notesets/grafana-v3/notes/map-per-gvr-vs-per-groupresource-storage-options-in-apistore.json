@@ -1,0 +1,115 @@
+{
+  "id": "map-per-gvr-vs-per-groupresource-storage-options-in-apistore",
+  "title": "Map: per-GVR vs per-GroupResource storage options in apistore",
+  "kind": "map",
+  "answers": [
+    "Where do I configure storage options that differ per served version of a kind?",
+    "What's the difference between RegisterOptions and RegisterVersionedOptions?",
+    "How does the app-sdk installer get version-specific storage options (folder scope, GVK)?"
+  ],
+  "body": "RESTOptionsGetter.options (map[string]StorageOptions, keyed by GroupResource.String()) holds the unversioned answer shared by every served version of a kind; set via RegisterOptions/WithStorageOptions and read by GetRESTOptions. RESTOptionsGetter.versioned (map[schema.GroupVersionResource]StorageOptions) holds per-version overrides; set via RegisterVersionedOptions and read only by ForResource, which the app-sdk calls (via the optional RESTOptionsGetterForResource interface) for every store it builds, falling back to the parent getter (and so the GroupResource map) when no versioned entry exists. On the app-installer side, StorageOptionsProvider.GetStorageOptions(gr) feeds the GroupResource map (deduped once per resource); VersionedStorageOptionsProvider.GetVersionedStorageOptions(gvr) feeds the GVR map and is asked first, per version, in pkg/services/apiserver/appinstaller/installer.go registerStorageOptions.",
+  "applies": "deciding where/how to configure unified-storage StorageOptions that must vary per served API version of a kind",
+  "tags": [
+    "apistore",
+    "storage-options",
+    "map",
+    "appinstaller"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/restoptions.go",
+      "symbol": "RESTOptionsGetter",
+      "hash": "sha256:a8f9d7942f5826183fc3a76d",
+      "line": 125,
+      "missing": false,
+      "fanout": {
+        "files": 24,
+        "sites": 0,
+        "refs": 83
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/restoptions.go",
+      "symbol": "RESTOptionsGetter",
+      "hash": "sha256:a8f9d7942f5826183fc3a76d",
+      "line": 125,
+      "missing": false,
+      "fanout": {
+        "files": 24,
+        "sites": 0,
+        "refs": 83
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/restoptions.go",
+      "symbol": "RegisterOptions",
+      "hash": "sha256:65f347b070776e4417ae6aed",
+      "line": 247,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 2,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/restoptions.go",
+      "symbol": "WithStorageOptions",
+      "hash": "sha256:9409b38e09e82961dee1b403",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 8
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/restoptions.go",
+      "symbol": "GetRESTOptions",
+      "hash": "sha256:7547edc6c5114c78647c0e2a",
+      "line": 121,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/appinstaller/installer.go",
+      "symbol": "VersionedStorageOptionsProvider",
+      "hash": "sha256:ef9e1b28454d79a10493617d",
+      "line": 76,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132768"
+  },
+  "created": "2026-10-04T06:34:00.360Z",
+  "verified": "2026-10-04T06:34:00.360Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "registerstorageoptions-must-register-on-the-exact-getter-ins",
+    "storageoptions-gvk-must-be-all-or-nothing-group-version-kind"
+  ],
+  "says": [
+    "How to set storage settings specific to resource version",
+    "Storage options that apply to only one version of resource",
+    "Difference between shared and version-specific storage option configuration",
+    "Setting up folder scope requirement for specific resource version",
+    "Version-specific storage behavior in kind resource management"
+  ],
+  "saysFor": "985:map-per-gvr-vs-per-group",
+  "search": "RESTOptionsGetter holds two StorageOptions maps: the GroupResource-keyed map (unversioned, shared by all versions) accessed via GetRESTOptions, and the GVR-keyed map (per-version overrides) accessed only by ForResource; ForResource falls back to the GroupResource map when no GVR entry exists. On the app-installer side, StorageOptionsProvider.GetStorageOptions(gr) feeds the GroupResource map (deduped per resource), while VersionedStorageOptionsProvider.GetVersionedStorageOptions(gvr) feeds the GVR map and is queried first in registerStorageOptions. Set values via RegisterOptions/WithStorageOptions (GroupResource) or RegisterVersionedOptions (GVR). Constraint: versioned options are only consulted if the optional RESTOptionsGetterForResource interface is available. Apply when: configuring unified-storage StorageOptions that differ per served API version of a kind, or deduplicating config across versions."
+}

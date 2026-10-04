@@ -1,0 +1,60 @@
+{
+  "id": "grafana-sql-migrations-append-only-mirrored-in-migration-ids",
+  "title": "Grafana SQL migrations: append-only, mirrored in migration_ids.txt",
+  "kind": "rule",
+  "answers": [
+    "How do I add a new database migration in Grafana?",
+    "Why is there a migration_ids.txt test failure after adding a migration?",
+    "Can I edit or reorder an existing migration?",
+    "How to add an index via the migrator framework?"
+  ],
+  "body": "New migrations must be appended at the end of the relevant *_mig.go function (e.g. addApiKeyMigrations) via mg.AddMigration with a unique, descriptive name — never edit or reorder existing migration entries, since their IDs/SQL are already applied on production installs. Every new mg.AddMigration call must have its exact name string appended to pkg/services/sqlstore/migrations/testdata/migration_ids.txt in the same position, or the migration-ids test fails. For adding an index specifically, use NewAddIndexMigration(table, &Index{Cols: [...]}) which works across MySQL/PostgreSQL/SQLite and includes a built-in index-name existence check.",
+  "applies": "Any PR adding/modifying a Grafana SQL migration in pkg/services/sqlstore/migrations",
+  "tags": [
+    "migrations",
+    "sqlstore",
+    "database",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/apikey_mig.go",
+      "symbol": "addApiKeyMigrations",
+      "hash": "sha256:654afdca2d1a7bd73da5ce22",
+      "line": 7,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/services/sqlstore/migrations/testdata/migration_ids.txt",
+      "hash": "sha256:4b53fc6ce3b6938cea762e2f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132962"
+  },
+  "created": "2026-10-04T06:03:29.256Z",
+  "verified": "2026-10-04T06:03:29.256Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "composite-index-for-org-scoped-in-group-by-lookups"
+  ],
+  "says": [
+    "Database migration not executing after adding to migrations",
+    "Migration test fails after I add new migration",
+    "How do I add a database index via migrations",
+    "New migration cannot be applied to production safely",
+    "Migration order was changed or got reordered by accident"
+  ],
+  "saysFor": "710:grafana-sql-migrations-a",
+  "search": "Grafana SQL migrations must be appended only to the end of *_mig.go functions and never reordered, with each new mg.AddMigration call name mirrored in migration_ids.txt. Existing migration IDs and SQL are already deployed to production and cannot be modified. For index additions, use NewAddIndexMigration() which provides cross-database compatibility and built-in index-name checks. This rule applies when adding or modifying migrations in pkg/services/sqlstore/migrations/ and enforced by the migration-ids test. Paths: pkg/services/sqlstore/migrations/apikey_mig.go (and similar *_mig.go files), pkg/services/sqlstore/migrations/testdata/migration_ids.txt."
+}

@@ -1,7 +1,7 @@
 {
   "id": "person-edits-auto-enroll-linked-accounts-only-human-actors-t",
   "title": "Person edits auto-enroll linked accounts; only HUMAN actors trigger it",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "Why did an account become enrolled after someone assigned an AE or CSM?",
     "Why does a workflow or AI tool get refused writing AE/CSM on an account?",
@@ -18,15 +18,15 @@
     {
       "path": "products/customer_analytics/backend/logic/relationships.py",
       "symbol": "_enroll_on_human_edit",
-      "hash": "sha256:a06527c428a3445122b2efce",
-      "line": 109,
+      "hash": "sha256:aef5d7385216d176ad0b6a6f",
+      "line": 321,
       "missing": false
     },
     {
       "path": "products/customer_analytics/backend/logic/relationships.py",
       "symbol": "_enroll_locked",
-      "hash": "sha256:5656f965216f64f1ffb1fb61",
-      "line": 318,
+      "hash": "sha256:d12e21fc0f2fd569bfc3e08d",
+      "line": 365,
       "missing": false
     },
     {
@@ -57,5 +57,6 @@
     "Only manual assignment of account managers triggers enrollment",
     "CSM assignment enrolled the account but the automation did not"
   ],
-  "saysFor": "930:person-edits-auto-enroll"
+  "saysFor": "930:person-edits-auto-enroll",
+  "search": "Person edits (assign, end_active, end_relationship) on controlled relationships auto-enroll the account under all controlled definitions, but only when actor.source equals AccountRelationshipSource.HUMAN. Non-human actors (Workflow, AI tool, MCP, migration, Salesforce) never trigger enrollment. Enrollment happens in _enroll_on_human_edit at the top of these functions before the change's activity row; the logic is shared with _enroll_locked. Accounts with no external_id remain unenrolled. Once enrolled, autonomous writers are refused on that role. Tests requiring legacy/unmanaged holders must create them via a non-human actor call (see test_account_ownership_commands.py:_assign pattern). Applies to customer_analytics account relationship writes in logic/relationships.py and tests seeding account relationship state."
 }

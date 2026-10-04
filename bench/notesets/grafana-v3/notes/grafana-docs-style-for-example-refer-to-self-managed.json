@@ -1,0 +1,46 @@
+{
+  "id": "grafana-docs-style-for-example-refer-to-self-managed",
+  "title": "Grafana docs style: 'for example,' / 'Refer to [' / 'self-managed'",
+  "kind": "rule",
+  "answers": [
+    "What phrasing should docs use instead of 'e.g.' or 'see ['?",
+    "Grafana documentation style guide wording conventions",
+    "Should I write 'self-hosted' or 'self-managed' in Grafana docs?"
+  ],
+  "body": "Local convention: Grafana docs quarterly reviews consistently replace 'e.g.,' with 'for example,', 'See [link]' with 'Refer to [link]' (for cross-references to other docs sections), and 'self-hosted' with 'self-managed' when describing non-Cloud Grafana deployments. Apply these substitutions when editing or reviewing docs prose, not just in Azure Monitor pages.",
+  "applies": "Grafana documentation pages under docs/sources/",
+  "tags": [
+    "docs-style",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/datasources/azure-monitor/configure/index.md",
+      "hash": "sha256:6eb14e0ca3df71ab6d109234",
+      "missing": false
+    },
+    {
+      "path": "docs/sources/datasources/azure-monitor/template-variables/index.md",
+      "hash": "sha256:84cc179d95bd381d7c8c0820",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133020"
+  },
+  "created": "2026-10-04T05:57:51.581Z",
+  "verified": "2026-10-04T05:57:51.581Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "What wording replaces abbreviations like 'e.g.' in documentation?",
+    "Where can I find documentation style guidelines?",
+    "Should I write self-managed or self-hosted for deployments?"
+  ],
+  "saysFor": "430:grafana-docs-style-for-e",
+  "search": "Grafana docs apply three prose style conventions during quarterly reviews: replace 'e.g.,' with 'for example,', 'See [link]' with 'Refer to [link]' (for cross-doc references), and 'self-hosted' with 'self-managed' when describing non-Cloud Grafana. Apply these substitutions when editing docs/sources/ documentation pages."
+}

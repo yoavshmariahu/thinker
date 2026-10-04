@@ -1,0 +1,72 @@
+{
+  "id": "text-v2-view-mode-state-must-stay-lifted-in-textngpanel-not",
+  "title": "Text v2: view-mode state must stay lifted in TextNGPanel, not TextNGEditor",
+  "kind": "rule",
+  "answers": [
+    "Why does the Text panel editor's Write/Preview/Split selection reset when I add or remove a query?",
+    "Where is the default view mode for the Text v2 panel editor set?",
+    "How do I change the default view (Write/Preview/Split) for Text panel edit mode?",
+    "TextNGEditor view mode keeps resetting unexpectedly"
+  ],
+  "body": "Invariant: the `view` state (Write/Preview/Split) for the Text v2 editor must be owned by TextNGPanel and passed down to TextNGEditor as a controlled prop, not held as TextNGEditor's own local state. Enforced via `useState<ViewMode>` in public/app/plugins/panel/text/v2/TextNGPanel.tsx, consumed by editor/TextNGEditor.tsx. Reason: adding/removing a query toggles the frame picker, changing the tree shape and remounting the editor subtree, so locally-held state there would reset on every query change. The default value itself (now always `'split'`, previously content-dependent write/preview) is a product choice set only at this one call site - change it there, not inside TextNGEditor.",
+  "applies": "public/app/plugins/panel/text/v2/** when changing panel-edit view mode behavior",
+  "tags": [
+    "text-panel",
+    "panel-editor",
+    "state-lifting",
+    "react"
+  ],
+  "deps": [
+    {
+      "path": "public/app/plugins/panel/text/v2/TextNGPanel.tsx",
+      "symbol": "TextNGPanel",
+      "hash": "sha256:18146b97dba56c1ea60f4261",
+      "line": 51,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 48
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx",
+      "symbol": "TextNGEditor",
+      "hash": "sha256:04a3a74536d9395bd683cb29",
+      "line": 72,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 32
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132718"
+  },
+  "created": "2026-10-04T06:39:24.268Z",
+  "verified": "2026-10-04T06:39:24.268Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [
+    "gate-feature-flagged-panel-options-at-render-use-site-not-ju"
+  ],
+  "says": [
+    "Text editor view mode resets when I add or remove a query",
+    "Write or preview selection doesn't persist during editing",
+    "How is the default view mode set for text panel editor?",
+    "Text editor keeps switching modes unexpectedly between changes",
+    "Changing what the text editor defaults to on open"
+  ],
+  "saysFor": "765:text-v2-view-mode-state-",
+  "search": "Text v2 editor view-mode state (Write/Preview/Split) must be owned by TextNGPanel.tsx via useState<ViewMode>, passed as controlled prop to TextNGEditor.tsx, not stored locally in TextNGEditor. This is enforced because adding/removing a query remounts the editor subtree, which would reset local state. The default value is always 'split' (product choice, previously content-dependent) and must be set only in TextNGPanel.tsx call site, never inside TextNGEditor. Changing view mode behavior always requires modifying public/app/plugins/panel/text/v2/TextNGPanel.tsx and public/app/plugins/panel/text/v2/editor/TextNGEditor.tsx together.",
+  "lastUsed": "2026-10-04T19:12:58.424Z",
+  "servedIn": [
+    "codex-grafana-codex-ce2-PR133011-hard-0",
+    "codex-grafana-codex-ce1-PR133011-hard-0"
+  ]
+}

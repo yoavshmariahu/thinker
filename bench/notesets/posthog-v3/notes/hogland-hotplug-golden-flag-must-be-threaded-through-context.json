@@ -75,5 +75,6 @@
     "Can I add a new runtime sandbox option from a feature flag?",
     "Feature flag for hotplug golden not reaching the sandbox configuration layer?"
   ],
-  "saysFor": "1186:hogland-hotplug-golden-f"
+  "saysFor": "1186:hogland-hotplug-golden-f",
+  "search": "The hogland hotplug golden flag (HOGLAND_HOTPLUG_GOLDEN_FEATURE_FLAG in products/tasks/backend/constants.py) must thread from org-scoped feature flag evaluation through TaskProcessingContext.use_hogland_hotplug_golden, SandboxConfig.use_hotplug_golden, and HoglandSandbox.create to swap to HOGLAND_HOTPLUG_SNAPSHOT_ALIAS for SandboxTemplate.DEFAULT_BASE. New context fields must have False defaults for safe Temporal deserialization; flag resolution wraps in try/except in get_task_processing_context (products/tasks/backend/temporal/process_task/activities/get_task_processing_context.py) to fail closed. The flag applies only when sandbox_backend == \"hogland\"; validate with TestHoglandSandboxCreate.test_create_selects_the_golden_by_hotplug_flag. Applies to per-run sandbox provisioning and feature-gated options in task workflow execution."
 }

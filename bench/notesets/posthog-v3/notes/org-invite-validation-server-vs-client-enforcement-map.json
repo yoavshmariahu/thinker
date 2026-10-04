@@ -115,5 +115,6 @@
     "Email normalization rules are enforced before the invite is sent.",
     "Which invite validation rules work on client versus the server?"
   ],
-  "saysFor": "1344:org-invite-validation-se"
+  "saysFor": "1344:org-invite-validation-se",
+  "search": "Organization invite validation is split between server serializers (posthog/api/organization_invite.py:OrganizationInviteSerializer, posthog/permissions.py:UserCanInvitePermission) and client logic (inviteLogic.ts, InviteModal.tsx), with domain/message/project checks enforced server-side only. Server validates email via EmailNormalizer.normalize, reject_plus_addressed_email, and validate_invite_target_email_domain; validates level (PermissionDenied if > inviter's); enforces UserCanInvitePermission throttles (Burst 50/h, Sustained 200/d) and max 20 per bulk; rejects invitees already members (case-insensitive on user__email). Client enforces only isEmail row validation, canSubmit + inviteContainsOwnerLevel (owner confirmation is client-only), MAX_INVITES_AT_ONCE=20, and filters allowedLevels <= membership_level. Domain, name/message content, and project access errors surface only in the server response and are not pre-validated client-side. Accept path requires INVITE_DAYS_VALIDITY=3 days expiry. Task applies to: modifying validation rules, permission enforcement, adding new validation checks, or changing error surfaces."
 }

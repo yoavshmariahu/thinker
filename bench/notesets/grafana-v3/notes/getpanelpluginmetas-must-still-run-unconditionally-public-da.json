@@ -1,0 +1,61 @@
+{
+  "id": "getpanelpluginmetas-must-still-run-unconditionally-public-da",
+  "title": "getPanelPluginMetas must still run unconditionally (public dashboards)",
+  "kind": "rule",
+  "answers": [
+    "Why does getPanelPluginMetas run even when not logged in?",
+    "Can I guard getPanelPluginMetas behind orgRole like the extension registries?",
+    "Public dashboard panels missing/fallback to config.panels",
+    "getPanelPluginsMetasMapSync throws without this call"
+  ],
+  "body": "Symptom: if getPanelPluginMetas() is skipped for anonymous users, getPanelPluginsMetasMapSync throws, currently masked by a silent fallback to config.panels.\nRoot cause: public/app/app.ts GrafanaApp.init still awaits getPanelPluginMetas() unconditionally (unlike the plugin-extension registries call, which IS guarded by `contextSrv.user.orgRole !== ''`), because public dashboards/snapshots need panel metas without a logged-in user.\nFix pattern: do not copy the orgRole login-guard pattern onto this call; it's intentionally unconditional until getPanelPluginsMetasMapSync usages are migrated to the async getPanelPluginsMetasMap (tracked via TODOs in app.ts).\nConstraints: only remove/guard this call after removing all usages of getPanelPluginsMetasMapSync; until then, anonymous/public rendering paths rely on it running.",
+  "applies": "public/app/app.ts GrafanaApp initialization, panel plugin metas loading",
+  "tags": [
+    "plugins",
+    "panels",
+    "public-dashboards",
+    "anonymous-access"
+  ],
+  "deps": [
+    {
+      "path": "public/app/app.ts",
+      "symbol": "GrafanaApp",
+      "hash": "sha256:824c1453e11c50eed3c8e3f8",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "public/app/app.ts",
+      "symbol": "GrafanaApp.init",
+      "hash": "sha256:4dba75b1c38642c13555c811",
+      "line": 159,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132681"
+  },
+  "created": "2026-10-04T06:46:45.338Z",
+  "verified": "2026-10-04T06:46:45.338Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "guard-plugin-extension-registry-setup-behind-login-check"
+  ],
+  "says": [
+    "Why do panel type definitions load when user isn't authenticated?",
+    "Can I require authorization before loading panel metadata?",
+    "Public dashboard displays missing panel types instead of content",
+    "Panel system fails without initial type definitions loading"
+  ],
+  "saysFor": "897:getpanelpluginmetas-must",
+  "search": "getPanelPluginMetas() must not be guarded by orgRole login checks, unlike plugin-extension registries, because public/app/app.ts:GrafanaApp.init needs panel metas unconditionally for public dashboards and snapshots to render without a logged-in user. Constraint: do not apply the `contextSrv.user.orgRole !== ''` guard; only remove this call after migrating all getPanelPluginsMetasMapSync usages to the async getPanelPluginsMetasMap (tracked via TODOs in app.ts). Task kind: app initialization, public dashboard and snapshot rendering paths."
+}

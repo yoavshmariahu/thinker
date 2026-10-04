@@ -1,0 +1,76 @@
+{
+  "id": "alert-rule-namespace-validation-must-reject-root-folder-uids",
+  "title": "Alert rule namespace validation must reject root folder UIDs",
+  "kind": "rule",
+  "answers": [
+    "Why can I create an alert rule with folderUID set to root/general folder?",
+    "Alert rule namespace validation inconsistent between provisioning and k8s API",
+    "How to validate that a folderUID is not the root folder for alert rules",
+    "Rejecting legacy 'general' folder UID as alert rule namespace"
+  ],
+  "body": "Symptom: alert rule create/update accepted the root folder (empty string, legacy 'general' UID, or canonical root folder UID) as the rule's namespace/folderUID, allowing invalid rule placement.\nRoot cause: each namespace-resolution path only checked `uid == \"\"`, missing the legacy and canonical root-folder UID forms - pkg/registry/apps/alerting/rules/register.go:newFolderValidator, pkg/services/ngalert/provisioning/alert_rules.go:ensureNamespace, pkg/services/ngalert/store/namespace.go:GetNamespaceByUID.\nFix pattern: replace empty-string checks with `folder.IsRootFolderUID(uid)` (covers folder.LegacyRootFolderUID/general and folder.GeneralFolderUID) at every point a client-supplied folderUID is turned into an alert-rule namespace; return models.ErrAlertRuleFailedValidation or folder.ErrAPIInvalidUID accordingly.\nConstraints: apply this invariant to any new entry point that resolves an alert-rule folder/namespace (provisioning, ruler, export, testing, k8s API folder validator); do not reintroduce a bare `uid == \"\"` check since it misses legacy/canonical root UID spellings.",
+  "applies": "Grafana-managed alert rule namespace/folderUID validation (provisioning service, ngalert store, k8s API folder validator).",
+  "tags": [
+    "alerting",
+    "ngalert",
+    "folder",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/alerting/rules/register.go",
+      "symbol": "newFolderValidator",
+      "hash": "sha256:6682e069d5f358b5e466e69a",
+      "line": 191,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/provisioning/alert_rules.go",
+      "symbol": "ensureNamespace",
+      "hash": "sha256:e55272c2bd9a2979b6102c55",
+      "line": 1280,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/store/namespace.go",
+      "symbol": "GetNamespaceByUID",
+      "hash": "sha256:1c7bcb5ee7c86444e317c032",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 19,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132782"
+  },
+  "created": "2026-10-04T06:32:29.101Z",
+  "verified": "2026-10-04T06:32:29.101Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why can I create an alert rule with folderUID set to root/general folder?",
+    "Alert rule namespace validation inconsistent between provisioning and k8s API",
+    "How to validate that a folderUID is not the root folder for alert rules",
+    "Rejecting legacy 'general' folder UID as alert rule namespace"
+  ],
+  "saysFor": "1149:alert-rule-namespace-val",
+  "search": "Alert rule namespace validation must reject root folder UIDs (empty string, legacy 'general', or canonical root folder UID) to prevent invalid rule placement. Replace all bare uid==\"\" checks with folder.IsRootFolderUID(uid) calls at every entry point where client-supplied folderUID becomes an alert-rule namespace, returning models.ErrAlertRuleFailedValidation or folder.ErrAPIInvalidUID accordingly. Apply this invariant to provisioning service, ngalert store, k8s API folder validator, and any new entry point; bare string checks miss legacy and canonical root UID forms. Located in pkg/registry/apps/alerting/rules/register.go:newFolderValidator, pkg/services/ngalert/provisioning/alert_rules.go:ensureNamespace, and pkg/services/ngalert/store/namespace.go:GetNamespaceByUID."
+}

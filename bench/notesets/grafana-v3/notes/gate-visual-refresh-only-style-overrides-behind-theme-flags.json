@@ -1,0 +1,63 @@
+{
+  "id": "gate-visual-refresh-only-style-overrides-behind-theme-flags",
+  "title": "Gate visual_refresh-only style overrides behind theme.flags.visualDesignRefresh via css(base, condition && overrides)",
+  "kind": "rule",
+  "answers": [
+    "How do I add a visual-refresh-only style override to a component?",
+    "What's the convention for conditional styling based on the visual design refresh flag?",
+    "TableInputCSV footer looks wrong in visual_refresh theme"
+  ],
+  "body": "Convention: components that need different styling under the visual refresh theme check `theme.flags.visualDesignRefresh` and pass the extra styles as a second, conditional object to emotion's `css(base, visualRefreshEnabled && { ... })` rather than branching the whole style block. Seen in RadioButton.tsx and TableInputCSV.tsx getStyles. Constraints: use this pattern for visual-refresh-specific tweaks (radius, background/text token swaps) so base styles stay shared and visual_refresh overrides remain easy to find/remove once the refresh becomes the only theme.",
+  "applies": "grafana-ui components with theme-flag-conditional styling for visualDesignRefresh",
+  "tags": [
+    "theming",
+    "visual-refresh",
+    "convention",
+    "styling"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Forms/RadioButtonGroup/RadioButton.tsx",
+      "symbol": "getRadioButtonStyles",
+      "hash": "sha256:13c41ac949dffa427298dbe0",
+      "line": 89,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/graveyard/TableInputCSV/TableInputCSV.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:787808a99d279bdeae19316d",
+      "line": 113,
+      "missing": false,
+      "fanout": {
+        "files": 903,
+        "sites": 72,
+        "refs": 1104
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132898"
+  },
+  "created": "2026-10-04T06:14:31.765Z",
+  "verified": "2026-10-04T06:14:31.765Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I conditionally apply styles only for visual refresh mode?",
+    "Component styling convention for visual design refresh flag overrides",
+    "What's the pattern for conditional styling based on refresh flag?",
+    "Styles for visual refresh need separate condition check"
+  ],
+  "saysFor": "684:gate-visual-refresh-only",
+  "search": "Visual-refresh-only style overrides use emotion's `css(base, theme.flags.visualDesignRefresh && { ... })` pattern instead of branching the entire style block, keeping base styles shared and making visual_refresh tweaks easy to find/remove. Seen in packages/grafana-ui/src/components/Forms/RadioButtonGroup/RadioButton.tsx:getRadioButtonStyles and packages/grafana-ui/src/graveyard/TableInputCSV/TableInputCSV.tsx:getStyles. Constraint: apply only to visual-refresh-specific tweaks (radius, background/text token swaps), not to structural changes. Task kind: grafana-ui component styling with theme-flag-conditional overrides."
+}

@@ -1,0 +1,64 @@
+{
+  "id": "themerichcolor-semantic-token-roles-background-text-border-s",
+  "title": "ThemeRichColor semantic token roles (background/text/border + subtle variants)",
+  "kind": "rule",
+  "answers": [
+    "Which color token should I use for a solid button background vs an alert background?",
+    "What's the difference between background, text, border, subtleBackground and subtleBorder on a theme color?",
+    "Why do old tokens like main/shade/transparent still work but shouldn't be used?"
+  ],
+  "body": "ThemeRichColor now has a consistent token set used the same way across components: background/backgroundEmphasis = solid-fill normal/hover (buttons, switch active bg); text/textEmphasis = colorful text, text-button text normal/hover; border = strong colorful border (outline button border, focus ring); subtleBackground/subtleBorder = softer surfaces that shouldn't match a solid button (Alert background/border, outline-button hover background). packages/grafana-data/src/themes/createColors.ts:createColors falls back subtleBackground→background and subtleBorder→border when a theme/color doesn't define them, so custom/plugin themes keep rendering unchanged. Tokens main, shade, transparent, transparentBorder, solidBackground, solidBorder are deprecated/no-longer-needed — don't add new usages of them; prefer the tokens above. Schema additions live in packages/grafana-data/src/themes/types.ts:ThemeRichColorInputSchema and must be mirrored in schema.generated.json.",
+  "applies": "grafana-data theme color definitions and any grafana-ui component consuming theme.colors[severity|variant]",
+  "tags": [
+    "theme",
+    "color-tokens",
+    "grafana-data",
+    "visual-refresh"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/themes/createColors.ts",
+      "symbol": "createColors",
+      "hash": "sha256:7f8d25be23de88909ab99856",
+      "line": 311,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 4,
+        "refs": 14
+      }
+    },
+    {
+      "path": "packages/grafana-data/src/themes/types.ts",
+      "symbol": "ThemeRichColorInputSchema",
+      "hash": "sha256:4a0d01381df7e56e49aa197e",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132855"
+  },
+  "created": "2026-10-04T06:20:00.603Z",
+  "verified": "2026-10-04T06:20:00.603Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Alert notification boxes look too aggressive with solid backgrounds that resemble action buttons.",
+    "Outline buttons should display a soft subtle background tint when hovered by users.",
+    "The toggle switch active fill color lacks clear visual emphasis on cursor hover.",
+    "Make banner notice borders and backgrounds gentler so they do not overpower page content.",
+    "Clickable text button labels do not highlight clearly with accent color when hovered."
+  ],
+  "saysFor": "1050:themerichcolor-semantic-",
+  "search": "ThemeRichColor semantic tokens use a consistent role set: background/backgroundEmphasis for solid fills, text/textEmphasis for colorful text, border for strong colorful outlines, and subtleBackground/subtleBorder for softer surfaces. The createColors function in packages/grafana-data/src/themes/createColors.ts implements fallback logic (subtleBackground→background, subtleBorder→border) to maintain backward compatibility with custom/plugin themes. Deprecated tokens (main, shade, transparent, transparentBorder, solidBackground, solidBorder) must not be used in new code. Schema additions in packages/grafana-data/src/themes/types.ts:ThemeRichColorInputSchema must be mirrored in schema.generated.json. This guidance applies to all grafana-data theme definitions and grafana-ui components consuming theme.colors[severity|variant]."
+}

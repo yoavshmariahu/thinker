@@ -1,0 +1,65 @@
+{
+  "id": "field-values-search-requests-must-drop-untyped-fields-labels",
+  "title": "FIELD_VALUES search requests must drop untyped fields (labels, updated_by)",
+  "kind": "rule",
+  "answers": [
+    "Library panel search box / folder search by title returns 500 'unknown response field \"labels\"'",
+    "Searching folders or dashboards fails only when a search term is entered, browsing works fine",
+    "Which fields can I request on a ResourceSearchRequest with ResultFormat FIELD_VALUES?",
+    "Why does my search request work with RESOURCE_TABLE but fail with FIELD_VALUES?"
+  ],
+  "body": "Symptom: searching library panels/folders by title fails with 500 'unknown response field \"labels\"'; browsing (empty query) still works because folder resolution only runs when the search string is non-empty.\nRoot cause: pkg/services/folder/folderimpl/folder_unifiedstorage.go:SearchFolders set ResultFormat to FIELD_VALUES but requested dashboardsearch.IncludeFields, which contains bare 'labels' and 'updated_by' — fields with no typed FIELD_VALUES definition. The table format silently drops unknown fields; FIELD_VALUES rejects them.\nFix pattern: maintain a reduced field list (dashboardsearch.FieldValueIncludeFields in pkg/services/dashboards/service/search/search.go, derived from IncludeFields minus tableOnlyFields) and use it for any request whose ResultFormat is FIELD_VALUES. Per-label fields like 'labels.<key>' are typed and must stay.\nConstraints: only applies to FIELD_VALUES requests; RESOURCE_TABLE requests may keep the full IncludeFields list. When adding a new field to IncludeFields, decide whether it needs a typed field-value definition or belongs in tableOnlyFields.",
+  "applies": "Any code in pkg/services/dashboards or pkg/services/folder that builds a resourcepb.ResourceSearchRequest with ResultFormat FIELD_VALUES.",
+  "tags": [
+    "search",
+    "unified-storage",
+    "folder",
+    "field-values",
+    "regression"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/dashboards/service/search/search.go",
+      "symbol": "FieldValueIncludeFields",
+      "hash": "sha256:1116e883a710c262dde4c631",
+      "line": 69,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pkg/services/folder/folderimpl/folder_unifiedstorage.go",
+      "symbol": "SearchFolders",
+      "hash": "sha256:a1a21247332d094fefafea2e",
+      "line": 156,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 11,
+        "refs": 26
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132840"
+  },
+  "created": "2026-10-04T06:22:37.074Z",
+  "verified": "2026-10-04T06:22:37.074Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Searching folders or dashboards by title fails with unknown field error",
+    "Library panel search works when browsing but fails with any search text",
+    "Folder search by title returns an error only when entering a search term",
+    "Searching panels and dashboards triggers a field error in the search box"
+  ],
+  "saysFor": "1166:field-values-search-requ",
+  "search": "FIELD_VALUES search requests must exclude bare untyped fields (labels, updated_by) that lack a typed FIELD_VALUES definition; RESOURCE_TABLE silently drops unknown fields but FIELD_VALUES rejects them with 500 errors. Use a reduced field list like dashboardsearch.FieldValueIncludeFields derived from IncludeFields minus tableOnlyFields; per-label fields like labels.<key> are typed and must stay. This constraint applies only to ResourceSearchRequest with ResultFormat=FIELD_VALUES in pkg/services/dashboards/service/search/search.go and pkg/services/folder/folderimpl/folder_unifiedstorage.go:SearchFolders. When adding new fields to IncludeFields, decide whether they need a typed field-value definition or belong in tableOnlyFields."
+}

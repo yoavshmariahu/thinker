@@ -43,5 +43,6 @@
     "How long does a deleted person remain visible in reports",
     "Deletion took too long and user was visible in exports"
   ],
-  "saysFor": "1022:person-tombstone-publish"
+  "saysFor": "1022:person-tombstone-publish",
+  "search": "person_tombstone_publish_queue (defined in rust/persons_migrations/20260923000001_add_person_tombstone_publish_queue.sql) tracks persons tombstoned in Postgres awaiting ClickHouse confirmation. Row presence (keyed by team_id, person_uuid) indicates Postgres tombstone but ClickHouse confirmation pending; given_up_at set indicates the sweeper stopped retrying and the person is deleted in Postgres but possibly still live in ClickHouse (operator work item). The table holds person_version, retry bookkeeping (attempts, last_attempt_at, last_error), and given_up_at. A partial index on (given_up_at IS NULL) serves the sweep; pending-row queries must filter where given_up_at IS NULL. Deletion is confirmed only when ClickHouse reflects the tombstone. Applies to personhog-replica DeletePersons operations and Dagster sweeper code."
 }

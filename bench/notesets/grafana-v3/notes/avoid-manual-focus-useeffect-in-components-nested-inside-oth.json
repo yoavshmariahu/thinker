@@ -1,0 +1,68 @@
+{
+  "id": "avoid-manual-focus-useeffect-in-components-nested-inside-oth",
+  "title": "Avoid manual focus useEffect in components nested inside other floating/dropdown elements",
+  "kind": "rule",
+  "answers": [
+    "Focus doesn't move into the modal/popover when opened from a dropdown menu item",
+    "ConfirmModal input or button never gets focused via keyboard navigation from a menu",
+    "Focus trap fails only when the dialog is triggered from inside another floating element",
+    "Why does focus jump back to the dropdown trigger instead of staying in the new modal"
+  ],
+  "body": "Symptom: a ConfirmModal (or similar floating element) opened from a Dropdown/Menu item renders, but keyboard focus stays on the original trigger button instead of moving into the new element's input/button.\nRoot cause: a manual `useEffect` calling `.focus()` directly (previously in packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx) races against floating-ui's own microtask-queued focus restoration for the closing Dropdown's FloatingFocusManager. The effect's focus() call queues a *later* microtask than the dropdown's return-focus-to-trigger microtask, so the dropdown's microtask runs last and steals focus back.\nFix pattern: remove manual `.focus()` calls in useEffect and instead pass refs through to the outer floating component's `initialFocus` prop (see FloatingFocusManager's initialFocus, wired via packages/grafana-ui/src/components/ConfirmModal/ConfirmModal.tsx:ConfirmModal passing confirmButtonRef/confirmPromptRef into Modal's initialFocus) so floating-ui itself owns and sequences the focus transition.\nConstraints: applies whenever a floating/modal component can be triggered from inside another floating element that manages its own focus-restore-on-close (Dropdown, Tooltip, Popover). Does not apply to top-level modals opened from plain DOM elements, where manual focus via useEffect/autoFocus is safe.",
+  "applies": "grafana-ui floating/modal components (ConfirmModal, and similarly structured components) that can be opened from within a Dropdown/Menu or other FloatingFocusManager-wrapped trigger.",
+  "tags": [
+    "focus-management",
+    "floating-ui",
+    "accessibility",
+    "confirmmodal",
+    "grafana-ui"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmModal.tsx",
+      "symbol": "ConfirmModal",
+      "hash": "sha256:38544f1482f8db36ab04a1e0",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 87,
+        "sites": 0,
+        "refs": 200
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+      "symbol": "ConfirmContent",
+      "hash": "sha256:1b0f886b4db1e45987b16f83",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132764"
+  },
+  "created": "2026-10-04T06:34:55.363Z",
+  "verified": "2026-10-04T06:34:55.363Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "confirmcontent-no-longer-owns-focus-caller-supplies-refs-for",
+    "use-modal-buttonrow-for-modal-action-buttons-avoids-clipped"
+  ],
+  "says": [
+    "Focus doesn't move into the modal when opened from dropdown menu",
+    "Dialog input never receives focus via keyboard from a menu item",
+    "Focus trap fails only when opening inside another floating element",
+    "Why does focus jump back to dropdown instead of staying in modal?"
+  ],
+  "saysFor": "1432:avoid-manual-focus-useef",
+  "search": "Manual useEffect calls to .focus() in nested floating components race against floating-ui's focus-restoration microtasks, causing the parent dropdown/menu to steal focus back. Use the initialFocus prop on the outer floating component (ConfirmModal's initialFocus passed through FloatingFocusManager in packages/grafana-ui/src/components/ConfirmModal) to let floating-ui sequence focus transitions instead. Applies only to modal/floating components opened from within Dropdown/Menu/Popover elements with their own focus restoration; does not apply to top-level modals triggered from plain DOM. Remove manual .focus() calls from ConfirmContent.tsx and similar nested components and pass refs to the parent's initialFocus prop."
+}

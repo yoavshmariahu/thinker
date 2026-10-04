@@ -1,0 +1,90 @@
+{
+  "id": "storage-options-must-be-scoped-per-gvr-not-registered-into-a",
+  "title": "Storage options must be scoped per-GVR, not registered into a shared GroupResource map",
+  "kind": "rule",
+  "answers": [
+    "Why did my object get persisted with the wrong apiVersion?",
+    "Dashboard v1 writes show up as v1beta1 in storage",
+    "App plugin settings apiVersion changed unexpectedly",
+    "How do I give one version different storage options than another version of the same resource?"
+  ],
+  "body": "Symptom: an object is persisted under the wrong apiVersion (e.g. v1 dashboard writes stored as v1beta1; app-plugin Settings stored as the preferred manifest version instead of its defining version), or per-version options (like folder scope) silently get overridden by whichever version's store completes last.\nRoot cause: storage options traveled through a mutable map on the shared *apistore.RESTOptionsGetter keyed by GroupResource (builder.APIGroupOptions.StorageOptsRegister), so every version serving a resource read the same entry; pkg/storage/unified/apistore/prepare.go:checkGVK then fell back to Scheme.ObjectKinds, which reports every GVK a Go type is registered under in registration order (wrong for types aliased across versions, e.g. v1beta1.Dashboard = v1.Dashboard).\nFix pattern: scope the RESTOptionsGetter to the single store being completed instead of re-keying a shared map — use builder.APIGroupOptions.StorageOptsGetter(opts) or StorageOptsGetterFor(resourceInfo, opts) (which fills StorageOptions.GVK from the utils.ResourceInfo already passed to NewRegistryStore), and pass the result as the RESTOptions getter to that one CompleteWithOptions/NewRegistryStore call.\nConstraints: use this for any new or migrated store; StorageOptsRegister still works for resources deliberately left on the encodeViaCodec path (no Scheme set), e.g. dashv2beta1.Variable/Notebook and dashv0.Snapshot — declaring a GVK there would switch them to direct-JSON encoding, a separate decision.",
+  "applies": "Any API group builder registering storage for a resource served under multiple versions, or any resource whose Go type is shared/aliased across versions",
+  "tags": [
+    "storage",
+    "apistore",
+    "builder",
+    "versioning",
+    "gvk"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/apiserver/builder/common.go",
+      "symbol": "StorageOptsGetterFor",
+      "hash": "sha256:46182a499a26c2b319348022",
+      "line": 126,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 12,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "checkGVK",
+      "hash": "sha256:639988efd982167594bc7732",
+      "line": 431,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/kindstore/store.go",
+      "symbol": "New",
+      "hash": "sha256:7890d8c313b5f98743c2acd6",
+      "line": 95,
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "checkGVK",
+      "hash": "sha256:639988efd982167594bc7732",
+      "line": 431,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132733"
+  },
+  "created": "2026-10-04T06:37:55.813Z",
+  "verified": "2026-10-04T06:37:55.813Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "declare-storageoptions-gvk-for-any-type-shared-aliased-acros",
+    "manifest-kind-folder-scope-is-now-resolved-per-served-versio",
+    "resources-with-no-declared-gvk-must-stay-on-the-codec-path",
+    "apistore-maxallowedversion-cap-must-check-the-persisted-enco"
+  ],
+  "says": [
+    "Objects are stored with an incorrect api version after being created",
+    "Dashboard settings saved as one version but appear as another version",
+    "Plugin settings are persisted under an unexpected api version number",
+    "How to apply different storage behavior to different versions of the same type",
+    "Each api version should support its own storage options without conflicts"
+  ],
+  "saysFor": "1581:storage-options-must-be-",
+  "search": "Storage options must be scoped per-GVR, not registered into a shared GroupResource map — use builder.APIGroupOptions.StorageOptsGetter(opts) or StorageOptsGetterFor(resourceInfo, opts) to pass the RESTOptionsGetter to the specific store being completed, rather than re-keying a shared mutable map on *apistore.RESTOptionsGetter. Mutable map keying by GroupResource causes every version of a resource to read the same entry, leading to objects persisted under the wrong apiVersion (e.g. v1 dashboard written as v1beta1) and per-version options silently overridden by whichever store completes last. StorageOptsRegister still works for resources deliberately left on the encodeViaCodec path with no Scheme set (dashv2beta1.Variable/Notebook, dashv0.Snapshot), since declaring a GVK would switch to direct-JSON encoding. Applies to any API group builder registering storage for a resource served under multiple versions or shared/aliased across versions. Pointers: pkg/services/apiserver/builder/common.go:StorageOptsGetterFor, pkg/storage/unified/apistore/prepare.go:checkGVK, pkg/services/apiserver/kindstore/store.go:New."
+}

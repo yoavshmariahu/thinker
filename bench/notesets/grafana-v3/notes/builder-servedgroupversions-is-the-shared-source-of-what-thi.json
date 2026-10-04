@@ -1,0 +1,50 @@
+{
+  "id": "builder-servedgroupversions-is-the-shared-source-of-what-thi",
+  "title": "builder.ServedGroupVersions is the shared source of 'what this process actually serves'",
+  "kind": "map",
+  "answers": [
+    "Where is the logic that decides which group versions a running Grafana process serves?",
+    "How do route builders avoid mounting routes for kinds a manifest describes but this deployment doesn't serve?"
+  ],
+  "body": "pkg/services/apiserver/builder/common.go:ServedGroupVersions combines APIGroupBuilder.GetGroupVersions and AppInstaller.GroupVersions into one map[schema.GroupVersion]bool. It used to live in searchroutes as a private helper but was promoted because it's generic (reads only APIGroupBuilder/AppInstaller), and both searchroutes and keysroutes now call it to filter compiled-in app manifests down to group versions actually mounted in this process, avoiding routes for kinds a manifest declares but this deployment doesn't serve.",
+  "applies": "Any route-building code that needs to intersect declared manifest kinds with what the running apiserver actually serves.",
+  "tags": [
+    "apiserver",
+    "builder",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/apiserver/builder/common.go",
+      "symbol": "ServedGroupVersions",
+      "hash": "sha256:9e4f7f1168961798bce6c025",
+      "line": 190,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 4,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132806"
+  },
+  "created": "2026-10-04T06:27:45.504Z",
+  "verified": "2026-10-04T06:27:45.504Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Which API versions does this Grafana process actually serve",
+    "How does the system know which resource types to support",
+    "Where does the code decide what API group versions to mount",
+    "Routes include kinds that aren't available in this deployment",
+    "Process serves different API versions than manifest describes"
+  ],
+  "saysFor": "616:builder-servedgroupversi",
+  "search": "ServedGroupVersions in pkg/services/apiserver/builder/common.go merges APIGroupBuilder.GetGroupVersions and AppInstaller.GroupVersions into a single map[schema.GroupVersion]bool to filter what this process actually serves. It was promoted from a private searchroutes helper to shared status because both searchroutes and keysroutes use it to avoid mounting routes for kinds declared in manifests but not deployed in this apiserver instance. Apply when route-building code must intersect manifest kinds against the live deployment's actual served group versions."
+}

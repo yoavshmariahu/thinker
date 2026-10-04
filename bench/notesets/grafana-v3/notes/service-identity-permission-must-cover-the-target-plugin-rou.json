@@ -1,0 +1,52 @@
+{
+  "id": "service-identity-permission-must-cover-the-target-plugin-rou",
+  "title": "Service-identity permission must cover the target plugin route's ACL",
+  "kind": "rule",
+  "answers": [
+    "Why does a service-identity background job get 403/forbidden calling a plugin route through the datasource proxy?",
+    "ExternalAMSyncer/ruler syncer fetch fails with access denied even though it uses the service identity",
+    "What permission do I need to add when a new sync worker proxies to a new datasource/plugin endpoint?"
+  ],
+  "body": "Symptom: a background worker using identity.WithServiceIdentity to call a datasource/plugin route through the proxy gets rejected by the route's own RBAC check. Root cause: serviceIdentityPermissions (pkg/apimachinery/identity/context.go) is a fixed wildcard permission list; it must explicitly include the accesscontrol action the target plugin route enforces (e.g. alert.notifications.external:read, required by the Alertmanager plugin's GET api/v1/alerts route used by ExternalAMSyncer). Fix pattern: when wiring a new proxied request type for a service-identity caller, add the specific route's required action to serviceIdentityPermissions with a comment naming the route and consumer. Constraints: only needed for routes/plugins that enforce RBAC; irrelevant for unauthenticated or unchecked endpoints.",
+  "applies": "Any new background/service-identity call that is routed through a plugin or datasource proxy endpoint guarded by RBAC.",
+  "tags": [
+    "ngalert",
+    "rbac",
+    "service-identity",
+    "datasource-proxy"
+  ],
+  "deps": [
+    {
+      "path": "pkg/apimachinery/identity/context.go",
+      "symbol": "serviceIdentityPermissions",
+      "hash": "sha256:c06946a75f3059eab5aa0d67",
+      "line": 179,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132749"
+  },
+  "created": "2026-10-04T06:36:30.102Z",
+  "verified": "2026-10-04T06:36:30.102Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Background worker gets 403 forbidden calling plugin route through the proxy.",
+    "Service identity denied access to datasource endpoint via proxy request.",
+    "Syncer fails with access denied even though it uses service identity.",
+    "Missing permission for service identity to access plugin route.",
+    "What permission do I add when a sync worker proxies to plugin endpoint?"
+  ],
+  "saysFor": "877:service-identity-permiss",
+  "search": "Background workers using identity.WithServiceIdentity to call datasource or plugin routes through the proxy must have the target route's required RBAC action explicitly added to serviceIdentityPermissions in pkg/apimachinery/identity/context.go with a comment naming the route and consumer (e.g. alert.notifications.external:read for ExternalAMSyncer calling Alertmanager plugin's GET api/v1/alerts). Without the matching permission, the service identity gets rejected by the route's own RBAC check. Constraint: only required for routes/plugins that enforce RBAC; irrelevant for unauthenticated or unchecked endpoints. Applies to any new proxied request type initiated by a service-identity background caller."
+}

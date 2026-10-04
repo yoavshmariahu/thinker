@@ -1,0 +1,112 @@
+{
+  "id": "eventstore-latest-must-scan-descending-not-ascending",
+  "title": "eventStore.latest must scan descending, not ascending",
+  "kind": "rule",
+  "answers": [
+    "Why does eventStore.latest scan newest-first instead of oldest-first?",
+    "How to safely read a bounded tail of durable events without racing GC",
+    "Reading recent event metadata returns gaps / missing entries",
+    "Correct scan order when GC is concurrently deleting old events"
+  ],
+  "body": "Symptom: a bounded read of recent durable event metadata can come back with gaps in the resource-version sequence.\nRoot cause: if the scan walks ascending (oldest-first) it can race CleanupOldEvents, which deletes the oldest events first, so entries can disappear between the scan starting and the limit being reached, leaving holes in the result.\nFix pattern: eventStore.latest (pkg/storage/unified/resource/eventstore.go) scans with SortOrderDesc (newest-first) and reverses the slice at the end; because GC removes from the old end, the worst case with descending scan is a shortened tail, not a gapped one.\nConstraints: applies to any bounded/limited scan over the events KV section that can run concurrently with CleanupOldEvents (pkg/storage/unified/resource/eventstore.go:CleanupOldEvents); unbounded full scans aren't affected since they don't rely on scan order for correctness.",
+  "applies": "pkg/storage/unified/resource/eventstore.go and any new bounded scans over the events KV section",
+  "tags": [
+    "eventstore",
+    "concurrency",
+    "gc-race",
+    "kv-scan"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/eventstore.go",
+      "symbol": "CleanupOldEvents",
+      "hash": "sha256:de6c6e78176340adcc922b51",
+      "line": 341,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/eventstore.go",
+      "symbol": "eventStore",
+      "hash": "sha256:5bfeb0f5e644883b53d6c0ba",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 102
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/eventstore.go",
+      "symbol": "CleanupOldEvents",
+      "hash": "sha256:de6c6e78176340adcc922b51",
+      "line": 341,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/eventstore.go",
+      "symbol": "eventStore",
+      "hash": "sha256:5bfeb0f5e644883b53d6c0ba",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 102
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/eventstore.go",
+      "symbol": "CleanupOldEvents",
+      "hash": "sha256:de6c6e78176340adcc922b51",
+      "line": 341,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/eventStore.go",
+      "symbol": "latest",
+      "hash": "sha256:1c94600bd81e7503ba5d498a",
+      "line": 316,
+      "missing": false,
+      "fanout": {
+        "files": 188,
+        "sites": 5,
+        "refs": 614
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133042"
+  },
+  "created": "2026-10-04T05:53:55.191Z",
+  "verified": "2026-10-04T05:53:55.191Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does eventStore.latest scan newest-first instead of oldest-first?",
+    "How to safely read a bounded tail of durable events without racing GC",
+    "Reading recent event metadata returns gaps / missing entries",
+    "Correct scan order when GC is concurrently deleting old events"
+  ],
+  "saysFor": "941:eventstore-latest-must-s",
+  "search": "Bounded scans of the events KV section must use descending (newest-first) sort order to avoid gaps in results when CleanupOldEvents deletes oldest entries concurrently. The eventStore.latest function in pkg/storage/unified/resource/eventstore.go implements this by scanning with SortOrderDesc and reversing the result slice; worst-case with descending order is a shortened tail, not gaps. Applies to any bounded or limited scan over events KV that runs concurrently with CleanupOldEvents. Unbounded full scans are unaffected since they don't depend on sort order for correctness. Symbols: eventStore, CleanupOldEvents, eventStore.latest, SortOrderDesc."
+}

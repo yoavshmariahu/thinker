@@ -50,5 +50,6 @@
     "Verifying both access token and refresh token revocation",
     "OAuth revoke should not affect tokens from different clients"
   ],
-  "saysFor": "669:test-oauth-revoke-by-ass"
+  "saysFor": "669:test-oauth-revoke-by-ass",
+  "search": "OAuth revoke tests must assert actual token row state, not only side effects like DCR session sweep. Tests in posthog/api/oauth/test_views.py should be parameterized over both refresh_token and access_token types, checking that OAuthRefreshToken.revoked remains None and the application's OAuthAccessToken set stays intact after calling revoke_token in posthog/api/oauth/views.py. Earlier tests that checked only the sweep side effect passed while the upstream django-oauth-toolkit still revoked tokens, so both token types must be validated when modifying revoke_token behavior. Applies to OAuth revoke tests in posthog/api/oauth/test_views.py."
 }

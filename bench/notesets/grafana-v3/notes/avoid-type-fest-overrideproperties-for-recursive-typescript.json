@@ -1,0 +1,52 @@
+{
+  "id": "avoid-type-fest-overrideproperties-for-recursive-typescript",
+  "title": "Avoid type-fest OverrideProperties for recursive TypeScript types",
+  "kind": "rule",
+  "answers": [
+    "Why do inherited fields disappear from a recursive route/tree type?",
+    "TypeScript says a property doesn't exist on a recursive interface built with OverrideProperties",
+    "How to type a self-referential structure like a route tree with overridden child fields",
+    "Route type loses inherited RoutingTreeRoute fields"
+  ],
+  "body": "Symptom: a recursive type built with type-fest's OverrideProperties<Base, {child: Self[]}> silently loses visibility of inherited base fields in TypeScript (consumers can't see fields from the base type).\nRoot cause: mapped-type utilities like OverrideProperties don't resolve well when one of the overridden properties references the type being defined (self-reference inside the mapped type), per packages/grafana-alerting/src/grafana/notificationPolicies/types.ts:Route.\nFix pattern: define the type as `interface X extends Omit<Base, 'recursiveKey' | 'otherOverriddenKeys'> { recursiveKey: X[]; otherOverriddenKeys: ... }` — keep the recursive/overridden fields out of any mapped-type utility and add them directly on an interface extending Omit<Base, ...>.\nConstraints: applies whenever a type recursively references itself through one of its own overridden properties; not needed for non-recursive overrides, where OverrideProperties remains fine.",
+  "applies": "TypeScript type definitions for recursive/self-referential structures (e.g. tree-shaped domain types) anywhere in the grafana packages.",
+  "tags": [
+    "typescript",
+    "type-fest",
+    "alerting",
+    "notificationpolicies"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-alerting/src/grafana/notificationPolicies/types.ts",
+      "symbol": "Route",
+      "hash": "sha256:11a37cbae49b6e06ce362213",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 83,
+        "sites": 1,
+        "refs": 265
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132753"
+  },
+  "created": "2026-10-04T06:35:06.312Z",
+  "verified": "2026-10-04T06:35:06.312Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why do inherited fields disappear from a recursive tree/route type?",
+    "TypeScript shows missing properties on recursive types with overridden fields",
+    "How do I type a self-referential structure with overridden children?",
+    "Custom recursive type loses inherited properties from the base interface"
+  ],
+  "saysFor": "1019:avoid-type-fest-override",
+  "search": "Type-fest's OverrideProperties utility loses visibility of inherited base fields when the overridden property is self-referential, breaking recursive type definitions. Use interface extending Omit<Base, 'recursiveKey'> with the recursive property defined directly instead of through the mapped-type utility. Applies to recursive/tree-shaped type definitions like Route in packages/grafana-alerting/src/grafana/notificationPolicies/types.ts where self-referential overrides are needed. Non-recursive OverrideProperties usage remains fine and unaffected by this constraint."
+}

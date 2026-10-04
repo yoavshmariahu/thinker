@@ -113,5 +113,6 @@
     "Removing a data source deletes its sync schedules",
     "How are active syncs stopped during source removal"
   ],
-  "saysFor": "1739:schema-disable-delete-sc"
+  "saysFor": "1739:schema-disable-delete-sc",
+  "search": "Schema lifecycle state machine: per-schema schedules pause on disable (non-CDC sources only) via ExternalDataSchema.update_should_sync and unpause on enable, but are completely deleted when the source or schema is destroyed. Auto-disable sets auto_disabled_at timestamp only under sync_disable_context; user disable leaves it None; re-enable clears it. Soft-delete of source/schema and coupled deleted+deleted_at flags are one atomic transaction, but schedule and S3 cleanup runs after (best-effort). Teardown dispatch is Celery task cleanup_disabled_external_data_schema, scheduled on commit only on real transition and aborts if the schema is re-enabled. Bulk QuerySet.update operations bypass save() hooks. Applies to disabling/enabling schema syncs and soft-deleting sources. Paths: ExternalDataSchema model, sync_teardown.py:teardown_schema_syncs, tasks.py:cleanup_disabled_external_data_schema, source_setup.py:destroy."
 }

@@ -1,0 +1,82 @@
+{
+  "id": "storageoptions-gvk-must-be-all-or-nothing-group-version-kind",
+  "title": "StorageOptions.GVK must be all-or-nothing (Group+Version+Kind)",
+  "kind": "rule",
+  "answers": [
+    "Why does registering versioned storage options fail with 'declare no Kind'?",
+    "How do I set apistore.StorageOptions.GVK for a per-version store?",
+    "Objects are being written with an empty Kind or wrong apiVersion, why?",
+    "What does schema.GroupVersionKind.Empty() control in apistore?"
+  ],
+  "body": "Symptom: writes get persisted with an empty Kind, or overwrite a real Kind on objects that arrived without one.\nRoot cause: apistore's encode/checkGVK path treats any non-Empty() GVK as an explicit declaration (pkg/storage/unified/apistore/store.go NewStorage validation). A GVK with only Group+Version (no Kind) is non-empty but meaningless, so it gets applied anyway.\nFix pattern: RegisterVersionedOptions(gvr, opts) in pkg/storage/unified/apistore/restoptions.go rejects any registration whose GVK.Kind is empty, and fills Group/Version from the gvr key itself (callers should only ever supply Kind). It also rejects a GVK whose Group/Version contradict the key.\nConstraints: applies to any caller constructing apistore.StorageOptions.GVK, including through appinstaller.VersionedStorageOptionsProvider (pkg/services/apiserver/appinstaller/installer.go registerStorageOptions, which fills Kind from the manifest kind being iterated). The unversioned StorageOptionsProvider path has no version to complete/check a GVK against, so declaring any non-empty GVK there is refused outright.",
+  "applies": "any caller constructing apistore.StorageOptions.GVK, directly or via appinstaller storage-options providers",
+  "tags": [
+    "apistore",
+    "storage-options",
+    "gvk",
+    "appinstaller"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/restoptions.go",
+      "symbol": "RegisterVersionedOptions",
+      "hash": "sha256:e71e59f6955d02f02d5b0543",
+      "line": 57,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 12,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "symbol": "NewStorage",
+      "hash": "sha256:0b23582971beae0e026b12af",
+      "line": 162,
+      "missing": false,
+      "fanout": {
+        "files": 17,
+        "sites": 25,
+        "refs": 38
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/appinstaller/installer.go",
+      "symbol": "registerStorageOptions",
+      "hash": "sha256:1a181e8a787fb16f039eccf3",
+      "line": 263,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 13,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132768"
+  },
+  "created": "2026-10-04T06:33:58.177Z",
+  "verified": "2026-10-04T06:33:58.177Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "map-per-gvr-vs-per-groupresource-storage-options-in-apistore",
+    "apistore-serializer-is-the-single-extension-point-for-encode",
+    "registerstorageoptions-must-register-on-the-exact-getter-ins",
+    "use-jsonserializer-when-one-go-type-backs-multiple-gvks-in-a"
+  ],
+  "says": [
+    "Versioned storage registration fails when the kind is not declared",
+    "Setting up storage options configuration for a specific api version",
+    "Objects get saved with missing kind or incorrect api version information",
+    "What validation happens when group version kind is empty during storage writes",
+    "Registering storage options requires complete group version and kind specifications"
+  ],
+  "saysFor": "1149:storageoptions-gvk-must-",
+  "search": "StorageOptions.GVK must be all-or-nothing (Group+Version+Kind together) — RegisterVersionedOptions(gvr, opts) rejects any registration with an empty Kind and fills Group/Version from the gvr key itself, rejecting GVKs whose Group/Version contradict the key. A GVK with only Group+Version (no Kind) is non-empty but meaningless, yet apistore's encode/checkGVK path treats any non-Empty() GVK as an explicit declaration, causing writes to be persisted with empty Kind or overwriting a real Kind. The unversioned StorageOptionsProvider path refuses any non-empty GVK outright since it has no version to complete against. Applies to any caller constructing apistore.StorageOptions.GVK directly or via appinstaller.VersionedStorageOptionsProvider (which fills Kind from the manifest kind being iterated). Pointers: pkg/storage/unified/apistore/restoptions.go:RegisterVersionedOptions, pkg/storage/unified/apistore/store.go:NewStorage, pkg/services/apiserver/appinstaller/installer.go:registerStorageOptions."
+}

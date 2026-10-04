@@ -1,0 +1,55 @@
+{
+  "id": "decode-search-responses-by-actual-resultformat-not-by-what-y",
+  "title": "Decode search responses by actual ResultFormat, not by what you requested",
+  "kind": "rule",
+  "answers": [
+    "Why does list-with-selectors handle both ResourceTable and FIELD_VALUES rows?",
+    "How to safely change a search request's ResultFormat without breaking rolling deploys",
+    "Panic/nil decoding search response rows during upgrade"
+  ],
+  "body": "Symptom: a request changes ResourceSearchRequest.ResultFormat (e.g. table -> field values) but during a rolling upgrade some search backend replicas are still on old code and reply in the old format. Root cause: callers that assumed the response matches the requested format would get nil/wrong fields from the mismatched response shape. Fix pattern: decode based on response.GetResultFormat() itself (treating UNSPECIFIED as the legacy RESOURCE_TABLE default) and map both known formats into the same internal row struct; reject unknown formats with an error instead of silently returning empty/wrong data. Constraints: required whenever a ResourceSearchRequest's ResultFormat is changed/added, since requester and responder versions can skew during deploys; not needed for purely internal, single-process call paths with no version skew.",
+  "applies": "Any code building/consuming resourcepb.ResourceSearchRequest/ResourceSearchResponse across the search service boundary",
+  "tags": [
+    "search",
+    "mixed-version",
+    "resourcepb",
+    "pagination"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "decodeListSearchRows",
+      "hash": "sha256:3cb5a766b7bc368dbe1d3e4c",
+      "line": 214,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132900"
+  },
+  "created": "2026-10-04T06:14:01.016Z",
+  "verified": "2026-10-04T06:14:01.016Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "list-falls-back-from-search-to-store-scan-only-on-the-first",
+    "search-backed-list-must-emit-continuation-token-when-auth-fi"
+  ],
+  "says": [
+    "Search breaks when upgrading servers to different versions",
+    "Why does search return empty after changing format",
+    "How to safely change search format during rolling upgrade",
+    "Search crashes with nil error after upgrade",
+    "Search results disappeared after updating request format"
+  ],
+  "saysFor": "913:decode-search-responses-",
+  "search": "Decode search responses based on response.GetResultFormat() itself, treating UNSPECIFIED as the legacy RESOURCE_TABLE default, not by the ResultFormat you requested. During rolling upgrades, when ResourceSearchRequest.ResultFormat changes (table to field values), old backend replicas still reply in the old format; callers assuming the response matches the requested format silently get nil/wrong data. The fix is to map both known formats into the same internal row struct and reject unknown formats with an error instead of returning empty/wrong data. This constraint is required whenever a ResourceSearchRequest's ResultFormat is changed/added, since requester and responder versions can skew during deploys. Not needed for internal single-process paths with no version skew; applies to code across the search service boundary building/consuming resourcepb.ResourceSearchRequest/ResourceSearchResponse (pkg/storage/unified/resource/list_with_selectors.go:decodeListSearchRows)."
+}

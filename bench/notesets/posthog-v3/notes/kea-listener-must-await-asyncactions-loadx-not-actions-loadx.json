@@ -50,5 +50,6 @@
     "Why does the UI show stale data after I remove a reviewer?",
     "Waiting for refresh to complete before clearing temporary state."
   ],
-  "saysFor": "1064:kea-listener-must-await-"
+  "saysFor": "1064:kea-listener-must-await-",
+  "search": "Kea listeners must await asyncActions.loadX (not actions.loadX) to keep optimistic state live until loader completion; actions.loadX returns immediately (non-promise), so finally blocks run before server refresh arrives. The inboxReportDetailLogic.ts:updateReviewers symptom showed reviewers briefly reappearing after removal. Fix: use await asyncActions.loadReportArtefacts() so finally/cleanup only occurs after loader finishes; isUpdatingReviewers stays true during wait. Does not apply when optimistic state needn't persist beyond refresh. Applies to kea listeners sequencing dependent work after loaders in products/signals/frontend/inbox/logics."
 }

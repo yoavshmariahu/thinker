@@ -116,5 +116,6 @@
     "Create new Slack mention handling mode",
     "Slack mention workflow not working properly"
   ],
-  "saysFor": "745:slack-app-temporal-workf"
+  "saysFor": "745:slack-app-temporal-workf",
+  "search": "Slack app Temporal workflows are defined in posthog/temporal/ai/slack_app/: SlackAppMentionWorkflow (slack-app-mention), PostHogCodeSlackMentionWorkflow, PostHogCodeSlackMentionCommandWorkflow, SlackAppForkThreadWorkflow, and PostHogSlackInboxOnboardingWorkflow (types in types.py). Activities live in the activities/ subdirectory (fork.py, onboarding.py, billing.py, classifiers.py, thread.py, etc.) and are re-exported from activities/__init__.py. Registration is mandatory: both new workflows and activities must be added to posthog/temporal/ai/__init__.py (alongside existing SLACK_APP_ACTIVITIES). Use this when adding new workflow/activity logic, understanding workflow lifecycle, or debugging registration issues."
 }

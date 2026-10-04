@@ -1,0 +1,67 @@
+{
+  "id": "new-annotations-api-always-sets-timeend-point-range-conventi",
+  "title": "New annotations API always sets TimeEnd (point == range convention)",
+  "kind": "rule",
+  "answers": [
+    "Why does a point annotation now have TimeEnd set instead of null?",
+    "What should TimeEnd be for a point annotation created via the new API?",
+    "How is a point vs range annotation represented in storage now?",
+    "Annotation backfill/migration leaves TimeEnd null for points - is that still correct?"
+  ],
+  "body": "Invariant: in the new annotations API, every annotation must have a non-null TimeEnd; for point annotations TimeEnd == Time (previously TimeEnd was left nil for points). Enforced on create in pkg/registry/apps/annotation/k8s_adapter.go:k8sRESTAdapter.Create (defaults TimeEnd to Time when the client omits it) and on legacy-data backfill in pkg/registry/apps/annotation/migrator/convert.go:toBackfillRecord (now always sets TimeEnd = max(EpochEnd, Epoch) instead of leaving it nil when EpochEnd <= Epoch). This is step 1 of enabling a single time_end index for range queries (NOT NULL constraint and dropping the points/ranges UNION in List is a planned follow-up) - don't reintroduce nil-TimeEnd writes for points, and don't assume TimeEnd==nil means 'no end time' when reading/migrating data going forward.",
+  "applies": "New annotations API (pkg/registry/apps/annotation/*) and its legacy-data migrator; anywhere annotation Time/TimeEnd are written or classified as point vs range.",
+  "tags": [
+    "annotations",
+    "api",
+    "data-model",
+    "migration"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/annotation/k8s_adapter.go",
+      "symbol": "k8sRESTAdapter",
+      "hash": "sha256:215ce3a1ebba0af7d8da4cb4",
+      "line": 88,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 34
+      }
+    },
+    {
+      "path": "pkg/registry/apps/annotation/migrator/convert.go",
+      "symbol": "toBackfillRecord",
+      "hash": "sha256:b7cc43af2ea6d076093af667",
+      "line": 35,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 13,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132713"
+  },
+  "created": "2026-10-04T06:40:10.644Z",
+  "verified": "2026-10-04T06:40:10.644Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "annotation-app-spans-require-threaded-tracer-not-package-lev"
+  ],
+  "says": [
+    "When I create a point annotation, why is the end time always set?",
+    "Point annotations now store an end time same as their start time?",
+    "How are point versus range annotations stored differently now?",
+    "Why do migrated legacy point annotations leave the end time empty?",
+    "Old point annotations lack end times but new ones must have them?"
+  ],
+  "saysFor": "876:new-annotations-api-alwa",
+  "search": "The new annotations API enforces that every annotation must have a non-null TimeEnd field, with the convention that point annotations have TimeEnd == Time (not nil as before). This is enforced on create in pkg/registry/apps/annotation/k8s_adapter.go:k8sRESTAdapter.Create (which defaults TimeEnd to Time when clients omit it) and on legacy-data backfill in pkg/registry/apps/annotation/migrator/convert.go:toBackfillRecord (which now always sets TimeEnd = max(EpochEnd, Epoch) instead of leaving it nil). The invariant enables a planned single time_end index for range queries and is a step toward a NOT NULL constraint that will drop the points/ranges UNION in List operations. Do not reintroduce nil-TimeEnd writes for point annotations, and do not assume TimeEnd==nil means 'no end time' when reading or migrating annotation data going forward. Applies to the new annotations API and its legacy-data migrator wherever annotation Time/TimeEnd are written or classified as point vs range."
+}

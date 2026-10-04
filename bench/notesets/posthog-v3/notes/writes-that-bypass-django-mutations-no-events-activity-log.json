@@ -1,7 +1,7 @@
 {
   "id": "writes-that-bypass-django-mutations-no-events-activity-log",
   "title": "Writes that bypass Django mutations (no events/activity log)",
-  "kind": "gotcha",
+  "kind": "rule",
   "answers": [
     "Why didn't an issue change emit a lifecycle event?",
     "Who else writes ErrorTrackingIssue rows?"
@@ -29,8 +29,8 @@
     {
       "path": "products/error_tracking/backend/models.py",
       "symbol": "sync_issues_to_clickhouse",
-      "hash": "sha256:253b185b8def32b72bb833c8",
-      "line": 331,
+      "hash": "sha256:d6d1ec76318a91edab32cdd4",
+      "line": 749,
       "missing": false
     },
     {
@@ -78,5 +78,6 @@
     "Who reassigned or resolved this issue - no changelog entry",
     "External system updates to issues don't appear in timeline"
   ],
-  "saysFor": "776:writes-that-bypass-djang"
+  "saysFor": "776:writes-that-bypass-djang",
+  "search": "Several code paths skip activity log and lifecycle events when writing to the database, including QuerySet.update() for bulk_update_issues status, temporal auto-merge in fingerprint_embedding_result/activities.py:_merge_fingerprint_into_closest_issue (gated by ERROR_TRACKING_AUTO_MERGE_ENABLED), Cymbal (rust/cymbal/src/modes/processing/issue_resolution.rs) directly inserting/reopening in Postgres, github_external_references.py, and the backfill_error_tracking_issue_legacy_statuses management command. ClickHouse sync (sync_issues_to_clickhouse) uses ms timestamp version that must match cymbal FingerprintIssueState::new. When adding logic that must react to every issue change, be aware that these paths are not covered by events—user API paths through issue_mutations.py are covered, but direct database writes and temporal automations are not. Applies to error tracking backend logic that depends on complete issue change tracking."
 }

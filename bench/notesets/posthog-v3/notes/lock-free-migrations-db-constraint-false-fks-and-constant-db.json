@@ -64,5 +64,6 @@
     "The schema migration blocked all queries while altering the table",
     "Adding a column to an existing table caused unexpected downtime"
   ],
-  "saysFor": "891:lock-free-migrations-db-"
+  "saysFor": "891:lock-free-migrations-db-",
+  "search": "Lock-free schema migration convention for PostHog tracing and logs products: new tables with FKs to posthog.Team or posthog.User must use db_constraint=False with related_name=\"+\" so CREATE TABLE takes no lock on parent tables (Django collector enforces cascade/set-null only); new columns on existing tables must use a constant default= plus db_default=Value(...) to avoid table rewrites (see products/tracing/backend/models.py:TeamTracingConfig.retention_days). Schema migrations are split into their own PR before dependent code; update products/tracing/backend/migrations/max_migration.txt with the latest migration number. Constants duplicated across products (e.g., DEFAULT_TRACES_RETENTION_DAYS in tracing vs logs) are pinned by tests (products/tracing/backend/tests/test_models.py) to enforce parity."
 }

@@ -1,0 +1,52 @@
+{
+  "id": "avoid-b-b-alternation-in-regexes-used-on-untrusted-large-tex",
+  "title": "Avoid (\\b|\\B) alternation in regexes used on untrusted/large text",
+  "kind": "rule",
+  "answers": [
+    "Logs panel freezes/hangs the browser on long lines",
+    "Prism tokenization is slow or blocks the main thread",
+    "Catastrophic backtracking in log-token-key regex",
+    "Why does highlighting a long unassigned string take seconds?"
+  ],
+  "body": "Symptom: The logs panel's main thread blocks for hundreds of ms to seconds when tokenizing a long string that has no '=' (e.g. a 16KB unassigned value).\nRoot cause: public/app/features/logs/components/panel/grammar.ts log-token-key regex used (\\b|\\B)[\\w_]+(?=\\s*=) — matching at every position (both boundary types) forces the (?=\\s*=) lookahead to be retried at every character of long non-matching words, causing quadratic backtracking.\nFix pattern: Replace (\\b|\\B) alternation with a single anchor (\\b) when the token you're matching can only legitimately start at a word boundary; this collapses the number of lookahead attempts from O(n) per position to O(1) per boundary.\nConstraints: Applies to any Prism/grammar regex run on user-controlled or unbounded-length log/text content with a trailing lookahead; does not apply where matches genuinely need to start mid-word (non-boundary) — verify with a benchmark on a long non-matching string before/after.",
+  "applies": "Prism grammar regexes in public/app/features/logs/components/panel/grammar.ts and similar highlighting grammars processing arbitrary log text",
+  "tags": [
+    "regex",
+    "performance",
+    "logs",
+    "prism",
+    "catastrophic-backtracking"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/logs/components/panel/grammar.ts",
+      "symbol": "logsGrammar",
+      "hash": "sha256:60577e559afa47c5d9518eb0",
+      "line": 7,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132860"
+  },
+  "created": "2026-10-04T06:19:10.460Z",
+  "verified": "2026-10-04T06:19:10.460Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Logs panel freezes or hangs the browser on long lines",
+    "Log syntax highlighting is slow or blocks the main thread",
+    "Why does highlighting a long log value take seconds to complete?"
+  ],
+  "saysFor": "1025:avoid-b-b-alternation-in",
+  "search": "Replace (\\b|\\B) alternation with a single \\b anchor in regexes with trailing lookaheads when the token can only legitimately start at a word boundary, because the alternation forces the lookahead to be retried at every character position, causing quadratic backtracking on long non-matching strings. The logs panel grammar.ts logsGrammar regex used (\\b|\\B)[\\w_]+(?=\\s*=), which blocked the main thread for hundreds of milliseconds when tokenizing 16KB strings without '=' due to O(n) per-position lookahead attempts; replacing (\\b|\\B) with (\\b) collapses this to O(1) per boundary. This applies to Prism grammars in public/app/features/logs/components/panel/grammar.ts and similar highlighting grammars that process user-controlled or unbounded-length text; verify the fix with a benchmark on a long non-matching string before and after, and do not apply if matches genuinely need to start mid-word."
+}

@@ -1,0 +1,55 @@
+{
+  "id": "grouped-var-declarations-need-explicit-coverage-in-the-searc",
+  "title": "Grouped var(...) declarations need explicit coverage in the search-format regex/semgrep pair",
+  "kind": "rule",
+  "answers": [
+    "Why isn't my grouped var declaration of ResourceSearchRequest being flagged?",
+    "Does the FIELD_VALUES check catch var ( request resourcepb.ResourceSearchRequest ) blocks?",
+    "I changed the resource-search-result-format grep/semgrep rule and tests started missing grouped declarations"
+  ],
+  "body": "Symptom: a new `var (\\n\\trequest resourcepb.ResourceSearchRequest\\n)` grouped declaration that omits or mis-sets ResultFormat is not reliably flagged by the CI check. Root cause: the git-grep pre-filter in .github/workflows/pr-resource-search-result-format.yml that selects files to scan was written against single-line `var x T` declarations and can miss grouped var blocks, and the semgrep pattern `var $REQUEST $PB.ResourceSearchRequest` doesn't by itself cover text split across a `var (...)` block the same way. Fix pattern: the grep regex's standalone-declaration alternative (`^[[:space:]]*[[:alnum:]_]+[[:space:]]+[^[:space:]]*ResourceSearchRequest...$`) and the semgrep fixture's `groupedDeclaration` test case exist specifically to keep this case covered — any future change to the git-grep regex or the semgrep rule must add/update a matching fixture case for grouped declarations. Constraints: only matters for *new* code added after the PR base commit (baseline-diff scan); doesn't affect pre-existing grouped declarations.",
+  "applies": "Edits to the file-selection grep regex in .github/workflows/pr-resource-search-result-format.yml or the semgrep patterns in pkg/storage/unified/semgrep/resource-search-field-values.yaml.",
+  "tags": [
+    "semgrep",
+    "ci",
+    "edge-case",
+    "resource-search"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/pr-resource-search-result-format.yml",
+      "hash": "sha256:ab1b369a85b2cdf9e00cc764",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/semgrep/resource-search-field-values.go",
+      "symbol": "groupedDeclaration",
+      "hash": "sha256:398bd9cdfac4e38853449f4e",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133001"
+  },
+  "created": "2026-10-04T06:00:22.753Z",
+  "verified": "2026-10-04T06:00:22.753Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Code validation missing grouped variable declarations in blocks",
+    "Variable declaration pattern not flagged by CI linter",
+    "Grouped var blocks skipped by resource search validation",
+    "Validation check not catching multi-line variable declarations"
+  ],
+  "saysFor": "1129:grouped-var-declarations"
+}

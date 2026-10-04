@@ -1,7 +1,7 @@
 {
   "id": "oauth-revoke-must-verify-token-belongs-to-requesting-client-",
   "title": "OAuth revoke must verify token belongs to requesting client before any revoke path",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "Can one OAuth client revoke another app's token at /oauth/revoke/?",
     "Why does revoking a token from a different client_id return 200 but do nothing?",
@@ -33,9 +33,10 @@
     {
       "path": "posthog/api/oauth/views.py",
       "symbol": "super",
-      "hash": "sha256:9abcf430dd316a87b4ea2eb3",
+      "hash": "sha256:0db83e776de77249cb5e2fc1",
       "line": 409,
-      "missing": false
+      "missing": false,
+      "symbolMissing": true
     }
   ],
   "source": {
@@ -59,5 +60,6 @@
     "OAuth revoke endpoint missing client ownership verification",
     "Cross-client token revocation should be prevented"
   ],
-  "saysFor": "942:oauth-revoke-must-verify"
+  "saysFor": "942:oauth-revoke-must-verify",
+  "search": "The `revoke_token()` function in posthog/api/oauth/views.py must verify the presented token (refresh or access) belongs to the requesting client by checking that `token.application_id == request.client.pk` before any revoke operation; if the check fails, log `oauth_revoke_token_client_mismatch` and return HTTP 200 without revoking. This check must run before the DCR/CIMD session sweep (`revoke_oauth_session`) and before calling `super().revoke_token()`, because the upstream django-oauth-toolkit revokes any token found by value, allowing a malicious client to revoke another application's session. Mismatch must return HTTP 200 (not an error) to avoid leaking information about token liveness to other clients. Public clients using only client_id authentication remain vulnerable to revocation if a token holder knows the owner's public client_id. Applies to posthog/api/oauth/views.py and any new revoke/introspect-style OAuth endpoints."
 }

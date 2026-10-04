@@ -1,0 +1,42 @@
+{
+  "id": "grafana-docs-terminology-use-self-managed-instead-of-self-ho",
+  "title": "Grafana docs terminology: use \"self-managed\" instead of \"self-hosted\"",
+  "kind": "rule",
+  "answers": [
+    "Why does this doc say self-managed instead of self-hosted?",
+    "What's the correct term for non-Cloud Grafana in documentation?",
+    "self-hosted vs self-managed Grafana wording"
+  ],
+  "body": "Grafana's current docs style replaces \"self-hosted Grafana\" with \"self-managed Grafana\" (seen even in code-comment examples like Terraform provider blocks). When writing new docs or backporting, swap this term wherever it appears for the installation type (not for genuinely version-specific wording), applied consistently as part of quarterly doc reviews.",
+  "applies": "Grafana documentation pages (docs/sources/**) referring to non-Cloud Grafana installs.",
+  "tags": [
+    "docs",
+    "terminology",
+    "style-guide"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/datasources/azure-monitor/configure/index.md",
+      "hash": "sha256:6eb14e0ca3df71ab6d109234",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133028"
+  },
+  "created": "2026-10-04T05:57:06.729Z",
+  "verified": "2026-10-04T05:57:06.729Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does documentation use self-managed instead of self-hosted?",
+    "What's the official term for on-premises Grafana deployments?",
+    "Self-managed versus self-hosted terminology in documentation"
+  ],
+  "saysFor": "426:grafana-docs-terminology",
+  "search": "Use 'self-managed Grafana' instead of 'self-hosted Grafana' when describing non-Cloud deployments in Grafana documentation, including in code comments and examples (e.g., Terraform provider blocks). This terminology swap applies to new docs and backports as part of quarterly reviews, but not to genuinely version-specific wording; affects docs/sources/** pages."
+}

@@ -1,0 +1,70 @@
+{
+  "id": "cursor-paging-loop-must-detect-a-non-advancing-or-missing-cu",
+  "title": "Cursor-paging loop must detect a non-advancing or missing cursor and must not return partial success",
+  "kind": "rule",
+  "answers": [
+    "How do I safely implement SearchAfter-based pagination against unified storage?",
+    "What stops a cursor-paging loop from running forever?",
+    "Pagination hangs or loops forever against a misbehaving search server",
+    "Partial results returned as if migration succeeded"
+  ],
+  "body": "Invariant: a full page (length == requested page size) must carry a SearchAfter cursor that differs from the cursor used to request it; if it doesn't, paging must error out instead of retrying forever or silently stopping.\nEnforced in pkg/storage/unified/migrations/validator.go:buildUnifiedFolderParentMap, which errors with 'carries no pagination cursor' or 'did not move past cursor' when a server ignores SearchAfter.\nAlso: every page's error (RPC error, nil response, response.GetError()) must be checked and reported with the page number before any data from that page is used; a failed page must never let previously-collected rows be returned as if the walk succeeded.\nWhat breaks if skipped: against a server that echoes the same cursor (or none), the loop either spins forever or returns a result that looks complete but is actually truncated, defeating the point of paging.",
+  "applies": "Any SearchAfter/cursor-based pagination loop over resourcepb search results in unified storage.",
+  "tags": [
+    "unified-storage",
+    "search",
+    "pagination",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/migrations/validator.go",
+      "symbol": "buildUnifiedFolderParentMap",
+      "hash": "sha256:651a2158ad6395665d5331ce",
+      "line": 339,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 11
+      }
+    },
+    {
+      "path": "pkg/storage/unified/migrations/validator.go",
+      "symbol": "decodeFolderRows",
+      "hash": "sha256:f41f11714410f633391cd6c6",
+      "line": 409,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132984"
+  },
+  "created": "2026-10-04T06:01:58.471Z",
+  "verified": "2026-10-04T06:01:58.471Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "folder-parent-map-search-has-a-fixed-100k-limit-not-paginate",
+    "unified-storage-search-walks-must-page-by-cursor-not-a-singl",
+    "decode-resourcesearchresponse-by-actual-resultformat-not-req",
+    "test-searchafter-pagination-against-a-real-bleve-index-with"
+  ],
+  "says": [
+    "Pagination hangs or loops forever against search backend",
+    "Results returned as success even though page failed",
+    "Search pagination never stops requesting new pages",
+    "Partial results marked complete when migration fails silently",
+    "Cursor pagination doesn't detect missing or non-advancing cursor"
+  ],
+  "saysFor": "985:cursor-paging-loop-must-",
+  "search": "Cursor-based pagination loops over unified storage resourcepb search results must detect when a full page (length == requested page size) carries no SearchAfter cursor or a cursor identical to the request cursor, and must error instead of retrying or silently stopping. Errors 'carries no pagination cursor' or 'did not move past cursor' enforce this invariant in pkg/storage/unified/migrations/validator.go:buildUnifiedFolderParentMap and decodeFolderRows. Every page's RPC error, nil response, or response.GetError() must be checked and reported with the page number before using that page's data; a failed page must never let previously-collected rows be returned as a successful result. Skipping this check causes infinite loops or truncated results against servers that echo the same cursor or omit it entirely."
+}

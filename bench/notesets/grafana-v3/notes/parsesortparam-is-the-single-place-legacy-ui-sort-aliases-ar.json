@@ -1,0 +1,51 @@
+{
+  "id": "parsesortparam-is-the-single-place-legacy-ui-sort-aliases-ar",
+  "title": "parseSortParam is the single place legacy/UI sort aliases are resolved for dashboard search",
+  "kind": "map",
+  "answers": [
+    "Where do I add a new legacy sort alias for dashboard search?",
+    "Where is the sort query param parsed in the dashboard search API?",
+    "Which file maps old sort names to index fields?"
+  ],
+  "body": "Alias resolution for the dashboard search 'sort' query param lives in parseSortParam in pkg/registry/apis/dashboard/search.go. It first consults uiSortAliases (a small local map, currently only name_sort -> resource.SEARCH_FIELD_TITLE) for names the Grafana UI itself used, then falls back to the shared searchsort.ParseSortName (pkg/services/search/sort) that already backs the older /api/search endpoint for suffix-style legacy names (viewed-recently-desc, alpha-asc, etc.). Add new UI-only aliases to uiSortAliases; add new legacy /api/search-style names to the shared sort package so both endpoints stay consistent.",
+  "applies": "Dashboard/unified search HTTP handler, pkg/registry/apis/dashboard/search.go.",
+  "tags": [
+    "search",
+    "sort",
+    "map"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/dashboard/search.go",
+      "symbol": "uiSortAliases",
+      "hash": "sha256:e9d76c592be9015dca293a4d",
+      "line": 1054,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133099"
+  },
+  "created": "2026-10-04T05:51:40.224Z",
+  "verified": "2026-10-04T05:51:40.224Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Where do I add a new legacy sort option for dashboard search results",
+    "Dashboard search sort parameter doesn't recognize my custom sort name",
+    "How is the sort query parameter resolved when searching dashboards",
+    "Which file maps old sort names to actual sortable fields",
+    "Need to map a new UI sort alias for the dashboard search"
+  ],
+  "saysFor": "711:parsesortparam-is-the-si",
+  "search": "The parseSortParam function in pkg/registry/apis/dashboard/search.go is the single place where dashboard search sort query parameters resolve their UI and legacy aliases. It consults the local uiSortAliases map first (currently only name_sort → resource.SEARCH_FIELD_TITLE) for UI-native names, then falls back to the shared searchsort.ParseSortName in pkg/services/search/sort for legacy /api/search-style names (viewed-recently-desc, alpha-asc). Add UI-only aliases to uiSortAliases and new legacy names to the shared sort package so both the unified dashboard search and older /api/search endpoints stay consistent. This guidance applies to the dashboard search HTTP handler."
+}

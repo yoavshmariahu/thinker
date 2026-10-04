@@ -1,0 +1,50 @@
+{
+  "id": "azure-monitor-logs-queries-truncate-at-30-000-rows-azuremoni",
+  "title": "Azure Monitor Logs queries truncate at 30,000 rows; `azureMonitorDisableLogLimit` toggle removes limit",
+  "kind": "map",
+  "answers": [
+    "Why are my Azure Monitor Logs query results cut off at 30000 rows?",
+    "How do I get more than 30000 rows from an Azure Monitor Logs query?",
+    "What does the 'row limit reached' notice mean for Azure Monitor Logs?",
+    "azureMonitorDisableLogLimit feature toggle purpose"
+  ],
+  "body": "When an Azure Monitor query uses the Logs result format, Grafana caps results at 30,000 rows (and shows a truncation notice) because the logs visualization renders every row at once and larger sets can crash the browser tab. The feature toggle `azureMonitorDisableLogLimit` removes the cap, but the docs recommend aggregating with KQL `summarize` or narrowing the time range instead, since disabling the limit can degrade browser performance. This is product behavior, not a bug.",
+  "applies": "Azure Monitor data source, Logs query result format.",
+  "tags": [
+    "azure-monitor",
+    "docs",
+    "feature-toggle",
+    "logs"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/datasources/azure-monitor/query-editor/index.md",
+      "hash": "sha256:06c986577af5c0ca3965b381",
+      "missing": false
+    },
+    {
+      "path": "docs/sources/datasources/azure-monitor/troubleshooting/index.md",
+      "hash": "sha256:5b84209c2c042e58dd3ed82f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133028"
+  },
+  "created": "2026-10-04T05:57:06.703Z",
+  "verified": "2026-10-04T05:57:06.703Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why are my Azure Monitor logs query results cut off at 30000?",
+    "How do I get more than 30000 rows from logs query?",
+    "What does the 'row limit reached' notice mean for logs?",
+    "How do I remove the Azure Monitor logs row limit?"
+  ],
+  "saysFor": "582:azure-monitor-logs-queri",
+  "search": "Azure Monitor's Logs result format truncates results at 30,000 rows by design because the frontend table renders all rows at once without virtualization, risking browser crashes. The azureMonitorDisableLogLimit feature toggle removes the cap, but the recommended alternatives are KQL summarize aggregation or narrowing the time range, as disabling the limit degrades browser performance. This behavior applies only to Logs queries; other result formats like time series are not affected. Users should understand the performance tradeoff before disabling the limit (docs/sources/datasources/azure-monitor)."
+}

@@ -73,5 +73,6 @@
     "Data retention information endpoint is not working",
     "API should expose team-level quota and limit metadata"
   ],
-  "saysFor": "961:adding-a-product-viewset"
+  "saysFor": "961:adding-a-product-viewset",
+  "search": "Product viewset (e.g., EventsRetentionViewSet) requires coordinated changes: register in products/product_analytics/backend/routes.py via routers.projects.register, regenerate products/product_analytics/frontend/generated/api.ts and api.schemas.ts and services/mcp/src/api/generated.ts (do not hand-edit), add operation to products/product_analytics/mcp/tools.yaml with enabled: false, and implement frontend logic guards for team id and shared views. Frontend logic must load on teamLogic.actionTypes.loadCurrentTeamSuccess, return null while currentTeamId is null, and skip requests when isSharedView(). Applies to project-scoped endpoints in products/product_analytics."
 }

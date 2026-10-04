@@ -1,0 +1,89 @@
+{
+  "id": "amconfigv1-fingerprints-must-exclude-resourcemetadata",
+  "title": "AMConfigV1 fingerprints must exclude ResourceMetadata",
+  "kind": "rule",
+  "answers": [
+    "Why does saving a contact point / receiver bump its Version even though only provenance changed?",
+    "How should I compute Version for a new AMConfigV1 resource type (receivers, time intervals, inhibition rules)?",
+    "Version/Fingerprint keeps changing after provenance is stamped"
+  ],
+  "body": "Invariant: any content fingerprint used to derive Version for an AMConfigV1 resource (PostableApiReceiver, TimeInterval, InhibitionRule, TemplateGroup) must hash only the resource's actual content and must NOT include its own ResourceMetadata (UID/Version/Provenance). This lets provenance be stamped onto an already-fetched object later without invalidating the previously-computed Version, avoiding spurious optimistic-concurrency conflicts. Enforced by v1.ReceiverFingerprint in pkg/services/ngalert/notifier/legacy_storage/v1/receivers.go, which explicitly skips ResourceMetadata (mirrored by TimeIntervalFingerprint/InhibitionRuleFingerprint). A table-driven test (TestReceiverFingerprint 'stable across metadata modification') asserts this by reflecting over every ResourceMetadata field.",
+  "applies": "Any new or modified AMConfigV1 resource type that embeds ResourceMetadata and computes a Version/fingerprint.",
+  "tags": [
+    "alerting",
+    "amconfig",
+    "fingerprint",
+    "versioning"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/receivers.go",
+      "symbol": "ReceiverFingerprint",
+      "hash": "sha256:9db091be5805f4534a872289",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 11,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/model.go",
+      "symbol": "AMConfigV1",
+      "hash": "sha256:c824584edb6a0aecce3a775f",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 33,
+        "sites": 0,
+        "refs": 152
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/model.go",
+      "symbol": "PostableApiReceiver",
+      "hash": "sha256:de9cbd4b9617f30156c87cfc",
+      "line": 513,
+      "missing": false,
+      "fanout": {
+        "files": 33,
+        "sites": 0,
+        "refs": 121
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/model.go",
+      "symbol": "Provenance",
+      "hash": "sha256:79a67967043766e8bb746f98",
+      "line": 511,
+      "missing": false,
+      "fanout": {
+        "files": 121,
+        "sites": 67,
+        "refs": 630
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132926"
+  },
+  "created": "2026-10-04T06:10:49.719Z",
+  "verified": "2026-10-04T06:10:49.719Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "amconfigv1-receivers-is-a-uid-keyed-map-not-a-slice",
+    "amconfigv1-receivers-is-top-level-validation-of-receiver-ref"
+  ],
+  "says": [
+    "Why does saving a contact point / receiver bump its Version even though only provenance changed?",
+    "How should I compute Version for a new AMConfigV1 resource type (receivers, time intervals, inhibition rules)?",
+    "Version/Fingerprint keeps changing after provenance is stamped"
+  ],
+  "saysFor": "848:amconfigv1-fingerprints-",
+  "search": "AMConfigV1 resource fingerprints used to derive Version must exclude ResourceMetadata (UID/Version/Provenance) and hash only actual content of PostableApiReceiver, TimeInterval, InhibitionRule, or TemplateGroup. This allows provenance to be stamped onto a fetched object later without invalidating the previously-computed Version, avoiding spurious optimistic-concurrency conflicts. ReceiverFingerprint in pkg/services/ngalert/notifier/legacy_storage/v1/receivers.go explicitly skips ResourceMetadata, enforced by TestReceiverFingerprint table-driven test that verifies stability across metadata modification. Applies to any new or modified AMConfigV1 resource type that embeds ResourceMetadata and computes a Version/fingerprint."
+}

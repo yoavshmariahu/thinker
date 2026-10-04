@@ -75,5 +75,6 @@
     "What validation errors prevent launching a broadcast",
     "Does the system save my broadcast progress if something fails"
   ],
-  "saysFor": "663:broadcast-wizard-launch-"
+  "saysFor": "663:broadcast-wizard-launch-",
+  "search": "The broadcast wizard launch flow progresses through BROADCAST_WIZARD_STEPS (recipients, goal, content, schedule, review) with firstInvalidStep derived from validation errors. launchBroadcast listener saves draft, previews blast-radius to confirm token (stops if over batch limit), PATCHes status to 'active', then creates an immediate batch job or schedules it (scheduled/recurring). buildBroadcastPayload always sends status:'draft' regardless of context. If the flow fails after status is patched to 'active', the listener PATCHes status back to 'draft' for recovery. loadBroadcastSuccess and hydrateFromBroadcast resume at firstInvalidStep or 'review'. Applies to broadcast wizard logic and launch flow in frontend/Broadcasts/broadcastWizardLogic.ts:launchBroadcast."
 }

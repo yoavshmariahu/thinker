@@ -1,0 +1,82 @@
+{
+  "id": "check-rsp-geterror-not-just-err-after-unified-storage-search",
+  "title": "Check rsp.GetError(), not just err, after unified-storage search calls",
+  "kind": "rule",
+  "answers": [
+    "Why did a search failure get treated as 'no results found'?",
+    "LIST with a label selector returns 200 with an empty list instead of an error",
+    "A duplicate internal ID check or search-backed lookup silently passes when the search actually failed",
+    "How should I check the result of a resourcepb search response?"
+  ],
+  "body": "Symptom: a search-backed operation (LIST with selectors, a dedup lookup) returns success/empty instead of failing when the underlying search call actually errored (e.g. the search token lacked a delegated permission).\nRoot cause: code checked only the Go `err` return of the search call and ignored `rsp.GetError()`, so a failed search with `err == nil` and zero rows looked identical to 'nothing matched'. Seen in pkg/storage/unified/apistore/prepare.go:ensureSingleDeprecatedInternalID before the fix.\nFix pattern: wrap the response with `resource.ErrorFromResponse(rsp.GetError(), err)` (see pkg/storage/unified/resource/errors.go) and treat any non-nil result as a hard failure, not an empty result; also log the error with group/resource so the failure is visible when only logs are available (pkg/storage/unified/resource/list_with_selectors.go:listWithSelectors).\nConstraints: applies to any code that calls into resource/search APIs and interprets an empty/zero-row response as 'confirmed no match' — a zero-row response must first be confirmed error-free via ErrorFromResponse before being treated as authoritative.",
+  "applies": "unified storage (resource/, search/, apistore/) code paths that call search and branch on an empty result",
+  "tags": [
+    "unified-storage",
+    "error-handling",
+    "search",
+    "silent-failure"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "ensureSingleDeprecatedInternalID",
+      "hash": "sha256:221aa9769f55b687e0929329",
+      "line": 225,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "listWithSelectors",
+      "hash": "sha256:6d80df33d24814945220c3b0",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 22,
+        "refs": 22
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/errors.go",
+      "symbol": "ErrorFromResponse",
+      "hash": "sha256:546d214bb67843e2fa27a6d1",
+      "line": 104,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 27,
+        "refs": 28
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132750"
+  },
+  "created": "2026-10-04T06:35:53.866Z",
+  "verified": "2026-10-04T06:35:53.866Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "listwithselectors-transport-errors-vs-embedded-search-errors",
+    "no-check-unified-storage-compatibility-label-when-a-client-s",
+    "request-only-needed-fields-exact-rv-when-using-field-values",
+    "search-backed-list-must-emit-continuation-token-when-auth-fi"
+  ],
+  "says": [
+    "Why did a search failure show as empty results instead of an error?",
+    "A label filter returned success with no items when search actually failed",
+    "How should search failures be distinguished from truly empty search results?",
+    "Search-backed lookup silently succeeds even though the search request errored",
+    "Why doesn't a permission error in search show up in the results?"
+  ],
+  "saysFor": "1195:check-rsp-geterror-not-j",
+  "search": "After calling unified storage search APIs, check both rsp.GetError() and the Go err return; checking only err misses failed searches with err == nil and zero rows that look identical to 'no match found'. Wrap with resource.ErrorFromResponse(rsp.GetError(), err) from pkg/storage/unified/resource/errors.go and treat any non-nil result as hard failure, not empty result; also log the error with group/resource (see list_with_selectors.go:listWithSelectors) for visibility in log-only scenarios. This applies to any code interpreting zero-row responses as 'confirmed no match'—such responses must first be confirmed error-free before treating them as authoritative."
+}

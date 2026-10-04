@@ -64,5 +64,6 @@
     "What controls whether an insight is in view mode or edit mode?",
     "How does edit mode information get passed to child visualization components?"
   ],
-  "saysFor": "1178:insight-view-edit-mode-c"
+  "saysFor": "1178:insight-view-edit-mode-c",
+  "search": "Insight view/edit mode is computed in insightSceneLogic.urlToAction (~L833) based on URL mode==='edit', shortId==='new', or feature-specific modes (subscriptions/alerts/sharing); otherwise defaults to View mode, stored in insightMode reducer. This mode is NOT derived from permissions. It propagates via readOnly={insightMode !== Edit} and editMode props to Query, InsightViz, InsightPageHeader, and other consumers that gate showQueryEditor, inline editing, and Save/Cancel buttons. Applies to implementing view/edit UI toggling, feature gating, and mode-dependent rendering throughout insight scenes and components."
 }

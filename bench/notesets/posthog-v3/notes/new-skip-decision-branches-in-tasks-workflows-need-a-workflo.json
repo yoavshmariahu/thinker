@@ -64,5 +64,6 @@
     "Skip condition in workflow causes compatibility issues",
     "New workflow branch needs a patched marker guard"
   ],
-  "saysFor": "1056:new-skip-decision-branch"
+  "saysFor": "1056:new-skip-decision-branch",
+  "search": "New skip/decision branches triggered by activity output fields must be gated with `workflow.patched(<id>)` in addition to any feature flag, because during rolling deploys a newer activity worker may record new output while an older workflow worker replays the old decision path. Each workflow file has its own patch constant: `_PATCH_ID_MERGE_QUEUE_SKIP` in products/tasks/backend/temporal/process_task/workflow.py and task_management/workflow.py. Tests must monkeypatch `workflow.patched()` to verify both code paths (see test_merge_queue_skip_follows_the_patch_marker). Optional new activity output fields default to False; dataclasses must state `frozen=` for devex semgrep checks. Extra GitHub API reads must skip closed/merged PRs (in get_pr_babysit_snapshot.py, get_pr_context) to prevent flaky reads from failing terminal workflow ticks. Applies to process_task and task_management workflows and activities."
 }

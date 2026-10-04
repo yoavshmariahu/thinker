@@ -1,0 +1,51 @@
+{
+  "id": "theme-color-assertions-must-use-theme-tokens-not-hardcoded-h",
+  "title": "Theme-color assertions must use theme tokens, not hardcoded hex values",
+  "kind": "rule",
+  "answers": [
+    "Why did my test break after a theme palette update?",
+    "How should I assert a component's text/background color in a test?",
+    "Test asserting '#6CCF8E' or similar hex fails after theme change",
+    "What's the convention for testing theme-dependent colors?"
+  ],
+  "body": "Symptom: a passing test starts failing after an unrelated theme palette change, even though the component still uses the correct semantic color token.\nRoot cause: test hardcodes the current resolved hex/RGB value instead of the semantic token, e.g. `toHaveStyle({ color: '#6CCF8E' })` in packages/grafana-ui/src/components/Table/TableNG/TableNG.test.tsx.\nFix pattern: derive the expected value from the theme object passed to the component (or its provider) and assert the specific semantic token, e.g. `toHaveStyle({ color: theme.components.codeEditor.string })`; for theme-switching tests, re-assert against each supplied theme after rerendering.\nConstraints: applies only to consumers of theme colors (components/styles that read tokens). Does NOT apply to tests of the color resolver, transformation function, or palette definition itself — those must keep independent frozen-literal expected values rather than calling the implementation under test to produce its own expectation.",
+  "applies": "Frontend tests (grafana-ui and elsewhere) that assert element color/style derived from the theme.",
+  "tags": [
+    "testing",
+    "theming",
+    "frontend",
+    "skill-convention"
+  ],
+  "deps": [
+    {
+      "path": ".claude/skills/frontend-testing-strategy/SKILL.md",
+      "hash": "sha256:2b47c7d5f8b704908b56cae9",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Table/TableNG/TableNG.test.tsx",
+      "hash": "sha256:de40a797dd776435eaeb147d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133189"
+  },
+  "created": "2026-10-04T05:47:41.798Z",
+  "verified": "2026-10-04T05:47:41.798Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Table panel row text color looks unreadable after updating the default theme palette.",
+    "Ensure table cell colors automatically adapt when users toggle between light and dark modes.",
+    "Code editor syntax text highlighting remains the old green after the palette refresh.",
+    "Update data grid background shades to match our newly refreshed brand color palette.",
+    "Switching themes leaves table numbers rendered in outdated colors from the previous theme."
+  ],
+  "saysFor": "1056:theme-color-assertions-m",
+  "search": "Frontend test assertions for theme colors must derive expected values from the theme object, not hardcode hex/RGB literals. Hardcoded colors cause test failures after unrelated theme palette changes even when the component uses the correct semantic token. Use `toHaveStyle({ color: theme.components.codeEditor.string })` instead of `toHaveStyle({ color: '#6CCF8E' })`; for theme-switching tests, re-assert against each supplied theme after rerendering. This rule applies only to consumers of theme colors (components/styles reading tokens), NOT to tests of the color resolver, transformation function, or palette definition itself—those must keep frozen-literal expected values. Guidance in .claude/skills/frontend-testing-strategy/SKILL.md and demonstrated in packages/grafana-ui/src/components/Table/TableNG/TableNG.test.tsx."
+}

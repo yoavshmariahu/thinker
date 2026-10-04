@@ -1,0 +1,51 @@
+{
+  "id": "direct-go-resourcesearchrequest-clients-must-set-field-value",
+  "title": "Direct Go ResourceSearchRequest clients must set FIELD_VALUES",
+  "kind": "rule",
+  "answers": [
+    "Why does my PR fail the 'Require FIELD_VALUES for new direct Go search clients' check?",
+    "How do I construct a resourcepb.ResourceSearchRequest in Go without failing CI?",
+    "What result format should a new Go ResourceSearchRequest use?",
+    "pr-resource-search-result-format.yml workflow failing, what to do"
+  ],
+  "body": "Invariant: any newly-added Go construction of resourcepb.ResourceSearchRequest (composite literal, new(), var zero-value, including grouped var blocks) must set ResultFormat to resourcepb.ResourceSearchRequest_FIELD_VALUES. This is enforced in CI by a semgrep scan that diffs against the PR base commit, so only *new* occurrences are flagged — pre-existing code using other formats is untouched. If a different format is genuinely required for compatibility, suppress the finding at the allocation site with a `// nosemgrep` style reason comment rather than removing the check. Enforced in .github/workflows/pr-resource-search-result-format.yml using pkg/storage/unified/semgrep/resource-search-field-values.yaml; skipping it lets new clients regress to the old result format, breaking mixed-version decode compatibility.",
+  "applies": "Any Go code in this repo (outside resourcepb, testing helpers, and the semgrep fixture itself) that constructs a resourcepb.ResourceSearchRequest.",
+  "tags": [
+    "ci",
+    "semgrep",
+    "resource-search",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/pr-resource-search-result-format.yml",
+      "hash": "sha256:ab1b369a85b2cdf9e00cc764",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/semgrep/resource-search-field-values.yaml",
+      "hash": "sha256:0d6d2f1de20a31ca6050d1f7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133001"
+  },
+  "created": "2026-10-04T06:00:22.236Z",
+  "verified": "2026-10-04T06:00:22.236Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does CI fail when I add new search request code in Go?",
+    "What result format is required for new search client implementations?",
+    "How do I construct a search request without triggering CI check?",
+    "New Go code for search requests is rejected by automated scan",
+    "What format setting is mandatory when allocating new search requests?"
+  ],
+  "saysFor": "883:direct-go-resourcesearch",
+  "search": "Go ResourceSearchRequest constructors must set ResultFormat to FIELD_VALUES: any new construction (composite literal, new(), var zero-value, var blocks) must set ResultFormat field, enforced by semgrep CI scan (.github/workflows/pr-resource-search-result-format.yml, pkg/storage/unified/semgrep/resource-search-field-values.yaml) checking only *new* PRs diffs. Pre-existing code untouched. Exception: suppress with // nosemgrep comment if different format genuinely required for compatibility. Constraint: skipping allows regression to old result format, breaking mixed-version decode compatibility. Applies to Go code constructing resourcepb.ResourceSearchRequest outside resourcepb, testing helpers, and the semgrep fixture."
+}

@@ -87,5 +87,6 @@
     "Adding new scene to product",
     "Product routes regenerated after manifest change"
   ],
-  "saysFor": "1509:adding-changing-a-produc"
+  "saysFor": "1509:adding-changing-a-produc",
+  "search": "Product URL changes flow from manifest definition through generated build outputs to routes and redirects: define urls and routes in products/<name>/manifest.tsx, run `pnpm build:products` to regenerate frontend/src/products.tsx (DO NOT EDIT BY HAND), and add old paths to manifest.redirects or frontend/src/scenes/scenes.ts:redirects. String redirects drop query and hash unless using function form `(params, searchParams, hashParams) => string`; auto-forwarded params via forwardedRedirectQueryParams (currently ['modal']). A redirect must not shadow a path with its own scene; new manifest imports require manual addition to products.tsx per products/README.md. Applies to product-based routing; core scenes are edited directly in scenes.ts."
 }

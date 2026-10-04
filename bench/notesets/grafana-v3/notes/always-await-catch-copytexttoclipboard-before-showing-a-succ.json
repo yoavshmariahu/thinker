@@ -1,0 +1,62 @@
+{
+  "id": "always-await-catch-copytexttoclipboard-before-showing-a-succ",
+  "title": "Always await/catch copyTextToClipboard before showing a success notification",
+  "kind": "rule",
+  "answers": [
+    "Success toast shown even though clipboard copy failed",
+    "Copy link to clipboard shows success but nothing was copied"
+  ],
+  "body": "Symptom: a 'copied to clipboard' success notification appeared even when the copy actually failed (e.g. clipboard permission denied).\nRoot cause: `copyTextToClipboard`/its predecessors were called without awaiting the returned promise, so the success notification fired unconditionally right after the call.\nFix pattern: wrap the call in try/await and only dispatch the success notification inside the try, logging/dispatching an error notification in the catch — see public/app/core/utils/shortLinks.ts:createAndCopyShareDashboardLink and public/app/features/explore/RichHistory/RichHistoryCard.tsx (onCopyQuery) for the pattern.\nConstraints: applies to every caller of copyTextToClipboard; fire-and-forget is only acceptable when there is no user-visible success/failure feedback tied to the call.",
+  "applies": "Any UI action that copies text to clipboard and then shows a success/error notification",
+  "tags": [
+    "clipboard",
+    "notifications",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "public/app/core/utils/shortLinks.ts",
+      "symbol": "createAndCopyShareDashboardLink",
+      "hash": "sha256:fbc8800744f3a519f7f4856b",
+      "line": 102,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/utils/copyToClipboard.ts",
+      "symbol": "copyTextToClipboard",
+      "hash": "sha256:6899ec054565a17538711ef2",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 18,
+        "refs": 38
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132731"
+  },
+  "created": "2026-10-04T06:38:22.686Z",
+  "verified": "2026-10-04T06:38:22.686Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "clipboard-copy-pass-pending-promises-to-clipboarditem-don-t",
+    "use-grafana-ui-copytexttoclipboard-instead-of-a-bespoke-clip"
+  ],
+  "says": [
+    "Success toast shown even though clipboard copy failed",
+    "Copy link to clipboard shows success but nothing was copied"
+  ],
+  "saysFor": "876:always-await-catch-copyt",
+  "search": "Always await and catch copyTextToClipboard before showing a success notification, since the promise may reject if clipboard permissions are denied or the copy fails. Wrap the call in try/await, dispatch the success notification only inside the try block, and log/dispatch an error notification in the catch block. This pattern applies to every caller of copyTextToClipboard except when there is no user-visible feedback tied to the call; fire-and-forget is acceptable only when copy failure has no UI consequence. See public/app/core/utils/shortLinks.ts:createAndCopyShareDashboardLink and packages/grafana-ui/src/utils/copyToClipboard.ts:copyTextToClipboard for reference implementations."
+}

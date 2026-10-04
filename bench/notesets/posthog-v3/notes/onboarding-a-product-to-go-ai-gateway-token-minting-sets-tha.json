@@ -60,5 +60,6 @@
     "Enabling AI gateway minting requires updating multiple settings",
     "Which configuration controls Go gateway minting availability?"
   ],
-  "saysFor": "1204:onboarding-a-product-to-"
+  "saysFor": "1204:onboarding-a-product-to-",
+  "search": "Enabling a product for Go AI gateway token minting requires updating six interdependent configuration sets: `MINTABLE_PRODUCTS`, `SANDBOX_BOUND_MINTABLE_PRODUCTS` (if run has no wall-clock cap), and `AI_CREDITS_BILLED_PRODUCTS` in products/tasks/backend/temporal/process_task/ai_gateway_token.py; `PRODUCT_ALLOWED_MODELS` in gateway_model_pin.py (off-pin models default to Python gateway with `model_outside_pin`); `SANDBOX_AI_GATEWAY_TOKEN_CAP_USD_PRODUCT_OVERRIDES` default in posthog/settings/temporal.py (per-run USD cap like \"75\"); and parametrized test cases in test_ai_gateway_token.py including `test_ai_credits_billed_products` assertion. Minting remains inactive until the product is listed in the `SANDBOX_AI_GATEWAY_PRODUCTS` environment variable (deployed via charts, not this repo). All lists must stay in sync; off-pin model behavior and credit-check logic differ between Python and Go gateways. Applies to adding or modifying a product's eligibility for Go AI gateway tokens in sandbox task runs."
 }

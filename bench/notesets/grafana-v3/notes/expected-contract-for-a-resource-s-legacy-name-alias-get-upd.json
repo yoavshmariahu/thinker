@@ -1,0 +1,53 @@
+{
+  "id": "expected-contract-for-a-resource-s-legacy-name-alias-get-upd",
+  "title": "Expected contract for a resource's legacy name alias (GET/UPDATE/CREATE/DELETE)",
+  "kind": "howto",
+  "answers": [
+    "How should a resource alias behave on create/update/delete?",
+    "What tests cover the default routing tree alias?",
+    "Is creating a resource via its alias allowed?",
+    "Does deleting via an alias delete or reset the resource?"
+  ],
+  "body": "When a resource supports a legacy alias for a canonical name (e.g. routing tree's default/root route addressable as both the canonical name and 'user-defined'), the expected behavior exercised by integration tests is: GET/UPDATE via the alias behave identically to using the canonical name and echo the alias back as ObjectMeta.Name; CREATE via the alias is rejected (aliases can't create new resources); DELETE via the alias resets the resource to default rather than deleting it. See TestIntegrationMultipleRoutesCRUD/Default routing tree alias for the reference test pattern when adding or verifying alias support on another resource.",
+  "applies": "pkg/tests/apis/alerting/notifications/routingtree integration tests, and any future resource adding alias support",
+  "tags": [
+    "alerting",
+    "routing-tree",
+    "integration-test",
+    "alias"
+  ],
+  "deps": [
+    {
+      "path": "pkg/tests/apis/alerting/notifications/routingtree/routing_tree_test.go",
+      "symbol": "TestIntegrationMultipleRoutesCRUD",
+      "hash": "sha256:97276f54c6e0749c0751be76",
+      "line": 867,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132955"
+  },
+  "created": "2026-10-04T06:04:27.659Z",
+  "verified": "2026-10-04T06:04:27.659Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Deleting a routing tree by its legacy alias removes it instead of resetting",
+    "Getting a routing tree by old and new names produces different results",
+    "Updating routing tree via legacy alias doesn't return the alias in the response",
+    "Creating a routing tree resource using its legacy alias name unexpectedly succeeds",
+    "Operations on routing tree via legacy alias don't match operations via canonical name"
+  ],
+  "saysFor": "717:expected-contract-for-a-",
+  "search": "Resources with legacy name aliases (e.g., routing tree's 'default' or 'root' route) follow a specific CRUD contract: GET and UPDATE via the alias behave identically to the canonical name and echo the alias back as ObjectMeta.Name; CREATE via the alias is rejected because aliases cannot create new resources; DELETE via the alias resets the resource to default rather than deleting it. Reference implementation tested in pkg/tests/apis/alerting/notifications/routingtree/routing_tree_test.go:TestIntegrationMultipleRoutesCRUD. Applies to any resource implementing legacy alias support to verify contract compliance during integration testing."
+}

@@ -48,5 +48,6 @@
     "What stops an email address in CODEOWNERS from becoming a reviewer assignment?",
     "Why can't I use external contributors in CODEOWNERS for code review?"
   ],
-  "saysFor": "1039:code-owner-resolution-on"
+  "saysFor": "1039:code-owner-resolution-on",
+  "search": "CODEOWNERS resolution in `suggest_repository_owners` filters owner handles (users, @org/teams, emails) to project members with a linked GitHub login; non-members and members without GitHub identity are dropped, with case-insensitive email matching via `Lower(email)` and `get_github_login()`. Team members are expanded with `github.list_team_members` only for the repository's own org matching `_TEAM_SLUG`. CODEOWNERS is read from the first of `.github/CODEOWNERS`, `CODEOWNERS`, `docs/CODEOWNERS`; last matching rule wins, but files ≥3 MB, negations, and section patterns are skipped, with paths capped at `_MAX_PATHS` and '..' rejected. All failures log and return empty lists preserving existing author-based suggestions; new lookups must stay inside try/except. The scout prompt in `scout_harness/prompt.py` must be updated alongside `ownership_reviewers.py` changes."
 }

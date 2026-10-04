@@ -1,0 +1,64 @@
+{
+  "id": "iam-display-search-must-decode-both-resource-table-and-field",
+  "title": "IAM display search must decode both RESOURCE_TABLE and FIELD_VALUES response formats",
+  "kind": "rule",
+  "answers": [
+    "How do I decode a ResourceSearchResponse for display/avatar lookups?",
+    "Why does display search still handle the old table format?",
+    "User/service-account search shows blank names against older Grafana servers",
+    "ResourceSearchRequest_FIELD_VALUES vs RESOURCE_TABLE decoding"
+  ],
+  "body": "Symptom: display search (user/service-account title, email, login, legacy ID) breaks or returns empty names when talking to a server on a different version.\nRoot cause: pkg/registry/apis/iam/display/search.go previously assumed ResourceSearchResponse always carried the RESOURCE_TABLE shape (Results.Columns/Rows); newer servers can return FIELD_VALUES (Fields + Rows[].Values) instead.\nFix pattern: decodeDisplayRows switches on rsp.GetResultFormat() and routes to decodeDisplayTableRows (column-index + cellAt byte parsing) for UNSPECIFIED/RESOURCE_TABLE, or resource.DecodeSearchValues(rsp.Fields, row) for FIELD_VALUES, into a common displaySearchRow struct before building iam.Display items.\nConstraints: apply this dual-decode pattern whenever a client sets ResultFormat: FIELD_VALUES on a ResourceSearchRequest but must stay compatible with servers that only emit RESOURCE_TABLE; an unrecognized ResultFormat should return an error rather than silently decoding wrong.",
+  "applies": "pkg/registry/apis/iam/display/search.go and any caller of resourcepb.ResourceSearchRequest that sets ResultFormat",
+  "tags": [
+    "iam",
+    "search",
+    "resourcepb",
+    "backward-compat"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/display/search.go",
+      "symbol": "decodeDisplayRows",
+      "hash": "sha256:cc8663affb701eec1e3f3b9c",
+      "line": 199,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/display/search.go",
+      "symbol": "decodeDisplayTableRows",
+      "hash": "sha256:4ed8227d03b09ed3b46f358e",
+      "line": 235,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132807"
+  },
+  "created": "2026-10-04T06:27:10.843Z",
+  "verified": "2026-10-04T06:27:10.843Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "User search shows blank names against older Grafana versions",
+    "Display search breaks when querying different server versions",
+    "How do I decode search results for user display?",
+    "Service account names missing in search against legacy servers"
+  ],
+  "saysFor": "1060:iam-display-search-must-",
+  "search": "IAM display search must decode both RESOURCE_TABLE and FIELD_VALUES response formats via dual-path logic in pkg/registry/apis/iam/display/search.go:decodeDisplayRows. The decoding switches on rsp.GetResultFormat() to route to decodeDisplayTableRows for column-indexed byte parsing (UNSPECIFIED/RESOURCE_TABLE) or resource.DecodeSearchValues for FIELD_VALUES format, then builds a common displaySearchRow struct. Applies when a client sets ResultFormat: FIELD_VALUES on a ResourceSearchRequest to maintain compatibility with servers emitting only RESOURCE_TABLE; unrecognized ResultFormat must error rather than silently decode wrong. Handles display-name fields (user/service-account title, email, login, legacy ID) that break when talking to different-versioned servers."
+}

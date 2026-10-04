@@ -1,0 +1,65 @@
+{
+  "id": "codemirror-cells-must-disable-indentwithtab-or-tab-traps-key",
+  "title": "CodeMirror cells must disable indentWithTab or Tab traps keyboard focus",
+  "kind": "rule",
+  "answers": [
+    "Why can't I tab out of a notebook code/markdown cell?",
+    "Keyboard focus gets stuck inside the editor when pressing Tab",
+    "Tab key indents instead of moving focus to the next control",
+    "How to make a CodeMirror editor keyboard-accessible for leaving the field"
+  ],
+  "body": "Symptom: keyboard users pressing Tab inside a notebook code or markdown cell get indentation instead of moving focus to the language picker, toolbar, or next element — focus is trapped in the editor.\nRoot cause: CodeMirror's basicSetup binds Tab to indentWithTab by default, so the editor consumes the Tab keypress instead of letting it bubble to normal focus navigation.\nFix pattern: pass indentWithTab={false} to the CodeMirror component so Tab/Shift+Tab move focus normally; rely on other mechanisms (e.g. explicit indent shortcuts) for indenting.\nConstraints: applies to any CodeMirror-based editor embedded in a larger keyboard-navigable page (notebook cells, inline editors); do not disable indentWithTab for full-screen/modal code editors where Tab-to-indent is the expected authoring behavior and there's another way to exit.",
+  "applies": "Any CodeMirror-based editor embedded inside a keyboard-navigable page, e.g. public/app/features/notebook/scene/layout-notebook/cells/*.tsx",
+  "tags": [
+    "a11y",
+    "keyboard-navigation",
+    "codemirror",
+    "notebook"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/notebook/scene/layout-notebook/cells/CodeCell.tsx",
+      "symbol": "CodeCell",
+      "hash": "sha256:c27c3d62c1481bb2929eca41",
+      "line": 64,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 0,
+        "refs": 37
+      }
+    },
+    {
+      "path": "public/app/features/notebook/scene/layout-notebook/cells/MarkdownCellEditor.tsx",
+      "symbol": "MarkdownCellEditor",
+      "hash": "sha256:a180e8fab14a2152da98a1f8",
+      "line": 37,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132745"
+  },
+  "created": "2026-10-04T06:37:14.641Z",
+  "verified": "2026-10-04T06:37:14.641Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Keyboard users can't tab out of notebook code cells to next field",
+    "Tab key indents text instead of moving focus to the next control",
+    "Why is keyboard focus trapped inside the code or markdown cell editor?",
+    "Pressing Tab inside a notebook cell editor doesn't navigate away from it",
+    "How to make notebook code editors keyboard accessible for users to exit?"
+  ],
+  "saysFor": "905:codemirror-cells-must-di",
+  "search": "CodeMirror notebook cells must set indentWithTab={false} to prevent Tab key trapping keyboard focus inside the editor instead of navigating to the next focusable element. The basicSetup binding consumes Tab keypresses by default, blocking focus movement in keyboard-navigable pages. This applies to CodeCell.tsx and MarkdownCellEditor.tsx in public/app/features/notebook/scene/layout-notebook/cells/, and any embedded CodeMirror editor within larger pages; do not apply this constraint to full-screen or modal code editors where Tab-to-indent is the intended authoring behavior."
+}

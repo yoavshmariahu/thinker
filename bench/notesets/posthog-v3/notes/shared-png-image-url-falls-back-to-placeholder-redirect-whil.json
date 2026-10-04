@@ -52,5 +52,6 @@
     "Empty image preview for shared dashboard links",
     "Shared dashboard link preview blank until export finishes"
   ],
-  "saysFor": "764:shared-png-image-url-fal"
+  "saysFor": "764:shared-png-image-url-fal",
+  "search": "Shared insight and dashboard PNG image endpoint falls back to a static redirect when the export is pending. The endpoint at posthog/api/sharing.py:retrieve calls get_content_response(exported_asset, False), and if it raises NotFound (export not yet complete), returns HttpResponseRedirect(static(\"blank-dashboard-hog.png\")) with Cache-Control: no-store. The no-store header ensures the redirect is not cached, so preview crawlers hitting the URL before async export completes see the placeholder, and the real export is served once ready. Keep no-store on the fallback; missing exported_asset still raises NotFound. Test in posthog/api/test/test_sharing.py:test_shared_thing_uses_placeholder_while_open_graph_image_is_pending."
 }

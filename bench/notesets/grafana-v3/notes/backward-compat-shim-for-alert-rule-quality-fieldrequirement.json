@@ -1,0 +1,54 @@
+{
+  "id": "backward-compat-shim-for-alert-rule-quality-fieldrequirement",
+  "title": "Backward-compat shim for alert rule quality FieldRequirement schema change",
+  "kind": "rule",
+  "answers": [
+    "Old alert rule quality policies fail to decode / unmarshal after schema change",
+    "AlertRuleQualityPolicy requiredAnnotations/requiredLabels fail to read in dev",
+    "How to make a Kubernetes-style API type backwards compatible when a field type changes",
+    "FieldRequirement unmarshal error on legacy string policies"
+  ],
+  "body": "Symptom: existing AlertRuleQualityPolicy resources (requiredAnnotations/requiredLabels, previously []string) fail to be read after the field type changed to []FieldRequirement (struct{Key,Enforce}) in #132549.\nRoot cause: apiserver storage decodes stored JSON strictly into the new struct type; old records still contain bare strings, so json.Unmarshal fails with no compatibility path.\nFix pattern: add a custom UnmarshalJSON on the struct that checks if the raw JSON starts with a quote (legacy string case) and maps it to the new struct with a sensible default (here Enforce: true, matching old semantics of \"always blocked\"), otherwise falls through to the normal struct decode via a type-aliased unmarshal to avoid infinite recursion.\nConstraints: this is an explicitly temporary shim (per code comment) meant only to let old records be read once so they can be migrated/deleted; it must be removed once legacy data is cleared, and it should not be relied on for new writes — Marshal always emits the new struct shape.",
+  "applies": "apps/alerting/alertrulequality apiserver types when evolving the AlertRuleQualityPolicy spec schema",
+  "tags": [
+    "alerting",
+    "backward-compatibility",
+    "json-unmarshal",
+    "apiserver",
+    "schema-migration"
+  ],
+  "deps": [
+    {
+      "path": "apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/field_requirement_json.go",
+      "symbol": "UnmarshalJSON",
+      "hash": "sha256:4ab075d5bc7a6f3a26312231",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 35,
+        "refs": 92
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132980"
+  },
+  "created": "2026-10-04T06:02:30.608Z",
+  "verified": "2026-10-04T06:02:30.608Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Old alert policies stop working after updating alert rule quality",
+    "Alert rules with string fields fail to read in new version",
+    "How do I keep alert policies compatible during field type changes",
+    "Legacy alert rules won't load after switching field structures",
+    "Alert policy loading breaks when field type changes to struct"
+  ],
+  "saysFor": "1098:backward-compat-shim-for",
+  "search": "Backward-compatible UnmarshalJSON shim for AlertRuleQualityPolicy schema migration from []string to []FieldRequirement struct. The custom unmarshal in apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/field_requirement_json.go:UnmarshalJSON detects legacy string-based JSON records (by checking for leading quote) and maps them to the new struct with Enforce: true, falling through to normal struct decode via type alias to avoid recursion. This is an explicitly temporary shim for one-time reading of existing stored resources; must be removed once legacy data is cleared and should not be used for new writes, as Marshal always emits the new struct shape. Applies to evolving AlertRuleQualityPolicy requiredAnnotations/requiredLabels spec fields."
+}

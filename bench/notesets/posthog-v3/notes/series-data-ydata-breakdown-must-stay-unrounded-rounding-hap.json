@@ -56,5 +56,6 @@
     "Metric card total differs from sum of values",
     "Rounding errors accumulate in final result"
   ],
-  "saysFor": "804:series-data-ydata-breakd"
+  "saysFor": "804:series-data-ydata-breakd",
+  "search": "SQL data visualization series (yData selector, parseBreakdownSeriesValue) must NOT round to formatting.decimalPlaces; rounding only happens at display via formatSqlSeriesValue. Rounding series values causes metric cards, pie charts, and breakdown bucket totals to sum incorrectly (e.g., two 0.49 rows become 0 instead of 0.98). The yData selector must return null (or 0 with showNullsAsZero) for unparseable values like 'NaN', not NaN itself. This applies to all SQL data visualization series parsing in dataVisualizationLogic.ts, seriesBreakdownLogic.ts, and sqlLineGraphAdapter.ts. Note that draft PR #105535 may move these parsers; whichever lands second must also drop the rounding."
 }

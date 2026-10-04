@@ -1,0 +1,50 @@
+{
+  "id": "manifest-kind-folder-scope-is-now-resolved-per-served-versio",
+  "title": "Manifest kind folder scope is now resolved per served version, not coalesced",
+  "kind": "rule",
+  "answers": [
+    "Can different versions of the same manifest kind have different folderScoped settings?",
+    "Why did my app plugin's folder requirement get overridden by another version?",
+    "Is there a check preventing a new version from losing folder-scope enforcement?"
+  ],
+  "body": "Previously kindstore.FolderScopedResources OR-folded folderScoped across every served version of an app-plugin manifest kind because all versions shared one GroupResource-keyed storage-options registration; a later version declaring folderScoped:false was silently overridden by an earlier version requiring it. That function is deleted. Now pkg/services/apiserver/kindstore/store.go:New scopes folder support/RequireFolder into the per-GVK StorageOptions via opts.StorageOptsGetter, so each version keeps the scope it declares. Constraint/caveat: folder scope governs RBAC inheritance; tightening (adding folder requirement) in a newer version is safe, but loosening (dropping it) is not detected or blocked automatically — there is no startup check yet that flags a served version loosening folder scope relative to another version of the same kind.",
+  "applies": "App-plugin manifest kinds (kindstore) served under multiple API versions with differing folderScoped declarations",
+  "tags": [
+    "kindstore",
+    "folders",
+    "rbac",
+    "manifest",
+    "versioning"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/apiserver/kindstore/store.go",
+      "symbol": "New",
+      "hash": "sha256:7890d8c313b5f98743c2acd6",
+      "line": 95,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132733"
+  },
+  "created": "2026-10-04T06:37:57.356Z",
+  "verified": "2026-10-04T06:37:57.356Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "storage-options-must-be-scoped-per-gvr-not-registered-into-a"
+  ],
+  "says": [
+    "Different manifest versions should allow different folder scope requirements",
+    "New manifest version loses folder requirement from earlier version",
+    "Folder scoping behavior varies across served versions of manifest kind",
+    "Can I make new version require folder scope enforcement",
+    "Version-specific folder requirements being overridden by different version"
+  ],
+  "saysFor": "928:manifest-kind-folder-sco",
+  "search": "Manifest kind folder scope is now resolved per served version via StorageOptions in pkg/services/apiserver/kindstore/store.go:New (not coalesced across versions like the deleted FolderScopedResources function). Each GVK keeps the folderScoped scope it declares through opts.StorageOptsGetter; a later version's folderScoped:false no longer overrides an earlier version's requirement. Folder scope governs RBAC inheritance, so tightening it (adding requirement) in a newer version is safe, but loosening it is not detected or blocked automatically at startup. Caveat: there is no automatic check flagging when a served version loosens folder scope relative to another version of the same kind. Applies to app-plugin manifest kinds served under multiple API versions with differing folderScoped declarations."
+}

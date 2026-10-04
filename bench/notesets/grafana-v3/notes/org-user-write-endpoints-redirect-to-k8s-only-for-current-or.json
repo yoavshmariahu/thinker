@@ -1,0 +1,66 @@
+{
+  "id": "org-user-write-endpoints-redirect-to-k8s-only-for-current-or",
+  "title": "Org-user write endpoints redirect to k8s only for current-org + single-org + flag",
+  "kind": "rule",
+  "answers": [
+    "Why doesn't deleting an org user use the kubernetes User API?",
+    "How do I add a new org-user write path to the kubernetesUsersRedirect migration?",
+    "Why does DELETE /api/org/users/:userId behave differently from /api/orgs/:orgId/users/:userId?"
+  ],
+  "body": "Symptom: org write operations (update/remove) sometimes act on stale data because legacy org_user table can be empty/out of sync once reads are served from k8s User search.\nRoot cause: write paths kept calling the legacy org service even after reads moved to k8s (pkg/api/org_users.go:removeOrgUserHelper before this PR).\nFix pattern: in the handler, redirect to a *UsingK8s variant only when cmd.OrgID == c.GetOrgID() (i.e. the 'current org' endpoint, not the cross-org admin endpoint) AND hs.Cfg.RBAC.SingleOrganization AND the FlagKubernetesUsersRedirect openfeature flag is true; otherwise fall through to the existing orgService call unchanged.\nConstraints: only applies to single-org deployments; the cross-org variant (RemoveOrgUser/admin org users) intentionally keeps the legacy path and is unaffected — do not extend the redirect to it without separate review.",
+  "applies": "pkg/api/org_users.go write handlers (update/remove org user) gated by FlagKubernetesUsersRedirect",
+  "tags": [
+    "feature-flag",
+    "kubernetesusersredirect",
+    "org-users",
+    "single-org"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/org_users.go",
+      "symbol": "removeOrgUserHelper",
+      "hash": "sha256:e51238b9003524f04babd9ea",
+      "line": 681,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/api/org_users.go",
+      "symbol": "removeOrgUserUsingK8s",
+      "hash": "sha256:e2fa28a77f306c122c1b6d4e",
+      "line": 711,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133091"
+  },
+  "created": "2026-10-04T05:52:13.269Z",
+  "verified": "2026-10-04T05:52:13.269Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "k8s-redirected-org-user-delete-must-reimplement-last-admin-a"
+  ],
+  "says": [
+    "Organization user deletion still uses old data instead of kubernetes backend",
+    "Why don't org user delete requests use the kubernetes user API",
+    "Deleting org members operates on stale non-kubernetes data",
+    "Organization user updates not synced to kubernetes database",
+    "Org user removal should redirect to kubernetes but doesn't"
+  ],
+  "saysFor": "952:org-user-write-endpoints",
+  "search": "Org-user write handlers in pkg/api/org_users.go (removeOrgUserHelper, update operations) redirect to *UsingK8s variants only when three conditions are met: cmd.OrgID == c.GetOrgID() (current-org endpoint only, not cross-org admin), hs.Cfg.RBAC.SingleOrganization is true, and FlagKubernetesUsersRedirect feature flag is enabled. Otherwise fall through to the legacy orgService path unchanged. Single-org deployments avoid stale data from the legacy org_user table; the cross-org RemoveOrgUser endpoint intentionally remains on the legacy path."
+}

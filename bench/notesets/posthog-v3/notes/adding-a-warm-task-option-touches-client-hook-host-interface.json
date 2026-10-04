@@ -80,5 +80,6 @@
     "What controls warm task request behavior",
     "Coordinating warm task changes across layers"
   ],
-  "saysFor": "1050:adding-a-warm-task-optio"
+  "saysFor": "1050:adding-a-warm-task-optio",
+  "search": "Adding a warm-task launch option (like permissionMode) requires synchronized changes to the API client, hooks, host interface, saga, and UI components. The API client (posthog-client.ts) sends the option in the activation payload; hooks provide UseWarmTaskOptions and useWarmTask; host interface (ITaskCreationHost.takeWarmTaskLease) and saga (TaskCreationSaga) coordinate the lease; UI (TaskInput.tsx) passes it to the hook. The adapter default must match everywhere (adapter ?? \"claude\") to prevent lease-key mismatches, and activation is gated on `workspaceMode === \"cloud\" && canActivateWarmRun && runtime !== \"pi\"`. Applies to Desktop warm task and cloud task creation paths."
 }

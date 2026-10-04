@@ -1,0 +1,62 @@
+{
+  "id": "position-based-rule-matcher-fallback-only-engages-when-query",
+  "title": "Position-based rule matcher fallback only engages when query comparison yields >1 candidates",
+  "kind": "rule",
+  "answers": [
+    "Why doesn't the rule matcher fall back to position when the query hash matches nothing?",
+    "Rule matcher has no fallback for zero query matches",
+    "getMatchingRulerRule gives no match even though the rule exists"
+  ],
+  "body": "Invariant (currently a known gap, not yet fixed): the ruler-to-Prometheus rule matcher only consults the rule's position-in-group as a tiebreaker when the query-based comparison returns more than one candidate; when it returns zero candidates (e.g. because hashQuery fingerprints diverged) there is no fallback and the rule is reported unmatched on both sides.\nWhere enforced: public/app/features/alerting/unified/rule-list/ruleMatching.ts matching logic used by getMatchingRulerRule / matchRulesGroup.\nIf you fix a new hashQuery normalization gap, this zero-candidate case is still a silent failure mode worth checking against - the PR author explicitly flagged extending the position fallback to zero candidates as unfinished follow-up work.",
+  "applies": "public/app/features/alerting/unified/rule-list/ruleMatching.ts rule matching logic",
+  "tags": [
+    "alerting",
+    "rule-matching"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/rule-list/ruleMatching.ts",
+      "symbol": "getMatchingRulerRule",
+      "hash": "sha256:3479bddd28b9517d845c5def",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 14
+      }
+    },
+    {
+      "path": "public/app/features/alerting/unified/rule-list/ruleMatching.ts",
+      "symbol": "matchRulesGroup",
+      "hash": "sha256:0066c012644e217225b1c63b",
+      "line": 132,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132673"
+  },
+  "created": "2026-10-04T06:47:54.896Z",
+  "verified": "2026-10-04T06:47:54.896Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Rule not found by matcher despite actually existing",
+    "Query hash divergence prevents rule location and matching",
+    "Rule matcher fails when query comparison yields zero matches",
+    "Position-based rule fallback not engaging as tiebreaker",
+    "Ruler and Prometheus disagree on rule existence"
+  ],
+  "saysFor": "836:position-based-rule-matc",
+  "search": "The ruler-to-Prometheus rule matcher uses rule position-in-group as a tiebreaker only when query-based comparison returns more than one candidate, not when it returns zero. This means if hashQuery fingerprints diverge and no query-match is found, the rule is silently reported unmatched on both sides without consulting the position fallback. The logic is located in ruleMatching.ts (getMatchingRulerRule, matchRulesGroup) and represents a known gap where extending the position fallback to zero-candidate cases is flagged as unfinished follow-up work. When fixing hashQuery normalization gaps, explicitly test the zero-candidate case to detect this failure mode."
+}

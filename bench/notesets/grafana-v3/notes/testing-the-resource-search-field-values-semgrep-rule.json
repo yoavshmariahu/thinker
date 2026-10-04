@@ -1,0 +1,49 @@
+{
+  "id": "testing-the-resource-search-field-values-semgrep-rule",
+  "title": "Testing the resource-search-field-values semgrep rule",
+  "kind": "howto",
+  "answers": [
+    "How do I update the ResourceSearchRequest FIELD_VALUES semgrep rule?",
+    "How are semgrep rules tested in this repo?",
+    "Where are the test fixtures for the resource-search-field-values check?"
+  ],
+  "body": "The rule pkg/storage/unified/semgrep/resource-search-field-values.yaml is validated with `semgrep test --strict --config pkg/storage/unified/semgrep/resource-search-field-values.go` (this step also runs in CI before the real scan). The .go fixture file has `//go:build ignore` and uses `// ruleid: <id>` comments above lines that must match and `// ok: <id>` above lines that must not match. When changing the rule's matched patterns (e.g. to also catch grouped `var (...)` declarations), add/update corresponding ruleid/ok cases in this fixture file so `semgrep test` enforces the new behavior.",
+  "applies": "Changes to pkg/storage/unified/semgrep/*.yaml rule files and their matching *.go test fixtures.",
+  "tags": [
+    "semgrep",
+    "testing",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/semgrep/resource-search-field-values.yaml",
+      "hash": "sha256:0d6d2f1de20a31ca6050d1f7",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/semgrep/resource-search-field-values.go",
+      "hash": "sha256:188eeb8e6a516cb0caa353cc",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133001"
+  },
+  "created": "2026-10-04T06:00:22.278Z",
+  "verified": "2026-10-04T06:00:22.278Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I update the code pattern enforcement rule and verify it?",
+    "Adding new patterns to the resource search static analysis check",
+    "What variable declarations does the lint rule catch?",
+    "Preventing regressions when changing static analysis rules",
+    "Testing that my code change correctly triggers the rule"
+  ],
+  "saysFor": "649:testing-the-resource-sea",
+  "search": "Validating semgrep rule changes in pkg/storage/unified/semgrep/*.yaml requires running `semgrep test --strict --config` against the corresponding .go fixture file, which also runs in CI pre-scan. The fixture file uses //go:build ignore with // ruleid: <id> comments above lines that must match and // ok: <id> comments above lines that must not match. When modifying matched patterns (e.g., grouped var(...) declarations), add or update corresponding ruleid/ok test cases in the fixture so semgrep test enforces the new behavior. Key files: pkg/storage/unified/semgrep/resource-search-field-values.yaml, pkg/storage/unified/semgrep/resource-search-field-values.go."
+}

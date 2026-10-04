@@ -1,0 +1,51 @@
+{
+  "id": "dashboard-alerts-card-scroll-height-is-a-shared-constant-not",
+  "title": "Dashboard/Alerts card scroll height is a shared constant, not per-component CSS",
+  "kind": "map",
+  "answers": [
+    "Where is the height of the Recent/Starred/Most-used dashboard list set",
+    "How many rows show before scrolling in the Dashboards card",
+    "Why does the loading skeleton height match the loaded dashboard list height"
+  ],
+  "body": "The fixed scroll-area height for the DashboardTabs and Alerts cards on the redesigned homepage is defined once as DASHBOARD_TABS_SCROLL_HEIGHT_REDESIGN (currently 180, ~3 rows) in types.ts, and DASHBOARD_TABS_SCROLL_HEIGHT_DEFAULT (256) for the legacy layout.\nThis constant is consumed by DashboardTabs' loading skeleton and the real tab content so they stay pixel-identical and don't shift on load.\nChanging the visible row count means editing this one constant, not per-tab inline styles.",
+  "applies": "public/app/features/home/DashboardTabs/types.ts and consumers",
+  "tags": [
+    "homepage",
+    "dashboard-tabs",
+    "layout"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/home/DashboardTabs/types.ts",
+      "symbol": "DASHBOARD_TABS_SCROLL_HEIGHT_REDESIGN",
+      "hash": "sha256:aa0bc046430a43d423a4afe7",
+      "line": 34,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132616"
+  },
+  "created": "2026-10-04T06:56:10.844Z",
+  "verified": "2026-10-04T06:56:10.844Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How many dashboards show before scrolling in card",
+    "Where to change recent dashboard list scroll height",
+    "Adjusting visible rows in dashboard tabs on homepage",
+    "Dashboard card shows three rows before scrolling begins",
+    "Control scroll area size for dashboard list cards"
+  ],
+  "saysFor": "570:dashboard-alerts-card-sc",
+  "search": "The fixed scroll-area height for DashboardTabs and Alerts cards is stored in a single constant in public/app/features/home/DashboardTabs/types.ts: DASHBOARD_TABS_SCROLL_HEIGHT_REDESIGN (currently 180, ~3 rows) for the redesigned layout and DASHBOARD_TABS_SCROLL_HEIGHT_DEFAULT (256) for legacy layout. Both the loading skeleton and real tab content consume this constant to remain pixel-identical and avoid layout shift on load. Changing the visible row count requires editing only this one constant, not adding per-tab inline styles. Applies to types.ts and all consumers of these constants."
+}

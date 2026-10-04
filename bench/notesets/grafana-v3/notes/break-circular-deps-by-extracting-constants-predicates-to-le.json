@@ -1,0 +1,70 @@
+{
+  "id": "break-circular-deps-by-extracting-constants-predicates-to-le",
+  "title": "Break circular deps by extracting constants/predicates to leaf files",
+  "kind": "rule",
+  "answers": [
+    "How do I fix a circular dependency between two frontend modules?",
+    "yarn lint:circular flags a new import cycle, how to resolve it",
+    "ESLint import/no-cycle error in AppChrome or plugin extensions code"
+  ],
+  "body": "Symptom: adding/using a cross-file import of a constant or helper triggers a new circular import path (seen via `yarn lint:circular` or import/no-cycle). Root cause: the constant(s) or a single pure function were colocated in a component/barrel file (e.g. ExtensionSidebar.tsx) or a large multi-export utils file (utils.tsx) that other modules in the same cycle also import from. Fix pattern: extract just that constant/function into its own dependency-free leaf module and point all consumers at it instead of the original file. Constraints: only safe when the extracted symbol has no dependency back on the original file; it's a pure move with no behavior change — verify by re-running `yarn lint:circular` (path count should drop) and the existing test suite.",
+  "applies": "public/app/core/components/AppChrome/** and public/app/features/plugins/extensions/** (and any other area with eager circular imports)",
+  "tags": [
+    "circular-dependency",
+    "frontend-architecture",
+    "refactor-pattern"
+  ],
+  "deps": [
+    {
+      "path": "public/app/core/components/AppChrome/ExtensionSidebar/constants.ts",
+      "hash": "sha256:8624a30a739fc4e7df290067",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/extensions/isGrafanaDevMode.ts",
+      "symbol": "isGrafanaDevMode",
+      "hash": "sha256:aec572b29bc6a9dac3aed136",
+      "line": 3,
+      "missing": false,
+      "fanout": {
+        "files": 13,
+        "sites": 18,
+        "refs": 72
+      }
+    },
+    {
+      "path": "public/app/features/plugins/extensions/deepFreeze.ts",
+      "symbol": "deepFreeze",
+      "hash": "sha256:bd49b48adb0373b460d7fc1d",
+      "line": 1,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 22,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133018"
+  },
+  "created": "2026-10-04T05:58:28.044Z",
+  "verified": "2026-10-04T05:58:28.044Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "mock-isgrafanadevmode-directly-not-via-utils-or-config-build"
+  ],
+  "says": [
+    "Circular dependency error when using a new constant import",
+    "Yarn linter detects circular imports from a fresh reference",
+    "How do I fix a circular dependency in frontend code",
+    "Import cycle error from adding a simple helper function",
+    "New import creates circular dependency between modules"
+  ],
+  "saysFor": "831:break-circular-deps-by-e",
+  "search": "Circular import paths are broken by extracting constants or pure helper functions from shared multi-export component/barrel files into dedicated leaf modules with no external dependencies. Detection via `yarn lint:circular` shows the symptom; root cause is a cross-file import of a symbol colocated in a file (e.g., ExtensionSidebar.tsx, utils.tsx) that other modules in the same cycle also depend on. Fix pattern: move the problematic symbol to its own standalone file (e.g., public/app/features/plugins/extensions/isGrafanaDevMode.ts:isGrafanaDevMode, deepFreeze.ts:deepFreeze) with no dependency path back to the original, then point all consumers at the new leaf module. Constraint: only safe when the extracted symbol has zero dependencies on the original file; it's a pure move with no behavior change—re-run `yarn lint:circular` to verify the cycle count decreases. Applies to public/app/core/components/AppChrome/** and public/app/features/plugins/extensions/** circular-dependency resolution."
+}

@@ -1,0 +1,64 @@
+{
+  "id": "show-hide-log-line-toggle-lives-in-loglinedetailslog-not-the",
+  "title": "Show/hide log line toggle lives in LogLineDetailsLog, not the Log Details header",
+  "kind": "map",
+  "answers": [
+    "Where is the show/hide log line button now?",
+    "How do I toggle the log line visibility from Log Details?",
+    "Log line eye icon moved from header",
+    "How does hiding/showing the log body field work in Log Details?"
+  ],
+  "body": "The eye-icon toggle to show/hide the log line body (LOG_LINE_BODY_FIELD_NAME) was moved out of LogLineDetailsHeader into LogLineDetailsLog, rendered inline with filter actions next to the log line text. It only appears when onClickShowField and onClickHideField are both provided via LogListContext and displayedFields is non-empty (showLogLineToggle), i.e. only when displayed-fields mode is in use. Toggling reports interaction logs_log_line_details_toggle_log_clicked with action show/hide.\nAny future change to log-line visibility controls should be made in LogLineDetailsLog.tsx, not the header component.",
+  "applies": "Log Details log line section and header (LogLineDetailsLog.tsx, LogLineDetailsHeader.tsx)",
+  "tags": [
+    "log-details",
+    "ui",
+    "log-line"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/logs/components/panel/LogLineDetailsLog.tsx",
+      "symbol": "LogLineDetailsLog",
+      "hash": "sha256:25d575d96b01028452940c3d",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 9
+      }
+    },
+    {
+      "path": "public/app/features/logs/components/panel/LogLineDetailsHeader.tsx",
+      "symbol": "LogLineDetailsHeader",
+      "hash": "sha256:f821c9c913a8c11fba2108f4",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132672"
+  },
+  "created": "2026-10-04T06:48:28.729Z",
+  "verified": "2026-10-04T06:48:28.729Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Log line show/hide eye icon missing from Log Details header.",
+    "Where did the toggle button for showing log body move to?",
+    "How do I hide the full log line text in Log Details view?",
+    "Eye icon to toggle log line visibility no longer in header area.",
+    "Button to show or hide log line moved from original location."
+  ],
+  "saysFor": "691:show-hide-log-line-toggl",
+  "search": "The eye-icon toggle for LOG_LINE_BODY_FIELD_NAME visibility moved from LogLineDetailsHeader.tsx into LogLineDetailsLog.tsx, rendered inline with filter actions. It only appears when onClickShowField and onClickHideField are provided via LogListContext and displayedFields is non-empty (showLogLineToggle), i.e., in displayed-fields mode only. Toggling reports logs_log_line_details_toggle_log_clicked interaction with action show/hide. Any future log-line visibility control changes belong in LogLineDetailsLog.tsx, not the header."
+}

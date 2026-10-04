@@ -1,0 +1,52 @@
+{
+  "id": "x-grafana-user-header-must-be-set-for-both-users-and-service",
+  "title": "X-Grafana-User header must be set for both users and service accounts",
+  "kind": "rule",
+  "answers": [
+    "Why is X-Grafana-User header missing for service account requests?",
+    "Proxy not forwarding user identity header for service accounts",
+    "How to add a new identity type to the proxy user header logic?"
+  ],
+  "body": "Symptom: Downstream proxied services (e.g. data sources) receive no X-Grafana-User header when the request is authenticated as a service account, even though sendUserHeader is enabled.\nRoot cause: pkg/util/proxyutil/proxyutil.go:ApplyUserHeader only checked user.IsIdentityType(claims.TypeUser), excluding claims.TypeServiceAccount, which regressed previous behavior.\nFix pattern: Pass all identity types that should receive the header to IsIdentityType (e.g. claims.TypeUser, claims.TypeServiceAccount) rather than checking a single type.\nConstraints: Apply this when restoring/extending which identity.Requester types get forwarded in proxy headers; do not blindly add every claims type, only ones intended to be externally identified to proxied services.",
+  "applies": "pkg/util/proxyutil/proxyutil.go and any proxy header logic gating on identity type",
+  "tags": [
+    "proxy",
+    "identity",
+    "service-account",
+    "headers"
+  ],
+  "deps": [
+    {
+      "path": "pkg/util/proxyutil/proxyutil.go",
+      "symbol": "ApplyUserHeader",
+      "hash": "sha256:f432e97d1e162659653bae2f",
+      "line": 105,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133081"
+  },
+  "created": "2026-10-04T05:53:01.840Z",
+  "verified": "2026-10-04T05:53:01.840Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Service account proxy calls don't forward user identity",
+    "Downstream service doesn't recognize who made service account request",
+    "Service account forwarding to other services loses user info",
+    "Service account requests fail to pass user identity downstream",
+    "Proxied calls from service accounts omit user information"
+  ],
+  "saysFor": "827:x-grafana-user-header-mu",
+  "search": "X-Grafana-User header forwarding via pkg/util/proxyutil/proxyutil.go:ApplyUserHeader must include both claims.TypeUser and claims.TypeServiceAccount when checking identity types, not only user accounts. The current code regressed to exclude service accounts from receiving the sendUserHeader, causing downstream proxied services to miss authentication context. The fix pattern passes multiple identity types to IsIdentityType() rather than checking a single type, enabling both user and service account requests to forward identity headers. Apply this constraint only to identity types intended for external identification to proxied services, avoiding blind inclusion of all claims types. Relevant to proxy header logic and data source authentication flows in pkg/util/proxyutil/proxyutil.go."
+}

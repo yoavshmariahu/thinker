@@ -108,5 +108,6 @@
     "What determines how invite validation errors reach the user interface?",
     "Why is the invite failure message only a toast notification, not inline?"
   ],
-  "saysFor": "1151:invite-validation-errors"
+  "saysFor": "1151:invite-validation-errors",
+  "search": "Invite validation errors from backend serializer/PermissionDenied (4xx) are converted by first_bulk_invite_error to a single ValidationError (first row only) and reach the client as ApiError via frontend/src/lib/api-error.ts:ApiError.fromResponse. inviteLogic has no failure listener and no inline field error handlers; errors surface only via the global handler in frontend/src/initKea.ts loadersPlugin.onFailure, which shows lemonToast.error() with the error detail. Status 429 is rewritten to \"Rate limit exceeded\" (OrganizationInviteBurstThrottle 50/hour); verified_domain_required 400 errors keep generic toast; 403 gets dedicated apiStatusLogic toast. Applies to modifying invite error UX, adding field-level validation, and handling rate limiting."
 }

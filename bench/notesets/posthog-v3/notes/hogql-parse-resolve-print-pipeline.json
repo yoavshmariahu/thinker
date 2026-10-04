@@ -1,7 +1,7 @@
 {
   "id": "hogql-parse-resolve-print-pipeline",
   "title": "HogQL parse → resolve → print pipeline",
-  "kind": "callpath",
+  "kind": "map",
   "answers": [
     "How is HogQL parsed and resolved?",
     "Where does resolve_types run?",
@@ -48,8 +48,8 @@
     {
       "path": "posthog/hogql/resolver.py",
       "symbol": "resolve_types",
-      "hash": "sha256:bedf8ef6fff43a36e1424054",
-      "line": 239,
+      "hash": "sha256:9332289201543ba90ff0f3ca",
+      "line": 248,
       "missing": false
     },
     {
@@ -85,5 +85,6 @@
     "How does query validation and type checking work?",
     "I need to fix my query compilation error"
   ],
-  "saysFor": "1097:hogql-parse-resolve-prin"
+  "saysFor": "1097:hogql-parse-resolve-prin",
+  "search": "HogQL's compile pipeline has three stages: parse to untyped ast.py nodes, resolve types via resolver.py:Resolver (a CloningVisitor), and print backend-specific SQL. Parse uses parser.py functions (parse_expr, parse_select, parse_order_expr, parse_program) calling _resolve_parser_mode → _parse_cached → RULE_TO_PARSE_FUNCTION[backend][ParseRule] with optional _run_shadow_comparison before replace_placeholders; only C++ backend is ANTLR-generated from grammar/HogQLParser.g4 and HogQLLexer files (rebuild via pnpm run grammar:build → common/hogql_parser/), whereas the Rust parser is hand-written and must be manually updated for grammar changes. Resolve binds tables from context.database and types expressions via visit_select_query, visit_join_expr, visit_field, visit_call; it is called and timed by printer/utils.py:prepare_ast_for_printing and re-run after JSON pushdown and Trino lowering. Postgres tables are printed by printer/clickhouse.py:ClickHousePrinter._print_table_ref with team guard, predicates, and retention applied; object-level access control is added by printer/access_control.py."
 }

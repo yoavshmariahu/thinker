@@ -51,5 +51,6 @@
     "Adding tool detail table, which filter logic applies?",
     "Applied filter control but tool data didn't actually filter"
   ],
-  "saysFor": "874:tool-detail-runners-must"
+  "saysFor": "874:tool-detail-runners-must",
+  "search": "Every tool detail runner in products/mcp_analytics/backend/hogql_queries/tool_tables.py must construct WHERE clauses via _tool_call_where(query, date_range, team, extra=...), which applies tool_scope_exprs(query.toolName) and shared_filter_exprs(team, query.properties, query.filterTestAccounts); the helper takes the whole query, not a tool name. New query types must be added to the _ToolDetailQuery union; omitting filters from WHERE while declaring them in schema causes UI to show unfiltered data behind active filter controls. MCPToolNeighborsQueryRunner is an exception: it calls shared_filter_exprs inside its CTE, not outer WHERE, because a filtered-out call must not count as a neighbour of the target tool. Applies to tool detail query runners in products/mcp_analytics/backend/hogql_queries/tool_tables.py."
 }

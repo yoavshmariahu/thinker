@@ -1,0 +1,84 @@
+{
+  "id": "test-searchafter-pagination-against-a-real-bleve-index-with",
+  "title": "Test SearchAfter pagination against a real bleve index, with page size overridden via a package var",
+  "kind": "howto",
+  "answers": [
+    "How do I unit-test cursor pagination logic without mocking every page?",
+    "How to test a unified storage search walk against a real index",
+    "Testing SearchAfter/cursor behavior for folder search"
+  ],
+  "body": "pkg/storage/unified/migrations/validator.go exposes `var folderSearchPageSize int64 = 10000` specifically so tests can shrink it (e.g. to 2) and force real multi-page walks.\nFor realistic cursor/SortFields values (not easy to fabricate correctly by hand for mocks), build a real bleve index via search.NewBleveBackend + BuildIndex and wrap its ResourceIndex.Search in a small ResourceIndexClient adapter (see validator_test.go:indexSearchClient) instead of a full mock.\nUse mocks (resource.NewMockResourceClient) only for behaviors a real index can't produce: legacy table-format responses, a page that errors, or a server that ignores/repeats the cursor.",
+  "applies": "Tests for unified storage search pagination logic in pkg/storage/unified/migrations.",
+  "tags": [
+    "testing",
+    "unified-storage",
+    "search",
+    "bleve",
+    "pagination"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/migrations/validator_test.go",
+      "symbol": "folderSearchPageSize",
+      "hash": "sha256:b2cbd17887f21d37e9fbd307",
+      "line": 200,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pkg/storage/unified/migrations/validator_test.go",
+      "symbol": "indexSearchClient",
+      "hash": "sha256:7657ced59cb8f4ac24b42c43",
+      "line": 371,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/storage/unified/migrations/validator.go",
+      "hash": "sha256:a7d423f8880157563b103465",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/migrations/validator_test.go",
+      "symbol": "indexSearchClient",
+      "hash": "sha256:7657ced59cb8f4ac24b42c43",
+      "line": 371,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132984"
+  },
+  "created": "2026-10-04T06:01:59.407Z",
+  "verified": "2026-10-04T06:01:59.407Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cursor-paging-loop-must-detect-a-non-advancing-or-missing-cu"
+  ],
+  "says": [
+    "How do I test search pagination without fabricating cursor data?",
+    "Testing multi-page results against a real search index",
+    "Why does paginated folder search fail with mocked results?",
+    "Validating sort fields and cursor values for pagination",
+    "How to walk through multiple pages of real search results"
+  ],
+  "saysFor": "755:test-searchafter-paginat",
+  "search": "SearchAfter pagination tests should build a real bleve index via search.NewBleveBackend and BuildIndex, wrapping its ResourceIndex.Search in a ResourceIndexClient adapter (see pkg/storage/unified/migrations/validator_test.go:indexSearchClient), rather than mocking, because cursor and SortFields values are difficult to fabricate correctly by hand for realistic pagination behavior. The validator.go module exposes folderSearchPageSize as an overridable package variable specifically so tests can shrink it (e.g., to 2) and force real multi-page walks. Mocks (resource.NewMockResourceClient) should only simulate behaviors a real bleve index cannot produce: legacy table-format responses, a page that errors mid-stream, or a server that ignores or repeats the cursor. Applies to tests for unified storage search pagination logic in pkg/storage/unified/migrations."
+}

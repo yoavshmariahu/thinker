@@ -94,5 +94,6 @@
     "Sandbox backend defaulting to modal despite flag enabled",
     "Why custom sandbox provider setting not being respected?"
   ],
-  "saysFor": "1110:sandbox-backend-selectio"
+  "saysFor": "1110:sandbox-backend-selectio",
+  "search": "Per-run backend is selected in temporal/process_task/activities/get_task_processing_context.py:_resolve_sandbox_backend, returning \"modal\" or \"hogland\"; state[\"sandbox_backend\"]==\"modal\" override always wins, hogland requires HOGLAND_API_URL+token, non-EU, no custom image, no Pi runtime, default template, else tasks-hogland-sandbox flag decides, stored in TaskProcessingContext.sandbox_backend. Class resolution: logic/services/sandbox.py:get_sandbox_class_for_run_backend() diverts only for hogland, else get_sandbox_class() reads SANDBOX_PROVIDER (docker, MODAL_DOCKER, MODAL_EVALS, hogland only in DEBUG/TEST, default Modal). get_sandbox_class_for_sandbox_id() uses id prefix box- for hogland detection; used by cleanup/reaper. Implementations in logic/services/{modal,docker,hogland}_sandbox.py. Reporting: provision_sandbox.py calls sandbox_class.create; temporal/metrics.py:modal_sandbox_backend_label gives v1/v2 (MODAL_SANDBOX_V2); models.py:SandboxSession.sandbox_backend is NULL for Modal. Applies to task sandbox provisioning and class selection."
 }

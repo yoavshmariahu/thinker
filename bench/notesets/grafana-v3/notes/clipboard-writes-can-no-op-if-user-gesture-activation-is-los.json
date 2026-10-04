@@ -1,0 +1,45 @@
+{
+  "id": "clipboard-writes-can-no-op-if-user-gesture-activation-is-los",
+  "title": "Clipboard writes can no-op if user gesture activation is lost before they run",
+  "kind": "rule",
+  "answers": [
+    "Why does clicking 'Copy link' sometimes not actually copy anything?",
+    "Copy-to-clipboard button silently fails after a dropdown/menu closes",
+    "navigator.clipboard.writeText does nothing in some browsers"
+  ],
+  "body": "Symptom: clicking a 'Copy link'/'Share' control inside a menu sometimes copies nothing, with no error, especially right after the menu closes.\nRoot cause: navigator.clipboard.writeText() requires an active user gesture at call time; if the write is deferred (e.g. after async menu-close logic) the browser silently drops it. public/app/core/utils/explore.ts:copyStringToClipboard previously called writeText directly.\nFix pattern: prefer navigator.clipboard.write([new ClipboardItem({'text/plain': Promise.resolve(value)})]) synchronously inside the click handler — ClipboardItem accepts a Promise so the async part doesn't need the gesture to still be live, only the initial call does. Always feature-detect (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) and require window.isSecureContext before using it, falling back to writeText then to a hidden textarea + document.execCommand('copy').\nConstraints: only applies to clipboard writes triggered from UI event handlers where activation timing is uncertain (menu items, async handlers); plain synchronous button clicks with writeText are usually fine. Clipboard API (including ClipboardItem) is unavailable outside secure contexts (non-HTTPS/non-localhost), so the execCommand fallback must be kept.",
+  "applies": "Any UI in the Grafana frontend that copies text to the clipboard, especially from menus/dropdowns or after async work",
+  "tags": [
+    "clipboard",
+    "frontend",
+    "traceview",
+    "ux-bug"
+  ],
+  "deps": [
+    {
+      "path": "public/app/core/utils/explore.ts",
+      "hash": "sha256:a893621351d6bfe25c84a2f4",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132624"
+  },
+  "created": "2026-10-04T06:54:48.189Z",
+  "verified": "2026-10-04T06:54:48.189Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Clicking a copy link button sometimes doesn't actually copy anything silently",
+    "Copy functionality fails silently after a dropdown menu closes and disappears",
+    "Why does clipboard write fail when called after async menu close?",
+    "Copy to clipboard stops working after closing a share or menu dropdown",
+    "How do we preserve user gesture activation for clipboard write operations?"
+  ],
+  "saysFor": "1350:clipboard-writes-can-no-",
+  "search": "Clipboard write user-gesture constraint: navigator.clipboard.writeText() requires active user gesture at call time; deferred calls (after async menu-close logic, menu item delays) silently drop with no error, especially in menu contexts. Use navigator.clipboard.write([new ClipboardItem({'text/plain': Promise.resolve(value)})]) synchronously inside the click handler instead, because ClipboardItem accepts a Promise and only the initial call needs the gesture to be live. Requires feature-detect: typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write && window.isSecureContext, with fallback chain to writeText then to hidden textarea + document.execCommand('copy'). Clipboard API is unavailable outside secure contexts (non-HTTPS/non-localhost), so execCommand fallback must be kept. Applies to any UI copying text from menus, dropdowns, or after uncertain async work; plain synchronous button clicks with writeText are usually unaffected. Example: public/app/core/utils/explore.ts:copyStringToClipboard."
+}

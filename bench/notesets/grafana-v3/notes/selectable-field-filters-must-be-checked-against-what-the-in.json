@@ -1,0 +1,94 @@
+{
+  "id": "selectable-field-filters-must-be-checked-against-what-the-in",
+  "title": "Selectable-field filters must be checked against what the index actually mapped",
+  "kind": "rule",
+  "answers": [
+    "Filter on a custom/selectable field returns zero results with no error",
+    "Why does a LIST with a field selector silently return nothing",
+    "Search filter on a newly declared selectable field matches nothing",
+    "How to refuse filters on fields the index doesn't have"
+  ],
+  "body": "Symptom: a filter on a selectable field declared after the index was built silently matches zero objects, indistinguishable from a legitimate empty result.\nRoot cause: pkg/storage/unified/search/bleve.go:toBleveSearchRequest turned the filter into an exact term query against a bleve field that was never mapped, so bleve just finds nothing.\nFix pattern: before building the query, compare requested selectable fields against the set the index was actually built with (read from build info at open time) and return a structured error (resource.NewSelectableFieldNotIndexedError) naming the unmapped fields instead of querying.\nConstraints: applies to filters; sorting and faceting on selectable fields were already refused the same way. Only relevant because the index's mapped-field set can lag the live kind declarations (index rebuild in progress, or a separate search server process with an older index).",
+  "applies": "pkg/storage/unified/search index query building for selectable fields",
+  "tags": [
+    "unified-storage",
+    "search",
+    "selectable-fields",
+    "bleve"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "toBleveSearchRequest",
+      "hash": "sha256:e2a96441d922dfb558b74c9a",
+      "line": 2600,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 14,
+        "refs": 16
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "toBleveSearchRequest",
+      "hash": "sha256:e2a96441d922dfb558b74c9a",
+      "line": 2600,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 14,
+        "refs": 16
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/errors.go",
+      "symbol": "NewSelectableFieldNotIndexedError",
+      "hash": "sha256:12e7b2bd8edf62f857832313",
+      "line": 179,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "toBleveSearchRequest",
+      "hash": "sha256:e2a96441d922dfb558b74c9a",
+      "line": 2600,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 14,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133102"
+  },
+  "created": "2026-10-04T05:51:06.380Z",
+  "verified": "2026-10-04T05:51:06.380Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "distinguish-field-has-limited-capability-warn-flag-gated-fro",
+    "internal-bleve-index-fields-must-be-refused-in-every-field-n",
+    "bleve-build-info-must-record-mapped-selectable-fields-not-ju",
+    "batchauthzsearcher-warns-when-a-search-matches-documents-but"
+  ],
+  "says": [
+    "Filtering on a custom field silently returns zero results no error",
+    "Why does list filtering on a newly declared field find nothing?",
+    "Search filter on new selectable field matches zero resources",
+    "How do I handle filters on fields the search index lacks?",
+    "Field filter silently fails instead of reporting which fields missing"
+  ],
+  "saysFor": "988:selectable-field-filters",
+  "search": "Selectable-field filters must be validated against the actual index mapping before building the query; pkg/storage/unified/search/bleve.go:toBleveSearchRequest must compare requested fields against the set the index was built with and return resource.NewSelectableFieldNotIndexedError for unmapped fields instead of silently matching zero objects. The mismatch occurs when a selectable field is declared after index build or when an older search server process has a lagging index. Constraint: this validation applies to filters only; sorting and faceting on selectable fields were already refused the same way. Irrelevant if the index's mapped-field set is always current with live kind declarations."
+}

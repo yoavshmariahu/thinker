@@ -53,5 +53,6 @@
     "How do I re-resolve a node that already has a type?",
     "Can I clear types from a resolved expression to resolve again?"
   ],
-  "saysFor": "274:gotcha-resolver-refuses-"
+  "saysFor": "274:gotcha-resolver-refuses-",
+  "search": "Resolver.visit in posthog/hogql/resolver.py raises ResolutionError if a node already carries a type attribute; to re-resolve a previously-resolved tree, first call clone_expr(node, clear_types=True) to strip types (pattern used in posthog/hogql/printer/utils.py:prepare_ast_for_printing before post-Trino-lowering resolve_types call). Applies to: re-resolving HogQL AST trees after prior resolution, AST transformation and printing workflows."
 }

@@ -1,7 +1,7 @@
 {
   "id": "gotcha-stale-flags-health-check-and-featureflagstatuschecker",
   "title": "Gotcha: stale_flags health check and FeatureFlagStatusChecker lack v2 guard",
-  "kind": "gotcha",
+  "kind": "rule",
   "answers": [
     "Do health checks handle v2 flag filters?",
     "Where might a v2 flag be misread as v1?"
@@ -28,8 +28,8 @@
     {
       "path": "products/feature_flags/backend/temporal/health_checks/stale_flags.py",
       "symbol": "_serves_more_than_one_result",
-      "hash": "sha256:68a740d14f15c288e1bf6a25",
-      "line": 173,
+      "hash": "sha256:17c4c1d51aa1b8acfe4dbbae",
+      "line": 208,
       "missing": false
     }
   ],
@@ -65,5 +65,6 @@
     "Feature flag status checker not properly detecting v2 flag configuration?",
     "How do v2 flag filters get processed in health monitoring?"
   ],
-  "saysFor": "433:gotcha-stale-flags-healt"
+  "saysFor": "433:gotcha-stale-flags-healt",
+  "search": "temporal/health_checks/stale_flags.py:_serves_more_than_one_result, _sole_served_variant and flag_status.py:FeatureFlagStatusChecker read filters['groups']/multivariate field without calling detect_config_format guard; a v2 flag config would be misread as v1 (no groups). No execution confirmation yet, inferred from code inspection. Guard is needed if touching these functions. Applies to: feature flag status checking, stale flag detection workflows; only a temporary gotcha until detect_config_format guard is added."
 }

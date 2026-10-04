@@ -48,5 +48,6 @@
     "Publish step silently failed with no alert sent",
     "Setting up secrets for package registry publishing"
   ],
-  "saysFor": "827:adding-a-publish-channel"
+  "saysFor": "827:adding-a-publish-channel",
+  "search": "New publish-* job (publish-npm, publish-homebrew, publish-cargo) in .github/workflows/release-cli.yml must be added to both notify-released job (with result == 'success' || 'skipped' clause) and notify-publish-failed job (with result == 'failure' clause), otherwise failures remain silent. Gating differs: publish-npm and publish-cargo use !announcement_is_prerelease || publish_prereleases; publish-homebrew is stable-only. crates.io auth via rust-lang/crates-io-auth-action (SHA-pinned) uses Trusted Publishing with permissions: id-token: write, not CARGO_REGISTRY_TOKEN secret. Applies to CLI release workflow channel jobs."
 }

@@ -69,5 +69,6 @@
     "How to route alert to AI worker",
     "Temporal alert evaluation runs on wrong queue"
   ],
-  "saysFor": "1032:ai-detector-evaluate-ale"
+  "saysFor": "1032:ai-detector-evaluate-ale",
+  "search": "The AI detector evaluate_alert Temporal activity must route to MAX_AI_TASK_QUEUE because only the max-ai worker holds model provider credentials; routing is conditional in posthog/temporal/alerts/workflows.py:CheckAlertWorkflow.run by passing task_queue=settings.MAX_AI_TASK_QUEUE only when prepare_result.uses_llm_detector is true, otherwise None (workflow's own queue). The route is gated by workflow.patched(\"alerts-evaluate-ai-detector-on-ai-queue\") to allow safe replay of in-flight runs; any new routing change on a live workflow requires a similar patch. Activities routed to the AI queue must be listed in posthog/temporal/alerts/__init__.py:AI_QUEUE_ACTIVITIES and appended to the MAX_AI_TASK_QUEUE entry in posthog/management/commands/start_temporal_worker.py; if not registered, the activity sits unpolled until timeout. The guard test test_ai_queue_registers_the_alert_evaluate_activity in test_start_temporal_worker.py validates registration."
 }

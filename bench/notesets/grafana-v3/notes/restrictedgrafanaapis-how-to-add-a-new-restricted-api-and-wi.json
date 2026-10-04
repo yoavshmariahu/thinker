@@ -1,0 +1,133 @@
+{
+  "id": "restrictedgrafanaapis-how-to-add-a-new-restricted-api-and-wi",
+  "title": "restrictedGrafanaApis: how to add a new restricted API and wire a new mutation command/document type",
+  "kind": "map",
+  "answers": [
+    "How do I expose a new privileged API to app plugins?",
+    "Where is the allow/block-list / feature-toggle gating for plugin access to restricted APIs?",
+    "What do I need to touch to add a new dashboard/notebook mutation command?",
+    "What do I need to touch to support a new mutable document type (not dashboard/notebook)?"
+  ],
+  "body": "Adding a restricted API is a 3-file change (per `public/app/features/plugins/components/restrictedGrafanaApis/README.md`): (1) add the API file under `restrictedGrafanaApis/`, (2) register it in the `restrictedGrafanaApis` object in `RestrictedGrafanaApisProvider.tsx` (gated by `config.featureToggles.restrictedPluginApis`), (3) add the field to `RestrictedGrafanaApisContextType` in `packages/grafana-data/src/context/plugins/RestrictedGrafanaApis.tsx` — it must stay optional there or the type guard breaks the build. The provider is mounted with a `pluginId` at `AppRootPage.tsx` (app plugin pages) and `plugins/extensions/utils.tsx` (extension points); allow/block-list enforcement by pluginId happens inside `RestrictedGrafanaApisContextProvider` in that same `@grafana/data` file, not in this folder.\n\nFor the `dashboardMutationAPI` specifically: a new mutation command must be added to `DASHBOARD_COMMANDS`/`NOTEBOOK_COMMANDS` so `commandRegistry.ts:allMutationCommands()` (the union of both, used by `dashboardMutationApi.ts:getPayloadSchema/getAvailableCommands`) can discover it even when that document type isn't mounted — adding the command's execute-time handling alone is not enough. A new mountable document type needs: a new `MutationResource` value in `dashboard-scene/mutation-api/clientBridge.ts`, a branch in the callback passed to `provideMutationClientFactory` (registered in `dashboardMutationApi.ts`), and the scene calling `createMutationClient` on activation / tearing it down on deactivation.",
+  "tags": [
+    "restrictedgrafanaapis",
+    "plugins",
+    "dashboardmutationapi",
+    "public/app"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/README.md",
+      "hash": "sha256:12b5f3ccf8b19097f5476b2a",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/RestrictedGrafanaApisProvider.tsx",
+      "symbol": "RestrictedGrafanaApisProvider",
+      "hash": "sha256:114d6af7ed3ee8d0839c46cd",
+      "line": 16,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "packages/grafana-data/src/context/plugins/RestrictedGrafanaApis.tsx",
+      "symbol": "RestrictedGrafanaApisContextType",
+      "hash": "sha256:b6cd3f9ffe77ed99c3b97085",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 11
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/commandRegistry.ts",
+      "symbol": "allMutationCommands",
+      "hash": "sha256:5f08525cbc5e1541a4f46377",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "dashboardMutationApi",
+      "hash": "sha256:6487bfbc284b2d02c21f3789",
+      "line": 79,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 27
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/mutation-api/clientBridge.ts",
+      "symbol": "provideMutationClientFactory",
+      "hash": "sha256:a074da784db6bf246bbee75f",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/AppRootPage.tsx",
+      "symbol": "AppRootPage",
+      "hash": "sha256:ce95d6c6d2d848f7a97d72f3",
+      "line": 66,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "getPayloadSchema",
+      "hash": "sha256:37d7c366e37f366ea259caee",
+      "line": 93,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 11,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "6ab22831-72f1-4740-aac6-17ed5e9b7480"
+  },
+  "created": "2026-10-04T06:03:24.148Z",
+  "verified": "2026-10-04T06:03:24.148Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboardplanpreview-owns-plan-preview-page-navigation-not-t",
+    "render-plan-must-stay-listed-as-available-even-with-no-dashb",
+    "allmutationcommands-must-stay-a-function-import-cycle-client"
+  ],
+  "says": [
+    "How do I let plugins modify dashboard and notebook content",
+    "Grant plugin access to new privileged dashboard mutation operation",
+    "Support new editable document type in plugin capabilities list",
+    "Where is the allow-list for plugin access to restricted mutations",
+    "Enable plugin mutations for document types beyond dashboards"
+  ],
+  "saysFor": "1621:restrictedgrafanaapis-ho",
+  "search": "Adding a restricted plugin API requires a 3-file change: create the API under restrictedGrafanaApis/, register it in RestrictedGrafanaApisProvider.tsx gated by config.featureToggles.restrictedPluginApis, and add an optional field to RestrictedGrafanaApisContextType in packages/grafana-data/src/context/plugins/RestrictedGrafanaApis.tsx. For dashboardMutationAPI specifically, new mutation commands must be added to DASHBOARD_COMMANDS or NOTEBOOK_COMMANDS so commandRegistry.ts:allMutationCommands() discovers them; a new document type also needs a MutationResource value in dashboard-scene/mutation-api/clientBridge.ts and a callback branch in provideMutationClientFactory. Applies to plugin API extensions, dashboard/notebook mutation wiring, and allow/block enforcement by pluginId in RestrictedGrafanaApisContextProvider."
+}

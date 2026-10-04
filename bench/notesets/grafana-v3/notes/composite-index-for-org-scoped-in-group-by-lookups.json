@@ -1,0 +1,54 @@
+{
+  "id": "composite-index-for-org-scoped-in-group-by-lookups",
+  "title": "Composite index for org-scoped IN+GROUP BY lookups",
+  "kind": "rule",
+  "answers": [
+    "Service account token count search is slow under concurrency",
+    "Query with WHERE org_id = ? AND x IN (...) GROUP BY x scans too much",
+    "Why add a composite index instead of relying on existing single-column indexes?",
+    "Does the service-account secret scanner query benefit from this index too?"
+  ],
+  "body": "Symptom: service-account search's token-count query (WHERE org_id = ? AND service_account_id IN (...) GROUP BY service_account_id) scans the whole organization's api_key rows, and this amplifies under concurrent searches on large installs. Root cause: no index existed covering both org_id and service_account_id together (pkg/services/sqlstore/migrations/apikey_mig.go). Fix pattern: add a nonunique composite index on the exact (filter-col, filter-col) pair used together in WHERE+GROUP BY, via NewAddIndexMigration — on MySQL/InnoDB this also covers COUNT(id) queries since secondary indexes include the primary key. Constraints: this only helps queries filtering/grouping by exactly org_id+service_account_id together; it does not speed up the secret scanner's separate global name-sort query, which is unaffected and unchanged.",
+  "applies": "Query-performance fixes for api_key/service-account token lookups and similar org-scoped multi-column filters",
+  "tags": [
+    "performance",
+    "index",
+    "service-accounts",
+    "sqlstore"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/apikey_mig.go",
+      "symbol": "addApiKeyMigrations",
+      "hash": "sha256:654afdca2d1a7bd73da5ce22",
+      "line": 7,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132962"
+  },
+  "created": "2026-10-04T06:03:29.564Z",
+  "verified": "2026-10-04T06:03:29.564Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "grafana-sql-migrations-append-only-mirrored-in-migration-ids"
+  ],
+  "says": [
+    "Service account token count search is slow under heavy concurrent load",
+    "Why does the service account search query perform poorly on large instances",
+    "Service account lookup becomes sluggish with many simultaneous search requests",
+    "Slow performance when filtering or counting service account tokens"
+  ],
+  "saysFor": "883:composite-index-for-org-",
+  "search": "Service-account token-count queries filtering by WHERE org_id = ? AND service_account_id IN (...) GROUP BY service_account_id require a nonunique composite index on (org_id, service_account_id) to avoid scanning entire organization rows, especially under concurrent load. Add the index via NewAddIndexMigration in pkg/services/sqlstore/migrations/apikey_mig.go; on MySQL/InnoDB, secondary indexes include the primary key so this also covers COUNT(id). This optimization applies only to queries that filter and group by exactly this column pair together; it does not affect separate unrelated queries like global name-sort lookups."
+}

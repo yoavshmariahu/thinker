@@ -47,5 +47,6 @@
     "Which properties can a load test write to safely together",
     "The property divergence check fails on dangerous database merge pairs"
   ],
-  "saysFor": "719:load-gen-person-properti"
+  "saysFor": "719:load-gen-person-properti",
+  "search": "Load generator person property consistency invariant: rust/capture-load-gen/src/event.rs:EventFactory enforces exactly one writer per property key (one user or one partition) via loadgen_last_update_{user} keying. Merged (dangerous-merge) pairs written from two partitions cause each backend to apply writes in its own arrival order, resulting in different final values and false property divergence in parity verify reports. Per-seed and per-user keys already follow the required shape; any new property set via $set payloads must be keyed per user or per seed, never shared across partitions. This constraint is critical for shadow parity run validation."
 }

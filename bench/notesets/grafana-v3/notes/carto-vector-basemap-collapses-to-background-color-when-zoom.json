@@ -1,0 +1,54 @@
+{
+  "id": "carto-vector-basemap-collapses-to-background-color-when-zoom",
+  "title": "CARTO vector basemap collapses to background color when zoomed out past its tile grid",
+  "kind": "rule",
+  "answers": [
+    "Geomap panel shows a flat/blank color when zoomed out",
+    "CARTO basemap renders as solid background instead of map",
+    "Small geomap panel (under 512px) shows no map tiles",
+    "Why does the CARTO vector basemap go blank at low zoom levels?"
+  ],
+  "body": "Symptom: a geomap panel using the CARTO vector basemap renders as the style's flat background color instead of the map, especially when the panel's largest dimension is under 512px.\nRoot cause: OpenLayers measures zoom in 256px worlds but CARTO's vector tiles are 512px, so the tile grid runs out one zoom level short of view zoom 0; ol-mapbox-style then converts the OL resolution into a negative style zoom and every style rule falls below its first zoom stop (public/app/plugins/panel/geomap/layers/basemaps/carto.ts:clampStyleToWidestTile).\nFix pattern: wrap the layer's style function so the resolution passed to it is clamped to tileGrid.getResolution(tileGrid.getMinZoom()) — i.e. never style with a resolution wider than the widest tile the grid actually covers.\nConstraints: applies to any vector-tile basemap/source whose tile size differs from OL's 256px assumption; don't apply to raster sources (no style-zoom math) or to vector tile grids whose tile size already matches 256px, since there's no gap to clamp.",
+  "applies": "geomap panel, CARTO/vector-tile basemap style functions using ol-mapbox-style",
+  "tags": [
+    "geomap",
+    "carto",
+    "basemap",
+    "ol-mapbox-style",
+    "zoom"
+  ],
+  "deps": [
+    {
+      "path": "public/app/plugins/panel/geomap/layers/basemaps/carto.ts",
+      "symbol": "clampStyleToWidestTile",
+      "hash": "sha256:6aaecb7c455f004a6bcf2d8c",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132851"
+  },
+  "created": "2026-10-04T06:21:15.435Z",
+  "verified": "2026-10-04T06:21:15.435Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Geomap shows blank background instead of map tiles",
+    "CARTO basemap disappears when zooming out too far",
+    "Small geomap panel shows solid color not the actual map",
+    "Map goes blank instead of rendering tiles at low zoom",
+    "Basemap renders as flat color when zoomed out far enough"
+  ],
+  "saysFor": "1108:carto-vector-basemap-col",
+  "search": "CARTO vector basemap in public/app/plugins/panel/geomap/layers/basemaps/carto.ts:clampStyleToWidestTile renders as flat background color instead of the map when panels are small or zoomed out far, because OpenLayers measures zoom in 256px worlds but CARTO tiles are 512px, leaving a zoom level gap where style rules never match. Wrap the layer style function to clamp resolution to tileGrid.getResolution(tileGrid.getMinZoom()), never styling with a resolution wider than the widest tile the grid covers. This applies only to vector-tile basemaps/sources with non-256px tile sizes; skip for raster sources or grids already matching 256px."
+}

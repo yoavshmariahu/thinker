@@ -53,5 +53,6 @@
     "Command-line tool missing the API from official package",
     "New files in the build aren't packaged for distribution"
   ],
-  "saysFor": "734:posthog-cli-crate-api-bu"
+  "saysFor": "734:posthog-cli-crate-api-bu",
+  "search": "The posthog-cli crate must explicitly include its gitignored API bundle (lib/posthog-api-cli.mjs, written during release) in cli/Cargo.toml's `include` list alongside src/**/* and build.rs, because explicit include replaces cargo's default tracked-files behavior. Any new build input or embedded asset must be added to the include list or `cargo install` will break for consumers. The release workflow (.github/workflows/release-cli.yml) uses `cargo publish -p posthog-cli --allow-dirty` because the bundle stays untracked; verify changes with `cargo package --list --allow-dirty` in cli/."
 }

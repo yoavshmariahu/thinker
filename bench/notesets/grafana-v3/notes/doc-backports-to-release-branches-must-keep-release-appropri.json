@@ -1,0 +1,42 @@
+{
+  "id": "doc-backports-to-release-branches-must-keep-release-appropri",
+  "title": "Doc backports to release branches must keep release-appropriate content, not main's newer sections",
+  "kind": "rule",
+  "answers": [
+    "Backport PR has merge conflicts in a docs file, what should I keep?",
+    "How to backport a quarterly docs update to an older release branch?",
+    "Should a release branch doc include a feature section from main that isn't in that release?"
+  ],
+  "body": "Symptom: an automatic docs backport to a release-X.Y branch fails/conflicts because the main-branch doc now describes a feature or section (e.g. 'Enable Batch API') that doesn't exist in that release yet. Root cause: quarterly doc reviews on main accumulate content for features shipped after the release branch diverged. Fix pattern: when resolving manually, keep the release branch's existing section content for anything tied to an unreleased feature, and only apply version-independent changes (review_date bump, terminology fixes, docs for features that did ship in that release). Constraints: this applies specifically to manual conflict resolution during backports of docs/sources/** changes to release-* branches; don't silently drop unrelated doc-quality fixes.",
+  "applies": "Manual docs backports to release-*.x branches with cherry-pick conflicts.",
+  "tags": [
+    "docs",
+    "backport",
+    "release-branch"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/datasources/azure-monitor/configure/index.md",
+      "hash": "sha256:6eb14e0ca3df71ab6d109234",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133028"
+  },
+  "created": "2026-10-04T05:57:06.721Z",
+  "verified": "2026-10-04T05:57:06.721Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Backport PR has merge conflicts in a docs file, what should I keep?",
+    "How to backport a quarterly docs update to an older release branch?",
+    "Should a release branch doc include a feature section from main that isn't in that release?"
+  ],
+  "saysFor": "869:doc-backports-to-release",
+  "search": "When resolving cherry-pick conflicts during manual docs backports to release-*.x branches, keep the release branch's existing section content for anything tied to an unreleased feature (e.g., 'Enable Batch API' if that feature shipped after the branch diverged), and only apply version-independent changes like review_date bumps, terminology fixes, and docs for features that did ship in that release. Quarterly doc reviews on main accumulate content for features released after the release branch split, causing conflicts on backport. Do not silently drop unrelated doc-quality fixes when resolving conflicts. Applies to manual conflict resolution during backports of docs/sources/** changes to release-* branches (example: docs/sources/datasources/azure-monitor/configure/index.md)."
+}

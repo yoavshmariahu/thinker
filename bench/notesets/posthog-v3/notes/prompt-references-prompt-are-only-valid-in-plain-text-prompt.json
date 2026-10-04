@@ -1,7 +1,7 @@
 {
   "id": "prompt-references-prompt-are-only-valid-in-plain-text-prompt",
   "title": "Prompt references (@@@prompt:...@@@) are only valid in plain-text prompts",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "Why is a JSON/structured prompt with a @@@prompt tag rejected?",
     "reference_in_non_text_prompt error",
@@ -18,8 +18,8 @@
     {
       "path": "products/ai_observability/backend/prompt_references.py",
       "symbol": "validate_reference_targets",
-      "hash": "sha256:b970b309aa241b2fc64aab9c",
-      "line": 153,
+      "hash": "sha256:1d119c4f7fcfd440a6e98f1d",
+      "line": 156,
       "missing": false
     },
     {
@@ -46,5 +46,6 @@
     "Structured prompt with reference tag fails to save",
     "Payload validation rejects mixed reference and structured prompts"
   ],
-  "saysFor": "909:prompt-references-prompt"
+  "saysFor": "909:prompt-references-prompt",
+  "search": "Prompt references (@@@prompt:name=...|label=...@@@) are only valid in plain-text string prompts, not JSON payloads. Non-string payloads containing reference tags are rejected with 400 code `reference_in_non_text_prompt`. The validation check in `products/ai_observability/backend/prompt_references.py:validate_reference_targets` runs on raw `prompt_payload` (isinstance str) before normalized text processing; this constraint exists because fetch-time splicing inserts raw unescaped text and would corrupt JSON with quotes or newlines. JSON payloads without tags are unaffected. Applies to LLM prompt management API endpoints (create/publish/duplicate) in `products/ai_observability` and `posthog/api`."
 }

@@ -61,5 +61,6 @@
     "Custom permission rules for different organization and team membership levels",
     "Cross-org request attempts should be rejected by the API layer"
   ],
-  "saysFor": "1232:teamandorgviewsetmixin-s"
+  "saysFor": "1232:teamandorgviewsetmixin-s",
+  "search": "TeamAndOrgViewSetMixin from posthog/api/routing.py must be the FIRST base class of viewsets to enforce team/org scoping and permission checks. Cannot override get_queryset/get_object/get_permissions/get_authenticators directly; use safely_* or dangerously_* variants instead. Applies get_permissions chain including IsAuthenticated, APIScopePermission, AccessControlPermission, TeamMemberAccessPermission or OrganizationMemberPermissions from posthog/permissions.py, plus filters via _filter_queryset_by_parents_lookups and _filter_queryset_by_access_level. Requires scope_object (APIScopeObject from posthog/scopes.py) and optional required_scopes; sets ContextVar canonical team id via initial() for ORM fail-closed scoping (TeamScopeError, for_team(), team_scope(), @with_team_scope()). Serializers read team via self.context[\"get_team\"](). Applies to viewsets under posthog/api and products using the mixin."
 }

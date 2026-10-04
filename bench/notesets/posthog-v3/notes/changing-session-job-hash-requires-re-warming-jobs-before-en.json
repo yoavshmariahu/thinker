@@ -47,5 +47,6 @@
     "Cache key change orphaned existing marketing session precompute computations",
     "Attribution calculations not reusing cache after switching the hash"
   ],
-  "saysFor": "1041:changing-session-job-has"
+  "saysFor": "1041:changing-session-job-has",
+  "search": "Changing the cache_key_context serialization in marketing sessions precompute orphans old jobs with outdated keys; there is no compatibility lookup, so old keys become inaccessible. Before enabling cached reads, warm jobs for the full attribution read window via the updated writer, then confirm complete fresh coverage using ensure_marketing_sessions_precomputed(..., run_inserts=False) in read-only mode—missing coverage falls back to live calculation. Add regression tests in products/marketing_analytics/backend/hogql_queries/test_marketing_sessions_precompute.py building legacy jobs with old serialization for each parameter value (None/True/False) and both V2/V3 schema versions, then document the transition in docs/internal/marketing-attribution-session-precompute.md. Applies to any change to job-hash inputs in marketing sessions precompute."
 }

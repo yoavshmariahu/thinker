@@ -1,0 +1,73 @@
+{
+  "id": "route-uid-canonicalization-must-happen-via-routeuid-not-inli",
+  "title": "Route UID canonicalization must happen via RouteUID(), not inline",
+  "kind": "rule",
+  "answers": [
+    "Default routing tree RBAC permissions don't match between alias and canonical name",
+    "How is the routing tree UID computed from a name?",
+    "Provenance lookup fails for default route when using alias",
+    "Where does route name canonicalization happen now?"
+  ],
+  "body": "Invariant: a ManagedRoute's UID must be produced by v1.RouteUID(name), which canonicalizes the default routing tree's legacy alias ('user-defined') to the same identity as its canonical name. This UID is NOT hashed like other ResourceUIDs — it is used verbatim as an RBAC scope suffix and a provenance-store key, so any change to the canonicalization logic breaks existing RBAC grants/provenance lookups for the default tree. ManagedRoute.GetUID() now just returns the stored UID string; it no longer re-canonicalizes r.Name, so construction sites (e.g. NewManagedRoute) are the only place canonicalization can occur.\nFix pattern/constraint: when constructing or converting a ManagedRoute (or comparing route identity, e.g. in service.go's imported-route lookups), always derive the UID via v1.RouteUID(name) / models.CanonicalizeRoutingTreeName(name) rather than assigning a raw name string.",
+  "applies": "pkg/services/ngalert/notifier/legacy_storage/v1 ManagedRoute and anything that constructs/compares its UID (pkg/services/ngalert/notifier/routes/service.go)",
+  "tags": [
+    "alerting",
+    "routing-tree",
+    "rbac",
+    "provenance",
+    "uid"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/routes.go",
+      "symbol": "RouteUID",
+      "hash": "sha256:6a1111b8ea747658824c72ea",
+      "line": 48,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/routes.go",
+      "symbol": "NewManagedRoute",
+      "hash": "sha256:59a54097ec5c75d982d02331",
+      "line": 56,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 26,
+        "refs": 26
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/routes/service.go",
+      "hash": "sha256:78675f55e1cd4d0e99a4e7db",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132955"
+  },
+  "created": "2026-10-04T06:04:27.364Z",
+  "verified": "2026-10-04T06:04:27.364Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "managedroute-identity-uid-is-separate-from-the-name-echoed-t"
+  ],
+  "says": [
+    "Route permissions broken between alias name and canonical name",
+    "Provenance lookup fails for default route using alias",
+    "Route identifier changes break existing RBAC scope assignments",
+    "Route name canonicalization inconsistent between lookups",
+    "Default route permission grants lost after name change"
+  ],
+  "saysFor": "958:route-uid-canonicalizati",
+  "search": "ManagedRoute UIDs must be canonicalized exclusively via v1.RouteUID(name) or models.CanonicalizeRoutingTreeName(name), never assigned inline; this UID is used verbatim as an RBAC scope suffix and provenance-store key, so any canonicalization logic change breaks existing RBAC grants and provenance lookups. The default routing tree's legacy alias 'user-defined' must map to the same identity as its canonical name through RouteUID. Applies to ManagedRoute construction sites (NewManagedRoute), imported-route lookups in service.go, and any comparison of route identity in pkg/services/ngalert/notifier."
+}

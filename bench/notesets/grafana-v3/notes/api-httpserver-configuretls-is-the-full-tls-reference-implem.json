@@ -1,0 +1,53 @@
+{
+  "id": "api-httpserver-configuretls-is-the-full-tls-reference-implem",
+  "title": "api.HTTPServer.configureTLS is the full TLS reference implementation",
+  "kind": "map",
+  "answers": [
+    "Where is the complete/production TLS setup for Grafana's HTTP servers?",
+    "Where is cert_pass-encrypted key handling and cert hot-reload implemented?",
+    "Which TLS config should I copy for a new internal server?"
+  ],
+  "body": "For a fuller TLS implementation that supports encrypted private keys (cert_pass) and watching/reloading certs on disk (cfg.CertWatchInterval), look at api.HTTPServer.configureTLS rather than the minimal instrumentationTLSConfig helper added for the instrumentation server. Use it as the template when a new internal server needs production-grade TLS beyond a static cert/key pair.",
+  "applies": "any Grafana-internal server needing TLS beyond the minimal static-cert case",
+  "tags": [
+    "tls",
+    "map",
+    "api.httpserver"
+  ],
+  "deps": [
+    {
+      "path": "pkg/server/instrumentation_service.go",
+      "symbol": "instrumentationTLSConfig",
+      "hash": "sha256:70b6b4d0cc41579d9f765bb8",
+      "line": 64,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132720"
+  },
+  "created": "2026-10-04T06:38:39.974Z",
+  "verified": "2026-10-04T06:38:39.974Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "instrumentation-server-tls-is-opt-in-and-minimal"
+  ],
+  "says": [
+    "How to enable encrypted certificate keys and hot reloading",
+    "Where is production TLS support with encrypted pass-phrase keys",
+    "Setting up HTTPS with automatic certificate reload on disk changes",
+    "Production-ready TLS implementation reference for internal API servers",
+    "Certificate file watching and encrypted key handling in HTTPS setup"
+  ],
+  "saysFor": "449:api-httpserver-configure",
+  "search": "api.HTTPServer.configureTLS is the full, production-grade TLS reference implementation supporting encrypted private keys (cert_pass) and on-disk certificate watching/reloading (cfg.CertWatchInterval). Use it as a template when implementing TLS for an internal Grafana server requiring these production features beyond static cert/key pairs. The instrumentationTLSConfig helper in pkg/server/instrumentation_service.go is minimal and unsuitable as a reference for full TLS implementations."
+}

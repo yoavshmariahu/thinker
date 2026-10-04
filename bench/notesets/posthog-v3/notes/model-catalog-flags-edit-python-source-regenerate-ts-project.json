@@ -80,5 +80,6 @@
     "Where is per-model supports 1M context / fast mode defined?",
     "Desktop composer missing fast mode toggle for new model"
   ],
-  "saysFor": "1091:model-catalog-flags-edit"
+  "saysFor": "1091:model-catalog-flags-edit",
+  "search": "Per-model capabilities (1M context, fast mode) are stored only on the catalog row, sourced from `CatalogModel.supports_1m_context` and `supports_fast_mode` in products/tasks/backend/model_catalog.py (default False for new models). The generator products/tasks/scripts/build_model_catalog.py emits these as `supports1MContext`/`supportsFastMode` to generated files (products/tasks/frontend/modelCatalog.generated.ts and products/desktop/packages/shared/src/model-catalog.generated.ts), which must never be hand-edited. Update the snapshot products/tasks/backend/tests/__snapshots__/test_model_catalog/test_every_model_resolves_to_the_recorded_triple.json when changing flags. Lookups happen via `supports1MContext`/`supportsFastMode` from products/desktop/packages/shared/src/model-catalog.ts, re-exported from products/desktop/packages/shared/src/index.ts. Applies when adding or changing a model's 1M-context or fast-mode support."
 }

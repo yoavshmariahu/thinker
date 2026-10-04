@@ -56,5 +56,6 @@
     "Clock skew rejections should not block data import completion",
     "S3 transient errors triggering false data pipeline failures"
   ],
-  "saysFor": "1222:s3-clock-skew-403-arrive"
+  "saysFor": "1222:s3-clock-skew-403-arrive",
+  "search": "S3 403 errors including RequestTimeTooSkewed are mapped by s3fs to generic PermissionError; classify by fixed S3 message substring in TRANSIENT_OBJECT_STORE_ERRORS (used by is_transient_object_store_error). Fix: add message to TRANSIENT_OBJECT_STORE_ERRORS in products/warehouse_sources/backend/temporal/data_imports/pipelines/core/delta/errors.py and widen delete_folder capture guard in util.py to `_is_transient_s3_connection_error(e) or is_transient_object_store_error(e)`. Only classify errors that self-clear and have stable message; bare PermissionError and real AccessDenied must still be captured. Add test case to TestIsTransientObjectStoreError and delete_folder test. Applies to warehouse data-import S3/delta error handling."
 }

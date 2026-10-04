@@ -63,5 +63,6 @@
     "Route collision between literal tabs and broadcast detail page",
     "Broadcasts navigation displays wrong page for selected tab"
   ],
-  "saysFor": "803:adding-a-route-under-bro"
+  "saysFor": "803:adding-a-route-under-bro",
+  "search": "Kea-router matches routes in declaration order, so literal paths under /broadcasts must precede '/broadcasts/:id' in products/workflows/manifest.tsx or segments resolve as broadcast ids. Routes are regenerated into frontend/src/products.tsx (productRoutes, productUrls); unknown segments like '/broadcasts/bogus-tab' fall through to ':id' and show 'Broadcast not found'. Extend products/workflows/frontend/Broadcasts/broadcastsRoutes.test.ts to verify each new literal path resolves to 'Broadcasts' scene. Applies to /broadcasts/* routing and any scene mixing literal and parameterized route segments."
 }

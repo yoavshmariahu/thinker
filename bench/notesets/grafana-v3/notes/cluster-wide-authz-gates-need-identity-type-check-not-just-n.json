@@ -1,0 +1,54 @@
+{
+  "id": "cluster-wide-authz-gates-need-identity-type-check-not-just-n",
+  "title": "Cluster-wide authz gates need identity-type check, not just namespace-scope check",
+  "kind": "rule",
+  "answers": [
+    "Why do we check identity type and namespace scope separately for cluster-wide reads?",
+    "Can an on-behalf-of user bypass the service-only gate by having namespace '*'?",
+    "What breaks if I simplify the cluster-wide list-keys check to just wildcard scope?"
+  ],
+  "body": "Invariant: a gate restricting a cross-namespace read to service callers must check BOTH claims.IsIdentityType(info.GetIdentityType(), claims.TypeAccessPolicy) AND info.GetNamespace() == wildcardNamespace, enforced together in pkg/registry/apis/keys/handler.go:requireClusterWideServiceCaller.\nWhy: on-behalf-of requests copy the service token's namespace onto an identity typed as the end user, so a non-service user can legitimately hold the wildcard namespace scope. Combined with app-plugin kinds that defer authorization to storage (which can allow whole groups outside its RBAC allowlist), scope alone would let such a user enumerate object metadata across every tenant namespace.\nConstraints: per-item/storage authorization is not a backstop here, so this check cannot be reduced to the namespace-scope check alone; any future refactor of this gate must keep both conditions, and a reviewer/mutation test should fail if either one is dropped.",
+  "applies": "pkg/registry/apis/keys handlers that gate on cluster-wide (wildcard-namespace) reads; relevant to any similar on-behalf-of-aware authz gate",
+  "tags": [
+    "keys-api",
+    "auth",
+    "on-behalf-of",
+    "security-invariant"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/keys/handler.go",
+      "symbol": "requireClusterWideServiceCaller",
+      "hash": "sha256:b61b440b0901981b4a2118ad",
+      "line": 188,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132923"
+  },
+  "created": "2026-10-04T06:12:14.538Z",
+  "verified": "2026-10-04T06:12:14.538Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "keys-api-don-t-gate-cluster-wide-access-by-a-literal-name-ui"
+  ],
+  "says": [
+    "Why check both identity type and namespace scope for cluster-wide operations?",
+    "Can a delegated user bypass service-only restrictions by having wildcard scope?",
+    "What breaks if we only check namespace scope for cluster-wide reads?",
+    "How do we prevent delegated users from accessing restricted cross-namespace resources?",
+    "Why is identity type check required alongside namespace scope validation?"
+  ],
+  "saysFor": "1030:cluster-wide-authz-gates",
+  "search": "Cross-namespace authorization gate invariant: cluster-wide (wildcard-namespace) read gates for service-only callers must enforce BOTH claims.IsIdentityType(info.GetIdentityType(), claims.TypeAccessPolicy) AND info.GetNamespace() == wildcardNamespace together, as implemented in pkg/registry/apis/keys/handler.go:requireClusterWideServiceCaller. On-behalf-of requests copy the service token's namespace onto an identity typed as end-user, so non-service users can legitimately hold wildcard namespace scope; scope-check alone would allow such users to enumerate object metadata across all tenant namespaces if combined with app-plugin kinds that defer authorization to storage and allow whole groups outside RBAC allowlists. Per-item/storage authorization is not a backstop, so this gate cannot be reduced to namespace-scope check alone. Any refactor must preserve both conditions; dropping either would be a security regression and should fail mutation testing. Applies to pkg/registry/apis/keys handlers gating cluster-wide reads and any similar on-behalf-of-aware authorization gates."
+}

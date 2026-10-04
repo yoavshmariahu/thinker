@@ -1,0 +1,55 @@
+{
+  "id": "deprecating-a-zod-inferred-theme-token-omit-re-add-with-depr",
+  "title": "Deprecating a zod-inferred theme token: Omit + re-add with @deprecated JSDoc",
+  "kind": "rule",
+  "answers": [
+    "How do I mark a theme token as deprecated so TypeScript shows a strikethrough/warning?",
+    "Why is there an Omit<..., 'field'> & { field: string } pattern in createComponents.ts?",
+    "zod schema .describe() isn't making editors warn about deprecated usage"
+  ],
+  "body": "Symptom: a theme.components.* field needs a @deprecated TSDoc tag so editors warn consumers, but it's typed via z.infer from a zod schema and zod's .describe() string doesn't surface as a TS @deprecated hint.\nRoot cause: ThemeComponents in createComponents.ts is derived with DeepRequired<z.infer<...>>, which only carries the zod .describe() text, not a @deprecated JSDoc comment.\nFix pattern: Omit the field from the zod-inferred type and re-add it manually with an explicit '/** @deprecated ... */' comment in the exported type (see ThemeTableColors = Omit<InferredThemeTableColors, 'rowSelected'> & { rowSelected: string }), while keeping the zod schema's .describe() text in sync as the runtime/JSON-schema description.\nConstraints: use this only for fields you intend editors to flag as deprecated; for plain optional/required changes just edit the zod schema directly. Keep the zod .describe() wording and the TS @deprecated comment text identical (schema.generated.json description is generated from .describe()).",
+  "applies": "Any theme.components.* (or similarly zod-schema-derived) token being deprecated in packages/grafana-data/src/themes.",
+  "tags": [
+    "theme",
+    "zod",
+    "deprecation",
+    "typescript"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/themes/createComponents.ts",
+      "symbol": "ThemeComponents",
+      "hash": "sha256:69df931d7bd633ea55704d6f",
+      "line": 207,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132692"
+  },
+  "created": "2026-10-04T06:45:05.610Z",
+  "verified": "2026-10-04T06:45:05.610Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tableng-colors-come-from-theme-components-table-not-recomput",
+    "shared-table-color-tokens-live-in-theme-components-table"
+  ],
+  "says": [
+    "How do I mark a theme token deprecated in TypeScript?",
+    "Why doesn't my editor warn me about deprecated theme tokens?",
+    "What's the pattern for marking theme fields as deprecated?",
+    "Configuration schema text isn't surfacing as TypeScript deprecation warning",
+    "Theme component fields should show strikethrough when they're deprecated"
+  ],
+  "saysFor": "1098:deprecating-a-zod-inferr",
+  "search": "Deprecating zod-inferred theme tokens: Omit the field from the zod-inferred type and re-add it with an explicit '/** @deprecated ... */' JSDoc comment, because zod's .describe() text does not surface as a TS @deprecated hint in editors. Pattern: ThemeComponents = Omit<InferredThemeTableColors, 'rowSelected'> & { rowSelected: string } shown in packages/grafana-data/src/themes/createComponents.ts. Keep zod .describe() and TS @deprecated comment text identical for schema.generated.json consistency. Constraint: use only for deprecations; for plain optional/required changes edit zod schema directly. Applies to theme.components.* tokens being deprecated."
+}

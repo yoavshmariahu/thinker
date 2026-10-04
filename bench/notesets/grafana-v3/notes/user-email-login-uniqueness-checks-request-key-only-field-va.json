@@ -1,0 +1,51 @@
+{
+  "id": "user-email-login-uniqueness-checks-request-key-only-field-va",
+  "title": "User email/login uniqueness checks request key-only FIELD_VALUES search",
+  "kind": "rule",
+  "answers": [
+    "How does Grafana check if a user's email or login is already taken?",
+    "Why does createUserSearchRequest only ask for resource.SEARCH_FIELD_NAME?",
+    "Changing fields requested in user validation search"
+  ],
+  "body": "validateEmail/validateLogin in pkg/registry/apis/iam/user/validate.go build a search request via createUserSearchRequest that now requests only resource.SEARCH_FIELD_NAME with ResultFormat: FIELD_VALUES instead of fetching fieldEmail/fieldLogin rows, since only the matched resource's name/key is needed to decide if the match is the same user being created/updated (Mode 2 dual-write case). If you need additional fields back from this search, add them to createUserSearchRequest's Fields and update firstUserSearchResultName's FIELD_VALUES branch accordingly, since that function assumes name is the only field populated.",
+  "applies": "pkg/registry/apis/iam/user/validate.go email/login uniqueness validation",
+  "tags": [
+    "iam",
+    "unified-storage",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/user/validate.go",
+      "symbol": "createUserSearchRequest",
+      "hash": "sha256:95aeceab81f9b166cf8ee519",
+      "line": 259,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132803"
+  },
+  "created": "2026-10-04T06:28:03.535Z",
+  "verified": "2026-10-04T06:28:03.535Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Duplicate email check when creating new accounts",
+    "User creation rejects email without valid reason",
+    "System should prevent duplicate login names",
+    "Email uniqueness validation during sign up",
+    "Cannot register with email already in use"
+  ],
+  "saysFor": "695:user-email-login-uniquen",
+  "search": "User email/login uniqueness checks via validateEmail/validateLogin in pkg/registry/apis/iam/user/validate.go must use createUserSearchRequest that requests only resource.SEARCH_FIELD_NAME with ResultFormat FIELD_VALUES, retrieving only the matched resource's name to determine uniqueness in Mode 2 dual-write scenarios. If additional fields are needed from the search result, update both createUserSearchRequest's Fields list and firstUserSearchResultName's FIELD_VALUES branch, since that function assumes name is the only populated field. This pattern avoids fetching full fieldEmail/fieldLogin rows when only the key is needed for duplicate detection."
+}

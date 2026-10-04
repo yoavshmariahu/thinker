@@ -1,7 +1,7 @@
 {
   "id": "lock-order-for-enrollment-definitions-id-order-before-accoun",
   "title": "Lock order for enrollment: definitions (id order) before account; callers must not hold locks with a human actor",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "What lock order must customer analytics relationship writers use?",
     "Can I call relationships.assign with a person actor while holding the account lock?",
@@ -18,8 +18,8 @@
     {
       "path": "products/customer_analytics/backend/logic/relationships.py",
       "symbol": "_enroll_on_human_edit",
-      "hash": "sha256:a06527c428a3445122b2efce",
-      "line": 109,
+      "hash": "sha256:aef5d7385216d176ad0b6a6f",
+      "line": 321,
       "missing": false
     },
     {
@@ -70,5 +70,6 @@
     "The enrollment logic deadlocks when updating accounts and relationships together",
     "Concurrent writes to customer analytics are failing from lock ordering"
   ],
-  "saysFor": "964:lock-order-for-enrollmen"
+  "saysFor": "964:lock-order-for-enrollmen",
+  "search": "Lock order invariant for enrollment mutations: definitions must be locked in id order before the Account row, and _enroll_on_human_edit must run before _lock_or_raise within the transaction. A caller already holding an account or definition lock must not pass a human actor to avoid deadlock or order inversion. Applies to logic/relationships.py mutation helpers (_enroll_on_human_edit, end_relationship) and any new caller invoking ownership.lock_definitions or ownership.controlled_definitions with a human actor."
 }

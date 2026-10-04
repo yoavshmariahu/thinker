@@ -57,5 +57,6 @@
     "Should marking a review as outdated trigger a retry when GitHub times out?",
     "What happens when hiding a dismissed review fails on the GitHub side?"
   ],
-  "saysFor": "993:cosmetic-github-writes-i"
+  "saysFor": "993:cosmetic-github-writes-i",
+  "search": "Cosmetic writes like `_minimize_as_outdated` (the 👀 reaction) must fail open without retrying the caller; the approval is already retracted so a failed hide must never retry the dismissal. `_minimize_as_outdated` catches request exceptions, non-200, non-JSON, and GraphQL `errors`, each with its own `stamphog_github_minimize_dismissed_review_*` warning; logs include only status or error types, never bodies. It calls `_request(..., priority=Priority.BATCH)` so the egress limiter sheds cosmetic writes before dismissals, while `_request` defaults to `Priority.CRITICAL` for real writes (keep that default). `dismiss_pr_review` returns early on 422 (already inactive) and skips the hide; `node_id` extraction from the response is guarded to prevent non-JSON 200 from raising. Tests in `CosmeticWriteFailOpenTests` must assert the hide was attempted for each failure mode."
 }

@@ -67,5 +67,6 @@
     "How to register new shell utility",
     "New utility missing from terminal"
   ],
-  "saysFor": "902:adding-an-optional-termi"
+  "saysFor": "902:adding-an-optional-termi",
+  "search": "Optional terminal tools are declared only in terminal-packages.json with pinned file hash, size, and dependencies; the manifest drives mount paths, shell shims, and boot copies. TerminalPackages.mount reads the manifest to expose /posthog/packages/<id>.tar and /posthog/bin/<command> shims; terminalRuntime.ts boot iterates the same manifest to install shims to /usr/bin without per-tool edits. Tool archives live in the external PostHog/terminal-assets repo; baseUrl is pinned to a commit, so bumping a tool requires updating baseUrl, file, sha256, size, and archiveSize together. Update help text in posthogFilesystem.ts when user-facing tools change. Applies to frontend/src/scenes/terminal optional tools."
 }

@@ -1,0 +1,166 @@
+{
+  "id": "apps-alerting-rules-what-must-change-together-when-extending",
+  "title": "apps/alerting/rules — what must change together when extending kinds/validation",
+  "kind": "rule",
+  "answers": [
+    "What breaks if I add a new field/kind to apps/alerting/rules without updating the manifest?",
+    "Where do I register a new RuntimeConfig field?",
+    "Do AlertRule and RecordingRule share validation logic?",
+    "What must stay consistent with RuleSequence membership refs?"
+  ],
+  "body": "1. Field/kind changes start in `apps/alerting/rules/kinds/v0alpha1/*.cue`, run through `make generate` (app-sdk generate). A new kind additionally needs an entry in `apps/alerting/rules/kinds/manifest.cue` and in `apps/alerting/rules/pkg/apis/types.go:GetKinds`, plus a `case` arm in the `switch kind.Kind()` inside `apps/alerting/rules/pkg/app/app.go:buildKindValidator`/`buildKindMutator`. Missing the manifest entry fails `ValidateManifest` at startup.\n2. AlertRule and RecordingRule validators are intentionally duplicated, not shared — compare `apps/alerting/rules/pkg/app/alertrule/validator.go` vs `apps/alerting/rules/pkg/app/recordingrule/validator.go`. Only genuinely cross-kind logic is factored into `apps/alerting/rules/pkg/app/util/` (`ValidateGroupLabels`, `ValidateInterval`, `ValidateExpressions`). A kind-specific rule change must be applied to both files manually; `util` changes affect both.\n3. RuleSequence membership spans the spec, the validator, and the index: if ref storage in `RuleSequenceSpec` changes, `apps/alerting/rules/pkg/app/rulesequence/membership_index.go` (`collectRuleUIDs`) must change too or the index silently drops/misattributes refs; `rulesequence/validator.go` consumes `config.RuleSequenceMembershipResolver`.\n4. Any new `config.RuntimeConfig` field (`apps/alerting/rules/pkg/app/config/runtime.go`) needs a real implementation added in `pkg/registry/apps/alerting/rules/register.go` (the `rulesAppConfig.RuntimeConfig{...}` literal) AND a fake value in `apps/alerting/rules/pkg/app/app_test.go` (RuntimeConfig builder for tests), or tests fail to compile/exercise the new field.\n5. A nil `*simple.Validator`/`*simple.Mutator` assigned into an interface-typed field in `app.go:New` is explicitly guarded against — assigning a nil pointer via a non-nil interface makes `ValidateManifest` think a kind (e.g. Config) has a validator/mutator it doesn't; always check `if validator != nil` before assigning.",
+  "applies": "Applies when adding/changing a kind, a validator rule, RuleSequence membership refs, or RuntimeConfig fields in apps/alerting/rules; not relevant to ngalert evaluation/storage code outside this app.",
+  "tags": [
+    "alerting",
+    "apps-sdk",
+    "rules",
+    "codegen"
+  ],
+  "deps": [
+    {
+      "path": "apps/alerting/rules/kinds/manifest.cue",
+      "hash": "sha256:8db1128e1038ada444fb7c59",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/apis/types.go",
+      "symbol": "GetKinds",
+      "hash": "sha256:55fa50bfb9c69cf079f3b554",
+      "line": 10,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/app.go",
+      "symbol": "New",
+      "hash": "sha256:c09cec6cb80bdc1febdf8e74",
+      "line": 22,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/alertrule/validator.go",
+      "hash": "sha256:178ddc3dfb14f203b7b29144",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/recordingrule/validator.go",
+      "hash": "sha256:cbb4b17bd957b75d5d03c3fb",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/util/group_validation.go",
+      "symbol": "ValidateGroupLabels",
+      "hash": "sha256:3b26025872ba9e6cbd668227",
+      "line": 11,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/util/validator.go",
+      "symbol": "ValidateInterval",
+      "hash": "sha256:93e592d9ac0801d640f763a0",
+      "line": 12,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/rulesequence/membership_index.go",
+      "symbol": "MembershipIndex",
+      "hash": "sha256:81dd2113e31d1ffdedf6e537",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/rulesequence/validator.go",
+      "symbol": "ValidateWrite",
+      "hash": "sha256:c3955398f0b3615990b7214f",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 7
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/config/runtime.go",
+      "symbol": "RuntimeConfig",
+      "hash": "sha256:c3c709f4e1e5a2b9afeb71b1",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 20,
+        "sites": 0,
+        "refs": 53
+      }
+    },
+    {
+      "path": "pkg/registry/apps/alerting/rules/register.go",
+      "symbol": "RegisterAppInstaller",
+      "hash": "sha256:57064f57d2689e8ee0ee57b8",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 26,
+        "refs": 40
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/app_test.go",
+      "hash": "sha256:0213191c14b6cfd6177616ee",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/Makefile",
+      "hash": "sha256:b5646854e8cbc38ca4185afb",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/app.go",
+      "symbol": "buildKindValidator",
+      "hash": "sha256:9c284ca58cd315dd193842b0",
+      "line": 111,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "02a9f12d-c8f1-442d-92fa-5d778d9f1628"
+  },
+  "created": "2026-10-04T05:58:16.360Z",
+  "verified": "2026-10-04T05:58:16.360Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apps-alerting-rules-subsystem-map-app-sdk-app-for-alertrule"
+  ],
+  "says": [
+    "Adding fields to alert rules breaks the manifest at startup",
+    "Where do I register new alert configuration fields?",
+    "Do alert types share validation logic or duplicate code?",
+    "Alert sequence membership validation gets out of sync with rules",
+    "What must change when adding a new alert rule field?"
+  ],
+  "saysFor": "2028:apps-alerting-rules-what",
+  "search": "When adding or modifying kinds in apps/alerting/rules, multiple files must change together or ValidateManifest will fail at startup. Changes start in apps/alerting/rules/kinds/v0alpha1/*.cue + make generate, then require entries in manifest.cue, types.go:GetKinds, and a case arm in app.go:buildKindValidator. AlertRule and RecordingRule validators are intentionally duplicated—compare alertrule/validator.go and recordingrule/validator.go, updating both when kind-specific rules change, while cross-kind logic in util/ (ValidateGroupLabels, ValidateInterval, ValidateExpressions) automatically affects both. RuleSequence membership changes must also update membership_index.go:collectRuleUIDs or the index silently misattributes refs. Any new config.RuntimeConfig field requires both a real implementation in pkg/registry/apps/alerting/rules/register.go AND a fake builder in app_test.go or tests fail. Nil *simple.Validator/*simple.Mutator assigned to interface fields are intentionally guarded against."
+}

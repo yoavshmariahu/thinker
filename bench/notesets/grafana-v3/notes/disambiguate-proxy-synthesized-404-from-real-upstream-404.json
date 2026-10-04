@@ -1,0 +1,64 @@
+{
+  "id": "disambiguate-proxy-synthesized-404-from-real-upstream-404",
+  "title": "Disambiguate proxy-synthesized 404 from real upstream 404",
+  "kind": "rule",
+  "answers": [
+    "External AM sync drops a real fetch failure as 'no upstream config'",
+    "How to tell a Grafana datasource-proxy error 404 apart from Mimir's real 404",
+    "Why is a misconfigured/unloaded plugin silently treated as 'no alertmanager config'?"
+  ],
+  "body": "Symptom: when a fetch is routed through Grafana's datasource proxy, a 404 can mean either the real upstream's 'no config for this tenant' (Mimir's plain-text 404) or a proxy-level failure such as a missing/unloaded plugin, which the proxy itself returns via ReqContext.JsonApiErr as a JSON {\"message\":...} body. Treating both the same way misclassifies real failures as the harmless case. Root cause/fix: external_am_syncer.go:fetchMimirConfig calls proxyErrorMessage to check whether the 404 body parses as the proxy's JSON envelope — if so, it's a real fetch error; otherwise it's Mimir's genuine empty-config 404 and maps to errNoUpstreamConfig. Constraints: this heuristic is specific to responses that pass through Grafana's own JsonApiErr; reuse it (or the dsproxyclient.Result.Body) whenever another syncer classifies a proxied upstream status code as a benign 'not configured' outcome.",
+  "applies": "ngalert syncers (and similar background fetchers) interpreting status codes returned by a response routed through the datasource proxy.",
+  "tags": [
+    "ngalert",
+    "alerting",
+    "datasource-proxy",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/external_am_syncer.go",
+      "symbol": "fetchMimirConfig",
+      "hash": "sha256:8aba89fe62a6b25585d55c89",
+      "line": 689,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/external_am_syncer.go",
+      "symbol": "proxyErrorMessage",
+      "hash": "sha256:9a1c999db6b40e6e6f5aad46",
+      "line": 733,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132749"
+  },
+  "created": "2026-10-04T06:36:30.690Z",
+  "verified": "2026-10-04T06:36:30.690Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Alertmanager sync treats real fetch failures as harmless config absence",
+    "How to distinguish Grafana datasource proxy 404 from upstream 404?",
+    "Why is a misconfigured plugin silently treated as missing configuration?",
+    "Datasource proxy error responses look identical to empty upstream config",
+    "When does a 404 mean real failure versus empty configuration?"
+  ],
+  "saysFor": "951:disambiguate-proxy-synth",
+  "search": "When a fetch is routed through Grafana's datasource proxy, disambiguate a 404 from the proxy's own error (JSON {\"message\":...} via ReqContext.JsonApiErr) versus a genuine upstream 'no config' (Mimir's plain-text 404) by checking whether the response body parses as the proxy's JSON envelope. If the 404 body is JSON, it signals a proxy-level failure (missing/unloaded plugin); otherwise it maps to errNoUpstreamConfig. This heuristic is specific to proxy responses and reuse it when another syncer classifies a proxied upstream status code as a benign 'not configured' outcome. Applies to ngalert syncers and similar background fetchers interpreting status codes routed through the datasource proxy (pkg/services/ngalert/notifier/external_am_syncer.go:fetchMimirConfig, proxyErrorMessage, dsproxyclient.Result.Body)."
+}

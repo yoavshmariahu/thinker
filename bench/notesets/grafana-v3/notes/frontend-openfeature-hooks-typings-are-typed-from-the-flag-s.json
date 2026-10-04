@@ -1,0 +1,65 @@
+{
+  "id": "frontend-openfeature-hooks-typings-are-typed-from-the-flag-s",
+  "title": "Frontend OpenFeature hooks/typings are typed from the flag's Expression, not just boolean",
+  "kind": "rule",
+  "answers": [
+    "How do I add a non-boolean feature flag (number/string/object) with a typed React hook?",
+    "Why is my flag's generated useFlag hook typed as boolean when its value is a string/number/object?",
+    "How does the generator decide the TS type of a feature flag's React hook?"
+  ],
+  "body": "Root cause: generateOpenFeatureReactForFlags used to hardcode Type: \"boolean\" for every flag regardless of its Expression value. Fix pattern: parse the flag's Expression with setting.ParseFlag, derive its FlagType via TypedFlag(...).GetFlagType(), and map FlagTypeBoolean/Integer/Float/String/Object to \"boolean\"/\"number\"/\"number\"/\"string\"/\"object\" respectively (pkg/services/featuremgmt/toggles_gen_test.go:getOpenFeatureReactFlag). This same mapping feeds both the generated hook (useFlag<Type>) and the TS key unions (BooleanFlagKey/NumberFlagKey/StringFlagKey/ObjectFlagKey) in generateOpenFeatureReactTypingsForFlags — they must stay in sync since both derive from the same per-flag Type. Constraints: applies to any flag with Generate.React: true; a flag whose Expression doesn't parse into one of the five known FlagTypes causes getOpenFeatureReactFlag to t.Fatalf, so new flag value shapes must be added to setting.ParseFlag/TypedFlag first.",
+  "applies": "Frontend feature-flag registry entries generated into React OpenFeature hooks/typings (standardFeatureFlags with Generate.React: true).",
+  "tags": [
+    "featuremgmt",
+    "openfeature",
+    "codegen",
+    "frontend"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/featuremgmt/toggles_gen_test.go",
+      "symbol": "getOpenFeatureReactFlag",
+      "hash": "sha256:9cfb5c821752fff7c89328f0",
+      "line": 570,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/featuremgmt/toggles_gen_test.go",
+      "symbol": "generateOpenFeatureReactTypingsForFlags",
+      "hash": "sha256:b1c2197a47a5929c61ea2fc5",
+      "line": 681,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132684"
+  },
+  "created": "2026-10-04T06:46:27.610Z",
+  "verified": "2026-10-04T06:46:27.610Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "regenerating-verifying-openfeature-react-generated-files"
+  ],
+  "says": [
+    "How do I add a non-boolean feature flag with a typed hook?",
+    "Feature flag hook receives boolean type despite string or number value",
+    "Non-boolean flag values incorrectly generate boolean-typed hooks",
+    "Generated hook type doesn't match the actual flag value"
+  ],
+  "saysFor": "1039:frontend-openfeature-hoo",
+  "search": "Frontend OpenFeature React hooks and typings must derive their Type from each flag's Expression via setting.ParseFlag and TypedFlag(...).GetFlagType(), mapping FlagTypeBoolean/Integer/Float/String/Object to \"boolean\"/\"number\"/\"string\"/\"object\", instead of hardcoding \"boolean\". The same Type mapping feeds both the generated hook (useFlag<Type>) and TS key unions (BooleanFlagKey/NumberFlagKey/StringFlagKey/ObjectFlagKey)—both must stay in sync. Applies only to standardFeatureFlags with Generate.React: true; a flag whose Expression doesn't parse into one of the five known FlagTypes causes t.Fatalf, requiring new value shapes to be added to setting.ParseFlag/TypedFlag first. Paths: pkg/services/featuremgmt/toggles_gen_test.go:getOpenFeatureReactFlag, generateOpenFeatureReactTypingsForFlags."
+}

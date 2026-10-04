@@ -1,0 +1,67 @@
+{
+  "id": "st-fallback-stack-resolution-uses-gcom-instances-stackid",
+  "title": "ST fallback stack resolution uses gcom /instances/{stackID}",
+  "kind": "rule",
+  "answers": [
+    "How does the router resolve the single-tenant fallback host?",
+    "Why does the ST fallback return no error for an unknown stack ID?",
+    "How do I add/modify single-tenant fallback stack lookup?",
+    "Fallback request to wrong stack / 404 handling in router"
+  ],
+  "body": "Symptom: single-tenant fallback previously only worked for one hardcoded stack ID (Play), so requests for any other stack's namespace never fell back.\nRoot cause: pkg/router/cloud_router.go:ProvideCloudRoutesLoaderFactory wired a stub resolveHost that special-cased stackID 35611 instead of doing a real lookup.\nFix pattern: resolveHost is implemented by calling GET {GrafanaComAPIURL}/instances/{stackID} with `Authorization: Bearer <GrafanaComSSOAPIToken>` and returning the response's `url` field (pkg/router/st_fallback.go:newGComURLResolver). A 404 from gcom returns (\"\", nil) — not an error — meaning \"no fallback for this stack\"; any other non-200 status or decode failure returns an error, which the caller must distinguish from \"not found\".\nConstraints: requires `[grafana_com] api_url`/`sso_api_token` (GF_GRAFANA_COM_API_URL / GF_GRAFANA_COM_SSO_API_TOKEN) to be configured — same config enterprise's gcom client uses; fallback itself is only active when `[cloud_router] st_discovery_url` is set. Results are cached by the existing fallback cache in newSingleTenantFallback, so resolveHost must stay side-effect-free/idempotent per stackID.",
+  "applies": "pkg/router cloud router / single-tenant fallback resolution of stack URLs via gcom",
+  "tags": [
+    "router",
+    "single-tenant-fallback",
+    "gcom"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/st_fallback.go",
+      "symbol": "newGComURLResolver",
+      "hash": "sha256:1918ae32f93e2a1dd4ed6bad",
+      "line": 300,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/router/cloud_router.go",
+      "symbol": "ProvideCloudRoutesLoaderFactory",
+      "hash": "sha256:b769ff3dca87046b0e1d3e38",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 18,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133080"
+  },
+  "created": "2026-10-04T05:53:32.877Z",
+  "verified": "2026-10-04T05:53:32.877Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "single-tenant-fallback-resolvehost-cache-wiring",
+    "pkg-router-reverse-proxy-api-aggregator-control-flow-map"
+  ],
+  "says": [
+    "How does the router find the fallback host for single-tenant stacks",
+    "Why do unknown stack identifiers not trigger an error in fallback routing",
+    "Configuring which server the router falls back to for single-tenant requests",
+    "Fallback routing sends requests to the wrong server or returns not found",
+    "Adding or changing how single-tenant fallback stack locations are resolved"
+  ],
+  "saysFor": "1211:st-fallback-stack-resolu",
+  "search": "Single-tenant fallback stack URL resolution calls GET {GrafanaComAPIURL}/instances/{stackID} via newGComURLResolver in pkg/router/st_fallback.go, using Authorization Bearer token (GF_GRAFANA_COM_SSO_API_TOKEN) and returning the response's url field. 404 returns ('', nil) meaning no fallback available; other non-200 or decode errors return errors that callers must distinguish from not-found. Requires GF_GRAFANA_COM_API_URL and GF_GRAFANA_COM_SSO_API_TOKEN configuration and cloud_router.st_discovery_url to be set for fallback activation. Results are cached by newSingleTenantFallback, so resolveHost must remain side-effect-free and idempotent per stackID. Applies when configuring or implementing ST fallback for stack namespace resolution."
+}

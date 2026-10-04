@@ -68,5 +68,6 @@
     "The insight saves itself when I select a new chart type in the editor",
     "I changed the chart type but the editor closed before I clicked Save"
   ],
-  "saysFor": "988:insight-editor-auto-save"
+  "saysFor": "988:insight-editor-auto-save",
+  "search": "Insight editor race condition causes unintended PATCH auto-save and exit on chart-type change: `insightDataLogic.tsx:isInsightSceneInstance` guards `persistDisplayOptions` by checking `insightLogicRef`, which is set asynchronously by a separate listener that rebuilds and mounts logic, causing lag that lets PATCH persist through. Fix pattern uses synchronously-set reducers (insightId, dashboardId in insightSceneLogic) rather than async-derived values; must normalize dashboardId comparison with `?? null` on both sides. Pitfall: do not reintroduce insightLogicRef into 'are we in scene' guards. Applies to guards in `frontend/src/scenes/insights/insightDataLogic.tsx` that decide whether to skip auto-persisting."
 }

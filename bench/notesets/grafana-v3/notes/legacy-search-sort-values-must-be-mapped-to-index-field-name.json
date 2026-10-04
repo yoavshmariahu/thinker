@@ -1,0 +1,65 @@
+{
+  "id": "legacy-search-sort-values-must-be-mapped-to-index-field-name",
+  "title": "Legacy search sort values must be mapped to index field names",
+  "kind": "rule",
+  "answers": [
+    "Why does sorting search results do nothing / come back in random order for some sort options?",
+    "Sort direction (asc/desc) is lost in dashboard search results",
+    "viewed-recently-desc, errors-recently-asc, alpha-desc sort values don't work in unified search",
+    "How to add a new sort option to the search UI without breaking the unified searcher"
+  ],
+  "body": "Symptom: picking certain sort options (e.g. 'alpha-desc', 'viewed-recently-desc', 'errors-recently-asc') in dashboard search returns results in arbitrary order with no sort direction applied.\nRoot cause: public/app/features/search/service/unified.ts previously derived the index field name from query.sort via two string replacements (`.replace('_sort','').replace('name','title')`), which only handled the searcher's own 'name_sort' value. Older-UI sort values persisted in browser storage/URL (viewed-recently-desc, errors-recently-asc, alpha-desc, etc.) passed through unchanged and don't match any real index field.\nFix pattern: replace ad-hoc string munging of a value that can come from multiple historical UI versions with an explicit lookup map (uiSortValues) from every known legacy sort value to the current index field name (with '-' prefix for descending), via a toSortParam() helper; unmapped values pass through unchanged.\nConstraints: any new sort option added to the search UI must get an entry in uiSortValues in public/app/features/search/service/unified.ts (toSortParam); do NOT feed the translated field name back into query.sort/meta.sortBy for display purposes — getColumns relies on the original value to find the 'title' column, and translating it there would break column resolution (per review comment). Backend-side translation for older API clients is a separate, independent change (#133099).",
+  "applies": "public/app/features/search/service/unified.ts and any code adding/consuming dashboard search sort options",
+  "tags": [
+    "search",
+    "sort",
+    "legacy-compat",
+    "unified-search"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/search/service/unified.ts",
+      "symbol": "toSortParam",
+      "hash": "sha256:8656cd6346238edc24da94ac",
+      "line": 394,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "public/app/features/search/service/unified.ts",
+      "symbol": "uiSortValues",
+      "hash": "sha256:173fd3ffafda47718b8d7386",
+      "line": 375,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133100"
+  },
+  "created": "2026-10-04T05:51:21.568Z",
+  "verified": "2026-10-04T05:51:21.568Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Dashboard search returns results in random order when sorted",
+    "Sort by recently viewed or alphabetical options not working",
+    "Picking a sort direction doesn't affect search results",
+    "Some sort options ignored in dashboard search",
+    "Sort order gets lost when displaying search results"
+  ],
+  "saysFor": "1483:legacy-search-sort-value",
+  "search": "Dashboard search sort options from legacy browser storage/URL values (e.g., 'alpha-desc', 'viewed-recently-desc', 'errors-recently-asc') must be explicitly mapped to current index field names via the uiSortValues lookup map and toSortParam() helper in public/app/features/search/service/unified.ts, not derived via ad-hoc string replacements. Each new sort option added to the search UI requires an entry in uiSortValues; unmapped values pass through unchanged. Do not translate the mapped field name back into query.sort for display, because getColumns relies on the original query.sort value to resolve the 'title' column, and translating it would break column resolution; backend-side translation for older API clients is a separate change."
+}

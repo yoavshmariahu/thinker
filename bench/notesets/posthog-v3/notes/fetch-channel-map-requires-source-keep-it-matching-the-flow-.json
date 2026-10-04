@@ -52,5 +52,6 @@
     "Slack channel listing must use same source label",
     "Why channel resolution calls are labeled incorrectly"
   ],
-  "saysFor": "654:fetch-channel-map-requir"
+  "saysFor": "654:fetch-channel-map-requir",
+  "search": "fetch_channel_map (posthog/team_notifications/slack.py) requires a source keyword argument and passes it to SlackIntegration(integration, source=source). The source value must match the label used in the flow's SlackIntegration posts so that listing calls and posts land in one consistent series; for example, build_routing_context in products/stamphog/backend/logic/channel_resolution.py uses \"stamphog\" and send_debt_digest in products/visual_review/backend/logic/debt_digest.py uses \"visual_review\". Any new caller must supply source, and any test fake must accept it as a parameter. Applies to all callers of fetch_channel_map and to digest-style Slack flows."
 }

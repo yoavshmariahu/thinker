@@ -108,5 +108,6 @@
     "Chart alternatives feature implementation location and component architecture",
     "Where do chart display options get registered and validated"
   ],
-  "saysFor": "1062:chart-alternatives-previ"
+  "saysFor": "1062:chart-alternatives-previ",
+  "search": "Chart alternatives gallery (products/product_analytics/frontend/insights/chartAlternatives/) mounts via ChartAlternatives.tsx with chartAlternativesLogic and chartPreviewsLogic, displaying up to 3 ranked suggestions from chartRecommendations.ts, each with a preview from chartPreviewsLogic/chartPreviewData.ts showing real response or synthetic fallback. Display eligibility, options, sample data synthesis, and preview derivation are in chartDisplayOptions.ts, chartPreviewSamples.ts, and chartPreviewData.ts (RAW_TIME_SERIES_DISPLAYS); ChartPreviewCanvas re-mounts the logic stack with PREVIEW_CONTEXT {hideAxes:true}. For new trends displays, edit Trends.tsx, chartDisplayOptions.ts (option + eligibility), chartRecommendations.ts (if suggested), and chartPreviewSamples/Data.ts (if synthetic data needed). Applies only to trends chart displays; other insight types use different patterns."
 }

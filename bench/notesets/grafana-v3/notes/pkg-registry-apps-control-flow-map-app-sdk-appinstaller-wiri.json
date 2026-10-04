@@ -1,0 +1,162 @@
+{
+  "id": "pkg-registry-apps-control-flow-map-app-sdk-appinstaller-wiri",
+  "title": "pkg/registry/apps/ — control flow map (App-SDK AppInstaller wiring)",
+  "kind": "map",
+  "answers": [
+    "What does pkg/registry/apps/ do?",
+    "How does an App-SDK app get installed into Grafana's API server?",
+    "Where is AppInstaller wired for playlist/shorturl/notifications/etc?",
+    "How do legacy DB-backed services bridge to the new k8s API apps?"
+  ],
+  "body": "Each subpackage of pkg/registry/apps (playlist, shorturl, annotation, alerting/notifications, advisor, quotas, example, ...) implements `appsdkapiserver.AppInstaller` for one App-SDK app defined in `apps/<name>/`. Control flow:\n1. `<pkg>/register.go` defines `AppInstaller` (embeds `appsdkapiserver.AppInstaller`), overrides `GetAuthorizer()`, and a `RegisterApp(...)`-style constructor wrapping the app's own `simple.App`/`appsdkapiserver` builder with Grafana-specific cfg/featuremgmt/accesscontrol.\n2. `pkg/registry/apps/wireset.go` (`appregistry.WireSet`) lists every subpackage's installer provider for `wire`.\n3. `pkg/registry/apps/apps.go:ProvideAppInstallers` takes one constructed installer arg per app (feature-toggle gated — some apps are conditionally included based on `featuremgmt`) and returns `[]appsdkapiserver.AppInstaller`.\n4. Consumed by `pkg/services/apiserver/service.go` (field `appInstallers`), which calls `appinstaller.AddToScheme`, `appinstaller.RegisterAuthorizers`, `appinstaller.NewAPIResourceConfig`, `appinstaller.BuildOpenAPIDefGetter` — see `pkg/services/apiserver/appinstaller/installer.go` and its README for the full framework (schema registration, admission plugins, OpenAPI, lifecycle).\nApps that need to read/write the legacy SQL-backed store alongside the new k8s resource follow a 3-4 file split per subpackage: `type.go` (ResourceInfo via `utils.NewResourceInfo`), `legacy_storage.go` or `storage.go` (`rest.Storage` implementation wrapping the legacy service, e.g. shorturl/legacy_storage.go, receiver/storage.go+receiver/legacy_storage.go), `conversions.go` (legacy model <-> unstructured/k8s object, e.g. playlist/conversions.go), and optionally `migration_registrar.go` (registers a `migrations.MigrationDefinition` with `pkg/storage/unified/migrations` for one-time DB->resource migration, e.g. shorturl/migration_registrar.go). RBAC fixed-role grants for an app's resources live in `<pkg>/accesscontrol.go` (`FixedRoleRegistrations()`), separate from the authorizer logic in register.go.",
+  "tags": [
+    "pkg/registry/apps",
+    "appinstaller",
+    "app-sdk",
+    "wiring"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/apps.go",
+      "symbol": "ProvideAppInstallers",
+      "hash": "sha256:122c30feba778009596fba5d",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/registry/apps/wireset.go",
+      "symbol": "WireSet",
+      "hash": "sha256:20b170f441fc70977fa37dbb",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 17
+      }
+    },
+    {
+      "path": "pkg/registry/apps/playlist/register.go",
+      "symbol": "AppInstaller",
+      "hash": "sha256:67b657e68f5436ab81902def",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 31,
+        "sites": 0,
+        "refs": 152
+      }
+    },
+    {
+      "path": "pkg/registry/apps/shorturl/legacy_storage.go",
+      "symbol": "legacyStorage",
+      "hash": "sha256:435f6d5171bd90a9750c00ec",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 26,
+        "sites": 0,
+        "refs": 182
+      }
+    },
+    {
+      "path": "pkg/registry/apps/shorturl/migration_registrar.go",
+      "symbol": "ShortURLMigration",
+      "hash": "sha256:007afba7293ee36f6d0d0fe9",
+      "line": 11,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/registry/apps/alerting/notifications/receiver/storage.go",
+      "symbol": "NewStorage",
+      "hash": "sha256:a1c3d3a208f630d1f54f2870",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 17,
+        "sites": 25,
+        "refs": 38
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/appinstaller/installer.go",
+      "symbol": "AddToScheme",
+      "hash": "sha256:466407f04657d42e1ca88c09",
+      "line": 88,
+      "missing": false,
+      "fanout": {
+        "files": 30,
+        "sites": 35,
+        "refs": 58
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/service.go",
+      "hash": "sha256:c7973fa5b7f0837c2c1d12e5",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/alerting/notifications/receiver/type.go",
+      "symbol": "ResourceInfo",
+      "hash": "sha256:bbc1dc10db0030f78d2e6953",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 98,
+        "sites": 0,
+        "refs": 327
+      }
+    },
+    {
+      "path": "pkg/registry/apps/playlist/conversions.go",
+      "hash": "sha256:26b8e4c42dc8997dc436a4cc",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/playlist/migration_registrar.go",
+      "hash": "sha256:96d7a864b206ef0998829978",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/playlist/register.go",
+      "symbol": "GetAuthorizer",
+      "hash": "sha256:d7438411d15c230422be8930",
+      "line": 67,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "bb22eb8a-a6e2-417a-973c-8683ee29625e"
+  },
+  "created": "2026-10-04T05:52:48.880Z",
+  "verified": "2026-10-04T05:52:48.880Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-new-app-sdk-app-requires-two-wiring-edits-in-pkg-re",
+    "apps-dashvalidator-control-flow-map-dashboard-compatibility",
+    "registerstorageoptions-must-register-on-the-exact-getter-ins"
+  ],
+  "says": [
+    "App not installing into Grafana API server",
+    "Legacy database stored features not bridging to modern API",
+    "Installed app authorization rules not applying correctly",
+    "App request handling not responding after installation",
+    "Data migration from old storage to app incomplete"
+  ],
+  "saysFor": "2104:pkg-registry-apps-contro",
+  "search": "App-SDK AppInstaller registration: each subpackage in pkg/registry/apps/ implements appsdkapiserver.AppInstaller via register.go, which overrides GetAuthorizer() and wraps the app's builder with Grafana cfg/featuremgmt/accesscontrol. Control flow: subpackage providers → wireset.go WireSet → ProvideAppInstallers (feature-toggle gated) → apiserver service. Apps with legacy SQL stores require parallel 3–4-file split: type.go (ResourceInfo), legacy_storage.go/storage.go (rest.Storage wrapper), conversions.go (model ↔ unstructured), and optional migration_registrar.go (migrations.MigrationDefinition). RBAC FixedRoleRegistrations() lives in accesscontrol.go separate from authorizer logic. Applies when: adding new App-SDK apps, integrating legacy storage, or wiring authorization per subpackage."
+}

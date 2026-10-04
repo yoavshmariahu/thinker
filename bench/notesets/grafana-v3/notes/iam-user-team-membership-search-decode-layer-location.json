@@ -1,0 +1,100 @@
+{
+  "id": "iam-user-team-membership-search-decode-layer-location",
+  "title": "IAM user-team membership search: decode layer location",
+  "kind": "map",
+  "answers": [
+    "Where is user-team membership search handled in IAM?",
+    "Where does the GetUserTeams endpoint build its response from search results?"
+  ],
+  "body": "The IAM `/users/{name}/teams` Connect handler lives in pkg/registry/apis/iam/user/rest_user_team.go (UserTeamREST.Connect). It issues a ResourceSearchRequest filtered by user name, decodes rows via decodeUserTeamSearchRows, and projects them to iamv0alpha1.GetUserTeamsUserTeam via buildItems — which either reads inline permission/external cells (legacy RESOURCE_TABLE adapter path) or fans out parallel team Gets (unified FIELD_VALUES path) bounded by userTeamsGetParallelism.\nPagination continue tokens are built from the normalized row's sortFields (resource.NewSearchContinueToken), not from the raw ResourceTableRow/ResourceSearchRow, so any change to row decoding must keep sortFields populated for both formats.",
+  "applies": "pkg/registry/apis/iam/user search/membership endpoints",
+  "tags": [
+    "iam",
+    "search",
+    "pagination"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "symbol": "Connect",
+      "hash": "sha256:038ba7bdad85b566c4bf31ca",
+      "line": 74,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 87,
+        "refs": 143
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "symbol": "UserTeamREST",
+      "hash": "sha256:48350640e3f877ec2bb15bc7",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "symbol": "decodeUserTeamSearchRows",
+      "hash": "sha256:aa4ca4e0d5cee5fbb9640f83",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "symbol": "buildItems",
+      "hash": "sha256:d546d800419f5a3adf63370b",
+      "line": 244,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "symbol": "decodeUserTeamSearchRows",
+      "hash": "sha256:aa4ca4e0d5cee5fbb9640f83",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132815"
+  },
+  "created": "2026-10-04T06:25:21.501Z",
+  "verified": "2026-10-04T06:25:21.501Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "nested-iam-rest-handlers-need-a-withfeature-constructor-to-h",
+    "resourcesearch-results-support-both-resource-table-and-field",
+    "teams-membership-endpoints-gate-once-at-startup-not-per-requ"
+  ],
+  "says": [
+    "Where does the system process the list of teams a user belongs?",
+    "How are team results built and assembled for the teams listing?",
+    "Where can I modify how user team membership searches are processed?"
+  ],
+  "saysFor": "774:iam-user-team-membership",
+  "search": "IAM /users/{name}/teams endpoint in pkg/registry/apis/iam/user/rest_user_team.go:UserTeamREST.Connect issues a filtered ResourceSearchRequest, decodes rows via decodeUserTeamSearchRows, and projects to iamv0alpha1.GetUserTeamsUserTeam via buildItems. The buildItems function follows two paths: reads inline permission/external cells for legacy RESOURCE_TABLE format, or fans out parallel team Gets bounded by userTeamsGetParallelism for unified FIELD_VALUES format. Pagination continue tokens (via resource.NewSearchContinueToken) are built from normalized row sortFields rather than raw rows, so both decode paths must keep sortFields populated. Applies to IAM user search and membership endpoints where row-format handling affects token generation."
+}

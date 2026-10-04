@@ -1,0 +1,55 @@
+{
+  "id": "combobox-usecomboboxfloat-avoid-autoupdate-loops-when-popove",
+  "title": "Combobox/useComboboxFloat: avoid autoUpdate loops when popover is CSS-hidden",
+  "kind": "rule",
+  "answers": [
+    "Why does the Combobox input re-render/update the DOM continuously when inside a collapsed details or hidden container?",
+    "Combobox causes excessive rerenders in Feature Control UI",
+    "How should floating-ui's autoUpdate be wired up for popovers that can be hidden via CSS?",
+    "useFloating whileElementsMounted keeps firing even when the combobox is closed/hidden"
+  ],
+  "body": "Symptom: Combobox rendered inside a collapsed <details> (or anything hidden with CSS rather than unmounted) kept re-rendering its input on every tick, causing constant DOM updates. Root cause: useComboboxFloat passed `whileElementsMounted: autoUpdate` to useFloating, so autoUpdate ran continuously even while the floating element was closed/hidden by CSS, not conditionally unmounted. Fix pattern: don't use `whileElementsMounted`; instead call `autoUpdate(referenceEl, floatingEl, update)` manually inside a `useEffect` gated on `isOpen` (and refs being set), returning its cleanup, so autoUpdate only runs while the popover is actually open. Constraints: this pattern applies to any floating-ui consumer whose trigger/content can be hidden via CSS while still mounted (collapsed details, display:none tabs, etc.) per floating-ui's own docs that autoUpdate is unsuitable for CSS-hidden elements; it's unnecessary for UI that is truly conditionally mounted/unmounted.",
+  "applies": "floating-ui (@floating-ui/react) usage in grafana-ui components whose popover can be CSS-hidden while mounted",
+  "tags": [
+    "floating-ui",
+    "combobox",
+    "rerender",
+    "performance",
+    "grafana-ui"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+      "symbol": "useComboboxFloat",
+      "hash": "sha256:28df1c52551d1b3bfff3f362",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132877"
+  },
+  "created": "2026-10-04T06:18:24.486Z",
+  "verified": "2026-10-04T06:18:24.486Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dedupe-size-measurement-callbacks-before-calling-setstate-to"
+  ],
+  "says": [
+    "Why does Combobox keep updating its input when hidden inside collapsed details",
+    "Combobox re-renders constantly inside a hidden container on every tick",
+    "How to prevent Combobox from refreshing when the popover is CSS-hidden",
+    "Excessive re-renders when Combobox is closed in Feature Control UI"
+  ],
+  "saysFor": "1045:combobox-usecomboboxfloa",
+  "search": "useComboboxFloat must not use whileElementsMounted with floating-ui's autoUpdate when the popover is CSS-hidden while mounted, causing unnecessary re-renders on every tick. Instead, manually call autoUpdate inside a useEffect gated on isOpen so it runs only when the popover is actually open, then return its cleanup function. This pattern applies to @floating-ui/react consumers in grafana-ui components (like public/app/features/Combobox/useComboboxFloat.ts) where triggers or content can be hidden via CSS (collapsed details, display:none tabs) while remaining in the DOM; it is unnecessary for UI that is conditionally mounted/unmounted."
+}

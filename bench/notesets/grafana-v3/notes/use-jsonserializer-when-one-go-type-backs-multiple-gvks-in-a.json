@@ -1,0 +1,104 @@
+{
+  "id": "use-jsonserializer-when-one-go-type-backs-multiple-gvks-in-a",
+  "title": "Use JSONSerializer when one Go type backs multiple GVKs in apistore",
+  "kind": "rule",
+  "answers": [
+    "why does my resource get re-versioned/lose its apiVersion when stored via unified storage",
+    "how to stop apistore codec from picking a different stored version for my resource",
+    "datasource objects stored with wrong GVK across multiple registered versions",
+    "avoid codec version selection for a resource with shared Go struct across GVKs"
+  ],
+  "body": "Symptom: a resource registered under several GVKs that all map to the same Go struct gets stored with an apiVersion/kind chosen by the codec instead of the one the caller set.\nRoot cause: the default Storage serializer (codecSerializer) runs object writes through the group's versioning codec, which selects the stored version itself whenever no declared GVK forces direct encoding (pkg/storage/unified/apistore/store.go:NewStorage default `s.serializer` selection).\nFix pattern: set `StorageOptions.Serializer: apistore.JSONSerializer()` for that resource's REST options so writes/reads/lists/watches encode/decode the object's own GVK directly, bypassing codec version conversion (see pkg/registry/apis/datasource/register.go:UpdateAPIGroupInfo).\nConstraints: only needed when a single Go type is registered for multiple GVKs (e.g. datasources); normal single-GVK-per-type resources should keep the default codec/declared-GVK behavior so real version conversion still happens.",
+  "applies": "apistore.StorageOptions consumers (pkg/registry/apis/*) registering a resource whose Go type spans multiple GVKs",
+  "tags": [
+    "apistore",
+    "serializer",
+    "datasource",
+    "gvk"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/serializer.go",
+      "symbol": "JSONSerializer",
+      "hash": "sha256:f4fc7b09309719978aeaa23e",
+      "line": 47,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "symbol": "StorageOptions",
+      "hash": "sha256:ef8e6febdec939c116adae3e",
+      "line": 74,
+      "missing": false,
+      "fanout": {
+        "files": 39,
+        "sites": 0,
+        "refs": 195
+      }
+    },
+    {
+      "path": "pkg/registry/apis/datasource/register.go",
+      "symbol": "UpdateAPIGroupInfo",
+      "hash": "sha256:722872167033ced5109cbcff",
+      "line": 272,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 11,
+        "refs": 22
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "symbol": "NewStorage",
+      "hash": "sha256:0b23582971beae0e026b12af",
+      "line": 162,
+      "missing": false,
+      "fanout": {
+        "files": 17,
+        "sites": 25,
+        "refs": 38
+      }
+    },
+    {
+      "path": "pkg/registry/apis/datasource/register.go",
+      "symbol": "UpdateAPIGroupInfo",
+      "hash": "sha256:722872167033ced5109cbcff",
+      "line": 272,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 11,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133083"
+  },
+  "created": "2026-10-04T05:52:52.420Z",
+  "verified": "2026-10-04T05:52:52.420Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apistore-serializer-is-the-single-extension-point-for-encode",
+    "shared-go-types-across-gvks-need-a-declared-gvk-not-scheme-g",
+    "storageoptions-gvk-must-be-all-or-nothing-group-version-kind"
+  ],
+  "says": [
+    "Why does my resource lose its version information when saved?",
+    "Resource getting re-versioned when stored under multiple API versions",
+    "How do I stop automatic version selection during resource storage?",
+    "Preventing resource version conversion when registered under multiple types"
+  ],
+  "saysFor": "1046:use-jsonserializer-when-",
+  "search": "Multi-GVK resource serialization: when a single Go type is registered for multiple GVKs in apistore, set `StorageOptions.Serializer: apistore.JSONSerializer()` (pkg/storage/unified/apistore/serializer.go:JSONSerializer, StorageOptions in pkg/storage/unified/apistore/store.go) to encode/decode the object's own GVK directly instead of letting the codec choose the stored version. The default codecSerializer in NewStorage runs writes through the group's versioning codec, which overwrites the caller-specified GVK. Constraint: only needed when one Go type spans multiple GVKs (e.g., datasources in pkg/registry/apis/datasource/register.go:UpdateAPIGroupInfo); normal single-GVK-per-type resources should keep default codec behavior so version conversion still occurs. Applies to apistore.StorageOptions consumers in pkg/registry/apis/* registering multi-GVK resources."
+}

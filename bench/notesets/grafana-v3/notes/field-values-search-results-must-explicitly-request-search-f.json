@@ -1,0 +1,45 @@
+{
+  "id": "field-values-search-results-must-explicitly-request-search-f",
+  "title": "FIELD_VALUES search results must explicitly request SEARCH_FIELD_RV to get per-row ResourceVersion",
+  "kind": "rule",
+  "answers": [
+    "Why does the /children API return folders without resourceVersion?",
+    "Folder search results missing per-item resource version",
+    "How to get resourceVersion populated on ResourceSearchRow when using FIELD_VALUES",
+    "subresource children items have empty ResourceVersion"
+  ],
+  "body": "Symptom: items returned by folder registry searches (e.g. /children) had no per-item resourceVersion, breaking optimistic concurrency for individual rows.\nRoot cause: pkg/registry/apis/folders/sub_children.go only requested SEARCH_FIELD_TITLE; with ResultFormat=FIELD_VALUES, resource.ResourceSearchRow.ResourceVersion is only populated by the index when 'rv' (resource.SEARCH_FIELD_RV) is explicitly listed in Fields — unlike RESOURCE_TABLE format which always sets ResourceTableRow.ResourceVersion.\nFix pattern: when switching a search to ResultFormat=FIELD_VALUES and callers need per-row versioning, add resource.SEARCH_FIELD_RV to the request Fields alongside whatever data fields are needed.\nConstraints: only applies to ResourceSearchRequest with ResultFormat=FIELD_VALUES; this requires index-side support merged in #132625 (search storing/populating '_rv'); older servers using RESOURCE_TABLE are unaffected.",
+  "applies": "Any code building a resourcepb.ResourceSearchRequest with ResultFormat=FIELD_VALUES that needs ResourceVersion per row.",
+  "tags": [
+    "search",
+    "folders",
+    "resourceversion",
+    "field_values"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/folders/sub_children.go",
+      "hash": "sha256:82586f080335af9553ca7e84",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132794"
+  },
+  "created": "2026-10-04T06:29:54.214Z",
+  "verified": "2026-10-04T06:29:54.214Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Folder search results don't include individual resource version information for each item",
+    "Why don't folder search results include the resource version",
+    "Optimistic concurrency control fails because search results lack version numbers",
+    "Folder items returned by search are missing their version numbers"
+  ],
+  "saysFor": "1016:field-values-search-resu",
+  "search": "FIELD_VALUES search results only populate per-row ResourceVersion when resource.SEARCH_FIELD_RV is explicitly listed in the Fields parameter; RESOURCE_TABLE always sets ResourceTableRow.ResourceVersion but FIELD_VALUES requires explicit request. Add resource.SEARCH_FIELD_RV to Fields alongside data fields for any ResourceSearchRequest with ResultFormat=FIELD_VALUES that needs per-row versioning, as shown in pkg/registry/apis/folders/sub_children.go. This constraint requires index-side support merged in PR #132625 for '_rv' storage and population."
+}

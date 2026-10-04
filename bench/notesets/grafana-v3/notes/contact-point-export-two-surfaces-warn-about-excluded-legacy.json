@@ -1,0 +1,65 @@
+{
+  "id": "contact-point-export-two-surfaces-warn-about-excluded-legacy",
+  "title": "Contact point export: two surfaces warn about excluded legacy integrations",
+  "kind": "map",
+  "answers": [
+    "Where is the contact point export warning for legacy integrations shown?",
+    "Why can't I export a contact point with an old integration?",
+    "Where is export disabled for contact points with legacy integrations?"
+  ],
+  "body": "Legacy/v0 integration exclusion from export is surfaced in two places: (1) the per-contact-point 'More actions' menu disables the Export item and shows a tooltip when `hasLegacyIntegrations` is true, in ContactPointHeader.tsx; (2) the bulk 'export all' drawer always shows a warning Alert explaining legacy integrations/contact points are omitted or stripped, in GrafanaReceiversExporter.tsx. The per-item check can disable export entirely; the bulk export has no such guard and instead just warns, since the backend silently omits/strips legacy integrations there.",
+  "applies": "Grafana Alerting contact point export UI",
+  "tags": [
+    "alerting",
+    "contact-points",
+    "export",
+    "legacy-integrations"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/contact-points/ContactPointHeader.tsx",
+      "symbol": "ContactPointHeader",
+      "hash": "sha256:b6d01991e7c1d743c08171aa",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 9
+      }
+    },
+    {
+      "path": "public/app/features/alerting/unified/components/export/GrafanaReceiversExporter.tsx",
+      "symbol": "GrafanaReceiversExporter",
+      "hash": "sha256:696b4e9b7db729978f9a1a60",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132797"
+  },
+  "created": "2026-10-04T06:29:05.639Z",
+  "verified": "2026-10-04T06:29:05.639Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "reuse-haslegacyintegrations-for-legacy-v0-integration-checks"
+  ],
+  "says": [
+    "Why can't I export the contact point when it has a legacy integration type",
+    "Where is the warning shown about legacy integrations being excluded from export",
+    "Contact point export is disabled for old integration types in the menu",
+    "How do I work around the legacy integration restriction in contact point export"
+  ],
+  "saysFor": "640:contact-point-export-two",
+  "search": "Contact point export UI surfaces legacy/v0 integration exclusion warnings in two distinct places: ContactPointHeader disables the Export menu item and shows a tooltip when hasLegacyIntegrations is true, while GrafanaReceiversExporter always displays a warning Alert in the bulk export drawer explaining that legacy integrations and contact points are omitted or stripped. The per-item check can prevent export entirely; the bulk export path has no such guard and warns instead, matching backend behavior which silently omits legacy integrations. Applies when adding export functionality to contact point management or modifying the bulk export flow. Paths: public/app/features/alerting/unified/components/contact-points/ContactPointHeader.tsx, public/app/features/alerting/unified/components/export/GrafanaReceiversExporter.tsx."
+}

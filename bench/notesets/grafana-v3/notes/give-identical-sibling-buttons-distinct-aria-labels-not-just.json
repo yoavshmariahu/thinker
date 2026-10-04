@@ -1,0 +1,51 @@
+{
+  "id": "give-identical-sibling-buttons-distinct-aria-labels-not-just",
+  "title": "Give identical sibling buttons distinct aria-labels, not just visible text",
+  "kind": "rule",
+  "answers": [
+    "Two Preview buttons are indistinguishable to screen readers",
+    "How to make duplicate buttons on a page accessible",
+    "aria-label pattern for repeated icon buttons"
+  ],
+  "body": "Symptom: screen reader users on the Import wizard Review step could not distinguish the two 'Preview' buttons (Notifications card vs Alert Rules card) since both had the same visible label and icon.\nRoot cause: two sibling buttons in ReviewStep (public/app/features/alerting/unified/components/import-to-gma/ImportToGMA.tsx) shared the same text/icon with no differentiating accessible name.\nFix pattern: keep the shared visible label (e.g. 'Preview') for visual consistency, but set a distinct `aria-label` per instance (e.g. t('alerting.import-to-gma.review.preview-config-aria', 'Preview configuration') vs '...preview-rules-aria', 'Preview alert rules') so `getByRole('button', { name: ... })` / assistive tech can disambiguate.\nConstraints: apply whenever a UI repeats the same button/icon across multiple sibling cards or rows; tests should query by the aria-label text, not the visible label, to assert the right control was hit.",
+  "applies": "Any screen with multiple structurally identical buttons (same label/icon) across repeated cards/rows",
+  "tags": [
+    "accessibility",
+    "aria-label",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/ImportToGMA.tsx",
+      "symbol": "ReviewStep",
+      "hash": "sha256:2096bfaaef29f198215b656e",
+      "line": 886,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132711"
+  },
+  "created": "2026-10-04T06:40:30.604Z",
+  "verified": "2026-10-04T06:40:30.604Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "import-to-gma-review-step-don-t-style-clickable-actions-as-s"
+  ],
+  "says": [
+    "Screen readers can't distinguish two preview buttons",
+    "How should I label duplicate buttons for screen readers?",
+    "Accessible names needed for repeated buttons on same screen"
+  ],
+  "saysFor": "1011:give-identical-sibling-b",
+  "search": "Identical sibling buttons across cards or rows must have distinct aria-label attributes to allow screen readers to disambiguate them, while sharing the same visible text/icon for visual consistency. Set per-instance aria-label values (e.g., t('alerting.import-to-gma.review.preview-config-aria') vs t('...preview-rules-aria')) so assistive technology and test queries with getByRole('button', { name: ... }) can distinguish each instance. Test queries must use aria-label text, not visible label; applies to public/app/features/alerting/unified/components/import-to-gma/ImportToGMA.tsx:ReviewStep and any component with repeated identical button controls."
+}

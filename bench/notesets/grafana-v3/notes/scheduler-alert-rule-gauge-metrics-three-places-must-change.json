@@ -1,0 +1,103 @@
+{
+  "id": "scheduler-alert-rule-gauge-metrics-three-places-must-change",
+  "title": "Scheduler alert-rule gauge metrics: three places must change together",
+  "kind": "rule",
+  "answers": [
+    "How do I add a new per-org/per-label alert rule count metric?",
+    "Where is grafana_alerting_plugin_origin_rules / rule_group_rules / prometheus_imported_rules computed?",
+    "Why is my new scheduler gauge metric not resetting / showing stale label combinations?"
+  ],
+  "body": "Symptom: a new per-org breakdown gauge (like rule_group_rules, prometheus_imported_rules, simplified_editor_rules, plugin_origin_rules) is missing, or shows stale label combinations from previous ticks.\nRoot cause: these GaugeVecs are declared in pkg/services/ngalert/metrics/scheduler.go:NewSchedulerMetrics, cleared each tick in pkg/services/ngalert/metrics/scheduler.go:Scheduler.ResetRuleMetrics, and recomputed from the full rule list in pkg/services/ngalert/schedule/metrics.go:updateRulesMetrics. All three must be kept in sync.\nFix pattern: declare the GaugeVec with its label set, add a `.Reset()` call for it in ResetRuleMetrics, and in updateRulesMetrics build a `map[orgID]map[label]int64` while iterating alertRules once, then call `WithLabelValues(orgID, label).Set(count)` per entry after the loop.\nConstraints: applies to any new per-org/per-category alert rule count gauge computed on every scheduler tick; does not apply to counters or histograms that accumulate across ticks (those should not be Reset).",
+  "applies": "adding or modifying per-org alert rule count gauges in the ngalert scheduler",
+  "tags": [
+    "alerting",
+    "metrics",
+    "scheduler",
+    "prometheus"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/metrics/scheduler.go",
+      "symbol": "NewSchedulerMetrics",
+      "hash": "sha256:162dc94f58960c9d9ee4a2f5",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/metrics/scheduler.go",
+      "symbol": "NewSchedulerMetrics",
+      "hash": "sha256:162dc94f58960c9d9ee4a2f5",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/metrics/scheduler.go",
+      "symbol": "Scheduler",
+      "hash": "sha256:2242a879be4ee7847b58013d",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 25
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/metrics/scheduler.go",
+      "symbol": "ResetRuleMetrics",
+      "hash": "sha256:9f67f7facef913e675ea745b",
+      "line": 218,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/schedule/metrics.go",
+      "symbol": "updateRulesMetrics",
+      "hash": "sha256:b02b4f395e5e3bc9b54b8b91",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 34,
+        "refs": 34
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132670"
+  },
+  "created": "2026-10-04T06:49:26.642Z",
+  "verified": "2026-10-04T06:49:26.642Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "sanitize-user-controlled-rule-labels-before-using-them-as-me",
+    "updaterulesmetrics-derives-per-org-breakdowns-from-rule-labe"
+  ],
+  "says": [
+    "Per-organization alert rule count metric missing or shows stale data",
+    "How do I add a new per-organization breakdown for alert metrics?",
+    "Alert rule gauge metric not resetting between scheduler ticks",
+    "New rule count breakdown shows previous tick's label combinations",
+    "Where are the per-org alert rule count metrics computed and cleared?"
+  ],
+  "saysFor": "1092:scheduler-alert-rule-gau",
+  "search": "Per-org alert rule count gauges (rule_group_rules, prometheus_imported_rules, simplified_editor_rules, plugin_origin_rules) require synchronized updates in three locations: GaugeVec declaration in pkg/services/ngalert/metrics/scheduler.go:NewSchedulerMetrics, Reset() call in ResetRuleMetrics, and recomputation in pkg/services/ngalert/schedule/metrics.go:updateRulesMetrics. Build a map[orgID]map[label]int64 during single alertRules iteration, then call WithLabelValues(orgID, label).Set(count) per entry. Applies only to per-org/per-category counts computed each tick; not to accumulators. Stale label combinations from prior ticks indicate desync."
+}

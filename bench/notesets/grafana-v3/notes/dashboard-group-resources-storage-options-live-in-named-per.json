@@ -1,0 +1,102 @@
+{
+  "id": "dashboard-group-resources-storage-options-live-in-named-per",
+  "title": "Dashboard-group resources: storage options live in named per-resource helpers, scoped via StorageOptsGetterFor",
+  "kind": "rule",
+  "answers": [
+    "Where do I add storage options for a new resource in the dashboard API group?",
+    "How to register storage for a new dashboard-group resource like variables/notebooks/snapshots",
+    "Pattern for apistore.StorageOptions in pkg/registry/apis/dashboard"
+  ],
+  "body": "Convention: each resource in the dashboard group (six dashboard versions plus library panels/variables/notebooks/snapshots sharing one group) has its own named *StorageOpts() helper in pkg/registry/apis/dashboard/register.go (dashboardStorageOpts, libraryPanelStorageOpts, variableStorageOpts, notebookStorageOpts, snapshotStorageOpts) rather than an inline apistore.StorageOptions literal at the call site.\nEach helper is wired in via opts.StorageOptsGetterFor(resourceInfo, xStorageOpts()) at the point storageForVersion/UpdateAPIGroupInfo installs that resource, pairing the options with the GVK of the version being installed. Do not use the GroupResource-keyed opts.StorageOptsRegister (can't carry a version) or the bare opts.OptsGetter (no per-resource GVK) for anything new here - a resource added without a declared GVK can be persisted as some other kind in the group.\nTests: TestOtherDashboardGroupResourcesDeclareGVK (pkg/registry/apis/dashboard/register_test.go) asserts each helper's resourceInfo.GroupVersionKind() reaches storage and that folder-support flags match intent - follow that pattern for new resources.",
+  "applies": "pkg/registry/apis/dashboard package when adding or modifying a resource's storage registration",
+  "tags": [
+    "dashboard",
+    "storage-options",
+    "convention",
+    "gvk"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "dashboardStorageOpts",
+      "hash": "sha256:b9324626cdadf4cd45359081",
+      "line": 981,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "libraryPanelStorageOpts",
+      "hash": "sha256:1e7c9b5871177a54bb4c4f57",
+      "line": 1001,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "variableStorageOpts",
+      "hash": "sha256:0c7c1c8678a40f5509388f5c",
+      "line": 1015,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "notebookStorageOpts",
+      "hash": "sha256:20217eaaca27bb0a0fa35421",
+      "line": 1023,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register_test.go",
+      "symbol": "TestOtherDashboardGroupResourcesDeclareGVK",
+      "hash": "sha256:3227b07870bb1386c40115ec",
+      "line": 641,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132784"
+  },
+  "created": "2026-10-04T06:32:11.417Z",
+  "verified": "2026-10-04T06:32:11.417Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "request-field-values-result-format-for-targeted-registry-sea"
+  ],
+  "says": [
+    "How to add storage options for new dashboard resource",
+    "Pattern for registering variables or snapshots in dashboard API",
+    "Where storage configuration lives for dashboard resource types",
+    "Adding new dashboard group resource like notebooks storage",
+    "Configuring storage for dashboard-related resources and dependencies"
+  ],
+  "saysFor": "1240:dashboard-group-resource",
+  "search": "Each dashboard-group resource (dashboards, library panels, variables, notebooks, snapshots) must have its own named *StorageOpts() helper function in pkg/registry/apis/dashboard/register.go paired with a specific GVK via opts.StorageOptsGetterFor(). Do not use opts.StorageOptsRegister (no version pairing) or bare opts.OptsGetter for new resources, as undeclared resources risk being persisted as the wrong kind. Wire the helper at storageForVersion/UpdateAPIGroupInfo install points; verify with TestOtherDashboardGroupResourcesDeclareGVK that resourceInfo.GroupVersionKind() reaches storage and folder-support flags match intent. Applies when adding or modifying dashboard-group resource storage registration (dashboardStorageOpts, libraryPanelStorageOpts, variableStorageOpts, notebookStorageOpts, snapshotStorageOpts)."
+}

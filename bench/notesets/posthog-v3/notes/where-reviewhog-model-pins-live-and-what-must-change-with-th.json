@@ -56,5 +56,6 @@
     "How to update ReviewHog to use a different model version",
     "ReviewHog model version constants and their dependencies"
   ],
-  "saysFor": "775:where-reviewhog-model-pi"
+  "saysFor": "775:where-reviewhog-model-pi",
+  "search": "ReviewHog model pins live in `products/review_hog/backend/reviewer/constants.py` (REVIEW_MODEL, FLASH_ARM.model, VALIDATION_MODEL, RESOLUTION_MODEL, OUTCOME_JUDGE_MODEL) and must be changed together with related documentation. Resolution and judge models mirror the validator's model by convention. Model-id bumps must update `products/review_hog/ARCHITECTURE.md` (names ids for reviewer, validator/resolver, Flash, effort application), `docs/internal/sandboxes-setup-guide.md` (Flash model id), and the hardcoded expectation in `products/review_hog/backend/tests/test_review_completed_tracking.py`. DECISIONS.md is intentionally not edited (it records history, not current values). Applies to model-id bumps for ReviewHog reviewer, Flash, validator, resolver, and outcome judge."
 }

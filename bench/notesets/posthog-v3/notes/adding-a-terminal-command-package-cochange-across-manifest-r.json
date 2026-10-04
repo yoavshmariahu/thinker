@@ -55,5 +55,6 @@
     "Custom shell command missing from the terminal",
     "Adding new terminal utilities like doom or figlet"
   ],
-  "saysFor": "951:adding-a-terminal-comman"
+  "saysFor": "951:adding-a-terminal-comman",
+  "search": "Adding a terminal command package requires updates to frontend/src/scenes/terminal/terminal-packages.json (name, version, file, sha256, size, archiveSize, dependencies, command paths), pinning baseUrl to a PostHog/terminal-assets commit SHA (not branch) that publishes archives to main, updating README text in posthogFilesystem.ts with new command names and exit controls, and optionally adding a story in TerminalScene.stories.tsx. Packages download on first use; archives must be on terminal-assets main before manifest references them. Applies to frontend terminal package manifest when adding or updating on-demand commands."
 }

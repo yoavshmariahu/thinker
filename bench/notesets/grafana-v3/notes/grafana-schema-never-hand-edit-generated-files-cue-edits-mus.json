@@ -1,0 +1,88 @@
+{
+  "id": "grafana-schema-never-hand-edit-generated-files-cue-edits-mus",
+  "title": "grafana-schema: never hand-edit generated files; CUE edits must keep veneer and dual composable copies in sync",
+  "kind": "rule",
+  "answers": [
+    "Can I edit panelcfg.gen.ts or common.gen.ts directly?",
+    "What breaks if I add @grafana(TSVeneer=\"type\") without a veneer file?",
+    "Why does editing panelcfg.cue change two generated files?"
+  ],
+  "body": "Files with the 'Code generated - EDITING IS FUTILE' header (e.g. `src/common/common.gen.ts`, `src/raw/**/types.gen.ts`, `*_gen.cue`) must never be hand-patched; edit the source `.cue` and run `make gen-cue`.\n- CUE field tagged `@grafana(TSVeneer=\"type\")` (e.g. `kinds/dashboard/dashboard_kind.cue`) causes `TSVeneerIndexJenny` (`pkg/codegen/jenny_tsveneerindex.go`) to OMIT that symbol from the raw re-export in `index.gen.ts` and instead expect a hand-written definition in `packages/grafana-schema/src/veneer/*.ts` (e.g. `dashboard.types.ts`). Adding/removing this attribute without adding/removing the matching veneer symbol breaks the TS build.\n- Editing a built-in panel's `panelcfg.cue` (or `dataquery.cue`) regenerates TWO copies from one source via `public/app/plugins/gen.go`: the plugin-local `panelcfg.gen.ts` in `public/app/plugins/panel/<name>/` and the mirror at `packages/grafana-schema/src/raw/composable/<name>/panelcfg/x/types.gen.ts`. Patching only one leaves them inconsistent; always regenerate both via `make gen-cue`.\n- Adding a new composable-kind or app-SDK output path requires adding the matching subpath to `packages/grafana-schema/package.json`'s `exports` map — the build doesn't auto-discover new output paths.",
+  "applies": "Applies to any change touching packages/grafana-schema/src/common/*.cue, kinds/*.cue, or a plugin's panelcfg.cue/dataquery.cue; does not apply to hand-written files under src/veneer/ or src/schema/ which are legitimately editable.",
+  "tags": [
+    "grafana-schema",
+    "codegen",
+    "cue"
+  ],
+  "deps": [
+    {
+      "path": "pkg/codegen/jenny_tsveneerindex.go",
+      "symbol": "TSVeneerIndexJenny",
+      "hash": "sha256:3f8b46d36e85ded5740c6f39",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "public/app/plugins/gen.go",
+      "symbol": "genCommon",
+      "hash": "sha256:0852c68eaf0efbea0abd7cfc",
+      "line": 97,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "kinds/dashboard/dashboard_kind.cue",
+      "hash": "sha256:380a55a759470734fa3a25ea",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-schema/src/veneer/dashboard.types.ts",
+      "hash": "sha256:21e0001503f1606b2bbde40d",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-schema/package.json",
+      "hash": "sha256:e31ddff0e0d1fa8c0b515065",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-schema/src/common/common.gen.ts",
+      "hash": "sha256:4842cc126547f78049c47256",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-schema/src/index.gen.ts",
+      "hash": "sha256:0e1d644dcc1ce134b2b83897",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "be65373d-b93c-416f-91fd-d753bef918d6"
+  },
+  "created": "2026-10-04T06:14:58.937Z",
+  "verified": "2026-10-04T06:14:58.937Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "grafana-schema-cue-generated-ts-schema-pipeline-entry-points"
+  ],
+  "says": [
+    "Generated file keeps reverting when I edit it directly",
+    "Custom type veneer file missing or implementation wrong",
+    "Schema source changes not appearing in generated output",
+    "CUE field attribute change didn't update TypeScript compilation"
+  ],
+  "saysFor": "1352:grafana-schema-never-han"
+}

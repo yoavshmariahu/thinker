@@ -50,5 +50,6 @@
     "User gets logged out of integrated MCP tool after approximately 67 days",
     "Refresh fails with invalid grant error despite refreshing token every single day"
   ],
-  "saysFor": "1116:dcr-cimd-refresh-token-d"
+  "saysFor": "1116:dcr-cimd-refresh-token-d",
+  "search": "DCR/CIMD non-rotating OAuth refresh tokens are deleted ~67 days after consent because posthog/api/oauth/views.py _save_bearer_token creates new access tokens on refresh but leaves OAuthRefreshToken.access_token pointing to the original authorization-code token; the cleanup dag (products/growth/dags/oauth.py) deletes RTs once their linked AT expired >60 days ago (ATs live 7 days = 67 total). Fix: repoint RT.access_token to the newly created AT in the same transaction using OAuthRefreshToken.objects.filter(pk=...).update(access_token=access_token), so RT lifetime tracks the last refresh. This constraint applies only to non-rotating refresh; rotating clients already create new RTs. Side effect: next refresh reads scopes from the linked AT, so narrowed scopes persist."
 }

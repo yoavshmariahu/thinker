@@ -1,0 +1,53 @@
+{
+  "id": "resourcesearchresponse-rows-live-in-different-fields-dependi",
+  "title": "ResourceSearchResponse rows live in different fields depending on ResultFormat",
+  "kind": "rule",
+  "answers": [
+    "Why is resp.Results.Rows empty but TotalHits > 0?",
+    "How do I read rows from a Search()/ResourceSearchResponse that could be FIELD_VALUES or RESOURCE_TABLE?",
+    "User uniqueness check breaks against older unified-storage servers",
+    "How to parse search results compatible with both old and new server versions"
+  ],
+  "body": "Symptom: a consumer of resourcepb.ResourceSearchResponse reads resp.Results.Rows and gets no match even though TotalHits > 0, because the server replied in a different result format.\nRoot cause: ResourceSearchResponse encodes rows differently per ResultFormat: RESOURCE_TABLE/UNSPECIFIED puts rows in resp.Results.Rows, FIELD_VALUES puts them directly in resp.Rows. Code that only reads one of these breaks against servers using the other format.\nFix pattern: branch on resp.GetResultFormat() and read from the matching field for each case, returning an error for unknown formats; see pkg/registry/apis/iam/user/validate.go:firstUserSearchResultName.\nConstraints: needed whenever a request sets ResultFormat: FIELD_VALUES (e.g. to request only resource.SEARCH_FIELD_NAME/key-only results) but must stay compatible with older servers that only understand RESOURCE_TABLE.",
+  "applies": "any code calling ResourceIndexClient.Search and parsing resourcepb.ResourceSearchResponse",
+  "tags": [
+    "iam",
+    "unified-storage",
+    "search",
+    "backward-compat"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/user/validate.go",
+      "symbol": "firstUserSearchResultName",
+      "hash": "sha256:00981871b54c75da69e4a120",
+      "line": 240,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132803"
+  },
+  "created": "2026-10-04T06:28:03.191Z",
+  "verified": "2026-10-04T06:28:03.191Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Total hits shows matches but actual result rows remain empty",
+    "Search result parsing fails after upgrading server version",
+    "Cannot read search rows consistently across server versions",
+    "Search response reports hits but rows are inaccessible",
+    "Unified search breaks when server changes result format"
+  ],
+  "saysFor": "948:resourcesearchresponse-r",
+  "search": "ResourceSearchResponse encodes rows in format-specific fields: RESOURCE_TABLE/UNSPECIFIED in resp.Results.Rows, FIELD_VALUES in resp.Rows; reading only Results.Rows finds no matches when TotalHits > 0 if the server uses a different format. Fix: branch on resp.GetResultFormat(), read from the matching field for each case, and error on unknown formats; see pkg/registry/apis/iam/user/validate.go:firstUserSearchResultName. Required when setting ResultFormat: FIELD_VALUES for key-only results while maintaining compatibility with older RESOURCE_TABLE-only servers."
+}

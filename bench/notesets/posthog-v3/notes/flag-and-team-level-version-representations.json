@@ -1,7 +1,7 @@
 {
   "id": "flag-and-team-level-version-representations",
   "title": "Flag and team-level version representations",
-  "kind": "overview",
+  "kind": "map",
   "answers": [
     "How is a flag's version bumped?",
     "What is PropertyMatchingVersion?",
@@ -38,8 +38,8 @@
     {
       "path": "products/feature_flags/backend/flag_version_sync.py",
       "symbol": "_bump_flag_versions",
-      "hash": "sha256:5c38b1637f55110c2d91270a",
-      "line": 139,
+      "hash": "sha256:e8d5881a30256f488e3176ad",
+      "line": 172,
       "missing": false
     },
     {
@@ -78,5 +78,6 @@
     "Reconstructing flag state at an earlier version",
     "What property matching version represents and tracks"
   ],
-  "saysFor": "904:flag-and-team-level-vers"
+  "saysFor": "904:flag-and-team-level-vers",
+  "search": "Feature flag versions are represented as FeatureFlag.version (int, default 1, nullable) for SDK local-eval payload comparison, and PropertyMatchingVersion (LEGACY=1, EXPLICIT=2) on TeamFeatureFlagsConfig for property matching behavior. The flag_version_sync.py:_bump_flag_versions function performs queryset UPDATE Coalesce('version',0)+1, triggered by bump_flag_versions_on_cohort_definition_change and bump_dependent_flag_versions_on_flag_definition_change; cohort membership recalculation must NOT bump. The version_history.py:reconstruct_flag_at_version function walks activity-log entries by version, raises VersionNotFound/VersionHistoryIncomplete, and is bounded by MAX_HISTORY_ENTRIES using RECONSTRUCTABLE_FIELDS. Applies to feature flag syncing, local evaluation in local_evaluation.py:_TOP_LEVEL_FIELDS_TO_COMPARE, and version history reconstruction across products/feature_flags/backend."
 }

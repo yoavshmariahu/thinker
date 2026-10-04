@@ -1,0 +1,120 @@
+{
+  "id": "adding-changing-an-advisor-check-must-update-registry-transl",
+  "title": "Adding/changing an advisor Check must update registry + translation parity together",
+  "kind": "rule",
+  "answers": [
+    "What do I need to touch when adding a new advisor check or step?",
+    "Why does CI fail with a translation key error after adding an advisor check?",
+    "Can a Check implementation cache state across runs?",
+    "Is advisor step code allowed to be non-concurrency-safe?"
+  ],
+  "body": "A new check implements checks.Check + checks.Step (apps/advisor/pkg/app/checks/ifaces.go) in its own pkg/app/checks/<name>/ package AND must be added to checkregistry.Service.Checks() (checkregistry.go) — a check not in that slice never runs and gets no CheckType.\nUser-facing strings (names/titles/descriptions/resolutions/error-link messages) must come from translations.CheckName/StepTitle/etc. (pkg/translations/embed.go), backed by en-US/grafana-advisor.json; the frontend derives i18n keys itself from IDs (`advisor.{checkTypeID}.name`, `advisor.{checkTypeID}.{stepID}.*`, `advisor.link.{slug}`), so adding a check/step/link requires updating the Go code AND en-US/grafana-advisor.json AND the checkTypeSteps/linkSlugs tables in pkg/translations/parity_test.go, or CI fails.\n`Check.Init` is called fresh on every run and every retry and must not cache results across calls (doc comment on checks.Check in ifaces.go) — e.g. datasourcecheck resets its plugin-install cache in Init for this reason.\nSteps run concurrently per (step × item) pair via utils.go's runStepsInParallel, capped at 10, with per-step panic recovery — step implementations must be concurrency-safe.\nReturn a CheckReportFailure for an expected/known issue; only return a Go error for unexpected failures — an error marks the whole Check StatusAnnotationError and the UI shows an error page instead of results.",
+  "applies": "Applies when adding a new check type, step, or failure-link under apps/advisor/pkg/app/checks/; does not apply to unrelated advisor plumbing (scheduler, admission wiring) changes.",
+  "tags": [
+    "apps/advisor",
+    "go",
+    "i18n",
+    "checks"
+  ],
+  "deps": [
+    {
+      "path": "apps/advisor/pkg/app/checks/ifaces.go",
+      "symbol": "Check",
+      "hash": "sha256:dd94d483aba5ffb47368c0d1",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 407,
+        "sites": 279,
+        "refs": 1350
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/app/checkregistry/checkregistry.go",
+      "hash": "sha256:b6beaafb060c69182c3c9428",
+      "missing": false
+    },
+    {
+      "path": "apps/advisor/pkg/translations/embed.go",
+      "symbol": "CheckName",
+      "hash": "sha256:d02d9a1d2bc47b77ce904f9a",
+      "line": 91,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/translations/parity_test.go",
+      "symbol": "checkTypeSteps",
+      "hash": "sha256:5201d3e6594420efc00022d4",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/translations/parity_test.go",
+      "symbol": "linkSlugs",
+      "hash": "sha256:61bf1886c499021ae74015c2",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/app/utils.go",
+      "symbol": "runStepsInParallel",
+      "hash": "sha256:af557c1f9beb8c960c7d6286",
+      "line": 193,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "apps/advisor/pkg/app/checks/utils.go",
+      "symbol": "StatusAnnotationError",
+      "hash": "sha256:8201a09efa2df1910abe2bbf",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 9
+      }
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "447b8e7f-b57e-4344-a95d-135fe2876da6"
+  },
+  "created": "2026-10-04T06:17:49.525Z",
+  "verified": "2026-10-04T06:17:49.525Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apps-advisor-control-flow-admission-triggered-checks-schedul"
+  ],
+  "says": [
+    "New advisor check never runs despite being implemented as Check",
+    "CI fails with translation key error after adding advisor check",
+    "How do I add a new advisor check or diagnostic step?",
+    "Advisor check appears in code but doesn't execute during scans",
+    "Adding check requires updates in multiple places for i18n registry"
+  ],
+  "saysFor": "1468:adding-changing-an-advis",
+  "search": "A new advisor Check must implement checks.Check and checks.Step in apps/advisor/pkg/app/checks/<name>/ and be added to checkregistry.Service.Checks(); checks not in that slice never run. User-facing strings (names, descriptions, resolutions, link messages) come from pkg/translations/embed.go:CheckName/StepTitle backed by en-US/grafana-advisor.json; frontend i18n keys follow pattern `advisor.{checkTypeID}.name`, `advisor.{checkTypeID}.{stepID}.*`, `advisor.link.{slug}`, so adding a check/step/link requires updating Go code AND JSON AND parity_test.go:checkTypeSteps/linkSlugs tables. Check.Init runs fresh on every call and must not cache across invocations; steps run concurrently (max 10 per item, with panic recovery) and must be concurrency-safe. Return CheckReportFailure for expected issues; return Go errors only for unexpected failures. Applies when adding check types, steps, or failure-links under apps/advisor/pkg/app/checks/. Paths: apps/advisor/pkg/app/checks/ifaces.go:Check, apps/advisor/pkg/app/checkregistry/checkregistry.go, pkg/translations/embed.go:CheckName, pkg/translations/parity_test.go:checkTypeSteps/linkSlugs, en-US/grafana-advisor.json, apps/advisor/pkg/app/utils.go:runStepsInParallel."
+}

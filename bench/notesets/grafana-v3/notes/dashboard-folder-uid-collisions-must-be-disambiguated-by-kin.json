@@ -1,0 +1,103 @@
+{
+  "id": "dashboard-folder-uid-collisions-must-be-disambiguated-by-kin",
+  "title": "Dashboard/folder UID collisions must be disambiguated by kind, not UID alone",
+  "kind": "rule",
+  "answers": [
+    "Browse dashboards crashes with RangeError: Maximum call stack size exceeded",
+    "Expanding a folder freezes the browse page",
+    "Unselecting a dashboard hangs the tab",
+    "Why does a Git Sync dashboard break the folder tree?"
+  ],
+  "body": "Symptom: expanding a folder in the dashboard browser crashes with 'RangeError: Maximum call stack size exceeded', or a fresh tab/unselect freezes, when a dashboard's UID equals its parent folder's UID (Git Sync produces this). Root cause: unified storage namespaces UIDs per kind, but public/app/features/browse-dashboards/state/utils.ts:findItem matched items by uid only, and the ancestor-walk in reducers.ts:setItemSelectionState (and the recursive tree builder in state/hooks.ts:createFlatTree) treated every item as a folder, so a same-UID dashboard resolved as its own parent/child forever. Fix pattern: require callers to pass the item kind alongside uid wherever items from different kinds can share a UID (findItem now takes a DashboardViewItemKind param), and gate any 'treat item as a folder with children' branch on `item.kind === 'folder'` before recursing or looking up children/ancestors. Constraints: applies to any browse-dashboards tree/selection code reading childrenByParentUID or walking parentUID chains; does not apply to code that already scopes lookups to a single kind's collection.",
+  "applies": "browse-dashboards tree traversal, selection, and any code resolving a folder/dashboard by UID when unified-storage kind-namespaced UIDs can collide",
+  "tags": [
+    "browse-dashboards",
+    "unified-storage",
+    "bugfix",
+    "infinite-loop"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/browse-dashboards/state/utils.ts",
+      "symbol": "findItem",
+      "hash": "sha256:0ff25576a9fe1b507d24a8e2",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 8,
+        "refs": 14
+      }
+    },
+    {
+      "path": "public/app/features/browse-dashboards/state/utils.ts",
+      "symbol": "ancestorsOf",
+      "hash": "sha256:4db8f936d330d00c81bb7f63",
+      "line": 37,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 9
+      }
+    },
+    {
+      "path": "public/app/features/browse-dashboards/state/reducers.ts",
+      "symbol": "setItemSelectionState",
+      "hash": "sha256:c4e9b86ca9e919118279451a",
+      "line": 82,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 10,
+        "refs": 24
+      }
+    },
+    {
+      "path": "public/app/features/browse-dashboards/components/BrowseView.tsx",
+      "symbol": "hasSelectedDescendants",
+      "hash": "sha256:54dba6fe42b492b3e7ab55fd",
+      "line": 247,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "public/app/features/browse-dashboards/state/hooks.ts",
+      "symbol": "createFlatTree",
+      "hash": "sha256:1c37ab1e621724e7d39ebed7",
+      "line": 133,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132634"
+  },
+  "created": "2026-10-04T06:52:27.767Z",
+  "verified": "2026-10-04T06:52:27.767Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "childrenbyparentuid-openfolders-are-keyed-by-folder-uid-only"
+  ],
+  "says": [
+    "Dashboard browser crashes expanding folder with same-named item",
+    "Browse dashboards page hangs syncing Git dashboards",
+    "Folder tree freezes when dashboard UID matches parent",
+    "RangeError maximum call stack when expanding certain folders",
+    "Unselecting dashboard hangs the browse tab completely"
+  ],
+  "saysFor": "1185:dashboard-folder-uid-col",
+  "search": "Dashboard/folder UID collisions (Git Sync can produce same UID for a dashboard and its parent folder) must be disambiguated by kind, because unified storage namespaces UIDs per kind. The ancestor-walk in public/app/features/browse-dashboards/state/utils.ts:findItem, reducers.ts:setItemSelectionState, and state/hooks.ts:createFlatTree must require the item kind (DashboardViewItemKind param) alongside uid, and gate any 'treat item as a folder with children' branch on `item.kind === 'folder'` before recursing. Without kind checking, same-UID dashboard resolves as its own parent/child, causing infinite recursion ('RangeError: Maximum call stack size exceeded') or freezes during unselect. Applies to browse-dashboards tree traversal, selection, and any code resolving items by uid when walking childrenByParentUID or parentUID chains; does not apply where code already scopes lookups to a single kind's collection."
+}

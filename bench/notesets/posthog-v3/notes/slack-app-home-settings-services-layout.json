@@ -78,5 +78,6 @@
     "Configure AI preferences in Slack app home",
     "Slack app home view data structure and layout"
   ],
-  "saysFor": "1005:slack-app-home-settings-"
+  "saysFor": "1005:slack-app-home-settings-",
+  "search": "Slack home and settings UI/logic follow a two-layer architecture: render side uses frozen state dataclasses (HomeViewState, ProjectState, TasksState, RunDefaultsState) in slack_app_home.py (~2,600 lines) via _*_blocks and render_home_view/render_edit_modal; handle side processes handle_app_home_opened, handle_ai_preferences_block_action, handle_app_home_view_submission and applies settings via _apply_*/_reset_* methods. Stats come from slack_app_home_stats.py:build_stats_state; AIPreferences (slack_settings.py), run preference cascading (run_preferences.py), and model pickers (model_catalogue.py) provide data layers. Database models include SlackThreadTaskMapping, SlackUserProfileCache, SlackSettings (slack_user_id for personal, NULL for workspace fallback), and SlackChannel; ai_preferences was added then dropped in migrations 0017/0018. Use this for modifying UI layouts, adding preferences, handling per-user vs. workspace defaults, or managing stats display."
 }

@@ -1,0 +1,78 @@
+{
+  "id": "support-both-field-values-and-resource-table-when-changing-a",
+  "title": "Support both FIELD_VALUES and RESOURCE_TABLE when changing a search ResultFormat",
+  "kind": "rule",
+  "answers": [
+    "Why does user search still need to handle RESOURCE_TABLE after switching to FIELD_VALUES?",
+    "How to add a new ResourceSearchRequest ResultFormat without breaking older servers",
+    "ParseResults fails with 'unsupported search result format'"
+  ],
+  "body": "Symptom: switching a search request to a new ResultFormat (e.g. FIELD_VALUES) breaks responses from older/unupgraded unified-storage servers that still return RESOURCE_TABLE.\nRoot cause: the request's ResultFormat is a client preference, not a guarantee; the server may still answer with the older format, so the response must be parsed according to its own result.GetResultFormat(), not the format that was requested.\nFix pattern: in the response parser, switch on result.GetResultFormat() (UNSPECIFIED/RESOURCE_TABLE vs FIELD_VALUES vs any new format) and dispatch to a dedicated parse function per format; keep the table-parsing path alive as the compatibility fallback.\nConstraints: applies whenever a ResourceSearchRequest.ResultFormat is changed or a new format is introduced; do not remove the RESOURCE_TABLE parsing branch just because a newer format is now requested by default.",
+  "applies": "pkg/registry/apis/iam/user/search.go ParseResults and any other handler that sets ResourceSearchRequest.ResultFormat",
+  "tags": [
+    "iam",
+    "search",
+    "backward-compatibility",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/user/search.go",
+      "symbol": "ParseResults",
+      "hash": "sha256:2370b3237b1e932a0e35d646",
+      "line": 432,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 35,
+        "refs": 35
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/search.go",
+      "symbol": "parseTableResults",
+      "hash": "sha256:5db27fb6306175ff8c651931",
+      "line": 450,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/search.go",
+      "symbol": "parseFieldValueResults",
+      "hash": "sha256:81afb4a1d26fa27bebd4bd01",
+      "line": 515,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132813"
+  },
+  "created": "2026-10-04T06:25:46.144Z",
+  "verified": "2026-10-04T06:25:46.144Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "field-values-decoding-requires-resource-decodesearchvalues-p"
+  ],
+  "says": [
+    "Search returns wrong format after changing result type preference",
+    "Compatibility breaks when upgrading server with different result formats",
+    "Why does old search result format keep coming back",
+    "Adding new search result format breaks older server responses",
+    "Parse results based on actual server response format"
+  ],
+  "saysFor": "968:support-both-field-value",
+  "search": "Support both FIELD_VALUES and RESOURCE_TABLE when changing a search ResultFormat — switch on result.GetResultFormat() in the response parser and dispatch to a dedicated parse function per format, keeping the table-parsing path alive as the compatibility fallback. Switching a request to a new ResultFormat (e.g. FIELD_VALUES) breaks responses from older/unupgraded unified-storage servers that still return RESOURCE_TABLE because ResultFormat is a client preference, not a guarantee. Do not remove the RESOURCE_TABLE parsing branch just because a newer format is now requested by default. Applies whenever ResourceSearchRequest.ResultFormat is changed or a new format is introduced in any handler that sets this field. Pointers: pkg/registry/apis/iam/user/search.go:ParseResults, parseTableResults, parseFieldValueResults, result.GetResultFormat()."
+}

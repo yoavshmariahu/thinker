@@ -1,0 +1,57 @@
+{
+  "id": "alert-rule-missing-series-evals-to-resolve-must-stay-bigint",
+  "title": "alert_rule.missing_series_evals_to_resolve must stay BIGINT to match int64 model",
+  "kind": "rule",
+  "answers": [
+    "Why does setting missing series resolution count above 32767 fail or get truncated?",
+    "Error saving alert rule with large missing-series-evals-to-resolve value on MySQL/Postgres",
+    "How to fix SMALLINT overflow for alert rule numeric fields",
+    "Column value out of range for missing_series_evals_to_resolve"
+  ],
+  "body": "Symptom: configuring missing-series resolution counts above 32767 on MySQL/Postgres fails or silently truncates because the DB column is SMALLINT while the Go model field is int64.\nRoot cause: pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go originally added the column as SMALLINT via AddAlertRuleMissingSeriesEvalsToResolve, mismatching the *int64 field on models.AlertRule/AlertRuleVersion.\nFix pattern: add a follow-up raw-SQL migration (ExpandAlertRuleMissingSeriesEvalsToResolve) that ALTERs the column type to BIGINT on both MySQL (MODIFY) and Postgres (ALTER COLUMN TYPE) dialects; never edit the original migration in place.\nConstraints: applies whenever a Go int64 model field is backed by a narrower SQL integer type (SMALLINT/INT); migrate with a new additive migration rather than modifying history, and always widen both alert_rule and alert_rule_version columns together since they must stay schema-compatible.",
+  "applies": "ngalert store/migrations when a model field's Go type is wider than its original DB column type",
+  "tags": [
+    "ngalert",
+    "migrations",
+    "schema",
+    "alerting"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go",
+      "symbol": "ExpandAlertRuleMissingSeriesEvalsToResolve",
+      "hash": "sha256:910108e1b78d35d4e240c381",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/sqlstore/migrations/migrations.go",
+      "hash": "sha256:29f3e082ed11626740e91a01",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-10-04T05:57:26.777Z",
+  "verified": "2026-10-04T05:57:26.777Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does setting missing series resolution count above 32767 fail or get truncated?",
+    "Error saving alert rule with large missing-series-evals-to-resolve value on MySQL/Postgres",
+    "How to fix SMALLINT overflow for alert rule numeric fields",
+    "Column value out of range for missing_series_evals_to_resolve"
+  ],
+  "saysFor": "1043:alert-rule-missing-serie",
+  "search": "The alert_rule.missing_series_evals_to_resolve column must be BIGINT to match the int64 Go model field, preventing truncation of values above 32767 on MySQL/Postgres. The original migration incorrectly used SMALLINT; fix this with a follow-up raw-SQL migration (ExpandAlertRuleMissingSeriesEvalsToResolve) that ALTERs the column type on both database dialects. Never edit historical migrations; instead add a new additive migration and always widen both alert_rule and alert_rule_version columns together to maintain schema compatibility. Found in pkg/services/sqlstore/migrations/ualert/alert_rule_missing_series_evals_to_resolve.go and pkg/services/sqlstore/migrations/migrations.go. Applies to ngalert store/migrations whenever a Go int64 field is backed by a narrower SQL integer type."
+}

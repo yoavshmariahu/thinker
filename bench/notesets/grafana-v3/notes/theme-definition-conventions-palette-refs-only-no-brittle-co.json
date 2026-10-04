@@ -1,0 +1,45 @@
+{
+  "id": "theme-definition-conventions-palette-refs-only-no-brittle-co",
+  "title": "Theme definition conventions: palette refs only, no brittle color-literal tests",
+  "kind": "rule",
+  "answers": [
+    "Can I hardcode a new hex color in a theme definition JSON?",
+    "Should I write a test asserting the exact hex value of a theme color token?",
+    "Review feedback: use a palette color instead of a custom one"
+  ],
+  "body": "Constraint: new color values in packages/grafana-data/src/themes/themeDefinitions/*.json (visual_refresh_dark.json, visual_refresh_light.json, etc.) must reference an existing palette.* token (e.g. 'palette.ink700'), not an arbitrary hex/black literal — reviewers reject raw colors like 'palette.black' when a closer palette entry (e.g. ink950) exists, since the UI otherwise gets a one-off color outside the palette system.\nConvention: don't add tests that assert exact resolved hex values for a single component's theme tokens (as createComponents.test.ts initially did for table colors) — reviewers flagged these as brittle (every color tweak breaks the test) and non-additive (they only exercise the generic createComponents merge path shared by all components, not table-specific logic). Prefer testing the generic merge/override behavior once, not per-component hardcoded colors.",
+  "applies": "Edits to packages/grafana-data/src/themes/themeDefinitions/*.json and packages/grafana-data/src/themes/createComponents.test.ts.",
+  "tags": [
+    "theme",
+    "palette",
+    "testing",
+    "code-review"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/themes/themeDefinitions/visual_refresh_dark.json",
+      "hash": "sha256:91afcec05893188840d951ae",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132692"
+  },
+  "created": "2026-10-04T06:45:05.739Z",
+  "verified": "2026-10-04T06:45:05.739Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The dark mode screen background has an inconsistent harsh black tint that clashes.",
+    "Align visual refresh dark theme styling with our approved set of palette colors.",
+    "A rogue one-off dark grey shade appears across several newly redesigned dashboard panels.",
+    "Ensure light mode interface surfaces strictly use standard palette tones instead of custom colors.",
+    "Certain dialog headers in the new dark theme do not match surrounding panel shades."
+  ],
+  "saysFor": "965:theme-definition-convent",
+  "search": "Theme definition files must reference existing palette tokens in the color value, never arbitrary hex literals like 'palette.black' when a closer palette entry exists. New colors in packages/grafana-data/src/themes/themeDefinitions/*.json (visual_refresh_dark.json, visual_refresh_light.json, etc.) are rejected by reviewers if they use raw colors outside the palette system. Do not add tests that assert exact resolved hex values for individual component theme tokens—such tests are brittle and break with every color tweak. Instead, test the generic merge/override behavior once via the shared createComponents path used by all components. Convention applies to edits in packages/grafana-data/src/themes/themeDefinitions/ and packages/grafana-data/src/themes/createComponents.test.ts."
+}

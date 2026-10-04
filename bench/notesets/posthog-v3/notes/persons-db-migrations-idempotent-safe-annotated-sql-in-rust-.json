@@ -40,5 +40,6 @@
     "New table creation is not idempotent across deployments",
     "Need to document why this database change is safe to deploy"
   ],
-  "saysFor": "777:persons-db-migrations-id"
+  "saysFor": "777:persons-db-migrations-id",
+  "search": "Persons-DB schema changes are timestamped SQL files in `rust/persons_migrations/` run by `sqlx migrate run` in CI, must use `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` to remain idempotent when re-applied. Each file must start with a header comment containing a `-- SAFE:` line explaining why deployment is safe (e.g., new empty table, no locks on existing tables). Add a `COMMENT ON TABLE` describing the table's meaning; readwrite-tier roles personhog-replica and dagster have `pg_read_all_data`/`pg_write_all_data` so new tables require no GRANT. PR verification requires applying the migration twice to confirm idempotence. Applies to adding or modifying tables in the persons Postgres DB."
 }

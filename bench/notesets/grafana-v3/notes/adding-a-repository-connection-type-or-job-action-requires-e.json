@@ -1,0 +1,143 @@
+{
+  "id": "adding-a-repository-connection-type-or-job-action-requires-e",
+  "title": "Adding a repository/connection type or job action requires edits across apps/provisioning AND pkg/registry/apis/provisioning",
+  "kind": "rule",
+  "answers": [
+    "What do I need to change to add a new repository backend type?",
+    "What breaks if I only implement repository.Extra and don't register it?",
+    "How do I add a new JobAction?"
+  ],
+  "body": "Adding a new repository or connection backend type requires ALL of: (1) a new `RepositoryType`/`ConnectionType` constant in apps/provisioning/pkg/apis/provisioning/v0alpha1/types.go, (2) an implementation of `repository.Extra` or `connection.Extra` (apps/provisioning/pkg/repository/factory.go:Extra / apps/provisioning/pkg/connection/factory.go:Extra) providing Type/Build/Mutate/Validate, (3) registration of that Extra in `pkg/registry/apis/provisioning/extras/register.go:ProvideProvisioningOSSRepositoryExtras`, and (4) admission wiring already dispatches generically via the Factory, but any new admission constant (e.g. AllowedTargets) must also be updated in pkg/registry/apis/provisioning/register.go. Skipping (3) means the type builds but is never constructible/validatable at runtime (silent no-op, not a compile error).\n\nSimilarly, adding a new `JobAction` requires a case in `jobs.ValidateJob` (apps/provisioning/pkg/jobs/validator.go) AND a corresponding worker in pkg/registry/apis/provisioning/jobs/ (a different Go module/package) — these are updated independently and easy to leave inconsistent (validator accepts an action with no worker, or vice versa).\n\nSeparately: editing apps/provisioning/kinds/*.cue requires running `make generate` (apps/provisioning/Makefile, delegates to the grafana-app-sdk generator) to regenerate pkg/generated/** and zz_generated.* — hand-editing types.go without regenerating leaves OpenAPI/deepcopy/client code stale. Mock files (`*_mock.go`) are mockery-generated from `//go:generate mockery` directives above each interface (e.g. apps/provisioning/pkg/repository/repository.go:Repository) — don't hand-edit them, regenerate instead.",
+  "applies": "Applies when extending apps/provisioning/pkg (new repo/connection backend, new job action, or changed CUE kind). Does not apply to unrelated bugfixes within an existing backend's Extra implementation.",
+  "tags": [
+    "provisioning",
+    "codegen",
+    "extensibility"
+  ],
+  "deps": [
+    {
+      "path": "apps/provisioning/pkg/repository/factory.go",
+      "symbol": "Extra",
+      "hash": "sha256:218fb00209f4e5504ef8c88f",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 62,
+        "sites": 42,
+        "refs": 279
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/connection/factory.go",
+      "symbol": "Extra",
+      "hash": "sha256:95349aae191d4000b026e038",
+      "line": 16,
+      "missing": false,
+      "fanout": {
+        "files": 62,
+        "sites": 42,
+        "refs": 279
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/extras/register.go",
+      "symbol": "ProvideProvisioningOSSRepositoryExtras",
+      "hash": "sha256:57012bacc6a99f2394be95f5",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/jobs/validator.go",
+      "symbol": "ValidateJob",
+      "hash": "sha256:ef366c8342baa1ee5e290d07",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/apis/provisioning/v0alpha1/types.go",
+      "symbol": "RepositoryType",
+      "hash": "sha256:a4604e91b29ec90092c4c40b",
+      "line": 178,
+      "missing": false,
+      "fanout": {
+        "files": 24,
+        "sites": 4,
+        "refs": 107
+      }
+    },
+    {
+      "path": "apps/provisioning/Makefile",
+      "hash": "sha256:d97fb4ac23c10cd57fa01386",
+      "missing": false
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/repository.go",
+      "symbol": "Repository",
+      "hash": "sha256:77790c96c2eb053d4b5c56d4",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 209,
+        "sites": 2,
+        "refs": 1995
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/register.go",
+      "symbol": "Mutate",
+      "hash": "sha256:cf5377d2e587932d596d8897",
+      "line": 974,
+      "missing": false,
+      "fanout": {
+        "files": 71,
+        "sites": 124,
+        "refs": 199
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/register.go",
+      "symbol": "Validate",
+      "hash": "sha256:1df42092117d89571f681679",
+      "line": 985,
+      "missing": false,
+      "fanout": {
+        "files": 296,
+        "sites": 472,
+        "refs": 766
+      }
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "a935daa7-01a1-4fee-926e-80c27d3f93c1"
+  },
+  "created": "2026-10-04T05:55:32.582Z",
+  "verified": "2026-10-04T05:55:32.582Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apps-provisioning-pkg-architecture-control-flow-map",
+    "local-file-provisioning-uses-the-same-repository-crd-as-git"
+  ],
+  "says": [
+    "New repository backend type isn't available even after implementing interface",
+    "How do I add support for a new repository connection type?",
+    "Custom repository backend fails to register across the provisioning system",
+    "What all needs updating to add a new repository or connection type?",
+    "New job action doesn't work after adding the implementation"
+  ],
+  "saysFor": "1811:adding-a-repository-conn",
+  "search": "Adding a new repository or connection backend requires: (1) a constant in apps/provisioning/pkg/apis/provisioning/v0alpha1/types.go:RepositoryType/ConnectionType, (2) an Extra implementation in apps/provisioning/pkg/repository/factory.go or apps/provisioning/pkg/connection/factory.go providing Type/Build/Mutate/Validate, (3) registration in pkg/registry/apis/provisioning/extras/register.go:ProvideProvisioningOSSRepositoryExtras (skipping this silently breaks runtime validation). Job actions require independent updates to apps/provisioning/pkg/jobs/validator.go:ValidateJob and a corresponding worker in pkg/registry/apis/provisioning/jobs/, easily left inconsistent. CUE edits in apps/provisioning/kinds/ require `make generate` (apps/provisioning/Makefile) to regenerate zz_generated.* and OpenAPI. Mock files regenerate via `//go:generate mockery` directives, not hand-editing. Paths: apps/provisioning/pkg/repository/factory.go:Extra, apps/provisioning/pkg/connection/factory.go:Extra, pkg/registry/apis/provisioning/extras/register.go:ProvideProvisioningOSSRepositoryExtras, apps/provisioning/pkg/apis/provisioning/v0alpha1/types.go, apps/provisioning/pkg/jobs/validator.go:ValidateJob, apps/provisioning/Makefile."
+}

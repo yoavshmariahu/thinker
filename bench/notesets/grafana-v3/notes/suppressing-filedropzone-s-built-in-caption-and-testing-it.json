@@ -1,0 +1,57 @@
+{
+  "id": "suppressing-filedropzone-s-built-in-caption-and-testing-it",
+  "title": "Suppressing FileDropzone's built-in caption and testing it",
+  "kind": "rule",
+  "answers": [
+    "How to hide FileDropzone's 'Accepted file types' text",
+    "FileDropzone shows duplicate accepted-file-types caption",
+    "FileDropzone tests fail with getByText not finding dropzone text"
+  ],
+  "body": "Symptom: FileDropzone always renders its own 'Accepted file types: ...' caption and there is no prop to disable it, causing duplicate/unwanted text when the accepted types are already shown elsewhere (e.g. in a Field description).\nFix pattern: wrap the FileDropzone in a container styled with `small { display: none }` (emotion css) to hide the built-in caption, and put the accepted-types text in the surrounding `Field`'s `description` prop instead — see `hideAcceptedFileTypesCaption` in public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx.\nConstraint/invariant: FileDropzone is lazy-loaded via React.lazy/Suspense, so tests must use `findByText`/`await` (not synchronous `getByText`) to see its content, and real drag-and-drop bypasses the OS file-dialog `accept` filter that `userEvent.upload` normally simulates — use `userEvent.setup({ applyAccept: false })` when testing rejection of disallowed file types, per public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.test.tsx.",
+  "applies": "Any component or test that uses Grafana's FileDropzone",
+  "tags": [
+    "alerting",
+    "filedropzone",
+    "testing",
+    "ui-convention"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx",
+      "symbol": "hideAcceptedFileTypesCaption",
+      "hash": "sha256:6c6460d20100ef45b948db86",
+      "line": 46,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.test.tsx",
+      "hash": "sha256:e64d789c1d45d639373d2d4d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132705"
+  },
+  "created": "2026-10-04T06:42:21.336Z",
+  "verified": "2026-10-04T06:42:21.336Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "File upload shows duplicate accepted file types text",
+    "Hide the built-in file type caption in upload",
+    "Remove automatic file types message from dropzone",
+    "Suppress file upload component default accepted types text",
+    "File upload caption overlaps with form field description"
+  ],
+  "saysFor": "1129:suppressing-filedropzone",
+  "search": "Hiding FileDropzone's built-in accepted-types caption requires wrapping it in a container with `small { display: none }` CSS and placing the text in the surrounding Field's description prop instead. FileDropzone is lazy-loaded via React.lazy/Suspense, so tests must use `findByText`/`await` instead of synchronous `getByText` to access its rendered content. Real drag-and-drop interactions bypass the OS file-dialog `accept` filter that `userEvent.upload` normally simulates, so use `userEvent.setup({ applyAccept: false })` when testing rejection of disallowed file types. See `hideAcceptedFileTypesCaption` in Step1AlertmanagerResources.tsx and its test file for the implementation pattern. This guidance applies to any component or test code that uses Grafana's FileDropzone."
+}

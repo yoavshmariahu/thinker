@@ -1,0 +1,136 @@
+{
+  "id": "authzlimitedclient-entry-points-must-each-call-servicecandel",
+  "title": "authzLimitedClient entry points must each call serviceCanDelegate before forwarding",
+  "kind": "rule",
+  "answers": [
+    "I'm adding a new way to call the authz client in unified storage, what do I need to replicate from Check/BatchCheck?",
+    "Why does BatchCheck only log/count once per group+resource+verb instead of once per item?",
+    "Does the delegated-permission check depend on rbacAllowlist?"
+  ],
+  "body": "Invariant: every public entry point of authzLimitedClient that performs an access check on behalf of a user (Check, Compile, BatchCheck in pkg/storage/unified/resource/access.go) must call serviceCanDelegate for each distinct group/resource/verb before calling the wrapped claims.AccessClient, otherwise a service token with service-but-not-delegated permissions silently returns a denial/empty result instead of an explicit error. BatchCheck dedupes by group+resource+verb (one metric/log per combination, not per item) since a page of hits usually repeats the same combination. This check deliberately does not depend on rbacAllowlist, so it keeps working once that allowlist is removed and every kind is checked.",
+  "applies": "pkg/storage/unified/resource/access.go authzLimitedClient; any new method added there that forwards to the underlying authz client",
+  "tags": [
+    "unified-storage",
+    "authz",
+    "convention",
+    "batch-check"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "authzLimitedClient",
+      "hash": "sha256:b3629fd65adcbfe97cb1ed89",
+      "line": 134,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 19
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "Compile",
+      "hash": "sha256:9d32cf664437642e3c25e6d4",
+      "line": 252,
+      "missing": false,
+      "fanout": {
+        "files": 39,
+        "sites": 43,
+        "refs": 83
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "BatchCheck",
+      "hash": "sha256:76a73c814f4b1a7612e3eec4",
+      "line": 310,
+      "missing": false,
+      "fanout": {
+        "files": 41,
+        "sites": 98,
+        "refs": 191
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "serviceCanDelegate",
+      "hash": "sha256:9cbb0838c6f91b5a7984aeb3",
+      "line": 81,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "authzLimitedClient",
+      "hash": "sha256:b3629fd65adcbfe97cb1ed89",
+      "line": 134,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 19
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "Compile",
+      "hash": "sha256:9d32cf664437642e3c25e6d4",
+      "line": 252,
+      "missing": false,
+      "fanout": {
+        "files": 39,
+        "sites": 43,
+        "refs": 83
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "BatchCheck",
+      "hash": "sha256:76a73c814f4b1a7612e3eec4",
+      "line": 310,
+      "missing": false,
+      "fanout": {
+        "files": 41,
+        "sites": 98,
+        "refs": 191
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "serviceCanDelegate",
+      "hash": "sha256:9cbb0838c6f91b5a7984aeb3",
+      "line": 81,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132990"
+  },
+  "created": "2026-10-04T06:01:13.753Z",
+  "verified": "2026-10-04T06:01:13.753Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "unified-storage-service-token-lacking-delegated-permission-m"
+  ],
+  "says": [
+    "What pattern do I need when adding delegated access permission checks?",
+    "Why does access authorization logging report once per combination?",
+    "Does delegated permission checking require the authorization allowlist enabled?"
+  ],
+  "saysFor": "799:authzlimitedclient-entry",
+  "search": "Every public entry point of authzLimitedClient in pkg/storage/unified/resource/access.go that performs an access check on behalf of a user (Check, Compile, BatchCheck) must call serviceCanDelegate for each distinct group/resource/verb before calling the wrapped claims.AccessClient, otherwise a service token with service-but-not-delegated permissions silently returns a denial or empty result instead of raising an explicit error. BatchCheck dedupes the serviceCanDelegate calls by group+resource+verb since a page of results usually repeats the same combination. This check deliberately does not depend on rbacAllowlist, so it continues working once that allowlist is removed and every kind is checked. Apply this rule to any new method added to authzLimitedClient that forwards to the underlying authz client."
+}

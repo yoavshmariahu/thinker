@@ -82,5 +82,6 @@
     "What data can I filter on for issue lifecycle notifications",
     "Issue description appears twice on the lifecycle event payload"
   ],
-  "saysFor": "1475:lifecycle-event-payload-"
+  "saysFor": "1475:lifecycle-event-payload-",
+  "search": "Lifecycle event payload structure for alert filtering and Temporal delivery: `prepare_issue_lifecycle_event` in products/error_tracking/backend/logic/lifecycle_events.py builds the snapshot that must match cymbal's ingestion producer. Allowed fields are name, description, issue_description, first_seen, severity, status, fingerprint (conditional), assignee (conditional), previous_status, previous_assignee, merged_issue_ids, split_issue_ids (all strings); `exception_timestamp` is deliberately omitted for manual events. Identity uses distinct_id=issue id and uuid=notification_id for idempotent redelivery. The person object is minimal (id, distinct_id, email, first_name) and must not be extended. Temporal alert delivery in products/error_tracking/backend/temporal/alerts/filtering.py (LIFECYCLE_PROPERTY_KEYS, alert_filters_match) reads these fields for filtering; products/error_tracking/backend/temporal/alerts/types.py:AlertDeliveryWorkflowInputs compresses them to string status/assignee, actor_email, severity, fingerprint, first_seen, merged_count/split_count. Adding or renaming payload fields requires checking both Temporal consumers and alert filter keys."
 }

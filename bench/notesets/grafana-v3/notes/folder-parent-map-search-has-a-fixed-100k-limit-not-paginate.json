@@ -1,0 +1,54 @@
+{
+  "id": "folder-parent-map-search-has-a-fixed-100k-limit-not-paginate",
+  "title": "Folder parent map search has a fixed 100k limit, not paginated",
+  "kind": "rule",
+  "answers": [
+    "Folder migration validation misses folders in a very large instance",
+    "Why does folder tree validation silently drop folders beyond 100000?",
+    "Known limitation in buildUnifiedFolderParentMap"
+  ],
+  "body": "Symptom: folder-tree validation during migration can miss folders when an org/stack has more than 100,000 folders, since the search used to build the parent map uses a hard-coded Limit.\nRoot cause: pkg/storage/unified/migrations/validator.go:buildUnifiedFolderParentMap sends a single ResourceSearchRequest with Limit: 100000 and no pagination.\nFix pattern: reviewers explicitly rejected bumping the limit to 1,000,000; the agreed direction is to paginate the search (follow-up), not to raise the fixed constant.\nConstraints: any future change to this function must add pagination (e.g. loop with continue tokens/offsets) rather than just increasing Limit, to correctly support arbitrarily large folder trees.",
+  "applies": "pkg/storage/unified/migrations validator folder-tree search logic; any similar fixed-Limit full-table search in unified storage.",
+  "tags": [
+    "unified-storage",
+    "migrations",
+    "pagination",
+    "known-limitation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/migrations/validator.go",
+      "symbol": "buildUnifiedFolderParentMap",
+      "hash": "sha256:651a2158ad6395665d5331ce",
+      "line": 339,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132888"
+  },
+  "created": "2026-10-04T06:16:38.399Z",
+  "verified": "2026-10-04T06:16:38.399Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cursor-paging-loop-must-detect-a-non-advancing-or-missing-cu",
+    "unified-storage-search-walks-must-page-by-cursor-not-a-singl"
+  ],
+  "says": [
+    "Folder migration validation misses folders in very large instances",
+    "Folder tree validation stops checking beyond a large size threshold",
+    "Very large folder trees incompletely validated during migration",
+    "Pagination needed for folder tree validation to handle large instances"
+  ],
+  "saysFor": "772:folder-parent-map-search",
+  "search": "Folder parent map search in pkg/storage/unified/migrations/validator.go:buildUnifiedFolderParentMap uses a hard-coded 100,000 Limit without pagination, causing migration validation to miss folders in orgs/stacks exceeding this threshold. The constraint is that future changes must add pagination (loop with continue tokens/offsets) rather than bumping the Limit constant, per reviewer decision. Applies to ResourceSearchRequest-based searches for full folder trees, including any similar fixed-Limit full-table search patterns in unified storage that require support for arbitrarily large datasets."
+}

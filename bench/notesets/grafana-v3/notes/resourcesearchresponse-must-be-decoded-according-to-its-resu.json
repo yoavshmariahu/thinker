@@ -1,0 +1,78 @@
+{
+  "id": "resourcesearchresponse-must-be-decoded-according-to-its-resu",
+  "title": "ResourceSearchResponse must be decoded according to its ResultFormat, not assumed to be a ResourceTable",
+  "kind": "rule",
+  "answers": [
+    "How do I read rows out of a ResourceSearchResponse?",
+    "Why do old ResourceTable-based decoders break on FIELD_VALUES responses?",
+    "How to add a new hybrid search lookup that reads string fields from search results?"
+  ],
+  "body": "Symptom: code that reads resp.Results.Columns/Rows directly breaks or silently returns empty data when the server answers with the FIELD_VALUES format instead of RESOURCE_TABLE.\nRoot cause: ResourceSearchResponse can be shaped as either a ResourceTable (resp.Results, byte cells) or FIELD_VALUES (resp.Fields + resp.Rows[].Values, typed ResourceSearchValue).\nFix pattern: lexicalHitsFromResponse (pkg/storage/unified/resource/search_hybrid.go) switches on resp.GetResultFormat(): UNSPECIFIED/RESOURCE_TABLE goes through lexicalHitsFromTable, FIELD_VALUES goes through lexicalHitsFromFieldValues which calls DecodeSearchValues per row and extracts scalars via searchStringValue (errors if a field decodes to non-string or a multi-value scalar). Any new result field read from a hybrid search response must follow this same dual-format decode, and requests that want the lighter format must set ResultFormat: resourcepb.ResourceSearchRequest_FIELD_VALUES explicitly (default is RESOURCE_TABLE).\nConstraints: only applies to code consuming resourcepb.ResourceSearchResponse from the search backends; unrelated to the external vector search path.",
+  "applies": "pkg/storage/unified/resource/search_hybrid.go decoding of ResourceSearchResponse (lexical, managed-by, folder-title lookups)",
+  "tags": [
+    "hybrid-search",
+    "resource-search",
+    "storage",
+    "field-values"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/search_hybrid.go",
+      "symbol": "lexicalHitsFromResponse",
+      "hash": "sha256:b54c28b058e7e6250a864981",
+      "line": 651,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/search_hybrid.go",
+      "symbol": "lexicalHitsFromFieldValues",
+      "hash": "sha256:69b5a84e030aa73270084ebe",
+      "line": 708,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/search_hybrid.go",
+      "symbol": "searchStringValue",
+      "hash": "sha256:7c020cda0b66bf4007d4470a",
+      "line": 736,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132893"
+  },
+  "created": "2026-10-04T06:16:10.535Z",
+  "verified": "2026-10-04T06:16:10.535Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "hybrid-search-primary-lexical-decode-errors-fail-the-request"
+  ],
+  "says": [
+    "Search results show no rows even when database contains matching records",
+    "Decoding breaks when search response format changes between types",
+    "Hybrid search returns data but fields are unreadable",
+    "Different result formats cause silent failures extracting search results",
+    "How to extract typed field values from search response correctly"
+  ],
+  "saysFor": "1246:resourcesearchresponse-m",
+  "search": "ResourceSearchResponse decoding must match result format: RESOURCE_TABLE/UNSPECIFIED stores rows in Results.Rows with typed Cells, while FIELD_VALUES stores rows directly in Rows with typed ResourceSearchValue fields. Code reading only Results.Columns/Rows breaks against FIELD_VALUES responses. Pattern: pkg/storage/unified/resource/search_hybrid.go:lexicalHitsFromResponse switches on GetResultFormat() to route to lexicalHitsFromTable or lexicalHitsFromFieldValues (which calls DecodeSearchValues and validates scalar types via searchStringValue). Set ResultFormat: resourcepb.ResourceSearchRequest_FIELD_VALUES explicitly to request the lighter format."
+}

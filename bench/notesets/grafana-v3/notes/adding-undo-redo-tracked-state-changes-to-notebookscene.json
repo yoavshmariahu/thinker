@@ -1,0 +1,57 @@
+{
+  "id": "adding-undo-redo-tracked-state-changes-to-notebookscene",
+  "title": "Adding undo/redo-tracked state changes to NotebookScene",
+  "kind": "rule",
+  "answers": [
+    "How do I make a notebook property change undoable?",
+    "Why does my notebook edit not show up in undo/redo?",
+    "How to add a new NOTEBOOK_EDIT_KIND action",
+    "Pattern for recording history actions in Notebook scene"
+  ],
+  "body": "Fix pattern: to make a scene-level state change (e.g. tags) undoable, guard with an `isEqual(previous, next)` no-op check before recording, call `this.state.body.commitPendingEdits()` first so any in-progress coalescing cell edit lands as its own undo step underneath, then call `this.editHistory.execute({ label, kind, perform, undo })` with a kind from NOTEBOOK_EDIT_KIND. Constraints: without the no-op guard, re-setting the same value creates a spurious history entry; without commitPendingEdits() first, the new action interrupts/merges into an unrelated pending edit instead of stacking cleanly.",
+  "applies": "public/app/features/notebook/scene — any new tracked/undoable state on NotebookScene.",
+  "tags": [
+    "notebooks",
+    "undo-redo",
+    "scenes"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/notebook/scene/NotebookScene.tsx",
+      "hash": "sha256:09300d5793c1da8a60b660ae",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/notebook/scene/NotebookEditHistory.ts",
+      "symbol": "NOTEBOOK_EDIT_KIND",
+      "hash": "sha256:6a3bf3e450a777919863b667",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 40
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132947"
+  },
+  "created": "2026-10-04T06:05:27.888Z",
+  "verified": "2026-10-04T06:05:27.888Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Notebook property changes don't appear in the undo and redo menu",
+    "How do I make a notebook edit action appear in undo history?",
+    "New notebook state change isn't tracked by the undo redo system",
+    "Why doesn't my notebook modification show in undo history?",
+    "Unsaved notebook edits to tags or properties can't be undone"
+  ],
+  "saysFor": "657:adding-undo-redo-tracked",
+  "search": "Making scene-level state changes (e.g., tags) undoable in NotebookScene requires three steps: guard with isEqual(previous, next) to prevent spurious history entries, call this.state.body.commitPendingEdits() first so in-progress coalescing edits land as their own step, then call this.editHistory.execute({ label, kind, perform, undo }) with kind from NOTEBOOK_EDIT_KIND. Without the no-op guard, re-setting the same value creates spurious entries. Without commitPendingEdits(), the new action merges into an unrelated pending edit instead of stacking cleanly. Applies to new tracked/undoable state on NotebookScene in public/app/features/notebook/scene/NotebookScene.tsx and public/app/features/notebook/scene/NotebookEditHistory.ts."
+}

@@ -75,5 +75,6 @@
     "Deciding between a reducer, selector, loader, or cache for new state.",
     "Should I connect to another logic or import its actions directly?"
   ],
-  "saysFor": "1589:kea-logic-conventions-bu"
+  "saysFor": "1589:kea-logic-conventions-bu",
+  "search": "Kea logics follow strict builder order: props → key → path → connect → actions → forms → loaders → reducers → selectors → sharedListeners → listeners → subscriptions → windowValues → urlToAction/actionToUrl → afterMount/propsChanged/beforeUnmount, shown in dashboardLogic.tsx. Keyed logics must derive key from props only; always pass props at call site (fooLogic() without props creates phantom instance). Use loader for HTTP data, selector for computed state, reducer for action-driven state; async defaults are null/'unknown' not false/[]. Never handwrite serializer-mirroring interfaces or separate *LogicType.ts files; use inline MakeLogicType. Anti-patterns: reducer mirroring loader value, isLoadingFoo next to loader, derived state in reducer. Applies to frontend kea logics in products/signals/frontend/inbox and frontend/src/scenes."
 }

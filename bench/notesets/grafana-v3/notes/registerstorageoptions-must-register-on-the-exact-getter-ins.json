@@ -1,0 +1,65 @@
+{
+  "id": "registerstorageoptions-must-register-on-the-exact-getter-ins",
+  "title": "registerStorageOptions must register on the exact getter InstallAPIs hands to the app-sdk",
+  "kind": "rule",
+  "answers": [
+    "Why do my per-version storage options never take effect even though registration succeeds?",
+    "App-sdk ForResource/VersionedStorageOptionsProvider options are being ignored",
+    "What getter instance does InstallAPIs pass to an app installer's InstallAPIs method?"
+  ],
+  "body": "Root cause: versioned/unversioned storage options are stored on a specific *apistore.RESTOptionsGetter instance's internal maps. If registerStorageOptions writes to one getter instance but InstallAPIs later calls installer.InstallAPIs with a different getter instance, the app-sdk resolves options through the latter and never sees the registrations.\nFix pattern: InstallAPIs in pkg/services/apiserver/appinstaller/installer.go calls registerStorageOptions(installer, effectiveOptsGetter, logger) using the same effectiveOptsGetter variable that is later passed into installer.InstallAPIs(...) -- never a separately-derived getter.\nConstraints: this must stay true any time the getter construction logic in InstallAPIs changes (e.g. substituting a noop getter when unified storage is unavailable); registerStorageOptions itself returns an error now (config error) and failing startup is intentional when an app declares options that can't be served.",
+  "applies": "pkg/services/apiserver/appinstaller/installer.go InstallAPIs flow when wiring a RESTOptionsGetter for app-sdk installers",
+  "tags": [
+    "appinstaller",
+    "storage-options",
+    "restoptionsgetter"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/apiserver/appinstaller/installer.go",
+      "symbol": "InstallAPIs",
+      "hash": "sha256:49ec24eaed74e8e12883e2af",
+      "line": 169,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 6,
+        "refs": 15
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/appinstaller/installer.go",
+      "symbol": "registerStorageOptions",
+      "hash": "sha256:1a181e8a787fb16f039eccf3",
+      "line": 263,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 13,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132768"
+  },
+  "created": "2026-10-04T06:33:58.750Z",
+  "verified": "2026-10-04T06:33:58.750Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "storageoptions-gvk-must-be-all-or-nothing-group-version-kind"
+  ],
+  "says": [
+    "Why don't my registered storage options take effect on resources?",
+    "Versioned storage options registered but being ignored by app SDK.",
+    "How does the app SDK find registered storage options?",
+    "Storage option registration completes but options aren't being applied.",
+    "Storage options seem registered but app SDK doesn't find them."
+  ],
+  "saysFor": "1039:registerstorageoptions-m",
+  "search": "registerStorageOptions must register versioned/unversioned storage options on the exact same RESTOptionsGetter instance that InstallAPIs later passes to installer.InstallAPIs in pkg/services/apiserver/appinstaller/installer.go. If different getter instances are used, the options are stored on one instance's internal maps but app-sdk resolves through the other, causing registrations to be invisible. The fix pattern in InstallAPIs is to call registerStorageOptions(installer, effectiveOptsGetter, logger) using the same effectiveOptsGetter variable passed downstream. registerStorageOptions now returns an error (config error) and startup failure is intentional when an app declares unserved options. This applies to the InstallAPIs flow when wiring a RESTOptionsGetter for app-sdk installers."
+}

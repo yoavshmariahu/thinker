@@ -1,0 +1,116 @@
+{
+  "id": "nested-iam-rest-handlers-need-a-withfeature-constructor-to-h",
+  "title": "Nested IAM REST handlers need a *WithFeature constructor to honor explicit config",
+  "kind": "rule",
+  "answers": [
+    "Why does /apis/iam.../teams/{name}/members still 403 under explicit startup config?",
+    "How do I propagate an explicit IAM feature flag into a nested REST connector?",
+    "Pattern for feature-flag gating inside Connect handlers that also need explicit-config support"
+  ],
+  "body": "Symptom: team/user nested sub-resource routes (e.g. /teams members, /users teams) keep consulting OpenFeature even though the IAM builder was given an explicit Features snapshot.\nRoot cause: TeamMembersREST/UserTeamREST (pkg/registry/apis/iam/team/rest_members.go, pkg/registry/apis/iam/user/rest_user_team.go) default to an openfeature.IClient; the builder only passes the explicit flag through dedicated constructors.\nFix pattern: when b.features != nil, the builder (UpdateTeamsAPIGroup/UpdateUsersAPIGroup in pkg/registry/apis/iam/register.go) must construct the nested handler with NewTeamMembersRESTWithFeature / NewUserTeamRESTWithFeature, which set a `*bool` field (nil = fall back to OpenFeature, non-nil = authoritative explicit value) instead of the default ofClient-based constructor.\nConstraints: this pointer-based nil-vs-value pattern is required for any nested storage object that re-checks a feature flag independently of the parent builder's own gate, since the parent's own InstallSchema/UpdateAPIGroupInfo gate does not automatically propagate to sub-resource handlers constructed separately.",
+  "applies": "pkg/registry/apis/iam/team and pkg/registry/apis/iam/user nested REST connectors gated by FlagKubernetesTeamsApi",
+  "tags": [
+    "iam",
+    "feature-flags",
+    "nested-resources",
+    "startup-config"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/team/rest_members.go",
+      "symbol": "TeamMembersREST",
+      "hash": "sha256:9caf528e0bb6745c672bf5c8",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "symbol": "UserTeamREST",
+      "hash": "sha256:48350640e3f877ec2bb15bc7",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateTeamsAPIGroup",
+      "hash": "sha256:a6c15b656332f35d87711cd1",
+      "line": 600,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateUsersAPIGroup",
+      "hash": "sha256:83cf38c291d2680a47390de8",
+      "line": 716,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "InstallSchema",
+      "hash": "sha256:d02405bdfce9a1e1a39aed6d",
+      "line": 346,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 13,
+        "refs": 20
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateAPIGroupInfo",
+      "hash": "sha256:428e2b592c23d4c4dfe6cd32",
+      "line": 400,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 11,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133036"
+  },
+  "created": "2026-10-04T05:54:58.373Z",
+  "verified": "2026-10-04T05:54:58.373Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "teams-membership-endpoints-gate-once-at-startup-not-per-requ",
+    "iam-startup-features-dual-path-gating-explicit-config-vs-ope",
+    "iam-user-team-membership-search-decode-layer-location"
+  ],
+  "says": [
+    "Team members endpoint returns 403 despite explicit feature enabled",
+    "Nested user and team API routes ignore feature configuration",
+    "How do I enable team members and user sub-endpoints",
+    "Nested access control routes don't respect feature flag setup",
+    "Sub-resource endpoints for teams and users stay restricted"
+  ],
+  "saysFor": "1194:nested-iam-rest-handlers",
+  "search": "Nested IAM REST handlers (TeamMembersREST, UserTeamREST) in pkg/registry/apis/iam/team/rest_members.go and pkg/registry/apis/iam/user/rest_user_team.go must use *WithFeature constructors (NewTeamMembersRESTWithFeature, NewUserTeamRESTWithFeature) to honor explicit Features snapshots passed to the builder. When the builder's b.features is non-nil (UpdateTeamsAPIGroup, UpdateUsersAPIGroup in pkg/registry/apis/iam/register.go), these constructors set a *bool field that preserves the explicit flag value; nil falls back to OpenFeature, non-nil enforces the authoritative value. Without using the *WithFeature constructors, nested handlers default to openfeature.IClient and ignore the builder's explicit feature gate, allowing them to consult OpenFeature even when an explicit Features snapshot was provided. This pointer-based nil-vs-value pattern is necessary because the parent's InstallSchema/UpdateAPIGroupInfo gate does not propagate to separately-constructed sub-resource handlers. Applies to nested REST connectors gated by FlagKubernetesTeamsApi."
+}

@@ -66,5 +66,6 @@
     "How sidebar sections collapse and uncollapse",
     "Search cause sidebar to expand all sections"
   ],
-  "saysFor": "929:sidebar-collapsible-sect"
+  "saysFor": "929:sidebar-collapsible-sect",
+  "search": "Sidebar collapsible sections in Apps and Files tabs use NavTabSection component from frontend/src/layout/panel-layout/navbar/tabs/NavTabSection.tsx with props label, optional collapsedLabel (e.g., 'All apps' when collapsed), and dataAttr (e.g., 'nav-apps-starred-toggle'). Each section remounts on search start/stop via key={`name-${!!search.trim()}`}, forcing the section open when search begins; this pattern must be preserved in NavTabApps.tsx and NavTabFiles.tsx. Starred sections are hidden only when searching AND data has loaded AND zero starred matches match. Use ProjectTree's new renderTree prop to wrap the tree body in a section, which also disables the tree's own scroll like beforeTree."
 }

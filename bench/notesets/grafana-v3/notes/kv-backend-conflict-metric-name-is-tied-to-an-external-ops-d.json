@@ -1,0 +1,66 @@
+{
+  "id": "kv-backend-conflict-metric-name-is-tied-to-an-external-ops-d",
+  "title": "KV backend conflict metric name is tied to an external ops dashboard, not alerts",
+  "kind": "rule",
+  "answers": [
+    "Why was the metric storage_server_optimistic_lock_conflicts_total renamed?",
+    "What consumes the write-conflict counter in the KV backend?",
+    "Is it safe to rename or remove kvBackendMetrics.WriteConflicts?"
+  ],
+  "body": "Symptom: none directly, but reviewer flagged that this metric has no alert, only an internal Grafana dashboard reading it. Root cause/mechanism: kvBackendMetrics.WriteConflicts (Prometheus name storage_server_write_conflicts_total) in pkg/storage/unified/resource/storage_backend.go, incremented by recordConflict on lease-acquisition races and legacy CAS conflicts. Fix pattern: renamed from ConflictErrors/storage_server_optimistic_lock_conflicts_total to reflect that conflicts now come from lease contention, not optimistic-lock version mismatches. Constraints: any future rename, relabeling, or removal of this metric requires updating the corresponding ops dashboard (write-conflicts dashboard on ops.grafana-ops.net) since there is no alert to catch drift automatically.",
+  "applies": "pkg/storage/unified/resource/storage_backend.go kvBackendMetrics",
+  "tags": [
+    "unified-storage",
+    "metrics",
+    "observability"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "kvBackendMetrics",
+      "hash": "sha256:af63150f57516fce7ffd8820",
+      "line": 131,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "recordConflict",
+      "hash": "sha256:dcb5567ff304357ebb9a9214",
+      "line": 183,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132691"
+  },
+  "created": "2026-10-04T06:45:37.307Z",
+  "verified": "2026-10-04T06:45:37.307Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "kv-backend-write-serialization-relies-solely-on-leases-not-o",
+    "per-resource-history-pruning-limit-must-cover-delete-recreat"
+  ],
+  "says": [
+    "Write conflict metric renamed in storage backend",
+    "Prometheus metric for storage conflicts changed name unexpectedly",
+    "Why did conflict tracking metric get updated",
+    "External dashboard depends on write conflict metric name",
+    "Renaming storage metrics breaks operations dashboard visibility"
+  ],
+  "saysFor": "858:kv-backend-conflict-metr",
+  "search": "The kvBackendMetrics.WriteConflicts metric (storage_server_write_conflicts_total in Prometheus) in pkg/storage/unified/resource/storage_backend.go records conflicts from lease-acquisition races and legacy CAS conflicts via recordConflict, but has no alert—only an internal Grafana dashboard monitors it at ops.grafana-ops.net. Any rename, relabeling, or removal of this metric in storage_backend.go must be manually coordinated with the ops dashboard update since no automatic alert will catch drift. Changes to conflict measurement or metric export in the KV backend storage layer should account for this external dashboard dependency."
+}

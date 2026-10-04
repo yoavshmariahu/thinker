@@ -1,0 +1,86 @@
+{
+  "id": "amconfigv1-receivers-is-top-level-validation-of-receiver-ref",
+  "title": "AMConfigV1.Receivers is top-level; validation of receiver refs lives in AMConfigV1.Validate()",
+  "kind": "rule",
+  "answers": [
+    "Why can't I find cfg.AlertmanagerConfig.Receivers anymore?",
+    "Where do I add/read receivers on the internal alertmanager config model?",
+    "Where is the 'route references unknown receiver' validation done now?",
+    "How do I construct a v1.AMConfigV1 test fixture with receivers?"
+  ],
+  "body": "Symptom: code written against cfg.AlertmanagerConfig.Receivers (or PostableApiAlertingConfig.Receivers) no longer compiles or silently sees no receivers; route->receiver existence validation appears to be missing.\nRoot cause: Receivers used to be nested inside PostableApiAlertingConfig; they were moved to a top-level field on AMConfigV1, and PostableApiAlertingConfig.Validate() lost the data it used to validate route receiver references against.\nFix pattern: read/write receivers via cfg.Receivers or cfg.GetReceivers() (pkg/services/ngalert/notifier/legacy_storage/v1/model.go:AMConfigV1), and put any route<->receiver cross-validation in AMConfigV1.Validate(), which now builds the receiver name set itself and calls c.AlertmanagerConfig.Route.ValidateReceivers(receivers).\nConstraints: applies to the internal v1.AMConfigV1/PostableApiAlertingConfig model used across ngalert/notifier and ngalert/provisioning; the API/DB-facing definitions.PostableApiAlertingConfig JSON shape is unaffected (see companion note on compat.go).",
+  "applies": "pkg/services/ngalert/notifier/legacy_storage/v1 and all callers in pkg/services/ngalert/notifier, pkg/services/ngalert/provisioning that build or read AMConfigV1",
+  "tags": [
+    "ngalert",
+    "alertmanager",
+    "receivers",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/model.go",
+      "symbol": "AMConfigV1",
+      "hash": "sha256:c824584edb6a0aecce3a775f",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 33,
+        "sites": 0,
+        "refs": 152
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/model.go",
+      "symbol": "PostableApiAlertingConfig",
+      "hash": "sha256:bf1adc7d2131cf305f3f5829",
+      "line": 301,
+      "missing": false,
+      "fanout": {
+        "files": 23,
+        "sites": 0,
+        "refs": 59
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/model.go",
+      "symbol": "AMConfigV1",
+      "hash": "sha256:c824584edb6a0aecce3a775f",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 33,
+        "sites": 0,
+        "refs": 152
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/compat.go",
+      "hash": "sha256:20f881923fcf8d194fee2906",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132921"
+  },
+  "created": "2026-10-04T06:13:36.785Z",
+  "verified": "2026-10-04T06:13:36.785Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "amconfigv1-fingerprints-must-exclude-resourcemetadata",
+    "amconfigv1-receivers-is-a-uid-keyed-map-not-a-slice",
+    "compat-go-bridges-flat-amconfigv1-receivers-to-nested-db-api"
+  ],
+  "says": [
+    "Why can't I find alert receivers in the configuration anymore",
+    "Alert routes show no receivers despite being configured",
+    "Route targets undefined receivers with no validation error thrown",
+    "Building test alert configs with receivers produces empty definitions",
+    "Receiver definitions lost during alertmanager config update or migration"
+  ],
+  "saysFor": "1127:amconfigv1-receivers-is-",
+  "search": "AMConfigV1.Receivers moved from nested inside PostableApiAlertingConfig to a top-level field on AMConfigV1, and route-to-receiver validation logic must move to AMConfigV1.Validate(). Read and write receivers via cfg.Receivers or cfg.GetReceivers() (not cfg.AlertmanagerConfig.Receivers), and place any route→receiver cross-validation in AMConfigV1.Validate(), which now builds the receiver name set and calls c.AlertmanagerConfig.Route.ValidateReceivers(receivers). PostableApiAlertingConfig.Validate() no longer has the receiver data needed for validation; compat.go preserves the API/DB JSON shape unchanged. This applies to code in pkg/services/ngalert/notifier/legacy_storage/v1 and callers in ngalert/notifier and ngalert/provisioning."
+}

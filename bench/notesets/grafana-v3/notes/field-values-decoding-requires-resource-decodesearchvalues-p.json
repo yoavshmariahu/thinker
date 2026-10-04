@@ -1,0 +1,53 @@
+{
+  "id": "field-values-decoding-requires-resource-decodesearchvalues-p",
+  "title": "FIELD_VALUES decoding requires resource.DecodeSearchValues plus exact field-name constants",
+  "kind": "rule",
+  "answers": [
+    "How to parse a FIELD_VALUES ResourceSearchResponse into a typed hit struct",
+    "Why is a requested field coming back empty/zero in FIELD_VALUES search results",
+    "What fields must match between the search request and the result parser"
+  ],
+  "body": "Root cause: with ResultFormat FIELD_VALUES, values are returned per-row as a generic map keyed by field name (via resource.DecodeSearchValues(result.Fields, row)), not as fixed table columns; each hit field must be pulled from this map by the same field-name constant used in the request's Fields list (e.g. builders.USER_EMAIL, builders.USER_LOGIN, resource.SEARCH_FIELD_CREATED, legacyIDField), with a type assertion that silently zero-values on mismatch.\nFix pattern: keep the Fields slice passed in the ResourceSearchRequest and the keys used when reading from the decoded values map derived from the same shared constants (builders package / resource.SEARCH_FIELD_*), so a typo or renamed constant doesn't silently drop a field.\nConstraints: applies to any handler that sets ResultFormat: FIELD_VALUES; type assertions like `values[x].(string)` fail silently (ok=false) rather than erroring, so adding a new field also needs a test asserting the value round-trips.",
+  "applies": "pkg/registry/apis/iam/user/search.go parseFieldValueResults and similar FIELD_VALUES consumers",
+  "tags": [
+    "iam",
+    "search",
+    "field-values",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/user/search.go",
+      "symbol": "parseFieldValueResults",
+      "hash": "sha256:81afb4a1d26fa27bebd4bd01",
+      "line": 515,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132813"
+  },
+  "created": "2026-10-04T06:25:46.557Z",
+  "verified": "2026-10-04T06:25:46.557Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "support-both-field-values-and-resource-table-when-changing-a"
+  ],
+  "says": [
+    "Search results return empty values for fields that were explicitly requested",
+    "How do I correctly extract requested fields from search response data",
+    "Requested search fields show up empty or with no value in results",
+    "Field name mismatches between search request and result parser cause data loss"
+  ],
+  "saysFor": "1060:field-values-decoding-re",
+  "search": "When using ResultFormat FIELD_VALUES in search results, values are returned as a generic per-row map keyed by field name, not as fixed table columns; each value must be decoded using resource.DecodeSearchValues and retrieved by the exact field-name constant used in the request's Fields list (e.g., builders.USER_EMAIL, builders.USER_LOGIN, resource.SEARCH_FIELD_CREATED, legacyIDField). Type assertions like `values[x].(string)` fail silently (ok=false) on key mismatch rather than erroring, so typos or renamed constants silently drop fields without error. Fix pattern: keep Fields slice and decoding keys derived from shared constants in builders package and resource.SEARCH_FIELD_*, and add tests asserting round-trip values. Applies to FIELD_VALUES search handlers like pkg/registry/apis/iam/user/search.go:parseFieldValueResults."
+}

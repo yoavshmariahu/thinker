@@ -1,0 +1,53 @@
+{
+  "id": "setupdatasources-seeds-both-legacy-datasourcesrv-and-the-asy",
+  "title": "setupDataSources seeds both legacy DatasourceSrv and the async @grafana/runtime cache",
+  "kind": "rule",
+  "answers": [
+    "getDataSourceInstanceList returns empty in alerting tests",
+    "useDataSourceInstance hooks return no data sources in tests",
+    "Why does my mocked data source not show up via the new runtime APIs?",
+    "How to register mock data sources for alerting frontend tests"
+  ],
+  "body": "Symptom: alerting frontend tests that call setupDataSources get correct results from DatasourceSrv-based code, but getDataSourceInstanceList / useDataSourceInstance* hooks return empty.\nRoot cause: those newer @grafana/runtime APIs read from a separate async data source cache, not from the legacy DatasourceSrv that setupDataSources used to seed alone (public/app/features/alerting/unified/testSetup/datasources.ts:setupDataSources).\nFix pattern: setupDataSources now also calls setDataSourceInstanceSettings from '@grafana/runtime/internal' with the same datasourceSettings map and default name, keeping both caches in sync.\nConstraints: any test helper or code path that registers mock/real data sources must seed both DatasourceSrv (via setDataSourceSrv) and the async cache (via setDataSourceInstanceSettings) — seeding only one leaves the other API surface empty. Do not hand-build a separate map to call setDataSourceInstanceSettings a second time; reuse setupDataSources instead.",
+  "applies": "Alerting (and any) frontend tests that mock data sources via public/app/features/alerting/unified/testSetup/datasources.ts",
+  "tags": [
+    "alerting",
+    "testsetup",
+    "datasources",
+    "@grafana/runtime"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/testSetup/datasources.ts",
+      "symbol": "setupDataSources",
+      "hash": "sha256:6717e84b6ac9952ed6a0f692",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 53,
+        "sites": 95,
+        "refs": 147
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132765"
+  },
+  "created": "2026-10-04T06:34:31.548Z",
+  "verified": "2026-10-04T06:34:31.548Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Mock data sources appear in old code but not in new data source hooks.",
+    "New runtime data source functions return empty list during alerting tests.",
+    "Frontend test setup doesn't sync mock sources to new data source API.",
+    "Mocked datasources missing when using useDataSourceInstance hook.",
+    "How to register mock data sources for new runtime APIs in tests?"
+  ],
+  "saysFor": "1073:setupdatasources-seeds-b",
+  "search": "The setupDataSources helper in public/app/features/alerting/unified/testSetup/datasources.ts seeds both the legacy DatasourceSrv and the separate @grafana/runtime async data source cache by calling setDataSourceInstanceSettings from '@grafana/runtime/internal' with the same datasourceSettings map and default name. Constraint: tests that mock data sources must seed both caches simultaneously; seeding only one leaves the other API surface empty, causing getDataSourceInstanceList and useDataSourceInstance* hooks to return empty while legacy DatasourceSrv-based code works correctly. Do not hand-build a separate map for a second call to setDataSourceInstanceSettings; reuse setupDataSources to keep both in sync. Applies to alerting and any frontend tests that register mock or real data sources."
+}

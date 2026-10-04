@@ -40,5 +40,6 @@
     "The terminal VM boot story runs during test suite execution",
     "Long-running runtime stories should be excluded from automated testing"
   ],
-  "saysFor": "493:live-runtime-terminal-st"
+  "saysFor": "493:live-runtime-terminal-st",
+  "search": "Storybook stories that boot the real v86 guest runtime must be excluded from test runners: LiveDoom and LiveClassics in frontend/src/scenes/terminal/TerminalScene.stories.tsx use tags: ['!test'] to skip snapshot/test execution, parameters: { liveRuntime: true } to signal live runtime mode, and a play function that waits for terminalLogic.values.status === 'ready' with a 120_000ms timeout, then calls window.posthogTerminal?.write('<cmd>\\n'). Follow this exact pattern for any new live-command story to avoid test timeouts and isolation failures."
 }

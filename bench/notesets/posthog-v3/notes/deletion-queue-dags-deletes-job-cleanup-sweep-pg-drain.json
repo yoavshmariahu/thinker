@@ -82,5 +82,6 @@
     "Where does the deletion sweep job run after events are marked deleted",
     "Pipeline stages for removing deleted user data from backup snapshots"
   ],
-  "saysFor": "1255:deletion-queue-dags-dele"
+  "saysFor": "1255:deletion-queue-dags-dele",
+  "search": "Deletion queue follows the call path: deletes_job processes AsyncDeletion rows, run_cleanup_sweep_after_deletes sensor triggers clickhouse_deletion_sweep_job on success, and person_pg_cleanup_drain drains the person queue. deletes_job at posthog/dags/deletes.py line ~1153 processes events, then person, person_distinct_id2, and groups in sequence. clickhouse_deletion_sweep_job ops chain by output for serialization: clear_removed_cohort_data → snapshot_deleted_persons → snapshot_orphaned_distinct_ids → recheck → delete_orphaned_distinct_ids → recheck → persist_deleted_persons → delete_persons → publish_sweep_metrics → drop_snapshot_assets. Snapshots freeze the worklist because the sweep destroys the tombstones it derives from; recheck ops exclude revived persons. Job tag clickhouse_deletion_sweep_concurrency: v1 relies on run-queue limit of 1; max_runtime 43200. personhog DeleteTombstonedPersons only deletes persons still tombstoned since the queue is advisory. Applies to posthog/dags/clickhouse_cleanup.py and person_pg_cleanup_drain.py."
 }

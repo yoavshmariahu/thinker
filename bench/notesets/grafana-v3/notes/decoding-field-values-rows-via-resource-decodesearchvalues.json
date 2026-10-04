@@ -1,0 +1,50 @@
+{
+  "id": "decoding-field-values-rows-via-resource-decodesearchvalues",
+  "title": "Decoding FIELD_VALUES rows via resource.DecodeSearchValues",
+  "kind": "map",
+  "answers": [
+    "How do I read field values out of a ResourceSearchResponse in FIELD_VALUES mode?",
+    "Where is the generic decoder for field-value search rows?"
+  ],
+  "body": "resource.DecodeSearchValues(result.Fields, row) converts a ResourceSearchRow into a map keyed by field name (as declared in result.Fields), handling per-type value arrays. Consumers index into this map by field-name constants (e.g. builders.TEAM_SEARCH_EMAIL, builders.TEAM_SEARCH_PROVISIONED, resource.SEARCH_FIELD_TITLE) to populate response structs — see pkg/services/team/search/search.go:parseFieldValueResults for the pattern to follow when adding a new FIELD_VALUES-based response parser.",
+  "applies": "Any new search handler consuming ResourceSearchRequest_FIELD_VALUES responses",
+  "tags": [
+    "search",
+    "field-values",
+    "resource"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/team/search/search.go",
+      "symbol": "parseFieldValueResults",
+      "hash": "sha256:771fde830d6cd7563209d5a1",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132811"
+  },
+  "created": "2026-10-04T06:26:15.334Z",
+  "verified": "2026-10-04T06:26:15.334Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I read field values from a search response?",
+    "Where do I find the right way to decode search rows?",
+    "How to populate my response from FIELD_VALUES search data?",
+    "How do I extract named fields from search results?",
+    "What's the pattern for accessing search result fields by name?"
+  ],
+  "saysFor": "554:decoding-field-values-ro",
+  "search": "Decoding FIELD_VALUES rows: use resource.DecodeSearchValues(result.Fields, row) to convert ResourceSearchRow into a map keyed by field-name constants (builders.TEAM_SEARCH_EMAIL, builders.TEAM_SEARCH_PROVISIONED, resource.SEARCH_FIELD_TITLE). This mechanism handles per-type value arrays and allows indexing into the result map to populate response structs. The pattern is demonstrated in pkg/services/team/search/search.go:parseFieldValueResults. Applies to any new search handler consuming ResourceSearchRequest_FIELD_VALUES responses."
+}

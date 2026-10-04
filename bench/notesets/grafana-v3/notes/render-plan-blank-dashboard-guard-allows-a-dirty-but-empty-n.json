@@ -1,0 +1,52 @@
+{
+  "id": "render-plan-blank-dashboard-guard-allows-a-dirty-but-empty-n",
+  "title": "RENDER_PLAN blank-dashboard guard allows a dirty-but-empty new editor",
+  "kind": "rule",
+  "answers": [
+    "Why does RENDER_PLAN / plan preview fail with 'can only render into a blank, unsaved dashboard' on a brand-new dashboard?",
+    "Preview request rejected even though the dashboard has no real panels yet",
+    "How is overwriting a user's dashboard with a preview plan prevented?"
+  ],
+  "body": "Symptom: a dashboard plan preview (RENDER_PLAN) is refused with 'RENDER_PLAN can only render into a blank, unsaved dashboard' even on a fresh /dashboard/new scene that has no real content. Root cause: a brand-new editor auto-enters edit mode on activation, which sets isDirty=true before any user action, and the guard used to treat any isDirty as unsafe to overwrite. Fix pattern: add an isBlankNewEditor exception (no uid, no existing viz panels, isEditing true) so the dirty check is skipped only in that case, while uid set or real panels present still always refuse. Constraints: only applies to the whole-body-replace preview flow with no per-panel identity tracking (every panel is assumed to belong to the plan); never relax the uid or hasExistingContent checks, and an already-planning scene is always allowed to re-render.",
+  "applies": "public/app/features/dashboard-scene/mutation-api/commands/renderPlan.ts and any future guard on what a preview/plan command may overwrite",
+  "tags": [
+    "dashboard-plan",
+    "mutation-api",
+    "guard",
+    "assistant"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/mutation-api/commands/renderPlan.ts",
+      "symbol": "renderPlanCommand",
+      "hash": "sha256:13dd775962449c3f88839c7b",
+      "line": 59,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133029"
+  },
+  "created": "2026-10-04T05:56:26.798Z",
+  "verified": "2026-10-04T05:56:26.798Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does plan preview fail on a brand-new empty dashboard?",
+    "Preview request rejected even though this dashboard has no panels yet",
+    "Should preview rendering work on unsaved dashboards with no real content?",
+    "New dashboard won't accept plan replacement despite being completely blank",
+    "How to enable the preview on fresh dashboards without any saved panels?"
+  ],
+  "saysFor": "902:render-plan-blank-dashbo",
+  "search": "The RENDER_PLAN guard in public/app/features/dashboard-scene/mutation-api/commands/renderPlan.ts:renderPlanCommand rejects plan preview with 'can only render into a blank, unsaved dashboard' even on fresh /dashboard/new because auto-entering edit mode sets isDirty=true before user action. The fix adds an isBlankNewEditor exception (no uid, no existing viz panels, isEditing true) so the dirty check is skipped only in that case; uid set or real panels present still always refuse. Constraints: never relax the uid or hasExistingContent checks, and an already-planning scene is always allowed to re-render. Applies to the whole-body-replace preview flow in renderPlan and any future guard on what preview/plan commands may overwrite."
+}

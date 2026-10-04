@@ -1,0 +1,44 @@
+{
+  "id": "test-run-sh-exists-to-validate-run-sh-behavior-across-shells",
+  "title": "test_run.sh exists to validate run.sh behavior across shells",
+  "kind": "howto",
+  "answers": [
+    "How do I test changes to the Docker entrypoint script?",
+    "Is there a script to check run.sh still works after editing it?",
+    "How was run.sh verified to behave the same under ash vs bash?"
+  ],
+  "body": "When modifying packaging/docker/run.sh, use packaging/docker/test_run.sh to compare behavior before/after a change (introduced in this PR to verify ash/dash parity after removing the bash dependency). Run it against the modified script to catch regressions in env-var parsing, AWS profile handling, secrets-from-file, and plugin installation logic before shipping.",
+  "applies": "packaging/docker/run.sh changes",
+  "tags": [
+    "docker",
+    "testing",
+    "entrypoint"
+  ],
+  "deps": [
+    {
+      "path": "packaging/docker/run.sh",
+      "hash": "sha256:513d6357562fee98f96dd3a6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132643"
+  },
+  "created": "2026-10-04T06:51:31.924Z",
+  "verified": "2026-10-04T06:51:31.924Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I verify Docker startup script changes work across shells?",
+    "Does the entrypoint still function after modifying the run script?",
+    "Testing shell script compatibility for different shell environments",
+    "Catching environment variable parsing bugs before deploying Docker",
+    "Validating startup behavior for ash and bash parity"
+  ],
+  "saysFor": "425:test-run-sh-exists-to-va",
+  "search": "packaging/docker/test_run.sh validates run.sh behavior across shells (ash, dash, bash) and must be run after modifying packaging/docker/run.sh to catch regressions. It tests environment variable parsing, AWS profile handling, secrets-from-file loading, and plugin installation logic. Use it before shipping changes to verify compatibility, especially after removing bash dependencies to ensure ash/dash parity."
+}

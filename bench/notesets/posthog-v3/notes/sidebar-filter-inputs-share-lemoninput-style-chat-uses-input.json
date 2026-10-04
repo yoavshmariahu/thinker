@@ -58,5 +58,6 @@
     "Define placeholder text for filter inputs",
     "Custom dropdown input component for sidebar search"
   ],
-  "saysFor": "734:sidebar-filter-inputs-sh"
+  "saysFor": "734:sidebar-filter-inputs-sh",
+  "search": "Sidebar filter inputs for Apps, Files, and Chat all use LemonInput type=\"search\" size=\"small\" with min-h-[30px], an IconSearch prefix in a flex container (items-center justify-center size-4 ml-[2px] mr-px), and placeholder text ('Filter apps', 'Filter files', 'Filter chats'); match this pattern when adding new sidebar filters. NavTabChat.tsx requires Base UI Combobox.Input for keyboard selection, so LemonInput.tsx gained an inputComponent prop that replaces the native input element (ignored when autoWidth is set)—use this instead of hand-rolling a custom input-like element. The Chat styling also applies to the shared Chat history surface (inPanel), so verify both locations."
 }

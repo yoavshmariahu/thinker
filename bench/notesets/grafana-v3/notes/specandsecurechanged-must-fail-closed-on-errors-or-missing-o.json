@@ -1,0 +1,53 @@
+{
+  "id": "specandsecurechanged-must-fail-closed-on-errors-or-missing-o",
+  "title": "SpecAndSecureChanged must fail closed on errors or missing old object",
+  "kind": "rule",
+  "answers": [
+    "When should SpecAndSecureChanged return true",
+    "Admission hook skip logic error handling for status patches",
+    "Why treat resolution errors as a spec change"
+  ],
+  "body": "Invariant: SpecAndSecureChanged must return true (treat as 'changed', so admission still runs) on any error extracting spec/secure via utils.MetaAccessor, or when a.GetOldObject() is nil. This is enforced inside SpecAndSecureChanged itself. If a future change made it fail open (return false on error), mutation/validation hooks would be silently skipped on uncertain input, letting unvalidated spec/secure changes through a subresource request. Any new admission hook that reuses this helper must call it in addition to, not instead of, the a.GetSubresource() != \"\" check.",
+  "applies": "apps/provisioning/pkg/apis/admission/subresource.go and any admission hook reusing it",
+  "tags": [
+    "provisioning",
+    "admission",
+    "fail-closed"
+  ],
+  "deps": [
+    {
+      "path": "apps/provisioning/pkg/apis/admission/subresource.go",
+      "symbol": "SpecAndSecureChanged",
+      "hash": "sha256:8b728fa3b00cd7e27a8123d2",
+      "line": 10,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132708"
+  },
+  "created": "2026-10-04T06:41:46.162Z",
+  "verified": "2026-10-04T06:41:46.162Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "skip-provisioning-admission-hooks-on-a-subresource-write-onl"
+  ],
+  "says": [
+    "When should admission validation run on subresource requests with parsing errors",
+    "Admission hooks skip on status patch errors without validation",
+    "Why do spec extraction errors trigger admission hooks instead of failing quietly",
+    "How admission skipping logic handles missing or malformed object data",
+    "Subresource patches should still validate when the spec cannot be extracted"
+  ],
+  "saysFor": "643:specandsecurechanged-mus",
+  "search": "Admission hook SpecAndSecureChanged in apps/provisioning/pkg/apis/admission/subresource.go must return true (treat as changed) on any error extracting spec/secure or when a.GetOldObject() is nil, enforcing fail-closed behavior. If changed to return false on error, mutation and validation hooks would silently skip on uncertain input, allowing unvalidated spec/secure changes through subresource requests. Any new admission hook reusing this helper must call it in addition to, not instead of, the a.GetSubresource() != '' check. Applies when implementing admission hooks in provisioning APIs or extending existing subresource hooks."
+}

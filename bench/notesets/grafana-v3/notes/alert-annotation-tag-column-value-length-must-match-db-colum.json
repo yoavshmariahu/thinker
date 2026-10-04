@@ -1,0 +1,52 @@
+{
+  "id": "alert-annotation-tag-column-value-length-must-match-db-colum",
+  "title": "Alert annotation Tag column value length must match DB column width",
+  "kind": "rule",
+  "answers": [
+    "Why is my alert label/folder path being dropped from the annotation tags?",
+    "How long can an annotation tag value be before it's skipped?",
+    "Changing the annotation tag value max length",
+    "Tag column truncation for alert history"
+  ],
+  "body": "Symptom: a label value (e.g. grafana_folder path) used as an annotation tag silently disappears from alert state-history annotations instead of being saved.\nRoot cause: convertLabelsToTags/convertLabelsToTagsWithLogger in pkg/services/ngalert/state/historian/annotation.go enforce annotationTagValueColumnMaxLength as a hard cutoff before saving, independent of the actual DB column width.\nFix pattern: when the underlying annotation_tag value column width changes (DB migration), bump annotationTagValueColumnMaxLength to match (currently 512, previously 100) so values aren't rejected below what the column can actually store.\nConstraints: this constant must stay in sync with the real DB column size - raising it without a corresponding schema migration will cause DB insert/truncation failures; lowering it without need causes avoidable data loss. Key length limit (annotationTagKeyColumnMaxLength=100) is separate and unaffected.",
+  "applies": "pkg/services/ngalert/state/historian annotation tag writing, when the annotation_tag DB column size changes",
+  "tags": [
+    "alerting",
+    "annotations",
+    "historian",
+    "db-column-limit"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/state/historian/annotation.go",
+      "symbol": "annotationTagValueColumnMaxLength",
+      "hash": "sha256:cc62b2a5b6160357e412e418",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132671"
+  },
+  "created": "2026-10-04T06:48:56.739Z",
+  "verified": "2026-10-04T06:48:56.739Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why is my alert label/folder path being dropped from the annotation tags?",
+    "How long can an annotation tag value be before it's skipped?",
+    "Changing the annotation tag value max length",
+    "Tag column truncation for alert history"
+  ],
+  "saysFor": "1002:alert-annotation-tag-col",
+  "search": "Alert annotation tag values in state-history are silently truncated by annotationTagValueColumnMaxLength (currently 512) before saving, independent of actual DB column width; this constant must be kept in sync with the real annotation_tag column size in all schema changes. Raising annotationTagValueColumnMaxLength without a corresponding DB migration causes insert failures; lowering it without need causes avoidable data loss. The key length limit (annotationTagKeyColumnMaxLength=100) is separate and unaffected. Applies to annotation tag writing in pkg/services/ngalert/state/historian/annotation.go:annotationTagValueColumnMaxLength whenever the DB column width changes."
+}

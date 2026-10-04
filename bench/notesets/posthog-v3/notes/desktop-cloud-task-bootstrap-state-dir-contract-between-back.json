@@ -54,5 +54,6 @@
     "Desktop bootstrap state files form a contract between launcher and runner",
     "Modifications to bootstrap timeout must be updated in both launcher and script"
   ],
-  "saysFor": "1068:desktop-cloud-task-boots"
+  "saysFor": "1068:desktop-cloud-task-boots",
+  "search": "Backend launcher and agent-side wait script must change together to maintain their file protocol contract. The backend writes files (started, log, build.pid, launcher.pid, exit) to the state dir via _prepare_posthog_desktop_cloud_task in provision_sandbox.py; the wait script reads started, exit, and log via wait-cloud-task-bootstrap.sh (wired in package.json). Exit codes must map correctly: 2 = nothing launched, 124 = build timed out, otherwise the build's code. Critical constraint: the wait script's default timeout (960s) must always exceed the backend timeout (900s) plus the 30s kill grace, or timeouts will race. Changes must update DESKTOP_BOOTSTRAP_STATE_DIR, DESKTOP_BOOTSTRAP_WAIT_SCRIPT, DESKTOP_BOOTSTRAP_TIMEOUT_SECONDS constants and docs in AGENTS.md and cloud-task-sandbox.md. Applies to Desktop bootstrap in posthog dev-stack cloud task sandboxes."
 }

@@ -1,0 +1,102 @@
+{
+  "id": "single-tenant-fallback-resolvehost-cache-wiring",
+  "title": "Single-tenant fallback: resolveHost + cache wiring",
+  "kind": "map",
+  "answers": [
+    "Where is the single-tenant fallback host lookup configured?",
+    "Where does the router cache fallback stack URLs?",
+    "How to plug in a different fallback resolution strategy?"
+  ],
+  "body": "The ST fallback is constructed in pkg/router/cloud_router.go:ProvideCloudRoutesLoaderFactory via newSingleTenantFallback(singleTenantFallbackOptions{cacheSize, resolveHost, discoveryHost}) in pkg/router/st_fallback.go. `resolveHost` is a `func(context.Context, int64) (string, error)` swappable implementation; the current one is newGComURLResolver(cfg.GrafanaComAPIURL, cfg.GrafanaComSSOAPIToken). Tests exercising this path spin up an httptest.Server standing in for gcom (see pkg/router/st_fallback_test.go:TestNewGComURLResolver and pkg/router/cloud_router_test.go:TestCloudLoaderSingleTenantFallback) rather than relying on a stub, since the real resolver now does HTTP calls.",
+  "applies": "pkg/router cloud router / single-tenant fallback resolution",
+  "tags": [
+    "router",
+    "single-tenant-fallback",
+    "gcom"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/st_fallback.go",
+      "symbol": "newSingleTenantFallback",
+      "hash": "sha256:fe3768701438303ac32bf4f8",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/router/st_fallback.go",
+      "symbol": "newGComURLResolver",
+      "hash": "sha256:1918ae32f93e2a1dd4ed6bad",
+      "line": 300,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/router/cloud_router.go",
+      "symbol": "ProvideCloudRoutesLoaderFactory",
+      "hash": "sha256:b769ff3dca87046b0e1d3e38",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 18,
+        "refs": 20
+      }
+    },
+    {
+      "path": "pkg/router/st_fallback_test.go",
+      "symbol": "TestNewGComURLResolver",
+      "hash": "sha256:513a688b0ee6fb8024f426df",
+      "line": 508,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "pkg/router/cloud_router_test.go",
+      "symbol": "TestCloudLoaderSingleTenantFallback",
+      "hash": "sha256:ae5781559db8c45f7012012a",
+      "line": 501,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133080"
+  },
+  "created": "2026-10-04T05:53:34.381Z",
+  "verified": "2026-10-04T05:53:34.381Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "st-fallback-stack-resolution-uses-gcom-instances-stackid",
+    "pkg-router-reverse-proxy-api-aggregator-control-flow-map"
+  ],
+  "says": [
+    "Where is the single-tenant fallback host lookup mechanism configured?",
+    "How to plug in a different host resolution strategy for fallback?",
+    "What caches the fallback stack URLs for single-tenant routing?",
+    "Configuring custom host lookup for single-tenant fallback resolution.",
+    "Where does router store and resolve single-tenant fallback endpoints?"
+  ],
+  "saysFor": "732:single-tenant-fallback-r",
+  "search": "Single-tenant fallback is constructed in pkg/router/cloud_router.go:ProvideCloudRoutesLoaderFactory via newSingleTenantFallback(singleTenantFallbackOptions{cacheSize, resolveHost, discoveryHost}) in pkg/router/st_fallback.go, with resolveHost as a swappable func(context.Context, int64) (string, error) implementation. Current resolveHost implementation is newGComURLResolver(cfg.GrafanaComAPIURL, cfg.GrafanaComSSOAPIToken), which now makes real HTTP calls instead of stubs. Tests use httptest.Server to stand in for gcom (pkg/router/st_fallback_test.go:TestNewGComURLResolver, pkg/router/cloud_router_test.go:TestCloudLoaderSingleTenantFallback). Applies to cloud router and single-tenant fallback resolution."
+}

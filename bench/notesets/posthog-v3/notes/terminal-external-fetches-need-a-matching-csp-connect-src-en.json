@@ -44,5 +44,6 @@
     "Frontend fetch fails with security policy violation",
     "Configuring CSP to allow terminal package downloads externally"
   ],
-  "saysFor": "574:terminal-external-fetche"
+  "saysFor": "574:terminal-external-fetche",
+  "search": "Terminal package fetch from raw.githubusercontent.com requires a matching path-scoped CSP connect-src entry in posthog/middleware.py to allow the fetch while preventing script injection to other repos. The entry must point to the specific repository path, e.g. https://raw.githubusercontent.com/PostHog/terminal-assets/. When baseUrl in frontend/src/scenes/terminal/terminal-packages.json moves to a different host or path, the CSP entry in posthog/middleware.py must be updated in the same change. Without the CSP entry, the fetch fails; an outdated entry after baseUrl relocation creates a security gap. This constraint applies to any task involving relocation or reconfiguration of terminal package assets."
 }

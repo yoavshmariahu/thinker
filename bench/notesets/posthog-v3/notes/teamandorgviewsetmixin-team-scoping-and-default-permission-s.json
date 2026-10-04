@@ -51,5 +51,6 @@
     "Why API results never include data from other teams",
     "Adding extra permission rules to the standard viewset stack"
   ],
-  "saysFor": "1379:teamandorgviewsetmixin-t"
+  "saysFor": "1379:teamandorgviewsetmixin-t",
+  "search": "Every team/org-nested viewset must inherit TeamAndOrgViewSetMixin (posthog/api/routing.py) for scoping; never roll your own scoping. Never override get_queryset—override safely_get_queryset instead or use dangerously_get_queryset with justification; the mixin runs _filter_queryset_by_parents_lookups then _filter_queryset_by_access_level. dangerously_get_permissions builds a fixed list (IsAuthenticated, APIScopePermission, AccessControlPermission, TeamMemberAccessPermission or OrganizationMemberPermissions, then further checks from posthog/permissions.py) that cannot be replaced via permission_classes; only method override changes it. InternalAPIAuthentication gets IsAuthenticated only; sharing-token authenticators get SharingTokenPermission only. Set scope_object on every viewset (APIScopePermission raises ImproperlyConfigured otherwise) or override with required_scopes per action. _filter_queryset_by_access_level filters only for list action; detail access relies on AccessControlPermission, so keep it. Serializers use self.context[\"get_team\"]() not request.user.team."
 }

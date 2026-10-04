@@ -1,0 +1,63 @@
+{
+  "id": "storageoptions-exposes-narrow-per-endpoint-clients-not-the-u",
+  "title": "StorageOptions exposes narrow per-endpoint clients, not the unified client",
+  "kind": "rule",
+  "answers": [
+    "How should a new route builder (like keysroutes.Build) get its resourcepb client?",
+    "Why is there SearchIndexClient and KeysStoreClient instead of one general unified storage client field?",
+    "What must change together when adding a client field to StorageOptions?"
+  ],
+  "body": "Symptom: a new route builder needs a resourcepb client (e.g. ResourceStoreClient for list-keys) but there's no field carrying it into the builder.\nRoot cause: StorageOptions.ApplyTo builds one `unified` client internally but only assigned it to narrow fields (SearchIndexClient) for consumers; no field existed for the ResourceStoreClient half.\nFix pattern: add a second narrow field (e.g. KeysStoreClient resourcepb.ResourceStoreClient) and assign `o.KeysStoreClient = unified` alongside `o.SearchIndexClient = unified` in StorageOptions.ApplyTo, rather than widening SearchIndexClient's type or constructing a second client with the same credentials.\nConstraints: fields stay nil until ApplyTo runs and for storage backends without a client; this interface is deliberately narrow (one method set per endpoint family), not a general handle to unified storage.",
+  "applies": "pkg/services/apiserver/options/storage.go when a new route builder needs a resourcepb client",
+  "tags": [
+    "apiserver",
+    "storage",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/apiserver/options/storage.go",
+      "symbol": "StorageOptions",
+      "hash": "sha256:b662e45955b1fe1c6e188afd",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 39,
+        "sites": 0,
+        "refs": 195
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/options/storage.go",
+      "symbol": "ApplyTo",
+      "hash": "sha256:aaf3ee9b5bbf367f08994d47",
+      "line": 252,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 7,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132922"
+  },
+  "created": "2026-10-04T06:12:42.111Z",
+  "verified": "2026-10-04T06:12:42.111Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How to provide a storage client to a new route builder",
+    "Why does the storage layer have separate client fields instead of one unified client",
+    "What other changes are required when adding a new storage client field",
+    "New route builders need a storage client but cannot find the right one",
+    "Should storage options consolidate multiple client types into a single client field"
+  ],
+  "saysFor": "935:storageoptions-exposes-n",
+  "search": "StorageOptions exposes narrow per-endpoint clients, not the unified client — add a dedicated narrow field (e.g. KeysStoreClient resourcepb.ResourceStoreClient) and assign the unified client to it in StorageOptions.ApplyTo rather than widening SearchIndexClient's type or constructing a second client. New route builders needing a resourcepb client have no field to carry it because StorageOptions.ApplyTo builds a unified client internally but only assigns it to narrow consumer fields. Fields remain nil until ApplyTo runs and for backends without a client; this interface is deliberately narrow (one method set per endpoint family). Applies when a new route builder in pkg/services/apiserver/options/storage.go needs a resourcepb client alongside the existing SearchIndexClient. Pointers: pkg/services/apiserver/options/storage.go:StorageOptions, ApplyTo, SearchIndexClient, ResourceStoreClient."
+}

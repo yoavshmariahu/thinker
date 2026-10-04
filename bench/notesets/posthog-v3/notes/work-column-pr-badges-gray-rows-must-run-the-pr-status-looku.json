@@ -53,5 +53,6 @@
     "Work column pull request indicator missing colored states",
     "PR status not updating in the work column display"
   ],
-  "saysFor": "823:work-column-pr-badges-gr"
+  "saysFor": "823:work-column-pr-badges-gr",
+  "search": "Work column PR badges display gray because rows do not run the PR status lookup due to a `withPrStatus={false}` opt-out passed to ChannelItemRow. The fix is to remove the opt-out so rows run the same cached per-task PR lookup as the Code sidebar, with cost bounded host-side via TaskPrStatusService in `products/desktop/packages/workspace-server/src/services/git/task-pr-status.ts`. The `withPrStatus` prop was deleted from ChannelItemRow; space tree deliberately keeps the lookup off by calling useChannelTaskStatus directly instead (documented in canvas/AGENTS.md). Badge colors: green=open, purple=merged, red=closed, gray=draft. Applies to desktop canvas ChannelItemRow and WorkColumn PR badge display."
 }

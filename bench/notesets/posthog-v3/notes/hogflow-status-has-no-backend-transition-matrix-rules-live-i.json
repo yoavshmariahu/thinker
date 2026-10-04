@@ -104,5 +104,6 @@
     "What validation happens when activating a draft workflow?",
     "Why can workflow API callers not change status and other fields together?"
   ],
-  "saysFor": "1369:hogflow-status-has-no-ba"
+  "saysFor": "1369:hogflow-status-has-no-ba",
+  "search": "HogFlow status transitions have no backend-enforced matrix; draft, active, and archived states (HogFlow.State in models/hog_flow/hog_flow.py) are guarded only by serializer validation and frontend rules. Draft→active revalidates actions with strict rules; editing an active flow stages a draft JSON replica (stage_draft, DRAFT_CONTENT_FIELDS) without immediate live changes; publish requires a signed confirm token and strict revalidation with 409 StaleWorkflowUpdateError on concurrent modifications. Status changes cannot mix with field edits, actions, or edges; origin_product is create-only; concurrency is fenced by base_updated_at, base_live_updated_at, and select_for_update in HogFlowViewSet.perform_update. Applies to HogFlow state updates, serializer validation logic (HogFlowSerializer.validate), and multi-step publish workflows in products/workflows/backend/api/hog_flow.py."
 }

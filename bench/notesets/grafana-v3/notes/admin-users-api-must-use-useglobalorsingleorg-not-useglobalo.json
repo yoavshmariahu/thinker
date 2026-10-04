@@ -1,0 +1,46 @@
+{
+  "id": "admin-users-api-must-use-useglobalorsingleorg-not-useglobalo",
+  "title": "Admin users API must use UseGlobalOrSingleOrg, not UseGlobalOrg",
+  "kind": "rule",
+  "answers": [
+    "Why does deleting a user via /api/admin/users/:id return 403 in single-org Grafana even though the Kubernetes User API allows it?",
+    "Org Admin has users:delete but gets 'Permissions needed' on legacy admin user routes",
+    "How should authorization be scoped for /api/admin/users endpoints in single-org vs multi-org?"
+  ],
+  "body": "Symptom: In single-org deployments, an Org Admin with users:delete (or other users:* actions) got 403 on /api/admin/users/:id and related routes, even though the same permission worked via the Kubernetes User API.\nRoot cause: pkg/api/api.go registered these routes with authorizeInOrg(ac.UseGlobalOrg, ...), forcing permission evaluation against Org 0 (global) instead of the caller's current-org permissions.\nFix pattern: Replace ac.UseGlobalOrg with ac.UseGlobalOrSingleOrg(hs.Cfg) in authorizeInOrg for the route — it evaluates against the caller's current-org permissions when RBAC.SingleOrganization is true, and falls back to global-org evaluation otherwise (matching how plugin management and Enterprise RBAC already behave).\nConstraints: Only swap the org-selection strategy; keep the same ac.EvalPermission action/scope and any extra guards (e.g. reqGrafanaAdmin) unchanged. Do not apply this to true multi-org-only concerns like organization management routes, which intentionally stay global-only.",
+  "applies": "pkg/api/api.go route registrations under /api/admin/users (and any other legacy admin-style route that should respect single-org permissions)",
+  "tags": [
+    "accesscontrol",
+    "rbac",
+    "single-org",
+    "admin-users",
+    "authorization"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/api.go",
+      "hash": "sha256:9b18898c01711895fef928c8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133013"
+  },
+  "created": "2026-10-04T05:59:22.580Z",
+  "verified": "2026-10-04T05:59:22.580Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Org Admin can't delete users via admin API in single-org deployments",
+    "User management endpoint returns permission denied despite having admin rights",
+    "User API authorization fails for single-organization Grafana despite correct permissions",
+    "Why does user deletion return forbidden in single-org Grafana?",
+    "Admin user routes reject Org Admin permissions in single-organization setup"
+  ],
+  "saysFor": "1072:admin-users-api-must-use",
+  "search": "Admin users API routes in single-org deployments must use ac.UseGlobalOrSingleOrg(hs.Cfg) instead of ac.UseGlobalOrg in authorizeInOrg to avoid 403 errors for Org Admins with users:delete permission. UseGlobalOrg forces evaluation against Org 0 (global); UseGlobalOrSingleOrg evaluates against the caller's current-org when RBAC.SingleOrganization is true, falling back to global-org otherwise. Do not apply this swap to true multi-org-only routes like organization management, which must remain global-only. Keep the same ac.EvalPermission action/scope and any extra guards (e.g., reqGrafanaAdmin) unchanged. Applies to /api/admin/users/:id and related admin-style route registrations in pkg/api/api.go."
+}

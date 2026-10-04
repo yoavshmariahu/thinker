@@ -1,0 +1,58 @@
+{
+  "id": "log-details-organize-displayed-fields-is-deprecated-and-feat",
+  "title": "Log Details 'organize displayed fields' is deprecated and feature-flag gated; use FieldSelector instead",
+  "kind": "rule",
+  "answers": [
+    "Where is 'organize displayed fields' now?",
+    "Why doesn't the Log Details panel show the reorder/hide fields controls anymore?",
+    "How do I let users reorder or toggle displayed fields in logs?",
+    "Organize displayed fields section missing from log details"
+  ],
+  "body": "Symptom: the 'Organize displayed fields' collapsible section no longer shows in Log Details by default.\nRoot cause: LogLineDetailsComponent only renders that section when displayedFieldsControlEnabled is true, gated by useFlagGrafanaLogDetailsDisplayedFieldControls (flag grafana.logDetailsDisplayedFieldControls, stage Deprecated, default false).\nFix pattern: the canonical place to add/reorder/show/hide displayed fields is the Field Selector component (left sidebar of Logs Panel), not Log Details; new field-management UI should be built there, not reintroduced into LogLineDetailsComponent.\nConstraints: the deprecated flag exists only to preserve the old behavior temporarily; do not build new functionality behind it, and do not remove the flag/guard without migrating any remaining callers to FieldSelector first.",
+  "applies": "Log Details panel (LogLineDetails/LogLineDetailsComponent) and Field Selector for the Logs panel",
+  "tags": [
+    "log-details",
+    "feature-flags",
+    "ui",
+    "deprecation"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/logs/components/panel/LogLineDetailsComponent.tsx",
+      "symbol": "LogLineDetailsComponent",
+      "hash": "sha256:75c9a56248ab7490a766956f",
+      "line": 43,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pkg/services/featuremgmt/registry.go",
+      "hash": "sha256:852546db62485959e9d20a8f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132672"
+  },
+  "created": "2026-10-04T06:48:27.954Z",
+  "verified": "2026-10-04T06:48:27.954Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why did the field reordering section disappear from Log Details?",
+    "Log Details panel missing controls to hide or reorder fields",
+    "How should users customize displayed fields in the logs view?",
+    "Where is the option to reorganize log detail field visibility?",
+    "Field management controls no longer appear in log details interface"
+  ],
+  "saysFor": "925:log-details-organize-dis",
+  "search": "Log Details 'organize displayed fields' section is deprecated; use FieldSelector instead for new field-management UI. LogLineDetailsComponent only renders the section when displayedFieldsControlEnabled is true, controlled by feature flag useFlagGrafanaLogDetailsDisplayedFieldControls (grafana.logDetailsDisplayedFieldControls, stage Deprecated). Do not build new functionality behind this deprecated flag, and do not remove it without first migrating all callers to the FieldSelector component (left sidebar of Logs Panel). The deprecated guard exists only temporarily to preserve old behavior; any field add/reorder/show/hide task should use the canonical FieldSelector, not LogLineDetailsComponent. Applies to modifications of Log Details panel rendering and field management UI in the Logs panel."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "flex-end-rows-overflow-left-over-the-docked-nav",
+  "title": "flex-end rows overflow left, over the docked nav",
+  "kind": "rule",
+  "answers": [
+    "Buttons/toolbar overlap the left nav at narrow widths",
+    "Header bar sits on top of the sidebar instead of behind it",
+    "Why does a flex row cross over the docked navigation at small viewport widths",
+    "Toolbar buttons disappear off the left edge over the nav"
+  ],
+  "body": "Symptom: a top toolbar/controls row's buttons slide left and visually sit on top of (or spill behind) the docked left nav when the viewport/available width gets narrow.\nRoot cause: a flex row with `justify-content: flex-end` overflows toward its start edge (left, in LTR) once content no longer fits; combined with a high `z-index` (e.g. `theme.zIndex.sidemenu` = 1020 vs nav's z-index of 2), the overflowing content paints above the nav instead of being clipped behind it.\nFix pattern: use `justify-content: 'safe flex-end'` (not plain `flex-end`) so the row overflows to the right/end instead of the start, and add `flexWrap: 'wrap'` so button groups wrap to a new line rather than overflowing; relies on an ancestor (e.g. `main`) having `overflow: auto` on the side that should clip.\nConstraints: applies to any flex-end-justified row that can run out of horizontal room next to a docked nav/sidebar; does not fix cases where a single child/group is itself wider than the whole bar (`safe` can't help there) — that still needs layout/width changes.",
+  "applies": "Any flex row in Grafana core styled with justify-content flex-end near the docked left nav or similar fixed-position chrome",
+  "tags": [
+    "css",
+    "layout",
+    "navigation",
+    "flexbox",
+    "notebook"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/notebook/scene/NotebookScene.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:850dd089b90ddb97ac972ec2",
+      "line": 475,
+      "missing": false,
+      "fanout": {
+        "files": 903,
+        "sites": 72,
+        "refs": 1104
+      }
+    },
+    {
+      "path": "public/app/features/notebook/toolbar/NotebookToolbar.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:3e0a12e906111f572e0d3907",
+      "line": 172,
+      "missing": false,
+      "fanout": {
+        "files": 903,
+        "sites": 72,
+        "refs": 1104
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132769"
+  },
+  "created": "2026-10-04T06:33:08.331Z",
+  "verified": "2026-10-04T06:33:08.331Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Toolbar buttons overlap the left navigation panel at narrow widths",
+    "Header bar sits on top of the sidebar instead of behind it",
+    "Toolbar controls slide over the left sidebar when the screen narrows",
+    "Toolbar buttons disappear off the left edge over the navigation"
+  ],
+  "saysFor": "1100:flex-end-rows-overflow-l",
+  "search": "Flex rows with justify-content flex-end overflow toward the start edge (left in LTR) when content no longer fits, and combined with high z-index (e.g., theme.zIndex.sidemenu = 1020), the overflowing content paints above the docked left nav instead of being clipped behind it. Use justify-content 'safe flex-end' instead of plain flex-end to overflow to the right/end, and add flexWrap 'wrap' so button groups wrap rather than overflow, relying on an ancestor (e.g., main) having overflow auto. This constraint applies to flex rows near fixed-position chrome in public/app/features/notebook/scene/NotebookScene.tsx:getStyles and public/app/features/notebook/toolbar/NotebookToolbar.tsx:getStyles; 'safe' does not help when a single child is wider than the whole bar."
+}

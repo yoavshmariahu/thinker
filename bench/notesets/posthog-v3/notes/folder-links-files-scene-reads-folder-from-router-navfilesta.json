@@ -48,5 +48,6 @@
     "Folder link parameter doesn't navigate in page",
     "Reveal folder in sidebar without opening page"
   ],
-  "saysFor": "786:folder-links-files-scene"
+  "saysFor": "786:folder-links-files-scene",
+  "search": "ProjectFilesScene.tsx reads searchParams.folder via useValues(router) so navigation between /files?folder=... URLs updates without remount. To reveal a folder in the nav Files tab, call navFilesTabLogic.actions.openFolder(folder); it resets search/sort/onlyFolders, expands folders, keeps folderToReveal until the folder loads, then scrolls and clears it; NavTabFiles.tsx keys the section on folderRevealCount to remount. Folder reveal requires simple-sidepanel flag; without it, open the Files page directly. Terminal behavior requires posthog-terminal. Applies to frontend/src/scenes/project-files/ProjectFilesScene.tsx and frontend/src/layout/panel-layout/navbar/tabs/navFilesTabLogic.ts."
 }

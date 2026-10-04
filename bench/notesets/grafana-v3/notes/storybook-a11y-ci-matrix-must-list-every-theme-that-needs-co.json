@@ -1,0 +1,58 @@
+{
+  "id": "storybook-a11y-ci-matrix-must-list-every-theme-that-needs-co",
+  "title": "Storybook a11y CI matrix must list every theme that needs contrast coverage",
+  "kind": "map",
+  "answers": [
+    "Why isn't a new/visual_refresh theme getting a11y contrast checks in CI?",
+    "Where do I add a theme to storybook accessibility testing?",
+    "How are grafana themes checked for WCAG contrast?"
+  ],
+  "body": "Storybook a11y tests run per-theme via a build matrix in .github/workflows/storybook-a11y.yml (STORYBOOK_THEME list). A theme defined in packages/grafana-data/src/themes/themeDefinitions/*.json is NOT automatically a11y-tested — its name must also be added to this matrix, or regressions in that theme's contrast (text/disabled/hover colors) go unnoticed. visual_refresh_dark and visual_refresh_light were added here explicitly to close that gap.",
+  "applies": "Any PR adding a new theme variant or theme definition file",
+  "tags": [
+    "accessibility",
+    "storybook",
+    "ci",
+    "theming"
+  ],
+  "deps": [
+    {
+      "path": ".github/workflows/storybook-a11y.yml",
+      "hash": "sha256:6fd807c0dc81c876a5235816",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/themes/themeDefinitions/visual_refresh_dark.json",
+      "hash": "sha256:91afcec05893188840d951ae",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/themes/themeDefinitions/visual_refresh_light.json",
+      "hash": "sha256:2a099a0c2e7b6a5760a5e7e7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132898"
+  },
+  "created": "2026-10-04T06:14:30.504Z",
+  "verified": "2026-10-04T06:14:30.504Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "table-theme-surface-colors-live-in-themedefinitions-json-und",
+    "visually-check-table-row-selected-color-via-logstable-s-scro"
+  ],
+  "says": [
+    "New themes are not being validated for accessibility contrast in ci",
+    "Where to register a theme for automatic accessibility contrast testing",
+    "How does grafana verify wcag compliance across all available themes",
+    "Accessibility contrast tests do not run for recently added themes",
+    "Adding a theme to the continuous integration accessibility testing suite"
+  ],
+  "saysFor": "522:storybook-a11y-ci-matrix",
+  "search": "Storybook a11y CI matrix must list every theme that needs contrast coverage — themes defined in packages/grafana-data/src/themes/themeDefinitions/*.json are NOT automatically a11y-tested, so their name must be added to the STORYBOOK_THEME build matrix in .github/workflows/storybook-a11y.yml or regressions in that theme's contrast (text/disabled/hover colors) go unnoticed. visual_refresh_dark and visual_refresh_light were added to this matrix explicitly to close the gap. Applies to any PR adding a new theme variant or theme definition file. Pointers: .github/workflows/storybook-a11y.yml (STORYBOOK_THEME list), packages/grafana-data/src/themes/themeDefinitions/visual_refresh_dark.json, visual_refresh_light.json."
+}

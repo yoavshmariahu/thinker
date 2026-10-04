@@ -1,0 +1,50 @@
+{
+  "id": "use-theme-colors-getcontrasttext-color-ratio-instead-of-a-pa",
+  "title": "Use theme.colors.getContrastText(color, ratio) instead of a palette's precomputed contrastText for a11y-safe text",
+  "kind": "rule",
+  "answers": [
+    "Storybook a11y test flags insufficient text contrast on a colored swatch/badge",
+    "How should contrast text color be computed on a themed background in Grafana UI?",
+    "color.contrastText fails WCAG AA in visual_refresh themes"
+  ],
+  "body": "Symptom: storybook a11y tests report low-contrast text on rich color demo swatches in visual_refresh themes.\nRoot cause: packages/grafana-ui/src/components/ThemeDemos/ThemeDemo.tsx used the palette's static `color.contrastText`, which isn't guaranteed to meet a given WCAG ratio against `color.main` in every theme.\nFix pattern: compute contrast text dynamically with `theme.colors.getContrastText(backgroundColor, minRatio)` (e.g. ratio 4.5 for AA normal text) instead of relying on a precomputed/static contrastText field.\nConstraints: apply this when rendering text directly on an arbitrary/dynamic background color; not needed for colors whose contrastText is already guaranteed compliant for all theme variants.",
+  "applies": "grafana-ui components rendering text on theme rich-color backgrounds (badges, swatches, demos)",
+  "tags": [
+    "accessibility",
+    "theming",
+    "contrast"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/ThemeDemos/ThemeDemo.tsx",
+      "symbol": "RichColorDemo",
+      "hash": "sha256:c891151e81fd0e280bdb9633",
+      "line": 345,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132898"
+  },
+  "created": "2026-10-04T06:14:31.000Z",
+  "verified": "2026-10-04T06:14:31.000Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Text contrast is too low on colored background swatches",
+    "How should contrast text color be calculated dynamically in themes?",
+    "Color contrast failing WCAG accessibility requirements on color swatches",
+    "Dynamic text color needed for arbitrary themed background colors"
+  ],
+  "saysFor": "830:use-theme-colors-getcont",
+  "search": "Dynamic contrast text color for WCAG a11y compliance: compute contrast text dynamically using `theme.colors.getContrastText(backgroundColor, minRatio)` (e.g., minRatio 4.5 for AA normal text) instead of relying on static palette `contrastText` fields (packages/grafana-ui/src/components/ThemeDemos/ThemeDemo.tsx:RichColorDemo example). Static precomputed contrastText doesn't guarantee WCAG compliance across all theme variants in visual_refresh themes. Constraint: apply when rendering text directly on arbitrary or dynamic background colors; not needed for colors whose contrastText is already guaranteed compliant across all themes. Applies to grafana-ui components rendering text on theme rich-color backgrounds (badges, swatches, theme demos)."
+}

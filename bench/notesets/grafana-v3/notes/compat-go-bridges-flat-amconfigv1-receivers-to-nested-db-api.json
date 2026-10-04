@@ -1,0 +1,65 @@
+{
+  "id": "compat-go-bridges-flat-amconfigv1-receivers-to-nested-db-api",
+  "title": "compat.go bridges flat AMConfigV1.Receivers to nested DB/API Receivers shape",
+  "kind": "rule",
+  "answers": [
+    "Why does AMConfigDB still nest receivers under AlertmanagerConfig while the in-memory model has them top-level?",
+    "Where do I update receiver (de)serialization when adding a new receiver-related field?",
+    "How are receivers round-tripped between the Go model and the stored/API JSON config?"
+  ],
+  "body": "Symptom: receivers disappear or duplicate after a DB save/load round-trip, or a new receiver field doesn't show up in the stored AMConfigDB/API JSON.\nRoot cause: the DB/API JSON shape (definition.PostableApiAlertingConfig, used inside AMConfigDB) still nests Receivers under AlertmanagerConfig, while the in-memory v1.AMConfigV1.Receivers is a top-level field — these two shapes are intentionally asymmetric and bridged manually.\nFix pattern: ToModel maps in.AlertmanagerConfig.Receivers into the top-level AMConfigV1.Receivers via ReceiversToModel; ToDBModel/PostableApiAlertingConfigToDB map AMConfigV1.Receivers back into the nested definition.PostableApiAlertingConfig.Receivers via ReceiversToDB. Any change to how receivers are represented must update both directions together.\nConstraints: applies only to the v1 compat layer that converts between AMConfigV1 and the stored/API AlertmanagerConfig representation; does not apply if you're only touching the in-memory model.",
+  "applies": "pkg/services/ngalert/notifier/legacy_storage/v1/compat.go (ToModel, ToDBModel, PostableApiAlertingConfigToDB)",
+  "tags": [
+    "ngalert",
+    "alertmanager",
+    "receivers",
+    "serialization"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/compat.go",
+      "symbol": "ToModel",
+      "hash": "sha256:8cc7ff1e89dd20c77da3150d",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 11,
+        "refs": 11
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/compat.go",
+      "symbol": "ToDBModel",
+      "hash": "sha256:f9b164dd0758759575016363",
+      "line": 201,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132921"
+  },
+  "created": "2026-10-04T06:13:37.512Z",
+  "verified": "2026-10-04T06:13:37.512Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "managedroute-managedroutes-domain-types-live-in-legacy-stora"
+  ],
+  "says": [
+    "Receivers disappear or duplicate after saving the alert rule configuration",
+    "Why don't my receiver settings persist in the API response",
+    "New receiver field doesn't show up after exporting the alerting config",
+    "Receivers are lost during round-trip save and load of alert configuration"
+  ],
+  "saysFor": "1056:compat-go-bridges-flat-a",
+  "search": "compat.go in pkg/services/ngalert/notifier/legacy_storage/v1/ bridges the intentionally asymmetric shapes between flat in-memory AMConfigV1.Receivers (top-level field) and nested DB/API definition.PostableApiAlertingConfig.Receivers (nested under AlertmanagerConfig). ToModel uses ReceiversToModel to flatten, and ToDBModel/PostableApiAlertingConfigToDB use ReceiversToDB to nest; any receiver field change must update both directions together. This applies only to the v1 compat layer for converting between in-memory and stored/API representations; it does not apply if modifying only the in-memory model."
+}

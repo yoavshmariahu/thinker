@@ -1,0 +1,54 @@
+{
+  "id": "resourcesearch-results-support-both-resource-table-and-field",
+  "title": "ResourceSearch results: support both RESOURCE_TABLE and FIELD_VALUES formats",
+  "kind": "rule",
+  "answers": [
+    "How do I handle ResourceSearchResponse when some servers return RESOURCE_TABLE and others FIELD_VALUES?",
+    "Why does my search-result consumer break on older IAM servers?",
+    "Pattern for decoding resourcepb.ResourceSearchResponse across result formats"
+  ],
+  "body": "Symptom: a handler that assumes `result.Results.Rows` (RESOURCE_TABLE) breaks or silently loses permission/external data when the backend is switched to key-only `FIELD_VALUES` results, or vice versa when talking to an older server.\nRoot cause: resourcepb.ResourceSearchResponse can carry rows in two shapes: `Results.Rows` ([]*ResourceTableRow with inline Cells, legacy adapter) or `Rows` ([]*ResourceSearchRow, key-only). Code that reads only one shape mishandles the other.\nFix pattern: switch on `result.GetResultFormat()` (UNSPECIFIED/RESOURCE_TABLE vs FIELD_VALUES) in a single decode function that normalizes both into a common internal row type (key, sortFields, optional inline permission/external + an `inline` flag); downstream logic branches on that flag instead of on result format directly. See pkg/registry/apis/iam/user/rest_user_team.go:decodeUserTeamSearchRows and userTeamSearchRow.\nConstraints: applies to any new consumer of ResourceSearchClient.Search results; when sending the request, also set `ResultFormat` and `Fields` explicitly (e.g. `resourcepb.ResourceSearchRequest_FIELD_VALUES` + `Fields: []string{resource.SEARCH_FIELD_NAME}`) — FIELD_VALUES rows never carry inline cell data (permission/external), so code must fall back to a separate fetch (e.g. Team Get) when `inline` is false. Unknown result formats should error rather than silently return empty.",
+  "applies": "any consumer of resourcepb.ResourceSearchClient.Search responses that may receive either RESOURCE_TABLE or FIELD_VALUES result formats",
+  "tags": [
+    "iam",
+    "resourcepb",
+    "search",
+    "compatibility"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "symbol": "decodeUserTeamSearchRows",
+      "hash": "sha256:aa4ca4e0d5cee5fbb9640f83",
+      "line": 203,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132815"
+  },
+  "created": "2026-10-04T06:25:20.006Z",
+  "verified": "2026-10-04T06:25:20.006Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "iam-user-team-membership-search-decode-layer-location"
+  ],
+  "says": [
+    "Why does search handler break when server switches the result format?",
+    "Handler works fine on old servers but fails on new versions",
+    "How do I decode search results that might be either format?",
+    "Switching servers loses permission data in downstream search result handlers",
+    "What pattern handles both legacy and current resource search formats correctly?"
+  ],
+  "saysFor": "1463:resourcesearch-results-s",
+  "search": "ResourceSearch responses may contain either RESOURCE_TABLE (Results.Rows with inline permission/external data) or FIELD_VALUES (key-only Rows) results; handlers assuming only one shape silently lose data across format changes or server upgrades. Decode using a single function that switches on ResultFormat (as in pkg/registry/apis/iam/user/rest_user_team.go:decodeUserTeamSearchRows), normalizes both shapes into a common row type with an inline flag, and branches downstream logic on that flag instead of result format. When requesting FIELD_VALUES, set ResultFormat and Fields explicitly and fetch missing inline data separately (e.g., via Team Get)."
+}

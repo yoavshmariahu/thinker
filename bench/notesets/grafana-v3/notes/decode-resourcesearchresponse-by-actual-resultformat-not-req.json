@@ -1,0 +1,48 @@
+{
+  "id": "decode-resourcesearchresponse-by-actual-resultformat-not-req",
+  "title": "Decode ResourceSearchResponse by actual ResultFormat, not requested one",
+  "kind": "rule",
+  "answers": [
+    "How do I handle a ResourceSearchRequest that asks for FIELD_VALUES?",
+    "Why does my search response sometimes come back as a ResourceTable even though I requested FIELD_VALUES?",
+    "Backward compatibility with older unified-storage/search servers",
+    "Folder migration validation failing or misreading parent folder on mixed-version clusters"
+  ],
+  "body": "Symptom: code that requests ResourceSearchRequest_FIELD_VALUES and unconditionally parses response.Rows/Fields can silently misread or crash when talking to an older search server that ignores ResultFormat and still returns the legacy Results ResourceTable.\nRoot cause: a search server's actual response format can differ from the request's ResultFormat; callers must not assume the request was honored (pkg/storage/unified/migrations/validator.go:decodeFolderParentMap).\nFix pattern: switch on response.GetResultFormat() (UNSPECIFIED/RESOURCE_TABLE vs FIELD_VALUES) and decode each branch with its own logic; for FIELD_VALUES use resource.DecodeSearchValues(response.GetFields(), row) per row and type-assert the field value.\nConstraints: applies to any caller of ResourceClient.Search that sets ResultFormat; always check searchResp.GetError() before decoding, and treat a nil Results/Rows as empty rather than erroring.",
+  "applies": "Any code consuming resourcepb.ResourceSearchResponse after setting ResultFormat on the request (unified storage search clients).",
+  "tags": [
+    "unified-storage",
+    "search",
+    "backward-compatibility",
+    "resourcepb"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/migrations/validator.go",
+      "hash": "sha256:a7d423f8880157563b103465",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132888"
+  },
+  "created": "2026-10-04T06:16:38.021Z",
+  "verified": "2026-10-04T06:16:38.021Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cursor-paging-loop-must-detect-a-non-advancing-or-missing-cu"
+  ],
+  "says": [
+    "Why does search return different format than requested",
+    "Folder lookup fails reading data from search response",
+    "Search response format doesn't match what I asked for",
+    "Data missing or wrong after changing search format",
+    "Search results corrupted when servers have different versions"
+  ],
+  "saysFor": "994:decode-resourcesearchres",
+  "search": "Decode ResourceSearchResponse by checking response.GetResultFormat(), not the requested format, to handle servers that ignore ResultFormat and return legacy responses. During version skew, a search server's actual response format can differ from the request's ResultFormat; code that unconditionally parses response.Rows/Fields can silently misread or crash. The fix pattern is to switch on response.GetResultFormat() (UNSPECIFIED/RESOURCE_TABLE vs FIELD_VALUES), decode each branch with its own logic, and use resource.DecodeSearchValues(response.GetFields(), row) for FIELD_VALUES. Always check searchResp.GetError() before decoding and treat nil Results/Rows as empty. This applies to any caller of ResourceClient.Search that sets ResultFormat, as shown in pkg/storage/unified/migrations/validator.go:decodeFolderParentMap."
+}

@@ -58,5 +58,6 @@
     "Settings dialog look differs from app styling",
     "Pointer events disabled outside settings dialog area"
   ],
-  "saysFor": "881:settings-dialog-must-por"
+  "saysFor": "881:settings-dialog-must-por",
+  "search": "Settings overlays must render through SettingsDialogFrame using createPortal into #portal-container, not via native <dialog> or inert attribute. Settings pages rely on Radix Themes styling which only applies inside the <Theme> root where #portal-container resides; a Dialog portaling to body ends up outside <Theme> and loses styles. Do not mark the app background inert or switch to top-layer <dialog> because settings dropdowns/selects portal to body and would be disabled or covered. Focus management is handled by useDialogFocus (focus in on open, Tab wrap, restore opener on close); the backdrop div handles pointer blocking. Both SettingsLayout (route) and SettingsDialog (consent/pre-router) must use SettingsDialogFrame in products/desktop/packages/ui settings overlays."
 }

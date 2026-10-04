@@ -1,7 +1,7 @@
 {
   "id": "native-fallback-must-stay-type-consistent-with-to-arrow-fiel",
   "title": "Native fallback must stay type-consistent with to_arrow_field and Arrow path",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "DateTime64 nanoseconds lost in ClickHouse native sync",
     "How are ClickHouse Native values converted to Arrow",
@@ -33,9 +33,10 @@
     {
       "path": "products/warehouse_sources/backend/temporal/data_imports/sources/clickhouse/clickhouse.py",
       "symbol": "toString",
-      "hash": "sha256:e49aa514856ecaac7c6588bf",
+      "hash": "sha256:8296c878b312e771c9d7a5ea",
       "line": 1347,
-      "missing": false
+      "missing": false,
+      "symbolMissing": true
     }
   ],
   "source": {
@@ -58,5 +59,6 @@
     "JSON and Dynamic columns from ClickHouse not converting",
     "Type mismatches between ClickHouse native and Arrow sync"
   ],
-  "saysFor": "878:native-fallback-must-sta"
+  "saysFor": "878:native-fallback-must-sta",
+  "search": "ClickHouse Native fallback column batches must match Arrow schema (pa.schema([c.to_arrow_field()...])) produced by _native_column_to_arrow in products/warehouse_sources/backend/temporal/data_imports/sources/clickhouse/clickhouse.py. DateTime64 columns use int format with _ticks_to_timestamp conversion to avoid Python's microsecond truncation losing digits in DateTime64(7..9); _native_column_to_arrow stringifies tuple/list types when the target is string but re-raises other type errors; unsupported parameterized types (JSON, Dynamic, etc.) are wrapped in toString() by _build_select_list. Known exception: DateTime is uint32 on Arrow path vs timestamp[s] on Native. Applies to ClickHouse source column typing in both Arrow and Native paths."
 }

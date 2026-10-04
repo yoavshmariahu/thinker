@@ -1,0 +1,80 @@
+{
+  "id": "give-each-crud-verb-its-own-rbac-action-never-substitute-wri",
+  "title": "Give each CRUD verb its own RBAC action; never substitute write for create",
+  "kind": "rule",
+  "answers": [
+    "Why does a custom role with notebooks:create still not see the New notebook button?",
+    "Why can a write-only role open the create notebook dialog but the save fails?",
+    "Custom RBAC role loses notebook UI access after upgrade",
+    "Notebook create permission check uses the wrong action"
+  ],
+  "body": "Symptom: a custom RBAC role granted only the create action for a resource sees no create affordance (or a write-only role sees one that then fails on save). Root cause: frontend permission helpers collapsed create checks onto the write action (public/app/features/notebook/permissions.ts:canCreateNotebooks, public/app/routes/routes.tsx NOTEBOOK_NEW_URL route, public/app/features/notebook/mutation-api/commands/permissions.ts:requiresNotebookCreate all previously checked *Write instead of *Create). Fix pattern: define one action per verb that mirrors what the backend apiserver actually authorizes (pkg/registry/apis/folders/sub_access.go:160-165), and check the exact matching action for each operation — read for viewing, write for editing an existing resource, create for the creation route/action, delete for removal. Fixed built-in roles happen to bundle several actions together so this bug is invisible until a custom role grants them separately. Constraints: applies whenever a resource exposes distinct create/read/write/delete apiserver actions; does not apply if the backend genuinely authorizes create and write with the same single action.",
+  "applies": "Frontend RBAC permission checks for any resource with separate create/read/write/delete apiserver actions (notebooks, and by extension similar resource types)",
+  "tags": [
+    "rbac",
+    "permissions",
+    "notebooks"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/notebook/permissions.ts",
+      "symbol": "canCreateNotebooks",
+      "hash": "sha256:d5c75ce2994a7dae275fb26e",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 7
+      }
+    },
+    {
+      "path": "public/app/features/notebook/mutation-api/commands/permissions.ts",
+      "symbol": "requiresNotebookCreate",
+      "hash": "sha256:4f549b42147849fca2d57bcc",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "public/app/routes/routes.tsx",
+      "hash": "sha256:b94578b5343aef6488f55844",
+      "missing": false
+    },
+    {
+      "path": "public/app/types/accessControl.ts",
+      "hash": "sha256:e197ad3dffb628a0339de32f",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/folders/sub_access.go",
+      "hash": "sha256:120ac36ef8f936b5db706703",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132699"
+  },
+  "created": "2026-10-04T06:42:57.575Z",
+  "verified": "2026-10-04T06:42:57.575Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "map-notebook-rbac-actions-and-where-they-re-enforced"
+  ],
+  "says": [
+    "New notebook button missing when only create permission granted",
+    "Create dialog opens but save fails without write permission",
+    "Custom roles stop showing notebook interface after system upgrade",
+    "Create notebook uses incorrect permission check"
+  ],
+  "saysFor": "1230:give-each-crud-verb-its-",
+  "search": "Each CRUD verb must have its own RBAC action; never substitute write for create: check read for viewing, write for editing, create for creation routes, delete for removal, exactly matching what the backend apiserver authorizes (pkg/registry/apis/folders/sub_access.go:160-165). Fixed in public/app/features/notebook/permissions.ts:canCreateNotebooks, public/app/routes/routes.tsx:NOTEBOOK_NEW_URL, and public/app/features/notebook/mutation-api/commands/permissions.ts:requiresNotebookCreate. Constraint: applies only when backend has separate create/read/write/delete actions; custom roles that grant actions separately expose the bug. Task kind: frontend RBAC permission checks for resources with distinct apiserver CRUD actions (notebooks and similar types)."
+}

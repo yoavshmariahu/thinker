@@ -68,5 +68,6 @@
     "Pushing code fails until hogli preflight check passes",
     "Forgetting codegen steps blocks code review and merge"
   ],
-  "saysFor": "925:pre-commit-pre-push-hook"
+  "saysFor": "925:pre-commit-pre-push-hook",
+  "search": ".husky/pre-commit runs `pnpm lint-staged` (rules in package.json): Python → `hogli lint:python:fix`, `hogli format:python`, `ty check`; Markdown → `hogli format:markdown`; templates → `hogli format:html`. Editing products/**/manifest.tsx triggers `pnpm build:products` to regenerate products.tsx, productScenes.tsx, products.json; frontend/src/lib/constants.tsx triggers `hogli lint:feature-flags:fix`. .husky/pre-push blocks master and merge-queue, runs `hogli ci:preflight --strict` (never use `--no-verify`). Codegen requires explicit cochanges: serializers/viewsets → `hogli build:openapi` (never hand-edit api.schemas.ts, api.ts, api.zod.ts); query schema → `hogli build:schema`; kea logics → `typegen:write` in frontend/package.json; migrations via `hogli migrations:run`."
 }

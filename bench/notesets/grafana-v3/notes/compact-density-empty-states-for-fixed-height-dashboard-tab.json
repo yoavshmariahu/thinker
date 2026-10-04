@@ -1,0 +1,63 @@
+{
+  "id": "compact-density-empty-states-for-fixed-height-dashboard-tab",
+  "title": "Compact density empty states for fixed-height dashboard tab cards",
+  "kind": "rule",
+  "answers": [
+    "Empty state text/CTA gets cut off or overflows the Dashboards card",
+    "How to add an empty state that fits a short scroll area",
+    "EmptyState component too tall for the redesigned homepage card"
+  ],
+  "body": "Symptom: a tab's empty state (message + description + button) overflows or clips inside the Dashboards/Alerts card's fixed-height scroll area on the redesigned homepage.\nRoot cause: the full @grafana/ui EmptyState (image, padding, description paragraph) is taller than the fixed DASHBOARD_TABS_SCROLL_HEIGHT_REDESIGN area.\nFix pattern: use DashboardTabEmptyState with density='compact', which drops the image and description and renders just the message text + optional button; pass density from the tab component's useFlagGrafanaGrowthHomepage() check.\nConstraints: only for cards/tabs rendered inside a fixed, short scroll container on the redesigned homepage; the default (non-compact) density still uses the full EmptyState elsewhere.",
+  "applies": "public/app/features/home/DashboardTabs/*Tab.tsx empty states",
+  "tags": [
+    "homepage",
+    "dashboard-tabs",
+    "empty-state",
+    "growthhomepage"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/home/DashboardTabs/DashboardTabEmptyState.tsx",
+      "symbol": "DashboardTabEmptyState",
+      "hash": "sha256:9d5fa36ded07efe7f32ead11",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 9
+      }
+    },
+    {
+      "path": "public/app/features/home/DashboardTabs/RecentDashboardsTab.tsx",
+      "symbol": "RecentDashboardsTab",
+      "hash": "sha256:df006a01bd965c64e83ec51b",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132616"
+  },
+  "created": "2026-10-04T06:56:10.393Z",
+  "verified": "2026-10-04T06:56:10.393Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Empty state message and button overflow the Dashboard card on redesigned homepage",
+    "Recent Dashboards empty text is cut off or doesn't fit in the card",
+    "How to make an empty state fit inside the fixed-height Dashboards tab",
+    "Empty state content gets clipped in the short dashboard card scroll area"
+  ],
+  "saysFor": "804:compact-density-empty-st",
+  "search": "Empty states in fixed-height dashboard tab cards on the redesigned homepage must use DashboardTabEmptyState with density='compact' to avoid overflow or clipping within the DASHBOARD_TABS_SCROLL_HEIGHT_REDESIGN container. Compact density drops the image and full description, rendering only the message text and optional button. This applies to public/app/features/home/DashboardTabs/*Tab.tsx empty states (e.g., RecentDashboardsTab.tsx) when useFlagGrafanaGrowthHomepage() is true; the default density remains standard elsewhere."
+}

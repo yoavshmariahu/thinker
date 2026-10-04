@@ -1,0 +1,64 @@
+{
+  "id": "lbac-for-prometheus-no-feature-toggle-mimir-gem-backend-only",
+  "title": "LBAC for Prometheus: no feature toggle, Mimir/GEM backend only",
+  "kind": "rule",
+  "answers": [
+    "How do I enable Team LBAC / LBAC for data sources on a Prometheus data source?",
+    "Why doesn't teamHttpHeadersMimir feature toggle exist anymore?",
+    "LBAC rules aren't restricting metrics for a Prometheus/Thanos/Google Managed Prometheus data source",
+    "Is LBAC for Prometheus still in private preview?"
+  ],
+  "body": "Symptom: Docs or support requests reference enabling the `teamHttpHeadersMimir` feature toggle to use Team LBAC for data sources, or LBAC rules silently don't restrict query results.\nRoot cause: `teamHttpHeadersMimir` was fully removed in PR #109240 with no replacement toggle; LBAC enforcement is hard-wired to Mimir-specific HTTP headers (e.g. `X-Scope-OrgID` and team-scoped label matchers) that only Grafana Cloud Metrics (Mimir) and Grafana Enterprise Metrics (GEM) backends honor.\nFix pattern: Any doc, error message, or code comment that still mentions `teamHttpHeadersMimir` or describes LBAC-for-Prometheus as \"private preview\" is stale and must be corrected to state the feature is GA and gated only by backend type, not a toggle.\nConstraints: Applies to Team LBAC for the Prometheus data source specifically; LBAC never works against external Prometheus-compatible endpoints (self-managed Prometheus, Thanos, Google Managed Prometheus) regardless of any toggle, because those backends don't support the Mimir-specific headers.",
+  "applies": "Team LBAC for data sources / Prometheus data source docs and any code checking Mimir-header-based LBAC enforcement",
+  "tags": [
+    "lbac",
+    "prometheus",
+    "mimir",
+    "feature-toggle-removed",
+    "docs"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/administration/data-source-management/teamlbac/_index.md",
+      "hash": "sha256:12655be5546603bbdc288120",
+      "missing": false
+    },
+    {
+      "path": "docs/sources/datasources/prometheus/configure/_index.md",
+      "hash": "sha256:8f55c60524f648dcca948fcb",
+      "missing": false
+    },
+    {
+      "path": "docs/sources/datasources/prometheus/troubleshooting/index.md",
+      "hash": "sha256:5d62682b47e6f29d1a460395",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133120"
+  },
+  "created": "2026-10-04T05:49:31.974Z",
+  "verified": "2026-10-04T05:49:55.987Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "history": [
+    {
+      "at": "2026-10-04T05:49:55.993Z",
+      "reason": "merged from new session",
+      "prevBody": "Symptom: docs/support tickets referencing a `teamHttpHeadersMimir` feature toggle to enable Team LBAC for Prometheus, or LBAC rules having no effect on non-Mimir backends.\nRoot cause: the toggle was fully removed (no replacement) in PR #109240, but several docs pages still told users to enable it or called the feature 'private preview'.\nFix pattern: Team LBAC for the Prometheus data source is generally available and requires no feature toggle; it only works when the datasource backend is Grafana Cloud Metrics (Mimir) or Grafana Enterprise Metrics (GEM), because enforcement relies on Mimir-specific HTTP headers (e.g. X-Scope-OrgID) that other backends (Google Managed Prometheus, self-managed Prometheus, Thanos) ignore.\nConstraints: any doc, UI copy, or support guidance mentioning LBAC for Prometheus must not reference `teamHttpHeadersMimir`; instead state the Mimir/GEM backend requirement. Applies to LBAC docs under data-source-management/teamlbac and datasources/prometheus."
+    }
+  ],
+  "says": [
+    "How do I enable team access control on Prometheus?",
+    "Team-based data restrictions not working for Prometheus metrics",
+    "Feature toggle for Prometheus team access missing",
+    "Access rules aren't restricting results on Prometheus datasource",
+    "Team headers and label restrictions unavailable for Prometheus"
+  ],
+  "saysFor": "1100:lbac-for-prometheus-no-f",
+  "search": "Team LBAC for Prometheus data sources is GA and gated only by backend type (Mimir, Grafana Enterprise Metrics), not by any feature toggle; the teamHttpHeadersMimir toggle was removed in PR #109240. LBAC enforcement is hard-wired to Mimir-specific headers (X-Scope-OrgID and team-scoped label matchers), so it does not work against external Prometheus-compatible endpoints (self-managed Prometheus, Thanos, Google Managed Prometheus) regardless of configuration. Update any docs, error messages, or code comments that reference teamHttpHeadersMimir or describe LBAC-for-Prometheus as private preview to reflect that it is GA and backend-dependent only."
+}

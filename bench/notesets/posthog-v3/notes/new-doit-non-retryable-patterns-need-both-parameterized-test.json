@@ -49,5 +49,6 @@
     "Which test files need updates for new DoIt error handling?",
     "DoIt source error patterns require test list updates"
   ],
-  "saysFor": "536:new-doit-non-retryable-p"
+  "saysFor": "536:new-doit-non-retryable-p",
+  "search": "When adding a new error pattern to `get_non_retryable_errors()` in products/warehouse_sources/backend/temporal/data_imports/sources/doit/source.py, both parameterized test lists in doit/tests/test_doit_source.py must be updated in sync. The pattern string must be added to the parametrize decorator of `test_non_retryable_errors_includes_pattern`, and if it is a bad-key pattern, also added to `test_non_retryable_errors_tells_the_customer_to_reconnect_on_a_bad_key` with an assertion that the message contains \"reconnect\". The parametrized argument should be annotated as `pattern: str` per reviewer guidance. Applies to DoIt source non-retryable error pattern changes."
 }

@@ -72,5 +72,6 @@
     "Both onboarding and settings should enforce the same teammate invite rules.",
     "The invite limit works differently in signup versus the settings menu."
   ],
-  "saysFor": "811:onboarding-and-settings-"
+  "saysFor": "811:onboarding-and-settings-",
+  "search": "Onboarding and settings invite flows share inviteLogic as the single validity rule across both UI surfaces. Changes to canSubmit in inviteLogic (frontend/src/scenes/settings/organization/inviteLogic.ts) must be synchronized with onboarding's continueDisabledReason in OnboardingInviteTeammates.tsx, as both call the same invites/bulk/ endpoint. The hard-coded \"3 days\" expiry copy in InviteModal.tsx and OnboardingInviteTeammates.tsx must match the server constant INVITE_DAYS_VALIDITY in posthog/constants, and the client-side MAX_INVITES_AT_ONCE limit (20) must match the server cap in OrganizationInviteViewSet.bulk. Name and message fields are conditionally shown only when preflight.email_service_available is true. Task applies to: changes to invite form rules, validation limits, or UI copy affecting both flows."
 }

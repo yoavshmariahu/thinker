@@ -1,0 +1,93 @@
+{
+  "id": "bleve-build-info-must-record-mapped-selectable-fields-not-ju",
+  "title": "Bleve build info must record mapped selectable fields, not just features",
+  "kind": "rule",
+  "answers": [
+    "Why does the index fall back to store scan for a field it actually has",
+    "Build info SelectableFields field meaning",
+    "Index built with an old Grafana version refuses filters it should answer"
+  ],
+  "body": "Root cause/convention: an index's build info must list the selectable fields it was actually built with (info.SelectableFields), read once into bleveIndex.mappedSelectableFields at open time in pkg/storage/unified/search/bleve.go:newBleveIndex, since the mapped set cannot change while the index is open. An empty list is read as \"this index maps no selectable fields\" (triggers refusal) rather than \"unknown\" — so an older index format that maps fields without recording them would be wrongly treated as mapping none, causing unnecessary store-scan fallback (safe but slower) rather than a wrong silent-empty-result (unsafe). When changing what an index can map, the build-info writer and this read-at-open logic must stay in sync.",
+  "applies": "pkg/storage/unified/search bleve index build-info handling",
+  "tags": [
+    "unified-storage",
+    "search",
+    "build-info",
+    "bleve"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "bleveIndex",
+      "hash": "sha256:395e13a592b368e4b07c525b",
+      "line": 1768,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 0,
+        "refs": 142
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "newBleveIndex",
+      "hash": "sha256:5b67452d2235b11da5b699b6",
+      "line": 769,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 21,
+        "refs": 23
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "getBuildInfo",
+      "hash": "sha256:c84b8f1f4067adb044ce3a31",
+      "line": 2113,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 11,
+        "refs": 11
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "newBleveIndex",
+      "hash": "sha256:5b67452d2235b11da5b699b6",
+      "line": 769,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 21,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133102"
+  },
+  "created": "2026-10-04T05:51:08.853Z",
+  "verified": "2026-10-04T05:51:08.853Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "selectable-field-filters-must-be-checked-against-what-the-in",
+    "batchauthzsearcher-warns-when-a-search-matches-documents-but",
+    "internal-bleve-index-fields-must-be-refused-in-every-field-n",
+    "large-int64-values-resource-version-must-be-stored-as-string"
+  ],
+  "says": [
+    "Index falls back to slow scan for fields it should filter on",
+    "Why does the index skip using available field indexes",
+    "Old index version refuses filters it should handle correctly",
+    "Index performance suffers when it forgets mapped selectable fields",
+    "Bleve index doesn't use field mappings from earlier versions"
+  ],
+  "saysFor": "805:bleve-build-info-must-re",
+  "search": "Bleve index build info must record the actual selectable fields that were mapped (info.SelectableFields), read into bleveIndex.mappedSelectableFields at open time in pkg/storage/unified/search/bleve.go:newBleveIndex. An empty list is interpreted as 'this index maps no selectable fields' (triggers store-scan fallback) rather than 'unknown,' so older index formats that map fields without recording them would be wrongly treated as mapping none instead of producing a silent unsafe empty result. When changing index mapping capabilities, the build-info writer and the read-at-open logic in newBleveIndex and getBuildInfo must stay synchronized. Applies to pkg/storage/unified/search bleve index build-info handling and selectable-field tracking."
+}

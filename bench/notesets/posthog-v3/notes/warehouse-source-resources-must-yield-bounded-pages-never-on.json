@@ -59,5 +59,6 @@
     "Data warehouse sync OOM kills despite configured batching limits",
     "Memory limit exceeded during large table import to warehouse"
   ],
-  "saysFor": "980:warehouse-source-resourc"
+  "saysFor": "980:warehouse-source-resourc",
+  "search": "Warehouse source resources must yield bounded pages, never one whole list, because each yielded item is materialized whole and the batcher caps accumulation only between items. Bing Ads uses `REPORT_PAGE_ROWS = 50_000` in `products/warehouse_sources/backend/temporal/data_imports/sources/bing_ads/utils.py:iter_csv_row_pages` and functions like `BingAdsClient.get_performance_report` must stream via `yield from` rather than collecting pages into lists. Collecting pages or yielding the generator itself re-materializes the report, causing OOM that kills the pod and cascades to co-tenant syncs; schema retries repeat the job. No generic guard prevents sources from yielding oversized items. Applies to any warehouse_sources source yielding large API/report results (temporal/data_imports/sources/*)."
 }

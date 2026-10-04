@@ -1,0 +1,57 @@
+{
+  "id": "listwithselectors-transport-errors-vs-embedded-search-errors",
+  "title": "listWithSelectors: transport errors vs embedded search errors",
+  "kind": "rule",
+  "answers": [
+    "Why did a search outage/cancellation during LIST not get retried by the client?",
+    "A failed search query returned an empty successful list instead of an error",
+    "How should gRPC search client responses be converted into ListResponse?"
+  ],
+  "body": "Symptom: when the remote search backend was unavailable or a query failed, listWithSelectors previously either (a) wrapped a transport error (e.g. codes.Unavailable, cancellation) into an otherwise-successful ListResponse, defeating the unified client's retry interceptor, or (b) read rows from a response whose embedded ResourceSearchResponse.Error was set, returning an empty list as if it succeeded.\nRoot cause: pkg/storage/unified/resource/list_with_selectors.go:listWithSelectors called ErrorFromResponse on the gRPC call's own err, and never checked searchResp.GetError() at all.\nFix pattern: return the raw transport err immediately (err != nil => return nil, err) before touching the response body; only after a successful call, check searchResp.GetError() and convert it via AsErrorResult into resp.Error (not into a Go error) so the response shape expected by callers is preserved.\nConstraints: applies to any server-side RPC fan-out where a nested response carries its own Error field distinct from the transport error; do not merge the two error sources into one check.",
+  "applies": "pkg/storage/unified/resource server-to-search-service calls",
+  "tags": [
+    "unified-storage",
+    "error-handling",
+    "search",
+    "grpc"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "listWithSelectors",
+      "hash": "sha256:6d80df33d24814945220c3b0",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 22,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132660"
+  },
+  "created": "2026-10-04T06:50:41.846Z",
+  "verified": "2026-10-04T06:50:41.846Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-backed-list-must-emit-continuation-token-when-auth-fi",
+    "check-rsp-geterror-not-just-err-after-unified-storage-search",
+    "list-falls-back-from-search-to-store-scan-only-on-the-first",
+    "request-only-needed-fields-exact-rv-when-using-field-values"
+  ],
+  "says": [
+    "Search outage during list operations doesn't trigger retries",
+    "Failed search query returns an empty list instead of error",
+    "Search backend failures are hidden by the list operation",
+    "Connection errors to search aren't reported to the client",
+    "Search errors become silent empty list responses"
+  ],
+  "saysFor": "1143:listwithselectors-transp",
+  "search": "listWithSelectors must return raw transport errors (err != nil => return nil, err) immediately before touching the response body; only after successful gRPC calls, check searchResp.GetError() and convert via AsErrorResult into resp.Error (not Go error). Root causes: ignoring searchResp.GetError() returned empty lists as success when the search backend failed, and wrapping transport errors into otherwise-successful ListResponse defeated the unified client's retry interceptor. Constraint: do not merge transport and embedded error sources into one check. Applies to pkg/storage/unified/resource server-to-search-service calls and any server-side RPC fan-out where nested responses carry their own Error fields."
+}

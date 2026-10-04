@@ -1,7 +1,7 @@
 {
   "id": "trino-shadow-build-fails-before-writing-set-session-privileg",
   "title": "Trino shadow build fails before writing: SET SESSION privileged property",
-  "kind": "fix",
+  "kind": "rule",
   "answers": [
     "Trino shadow model build fails before creating the table",
     "Managed warehouse materialization fails with permission error on session property",
@@ -33,9 +33,10 @@
     {
       "path": "products/managed_warehouse/backend/trino_model_aliases.py",
       "symbol": "checkpoint",
-      "hash": "sha256:ed5635c33159b59c2b282d55",
+      "hash": "sha256:e325b3f852ce4bdd14699369",
       "line": 234,
-      "missing": false
+      "missing": false,
+      "symbolMissing": true
     }
   ],
   "source": {
@@ -56,5 +57,6 @@
     "Warehouse materialization blocked by Trino permission restrictions",
     "Shadow model build blocked by system session property"
   ],
-  "saysFor": "961:trino-shadow-build-fails"
+  "saysFor": "961:trino-shadow-build-fails",
+  "search": "Trino shadow materializations and alias refreshes fail before writing tables because execute_trino_shadow_materialization and reconcile_trino_model_aliases issued `SET SESSION query_max_run_time = ...` as the first statement, which restricted connection users cannot execute. Fix: remove privileged SET SESSION calls and rely on client-enforced deadlines with cursor cancellation via control.attach(cursor) and checkpoint() in products/managed_warehouse/backend/trino_model_aliases.py. Do not reintroduce privileged SET SESSION statements; applies to any managed_warehouse Trino path using restricted connection users. Removing statements shifts fetchall.side_effect lists in tests, so all test indexes must be updated."
 }

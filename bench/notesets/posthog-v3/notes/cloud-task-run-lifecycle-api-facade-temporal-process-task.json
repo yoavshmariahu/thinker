@@ -128,5 +128,6 @@
     "Where is the workflow that processes tasks step by step",
     "How are task status changes reflected through the entire system"
   ],
-  "saysFor": "1356:cloud-task-run-lifecycle"
+  "saysFor": "1356:cloud-task-run-lifecycle",
+  "search": "Task run execution flows from HTTP endpoint TaskViewSet.run → facade create_and_run_task/create_run → temporal/client.py:execute_task_processing_workflow → ProcessTaskWorkflow.run (async twin exists). Status updates go through TaskRunViewSet.partial_update → facade/api.py:update_task_run; cancellation via TaskRunViewSet.cancel; signal_workflow_completion sends ProcessTaskWorkflow.complete_task (best-effort). The workflow orchestrates _get_task_processing_context (activity), _provision_and_start_agent (with sandbox provisioning, wizard configuration, agent server startup), side loops for event relay and credential refresh, and _wait_for_event main loop; cleanup via _read_sandbox_logs/_cleanup_sandbox is skipped on continue_as_new (ResumedSandboxState carries sandbox). TaskRun state must be mutated only via update_state_atomic/mutate_state_atomic/update_output_atomic. Activities are registered in temporal/__init__.py; temporal/process_task/README.md is stale (cites old backend/services/sandbox.py path)."
 }

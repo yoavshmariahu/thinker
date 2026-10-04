@@ -71,5 +71,6 @@
     "Team scope errors indicate missing context when accessing team data",
     "Separate database products use different data isolation mechanisms"
   ],
-  "saysFor": "788:team-scoping-layer-fail-"
+  "saysFor": "788:team-scoping-layer-fail-",
+  "search": "Team-scoped models use a fail-closed middleware layer at posthog/models/scoping/ (see README.md): main-DB models inherit TeamScopedRootMixin with TeamScopedManager that raises TeamScopeError without team context; separate-DB products use ProductTeamModel with plain team_id BigIntegerField. Context is set by TeamAndOrgViewSetMixin.initial() (DRF), @with_team_scope() (Celery), with team_scope(team_id): (scripts), or Model.objects.for_team(id) outside requests; escape via .unscoped(). CI enforcement via check-idor-model-coverage.py with baseline exceptions in scoping/baseline_unmigrated.txt. Note: not a full security boundary (_base_manager and raw SQL can bypass)."
 }

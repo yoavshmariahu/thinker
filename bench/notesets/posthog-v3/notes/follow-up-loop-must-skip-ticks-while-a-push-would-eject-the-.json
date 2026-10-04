@@ -82,5 +82,6 @@
     "Why agent shouldn't push when PR queued",
     "Skip follow-up while PR in trunk queue"
   ],
-  "saysFor": "1171:follow-up-loop-must-skip"
+  "saysFor": "1171:follow-up-loop-must-skip",
+  "search": "The PR follow-up loop must skip ticks (CIFollowUpDecision.SKIP) when merge_queue_push_would_eject is true, because a follow-up push ejects the PR from the Trunk queue and restarts PRs behind it. Enforce this gate at three decision sites: _should_run_babysit_follow_up and _should_run_ci_follow_up in products/tasks/backend/temporal/process_task/workflow.py, and _should_run_ci_follow_up in products/tasks/backend/temporal/task_management/workflow.py; any new decision site needs the same gate. The flag comes from merge_queue_push_would_eject() in process_task/activities/get_pr_context.py, carried via GetPrContextOutput and PRSnapshot (babysit_pr/snapshot.py). Use the narrow 'push would eject' state (queued/testing/passed/pending-failure/UNKNOWN), NOT 'submitted', to avoid deadlock. On skipped ticks, do not touch _babysit_journal so feedback re-delivers after the PR leaves the queue. Applies to products/tasks Temporal PR follow-up workflows."
 }

@@ -66,5 +66,6 @@
     "How are error tracking lifecycle events triggered and processed internally",
     "Which events originate in the backend versus the ingestion system"
   ],
-  "saysFor": "859:lifecycle-events-emissio"
+  "saysFor": "859:lifecycle-events-emissio",
+  "search": "Lifecycle event emission and Temporal alert delivery pipeline: Django emits $error_tracking_issue_resolved, $error_tracking_issue_suppressed, $error_tracking_issue_reopened (manual), $error_tracking_issue_assigned, $error_tracking_issue_unassigned, $error_tracking_issue_merged, $error_tracking_issue_split via products/error_tracking/backend/logic/lifecycle_events.py, where STATUS_CHANGE_EVENTS maps status changes to events (only actual changes emit). The flow is prepare_issue_lifecycle_event → produce_issue_lifecycle_events_on_commit (on_commit hook) → produce_internal_event (CDP destinations); if team has ErrorTrackingAlert enabled, Celery calls dispatch_error_tracking_alert_deliveries (products/error_tracking/backend/tasks/tasks.py) → start_alert_delivery_workflows (products/error_tracking/backend/temporal/alerts/dispatch.py) → 'error-tracking-alert-delivery' Temporal workflow. Created, auto-reopened, and spiking events originate in cymbal (Rust), not Django. Alert triggers are issue_created, issue_reopened, issue_spiking, issue_assigned."
 }

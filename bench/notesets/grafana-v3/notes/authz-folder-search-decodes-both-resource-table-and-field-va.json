@@ -1,0 +1,52 @@
+{
+  "id": "authz-folder-search-decodes-both-resource-table-and-field-va",
+  "title": "authz folder search decodes both RESOURCE_TABLE and FIELD_VALUES formats",
+  "kind": "rule",
+  "answers": [
+    "Why does the folder tree break when querying unified storage field values?",
+    "How to add/change the authz folder search request without breaking old servers",
+    "Folder search returns wrong parent UIDs or empty tree after unified storage change"
+  ],
+  "body": "Symptom: authz folder-tree loading from unified storage returns empty/incorrect parent relationships after changing the search request's ResultFormat or Fields.\nRoot cause: the response decoder in pkg/services/authz/rbac/store/folder_store.go (listFoldersViaSearch) must branch on the ACTUAL ResultFormat the server returned (resp.ResultFormat), not assume it matches what was requested, because older servers still reply with RESOURCE_TABLE even when FIELD_VALUES is requested.\nFix pattern: when requesting resourcepb.ResourceSearchRequest with a specific ResultFormat (e.g. FIELD_VALUES) and a narrowed Fields list, keep/add a decode path for every ResultFormat the server could legally send, and select the decode path from the response, not the request.\nConstraints: applies to any caller of ResourceSearch that sets ResultFormat or Fields for efficiency; does not apply if the caller only ever talks to a pinned server version where compatibility isn't a concern.",
+  "applies": "pkg/services/authz/rbac/store/folder_store.go and any other ResourceSearch caller that sets ResultFormat/Fields on resourcepb.ResourceSearchRequest",
+  "tags": [
+    "authz",
+    "folder-store",
+    "unified-storage",
+    "resource-search",
+    "backward-compat"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/authz/rbac/store/folder_store.go",
+      "symbol": "listFoldersViaSearch",
+      "hash": "sha256:904221b91d894f6ca1ee39e9",
+      "line": 195,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132795"
+  },
+  "created": "2026-10-04T06:29:24.542Z",
+  "verified": "2026-10-04T06:29:24.542Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "narrow-resourcesearch-requests-to-fields-field-values-for-tr"
+  ],
+  "says": [
+    "Why does the folder tree break when querying unified storage field values?",
+    "How to add/change folder search request without breaking old servers?",
+    "Folder search returns wrong parent relationships or empty tree after change"
+  ],
+  "saysFor": "1041:authz-folder-search-deco"
+}

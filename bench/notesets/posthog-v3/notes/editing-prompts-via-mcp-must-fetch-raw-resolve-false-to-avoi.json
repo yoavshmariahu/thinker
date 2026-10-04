@@ -51,5 +51,6 @@
     "How to edit a prompt without inlining its referenced sub-prompts",
     "Prompt edit should preserve references instead of flattening them inline"
   ],
-  "saysFor": "1028:editing-prompts-via-mcp-"
+  "saysFor": "1028:editing-prompts-via-mcp-",
+  "search": "Prompt content containing @@@prompt:...@@@ reference tags must be edited as raw text, not resolved content; fetch with resolve=false before calling llma-prompt-update to preserve tags. Republishing resolved content replaces references with flattened copies that no longer follow label moves, and subsequent edits matched against resolved text will not find stored tags. llma-prompt-list resolves only when label and content=full are set; unlabeled listings return raw tags. Resolution is gradually rolled out across teams; when not enabled, all responses return raw tags without resolved_references, so content with @@@prompt:@ should be treated as unresolved. Guidance is documented in products/ai_observability/mcp/tools.yaml (llma-prompt-get, llma-prompt-list, llma-prompt-update); keep documentation in sync with resolution behavior changes."
 }

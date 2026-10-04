@@ -100,5 +100,6 @@
     "Heartbeats keep the system aware that long tasks still run",
     "Task failure categories: which errors should trigger retries"
   ],
-  "saysFor": "1026:temporal-retries-timeout"
+  "saysFor": "1026:temporal-retries-timeout",
+  "search": "Every execute_activity in Temporal workflows requires start_to_close_timeout or schedule_to_close_timeout and explicit maximum_attempts (retries unlimited by default); non_retryable_error_types matches exact class names, not ancestors. Use named policies as constants from posthog/temporal/alerts/retry_policy.py (ALERT_PREPARE_RETRY_POLICY, ALERT_EVALUATE_RETRY_POLICY) and CheckAlertWorkflow derives timeouts via alert_timeouts(calculation_interval). Long async activities must use async with Heartbeater() from common/heartbeat.py with workflow-set heartbeat_timeout (e.g. 2 min in CleanupAlertChecksWorkflow); sync activities use HeartbeaterSync from common/heartbeat_sync.py. HeartbeatDetails subclasses deserialize on retry but details are buffered, not guaranteed. ShutdownMonitor from common/shutdown.py lets long activities exit on worker shutdown; WorkerShuttingDownError should be retried. Test helpers in posthog/temporal/tests/utils/workflow.py. Applies to activity scheduling from workflows and heartbeat implementation."
 }

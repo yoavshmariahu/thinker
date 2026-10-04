@@ -1,0 +1,115 @@
+{
+  "id": "unified-storage-service-token-lacking-delegated-permission-m",
+  "title": "Unified storage: service token lacking delegated permission must fail loudly, not return empty results",
+  "kind": "rule",
+  "answers": [
+    "Why does a label-selector LIST return an empty list with HTTP 200 even though the resources exist?",
+    "search-api is denying every hit for storage-api but there's no error or metric",
+    "How to tell a deployment mistake (missing delegated token permission) from a legitimate access denial",
+    "ErrServiceCannotDelegate"
+  ],
+  "body": "Symptom: a LIST/Check/BatchCheck on behalf of a user silently returns zero/denied results (HTTP 200, empty list) with no error, log, or metric; only a trace shows check_count=1, authz_check_count=0.\nRoot cause: authlib's authz.CheckServicePermissions (authz/service_permissions.go) denies the check itself when the caller's token has no delegated permission for that group/resource/verb, so the authz service is never even asked - that path is indistinguishable from an ordinary denial.\nFix pattern: before forwarding to the underlying client, call serviceCanDelegate(ctx, id, group, resource, verb) in pkg/storage/unified/resource/access.go:authzLimitedClient; if the identity carries some token permissions but not this one, return ErrServiceCannotDelegate (wrapping the missing permission string), log at error level, and increment grafana_grpc_authz_limited_client_missing_delegated_permission_total{group,resource,verb}.\nConstraints: identities with no token permissions at all (len(id.GetTokenPermissions())==0 && len(id.GetTokenDelegatedPermissions())==0 - typical of single-tenant/in-process callers) must be skipped; only a token that carries some permissions but not the specific one being used is treated as a deployment mistake.",
+  "applies": "pkg/storage/unified/resource access-check layer (authzLimitedClient) for any Check/Compile/BatchCheck path that delegates on behalf of a user",
+  "tags": [
+    "unified-storage",
+    "authz",
+    "authlib",
+    "delegated-permissions",
+    "silent-failure"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "BatchCheck",
+      "hash": "sha256:76a73c814f4b1a7612e3eec4",
+      "line": 310,
+      "missing": false,
+      "fanout": {
+        "files": 41,
+        "sites": 98,
+        "refs": 191
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "serviceCanDelegate",
+      "hash": "sha256:9cbb0838c6f91b5a7984aeb3",
+      "line": 81,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "authzLimitedClient",
+      "hash": "sha256:b3629fd65adcbfe97cb1ed89",
+      "line": 134,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 19
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "ErrServiceCannotDelegate",
+      "hash": "sha256:9008486e556ae8798fe7d7f4",
+      "line": 75,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "ErrServiceCannotDelegate",
+      "hash": "sha256:9008486e556ae8798fe7d7f4",
+      "line": 75,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/access.go",
+      "symbol": "authzLimitedClient",
+      "hash": "sha256:b3629fd65adcbfe97cb1ed89",
+      "line": 134,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132990"
+  },
+  "created": "2026-10-04T06:01:11.415Z",
+  "verified": "2026-10-04T06:01:11.415Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "authzlimitedclient-entry-points-must-each-call-servicecandel"
+  ],
+  "says": [
+    "The resource list displays zero items without showing any permission warning or error.",
+    "Display an explicit access error when a service token lacks delegation privileges.",
+    "Saved dashboard resources vanish from the search screen even though user permissions exist.",
+    "The system must alert administrators if token delegation fails instead of pretending nothing exists.",
+    "Filtering items by label shows a blank table rather than reporting an authorization problem."
+  ],
+  "saysFor": "1343:unified-storage-service-"
+}

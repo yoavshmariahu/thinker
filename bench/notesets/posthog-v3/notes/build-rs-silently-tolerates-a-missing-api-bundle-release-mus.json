@@ -48,5 +48,6 @@
     "Missing API bundle is not caught until the release step",
     "How does the published CLI get its API capabilities"
   ],
-  "saysFor": "803:build-rs-silently-tolera"
+  "saysFor": "803:build-rs-silently-tolera",
+  "search": "cli/build.rs silently emits EMBEDDED_API_CLI_BUNDLE: Option<&[u8]> = None when lib/posthog-api-cli.mjs is missing and still compiles successfully; a missing bundle never fails the build, only ships a dead posthog-cli api command. Release publish paths must verify the bundle exists with test -s cli/lib/posthog-api-cli.mjs before publishing (see .github/workflows/release-cli.yml step 'Verify the bundle is present'). The bundle is extracted from posthog-cli-npm-package.tar.gz in the release archive (package/lib/posthog-api-cli.mjs) rather than rebuilt, so all channels ship identical bytes (~8.6MB); tar exits non-zero if absent, guarding the check. Keep this verification in any new publish channel. Applies to CLI release builds and cargo publish workflows."
 }

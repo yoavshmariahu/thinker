@@ -1,0 +1,77 @@
+{
+  "id": "sticky-element-backgrounds-must-branch-on-visualdesignrefres",
+  "title": "Sticky element backgrounds must branch on visualDesignRefresh flag",
+  "kind": "rule",
+  "answers": [
+    "Why does a sticky header/footer have the wrong background color in the visual refresh theme?",
+    "Sticky toolbar/footer background looks inconsistent with the new design",
+    "How should background color be set for sticky/fixed-position elements?",
+    "What color token to use for sticky headers under visual refresh"
+  ],
+  "body": "Symptom: sticky-positioned headers/footers (toolbars, modal headers, dashboard footer) show the old canvas/primary background color and look out of place once visual refresh is enabled.\nRoot cause: getStyles() used a single hardcoded theme.colors.background.* token regardless of theme.flags.visualDesignRefresh, so sticky surfaces didn't pick up the refreshed palette.\nFix pattern: in getStyles(theme), read `const visualRefreshEnabled = theme.flags.visualDesignRefresh;` and set `background: visualRefreshEnabled ? theme.colors.background.page : theme.colors.background.canvas` (or .primary) for any `position: sticky` element's background.\nConstraints: applies specifically to sticky/fixed elements whose background was previously canvas or primary; non-sticky surfaces follow other refresh rules and aren't covered by this pattern.",
+  "applies": "Any component defining styles for a position:sticky element via getStyles(theme: GrafanaTheme2) in public/app",
+  "tags": [
+    "visual-refresh",
+    "theming",
+    "css",
+    "sticky"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/pages/PublicDashboardScenePage.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:0526b34532b1c4a2dc55008d",
+      "line": 125,
+      "missing": false,
+      "fanout": {
+        "files": 903,
+        "sites": 72,
+        "refs": 1104
+      }
+    },
+    {
+      "path": "public/app/features/dashboard/components/PublicDashboard/DashboardBrandingFooter.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:6eb08464de1020fbae42548d",
+      "line": 117,
+      "missing": false,
+      "fanout": {
+        "files": 903,
+        "sites": 72,
+        "refs": 1104
+      }
+    },
+    {
+      "path": "public/app/features/dashboard/dashgrid/DashboardLibrary/TemplateDashboardModal.tsx",
+      "symbol": "getStyles",
+      "hash": "sha256:a3c348fec47b9c27f902b7f6",
+      "line": 114,
+      "missing": false,
+      "fanout": {
+        "files": 903,
+        "sites": 72,
+        "refs": 1104
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133030"
+  },
+  "created": "2026-10-04T05:55:51.916Z",
+  "verified": "2026-10-04T05:55:51.916Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Sticky header shows wrong background color when visual refresh theme is enabled",
+    "Toolbar or footer background appears mismatched with the visual refresh design",
+    "How to set background colors for sticky positioned elements correctly",
+    "Which background color should sticky headers use in the refreshed design",
+    "Sticky footers use outdated background colors under the new visual theme"
+  ],
+  "saysFor": "902:sticky-element-backgroun",
+  "search": "Sticky-positioned UI elements (toolbars, modal headers, footers) must branch background color on theme.flags.visualDesignRefresh in getStyles(theme) across PublicDashboardScenePage.tsx, DashboardBrandingFooter.tsx, and TemplateDashboardModal.tsx. Pattern: set `background: visualRefreshEnabled ? theme.colors.background.page : theme.colors.background.canvas` (or .primary) for any position:sticky element's background to pick up the refreshed palette when visual refresh is enabled. Applies only to sticky/fixed positioned elements whose background was previously hardcoded to canvas or primary; non-sticky surfaces follow other refresh rules. Guidance applies when styling sticky surfaces in theme-aware public-facing dashboard components."
+}

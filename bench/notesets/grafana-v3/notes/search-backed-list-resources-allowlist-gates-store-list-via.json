@@ -1,0 +1,79 @@
+{
+  "id": "search-backed-list-resources-allowlist-gates-store-list-via",
+  "title": "search_backed_list_resources allowlist gates STORE LIST via search",
+  "kind": "map",
+  "answers": [
+    "How do I opt a resource into the search-backed LIST path?",
+    "Where is the unified_storage search-list allowlist configured?",
+    "What controls which group/resource LIST requests use the search index vs the SQL store?"
+  ],
+  "body": "The [unified_storage] ini section's search_backed_list_resources key (comma-separated group/resource pairs) is parsed in pkg/setting/setting_unified_storage.go:setUnifiedStorageConfig into Cfg.SearchBackedListResources, then wired by pkg/storage/unified/sql/server.go:withSearchBackedListConfig into resource.ResourceServerOptions.SearchBackedListConfig, and consulted at runtime via server.searchBackedListResources.Allowed(group, resource) in shouldUseSearchForList. The list is empty by default, so routing stays opt-in until a resource is explicitly added.",
+  "applies": "unified storage server configuration for LIST routing",
+  "tags": [
+    "unified-storage",
+    "configuration",
+    "allowlist",
+    "feature-flag"
+  ],
+  "deps": [
+    {
+      "path": "pkg/setting/setting_unified_storage.go",
+      "symbol": "setUnifiedStorageConfig",
+      "hash": "sha256:7ec7ca2f78fbfcd9def85c40",
+      "line": 128,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 25,
+        "refs": 27
+      }
+    },
+    {
+      "path": "pkg/storage/unified/sql/server.go",
+      "symbol": "withSearchBackedListConfig",
+      "hash": "sha256:9d531db157d9ef16d3bda2f6",
+      "line": 362,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "SearchBackedListConfig",
+      "hash": "sha256:1927eb970fe46f0d399d7a01",
+      "line": 356,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132660"
+  },
+  "created": "2026-10-04T06:50:42.765Z",
+  "verified": "2026-10-04T06:50:42.765Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "list-falls-back-from-search-to-store-scan-only-on-the-first",
+    "search-backed-list-must-emit-continuation-token-when-auth-fi"
+  ],
+  "says": [
+    "How do I enable search-based listing for a resource type?",
+    "Which resources use search index vs database for list operations?",
+    "Configuring search-backed list in unified storage settings",
+    "Where is the allowlist for search-backed resource listing?",
+    "Resource list requests not routing through search index"
+  ],
+  "saysFor": "627:search-backed-list-resou",
+  "search": "Configuration key [unified_storage] search_backed_list_resources (comma-separated group/resource pairs) controls which resources route LIST through search index in unified storage. Parsed by pkg/setting/setting_unified_storage.go:setUnifiedStorageConfig into Cfg.SearchBackedListResources, wired by pkg/storage/unified/sql/server.go:withSearchBackedListConfig into ResourceServerOptions.SearchBackedListConfig, and checked at runtime via server.searchBackedListResources.Allowed(group, resource) in shouldUseSearchForList. Empty by default; routing remains opt-in until explicitly enabled per resource."
+}

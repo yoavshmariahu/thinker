@@ -1,0 +1,116 @@
+{
+  "id": "shared-go-types-across-gvks-need-a-declared-gvk-not-scheme-g",
+  "title": "Shared Go types across GVKs need a declared GVK, not scheme guessing",
+  "kind": "rule",
+  "answers": [
+    "Object was persisted with the wrong apiVersion for a multi-version resource",
+    "Why did a dashboard/folder get saved as v1beta1 when written through the v1 endpoint?",
+    "Datasource config persisted under the wrong API group",
+    "How to fix incorrect apiVersion/group for a type shared across versions or groups"
+  ],
+  "body": "Symptom: an object constructed without TypeMeta (provisioning, migrations) or whose Go type is shared across API versions/groups gets persisted under the wrong apiVersion/group - e.g. always resolving to whichever version/group was registered first, regardless of the endpoint it arrived through.\nRoot cause: apistore.Storage.checkGVK (pkg/storage/unified/apistore/prepare.go) used to fall back to StorageOptions.Scheme.ObjectKinds(obj), which reports every GVK a Go type is registered under; for a type shared across versions/groups that first match was registration-order-dependent, not the version actually being served.\nFix pattern: declare StorageOptions.GVK per version/group and scope it with opts.StorageOptsGetterFor(resourceInfo, storageOpts) (pkg/services/apiserver/builder/common.go) instead of the GroupResource-keyed opts.StorageOptsRegister or the bare opts.OptsGetter, both of which are shared across every version of a resource.\nConstraints: applies whenever one Go type backs multiple GVKs - see pkg/registry/apis/folders/register.go:folderStorageOpts and pkg/registry/apis/datasource/register.go:UpdateAPIGroupInfo. Does not apply to resources that declare no GVK at all; those stay on the codec path (see companion note).",
+  "applies": "apistore.StorageOptions consumers; any resource registry whose Go type backs more than one GVK/version/group",
+  "tags": [
+    "apistore",
+    "gvk",
+    "storage-options",
+    "multi-version"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "hash": "sha256:db0293b27ffa68c6e0462f4d",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/apiserver/builder/common.go",
+      "hash": "sha256:6379505339e4806611494367",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/folders/register.go",
+      "symbol": "folderStorageOpts",
+      "hash": "sha256:40b7e55ce7714339d7fb6562",
+      "line": 317,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/registry/apis/folders/register.go",
+      "symbol": "UpdateAPIGroupInfo",
+      "hash": "sha256:f8d8eca85d696dafd81d99c5",
+      "line": 330,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 11,
+        "refs": 22
+      }
+    },
+    {
+      "path": "pkg/registry/apis/datasource/register.go",
+      "symbol": "UpdateAPIGroupInfo",
+      "hash": "sha256:722872167033ced5109cbcff",
+      "line": 272,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 11,
+        "refs": 22
+      }
+    },
+    {
+      "path": "pkg/registry/apis/folders/register.go",
+      "symbol": "folderStorageOpts",
+      "hash": "sha256:40b7e55ce7714339d7fb6562",
+      "line": 317,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/registry/apis/datasource/register.go",
+      "symbol": "UpdateAPIGroupInfo",
+      "hash": "sha256:722872167033ced5109cbcff",
+      "line": 272,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 11,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132784"
+  },
+  "created": "2026-10-04T06:32:09.596Z",
+  "verified": "2026-10-04T06:32:09.596Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "use-jsonserializer-when-one-go-type-backs-multiple-gvks-in-a",
+    "declare-storageoptions-gvk-for-any-type-shared-aliased-acros",
+    "apistore-maxallowedversion-cap-must-check-the-persisted-enco",
+    "storage-options-must-be-scoped-per-gvr-not-registered-into-a"
+  ],
+  "says": [
+    "Multi-version resource object persists under wrong API version.",
+    "Dashboard saved as v1beta1 despite writing through v1 endpoint.",
+    "Shared resource type resolves to unexpected API group consistently.",
+    "Configuration stored with unintended API version after update.",
+    "Why does moving resource between versions revert saved API version?"
+  ],
+  "saysFor": "1310:shared-go-types-across-g",
+  "search": "Shared Go types across multiple API versions/groups must declare StorageOptions.GVK explicitly per version/group, using opts.StorageOptsGetterFor(resourceInfo, storageOpts) in pkg/services/apiserver/builder/common.go, not the shared GroupResource-keyed opts.StorageOptsRegister. Without this, objects persist under wrong apiVersion/group (registration-order-dependent) when one Go type backs multiple GVKs; see pkg/registry/apis/folders/register.go:folderStorageOpts and pkg/registry/apis/datasource/register.go:UpdateAPIGroupInfo. Does not apply to resources declaring no GVK. Applies to apistore.StorageOptions consumers in resource registries with multiple GVK backing."
+}

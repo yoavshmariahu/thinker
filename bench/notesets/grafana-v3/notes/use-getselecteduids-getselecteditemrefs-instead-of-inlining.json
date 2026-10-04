@@ -1,0 +1,66 @@
+{
+  "id": "use-getselecteduids-getselecteditemrefs-instead-of-inlining",
+  "title": "Use getSelectedUIDs/getSelectedItemRefs instead of inlining selection filtering",
+  "kind": "rule",
+  "answers": [
+    "How do I get the selected folder/dashboard UIDs in browse-dashboards?",
+    "Where should selection-filtering logic live for the dashboard tree?",
+    "getSelectedFolderUIDs was removed, what replaces it?"
+  ],
+  "body": "Local convention: selected folder/dashboard UIDs must be read via public/app/features/browse-dashboards/utils/dashboards.ts:getSelectedUIDs(selectedItems, kind) or getSelectedItemRefs, not via ad-hoc `Object.keys(selectedItems.folder).filter(uid => selectedItems.folder[uid])`. This PR replaced ~6 duplicated inline copies (BrowseActions.tsx, DeleteModal.tsx, MoveModal.tsx, AffectedFolderContents.tsx, BulkDeleteProvisionedResource.tsx, hooks.ts) with the shared helper and deleted the duplicate getSelectedFolderUIDs in BrowseActions/utils.ts. collectSelectedItems (same file) now builds on getSelectedItemRefs for provisioning resource refs. New selection-reading code in browse-dashboards or provisioning bulk actions should import from this module rather than re-deriving the filter.",
+  "applies": "browse-dashboards and provisioning bulk-action code that reads DashboardTreeSelection",
+  "tags": [
+    "browse-dashboards",
+    "convention",
+    "selection"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/browse-dashboards/utils/dashboards.ts",
+      "symbol": "getSelectedUIDs",
+      "hash": "sha256:3a71afaa3d7fcbec2892dcf0",
+      "line": 113,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 21,
+        "refs": 31
+      }
+    },
+    {
+      "path": "public/app/features/browse-dashboards/utils/dashboards.ts",
+      "symbol": "getSelectedItemRefs",
+      "hash": "sha256:f84db6d41c2aab252b32f126",
+      "line": 122,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 4,
+        "refs": 8
+      }
+    },
+    {
+      "path": "public/app/features/browse-dashboards/components/BrowseActions/utils.ts",
+      "hash": "sha256:53937343e77aa1de145e02bb",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132634"
+  },
+  "created": "2026-10-04T06:52:30.136Z",
+  "verified": "2026-10-04T06:52:30.136Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I get the list of selected folders and dashboards?",
+    "Folder and dashboard selection logic should use a shared helper",
+    "What replaces the old folder selection method in browse view?",
+    "Getting the identifiers of selected items in dashboard browser"
+  ],
+  "saysFor": "868:use-getselecteduids-gets"
+}

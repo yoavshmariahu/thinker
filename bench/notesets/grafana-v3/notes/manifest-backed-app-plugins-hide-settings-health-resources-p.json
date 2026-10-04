@@ -1,0 +1,96 @@
+{
+  "id": "manifest-backed-app-plugins-hide-settings-health-resources-p",
+  "title": "Manifest-backed app plugins hide settings/health/resources/proxy unless compat flag is set",
+  "kind": "rule",
+  "answers": [
+    "Why did my app plugin's /health, /resources, /proxy or settings API disappear after adding a manifest?",
+    "How do I keep the legacy settings endpoint for a plugin that now ships an app manifest?",
+    "Plugin OpenAPI spec no longer lists app/instance routes for a manifest plugin"
+  ],
+  "body": "Symptom: a plugin that gained an app manifest stops serving its settings CRUD, /health, /resources, /proxy subresources, and the v0alpha1 group version; its OpenAPI spec drops those paths too.\nRoot cause: pkg/registry/apis/appplugin/register.go:NewAppPluginAPIBuilder sets client and contextProvider to nil whenever plugin.Manifest != nil and FlagApppluginsLoadAppManifestAndKeepSettings is off.\nFix pattern: every place that conditionally wires settings must gate on the same b.includeSettings() check (client != nil && contextProvider != nil) defined in pkg/registry/apis/appplugin/openapi.go:includeSettings — GetGroupVersions (pkg/registry/apis/appplugin/register.go:GetGroupVersions), UpdateAPIGroupInfo's storage map, and PostProcessOpenAPI (pkg/registry/apis/appplugin/openapi.go:PostProcessOpenAPI) must all stay in sync with it.\nConstraints: legacy (non-manifest) plugins always get settings; manifest plugins only get them if FlagApppluginsLoadAppManifestAndKeepSettings is enabled — a temporary migration flag, not a permanent per-plugin opt-in (reviewers noted a manifest-level flag may replace it).",
+  "applies": "pkg/registry/apis/appplugin and anything that reads its OpenAPI/storage/version output for manifest-backed plugins",
+  "tags": [
+    "appplugin",
+    "feature-flag",
+    "settings",
+    "manifest",
+    "openapi"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/appplugin/register.go",
+      "symbol": "NewAppPluginAPIBuilder",
+      "hash": "sha256:334f75bee85213a8da4e303e",
+      "line": 117,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/registry/apis/appplugin/register.go",
+      "symbol": "GetGroupVersions",
+      "hash": "sha256:02311caf5da9405de1e679a2",
+      "line": 275,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 27,
+        "refs": 28
+      }
+    },
+    {
+      "path": "pkg/registry/apis/appplugin/openapi.go",
+      "symbol": "includeSettings",
+      "hash": "sha256:754bdd6529ca27a311442532",
+      "line": 151,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/services/featuremgmt/registry.go",
+      "hash": "sha256:852546db62485959e9d20a8f",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/appplugin/openapi.go",
+      "symbol": "PostProcessOpenAPI",
+      "hash": "sha256:b316bba026769dfba139ef7d",
+      "line": 70,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 8,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132852"
+  },
+  "created": "2026-10-04T06:20:55.936Z",
+  "verified": "2026-10-04T06:20:55.936Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "zero-served-group-versions-must-error-explicitly-not-be-allo"
+  ],
+  "says": [
+    "Why did my plugin's settings and health endpoints stop working?",
+    "How do I preserve legacy settings APIs for manifest-backed plugins?",
+    "Plugin OpenAPI spec dropped /health, /resources, /proxy paths after manifest",
+    "Manifest-backed app plugins no longer serve settings CRUD or health checks",
+    "App plugin proxy and resources endpoints hidden when using app manifest"
+  ],
+  "saysFor": "1202:manifest-backed-app-plug",
+  "search": "Manifest-backed app plugins hide settings CRUD, /health, /resources, /proxy subresources, and the v0alpha1 group version unless FlagApppluginsLoadAppManifestAndKeepSettings is enabled (pkg/services/featuremgmt/registry.go). NewAppPluginAPIBuilder (pkg/registry/apis/appplugin/register.go) sets client and contextProvider to nil when plugin.Manifest != nil and the flag is off; all conditional wiring must gate on the same includeSettings() check (pkg/registry/apis/appplugin/openapi.go) to stay consistent across GetGroupVersions, UpdateAPIGroupInfo's storage map, and PostProcessOpenAPI. This is a temporary migration flag, not a permanent per-plugin opt-in, and legacy (non-manifest) plugins always get settings. Constraint: there is no permanent manifest-level per-plugin opt-in flag yet. Applies to manifest-backed plugin development and anything reading OpenAPI/storage/version output for such plugins."
+}

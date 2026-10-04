@@ -1,0 +1,63 @@
+{
+  "id": "box-color-prop-background-border-uses-subtle-tokens-under-vi",
+  "title": "Box color-prop background/border uses subtle tokens under visual refresh",
+  "kind": "map",
+  "answers": [
+    "Where does Box's color='error'/'success'/etc. background and border come from?",
+    "Why does a Box with backgroundColor='warning' look different between legacy and visual-refresh themes?"
+  ],
+  "body": "Box's named-color background/border props (error, success, info, warning) resolve through packages/grafana-ui/src/components/Layout/Box/Box.tsx:customBorderColor and customBackgroundColor. Under theme.flags.visualDesignRefresh they use theme.colors[color].subtleBackground / .subtleBorder; otherwise they fall back to the legacy .transparent / .borderTransparent tokens. Any new named-color option added to Box must be wired through both branches to stay consistent between legacy and visual-refresh themes.",
+  "applies": "grafana-ui Layout/Box component, visual-refresh theme color props",
+  "tags": [
+    "grafana-ui",
+    "box",
+    "theme",
+    "visual-refresh"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Layout/Box/Box.tsx",
+      "symbol": "customBorderColor",
+      "hash": "sha256:a195866255c8a9b60f8ab770",
+      "line": 163,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Layout/Box/Box.tsx",
+      "symbol": "customBackgroundColor",
+      "hash": "sha256:495372b2842deec4644f59dc",
+      "line": 176,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132855"
+  },
+  "created": "2026-10-04T06:20:01.416Z",
+  "verified": "2026-10-04T06:20:01.416Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does Box background color look different in new design",
+    "Box component colors appear inconsistent between legacy and refresh",
+    "Box warning and error backgrounds render differently with theme change",
+    "Named color backgrounds in Box change appearance with new theme",
+    "Visual refresh theme applies different color tokens to Box"
+  ],
+  "saysFor": "580:box-color-prop-backgroun",
+  "search": "Box named-color background/border props (error, success, info, warning) resolve through customBorderColor and customBackgroundColor in packages/grafana-ui/src/components/Layout/Box/Box.tsx, with theme-dependent token selection. Under theme.flags.visualDesignRefresh, they use theme.colors[color].subtleBackground/.subtleBorder; otherwise they fall back to legacy .transparent/.borderTransparent tokens. Any new named-color option added to Box must be wired through both conditional branches to maintain consistency between legacy and visual-refresh themes. Applies to grafana-ui Layout/Box component color property implementation."
+}

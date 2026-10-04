@@ -68,5 +68,6 @@
     "Slack analytics missing for notification feature",
     "Track Slack usage by which feature sent"
   ],
-  "saysFor": "989:slack-flows-must-pass-th"
+  "saysFor": "989:slack-flows-must-pass-th",
+  "search": "Slack notification flows must pass a source parameter to SlackIntegration constructor to label both sync and async clients with the flow name; source is keyword-only with default 'integration' and must be omitted only for generic callers like in-conversation replies. Recognized source values include error_tracking_alerts, subscriptions, signals_inbox, signals_scout, stamphog, visual_review, loop_notifications, eval_reports, and customer_analytics_event_stream. Applies to code that constructs SlackIntegration for outbound Slack messages; test fakes replacing SlackIntegration must accept the source parameter. Documentation lives in posthog/egress/slack/README.md; update it when the convention changes."
 }

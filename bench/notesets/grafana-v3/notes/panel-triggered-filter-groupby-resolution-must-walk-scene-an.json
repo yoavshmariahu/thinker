@@ -1,0 +1,65 @@
+{
+  "id": "panel-triggered-filter-groupby-resolution-must-walk-scene-an",
+  "title": "Panel-triggered filter/groupby resolution must walk scene ancestor chain, not just dashboard root",
+  "kind": "rule",
+  "answers": [
+    "Why does clicking 'Filter for value' on a panel inside a row with its own Filters variable add the filter to the dashboard-wide filters instead of the row's filters?",
+    "How do I make panel ad-hoc filter/groupby actions respect section-level (row) scoped variables?",
+    "Add to filter from panel ignores row-local Filters variable",
+    "Filtering a panel in a dashboard section should stay local to that section"
+  ],
+  "body": "Symptom: clicking a panel's 'Add filter'/'Filter for value'/groupby action always mutated the dashboard-global Filters (or GroupBy) variable, even when the panel lived inside a row that had its own section-local Filters variable.\nRoot cause: public/app/features/dashboard-scene/scene/setDashboardPanelContext.ts resolved variables via getDashboardSceneFor(vizPanel) and then sceneGraph.getVariables(dashboard), which only ever looks at the dashboard's top-level $variables set, never at a row's $variables.\nFix pattern: resolve against the panel's ancestor chain instead of the dashboard directly - getVariableSetsInHierarchy(sceneObject) walks sceneObject.parent upward collecting each level's state.$variables (closest scope first), and getAdHocFilterVariableFor/getGroupByVariableFor/getAdHocGroupByVariableFor now take the VizPanel (or any SceneObject) and search these sets in order before falling back to creating a new variable at the dashboard scene (via getDashboardSceneFor) if none match anywhere.\nConstraints: applies to any panel-context action in setDashboardPanelContext.ts that needs to find the 'closest' matching variable for a given datasource (ad-hoc filters, groupby); if adding a new such action, resolve it the same hierarchy-aware way rather than calling sceneGraph.getVariables(dashboard) directly, or it will silently ignore row/section-level overrides.",
+  "applies": "public/app/features/dashboard-scene/scene/setDashboardPanelContext.ts - any new panel-context callback that needs to find a matching ad-hoc filter or groupby variable by datasource",
+  "tags": [
+    "dashboard-scene",
+    "filters",
+    "variables",
+    "scene-hierarchy"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/setDashboardPanelContext.ts",
+      "symbol": "getVariableSetsInHierarchy",
+      "hash": "sha256:13301f817015ad47e26d9600",
+      "line": 363,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/setDashboardPanelContext.ts",
+      "symbol": "getAdHocFilterVariableFor",
+      "hash": "sha256:1da3f69d9a18b34c087e33d9",
+      "line": 408,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 12,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132748"
+  },
+  "created": "2026-10-04T06:36:50.691Z",
+  "verified": "2026-10-04T06:36:50.691Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Clicking add filter on a panel in a dashboard section affects the whole dashboard instead",
+    "Panel filter actions should respect section-local variables, not dashboard-wide ones",
+    "How do I make filter actions on panels in a row stay local to that row",
+    "Ad-hoc filter from panel ignores the row's own filter variable",
+    "Panel inside a section with local filters adds to dashboard filters instead"
+  ],
+  "saysFor": "1477:panel-triggered-filter-g",
+  "search": "Panel-triggered filter and groupby actions must resolve variables by walking the SceneObject's ancestor chain to the dashboard, not by looking only at the dashboard root variables. The helper getVariableSetsInHierarchy(sceneObject) collects each ancestor's state.$variables from closest scope first, and functions like getAdHocFilterVariableFor and getGroupByVariableFor use it to find the matching variable before falling back to the dashboard scene. Calling sceneGraph.getVariables(dashboard) directly will silently ignore row and section-level variable overrides, causing the wrong scope's variable to be mutated. This applies to any new panel-context callback in public/app/features/dashboard-scene/scene/setDashboardPanelContext.ts that finds an ad-hoc filter or groupby variable by datasource."
+}

@@ -1,0 +1,66 @@
+{
+  "id": "dashboard-v2-save-always-strip-resourceversion-before-create",
+  "title": "Dashboard v2 save: always strip resourceVersion before create/update branch",
+  "kind": "rule",
+  "answers": [
+    "Why does creating a dashboard fail with a resourceVersion conflict error on v2 API?",
+    "Dashboard save fails on create when resourceVersion is set",
+    "POST to dashboard API fails with resourceVersion field",
+    "How should resourceVersion be handled in dashboard save APIs?"
+  ],
+  "body": "Symptom: Creating a new dashboard via the v2 API fails when the payload carries a resourceVersion (e.g. '0') from a stale/cloned object.\nRoot cause: saveDashboard only deleted obj.metadata.resourceVersion inside the `if (obj.metadata.name)` branch, so the create path (no name set, goes to POST) still sent resourceVersion and the backend rejected it. See public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard.\nFix pattern: delete metadata.resourceVersion unconditionally before branching on update-vs-create, matching the v1 API's behavior (public/app/features/dashboard/api/v1.ts).\nConstraints: Applies to any k8s-style resource save flow in this codebase that decides update(PUT) vs create(POST) based on metadata.name presence — resourceVersion must never be forwarded on create; only update legitimately needs it stripped-or-passed per backend semantics. Add a test asserting the create path's POST body lacks resourceVersion when adding similar logic elsewhere.",
+  "applies": "Dashboard save APIs (and similar k8s-resource save wrappers) in public/app/features/dashboard/api/",
+  "tags": [
+    "dashboards",
+    "api",
+    "resourceversion",
+    "k8s",
+    "save"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard/api/v2.ts",
+      "symbol": "K8sDashboardV2API.saveDashboard",
+      "hash": "sha256:79c0f81324fbd4f0eb5f96c3",
+      "line": 118,
+      "missing": false,
+      "fanout": {
+        "files": 30,
+        "sites": 108,
+        "refs": 144
+      }
+    },
+    {
+      "path": "public/app/features/dashboard/api/v1.ts",
+      "symbol": "saveDashboard",
+      "hash": "sha256:b3ae4a74eb35b63fdc87d1de",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 30,
+        "sites": 108,
+        "refs": 144
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132940"
+  },
+  "created": "2026-10-04T06:05:41.095Z",
+  "verified": "2026-10-04T06:05:41.095Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Creating a new dashboard fails with a conflict error",
+    "Dashboard save throws error when adding new dashboard",
+    "Why does dashboard creation fail silently with conflict",
+    "New dashboard save operation fails unexpectedly",
+    "Dashboard addition fails when sending create request"
+  ],
+  "saysFor": "1061:dashboard-v2-save-always",
+  "search": "Dashboard v2 save (public/app/features/dashboard/api/v2.ts:K8sDashboardV2API.saveDashboard) must delete metadata.resourceVersion unconditionally before branching on metadata.name presence to decide update(PUT) vs create(POST), following v1 API behavior. Creating a new dashboard fails when the payload carries stale resourceVersion (e.g., '0') from a cloned object sent to the POST branch. The fix strips resourceVersion once upfront, not just inside the update path; add a test asserting POST body lacks resourceVersion when implementing similar k8s-style save flows. Applies to any k8s-resource save wrapper deciding update vs create on name presence—resourceVersion must never be forwarded on create, only legitimately passed per backend semantics on update."
+}

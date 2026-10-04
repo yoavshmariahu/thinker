@@ -1,0 +1,144 @@
+{
+  "id": "pkg-registry-apis-control-flow-map-apiserver-builder-plumbin",
+  "title": "pkg/registry/apis/ — control flow map (apiserver builder plumbing)",
+  "kind": "map",
+  "answers": [
+    "How do API group builders in pkg/registry/apis get wired into the apiserver?",
+    "Where does a request get routed from genericapiserver into Grafana business logic?",
+    "What is the entry point for a new API group builder?",
+    "How does admission (mutate/validate) dispatch to a specific builder?"
+  ],
+  "body": "Each subpackage of pkg/registry/apis owns one k8s API group (schema, REST storage, admission, authz, OpenAPI). Control flow in:\n1. Startup DI: `wireset.go` lists every subpackage's `RegisterAPIService(...)` provider; `apis.go:ProvideRegistryServiceSink` takes a pointer to each builder purely to force Wire to construct it (dummy no-op background service).\n2. `RegisterAPIService` builds an `*XxxAPIBuilder` and calls `builder.APIRegistrar.RegisterAPI` (interface `pkg/services/apiserver/builder/common.go:APIRegistrar`), implemented by `pkg/services/apiserver/service.go:(*service).RegisterAPI`, which just appends to `s.builders`.\n3. `(*service).start` (service.go) iterates `s.builders`, calls `InstallSchema(scheme)` on each, then `pkg/services/apiserver/builder/helper.go:InstallAPIs` groups builders by group and calls `UpdateAPIGroupInfo` (per-builder, e.g. `folders/register.go`) to populate `VersionedResourcesStorageMap`, then `server.InstallAPIGroup`.\n4. Per-request: genericapiserver routes to the `rest.Storage` registered in `UpdateAPIGroupInfo` (built via `pkg/apiserver/registry/generic/storage.go:NewRegistryStoreWithSelectableFields`). Admission runs through `pkg/services/apiserver/builder/admission.go:builderAdmission`, which looks up the request's GroupVersion in `mutators`/`validators` maps and dispatches to the builder's `Mutate`/`Validate` if it implements `APIGroupMutation`/`APIGroupValidation`.\nControl flow out: the storage object either talks directly to unified storage (resourcepb/resource.ResourceClient), or is wrapped by a `DualWriteBuilder` (`pkg/services/apiserver/builder/helper.go`, builds legacy+unified dual writes). Builders commonly add their own wrapper on top (e.g. `folderStorage` in folders/register.go, `dashboardStorageWrapper` in dashboard/dashboard_storage.go) for legacy permissions, live-broadcast, cascade delete, before delegating to the base store.\nEach builder typically exposes two constructors: `RegisterAPIService` (embedded mode, has the RegisterAPI side effect) vs `NewAPIService` (multi-tenant/standalone, no side effect) — don't conflate them.",
+  "tags": [
+    "apiserver",
+    "registry-apis",
+    "builder",
+    "control-flow"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/apis.go",
+      "symbol": "ProvideRegistryServiceSink",
+      "hash": "sha256:f7532fc3f0ba8677e7f32196",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/registry/apis/wireset.go",
+      "hash": "sha256:82bf3453f529c4695d79f044",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/apiserver/builder/common.go",
+      "symbol": "APIRegistrar",
+      "hash": "sha256:9363df58da77cea61f0b5309",
+      "line": 169,
+      "missing": false,
+      "fanout": {
+        "files": 15,
+        "sites": 0,
+        "refs": 17
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/service.go",
+      "symbol": "RegisterAPI",
+      "hash": "sha256:caa7dad31596e00b54d1a40a",
+      "line": 274,
+      "missing": false,
+      "fanout": {
+        "files": 13,
+        "sites": 14,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/builder/helper.go",
+      "symbol": "InstallAPIs",
+      "hash": "sha256:44f486094fad9dd8dd4e5fe5",
+      "line": 350,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 6,
+        "refs": 15
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/builder/admission.go",
+      "symbol": "builderAdmission",
+      "hash": "sha256:b8fe82d187e877b1a3797e18",
+      "line": 10,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "pkg/registry/apis/folders/register.go",
+      "symbol": "RegisterAPIService",
+      "hash": "sha256:5d7c7a9a7dc523eeabcbbeae",
+      "line": 143,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 21,
+        "refs": 39
+      }
+    },
+    {
+      "path": "pkg/apiserver/registry/generic/storage.go",
+      "symbol": "NewRegistryStoreWithSelectableFields",
+      "hash": "sha256:c7a6f4b2877bd9071ce38a42",
+      "line": 27,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 9,
+        "refs": 10
+      }
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/dashboard_storage.go",
+      "symbol": "dashboardStorageWrapper",
+      "hash": "sha256:1196989cab4139f7dd3a0091",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "7bbb8c94-6793-40aa-9497-4e18bfa47116"
+  },
+  "created": "2026-10-04T05:49:58.054Z",
+  "verified": "2026-10-04T05:49:58.054Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "adding-a-new-api-group-builder-requires-two-separate-wiring",
+    "shared-go-types-across-gvks-need-a-declared-gvk-not-scheme-g"
+  ],
+  "says": [
+    "New API group not initializing during server startup",
+    "API group builder constructor not being called",
+    "Request routing skips correct API group handler implementation",
+    "Admission control webhook not firing for new API type",
+    "API group registration silently fails without error notification"
+  ],
+  "saysFor": "2176:pkg-registry-apis-contro",
+  "search": "pkg/registry/apis subpackages each own a k8s API group; startup DI: wireset.go lists RegisterAPIService providers and ProvideRegistryServiceSink forces Wire construction. RegisterAPIService builds *XxxAPIBuilder and calls APIRegistrar.RegisterAPI (builder/common.go:APIRegistrar interface, service.go impl) to register with s.builders. (*service).start calls InstallSchema per builder, then builder/helper.go:InstallAPIs groups by group, calls UpdateAPIGroupInfo (e.g., folders/register.go) to populate VersionedResourcesStorageMap and InstallAPIGroup. Per-request routing: genericapiserver routes to rest.Storage (built via NewRegistryStoreWithSelectableFields); admission via builder/admission.go:builderAdmission dispatches to Mutate/Validate methods if builder implements APIGroupMutation/APIGroupValidation. Storage backends: unified storage (resourcepb/resource.ResourceClient), DualWriteBuilder (legacy+unified dual-write), or builder-specific wrappers (folderStorage, dashboardStorageWrapper) for permissions, live-broadcast, cascade delete. Critical distinction: RegisterAPIService (embedded, has side effect) vs NewAPIService (multi-tenant/standalone)—don't conflate. Key symbols: ProvideRegistryServiceSink, APIRegistrar, RegisterAPI, InstallAPIs, builderAdmission."
+}

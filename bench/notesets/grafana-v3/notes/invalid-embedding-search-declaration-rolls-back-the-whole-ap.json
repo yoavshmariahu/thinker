@@ -1,0 +1,60 @@
+{
+  "id": "invalid-embedding-search-declaration-rolls-back-the-whole-ap",
+  "title": "Invalid embedding/search declaration rolls back the whole AppManifest object",
+  "kind": "rule",
+  "answers": [
+    "Why didn't my search field change take effect after I also edited the embedding fields?",
+    "My app manifest update is being silently ignored after a live reload",
+    "I added an embed field with a bad path and now other manifest changes aren't applied",
+    "Embedding config and search fields are out of sync with what I just pushed"
+  ],
+  "body": "Invariant: manifest conversion (ToManifestData, called from the manifest watcher's poll cycle) validates a whole AppManifest object at once, including its embedding declarations. If that validation fails for one object, the watcher retains the entire previous ManifestData for that object's name (search fields AND embedding config), not just the invalid part — other AppManifest objects from the same poll are still applied. This is deliberate (reviewed and kept) rather than a bug: the SDK is trusted to validate embedding fields, so failures are treated as all-or-nothing per object to avoid mixing sections from different revisions. Enforced at pkg/storage/unified/resource/manifest_watcher.go (ManifestWatcher.runPollCycle) feeding resource.SearchOptions.ReloadManifests. If you need partial application, you'd have to change this contract, which was explicitly rejected as overkill.",
+  "applies": "Any change to how AppManifest live updates are validated/applied in pkg/storage/unified/resource (manifest watcher, search fields, embedding config).",
+  "tags": [
+    "search",
+    "manifest",
+    "embedding",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/manifest_watcher.go",
+      "symbol": "ManifestWatcher",
+      "hash": "sha256:d8e83d6c327779eda78fd55e",
+      "line": 101,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 11
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/search_field_manifest.go",
+      "hash": "sha256:1ee098979c93a845296e32a0",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132698"
+  },
+  "created": "2026-10-04T06:43:49.911Z",
+  "verified": "2026-10-04T06:43:49.911Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "manifest-derived-registries-must-be-wired-through-searchopti"
+  ],
+  "says": [
+    "App search field changes not applied after embedding edit",
+    "Manifest updates silently fail when embedding path is invalid",
+    "Why did my search field change get reverted after deployment",
+    "App search and embedding configuration out of sync together",
+    "Multiple manifest edits rejected instead of validated individually"
+  ],
+  "saysFor": "965:invalid-embedding-search",
+  "search": "AppManifest validation enforces all-or-nothing rollback per object: when manifest conversion (ToManifestData in ManifestWatcher.runPollCycle) detects invalid embedding or search field declarations in any single AppManifest, the entire previous ManifestData for that object is retained, including both search fields and embedding config, while other objects in the same poll cycle still apply. This behavior is intentional to avoid mixing sections from different revisions; the SDK is trusted to validate embedding fields first. Relevant to any changes in pkg/storage/unified/resource/manifest_watcher.go, pkg/storage/unified/resource/search_field_manifest.go, or resource.SearchOptions.ReloadManifests that affect live AppManifest updates."
+}

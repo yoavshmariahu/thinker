@@ -1,7 +1,7 @@
 {
   "id": "error-tracking-issue-writes-which-mutations-emit-lifecycle-e",
   "title": "Error tracking issue writes: which mutations emit lifecycle events",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "Which issue mutations must emit lifecycle events?",
     "Where are error tracking issue write paths?",
@@ -36,8 +36,8 @@
     {
       "path": "products/error_tracking/backend/models.py",
       "symbol": "_adopt_source_assignee_on_merge",
-      "hash": "sha256:8d9f9fd54a3f3ee6ba36c417",
-      "line": 137,
+      "hash": "sha256:7a6bb204b39e1bf4e441d397",
+      "line": 286,
       "missing": false
     },
     {
@@ -87,5 +87,6 @@
     "Bulk reassign does not notify downstream systems of the assignment changes",
     "Merging error issues failed to emit the merge event to analytics"
   ],
-  "saysFor": "1699:error-tracking-issue-wri"
+  "saysFor": "1699:error-tracking-issue-wri",
+  "search": "Issue write mutations in products/error_tracking/backend/logic/issue_mutations.py (update_issue, merge_issues, split_issue, assign_issue, bulk_update_issues, _assign_one, set_issue_cohort) emit lifecycle events only for specific transitions: status change to active/resolved/suppressed, _assign_one set→ISSUE_ASSIGNED_EVENT or clear→ISSUE_UNASSIGNED_EVENT, merge_issues only if result is MERGED→ISSUE_MERGED_EVENT, split_issue only if new issues created→ISSUE_SPLIT_EVENT. No events for no-ops (_assign_one returns None), severity/name/description changes, set_issue_cohort, or merge adopting source assignee (_adopt_source_assignee_on_merge is silent). Events are snapshotted via prepare_issue_lifecycle_event inside transaction (before merge sources deleted) and published by produce_issue_lifecycle_events_on_commit on_commit; registration must be in-txn to prevent CH sync failure from losing events. One team per batch (ValueError otherwise); producer/celery failures are swallowed/logged. Bulk actions pass opener_allowed=False to drop transitions unless ErrorTrackingAlertThread exists. Ingestion-driven transitions (created, reopened-by-exception, spiking) come from cymbal (Rust), not Django. Applies to Django-side user-driven mutations only; ingestion events verified separately."
 }

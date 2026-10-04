@@ -1,0 +1,78 @@
+{
+  "id": "instrumentation-server-tls-is-opt-in-and-minimal",
+  "title": "instrumentation server TLS is opt-in and minimal",
+  "kind": "rule",
+  "answers": [
+    "How do I enable HTTPS for the dskit instrumentation/metrics server?",
+    "Why is my instrumentation server still plaintext even though cert_file is set?",
+    "instrumentation server TLS not working / cert_pass or hot reload not supported",
+    "How to add TLS to a new dskit-based module server"
+  ],
+  "body": "Symptom: a module server built on dskit (e.g. instrumentation/metrics/healthz endpoint) serves plain HTTP even though [server] certs are configured, or TLS config errors appear only when protocol=https is explicitly set.\nRoot cause: instrumentationService.start in pkg/server/instrumentation_service.go previously always called ListenAndServe(); TLS is only engaged when cfg.Protocol == setting.HTTPSScheme, so every other target keeps the old plaintext default.\nFix pattern: gate TLS behind an explicit protocol check, build a tls.Config via a small helper (instrumentationTLSConfig) that loads CertFile/KeyFile and MinTLSVersion with util.TlsNameToVersion, set it on http.Server.TLSConfig, and call ListenAndServeTLS(\"\",\"\") since certs are already loaded into TLSConfig.\nConstraints: this minimal TLS setup does NOT support cert_pass-encrypted private keys or hot cert reload (cfg.CertWatchInterval); if those are needed, port logic from the fuller api.HTTPServer.configureTLS implementation instead of reinventing it here.",
+  "applies": "pkg/server/instrumentation_service.go and any new dskit module server reusing this pattern",
+  "tags": [
+    "tls",
+    "instrumentation-server",
+    "dskit",
+    "server-config"
+  ],
+  "deps": [
+    {
+      "path": "pkg/server/instrumentation_service.go",
+      "symbol": "instrumentationService",
+      "hash": "sha256:25185ad0bb41318a36484137",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/server/instrumentation_service.go",
+      "symbol": "instrumentationTLSConfig",
+      "hash": "sha256:70b6b4d0cc41579d9f765bb8",
+      "line": 64,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/server/instrumentation_service.go",
+      "symbol": "instrumentationTLSConfig",
+      "hash": "sha256:70b6b4d0cc41579d9f765bb8",
+      "line": 64,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132720"
+  },
+  "created": "2026-10-04T06:38:39.586Z",
+  "verified": "2026-10-04T06:38:39.586Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "api-httpserver-configuretls-is-the-full-tls-reference-implem"
+  ],
+  "says": [
+    "How do I enable HTTPS for the metrics and status server?",
+    "Why is the metrics server still plaintext even with certificates?",
+    "Certificate settings for the metrics endpoint are not taking effect",
+    "How should I add HTTPS support to a new operational server?"
+  ],
+  "saysFor": "1074:instrumentation-server-t",
+  "search": "TLS for instrumentation/metrics/healthz endpoints in pkg/server/instrumentation_service.go is only applied when cfg.Protocol is explicitly set to HTTPSScheme; otherwise the default is plain HTTP despite server certs being configured. To enable TLS, gate ListenAndServeTLS behind a protocol check, build tls.Config via instrumentationTLSConfig helper (which loads CertFile and KeyFile with util.TlsNameToVersion for MinTLSVersion), and call ListenAndServeTLS(\"\",\"\") with certs already loaded into http.Server.TLSConfig. This minimal TLS implementation does not support cert_pass-encrypted private keys or hot cert reload (cfg.CertWatchInterval)—use api.HTTPServer.configureTLS instead if those features are needed. Applies to pkg/server/instrumentation_service.go:instrumentationService and any new dskit module server following this TLS pattern."
+}

@@ -1,0 +1,76 @@
+{
+  "id": "migrating-a-legacy-feature-toggle-to-openfeature",
+  "title": "Migrating a legacy feature toggle to OpenFeature",
+  "kind": "howto",
+  "answers": [
+    "How do I migrate a feature toggle from config.featureToggles to OpenFeature?",
+    "How to add React hook support for an existing LegacyFrontend feature flag?",
+    "Why does my feature flag need entries in openfeature.gen.ts and openfeature-types.gen.d.ts?"
+  ],
+  "body": "To move an existing feature toggle onto OpenFeature while keeping it registered as a legacy flag (naming convention not yet OpenFeature-style), set `Generate: Generate{LegacyFrontend: true, React: true}` on its FeatureFlag entry in pkg/services/featuremgmt/registry.go. This regenerates packages/grafana-runtime/src/internal/openFeature/openfeature.gen.ts (adds a FlagKeys entry and a `useFlag<Name>()` hook) and openfeature-types.gen.d.ts (adds the key to the flag key union). Replace `config.featureToggles.<name>` call sites: use the generated `useFlag<Name>()` hook in React components, or `getFeatureFlagClient().getBooleanValue(FlagKeys.<Name>, false)` in non-React code (both imported from '@grafana/runtime/internal').",
+  "applies": "Any PR migrating a Go-registered feature toggle in pkg/services/featuremgmt/registry.go to OpenFeature consumption on the frontend",
+  "tags": [
+    "feature-flags",
+    "openfeature",
+    "codegen",
+    "dashboards"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/featuremgmt/registry.go",
+      "hash": "sha256:852546db62485959e9d20a8f",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-runtime/src/internal/openFeature/openfeature.gen.ts",
+      "symbol": "FlagKeys",
+      "hash": "sha256:1e6b5cfa9c043c301bdeb5a8",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 118,
+        "sites": 0,
+        "refs": 319
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/VizPanelSubHeader.tsx",
+      "symbol": "VizPanelSubHeader",
+      "hash": "sha256:3ae1682c571d652110d907dd",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 7,
+        "refs": 15
+      }
+    },
+    {
+      "path": "packages/grafana-runtime/src/internal/openFeature/openfeature-types.gen.d.ts",
+      "hash": "sha256:0299f08fe4324b7d67c31f3e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133118"
+  },
+  "created": "2026-10-04T05:50:21.198Z",
+  "verified": "2026-10-04T05:50:21.198Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "direct-config-featuretoggles-access-is-lint-flagged-use-open"
+  ],
+  "says": [
+    "How to migrate existing feature flag to new system",
+    "Adding React hooks support for legacy feature toggles",
+    "Why generated code files update during feature flag migration",
+    "Converting config-based feature toggle to OpenFeature",
+    "Legacy feature toggle moving to OpenFeature with React hooks"
+  ],
+  "saysFor": "775:migrating-a-legacy-featu",
+  "search": "To migrate an existing feature toggle in pkg/services/featuremgmt/registry.go onto OpenFeature while keeping legacy registration, set Generate{LegacyFrontend: true, React: true} on its FeatureFlag entry; this regenerates packages/grafana-runtime/src/internal/openFeature/openfeature.gen.ts (adds FlagKeys entry and useFlag<Name>() hook) and openfeature-types.gen.d.ts (adds key to flag union). Replace config.featureToggles.<name> call sites: use the generated useFlag<Name>() hook in React components or getFeatureFlagClient().getBooleanValue(FlagKeys.<Name>, false) in non-React code, both from '@grafana/runtime/internal'. Imports: FlagKeys and hooks from '@grafana/runtime/internal'. Apply when: moving existing Go-registered toggles from legacy config-based consumption to OpenFeature on the frontend."
+}

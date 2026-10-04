@@ -1,0 +1,86 @@
+{
+  "id": "textngeditor-tests-must-set-initial-view-explicitly-no-impli",
+  "title": "TextNGEditor tests must set initial view explicitly, no implicit default",
+  "kind": "rule",
+  "answers": [
+    "How should I write a test for a specific Text v2 editor view (Write/Preview/Split)?",
+    "Why do TextNGEditor tests use a ControlledEditor wrapper with an explicit initialMode/view?",
+    "TextNGEditor.test.tsx conventions for selecting view mode"
+  ],
+  "body": "Convention: TextNGEditor is a controlled component with no production default of its own - the real default lives only in TextNGPanel.tsx. Tests in editor/TextNGEditor.test.tsx use the `ControlledEditor` wrapper and explicitly select the view they need via the `enterWriteMode`/`enterSplitMode`/`enterPreviewMode` helpers rather than asserting on or relying on an implicit initial view, since the wrapper's own `useState<ViewMode>` default is just a test convenience, not a product behavior.",
+  "applies": "public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx",
+  "tags": [
+    "text-panel",
+    "testing-convention"
+  ],
+  "deps": [
+    {
+      "path": "public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx",
+      "symbol": "ControlledEditor",
+      "hash": "sha256:520f96efd60d9d6ca29c60cb",
+      "line": 64,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx",
+      "symbol": "enterWriteMode",
+      "hash": "sha256:54d7d600e527ee9cb95ba92b",
+      "line": 132,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 17,
+        "refs": 17
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx",
+      "symbol": "enterSplitMode",
+      "hash": "sha256:e22e074448bf53b89a80fd96",
+      "line": 133,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 5,
+        "refs": 5
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx",
+      "symbol": "enterPreviewMode",
+      "hash": "sha256:810ccd2333cb83a8557ac9bf",
+      "line": 134,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132718"
+  },
+  "created": "2026-10-04T06:39:25.767Z",
+  "verified": "2026-10-04T06:39:25.767Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I test text editor in preview or write mode?",
+    "Testing specific view selection in text editor component tests",
+    "Text editor tests should explicitly pick which mode to test",
+    "Text editor test won't verify split mode without setting it",
+    "Selecting split or preview mode for text editor test"
+  ],
+  "saysFor": "564:textngeditor-tests-must-",
+  "search": "TextNGEditor tests must explicitly set initial view mode using enterWriteMode/enterSplitMode/enterPreviewMode helpers via the ControlledEditor wrapper, never relying on implicit defaults. TextNGEditor is a controlled component with no production default; the true default lives only in TextNGPanel.tsx. The ControlledEditor wrapper's own useState<ViewMode> default is test convenience only, not product behavior, so tests must assert on what they explicitly select, not on wrapper defaults. Convention applies specifically to public/app/plugins/panel/text/v2/editor/TextNGEditor.test.tsx test helpers and test cases."
+}

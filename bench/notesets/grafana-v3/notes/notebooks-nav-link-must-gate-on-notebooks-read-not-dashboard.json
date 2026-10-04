@@ -1,0 +1,53 @@
+{
+  "id": "notebooks-nav-link-must-gate-on-notebooks-read-not-dashboard",
+  "title": "Notebooks nav link must gate on notebooks:read, not dashboards:read",
+  "kind": "rule",
+  "answers": [
+    "Notebooks nav item shows for users who shouldn't have notebook access",
+    "Why does the Notebooks nav link check dashboard permissions?",
+    "Notebooks RBAC not fully enforced on the nav/sidebar",
+    "buildNotebooksNavLink uses wrong permission check"
+  ],
+  "body": "Symptom: Notebooks top-level nav link appeared/disappeared based on the user's dashboard read permission instead of their notebook permission.\nRoot cause: buildNotebooksNavLink in pkg/services/navtree/navtreeimpl/navtree.go checked ac.EvalPermission(dashboards.ActionDashboardsRead), a leftover from when Notebooks reused dashboard RBAC actions (the frontend nav entry was already fixed in #132699).\nFix pattern: Gate on ac.EvalPermission(notebooks.ActionNotebooksRead) from pkg/services/notebooks instead of any dashboards.Action*. Apiserver-side filtering of the actual notebook list is separate and still applies.\nConstraints: Applies to any backend or frontend gating of Notebooks UI/API surfaces - always use the notebooks RBAC action set, not dashboards actions, even though Notebooks historically borrowed dashboard permissions.",
+  "applies": "Any code gating visibility/access to Notebooks features (nav links, API handlers) in grafana core",
+  "tags": [
+    "rbac",
+    "notebooks",
+    "navtree",
+    "permissions"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/navtree/navtreeimpl/navtree.go",
+      "symbol": "buildNotebooksNavLink",
+      "hash": "sha256:c8bc05dbf9ff2abf74c89ebe",
+      "line": 310,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132771"
+  },
+  "created": "2026-10-04T06:32:55.000Z",
+  "verified": "2026-10-04T06:32:55.000Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "User without notebook permission sees notebooks in sidebar",
+    "Notebooks navigation shows when user lacks notebook access",
+    "Why does sidebar gating use dashboard permission for notebooks",
+    "Notebook nav link visible to users without notebook rights",
+    "Navigation checks wrong permission for notebook visibility"
+  ],
+  "saysFor": "903:notebooks-nav-link-must-",
+  "search": "The Notebooks top-level nav link must gate on notebooks.ActionNotebooksRead from pkg/services/notebooks, not dashboards.ActionDashboardsRead. The root cause is that buildNotebooksNavLink in pkg/services/navtree/navtreeimpl/navtree.go checked dashboards.ActionDashboardsRead, a leftover from when Notebooks reused dashboard RBAC actions (the frontend nav entry was already fixed in #132699). This constraint applies to all backend and frontend gating of Notebooks UI/API surfaces—always use the notebooks RBAC action set even though Notebooks historically borrowed dashboard permissions. The apiserver-side filtering of the actual notebook list is separate and applies regardless."
+}

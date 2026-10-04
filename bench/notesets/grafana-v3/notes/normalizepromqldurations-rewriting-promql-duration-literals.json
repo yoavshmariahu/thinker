@@ -1,0 +1,65 @@
+{
+  "id": "normalizepromqldurations-rewriting-promql-duration-literals",
+  "title": "normalizePromQLDurations: rewriting PromQL duration literals safely",
+  "kind": "rule",
+  "answers": [
+    "How to normalize PromQL durations for comparison without touching label values or identifiers?",
+    "60m vs 1h not recognized as equal when hashing queries",
+    "duration literal normalization breaks rule names like job:latency:rate5m"
+  ],
+  "body": "Fix pattern: to compare PromQL expressions that use equivalent but differently-spelled durations (60m vs 1h, 90m vs 1h30m, 3600s vs 1h), convert every duration literal to milliseconds via normalizePromQLDurations before further normalization (rule-id.ts:normalizePromQLDurations), reusing parsePrometheusDuration (utils/time.ts) rather than hand-rolling unit math.\nConstraints: duration matching must use lookbehind/lookahead excluding word chars and dots so it doesn't match inside identifiers (job:latency:rate5m) or decimals (1.5h); it must skip over string literals (single/double/backtick, respecting backslash escapes in quoted-but-not-backtick strings) so duration-shaped label values aren't rewritten; on any string/duration that fails to parse, leave it untouched rather than guessing.\nUse this pattern as the template for adding further PromQL normalization steps to hashQuery.",
+  "applies": "PromQL text normalization for fingerprinting/comparison (rule-id.ts hashQuery pipeline)",
+  "tags": [
+    "alerting",
+    "promql",
+    "hashquery"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/utils/rule-id.ts",
+      "symbol": "normalizePromQLDurations",
+      "hash": "sha256:0b00937ec9b700af8a0a7aef",
+      "line": 428,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 18,
+        "refs": 20
+      }
+    },
+    {
+      "path": "public/app/features/alerting/unified/utils/time.ts",
+      "symbol": "parsePrometheusDuration",
+      "hash": "sha256:3ad6f45d1a90fee6f048799e",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 16,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132673"
+  },
+  "created": "2026-10-04T06:47:55.687Z",
+  "verified": "2026-10-04T06:47:55.687Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "hashquery-fingerprint-mismatches-cause-duplicate-ghost-alert"
+  ],
+  "says": [
+    "Alert rule with 60m duration treated differently from 1h duration",
+    "Prometheus duration formats not recognized as equivalent values",
+    "Why don't equivalent durations match when comparing alert rules",
+    "Duration normalization changes rule names with time suffixes",
+    "Different duration spellings make identical queries look different"
+  ],
+  "saysFor": "955:normalizepromqldurations",
+  "search": "To safely compare PromQL expressions with equivalent but differently-spelled durations (60m vs 1h, 90m vs 1h30m, 3600s vs 1h), use normalizePromQLDurations (public/app/features/alerting/unified/utils/rule-id.ts) to convert every duration literal to milliseconds via parsePrometheusDuration (utils/time.ts) before further normalization. The pattern must use lookbehind/lookahead excluding word chars and dots to avoid matching inside identifiers (job:latency:rate5m) or decimals (1.5h), skip over string literals (single/double/backtick, respecting backslash escapes) so duration-shaped label values aren't rewritten, and leave any unparseable duration untouched rather than guessing. Reuse this pattern as the template for adding further PromQL normalization steps to the rule-id.ts hashQuery pipeline."
+}

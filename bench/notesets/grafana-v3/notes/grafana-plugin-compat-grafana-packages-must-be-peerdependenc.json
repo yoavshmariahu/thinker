@@ -1,0 +1,49 @@
+{
+  "id": "grafana-plugin-compat-grafana-packages-must-be-peerdependenc",
+  "title": "grafana-plugin-compat: Grafana packages must be peerDependencies with a semver range, not pinned/workspace deps",
+  "kind": "rule",
+  "answers": [
+    "Should @grafana/data be a dependency or peerDependency in grafana-plugin-compat?",
+    "Why does grafana-plugin-compat/package.json use '>=12.0.0' instead of 'workspace:*' for grafana packages?",
+    "How do I add a new @grafana/* import to the plugin-compat package?"
+  ],
+  "body": "Symptom (would appear later): adding `import ... from '@grafana/schema'` or similar to grafana-plugin-compat source without updating package.json breaks consumers pinning this package to a version independent of their Grafana host version.\nRoot cause/convention: packages/grafana-plugin-compat/package.json lists @grafana/data, @grafana/runtime, @grafana/schema as `peerDependencies` with ranges like `>=12.0.0`, never as `dependencies`/`devDependencies` pinned to `workspace:*` - this package is published and versioned separately from Grafana core so it must not hard-pin a workspace version.\nFix pattern: any new import from a @grafana/* package in this package's src must be added/kept as a peerDependency with a minimum-version range, and removed from devDependencies if present there.\nConstraints: applies specifically to packages/grafana-plugin-compat (and any other independently-versioned plugin-compat-style package); does not apply to normal in-repo Grafana packages that use workspace:* freely.",
+  "applies": "packages/grafana-plugin-compat/package.json dependency declarations",
+  "tags": [
+    "grafana-plugin-compat",
+    "package.json",
+    "peerdependencies",
+    "versioning"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-plugin-compat/package.json",
+      "hash": "sha256:84dc992039e96c5f413f1112",
+      "missing": false
+    },
+    {
+      "path": "scripts/prepare-npm-package.js",
+      "hash": "sha256:f3ca3c04700e659c60522a1f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132622"
+  },
+  "created": "2026-10-04T06:55:43.878Z",
+  "verified": "2026-10-04T06:55:43.878Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Plugin breaks when my Grafana version differs from compat",
+    "Adding new Grafana library import breaks version compatibility check",
+    "Host Grafana version mismatch with compat package version",
+    "How do I safely add new Grafana dependency imports",
+    "Version lock breaks when upgrading Grafana without compat update"
+  ],
+  "saysFor": "1118:grafana-plugin-compat-gr"
+}

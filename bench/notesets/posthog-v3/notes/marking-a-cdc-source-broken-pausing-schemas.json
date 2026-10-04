@@ -91,5 +91,6 @@
     "Extraction schedule paused when CDC replication falls behind threshold",
     "Where does the system mark a CDC source as unhealthy"
   ],
-  "saysFor": "1047:marking-a-cdc-source-bro"
+  "saysFor": "1047:marking-a-cdc-source-bro",
+  "search": "CDC sources are marked broken in products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py across three surfaces: `source.status=ERROR`, per-schema `sync_type_config[\"cdc_broken\"]` marker with `status=FAILED` and `latest_error` (updated with locked `update_sync_type_config_keys` to prevent API PATCH clobbering), and Temporal extraction schedule paused. Triggering events are safety net slot drop after critical lag or extraction hitting missing slot/publication. The sweeper re-marks each sweep; only schemas with changed `cdc_broken.reason` are treated as newly broken for failure-digest reporting. Paused status is surfaced in products/warehouse_sources/backend/stalled_schedules.py, presentation/views/external_data_source/source_setup.py (derives PAUSED if any active schema paused), data_warehouse/backend/sync_status.py (PAUSED or not `should_sync`), and data_load/service.py (line ~420 filters by status). Schedule pause is driven by `should_sync` → `to_temporal_schedule`."
 }

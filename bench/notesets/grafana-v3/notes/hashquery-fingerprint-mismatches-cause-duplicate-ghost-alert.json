@@ -1,0 +1,66 @@
+{
+  "id": "hashquery-fingerprint-mismatches-cause-duplicate-ghost-alert",
+  "title": "hashQuery fingerprint mismatches cause duplicate/ghost alert rule rows",
+  "kind": "rule",
+  "answers": [
+    "Why does the same alert rule show up twice in the rule list, one stuck pending and one 'deleting'?",
+    "Why can't the rule list tell apart two rules with the same name and labels?",
+    "Rule list shows duplicate/ghost entries for rules that share a name",
+    "hashQuery doesn't match ruler and Prometheus versions of the same expression"
+  ],
+  "body": "Symptom: when several rules in a group share name and labels, the rule list falls back to comparing query text; if ruler and Prometheus spell the same expression differently, one rule renders as both a pending ruler-only row and a ghost deleting prom-only row.\nRoot cause: hashQuery (public/app/features/alerting/unified/utils/rule-id.ts:hashQuery) is a text-based fingerprint; Mimir/Prometheus re-serialize expressions (durations, comments, whitespace, quote style, trailing commas, empty selectors) differently than the ruler YAML, so textually-equivalent queries can hash differently.\nFix pattern: add a targeted normalization pass to hashQuery for each known re-spelling difference (see normalizePromQLDurations) rather than trying to fully parse PromQL; run new passes before whitespace is stripped since some tokens (e.g. 'offset 60m') need their word boundary intact.\nConstraints: any new normalization must not rewrite text inside PromQL string literals (label matchers, label_replace templates) - a duration-shaped label value like window=\"60m\" is a different series from window=\"1h\" and must stay distinguishable; use the PROMQL_STRING_OR_DURATION pattern (strings matched first) as the model.",
+  "applies": "public/app/features/alerting/unified/utils/rule-id.ts hashQuery and any future normalization added to it",
+  "tags": [
+    "alerting",
+    "rule-matching",
+    "hashquery",
+    "promql"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/utils/rule-id.ts",
+      "symbol": "hashQuery",
+      "hash": "sha256:f5eab37a174abccc3a76ebfb",
+      "line": 455,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 34,
+        "refs": 37
+      }
+    },
+    {
+      "path": "public/app/features/alerting/unified/utils/rule-id.ts",
+      "symbol": "normalizePromQLDurations",
+      "hash": "sha256:0b00937ec9b700af8a0a7aef",
+      "line": 428,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 18,
+        "refs": 20
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132673"
+  },
+  "created": "2026-10-04T06:47:54.171Z",
+  "verified": "2026-10-04T06:47:54.171Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "normalizepromqldurations-rewriting-promql-duration-literals"
+  ],
+  "says": [
+    "Alert rule appears twice in the list, pending and deleting",
+    "Duplicate entries for alert rules with matching names and labels",
+    "Same alert rule shows multiple times in the rules list",
+    "Why can't the rule list tell apart identically named rules?"
+  ],
+  "saysFor": "1274:hashquery-fingerprint-mi",
+  "search": "Text-based hash fingerprints in hashQuery (public/app/features/alerting/unified/utils/rule-id.ts) cause duplicate or ghost alert rule rows when Mimir/Prometheus re-serialize PromQL expressions (durations, whitespace, quote style, trailing commas) differently than ruler YAML. Apply targeted normalization passes for each known re-spelling difference (e.g., normalizePromQLDurations pattern) before whitespace stripping, running word-boundary-sensitive tokens intact. Critical constraint: never rewrite text inside PromQL string literals or label matchers (e.g., window=\"60m\" is semantically different from window=\"1h\") — use PROMQL_STRING_OR_DURATION pattern matching strings first. Applies when implementing alert rule deduplication or adding new PromQL normalization."
+}

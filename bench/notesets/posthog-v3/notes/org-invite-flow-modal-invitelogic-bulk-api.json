@@ -76,5 +76,6 @@
     "Sending team invites goes through modal, logic, then to the backend.",
     "Client-side invite validation happens only on email address format."
   ],
-  "saysFor": "1529:org-invite-flow-modal-in"
+  "saysFor": "1529:org-invite-flow-modal-in",
+  "search": "The organization invite flow chains frontend InviteModal → inviteLogic → OrganizationInviteViewSet.bulk API with client-side validation, reauthentication, and server-side normalization/permission checks. Client layer (InviteModal.tsx, inviteLogic.ts) enforces MAX_INVITES_AT_ONCE=20, row-level isEmail validation, owner-level confirmation via isInviteConfirmed, and opens via bindModalToUrl 'invite-members'; the logic layer (invitedTeamMembersInternal.inviteTeamMembers) drops empty emails, checks timeSensitiveAuthenticationLogic reauthentication, and POSTs to api/organizations/<id>/invites/bulk/. Server-side OrganizationInviteSerializer validates email via EmailNormalizer and reject_plus_addressed_email, enforces level permission (PermissionDenied if above inviter), rejects existing members (case-insensitive), and deduplicates prior invites; non-list bodies and >20 rows are rejected. Success handler inviteTeamMembersSuccess resets rows to EMPTY_INVITE, reloads org+invites, and closes modal only if preflight email_service_available. Task applies to: full invite workflow changes, endpoint modifications, error handling across layers."
 }

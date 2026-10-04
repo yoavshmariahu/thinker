@@ -1,0 +1,58 @@
+{
+  "id": "resources-with-no-declared-gvk-must-stay-on-the-codec-path",
+  "title": "Resources with no declared GVK must stay on the codec path",
+  "kind": "rule",
+  "answers": [
+    "Can I set StorageOptions.GVK on iam/app-SDK resources?",
+    "Why do some resources not declare a GVK in apistore.StorageOptions?",
+    "Persisted object has no apiVersion for an app-SDK generated kind",
+    "When does apistore use the legacy versioning codec instead of direct JSON encode?"
+  ],
+  "body": "Invariant: resources whose generated constructors leave TypeMeta empty (app-SDK kinds like NewPlaylist(), iam's five resources, enterprise's apistore.StorageOptions callers) must not be given a non-empty StorageOptions.GVK unless they also move to GVR-keyed options registration.\nMechanism: apistore.Storage.encode (pkg/storage/unified/apistore/prepare.go) branches purely on StorageOptions.GVK.Empty(): empty routes to encodeViaCodec (the k8s versioning codec resolves the storage version itself); non-empty writes the object's own GVK directly via checkGVK. Setting a GVK on a registration that's shared across multiple GVRs would collapse them onto one kind/version and persist writes under the wrong one.\nFix pattern/constraint: leave StorageOptions.GVK empty for any resource whose storage registration isn't 1:1 with a single stable GVK. Per PR #132784's description, giving these resources GVR-keyed registration is explicitly left as a separate, not-yet-done change.",
+  "applies": "apistore.StorageOptions callers for iam, app-SDK kinds installed via appinstaller, and enterprise storage registrations",
+  "tags": [
+    "apistore",
+    "gvk",
+    "codec",
+    "app-sdk"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "checkGVK",
+      "hash": "sha256:639988efd982167594bc7732",
+      "line": 431,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132784"
+  },
+  "created": "2026-10-04T06:32:09.959Z",
+  "verified": "2026-10-04T06:32:09.959Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "declare-storageoptions-gvk-for-any-type-shared-aliased-acros",
+    "storage-options-must-be-scoped-per-gvr-not-registered-into-a",
+    "apistore-maxallowedversion-cap-must-check-the-persisted-enco",
+    "resourcesearchresponse-rows-depend-on-requested-resultformat"
+  ],
+  "says": [
+    "Should I set StorageOptions GVK on app-SDK generated resource definitions?",
+    "Persisted objects now missing apiVersion after I changed storage options",
+    "Why don't some resources declare a GroupVersionKind in storage configuration?",
+    "App-SDK generated kinds should stick with legacy codec, not direct GVK",
+    "How does apistore decide: codec path versus direct JSON encoding?"
+  ],
+  "saysFor": "1033:resources-with-no-declar",
+  "search": "Resources whose generated constructors leave TypeMeta empty (app-SDK kinds like NewPlaylist(), iam's five resources, enterprise apistore.StorageOptions callers) must not be assigned a non-empty StorageOptions.GVK unless they simultaneously move to GVR-keyed registration, because apistore.Storage.encode branches purely on StorageOptions.GVK.Empty(): empty routes to encodeViaCodec (which resolves the storage version via k8s versioning codec), while non-empty writes the object's own GVK directly via checkGVK. Giving GVK to a registration shared across multiple GVRs would collapse them into one kind/version and persist writes under the wrong version. Applies to apistore.StorageOptions callers in pkg/storage/unified/apistore/prepare.go for iam, app-SDK kinds installed via appinstaller, and enterprise storage registrations; GVR-keyed registration is left as a separate future change per PR #132784."
+}

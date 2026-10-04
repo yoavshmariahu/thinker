@@ -46,5 +46,6 @@
     "Filter buttons hidden and menu appears on mobile instead",
     "Dashboard filter indicator looks different across device sizes"
   ],
-  "saysFor": "975:unsaved-dashboard-filter"
+  "saysFor": "975:unsaved-dashboard-filter",
+  "search": "DashboardUnsavedChangesIndicator renders segmented buttons with status, actions, and menu trigger inside a `rounded border-warning` wrapper, using container queries to hide action buttons at `@max-lg/dashboard-filters` and hide menu trigger at `@min-lg/dashboard-filters`. Any change to segment corners or borders must update both layout variants to maintain visual consistency at every viewport width. Visual changes here alter the Storybook snapshots `products-dashboards-filter-bar--filter-bar--*` and `products-dashboards-filter-bar--unsaved-changes-popover--*` in frontend/snapshots.yml (light and dark hashes), which must be updated in the same PR. Applies to dashboard filter bar unsaved-changes control."
 }

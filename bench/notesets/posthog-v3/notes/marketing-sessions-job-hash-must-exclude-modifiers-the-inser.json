@@ -49,5 +49,6 @@
     "Why am I not getting cached marketing attribution results anymore",
     "Session cache mismatch between simultaneous background and foreground workers"
   ],
-  "saysFor": "939:marketing-sessions-job-h"
+  "saysFor": "939:marketing-sessions-job-h",
+  "search": "The session job hash for marketing sessions precompute is built in `ensure_marketing_sessions_precomputed` (products/marketing_analytics/backend/hogql_queries/marketing_sessions_precompute.py) by serializing `cache_key_context` with `model_dump_json(exclude_none=True, exclude={\"cookielessTrafficIsRegular\"})`. Only modifiers that do not affect the insert SQL (`SESSIONS_INSERT_TEMPLATE`) may be excluded; other modifiers, channel rules, and classifier versions must still invalidate cached jobs. If a modifier resolves per-worker or per-flag but does not change the insert SQL, it must be excluded like `cookielessTrafficIsRegular`, or the reader will miss the cache and silently fall back to live calculation. Reader and writer must compute identical hash. Applies to cache identity between writer (background) and reader (query) workers in marketing sessions dimensional precompute."
 }

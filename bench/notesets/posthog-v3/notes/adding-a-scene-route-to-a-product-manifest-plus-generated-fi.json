@@ -69,5 +69,6 @@
     "Navigation links point to wrong scene after refactor",
     "Adding new tab requires updating multiple different files"
   ],
-  "saysFor": "879:adding-a-scene-route-to-"
+  "saysFor": "879:adding-a-scene-route-to-",
+  "search": "Adding or moving a scene requires coordinated changes: products/workflows/manifest.tsx (scenes, routes, urls, fileSystemTypes, sceneKey), frontend/src/scenes/sceneTypes.ts (Scene enum, sceneToAccessControlResourceType), and auto-generated mirrors (frontend/src/productScenes.tsx, frontend/src/products.tsx with productRoutes/productConfiguration/productUrls/sceneKeys). Update services/mcp/src/tools/links/app-url-manifest.json and its snapshot. Add sceneKey to product tree items for correct sidebar highlighting. Applies to Workflows product scenes (Workflows, Broadcasts, Broadcast)."
 }

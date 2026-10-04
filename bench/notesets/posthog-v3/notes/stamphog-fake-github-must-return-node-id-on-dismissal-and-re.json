@@ -63,5 +63,6 @@
     "Fake GitHub missing review dismissal response",
     "Stamphog test missing GraphQL minimize operation"
   ],
-  "saysFor": "773:stamphog-fake-github-mus"
+  "saysFor": "773:stamphog-fake-github-mus",
+  "search": "The stamphog fake GitHub implementation must evolve with client behavior: _dismiss_review must return node_id (formatted PRR_<id>) because dismiss_pr_review reads it from the response; missing node_id silently skips the hide. The _graphql router records each operation shape (kind, node_id, query) in github_writes for test assertions; minimizeComment queries must be recorded, and new GraphQL callers require their own branches. Applies when modifying dismiss_pr_review, graphql calls, or tests that check github_writes assertions. Update products/stamphog/README.md when retraction behavior changes."
 }

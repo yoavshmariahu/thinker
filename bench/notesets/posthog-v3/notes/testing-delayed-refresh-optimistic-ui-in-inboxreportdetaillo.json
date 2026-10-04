@@ -46,5 +46,6 @@
     "Mocking slow API responses in kea logic tests",
     "Restoring list state when reviewer update request fails"
   ],
-  "saysFor": "744:testing-delayed-refresh-"
+  "saysFor": "744:testing-delayed-refresh-",
+  "search": "Optimistic UI tests for delayed-refresh in products/signals/frontend/inbox/logics/inboxReportDetailLogic.test.ts must mount logic with useMocks for reviewers GET and PUT, then hold the refresh using a manually-resolved promise on the GET handler to artefacts/signals/available_reviewers. Wait for the handler to start, assert displayReviewers and isUpdatingReviewers mid-flight, then release the promise in finally and await expectLogic(logic).toFinishAllListeners(). Failure cases mock the PUT as [500, { detail: ... }] and assert displayReviewers reverts to original with isUpdatingReviewers false. Applies to kea logic tests for optimistic updates in signals inbox."
 }

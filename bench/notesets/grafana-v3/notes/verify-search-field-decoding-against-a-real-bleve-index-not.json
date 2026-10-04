@@ -1,0 +1,51 @@
+{
+  "id": "verify-search-field-decoding-against-a-real-bleve-index-not",
+  "title": "Verify search field decoding against a real Bleve index, not just hand-built responses",
+  "kind": "howto",
+  "answers": [
+    "How to test that requested search fields are actually indexed and decodable",
+    "How to build a test Bleve index for IAM user search fields"
+  ],
+  "body": "Pattern: build a real bleve backend via unifiedsearch.NewBleveBackend with resource.NewSearchFieldsRegistry(nil, nil, providers) from iamapis.LocalManifest(), index a document with values for every requested field, then run index.Search with both ResourceSearchRequest_FIELD_VALUES and ResourceSearchRequest_RESOURCE_TABLE and assert ParseResults produces identical hit values for both formats.\nConstraints: use this when adding/renaming a searchable field or changing ResultFormat, to catch cases where a field is requested but never actually indexed/decodable (a hand-mocked ResourceSearchResponse in unit tests won't catch that).",
+  "applies": "pkg/registry/apis/iam/user/search_test.go and similar unified-storage search consumers",
+  "tags": [
+    "testing",
+    "search",
+    "bleve",
+    "iam"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/user/search_test.go",
+      "symbol": "TestUserSearchFieldsAcceptedByIndex",
+      "hash": "sha256:539a797d9c6985ffdbc9d7f0",
+      "line": 92,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132813"
+  },
+  "created": "2026-10-04T06:25:46.995Z",
+  "verified": "2026-10-04T06:25:46.995Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Search field returns empty instead of indexed value",
+    "New searchable field not found in index results",
+    "Verify search fields actually indexed in backend",
+    "Indexed field missing or undecodable from search response",
+    "Search index field compatibility regression testing"
+  ],
+  "saysFor": "719:verify-search-field-deco",
+  "search": "Testing searchable fields requires building a real Bleve index via unifiedsearch.NewBleveBackend, indexing a document with all requested field values, then verifying both ResourceSearchRequest_FIELD_VALUES and ResourceSearchRequest_RESOURCE_TABLE formats produce identical results. This catches field-indexing gaps that hand-mocked responses in unit tests miss. Apply this pattern when adding or renaming a searchable field, or changing ResultFormat. Key test example: pkg/registry/apis/iam/user/search_test.go:TestUserSearchFieldsAcceptedByIndex."
+}

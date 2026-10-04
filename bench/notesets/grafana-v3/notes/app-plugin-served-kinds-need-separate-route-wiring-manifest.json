@@ -1,0 +1,80 @@
+{
+  "id": "app-plugin-served-kinds-need-separate-route-wiring-manifest",
+  "title": "App-plugin-served kinds need separate route wiring; manifest group may differ from served group",
+  "kind": "rule",
+  "answers": [
+    "Why does a plugin-served kind get /search but not a new generic route I just added?",
+    "How do I make a new apiserver-wide route (like list-keys) available on app-plugin-served kinds?",
+    "Why does route building from resource.AppManifests() miss plugin kinds?"
+  ],
+  "body": "App plugins supply their own manifest instead of appearing in resource.AppManifests(), and the group they're served under is not always the group their manifest declares. Route builders that scan compiled-in manifests + installers (like searchroutes/keysroutes) therefore miss plugin kinds unless AppPluginAPIBuilder independently calls a *ForServedGroupVersions entry point with its own manifest (group overridden to the served group) and its own served-GV map — see pkg/registry/apis/appplugin/routes.go:keysRoutes and pkg/services/apiserver/keysroutes/keysroutes.go:BuildForServedGroupVersions. Adding a new cross-cutting route without this second wiring silently excludes plugin-served kinds; a plugin spec test (pkg/registry/apis/appplugin/pluginopenapi/spec_test.go) catches the gap.",
+  "applies": "Any apiserver-wide route mechanism (search, trash, list-keys, future equivalents) that must also apply to app-plugin-served kinds.",
+  "tags": [
+    "appplugin",
+    "routing",
+    "openapi"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/appplugin/routes.go",
+      "symbol": "keysRoutes",
+      "hash": "sha256:8c9ad2f9b2959e227bdcf61e",
+      "line": 212,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/keysroutes/keysroutes.go",
+      "symbol": "BuildForServedGroupVersions",
+      "hash": "sha256:240c5f61c505144f9bb4fdce",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pkg/registry/apis/appplugin/routes.go",
+      "symbol": "keysRoutes",
+      "hash": "sha256:8c9ad2f9b2959e227bdcf61e",
+      "line": 212,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/registry/apis/appplugin/pluginopenapi/spec_test.go",
+      "hash": "sha256:6bb737bac3d1400996f9897e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132806"
+  },
+  "created": "2026-10-04T06:27:45.189Z",
+  "verified": "2026-10-04T06:27:45.189Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Plugin-served app kinds missing newly added generic API routes",
+    "Search route available but custom routes not appearing on plugins",
+    "App plugin kinds require separate manual route wiring setup",
+    "New apiserver routes silently missing from plugin-served app kinds",
+    "Route registration code not recognizing plugin kinds from different groups"
+  ],
+  "saysFor": "885:app-plugin-served-kinds-",
+  "search": "App-plugin-served kinds do not appear in resource.AppManifests() and may be served under a different group than their manifest declares, so they are silently missed by route builders (search, trash, list-keys, and future equivalents) unless AppPluginAPIBuilder independently calls a *ForServedGroupVersions entry point with the manifest group overridden to the actual served group and the served-GV map. Adding a new apiserver-wide cross-cutting route mechanism without this second wiring causes plugin-served kinds to be excluded, caught by a plugin spec test (pkg/registry/apis/appplugin/pluginopenapi/spec_test.go). This applies to any route mechanism that must handle app-plugin-served kinds alongside standard installed kinds. Key entry points: pkg/services/apiserver/keysroutes/keysroutes.go:BuildForServedGroupVersions, pkg/registry/apis/appplugin/routes.go:keysRoutes."
+}

@@ -1,0 +1,46 @@
+{
+  "id": "separate-data-source-health-alerts-from-app-specific-executi",
+  "title": "Separate data-source health alerts from app-specific execution-error handling",
+  "kind": "rule",
+  "answers": [
+    "Why am I getting noisy DatasourceError alerts on my dashboard alert rules?",
+    "How do I stop transient data source blips from firing alongside my real alert condition?",
+    "How should I set up an alert specifically for data source unavailability?",
+    "What should 'Alert state if execution error or timeout' be set to?"
+  ],
+  "body": "Symptom: customers see noisy `DatasourceError` alerts fire on application-specific alert rules whenever the queried data source has a brief, transient connectivity issue.\nRoot cause: those rules have 'Alert state if execution error or timeout' set to Alerting, so any transient query failure fires the rule, conflated with the real condition being monitored.\nFix pattern (config, not code): set that option to Normal or Keep Last State on application-specific rules, and instead build one dedicated rule per data source that reuses a cheap, reliable query, sets the same option to Alerting, and adds a pending period (e.g. 5m) so it only fires on sustained unavailability.\nConstraints: applies to any data source type, including Prometheus-style ones — `up`/`probe_success` only detect target-level unreachability via a query, not data-source-level outages; data-source unreachability is always detected via execution-error handling, not a metric query. Decide the per-rule setting individually, based on whether a dedicated connectivity alert already covers that data source.",
+  "applies": "Grafana Alerting rule configuration guidance; any alert rule whose data source may become transiently unreachable.",
+  "tags": [
+    "alerting",
+    "data-source-health",
+    "execution-error",
+    "docs"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/alerting/guides/connectivity-errors.md",
+      "hash": "sha256:bb308036271735dcb13bcb52",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132810"
+  },
+  "created": "2026-10-04T06:26:47.623Z",
+  "verified": "2026-10-04T06:26:47.623Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Data source connectivity blips trigger noisy alerts on dashboard rules",
+    "How do I separate data source health alerts from application alerts?",
+    "Transient data source failures fire alert conditions incorrectly",
+    "What should execution error behavior be to reduce false positives?",
+    "Alert fires on data source errors instead of monitoring real conditions"
+  ],
+  "saysFor": "1154:separate-data-source-hea",
+  "search": "Application-specific alert rules must set 'Alert state if execution error or timeout' to Normal or Keep Last State, and build a separate dedicated connectivity rule per data source with that option set to Alerting and a pending period (e.g. 5m) to detect sustained outages, not transient failures. Applies to any data source type including Prometheus-style ones, where up/probe_success detect target-level unreachability only, not data-source-level outages. Constraint: data-source unreachability is always detected via execution-error handling, not a metric query. Configuration guidance per docs/sources/alerting/guides/connectivity-errors.md; decide the setting individually based on whether a dedicated connectivity alert already covers that data source."
+}

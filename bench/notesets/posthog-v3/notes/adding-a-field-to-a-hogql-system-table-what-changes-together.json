@@ -59,5 +59,6 @@
     "Can't group by or filter on the new dimension",
     "Query builder doesn't list the recently added column"
   ],
-  "saysFor": "832:adding-a-field-to-a-hogq"
+  "saysFor": "832:adding-a-field-to-a-hogq",
+  "search": "Adding a column to a HogQL system table requires four coordinated changes: Postgres column via Django migration; DatabaseField entry in database/schema/system.py with hidden=True for internal columns and ExpressionField for derived ones; snapshot update at database/test/__snapshots__/test_database.ambr; and test coverage in database/schema/test/test_system_tables.py. New tables need a TableNode in SystemTables.children with access_scope if controlled; existing table columns do not register separately. Guides scope of changes when extending system tables and snapshot maintenance."
 }

@@ -1,0 +1,51 @@
+{
+  "id": "visually-check-table-row-selected-color-via-logstable-s-scro",
+  "title": "Visually check table row-selected color via LogsTable's 'scroll to row' feature",
+  "kind": "howto",
+  "answers": [
+    "How do I visually inspect the table's selected-row highlight color?",
+    "How was the row-selected background color validated for the visual refresh theme?"
+  ],
+  "body": "To see the TableNG row-selected background in context, use the 'scroll to row' feature exposed by LogsTable — it programmatically selects/scrolls to a row, which renders with theme.components.table.rowSelectedBackground applied. This was used to visually verify the rowSelectedBackground values picked for visual_refresh_dark.json and visual_refresh_light.json before merging, since the selected state isn't otherwise easy to trigger manually.",
+  "applies": "Manual/visual QA of TableNG row-selection colors",
+  "tags": [
+    "table",
+    "visual-qa",
+    "theming"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/themes/themeDefinitions/visual_refresh_dark.json",
+      "hash": "sha256:91afcec05893188840d951ae",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/themes/themeDefinitions/visual_refresh_light.json",
+      "hash": "sha256:2a099a0c2e7b6a5760a5e7e7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132693"
+  },
+  "created": "2026-10-04T06:44:27.945Z",
+  "verified": "2026-10-04T06:44:27.945Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "storybook-a11y-ci-matrix-must-list-every-theme-that-needs-co",
+    "table-theme-surface-colors-live-in-themedefinitions-json-und"
+  ],
+  "says": [
+    "Selected table row background color doesn't match theme",
+    "Verify row selection highlight appearance in theme",
+    "Test table selected row styling visually",
+    "Row selection color validation for visual refresh",
+    "Theme row highlight appearance needs verification"
+  ],
+  "saysFor": "523:visually-check-table-row",
+  "search": "Verifying TableNG row-selected background color visually uses LogsTable's 'scroll to row' feature, which programmatically selects a row and renders it with theme.components.table.rowSelectedBackground. This is the practical way to test row-selection colors before merging, since the selected state is otherwise difficult to trigger manually. Theme colors are defined in packages/grafana-data/src/themes/themeDefinitions/visual_refresh_dark.json and visual_refresh_light.json. Applies only to manual/visual QA of TableNG row-selection."
+}

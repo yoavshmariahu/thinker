@@ -1,0 +1,53 @@
+{
+  "id": "lookupfrommaps-must-check-byuid-byname-byid-symmetrically-fo",
+  "title": "lookupFromMaps must check byUid, byName, byId symmetrically for interpolated and plain refs",
+  "kind": "rule",
+  "answers": [
+    "A template variable that interpolates to a numeric datasource id fails to resolve",
+    "getDataSourceInstance('${var}') throws but DatasourceSrv.get('${var}') works for the same ref",
+    "Data source reference lookup diverges between legacy and new API for numeric ids",
+    "Why does the new datasource resolution path not find a datasource by numeric id when using a template variable"
+  ],
+  "body": "Symptom: a data source reference containing a template variable that interpolates to a numeric id (e.g. '${ds}' -> '3') is not found by getDataSourceInstance/getDataSourceInstanceSettings, while the legacy DatasourceSrv.get() resolves it fine.\nRoot cause: lookupFromMaps in packages/grafana-runtime/src/services/dataSource/settings.ts only checked byUid and byName in the '$'-interpolation branch, while the plain (non-template) branch a few lines below checks byUid, byName, and byId. Legacy DataSourceSrv.get() hides the gap because it interpolates itself, then re-enters getInstanceSettings with the plain (non-'$') value, hitting the id map.\nFix pattern: when a lookup function has two code paths (templated vs. plain) that resolve the same kind of reference, keep the set of maps/sources they consult identical; add any map one path reads to the other.\nConstraints: applies to any resolver that short-circuits on a prefix/pattern (like containing '$') and then falls back to a reduced set of lookup maps — audit that the reduced path isn't missing a map the full path has. Does not apply to intentional restrictions where template variables should only resolve a subset of identifiers.",
+  "applies": "packages/grafana-runtime data source reference resolution (lookupFromMaps and any similar dual-path lookup)",
+  "tags": [
+    "datasource",
+    "template-variables",
+    "lookup",
+    "runtime"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-runtime/src/services/dataSource/settings.ts",
+      "symbol": "lookupFromMaps",
+      "hash": "sha256:8bc333d4664bd8d8c54c2c4f",
+      "line": 273,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132785"
+  },
+  "created": "2026-10-04T06:30:55.788Z",
+  "verified": "2026-10-04T06:30:55.788Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Datasource reference with numeric ID fails to resolve when using variables",
+    "Why does template variable datasource lookup differ from legacy API behavior?",
+    "New datasource resolution doesn't find numeric ID references from template variables",
+    "getDataSourceInstance fails but DatasourceSrv succeeds for same numeric datasource reference",
+    "Why can't the new datasource API resolve numeric IDs like before?"
+  ],
+  "saysFor": "1282:lookupfrommaps-must-chec",
+  "search": "lookupFromMaps must check byUid, byName, and byId symmetrically in both the template-variable interpolation branch (containing '$') and the plain-value branch. When a data source reference with a template variable interpolates to a numeric id (e.g., '${ds}' → '3'), getDataSourceInstance and getDataSourceInstanceSettings fail to find it because lookupFromMaps only checks byUid and byName in the '$'-branch, omitting byId which is checked in the plain branch. Legacy DatasourceSrv.get() avoids this gap by interpolating itself first, then re-entering with the plain value and hitting the byId map. The fix: when a lookup function has dual code paths (templated vs. plain), audit that both paths consult the same set of maps. Does not apply to intentional restrictions where template variables should only resolve a subset of identifiers. Affects packages/grafana-runtime data source reference resolution."
+}

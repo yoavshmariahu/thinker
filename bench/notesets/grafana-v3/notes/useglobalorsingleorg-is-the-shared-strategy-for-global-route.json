@@ -1,0 +1,42 @@
+{
+  "id": "useglobalorsingleorg-is-the-shared-strategy-for-global-route",
+  "title": "UseGlobalOrSingleOrg is the shared strategy for 'global' routes that must respect single-org context",
+  "kind": "map",
+  "answers": [
+    "Where is single-org-aware authorization implemented for otherwise-global admin routes?",
+    "What helper makes a route check current-org permissions instead of org 0 when SingleOrganization is enabled?"
+  ],
+  "body": "ac.UseGlobalOrSingleOrg(cfg) is the org-selection strategy passed into authorizeInOrg; it checks hs.Cfg.RBAC.SingleOrganization to decide whether to evaluate permissions against the caller's current org or the global org. It's already used by plugin management and Enterprise RBAC, and now also by /api/admin/users routes in pkg/api/api.go. New admin-style routes that should work for single-org Org Admins (without requiring global-scope grants) should use this same helper rather than ac.UseGlobalOrg.",
+  "applies": "Any route registration in pkg/api that uses authorizeInOrg and needs single-org-aware permission checks",
+  "tags": [
+    "accesscontrol",
+    "rbac",
+    "single-org"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/api.go",
+      "hash": "sha256:9b18898c01711895fef928c8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133013"
+  },
+  "created": "2026-10-04T05:59:22.695Z",
+  "verified": "2026-10-04T05:59:22.695Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How does single-org mode affect admin feature permissions?",
+    "Admin routes should respect the current organization setting",
+    "Where is authorization checked for single-organization admin tasks?",
+    "Making traditionally global admin routes work in single-org setup"
+  ],
+  "saysFor": "604:useglobalorsingleorg-is-",
+  "search": "Single-org-aware permission strategy for admin routes: use `ac.UseGlobalOrSingleOrg(cfg)` (pkg/api/api.go) as the org-selection strategy passed into `authorizeInOrg` for 'global' routes that must respect single-org deployments. This helper checks `hs.Cfg.RBAC.SingleOrganization` to decide whether to evaluate permissions against the caller's current org or the global org. Already used by plugin management and Enterprise RBAC; now also applies to /api/admin/users routes. Constraint: use this instead of `ac.UseGlobalOrg` when the route should work for single-org Org Admins without requiring global-scope grants. Applies to route registrations in pkg/api that use `authorizeInOrg` and need single-org-aware permission checks."
+}

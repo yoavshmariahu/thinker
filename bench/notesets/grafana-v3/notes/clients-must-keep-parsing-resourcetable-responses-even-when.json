@@ -1,0 +1,59 @@
+{
+  "id": "clients-must-keep-parsing-resourcetable-responses-even-when",
+  "title": "Clients must keep parsing ResourceTable responses even when requesting FIELD_VALUES",
+  "kind": "rule",
+  "answers": [
+    "Can I delete the ResourceTable parsing path now that we request FIELD_VALUES?",
+    "Why does the search client still handle ResourceTable responses?",
+    "Unified storage returns a different response shape than requested"
+  ],
+  "body": "Invariant: unified storage/search can deploy separately from the Grafana API layer, so an older search server can answer a FIELD_VALUES request with a ResourceTable (no ResultFormat echoed back). Client code that sets ResultFormat: FIELD_VALUES must still be able to parse a ResourceTable response as a fallback — this path is required compatibility handling, not dead code, per pkg/storage/unified/AGENTS.md rule 3. Removing the ResourceTable branch breaks rolling upgrades where search deploys ahead of/behind the API server.",
+  "applies": "Client code in pkg/services/folder and pkg/services/dashboards that issues resourcepb.ResourceSearchRequest and parses the response.",
+  "tags": [
+    "unified-storage",
+    "compatibility",
+    "rollout",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/AGENTS.md",
+      "hash": "sha256:0d5affb2271046137abf6596",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/folder/folderimpl/folder_unifiedstorage_test.go",
+      "symbol": "TestSearchFolders",
+      "hash": "sha256:4f6e4e369e814065541fe480",
+      "line": 573,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132840"
+  },
+  "created": "2026-10-04T06:22:38.145Z",
+  "verified": "2026-10-04T06:22:38.145Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "verify-resourcesearchrequest-field-lists-against-a-real-blev"
+  ],
+  "says": [
+    "Why does the search client still handle old ResourceTable response format?",
+    "Can we remove the ResourceTable parsing now that we use FIELD_VALUES?",
+    "What happens during rolling upgrade when search and API versions differ?",
+    "Why does search return a different response shape than what we requested?",
+    "How do we maintain compatibility with older search backend servers?"
+  ],
+  "saysFor": "611:clients-must-keep-parsin",
+  "search": "Unified storage search backward-compatibility rule: client code must continue parsing ResourceTable responses even when ResultFormat: FIELD_VALUES is requested, because search can deploy separately from the Grafana API layer and older servers answer FIELD_VALUES requests with ResourceTable instead of echoing the format back. Removing ResourceTable parsing breaks rolling upgrades where search deploys ahead of or behind the API server; per pkg/storage/unified/AGENTS.md rule 3, this fallback path is required compatibility handling, not dead code. Applies to client code in pkg/services/folder and pkg/services/dashboards that issues resourcepb.ResourceSearchRequest and parses responses. Test coverage exists in pkg/services/folder/folderimpl/folder_unifiedstorage_test.go:TestSearchFolders."
+}

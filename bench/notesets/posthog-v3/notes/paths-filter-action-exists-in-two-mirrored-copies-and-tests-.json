@@ -50,5 +50,6 @@
     "Path filter tests load the CI workflow to verify matching works.",
     "Do I edit paths-filter tests in both GitHub and Depot?"
   ],
-  "saysFor": "629:paths-filter-action-exis"
+  "saysFor": "629:paths-filter-action-exis",
+  "search": "Mirrored test files for paths-filter action must be updated together. The tests at .github/actions/paths-filter/__tests__/filter.test.ts and .depot/actions/paths-filter/__tests__/filter.test.ts are identical copies; any change to one requires the same change to the other. The test case 'runs frontend consumer tests when replay-shared source changes' loads .github/workflows/ci-frontend.yml, extracts the ci-frontend.yml filter step (id: filter), and validates that the frontend_code filter matches the expected paths. When adding or modifying paths to this filter in the workflow, add corresponding test cases to both test file copies to verify filter behavior."
 }

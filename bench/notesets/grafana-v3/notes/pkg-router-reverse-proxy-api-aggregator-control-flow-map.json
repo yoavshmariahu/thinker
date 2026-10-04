@@ -1,0 +1,266 @@
+{
+  "id": "pkg-router-reverse-proxy-api-aggregator-control-flow-map",
+  "title": "pkg/router/ — reverse-proxy API aggregator: control flow map",
+  "kind": "map",
+  "answers": [
+    "What does pkg/router/ do and where do requests enter it?",
+    "How does the router pick which RoutesLoader to use?",
+    "Where is the hot serving path vs the reconcile/control path in pkg/router?",
+    "How does discovery (/apis, /openapi/v3) get synthesized?"
+  ],
+  "body": "pkg/router/ is a standalone reverse-proxy API aggregator (not Grafana's main HTTP router): it owns `/apis/*` and `/openapi/v3/*`, dispatches by k8s API group to one backend, and synthesizes cross-group discovery docs. Scope is CRUD+List only, no Watch/websockets.\n\n- Loader selection: `loader_factory.go:ProvideRoutesLoader` picks cloud (`cloud_router.go`) → plugin (`plugin.go`) → dummy (`dummy.go`) fallback.\n- Lifecycle: `service.go:Service.starting` → `router.go:GrafanaRouter.Run` does initial `loader.Load`+reconcile then loops on `loader.Notify` wakes; `service.go:Service.RegisterTargetRoutes` mounts `HandleFunc` on the dskit module server (no `http.Server` owned here).\n- Hot serving path (single entry point): `router.go:GrafanaRouter.HandleFunc` → `/openapi/v3*` to `serveOpenAPIV3`; `/apis` root to `discovery_handler.go:serveAPIGroupList`; else parse group via `groupFromPath` and dispatch through `breaker.go:serveThroughBreaker` or `serveUnregisteredGroup` (routes to single-tenant fallback, `st_fallback.go`). `metrics.go:routerMetrics.instrument` wraps this for Prometheus+logging.\n- Control path: `router.go:GrafanaRouter.reconcile` re-reads all backends via `loader.Load`, diffs each `Backend.Key()` against stored `lastKey`, rebuilds only changed groups, then `router.go:publish` atomically swaps the serving snapshot + synthesized discovery docs (`discovery.go:buildAPIGroupList`/`buildOpenAPIV3Index`).\n- Discovery is synthesized only from the last-published `served` state, never directly from a fresh `Load()` — a failed reload keeps advertising last-known-good.",
+  "tags": [
+    "pkg/router",
+    "architecture",
+    "control-flow"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "GrafanaRouter",
+      "hash": "sha256:7323cc07643753efbf43dd91",
+      "line": 77,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 0,
+        "refs": 31
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "HandleFunc",
+      "hash": "sha256:38cc70188750fa71c20493ac",
+      "line": 129,
+      "missing": false,
+      "fanout": {
+        "files": 34,
+        "sites": 124,
+        "refs": 132
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "serveOpenAPIV3",
+      "hash": "sha256:249db19fa183877d193af0d5",
+      "line": 222,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "groupFromPath",
+      "hash": "sha256:fdb7e1099ea4a86330cadab7",
+      "line": 176,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "GrafanaRouter",
+      "hash": "sha256:7323cc07643753efbf43dd91",
+      "line": 77,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 0,
+        "refs": 31
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "HandleFunc",
+      "hash": "sha256:38cc70188750fa71c20493ac",
+      "line": 129,
+      "missing": false,
+      "fanout": {
+        "files": 34,
+        "sites": 124,
+        "refs": 132
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "serveOpenAPIV3",
+      "hash": "sha256:249db19fa183877d193af0d5",
+      "line": 222,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "groupFromPath",
+      "hash": "sha256:fdb7e1099ea4a86330cadab7",
+      "line": 176,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "publish",
+      "hash": "sha256:d1862d22538cbd35fa9f2d06",
+      "line": 477,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/service.go",
+      "symbol": "Service",
+      "hash": "sha256:296231bd358f1245839f5b7c",
+      "line": 27,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/service.go",
+      "symbol": "HandleFunc",
+      "hash": "sha256:9f97c5a79604d08dc00ae7bd",
+      "line": 89,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/loader_factory.go",
+      "symbol": "ProvideRoutesLoader",
+      "hash": "sha256:fbc6f8bc0bdbe022c6275c36",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/discovery.go",
+      "symbol": "buildAPIGroupList",
+      "hash": "sha256:ae405194446f2e78c4ae4598",
+      "line": 30,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/discovery_handler.go",
+      "symbol": "serveAPIGroupList",
+      "hash": "sha256:f461a381d7710499a451b621",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/types.go",
+      "symbol": "Backend",
+      "hash": "sha256:77de994ef6035694fd8cba97",
+      "line": 10,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/plugin.go",
+      "hash": "sha256:a3bf985018b7fa651a1564a9",
+      "missing": false
+    },
+    {
+      "path": "pkg/router/dummy.go",
+      "hash": "sha256:ba9400c7a2d5b135f4e315fc",
+      "missing": false
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "GrafanaRouter",
+      "hash": "sha256:7323cc07643753efbf43dd91",
+      "line": 77,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "HandleFunc",
+      "hash": "sha256:38cc70188750fa71c20493ac",
+      "line": 129,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "serveOpenAPIV3",
+      "hash": "sha256:249db19fa183877d193af0d5",
+      "line": 222,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "groupFromPath",
+      "hash": "sha256:fdb7e1099ea4a86330cadab7",
+      "line": 176,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/service.go",
+      "symbol": "Service",
+      "hash": "sha256:296231bd358f1245839f5b7c",
+      "line": 27,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/service.go",
+      "symbol": "HandleFunc",
+      "hash": "sha256:9f97c5a79604d08dc00ae7bd",
+      "line": 89,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/breaker.go",
+      "symbol": "serveThroughBreaker",
+      "hash": "sha256:8eac7cc6937b15ebceee3acd",
+      "line": 88,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/st_fallback.go",
+      "hash": "sha256:28f0b20bcc55fed1e32b5b3a",
+      "missing": false
+    },
+    {
+      "path": "pkg/router/metrics.go",
+      "symbol": "routerMetrics",
+      "hash": "sha256:eaa20f70ac28166d59598a30",
+      "line": 18,
+      "missing": false
+    },
+    {
+      "path": "pkg/router/cloud_router.go",
+      "symbol": "Load",
+      "hash": "sha256:ec6389bb64a78d435a34dd9a",
+      "line": 447,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "fd57f6a1-a2ca-4192-b48e-284d7812b1dd"
+  },
+  "created": "2026-10-04T06:11:54.763Z",
+  "verified": "2026-10-04T06:11:54.763Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pkg-router-backend-key-driven-reconcile-must-rebuild-breaker",
+    "single-tenant-fallback-resolvehost-cache-wiring",
+    "st-fallback-stack-resolution-uses-gcom-instances-stackid"
+  ],
+  "says": [
+    "Request to /apis endpoint routed to incorrect backend",
+    "API group discovery endpoint returns incomplete information",
+    "Route loading mechanism not selecting correct implementation",
+    "Newly available backend not being used for routing",
+    "OpenAPI specification discovery endpoint returns incomplete data"
+  ],
+  "saysFor": "1648:pkg-router-reverse-proxy",
+  "search": "pkg/router/ is a k8s-style reverse-proxy API aggregator for /apis/* and /openapi/v3/*, dispatching by API group to one backend; scope is CRUD+List, no Watch. Loader selection: ProvideRoutesLoader picks cloud_router.go → plugin.go → dummy.go fallback. Lifecycle: Service.starting runs GrafanaRouter.Run (initial loader.Load + reconcile, then loops on loader.Notify). Hot path: HandleFunc routes /openapi/v3* to serveOpenAPIV3, /apis to serveAPIGroupList, else parses group and dispatches through serveThroughBreaker or serveUnregisteredGroup (single-tenant fallback). Control path: reconcile re-reads backends, diffs Backend.Key(), rebuilds changed groups, then publish atomically swaps served snapshot + synthesized discovery (buildAPIGroupList, buildOpenAPIV3Index). Critical exception: discovery synthesized only from last-published state, never from fresh Load—failed reload keeps advertising last-known-good."
+}

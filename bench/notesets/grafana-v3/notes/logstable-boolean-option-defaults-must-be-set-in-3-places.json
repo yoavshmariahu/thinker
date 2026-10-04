@@ -1,0 +1,85 @@
+{
+  "id": "logstable-boolean-option-defaults-must-be-set-in-3-places",
+  "title": "logstable boolean option defaults must be set in 3 places",
+  "kind": "rule",
+  "answers": [
+    "Why does my logstable panel option change in the UI not match its documented default?",
+    "How do I change the default value of a logstable panel boolean switch option?",
+    "hoverOverflow / wrapText option default is inconsistent between editor and rendered table",
+    "Changing a panel option's default value in logstable"
+  ],
+  "body": "Symptom: a logstable boolean panel option (e.g. hoverOverflow) shows the wrong default state in the options editor, or the table renders with the old default even though the editor says otherwise.\nRoot cause: the effective default for a logstable boolean option is independently defined in three places that can drift: the standalone editor's `value ?? <default>` fallback (public/app/plugins/panel/logstable/HoverOverflowEditor.tsx), the panel plugin's builder `.addBooleanSwitch({ defaultValue })` (public/app/plugins/panel/logstable/module.tsx), and the runtime options merge `options.<field> ?? <default>` used to build final table options (public/app/plugins/panel/logstable/LogsTable.tsx).\nFix pattern: when changing a boolean option's default, update all three fallbacks together so the editor's unset-switch state, the plugin schema's declared default, and the actual rendered behavior agree.\nConstraints: applies to any boolean/string panel option in this plugin builder pattern that has both a custom editor with its own fallback and a separate consumer-side merge fallback; does not apply to options with a single source of truth (no custom editor, or no separate runtime merge).",
+  "applies": "Grafana logstable panel plugin options with custom StandardEditorProps editors",
+  "tags": [
+    "logs",
+    "logstable",
+    "panel-options",
+    "default-value",
+    "sync"
+  ],
+  "deps": [
+    {
+      "path": "public/app/plugins/panel/logstable/HoverOverflowEditor.tsx",
+      "symbol": "HoverOverflowEditor",
+      "hash": "sha256:16952a8f0a642bdf2d63d101",
+      "line": 4,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/logstable/module.tsx",
+      "symbol": "plugin",
+      "hash": "sha256:2c40fef0bb2e907284cf32df",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 683,
+        "sites": 7,
+        "refs": 1965
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/logstable/LogsTable.tsx",
+      "symbol": "LogsTable",
+      "hash": "sha256:6d38573dbb340ba58f732b2b",
+      "line": 56,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 1,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132882"
+  },
+  "created": "2026-10-04T06:17:21.067Z",
+  "verified": "2026-10-04T06:17:21.067Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "custom-option-editors-must-not-write-a-default-value-on-rend",
+    "explore-logs-drilldown-shared-settings-vs-dashboard-panel-op"
+  ],
+  "says": [
+    "Why does the panel option default differ between editor and display?",
+    "Logstable boolean switch option shows inconsistent defaults in editor versus render",
+    "How do I update a default value for logstable options consistently?",
+    "Panel option default value changed but editor still shows the old one",
+    "Logstable option defaults fall out of sync between configuration and display"
+  ],
+  "saysFor": "1248:logstable-boolean-option",
+  "search": "logstable boolean panel option defaults must be synchronized in three places to prevent display and rendering mismatches: the editor's fallback (HoverOverflowEditor.tsx, `value ?? <default>`), the plugin builder's declaration (module.tsx, `.addBooleanSwitch({ defaultValue })`), and the runtime merge (LogsTable.tsx, `options.<field> ?? <default>`). When changing a boolean option default, update all three locations together so the unset-switch state, schema default, and rendered behavior agree. This rule only applies to boolean/string options that have both a custom StandardEditorProps editor and a separate consumer-side merge fallback; does not apply to options with a single source of truth. Misalignment causes the editor UI to display one default while the table renders with another.",
+  "lastUsed": "2026-10-04T19:12:28.544Z",
+  "servedIn": [
+    "codex-grafana-codex-ce2-PR133011-hard-0"
+  ]
+}

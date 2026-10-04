@@ -1,7 +1,7 @@
 {
   "id": "build-output-naming-must-stay-in-sync-with-server-preload-ma",
   "title": "Build-output naming must stay in sync with server (preload manifest, hashing, publicPath)",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "What must stay in sync between esbuild output and Django?",
     "Why does the build throw 'preload-manifest.json field resolved empty'?",
@@ -25,8 +25,8 @@
     {
       "path": "posthog/utils.py",
       "symbol": "_read_preload_manifest",
-      "hash": "sha256:1f8bcf3e831173175248c1a8",
-      "line": 445,
+      "hash": "sha256:85c403da9d177b677efc63fe",
+      "line": 451,
       "missing": false
     },
     {
@@ -64,7 +64,7 @@
   "verified": "2026-09-27T00:25:59.127Z",
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
-  "status": "stale",
+  "status": "fresh",
   "uses": 6,
   "related": [
     "how-django-picks-which-frontend-build-assets-to-serve-debug-",
@@ -81,21 +81,6 @@
     "14bdd8ea-719f-4bca-937b-f2b36407619a",
     "2e9c5e0e-8c55-49dd-8d88-b1af1258e010"
   ],
-  "stale": {
-    "since": "2026-09-27T22:01:53.169Z",
-    "changed": [
-      {
-        "path": "frontend/build.mjs",
-        "symbol": "writePreloadManifest",
-        "reason": "symbol body changed"
-      },
-      {
-        "path": "common/esbuilder/utils.mjs",
-        "symbol": "copyIndexHtml",
-        "reason": "symbol body changed"
-      }
-    ]
-  },
   "says": [
     "Why are CSS and fonts failing to load after deploying the build",
     "Static assets serve from wrong paths in production after deploy",
@@ -103,5 +88,6 @@
     "Changing asset entry points breaks production asset loading",
     "Hash format changes in the build break old asset references"
   ],
-  "saysFor": "1380:build-output-naming-must"
+  "saysFor": "1380:build-output-naming-must",
+  "search": "Build-output naming (manifest keys, hashing, paths) must stay synchronized between frontend/build.mjs:writePreloadManifest and posthog/utils.py:_read_preload_manifest; change both together. writePreloadManifest writes dist/preload-manifest.json with keys css, font, js, authenticatedJs; _read_preload_manifest reads exactly these keys indexed by source path (src/index.tsx, src/scenes/App.tsx, src/scenes/AuthenticatedShell.tsx, and entries in src/sharedChunkAnchors.ts). CSS entries match /\\/index(-[^./-]+)?\\.css$/, fonts match /\\/Inter(-[^./-]+)?\\.woff2$/; only chunks >50KB (PRELOAD_MIN_CHUNK_BYTES) receive preload entries. URLs are prefixed static/<rel to dist> via publicPath:'/static' in common/esbuilder/utils.mjs:commonConfig, requiring STATIC_URL='/static/' and CSPMiddleware to set request.csp_nonce. Entry names use [dir]/[name]-[hash] in prod or unhashed in dev (--dev argv); chunkNames use [name]-[hash]; assetNames use assets/[name]-[hash]. createHashlessEntrypoints regex /-([A-Z0-9]+)\\.(js|css)$/ and copyIndexHtml create unhashed fallbacks; chunkMapFileName emits chunk-map-<entry>-<HASH8>.js. isDev=DEBUG in Python; manifest is process-cached so dist must not change during server runtime. Applies to preload manifest and static asset URL changes."
 }
