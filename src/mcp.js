@@ -136,7 +136,7 @@ register('remember', {
     mutability: z.enum(['fixed', 'mutable']).optional().describe('For kind behavior: fixed (never revised) or mutable (revised only by a change that edits the note; the default).'),
     answers: z.array(z.string()).describe('Question forms this note answers, used for retrieval, e.g. ["where is option parsing", "how does type conversion happen for params"]'),
     body: z.string().describe('The note, 3-12 lines of markdown. Use file:symbol pointers. Include the non-obvious parts, not the obvious ones.'),
-    applies: z.string().optional().describe('When this applies and when it does not (for gotchas, conventions, rationale, co-change rules).'),
+    applies: z.string().optional().describe('When this applies and when it does not (for gotchas, conventions, rationale).'),
     deps: z.array(z.object({ path: z.string().describe('repo-relative path'), symbol: z.string().optional().describe('function/class name inside the file, if the note depends on that symbol specifically') })).min(1),
     tags: z.array(z.string()).optional(),
     confidence: z.number().min(0).max(1).optional().describe('How sure you are (default 0.7). Use >=0.9 only if you verified by reading the code, not inferring.'),

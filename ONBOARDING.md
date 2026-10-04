@@ -17,7 +17,7 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | option | effect |
 |---|---|
 | `--cache <source>` | the cache built for this repository: `gh:caches/<repo>.tgz` (a file in the thinker repo), an https URL, or a local file; omit when `.thinker/notes` is already committed in the user's repo |
-| `--build` | build the cache on this machine without asking: co-change, merged pull requests (`--prs n`, default 60), one exploration session per source area (`--areas n`, default 12) |
+| `--build` | build the cache on this machine without asking: merged pull requests (`--prs n`, default 60), one exploration session per source area (`--areas n`, default 12) |
 | `--no-build` | wire the repository up and ask nothing: the cache grows from the user's own sessions (`thinker setup --build` builds it later) |
 | `--pr <number>` | target a specific PR number for the paired benchmark during setup |
 | `--benchmark` | run the paired PR change benchmark during setup |
@@ -47,10 +47,10 @@ When run in a new repository (either via `curl .../install.sh` or `thinker setup
 
 2. **Step 2: Build Knowledge Cache**
    Computes pre-flight estimates upfront:
-   - **Target storage location:** `.thinker/` (local notes in `.thinker/local/notes/`, shared notes in `.thinker/notes/`, co-change in `.thinker/cochange.json`)
+   - **Target storage location:** `.thinker/` (local notes in `.thinker/local/notes/`, shared notes in `.thinker/notes/`)
    - **Estimated size:** notes count and disk footprint (typically 50–120 notes, ~120–220 KB on disk)
-   - **Estimated build time:** broken down across co-change mining, PR distillation, and exploration
-   Then mines git co-change history, distills merged PRs into fix and invariant notes, explores key subsystems, and generates search phrasings.
+   - **Estimated build time:** broken down across PR distillation and exploration
+   Then distills merged PRs into fix and invariant notes, explores key subsystems, and generates search phrasings.
 
 3. **Step 3: Optional PR Change Benchmark**
    Tests how an installed coding agent performs on a recent PR change with vs without the Thinker cache:
@@ -104,7 +104,7 @@ thinker setup --areas 20 --prs 100 --export /path/to/thinker/caches/<repo>.tgz
 # commit and push caches/<repo>.tgz in the thinker repository
 ```
 
-`setup` creates `.thinker/`, wires up the agents' hooks and MCP server, mines co-change, and — once the build is confirmed — runs `mine-prs` on the GitHub `origin`, `seed`, `relink` and `export`; each of those is also a command of its own. `thinker mine-prs` run again later mines only pull requests it has not mined before (recorded in `.thinker/prs.json`).
+`setup` creates `.thinker/`, wires up the agents' hooks and MCP server, and — once the build is confirmed — runs `mine-prs` on the GitHub `origin`, `seed`, `relink` and `export`; each of those is also a command of its own. `thinker mine-prs` run again later mines only pull requests it has not mined before (recorded in `.thinker/prs.json`).
 
 Setup reports progress counts and notes saved, with periodic updates while an
 agent is working. A change that produces no reusable notes is normal. Failures
@@ -115,7 +115,7 @@ details in the terminal (`mine-prs` and `seed` accept `--verbose` too).
 
 Cost on PostHog (54k files): about $20 for 259 notes. The cache is keyed to file and symbol hashes, not to a commit, so it stays usable as their code moves: notes whose code changed are flagged stale when served and re-verified in the background if the user has the `claude` CLI.
 
-Alternative delivery: run `thinker share --dry`, then `thinker share` and review and commit `.thinker/notes/` and `.thinker/cochange.json` into their repository and have users run the installer without `--cache`. For hosting outside GitHub, `scripts/pack.sh <base-url>` builds a self-contained tarball and installer.
+Alternative delivery: run `thinker share --dry`, then `thinker share` and review and commit `.thinker/notes/` into their repository and have users run the installer without `--cache`. For hosting outside GitHub, `scripts/pack.sh <base-url>` builds a self-contained tarball and installer.
 
 Example caches in this repository: `caches/click.tgz` (16 notes), `caches/posthog.tgz` (259 notes, built at the benchmark's base commit).
 

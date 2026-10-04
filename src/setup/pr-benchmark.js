@@ -142,7 +142,7 @@ export function findRecentPrChange(repo, { slug = null, prNumber = null } = {}) 
 export function buildPrBenchmarkTask(pr) {
   const prLabel = pr.number ? `PR #${pr.number}: ${pr.title}` : `Recent Change: ${pr.title}`;
   const context = pr.body ? `\n\nCONTEXT:\n${pr.body.slice(0, 1500)}` : '';
-  return `${prLabel}${context}\n\nTASK:\nExplain the architectural root cause and codebase implementation required for this change. Identify which specific files and symbols must be modified and what invariants, conventions, or co-change patterns must be maintained.`;
+  return `${prLabel}${context}\n\nTASK:\nExplain the architectural root cause and codebase implementation required for this change. Identify which specific files and symbols must be modified and what invariants or conventions must be maintained.`;
 }
 
 export function renderPrBenchmarkReport(record) {

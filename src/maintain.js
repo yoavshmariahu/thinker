@@ -1,15 +1,12 @@
 // Background maintenance of the cache: what a user would otherwise have to remember to
-// run. It re-verifies stale notes, writes phrasings for notes that lack them, refreshes
-// the co-change index when HEAD moved, and distills pull requests merged since it first
-// ran. It starts from the catch-up learning run (at most every ten minutes, from the
+// run. It re-verifies stale notes, writes phrasings for notes that lack them, and distills
+// pull requests merged since it first ran. It starts from the catch-up learning run (at most every ten minutes, from the
 // prompt hooks) and from the git post-commit hook, and is bounded by a daily spend cap
 // so it can run unattended. The daily cap counts reported model cost of learning and
 // maintenance in the machine's log; unknown costs count as zero.
 import fs from 'node:fs';
 import path from 'node:path';
-import { gitHead } from './store.js';
 import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
-import { mineCochange, loadCochange } from './cochange.js';
 import { readLog } from './usage.js';
 import { reconcileLocal, readyToShareNotice } from './share.js';
 
@@ -102,7 +99,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   const state = readState(store);
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, cochange: false, sync: null, cost: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, sync: null, cost: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const budget = cfg.dailyCap - spent;
   const afford = () => budget - r.cost > 0;
@@ -110,12 +107,6 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     if (!dry) reconcileLocal(store);
     // 0. the team's central cache, when this checkout syncs with one (sync.js): free, network only
     if (fns.sync) { try { r.sync = await fns.sync(); } catch { r.errors++; } }
-    // 1. co-change: free, so redo it whenever HEAD moved
-    const head = gitHead(repo);
-    const idx = loadCochange(repo);
-    if (head && (!idx || idx.head !== head)) {
-      try { if (!dry) (fns.cochange || mineCochange)(repo); r.cochange = true; } catch { r.errors++; }
-    }
     // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
     // served in a month, leave serving and upkeep and stay for review (ops.js:archiveNotes)
     if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch { r.errors++; } }
@@ -163,7 +154,6 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     const fresh = r.churning.filter(id => !named.has(id));
     if (fresh.length) u.churning = [...new Set([...(u.churning || []), ...fresh])];
     state.churnNamed = r.churning;
-    u.cochange = !!(u.cochange || r.cochange);
     state.unreported = u; state.at = new Date().toISOString(); state.last = r;
     if (!dry) fs.writeFileSync(stateFile(store), JSON.stringify(state));
     store.log({ op: 'maintain', ...r, spentBefore: spent, cap: cfg.dailyCap, dry });
@@ -193,7 +183,6 @@ export function maintenanceNotice(store) {
   if (u.phrased) parts.push(`${u.phrased} ${u.phrased === 1 ? 'note' : 'notes'} phrased`);
   if (u.archived) parts.push(`${u.archived} ${u.archived === 1 ? 'note' : 'notes'} archived: kept for review, no longer served or re-verified (thinker archive --list)`);
   if (u.prs) parts.push(`${u.prs} ${u.prs === 1 ? 'note' : 'notes'} from merged pull requests`);
-  if (u.cochange) parts.push('co-change index refreshed');
   if (u.pulled || u.pushed) parts.push(`team cache: ${[u.pulled ? `${u.pulled} ${u.pulled === 1 ? 'note' : 'notes'} pulled` : '', u.pushed ? `${u.pushed} pushed` : ''].filter(Boolean).join(', ')}`);
   if (u.share) parts.push(u.share);
   if (u.pruned?.length) parts.push(...u.pruned);
@@ -226,7 +215,7 @@ export function renderMaintain(r) {
   if (r.violated) bits.push(`${r.violated} desired ${r.violated === 1 ? 'behavior' : 'behaviors'} found broken`);
   if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
   if (r.archived) bits.push(`${r.archived} archived`);
-  bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`, `co-change ${r.cochange ? 'refreshed' : 'unchanged'}`);
+  bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`);
   if (r.sync && !r.sync.skipped) bits.push(`team cache ${r.sync.pulled + (r.sync.deleted || 0)}↓ ${r.sync.pushed + (r.sync.retired || 0)}↑`);
   return `maintained: ${bits.join(', ')}${r.cost ? ` ($${r.cost.toFixed(3)})` : ''}${r.capped ? '; daily cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
 }

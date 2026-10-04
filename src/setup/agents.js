@@ -381,7 +381,7 @@ export async function selectAndAuthenticateAgent({
 
     if (allowSkip) {
       const skipLabel = actionName === 'subsystem exploration' || actionName === 'agent exploration'
-        ? 'Proceed without agent exploration (co-change patterns only)'
+        ? 'Proceed without agent exploration'
         : `Proceed without ${actionName}`;
       items.push({
         label: skipLabel,
@@ -448,7 +448,7 @@ export async function selectAndAuthenticateAgent({
   if (allowSkip) {
     const rl3 = readlineFn ? readlineFn() : readlinePromises.createInterface({ input: stdin, output: stdout });
     const skipPrompt = actionName === 'subsystem exploration' || actionName === 'agent exploration'
-      ? '  Proceed without agent exploration (co-change patterns only)? [Y/n] '
+      ? '  Proceed without agent exploration? [Y/n] '
       : `  Proceed without ${actionName}? [Y/n] `;
     const contAns = await rl3.question(skipPrompt);
     rl3.close();

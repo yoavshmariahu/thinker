@@ -131,7 +131,7 @@ test('a long request is not answered by a note that shares one word counted twic
   const notes = [
     note('notice', 'Cache hit notice display', 'The hook prints cache hit counts; claude shows the usage line, the hit total and tokens.'),
     note('retry', 'Waiting before a retry when claude hits a usage limit', 'llm.js:viaCli waits ten minutes and retries when claude reports a usage limit.'),
-    ...['ranking floors', 'store layout', 'sync server', 'review strategies', 'cochange mining'].map((t, i) => note('f' + i, t, `${t} live in their own module.`)),
+    ...['ranking floors', 'store layout', 'sync server', 'review strategies', 'archive rules'].map((t, i) => note('f' + i, t, `${t} live in their own module.`)),
   ];
   const ids = rank(notes, { query: 'change how long we wait before retrying when claude -p hits a usage limit' }).filter(r => r.rel > 0).map(r => r.note.id);
   assert.ok(ids.includes('retry'));

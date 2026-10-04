@@ -207,7 +207,7 @@ export function relatedNotes(store, events, { max = 12, topical = 4 } = {}) {
 
 // kinds: what the distiller may produce. The caller leaves out the kinds this checkout archives
 // (ops.js:archiveConfig): a note of a kind that is never served is a model call for nothing, and
-// what location and cochange notes would say is found by code search and git history.
+// what a location note would say is found by code search.
 export function distillSpec({ kinds = KINDS } = {}) {
   // a desired behavior (behavior.js) is a person's rule, never distilled; the model is not even offered the kind
   kinds = kinds.filter(k => k !== 'behavior');

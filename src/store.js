@@ -14,7 +14,7 @@ import { execFileSync } from 'node:child_process';
 // revise it. Until October 2026 there were eleven kinds; the old names are read as the new ones
 // (KIND_ALIAS) wherever a note is read, so committed notes and benchmark notesets stay as they are.
 export const KINDS = ['map', 'howto', 'rule', 'behavior'];
-export const KIND_ALIAS = { location: 'map', callpath: 'map', overview: 'map', invariant: 'rule', convention: 'rule', gotcha: 'rule', rationale: 'rule', fix: 'rule', cochange: 'rule' };
+export const KIND_ALIAS = { location: 'map', callpath: 'map', overview: 'map', invariant: 'rule', convention: 'rule', gotcha: 'rule', rationale: 'rule', fix: 'rule', cochange: 'rule' }; // cochange: a kind of earlier caches, read as a rule
 export const kindOf = k => KIND_ALIAS[k] || k;
 export const MUTABILITY = ['fixed', 'mutable'];
 

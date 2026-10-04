@@ -31,9 +31,6 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
   const mineSource = canMineGh ? 'github' : (canMineGit ? 'git' : null);
   const canSeed = Boolean(!noSeed && agent && areas > 0 && candidateAreas.length > 0);
 
-  // Co-change mining timing estimate (~2-15s based on commit history)
-  const cochangeSec = commitCount > 2000 ? 15 : (commitCount > 500 ? 10 : (commitCount > 50 ? 5 : 2));
-
   // PR mining timing estimate (~8.5s per PR for diff fetch + LLM distillation)
   const prsCount = canMine ? Math.min(prs, 50) : 0;
   const prsSec = canMine ? Math.round(prsCount * 8.5) : 0;
@@ -44,7 +41,7 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
 
   // Indexing, linking, and note phrasing timing estimate
   const indexingSec = Math.max(8, Math.round((areasCount * 2.5 + prsCount * 1.5) * 0.25));
-  const totalSec = cochangeSec + prsSec + areasSec + indexingSec;
+  const totalSec = prsSec + areasSec + indexingSec;
 
   // Size estimates
   const estPrNotes = canMine ? Math.round(prsCount * 0.7) : 0;
@@ -52,10 +49,9 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
   const minNotes = Math.max(5, estPrNotes + estAreaNotes + 5);
   const maxNotes = Math.max(minNotes + 8, Math.round(minNotes * 1.4));
 
-  const cochangeBytes = Math.min(Math.max(12 * 1024, fileCount * 100), 75 * 1024);
   const prsMetaBytes = 6 * 1024;
-  const minBytes = (minNotes * 2000) + cochangeBytes + prsMetaBytes;
-  const maxBytes = (maxNotes * 2600) + cochangeBytes + prsMetaBytes;
+  const minBytes = (minNotes * 2000) + prsMetaBytes;
+  const maxBytes = (maxNotes * 2600) + prsMetaBytes;
 
   const storeDir = path.join(repo, '.thinker');
 
@@ -72,7 +68,6 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
       totalSeconds: totalSec,
       formatted: formatDuration(totalSec),
       breakdown: {
-        cochange: formatDuration(cochangeSec),
         prs: canMine ? formatDuration(prsSec) : 'skipped',
         exploration: canSeed ? formatDuration(areasSec) : 'skipped',
         indexing: formatDuration(indexingSec),
@@ -89,7 +84,6 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
     storage: {
       rootDir: path.relative(process.cwd(), storeDir) || '.thinker/',
       notesDir: path.relative(process.cwd(), path.join(storeDir, 'local', 'notes')) || '.thinker/local/notes/',
-      cochangeFile: path.relative(process.cwd(), path.join(storeDir, 'cochange.json')) || '.thinker/cochange.json',
       prsFile: path.relative(process.cwd(), path.join(storeDir, 'prs.json')) || '.thinker/prs.json',
       stateDir: path.relative(process.cwd(), path.join(storeDir, 'state')) || '.thinker/state/',
     },

@@ -1,10 +1,9 @@
 // `thinker` commands on the notes themselves: serving by hand (orient, lookup, find, drilldown), the
 // desired behaviors (system), and the housekeeping of the store (list, show, add, rm, check-free
-// re-hashing, archiving, phrasing, co-change, links). Each takes the dispatcher's context (cli.js).
+// re-hashing, archiving, phrasing, links). Each takes the dispatcher's context (cli.js).
 import fs from 'node:fs';
 import path from 'node:path';
 import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBehaviors, writeSystemMarkdown } from '../behavior.js';
-import { mineCochange, partners } from '../cochange.js';
 import { annotateFanout } from '../codegraph.js';
 import { orient, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
 
@@ -98,14 +97,6 @@ async function addCommand(ctx) {
   return;
 }
 
-async function cochangeCommand(ctx) {
-  const { pos, flags, repo, store, out } = ctx;
-  if (pos[0]) { const idx = JSON.parse(fs.readFileSync(path.join(store.dir, 'cochange.json'), 'utf8')); for (const p of partners(idx, pos[0], { minSupport: 2, minConf: 0.3 })) out(`${p.file}  ${Math.round(p.conf * 100)}%  n=${p.support}`); return; }
-  const idx = mineCochange(repo, { commits: Number(flags.commits) || 800 });
-  out(`mined ${idx.commits} commits, ${Object.keys(idx.totals).length} files → ${store.dir}/cochange.json`);
-  return;
-}
-
 async function relinkCommand(ctx) {
   const { store, out } = ctx;
   const notes = store.list(); for (const n of notes) linkNotes(store, n, notes); out(`linked ${notes.length} notes`); return;
@@ -171,7 +162,6 @@ export const commands = {
   'show': showCommand,
   'rm': rmCommand,
   'add': addCommand,
-  'cochange': cochangeCommand,
   'relink': relinkCommand,
   'rehash': rehashCommand,
   'archive': archiveCommand,

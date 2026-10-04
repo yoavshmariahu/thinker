@@ -5,7 +5,6 @@ import readlinePromises from 'node:readline/promises';
 import { spawnSync } from 'node:child_process';
 import { installGitHooks } from '../git-hooks.js';
 import { linkNotes, phraseNotes } from '../ops.js';
-import { mineCochange } from '../cochange.js';
 import { CLIENTS, detectClients, installClient, trustCodex } from '../clients.js';
 import { available, provider, findBin } from '../llm.js';
 import { cleanErrorMessage } from '../benchmark.js';
@@ -126,13 +125,13 @@ export function ignoreLocalState(dir) {
 export async function stepBuildCache({ repo, store, estimates, areas = 12, prs = 60, noSeed = false, noPrs = false, noPhrase = false, model, agent, out = console.log, seedFn, minePrsFn }) {
   let warnings = 0;
   // with neither pull requests nor exploration there is nothing to estimate: what is left
-  // (co-change, linking) is free and local, and the notes come from the sessions to come
+  // (linking) is free and local, and the notes come from the sessions to come
   const building = !(noSeed && noPrs);
   if (building) {
     out(`  ${c.bold('Pre-flight estimates for this repository:')}`);
     out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
     out(`    • ${c.bold('Estimated size:')}     ${c.cyan(estimates.size.notesRange)} ${c.dim(`(${estimates.size.bytesRange} on disk)`)}`);
-    out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)} ${c.dim(`(co-change ${estimates.timing.breakdown.cochange}, PRs ${estimates.timing.breakdown.prs}, explore ${estimates.timing.breakdown.exploration})`)}`);
+    out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)} ${c.dim(`(PRs ${estimates.timing.breakdown.prs}, explore ${estimates.timing.breakdown.exploration})`)}`);
     if (estimates.costEstimate > 0) {
       out(`    • ${c.bold('Model usage:')}       ${c.dim(`~$${estimates.costEstimate.toFixed(2)} via your ${agent || provider()} login`)}`);
     }
@@ -142,25 +141,14 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
   }
   out('');
 
-  // Stage 1: Co-change mining
-  out(`  ${c.bold('[1/4] Mining co-change patterns from git history...')}`);
-  try {
-    const idx = mineCochange(repo, { commits: 800 });
-    const pairingsCount = Object.keys(idx.totals || {}).length;
-    out(`        ${c.green('✔')} Mined ${idx.commits} commits → ${pairingsCount} files indexed in ${c.dim(estimates.storage.cochangeFile)}`);
-  } catch (e) {
-    warnings++;
-    out(`        ${c.yellow('⚠')} Co-change mining skipped: ${oneLine(cleanErrorMessage(e)).slice(0, 160)}`);
-  }
-
-  // Stage 2: Merged PR mining
+  // Stage 1: Merged PR mining
   const slug = githubSlug(repo);
   let minedPrCount = 0;
   if (estimates.canMine && minePrsFn) {
     if (estimates.mineSource === 'github') {
-      out(`  ${c.bold(`[2/4] Mining merged PRs from ${slug}...`)}`);
+      out(`  ${c.bold(`[1/3] Mining merged PRs from ${slug}...`)}`);
     } else {
-      out(`  ${c.bold(`[2/4] Mining merged changes from git history (GitHub CLI unavailable)...`)}`);
+      out(`  ${c.bold(`[1/3] Mining merged changes from git history (GitHub CLI unavailable)...`)}`);
     }
     try {
       const res = await minePrsFn(slug, { limit: prs, model, repo });
@@ -178,13 +166,13 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
       ? 'not building the cache now'
       : noPrs ? '--no-prs requested'
       : (!estimates.canMine ? 'insufficient git history' : 'requires GitHub repo and gh CLI');
-    out(`  ${c.dim(`[2/4] Merged PR mining · Skipped (${reason})`)}`);
+    out(`  ${c.dim(`[1/3] Merged PR mining · Skipped (${reason})`)}`);
   }
 
   // Stage 3: Subsystem area exploration
   let seedCount = 0;
   if (estimates.canSeed && seedFn) {
-    out(`  ${c.bold(`[3/4] Exploring architectural subsystems with ${agent}...`)}`);
+    out(`  ${c.bold(`[2/3] Exploring architectural subsystems with ${agent}...`)}`);
     try {
       const res = await seedFn({ areas, model, agent });
       seedCount = res.ok || 0;
@@ -205,11 +193,11 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
       ? 'not building the cache now'
       : noSeed ? '--no-seed requested'
       : (!agent ? 'no authenticated agent available' : 'run `thinker seed` any time');
-    out(`  ${c.dim(`[3/4] Subsystem exploration · Skipped (${reason})`)}`);
+    out(`  ${c.dim(`[2/3] Subsystem exploration · Skipped (${reason})`)}`);
   }
 
   // Stage 4: Cross-note linking and phrasings
-  out(`  ${c.bold('[4/4] Linking cross-note dependencies and search phrasings...')}`);
+  out(`  ${c.bold('[3/3] Linking cross-note dependencies and search phrasings...')}`);
   const notes = store.list();
   for (const n of notes) linkNotes(store, n, notes);
   out(`        ${c.green('✔')} Linked ${notes.length} notes across symbol dependencies`);

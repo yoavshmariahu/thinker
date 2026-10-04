@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { gitHead } from './store.js';
 import { tarPackArgs, tarListArgs, tarExtractArgs } from './update.js';
 
-const META = ['cochange.json', 'prs.json', 'config.json'];
+const META = ['prs.json', 'config.json']; // an older archive may still carry cochange.json; it is accepted and left behind
 const tar = args => execFileSync('tar', args, { encoding: 'utf8', env: { ...process.env, COPYFILE_DISABLE: '1', COPY_EXTENDED_ATTRIBUTES_DISABLE: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
 export function exportCache(store, file) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-export-'));

@@ -46,7 +46,7 @@ cache at twice the input price and never read again.
 | path | contents |
 |---|---|
 | `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
-| `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink, cochange), `cache.js` (share, review, export, import, sync, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, seed, mine-prs, and the exploration and PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up and pull they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
+| `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (share, review, export, import, sync, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, seed, mine-prs, and the exploration and PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up and pull they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
 | `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
 | `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI and Cursor: config files and hook formats |
@@ -58,8 +58,7 @@ cache at twice the input price and never read again.
 | `src/codegraph.js` | one hop of the call graph: references and blast radius of a symbol (`fanout`), callers, callees, definitions, outlines, and `findSymbols` (the definitions carrying the words of a query); behind `find`, `drilldown` and the `[n call sites in m files]` tags on pointers. From the code graph when the checkout is indexed, else from `git grep` |
 | `src/rank.js` | BM25 ranking, relevance gate, budget packing |
 | `src/distill.js` | transcript → notes and per-note assessments |
-| `src/cochange.js` | co-change mining from git history |
-| `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, refresh co-change, distill newly merged PRs, under a daily cap |
+| `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, distill newly merged PRs, under a daily cap |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens and in dollars |
@@ -69,7 +68,7 @@ cache at twice the input price and never read again.
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
 | `action/` | GitHub Actions: `action.yml` sends a merged pull request to the server; `review/` has the server check a pull request against the desired behaviors and post the review (`src/review-post.js` renders and posts) |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
-| `src/review.js` | `thinker review` and the MCP `review` tool: a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; co-change partners missing from the change, removed symbols still referenced |
+| `src/review.js` | `thinker review` and the MCP `review` tool: a change (or the current code) against the notes resting on it and bearing on it, with the cache's own staleness reported rather than trusted; removed symbols still referenced |
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
@@ -92,7 +91,7 @@ quiet. Only the commands that build a cache (`setup`, `seed`, `mine-prs`,
 `import`, `add`, `record`, `distill`) create one.
 
 `thinker setup` wires the repository into the agents on this machine (hooks,
-MCP server, git hooks, `.thinker/`, co-change), and then asks whether to build
+MCP server, git hooks, `.thinker/`), and then asks whether to build
 the cache from the code and the merged pull requests, since that is the only
 step that spends anything (`setup.js:confirmCacheBuild`). The question defaults
 to no; `--build` answers yes without asking (so does `--yes`, or naming
@@ -103,15 +102,14 @@ already run and the footer says how to build later.
 
 The build itself (`thinker setup --build`, or the installer with `--build`):
 
-1. mines co-change edges from git history;
-2. distills up to 60 merged pull requests of the GitHub `origin` into fix
+1. distills up to 60 merged pull requests of the GitHub `origin` into fix
    records, invariants and conventions (`--prs n`; needs `gh`);
-3. runs one exploration session per source area and distills it (`--areas n`,
+2. runs one exploration session per source area and distills it (`--areas n`,
    default 12);
-4. links the notes and installs hooks and the MCP server for each agent
+3. links the notes and installs hooks and the MCP server for each agent
    (`--clients claude,codex,cursor,gemini`, `all`, or `auto`, the default).
 
-Steps 2 and 3 run through an installed agent with its own login (`--agent`
+Steps 1 and 2 run through an installed agent with its own login (`--agent`
 picks one). Measured with Claude Sonnet: about $0.45 per area and $0.06 per
 pull request, so roughly $9 with the defaults; other agents do not report
 cost. The estimate is printed before anything runs; in a terminal `setup`
@@ -334,12 +332,13 @@ Each session both consumes and improves the cache:
 3. New notes are linked to existing ones that share a symbol-level dep (or
    several files); `orient` pulls one linked note in beside the best hit
    when it has relevance of its own.
-4. `thinker cochange` mines git history for files that change together.
-   The edit hook (`ops.js:lateNotes`) names the partners of each file the
-   agent edits, once per file, leaving out those the session has edited
-   ("X usually changes with Y (80%, n=12)"), and the end-of-session nudge
-   repeats what is still untouched; so co-change rules do not depend on an
-   agent having traced them.
+4. Co-change is gone (2026-10-04). Co-change notes were acted on 0 of 5
+   times they were served and were archived; the git-mined index that
+   replaced them (edit-hook partner hints, the end-of-session nudge, the
+   review hint, `thinker cochange`, the refresh in maintenance,
+   `.thinker/cochange.json`) was never shown to be followed either, and was
+   removed with the module. An older cache's `cochange.json` is ignored, and
+   its `cochange` notes are read as rules (`store.js:KIND_ALIAS`).
 
 5. Archiving (`ops.js:archiveNotes`, `thinker archive`): a note that the
    sessions showed is not worth serving leaves orientation, the edit hook,
@@ -359,8 +358,8 @@ Each session both consumes and improves the cache:
 6. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
    the prompt hooks start at most every ten minutes ends with one maintenance
    run, and so do the git `post-commit` and `post-merge` hooks that `setup` and the
-   installer put in place (`--no-git-hook` leaves it out). A run refreshes the
-   co-change index when `HEAD` moved, re-verifies up to 10 stale notes, writes
+   installer put in place (`--no-git-hook` leaves it out). A run re-verifies up
+   to 10 stale notes, writes
    phrasings for up to 8 notes that lack them, and distills up to 3 pull
    requests merged since maintenance first ran in the repository (older ones
    are `thinker mine-prs`). Re-verification ahead of time is for notes served in
@@ -794,8 +793,7 @@ tool `review` is the same for an agent before it commits.
   (`codegraph.js:references`; working tree and index only, since a commit
   cannot be grepped; a method's name is a warning, a top-level name an error).
   The co-change hint (a partner file of a changed file that is not in the
-  change) was dropped on 2026-10-03 with the co-change notes: it fired on
-  legitimate changes as often as not.
+  change) went on 2026-10-03, and the rest of co-change on 2026-10-04.
 - **Kinds** (`--kinds behavior`, MCP `kinds: ["behavior"]`): only notes of
   those kinds are consulted. With the desired behaviors alone the default
   strategy becomes one call per behavior in play (`per-note`), which gives a

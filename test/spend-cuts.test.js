@@ -42,8 +42,8 @@ test('the distiller is not asked for archived kinds, and a note of one is not sa
   const some = distillSpec({ kinds: KINDS.filter(k => k !== 'map') });
   assert.deepEqual(some.schema.properties.notes.items.properties.kind.enum, ['howto', 'rule']);
   assert.match(some.system, /Do not produce notes of these kinds: map\./);
-  // what a checkout with the default archive asks for: everything but location; review reads fix,
-  // convention and cochange notes from the archive, so they are still distilled
+  // what a checkout with the default archive asks for: everything but location; review reads the
+  // rules from the archive, so they are still distilled
   const dir0 = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-spend-')));
   const s0 = new Store(dir0).init();
   assert.deepEqual(distillKinds(s0), ['map', 'howto', 'rule']); // no kind is archived by default
