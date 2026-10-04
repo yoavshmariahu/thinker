@@ -118,10 +118,12 @@ written for this checkout only and kept out of commits through
 To mine more pull requests later, run `thinker mine-prs` (or `thinker learn
 --prs`, which distills new sessions first). With no arguments it takes the
 GitHub `origin`, mines what was merged since the last run and then goes
-further back in history, 20 at a time (`--limit n`). Without GitHub it
-mines commits from git history; `--fixes` keeps only those whose message
-says they fix something (`prs.js:FIX_LIKE`), the records review draws on
-most. Every pull request it
+further back in history, 20 at a time (`--limit n`). Without GitHub, or
+with `--git`, it mines commits from git history; `--fixes` keeps only those
+whose message says they fix something (`prs.js:FIX_LIKE`), the records
+review draws on most; a repository whose work lands by direct commits has
+few pull requests, and this one had 8 to mine against 17 fix commits. Every
+pull request it
 has looked at is recorded in `.thinker/prs.json`, which is committed with the
 notes, so none is distilled twice, by you or by a teammate. Pull requests merged
 after thinker was set up are distilled by background maintenance (see [The

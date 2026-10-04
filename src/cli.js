@@ -133,10 +133,10 @@ const HELP = `thinker — knowledge cache for coding agents
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   seed [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: one exploration session per source area
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
-  mine-prs [owner/repo] [--limit n] [--dry] [--fixes]
+  mine-prs [owner/repo] [--limit n] [--dry] [--git] [--fixes]
                                  distill merged PRs into fix / invariant / convention notes: those merged since the last run,
                                  then older ones; mined PRs are recorded in .thinker/prs.json and never distilled twice;
-                                 without GitHub, commits from git history (--fixes: only those whose message says they fix something)
+                                 without GitHub, or with --git, commits from git history (--fixes: only those whose message says they fix something)
                                  (default repo: the GitHub origin; --before <iso> [--after <iso>] [--again] picks a window by hand)
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = early injection, tool = late file-keyed injection, stop = nudge + distill
   usage [--here] [--days n] [--json]
@@ -707,7 +707,7 @@ async function main() {
     }
     case 'mine-prs': {
       // thinker mine-prs [owner/repo] [--limit n] [--dry]; a window by hand: --before <iso> [--after <iso>] [--again]
-      await mineMore({ slug: pos[0], before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes });
+      await mineMore({ slug: pos[0], before: flags.before, after: flags.after, again: !!flags.again, limit: Number(flags.limit) || (flags.before || flags.after ? 60 : 20), model: flags.model, dry: !!flags.dry, fixes: !!flags.fixes, git: !!flags.git });
       break;
     }
     case 'outcome': {
@@ -1037,8 +1037,10 @@ async function mineMore({ slug, ...opts }) {
   return minePrs(slug, { ...opts, repo });
 }
 
-async function minePrs(slug, { before, after, again, limit = 20, model, dry, fixes = false, repo = process.cwd(), phase = 'maintenance' } = {}) {
-  const useGit = !slug || !hasBin('gh');
+async function minePrs(slug, { before, after, again, limit = 20, model, dry, fixes = false, git = false, repo = process.cwd(), phase = 'maintenance' } = {}) {
+  // --git: commits from git history although GitHub is reachable (a repository whose work lands by
+  // direct commits has few pull requests to mine; its fix commits are what review wants)
+  const useGit = git || !slug || !hasBin('gh');
   const recSlug = slug || 'local';
   const rec = minedPrs(store, recSlug);
   const fetchLimit = Math.min(Math.max(limit * 3, 60), 250);
