@@ -524,6 +524,37 @@ What it says:
 The default is the ensemble. The sample is small (16 bugs, 5 controls
 reached, one model); the harness and case sets are in `bench/` to extend it.
 
+### Rerun on this repository, 2026-10-04 (`2026-10-04-anchored`)
+
+The same case set against the cache after a day of changes to it: notes
+anchored to definitions rather than whole files, the direct notes a review
+consults ordered by how much of the change fell inside the definitions they
+rest on and whether those lines name what the note names
+(`review.js:specificity`), 80 notes of never-acted-on kinds archived but
+still read by review, and 5 notes mined from this repository's fix commits.
+Sonnet through `claude -p` for every review; 23 cases reached (the reverts
+V2–V5 no longer apply to the base `a0621fe` and were skipped).
+
+| strategy | bugs caught | planted | reverted | controls clean | $ / review | s / review |
+|---|---|---|---|---|---|---|
+| nocache | 12/13 | 11/12 | 1/1 | 8/10 | 0.07 | 32 |
+| **ensemble** | **13/13** | **12/12** | 1/1 | 8/10 | 0.22 | 111 |
+
+- The same shape as the first run: the notes buy the one bug the diff alone
+  misses (P6, the provider pin), at about three times the cost of a review.
+  Ten of the ensemble's twelve planted hits came through the notes call
+  first; the content is there, but it rarely sees what the bare diff cannot.
+- The two false positives (one warning each on the real commits C5 and C6)
+  appeared in both arms with the same count: the model reading the diff, not
+  the notes. The earlier run's controls were clean on both arms too, so the
+  rate on controls is now 2 of 10 reached, in both arms.
+- On the real commits the ensemble consulted 57 to 66 notes and sent the
+  twelve the ordering put first; the controls stayed as clean as the
+  baseline's, which is what the ordering was for.
+- The reverted fixes are mostly gone from this case set: a fix merged before
+  the base cannot be reverted onto it once the surrounding code has moved.
+  New revert cases need a newer base.
+
 ## What this says about the design
 
 1. **Delivery matters more than retrieval.** Zero-turn injection (hook) is the only delivery that paid for itself; a tool call the agent must discover and invoke costs more than it saves in Claude Code today.
