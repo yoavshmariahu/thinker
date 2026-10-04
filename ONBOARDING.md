@@ -33,31 +33,18 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--no-auto-update` | do not schedule daily background auto-updates (daily auto-update is on by default) |
 | `--uninstall [--purge]` | remove hooks; `--purge` also deletes the notes |
 
-## The 3-Stage Setup Flow (`thinker setup`)
+## Setup flow (`thinker setup`)
 
-When run in a new repository (either via `curl .../install.sh` or `thinker setup`), Thinker runs a guided, visually aesthetic 3-step setup flow:
+Setup has two steps:
 
-```
-[Step 1: Connect Harness CLIs] ──► [Step 2: Build Knowledge Cache] ──► [Step 3: PR Change Benchmark]
- (Claude, Codex, Cursor, Gemini)     (Estimates: time, size, path)     (With vs without cache)
-```
+1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers. Codex trust is requested when needed. Only detected or explicitly selected agents appear in the connection summary.
+2. **Choose how to start.** Learn from future sessions (the default), or build a cache now from code and merged pull requests. Setup shows estimated build time and available model cost estimates before asking. Outside a terminal, building requires an explicit flag such as `--build`.
 
-1. **Step 1: Connect Harness CLIs**
-   Scans your local environment for installed coding agents (`claude`, `codex`, `cursor`/`agent`, `gemini`/`agy`). Wires hooks and registers MCP servers, saves Codex trust in `~/.codex/config.toml`, and approves Cursor MCP access.
+Ongoing learning uses your agent for model calls. Use `--no-learn` to disable it.
 
-2. **Step 2: Build Knowledge Cache**
-   Computes pre-flight estimates upfront:
-   - **Target storage location:** `.thinker/` (local notes in `.thinker/local/notes/`, shared notes in `.thinker/notes/`)
-   - **Estimated size:** notes count and disk footprint (typically 50–120 notes, ~120–220 KB on disk)
-   - **Estimated build time:** broken down across PR distillation and exploration
-   Then distills merged PRs into fix and invariant notes, explores key subsystems, and generates search phrasings.
+The completion message shows the next step: start a new agent session in this repository. You can build later with `thinker setup --build`.
 
-3. **Step 3: Optional PR Change Benchmark**
-   Tests how an installed coding agent performs on a recent PR change with vs without the Thinker cache:
-   - Detects the latest merged code PR (or user-specified `--pr <number>`)
-   - Runs a paired read-only comparison through the agent (baseline vs Thinker arm)
-   - Measures wall time, agent turns, tool exploration calls, token usage, and target file precision
-   - Displays an aligned side-by-side comparison table and preserves answers in `.thinker/benchmarks/`
+A paired PR benchmark runs during setup only when requested with `--benchmark` or `--pr <number>`. Its results are saved in `.thinker/benchmarks/`.
 
 ## First-run benchmark
 

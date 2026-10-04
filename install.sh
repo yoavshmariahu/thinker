@@ -166,11 +166,16 @@ main() {
   # expand now: the variable is local and gone by the time the trap runs
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
-  say "Installing thinker into $home"
+  say ""
+  say "thinker"
+  say "Codebase knowledge for your coding agent"
+  say ""
+  say "  Downloading release…"
   if [ -n "$dist" ]; then
     case "$dist" in https://*) ;; *) die "verified distributions must be downloaded over HTTPS" ;; esac
     curl -fsSL --proto-redir '=https' -o "$tmp/thinker.tgz" "$dist" || die "could not download $dist"
     curl -fsSL --proto-redir '=https' -o "$tmp/version.json" "${dist%/*}/version.json" || die "could not download release manifest"
+    say "  Verifying download…"
     node --input-type=module - "$tmp/thinker.tgz" "$tmp/version.json" <<'JS'
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -206,6 +211,7 @@ JS
     [ "$code" -eq 0 ] || return "$code"
   }
 
+  say "  Installing CLI…"
   mkdir -p "$tmp/app" && tar_extract "$tmp/thinker.tgz" "$tmp/app"
   # GitHub archives wrap everything in one top-level directory
   if [ ! -f "$tmp/app/src/cli.js" ]; then
@@ -271,7 +277,7 @@ EOF
   fi
   if [ "$mcp" = 1 ]; then
     command -v npm >/dev/null || die "--mcp needs npm to install the MCP server's dependencies"
-    say "Installing MCP server dependencies"
+    say "  Installing agent integration…"
     (cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent)
   fi
 

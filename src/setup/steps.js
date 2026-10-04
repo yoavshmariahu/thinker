@@ -9,7 +9,7 @@ import { CLIENTS, detectClients, installClient, trustCodex } from '../clients.js
 import { available, provider, findBin } from '../llm.js';
 import { cleanErrorMessage } from '../benchmark.js';
 import { oneLine } from '../progress.js';
-import { c, formatBytes } from './ui.js';
+import { c, formatBytes, selectMenu } from './ui.js';
 import { githubSlug } from './agents.js';
 
 // --- Step 1: Connect Harness CLIs --------------------------------------------
@@ -32,7 +32,6 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
     const isDetected = detected.includes(client);
 
     if (!isTarget && !isDetected) {
-      results.push({ client, status: 'skipped', detail: 'Not detected on PATH' });
       continue;
     }
 
@@ -91,13 +90,7 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
     const clientLabel = (meta ? meta.name : res.client).padEnd(20);
 
     if (res.status === 'connected') {
-      const cleanLog = msg => String(msg).replace(/^(Claude Code|OpenAI Codex|Codex|Cursor Agent|Cursor|Gemini CLI|Gemini):\s*/i, '');
-      out(`  ${c.green('✔')} ${c.bold(clientLabel)} ${c.green('Connected')} · ${c.dim(cleanLog(res.logs[0]) || 'Hooks & MCP configured')}`);
-      if (res.logs.length > 1) {
-        for (const extra of res.logs.slice(1)) {
-          out(`    ${c.dim('↳')} ${c.dim(cleanLog(extra))}`);
-        }
-      }
+      out(`  ${c.green('✓')} ${c.bold(clientLabel)} Connected`);
     } else if (res.status === 'skipped') {
       out(`  ${c.gray('○')} ${c.dim(clientLabel)} ${c.dim(`Skipped · ${res.detail}`)}`);
     } else {
@@ -105,10 +98,10 @@ export async function stepConnectClis({ repo, cliPath, mcpEntry, clients, hooks 
     }
   }
 
-  if (gitHook) installGitHooks(repo, cliPath, learn, out);
+  if (gitHook) installGitHooks(repo, cliPath, learn, () => {});
 
   const connectedCount = results.filter(r => r.status === 'connected').length;
-  out(`\n  ${c.cyan('Summary:')} ${c.bold(connectedCount)} of ${CLIENTS.length} harness CLIs connected and configured.`);
+  out(`\n  ${c.cyan('Summary:')} ${c.bold(connectedCount)} of ${targetClients.length} selected agents connected.`);
   return results;
 }
 
@@ -127,6 +120,12 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
   // with neither pull requests nor exploration there is nothing to estimate: what is left
   // (linking) is free and local, and the notes come from the sessions to come
   const building = !(noSeed && noPrs);
+  if (!building) {
+    const notes = store.list();
+    out(`  ${c.green('✓')} ${notes.length ? `Using ${notes.length} existing notes.` : 'Ready to learn from future sessions.'}`);
+    return { skipped: true, notes, totalBytes: store.size(), warnings };
+  }
+
   if (building) {
     out(`  ${c.bold('Pre-flight estimates for this repository:')}`);
     out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
@@ -231,7 +230,7 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
 // Asked before the agent login flow, so nobody logs in for a step they did not want.
 export async function confirmCacheBuild({ estimates, agent, out = console.log }) {
   const cost = estimates.costEstimate > 0 ? `, about ${c.cyan(`$${estimates.costEstimate.toFixed(2)}`)} of your ${agent || 'agent'} usage` : '';
-  out(`  ${c.bold('Build the cache from this repository now?')} ${c.dim('— optional, and the only step that spends anything')}`);
+  out(`  ${c.bold('Build the cache from this repository now?')} ${c.dim('— optional')}`);
   out(`    • Mines merged pull requests and explores the code with ${c.bold(agent || 'your agent')}: ${c.cyan(estimates.timing.formatted)}${cost}`);
   out(`    • ${c.dim('Without it thinker is still set up and working: the cache grows from your own sessions.')}`);
   out(`    • ${c.dim('You can build it any time with: thinker setup --build')}`);
@@ -239,14 +238,19 @@ export async function confirmCacheBuild({ estimates, agent, out = console.log })
     out(`\n  ${c.yellow('○')} ${c.dim('Not a terminal, so the cache was not built (thinker setup --build builds it, --no-build asks nothing).')}`);
     return false;
   }
-  const rl = readlinePromises.createInterface({ input: process.stdin, output: process.stdout });
   try {
-    const a = await rl.question(`\n  Build it now? [y/N] `);
-    return /^y/i.test(a.trim());
+    const choice = await selectMenu({
+      items: [
+        { label: 'Learn as you work · build from future sessions', value: 'later' },
+        { label: 'Build a cache now · use the estimate above', value: 'build' },
+      ],
+      defaultIndex: 0,
+      out,
+    });
+    out(`  ${c.dim(choice?.value === 'build' ? 'Build a cache now' : 'Learn as you work')}`);
+    return choice?.value === 'build';
   } catch {
-    out(`\n  ${c.yellow('○')} ${c.dim('No answer, so the cache was not built.')}`);
-    return false; // Ctrl+D or a stdin that closed under us: not an answer to spend money on
-  } finally {
-    rl.close();
+    out(`  ${c.dim('Cache not built. Run thinker setup --build any time.')}`);
+    return false;
   }
 }

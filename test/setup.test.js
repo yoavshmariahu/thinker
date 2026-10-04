@@ -85,10 +85,10 @@ test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
   assert.match(b, /╰─+╯/);
 
   const bannerText = banner();
-  assert.match(bannerText, /T H I N K E R/);
+  assert.match(bannerText, /thinker/);
 
   const step = stepBanner(1, 3, 'Connect Harness CLIs', 'Test subtitle');
-  assert.match(step, /STEP 1 OF 3/);
+  assert.match(step, /1\/3/);
   assert.match(step, /Connect Harness CLIs/);
   assert.match(step, /Test subtitle/);
 
@@ -215,7 +215,7 @@ test('renderPrBenchmarkReport formats side-by-side comparison table with target 
   assert.match(report, /Net Savings:\s+7,800 tokens saved · 7s faster/);
 });
 
-test('runSetup completes 3-step setup flow in clean repo', async () => {
+test('runSetup completes compact setup flow in clean repo', async () => {
   const repo = createMockGitRepo();
   const store = new Store(repo);
   const outLines = [];
@@ -239,17 +239,17 @@ test('runSetup completes 3-step setup flow in clean repo', async () => {
     });
 
     const fullOutput = outLines.join('\n');
-    assert.match(fullOutput, /T H I N K E R/);
-    assert.match(fullOutput, /STEP 1 OF 3 · Connect Harness CLIs/);
+    assert.match(fullOutput, /thinker/);
+    assert.match(fullOutput, /1\/2  Connect your agents/);
     assert.match(fullOutput, /Claude Code\s+Connected/);
-    assert.match(fullOutput, /STEP 2 OF 3 · Build Knowledge Cache/);
+    assert.match(fullOutput, /2\/2  Choose how to start/);
     assert.match(fullOutput, /Pre-flight estimates for this repository/);
     assert.match(fullOutput, /Target storage:/);
     assert.match(fullOutput, /Estimated size:/);
     assert.match(fullOutput, /Estimated build:/);
-    assert.match(fullOutput, /STEP 3 OF 3 · Optional PR Change Benchmark/);
-    assert.match(fullOutput, /PR change benchmark skipped/);
-    assert.match(fullOutput, /Thinker setup complete!/);
+    assert.doesNotMatch(fullOutput, /Optional PR Change Benchmark/);
+    assert.doesNotMatch(fullOutput, /PR change benchmark skipped/);
+    assert.match(fullOutput, /Thinker is ready\./);
 
     // Verify .thinker storage on disk
     assert.ok(fs.existsSync(path.join(repo, '.thinker')));
@@ -351,7 +351,7 @@ test('runSetup wires the repository up and leaves the cache unbuilt when no agen
     // the repository is set up either way: the wiring is done and the footer is reached
     assert.match(fullOut, /Cache not built here/);
     assert.match(fullOut, /thinker setup --build/);
-    assert.match(fullOut, /Thinker setup complete!/);
+    assert.match(fullOut, /Thinker is ready\./);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -382,7 +382,7 @@ test('setup offers the cache build and takes no for an answer outside a terminal
     assert.equal(res.built, false);
     assert.match(fullOut, /Build the cache from this repository now\?/);
     assert.match(fullOut, /Not a terminal/);
-    assert.match(fullOut, /Thinker setup complete!/);
+    assert.match(fullOut, /Thinker is ready\./);
     // wiring and the free part of the cache still happened
     assert.ok(fs.existsSync(path.join(repo, '.claude', 'settings.local.json')) || fs.existsSync(path.join(repo, '.claude', 'settings.json')));
   } finally {
