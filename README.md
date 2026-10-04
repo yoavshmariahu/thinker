@@ -27,14 +27,16 @@ Works with Claude Code, Codex CLI, Gemini CLI and Cursor. Research prototype.
 ## Install and start
 
 Open [zerotime.dev](https://zerotime.dev), enter your access code, and run the
-private install command shown there. The same code unlocks the docs. Run from
-inside a repository, it also sets that repository up; run anywhere else, it
-installs the tool alone, and `thinker setup` inside a repository sets it up
-later. That one command wires thinker into the agents on this machine and then
-offers to build the cache from the repository's code and merged pull requests
-(`--build` says yes without asking, `--no-build` says no; without it the cache
-grows from your own sessions). A repository that has not been set up is served
-nothing and learns nothing.
+private install command shown there. The same code unlocks the docs. It
+installs the tool and wires it into the agents on this machine, once, in their
+own settings (hooks and the MCP server, for Claude Code, Codex, Gemini CLI and
+Cursor, their desktop apps included). Run from inside a repository, it also
+sets that repository up; anywhere else, `thinker setup` inside a repository
+does that later. `setup` offers to build the cache from the repository's code
+and merged pull requests (`--build` says yes without asking, `--no-build` says
+no; without it the cache grows from your own sessions). The wiring is
+everywhere, the cache is per repository: in a repository that has not been
+set up the agents are served nothing and learn nothing.
 
 Then work with your agent as usual. Notes are added to each request
 automatically.
@@ -62,9 +64,10 @@ calls are made and Thinker offers questions it does cover.
 Notes:
 
 - **Requirements.** git, curl, tar, Node 20+, and at least one of the agents above, logged in.
-- **What it does.** Installs the tool under `~/.thinker`, builds a cache of
-  notes from the repository's git history, merged pull requests and source
-  areas, and wires it into the agents found on the machine.
+- **What it does.** Installs the tool under `~/.thinker`, wires it into the
+  agents found on the machine (their own settings; `thinker uninstall --user`
+  takes it out again), and builds a cache of notes from the repository's git
+  history, merged pull requests and source areas.
 - **Usage.** Building runs through about 5.5M tokens of your agent's usage with
   the defaults, most of them cached prompt reads, and takes about twenty
   minutes. The estimate, in tokens and minutes, is printed before anything runs;

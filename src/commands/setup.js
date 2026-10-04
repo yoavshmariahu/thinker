@@ -5,9 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initAst, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from '../ast.js';
-import { parseClients, uninstallClients, refreshWiring } from '../clients.js';
+import { parseClients, uninstallClients, uninstallWiring, refreshWiring } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
-import { runSetup } from '../setup.js';
+import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry } from '../telemetry.js';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, getLaunchAgentPath } from '../update.js';
 import { githubSlug } from './shared.js';
@@ -27,6 +27,20 @@ async function setupCommand(ctx) {
   return;
 }
 
+// Wire the agents on this machine into their own settings, once: hooks and the MCP server, for
+// every repository that is set up (a repository that is not is served nothing and learns nothing).
+// No repository is needed; `setup` runs this as its first step, and so does the installer.
+async function connectCommand(ctx) {
+  const { flags, out, HERE, learnOn, mcpEntry, userMcpEntry } = ctx;
+  const clients = parseClients(flags.clients, parseClients('auto'));
+  await stepConnectClis({
+    repo: null, cliPath: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), userMcpEntry: userMcpEntry(), clients,
+    hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !flags['no-late'], mcp: !flags['no-mcp'],
+    noTrust: Boolean(flags['no-trust']), yes: Boolean(flags.yes), out,
+  });
+  out(`\n  thinker runs in every repository set up with \`thinker setup\`; elsewhere it does nothing.`);
+}
+
 async function uninstallCommand(ctx) {
   const { flags, repo, store, out } = ctx;
   // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge
@@ -35,7 +49,9 @@ async function uninstallCommand(ctx) {
   uninstallClients(repo);
   uninstallGitHooks(repo);
   if (flags.purge) fs.rmSync(store.dir, { recursive: true, force: true });
-  out(`removed thinker hooks and MCP registration from ${repo}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
+  // --user: the machine-wide wiring in the agents' own settings goes too
+  if (flags.user) uninstallWiring({ scope: 'user' });
+  out(`removed thinker hooks and MCP registration from ${repo}${flags.user ? ' and from your own agent settings' : ''}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
   return;
 }
 
@@ -78,6 +94,12 @@ async function rewireCommand(ctx) {
   const repos = flags.here ? (store.exists() ? [repo] : []) : knownRepos(store, repo);
   const dry = !!flags.dry, quiet = !!flags.quiet;
   const summary = { repos: 0, changed: 0, files: [] };
+  // the user's own settings first: the machine-wide wiring
+  try {
+    const u = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry(), dry });
+    if (u.changed.length) { summary.changed++; summary.files.push(...u.changed); if (!quiet) out(`your settings: ${dry ? 'would rewrite' : 'rewrote'} ${u.changed.join(', ')}`); }
+    if (!quiet) for (const s of u.skipped) out(`your settings: ${s.client} left alone: ${s.reason}`);
+  } catch (e) { if (!quiet) out(`your settings: ${e.message}`); }
   for (const r of repos) {
     let res;
     try { res = refreshWiring(r, { cli, mcpEntry: { command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: r } }, dry }); } catch (e) { if (!quiet) out(`${r}: ${e.message}`); continue; }
@@ -277,6 +299,7 @@ export async function setup(ctx) {
     store,
     cliPath: path.join(HERE, 'cli.js'),
     mcpEntry: mcpEntry(),
+    userMcpEntry: ctx.userMcpEntry(),
     clients,
     areas,
     prs,
@@ -307,6 +330,7 @@ export async function setup(ctx) {
 export const commands = {
   'init': initCommand,
   'setup': setupCommand,
+  'connect': connectCommand,
   'uninstall': uninstallCommand,
   'ast': astCommand,
   'switch': updateCommand,

@@ -79,18 +79,44 @@ into `bench/repos/<name>` first.
 
 ## What `setup` does
 
-The installer (`install.sh`) installs the tool wherever it is run. Inside a git
-repository it also sets that repository up (below); anywhere else it says to
-run `thinker setup` inside a repository. `setup` is the only command that sets
-a repository up: `thinker init` was removed and says so. A repository where
+The installer (`install.sh`) installs the tool wherever it is run and wires
+it into the agents on this machine (`thinker connect`, below). Inside a git
+repository it also sets that repository up; anywhere else it says to run
+`thinker setup` inside a repository. `setup` is the only command that sets a
+repository up: `thinker init` was removed and says so. A repository where
 `setup` has not run has no `.thinker/`, and the cache is not used there: the
 CLI's cache commands stop with that message (`cli.js:CACHE_COMMANDS`), the MCP
 server offers no tools and says so in its instructions, and the hooks are
 quiet. Only the commands that build a cache (`setup`, `seed`, `mine-prs`,
-`import`, `add`, `record`, `distill`) create one.
+`import`, `add`, `record`, `distill`) create one. That rule is what makes the
+machine-wide wiring safe: the hooks and the MCP server are present in every
+checkout and act only in one that is set up.
 
-`thinker setup` wires the repository into the agents on this machine (hooks,
-MCP server, git hooks, `.thinker/`), and then asks whether to build
+The wiring lives in the agents' own settings, once per machine, since
+2026-10-04 (`clients.js:wiringFiles`, scope `user`): `~/.claude/settings.json`
+and `~/.claude.json`, `~/.codex/hooks.json` and `~/.codex/config.toml`,
+`~/.gemini/settings.json`, `~/.cursor/hooks.json` and `~/.cursor/mcp.json`.
+`thinker connect [--clients …]` writes it and needs no repository; `setup`
+runs it as its first step, and so does the installer. A hook there names no
+`--repo` and reads the checkout from the agent's input (`cwd`, Cursor's
+`workspace_roots`; `commands/hooks.js`); the MCP entry pins no `THINKER_REPO`
+and the server takes the repository from the directory the client starts it
+in, asking a client that declares MCP roots for its workspace when that
+directory is not a repository (`mcp.js`). Before that, `setup` wrote the
+hooks and the MCP entry into each checkout's own files, which the Codex
+desktop app does not read (openai/codex#13025: it loads MCP servers from the
+user's `config.toml` alone), and a fresh worktree had none of them. The
+checkout's machine-local wiring of this copy is taken out by `setup` and by
+the first hook at user scope that runs there (`clients.js:stripRepoWiring`),
+named once at the end of the turn; committed wiring (`--shared`, `.mcp.json`)
+stays, and a hook at user scope yields to a checkout whose own files run this
+copy's hooks (`clients.js:repoWiredByCopy`), so nothing fires twice.
+`thinker uninstall --user` removes the machine-wide wiring; the installer's
+`--uninstall` does that outside a repository.
+
+`thinker setup` connects the agents (above), adds the repository's own pieces
+(git hooks, Cursor's always-applied rule, Codex's trust in the project,
+`.thinker/`), and then asks whether to build
 the cache from the code and the merged pull requests, since that is the only
 step that spends anything (`setup.js:confirmCacheBuild`). The question defaults
 to no; `--build` answers yes without asking (so does `--yes`, or naming
@@ -105,8 +131,8 @@ The build itself (`thinker setup --build`, or the installer with `--build`):
    records, invariants and conventions (`--prs n`; needs `gh`);
 2. runs one exploration session per source area and distills it (`--areas n`,
    default 12);
-3. links the notes and installs hooks and the MCP server for each agent
-   (`--clients claude,codex,cursor,gemini`, `all`, or `auto`, the default).
+3. links the notes; the agents (`--clients claude,codex,cursor,gemini`, `all`,
+   or `auto`, the default) were connected in step 1.
 
 Steps 1 and 2 run through an installed agent with its own login (`--agent`
 picks one). Measured on this machine's log: about 400k tokens per area (the
@@ -116,9 +142,10 @@ pull request, so roughly 5.5M tokens and twenty minutes with the defaults
 in tokens and minutes before anything runs, never in dollars: decided 2026-10-04,
 since most agents run on subscriptions and a figure from API list prices told
 people they would spend money they would not. In a terminal `setup`
-asks before spending (`--yes` skips the question). Hook and MCP files are
-written for this checkout only and kept out of commits through
-`.git/info/exclude`; pass `--shared` to write committable files instead.
+asks before spending (`--yes` skips the question). The hooks and the MCP
+entry live in the agents' own settings; `--shared` also writes them into the
+checkout's files (`.claude/settings.json`, `.mcp.json`, `.codex/`,
+`.gemini/`, `.cursor/`) for the team to commit.
 
 To mine more pull requests later, run `thinker mine-prs` (or `thinker learn
 --prs`, which distills new sessions first). With no arguments it takes the
@@ -407,7 +434,8 @@ comes back anyway is skipped by `saveNotes`.
 
 Controls for experiments: `THINKER_NOTES_DIR` (a flat note store for a
 benchmark arm), `THINKER_NO_BG_VERIFY=1` (no background verification, so a
-pinned noteset stays as it is), `THINKER_MCP=off` (the MCP server offers no
+pinned noteset stays as it is), `THINKER_HOOKS=off` (the user's machine-wide
+hooks do nothing; a checkout's own hooks are unaffected) and `THINKER_MCP=off` (the MCP server offers no
 tools; the control arm of `thinker benchmark`), `THINKER_HOLDOUT`. The
 switches of settled experiments were removed in October 2026 (early modes,
 the router, forced or naive serving, links and co-change off, the guard off,
@@ -947,13 +975,20 @@ tool `review` is the same for an agent before it commits.
 
 ## Supported agents
 
-| agent | notes for the request | notes about files being edited (installed by default; `--no-late` leaves it out) | MCP tools | written to |
+| agent | notes for the request | notes about files being edited (installed by default; `--no-late` leaves it out) | MCP tools | written to (user scope; `--shared` adds the checkout's files) |
 |---|---|---|---|---|
-| Claude Code | added to each prompt | yes | yes | `.claude/settings.local.json`, `.mcp.json` |
-| Codex CLI | added to each prompt | yes | yes | `.codex/hooks.json`, `.codex/config.toml` |
-| Gemini CLI | added to each prompt | yes | yes | `.gemini/settings.json` |
-| Cursor | through the `orient` tool, and with the first tool result | yes | yes (approved by setup) | `.cursor/hooks.json`, `.cursor/mcp.json`, `.cursor/rules/thinker.mdc` |
+| Claude Code, and the Code tab of the Claude desktop app | added to each prompt | yes | yes | `~/.claude/settings.json`, `~/.claude.json` (`--shared`: `.claude/settings.json`, `.mcp.json`) |
+| Codex CLI and the Codex desktop app | added to each prompt | yes | yes | `~/.codex/hooks.json`, `~/.codex/config.toml` (`--shared`: `.codex/hooks.json`, `.codex/config.toml`) |
+| Gemini CLI | added to each prompt | yes | yes | `~/.gemini/settings.json` (`--shared`: `.gemini/settings.json`) |
+| Cursor | through the `orient` tool, and with the first tool result | yes | yes (approved by setup) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, and `.cursor/rules/thinker.mdc` in the checkout (`--shared`: `.cursor/hooks.json`, `.cursor/mcp.json`) |
 
+- The desktop apps run the same engines as the CLIs and read the same user
+  settings. The Claude desktop app's Code tab reads hooks and MCP servers from
+  the user's and the project's files alike; the Codex desktop app reads MCP
+  servers from the user's `config.toml` only (openai/codex#13025, open since
+  2026-02), which is why the wiring is machine-wide. Whether it starts the MCP
+  server in the thread's directory is not verified: if not, the server asks
+  for MCP roots, and failing that offers nothing there.
 - One copy of thinker per checkout (`clients.js:pruneInstalls`). A hook names
   the copy it runs (`node "<install>/src/cli.js" hook …`), and so does an MCP
   entry; two copies wired into one checkout (an install left behind, a smoke-test

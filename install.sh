@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# thinker setup: installs the thinker tool and, when run from inside a
-# repository, sets that repository up to use a knowledge cache with the coding
-# agents on this machine. Run anywhere else, it installs the tool alone; then
-# run `thinker setup` inside a repository to set that repository up.
+# thinker setup: installs the thinker tool, wires it into the coding agents on
+# this machine (their own settings: hooks and the MCP server, once, for every
+# repository that is set up) and, when run from inside a repository, sets that
+# repository up to use a knowledge cache. Run anywhere else, it installs and
+# wires the tool; then run `thinker setup` inside a repository to set it up.
+# A repository that is not set up is served nothing and learns nothing.
 #
 # The thinker repository is private, so you need access to it and a GitHub
 # token with read access, exported as GITHUB_TOKEN:
@@ -24,21 +26,22 @@
 #   --benchmark         run paired PR benchmark during setup
 #   --no-benchmark      skip the paired PR benchmark step
 #   -y, --yes           accept defaults and skip interactive confirmation prompts
-#   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, all or auto
-#                       (default: auto with --build, otherwise claude)
+#   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, all or auto (default auto)
 #   --cache <source>    cache built for this repo. One of: gh:<path in the thinker repo>, an https URL, a local file.
 #                       Omit if .thinker/notes is already in the repo.
 #   --no-learn          do not distill your own sessions into new notes (learning is on by default, for any of the
 #                       agents, and uses that agent's login; switch it off for evals)
 #   --late              also serve notes about files as the agent opens them
-#   --shared            write hooks to .claude/settings.json (committed) instead of settings.local.json
-#   --mcp               register the MCP server in .mcp.json (Cursor, Codex, other MCP clients)
+#   --shared            also write the hooks and MCP entries into the repository's own files (.claude/settings.json,
+#                       .mcp.json, …) for the team to commit; by default they live in your agents' own settings
+#   --mcp               accepted for compatibility: the MCP server is always registered (needs npm)
 #   --no-git-hook       do not install the git post-commit hook (it re-checks and maintains notes after each commit)
 #   --branch <name>     branch or tag to install (default main; --ref also accepted)
 #   --update            update thinker CLI to the latest version and exit
 #   --no-auto-update    do not schedule daily background auto-updates
 #   --no-modify-path    do not add THINKER_HOME/bin to PATH in your shell's startup file
-#   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too)
+#   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too); run outside
+#                       a repository, it removes the wiring from your agents' own settings
 #
 # Environment
 #   THINKER_HOME        where the tool is installed (default ~/.thinker)
@@ -151,8 +154,8 @@ main() {
 
   if [ "$uninstall" = 1 ]; then
     [ -x "$thinker" ] || die "thinker is not installed in $home"
-    [ -n "$repo" ] || die "run --uninstall from inside the repository to unwire; to remove the tool itself: rm -rf \"$home\", and delete the '# thinker' PATH line from your shell's startup file"
-    if [ "$purge" = 1 ]; then "$thinker" uninstall --purge --repo "$repo"; else "$thinker" uninstall --repo "$repo"; fi
+    if [ -z "$repo" ]; then "$thinker" uninstall --user
+    elif [ "$purge" = 1 ]; then "$thinker" uninstall --purge --repo "$repo"; else "$thinker" uninstall --repo "$repo"; fi
     say "To remove the tool itself: rm -rf \"$home\", and delete the '# thinker' PATH line from your shell's startup file"
     exit 0
   fi
@@ -266,24 +269,29 @@ EOF
   local rcfile=""
   if [ "$modpath" = 1 ]; then rcfile="$(add_to_path "$home/bin")"; fi
 
-  # every path but a bare --no-build wires up whatever agents are on this machine
-  if [ -z "$clients" ] && { [ "$build" != 0 ] || [ -n "$cache" ]; }; then clients="auto"; fi
-  # Cursor is served through the MCP server, which needs its dependencies
-  case "$clients" in *cursor*|all|auto) mcp=1 ;; esac
-  # outside a repository, nothing is set up here; `thinker setup` registers the MCP server, so its dependencies are installed now
-  [ -z "$repo" ] && mcp=1
-  if [ "$mcp" = 1 ] && [ -z "$repo" ] && ! command -v npm >/dev/null; then
-    say "npm was not found: the MCP server's dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev to install them later)"; mcp=0
-  fi
-  if [ "$mcp" = 1 ]; then
-    command -v npm >/dev/null || die "--mcp needs npm to install the MCP server's dependencies"
+  # whatever agents are on this machine are wired up, in their own settings
+  [ -z "$clients" ] && clients="auto"
+  # the MCP server is registered for every agent, so its dependencies are installed now
+  if command -v npm >/dev/null; then
+    mcp=1
     say "  Installing agent integration…"
     (cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent)
+  else
+    say "npm was not found: the MCP server's dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev to install them later, then thinker connect); hooks only"; mcp=0
   fi
 
   if [ -z "$repo" ]; then
-    say "Installed thinker v$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?') into $home."
-    say "This is not a git repository, so nothing was set up here. Inside a repository, run:"
+    # outside a repository: the agents are wired up; `thinker setup` inside a repository turns the cache on there
+    local cargs="--clients $clients"
+    [ "$yes" = 1 ] && cargs="$cargs --yes"
+    [ "$learn" = 1 ] || cargs="$cargs --no-learn"
+    [ "$late" = 1 ] && cargs="$cargs --late"
+    [ "$mcp" = 1 ] || cargs="$cargs --no-mcp"
+    # shellcheck disable=SC2086
+    if [ ! -t 0 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then "$thinker" connect $cargs < /dev/tty; else "$thinker" connect $cargs; fi
+    say ""
+    say "Installed thinker v$(node -p "require('$home/app/package.json').version" 2>/dev/null || echo '?') into $home and wired it into your agents."
+    say "This is not a git repository, so no cache was set up here. Inside a repository, run:"
     say ""
     say "  thinker setup"
     path_hint
@@ -315,9 +323,9 @@ EOF
   [ "$late" = 1 ] && args="$args --late"
   [ "$shared" = 1 ] && args="$args --shared"
   [ "$githook" = 0 ] && args="$args --no-git-hook"
+  [ "$mcp" = 1 ] || args="$args --no-mcp"
   if [ "$build" = 0 ]; then
     args="$args --no-build"
-    [ "$mcp" = 1 ] || args="$args --no-mcp"
   else
     [ "$build" = 1 ] && args="$args --build"
     [ "$no_seed" = 1 ] && args="$args --no-seed"
@@ -328,7 +336,7 @@ EOF
     [ "$benchmark" = 0 ] && args="$args --no-benchmark"
   fi
   # shellcheck disable=SC2086
-  if [ ! -t 0 ] && [ -r /dev/tty ]; then
+  if [ ! -t 0 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then
     "$thinker" setup $args --repo "$repo" < /dev/tty
   else
     "$thinker" setup $args --repo "$repo"

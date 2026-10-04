@@ -37,7 +37,10 @@ const learnOn = () => !NO_LEARN && !flags['no-learn'] && !flags['serve-only'];
 // `thinker distill <file>` by hand is still answered. THINKER_NO_LEARN=1 switches off everything.
 const sessionLearning = () => store.config().learn?.sessions !== false;
 
-const mcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: repo } });
+// The MCP entry for a checkout's own files pins the repository; the user's machine-wide entry
+// pins none, and the server takes the repository from the directory the client starts it in.
+const mcpEntry = (r = repo) => ({ command: 'node', args: [path.join(HERE, 'mcp.js')], env: { THINKER_REPO: r } });
+const userMcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')] });
 
 const HELP = `thinker — knowledge cache for coding agents
 
@@ -49,7 +52,12 @@ const HELP = `thinker — knowledge cache for coding agents
                                  knowledge cache from the code and merged pull requests with pre-flight estimates, and
                                  an optional PR change benchmark. --build builds without asking, --no-build only wires
                                  things up and lets the cache grow from your sessions; --verbose adds per-item details
-  uninstall [--purge]            remove hooks and MCP registration (notes are kept unless --purge)
+  connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--yes]
+                                 wire the agents on this machine into their own settings, once: hooks and the MCP
+                                 server, for every repository that is set up (elsewhere thinker does nothing);
+                                 setup runs it first, and so does the installer
+  uninstall [--purge] [--user]   remove this repository's hooks and MCP registration (notes are kept unless --purge);
+                                 --user also removes the machine-wide wiring from your agent settings
   share [ids…] [--all] [--dry]    promote eligible local notes for review and commit
   share --check [--base ref]      report issues in committed notes (exit 0)
   share --repair-staged [--cap n] repair or remove invalid staged notes before commit (at most n model checks, default 25)
@@ -136,8 +144,8 @@ const HELP = `thinker — knowledge cache for coding agents
   switch <branch>                switch thinker CLI to a specific branch version
   branch                         show current branch or ref
   upgrade                        alias for update
-  rewire [--here] [--dry]        rewrite the hooks and MCP entries of every checkout set up on this machine for this
-                                 version (update runs it; the prompt hook does it for its own checkout)
+  rewire [--here] [--dry]        rewrite the hooks and MCP entries of your agent settings and of every checkout set up
+                                 on this machine for this version (update runs it; the prompt hook does it too)
   stats
   telemetry [--send] [--json] [--force] [--event name] [--schedule] [--unschedule] [--status]
                                  cache effectiveness and size metrics sent to the metrics service;
@@ -171,7 +179,7 @@ async function main() {
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }
-  await handler({ cmd, pos, flags, repo, store, out, readStdin, learnOn, sessionLearning, mcpEntry, HERE, NO_LEARN });
+  await handler({ cmd, pos, flags, repo, store, out, readStdin, learnOn, sessionLearning, mcpEntry, userMcpEntry, HERE, NO_LEARN });
 }
 
 main().catch(e => {
