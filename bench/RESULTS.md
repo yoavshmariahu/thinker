@@ -618,6 +618,29 @@ rest on a file the fix changed: grafana 7/17, posthog 40/44, mitmproxy 9/9. The 
 tasks; one judge, one prompt; posthog's labels are generous (44 important notes on 14 tasks). The user's call:
 precision first, one note, adjustable (`ce` in the config).
 
+### One note or two: four tasks on Codex (2026-10-04, `*-codex-ce1` / `*-codex-ce2`)
+
+The `hook` arm of `bench/codex-run.js`, Codex CLI 0.160 with `gpt-6-sol`, one seed, the cross-encoder at floor 0
+reading the search text, request cut to 120 tokens; the only difference is `THINKER_CE_MAX` 1 or 2. Graded by the
+Codex judge on the calibrated criteria. Tasks chosen where the two settings serve different notes: on the two
+posthog tasks the second slot carries the on-target note and the first an off-target one; on the grafana tasks the
+second slot is off-target. The hook is handed the bare request (the benchmark's "Implement the following change…"
+paragraph is harness instruction and crowded the request out of the cross-encoder's 120 tokens; with it in front
+nothing was served on any of the four).
+
+| task | one note | two notes |
+|---|---|---|
+| posthog PR106672 | pass, 24 tool calls, 1.02M input tokens, 190 s | fail (6 of 7 essential), 35 calls, 1.28M, 222 s |
+| posthog PR106613 | pass, 16 calls, 0.29M, 55 s | pass, 12 calls, 0.33M, 57 s |
+| grafana PR133206 | fail (4 of 5 essential), 31 calls, 0.89M, 189 s | pass, 26 calls, 0.69M, 145 s |
+| grafana PR133011 | fail (0 essential), 27 calls, 0.92M, 240 s | fail (0 essential), 46 calls, 0.88M, 242 s |
+
+One task flipped each way, one tied, one failed identically in both (the agent edited the panel-edit wrapper
+rather than the text panel's view-mode state in both arms, with the same reasoning). Four tasks and one seed say
+nothing about which setting is better; they say the mechanism works end to end on Codex (one or two notes
+injected as configured, scores logged) and that the second note is not a free improvement even when it is the
+on-target one. The default stays floor 0, one note.
+
 ## What this says about the design
 
 1. **Delivery matters more than retrieval.** Zero-turn injection (hook) is the only delivery that paid for itself; a tool call the agent must discover and invoke costs more than it saves in Claude Code today.
