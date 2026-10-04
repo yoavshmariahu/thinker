@@ -586,6 +586,38 @@ stacked on the cross-encoder (nothing extra). The floor was chosen on these 54 t
 should be read as somewhat smaller. The transformers.js classification pipeline softmaxes a single-logit
 cross-encoder to 1.0; the logit is read from the model directly.
 
+## Ranking: labels instead of the gold-file proxy (2026-10-04, offline)
+
+Every ranking number above scores a served note as "on target" when it rests on a file the merged fix changed.
+A Codex judge (gpt-6-sol) labeled 761 candidate notes over the same 54 tasks against the merged change (title,
+calibrated criteria, diff excerpt): 2 important guidance, 1 helpful context, 0 irrelevant. Labels, cross-encoder
+scores and lab scripts: `bench/runs/ranking-lab-2026-10-04/`.
+
+- The proxy was wrong often: on grafana 13 of 30 on-gold candidates were judged irrelevant and 46 off-gold
+  judged useful (10 important). Under labels the hook's BM25 top 2 is at precision 0.69 overall (grafana 0.68,
+  posthog 0.84, mitmproxy 0.52), not the 0.28–0.75 the proxy gave.
+- Recall of important notes is the weak side: 27 of 70 reach the prompt hook. The coverage gate, not the ranking,
+  holds them back: on grafana the open lexical ranking has 12 of 17 in its top 8 and only 7 pass the floors.
+  Loosening the floor to 0.15 gains two important notes and costs 16 points of precision.
+- Neither cross-encoder separates important from irrelevant notes on raw note text (ms-marco L6 median logits
+  −4.3 against −4.5 on grafana; mxbai-rerank-xsmall no better). On a 3–6 sentence search description written
+  from the note alone (Haiku, $2.20 for 576 notes) it does. All 54 tasks, prompt hook:
+
+| variant | useful share | important share | important notes served | tasks given a note when none was useful | tokens/task |
+|---|---|---|---|---|---|
+| BM25 top 2 (before) | 0.69 | 0.38 | 27/70 | 4/8 | 514 |
+| cross-encoder on search text, floor −2, two notes | 0.84 | 0.58 | 25/70 | 0/8 | 318 |
+| floor 0, two notes | 0.88 | 0.76 | 19/70 | 0/8 | 177 |
+| **floor 0, one note** (the default now) | **0.94** | **0.88** | 15/70 | 0/8 | 121 |
+| floor 0, one note, request cut to 120 tokens | 1.00 | 0.76 | 16/70 | 0/8 | — |
+
+Tasks that get a useful note at prompt time: 33 of 54 before, 16 with floor 0 / one note, 21 with the request cut
+to its first 120 tokens (24% of grafana's pairs exceeded the 512-token limit and lost the note text); counting the
+edit hook, which serves the rules resting on a file the agent edits, 39 before and 33 after. Important notes that
+rest on a file the fix changed: grafana 7/17, posthog 40/44, mitmproxy 9/9. The floors were chosen on these 54
+tasks; one judge, one prompt; posthog's labels are generous (44 important notes on 14 tasks). The user's call:
+precision first, one note, adjustable (`ce` in the config).
+
 ## What this says about the design
 
 1. **Delivery matters more than retrieval.** Zero-turn injection (hook) is the only delivery that paid for itself; a tool call the agent must discover and invoke costs more than it saves in Claude Code today.

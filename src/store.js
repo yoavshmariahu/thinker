@@ -138,7 +138,7 @@ export function adoptLocalLog(store) {
 export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived', 'violated'];
 // Shared fields a checkout holds its own value of, without that being a change worth sharing.
 const OVERRIDE_FIELDS = ['confidence', 'verified', 'related'];
-const CONTENT_ORDER = ['id', 'title', 'kind', 'mutability', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'saysFor', 'related'];
+const CONTENT_ORDER = ['id', 'title', 'kind', 'mutability', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'search', 'saysFor', 'related'];
 const NOTE_ID = /^[a-z0-9][a-z0-9-]*$/;
 const NOTE_FILE = /^[a-z0-9][a-z0-9-]*\.json$/;
 

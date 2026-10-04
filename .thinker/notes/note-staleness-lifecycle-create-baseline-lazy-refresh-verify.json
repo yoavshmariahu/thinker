@@ -34,13 +34,13 @@
       "path": "src/ops.js",
       "symbol": "verifyNote",
       "hash": "sha256:f350f1c376a9b1e66ded4957",
-      "line": 707,
+      "line": 720,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "orient",
-      "hash": "sha256:141bef9d3a8fcf8b31835204",
+      "hash": "sha256:0b6103535458a3cd5ff997e7",
       "line": 218,
       "missing": false
     },
@@ -48,7 +48,7 @@
       "path": "src/ops.js",
       "symbol": "gitDiffFor",
       "hash": "sha256:2ab1811899cbd193dabef5b7",
-      "line": 677,
+      "line": 690,
       "missing": false
     },
     {
@@ -84,6 +84,6 @@
     "type": "agent"
   },
   "created": "2026-09-26T09:33:10.424Z",
-  "verified": "2026-10-04T07:45:00.809Z",
+  "verified": "2026-10-04T08:39:48.072Z",
   "confidence": 1
 }

@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Store } from '../src/store.js';
 import { createNote, lateNotes, rememberTask, completenessNudge, orient, lookup, takeTurn } from '../src/ops.js';
 import { rank } from '../src/rank.js';
+process.env.THINKER_CE = 'off'; // these tests are about the lexical path; the cross-encoder (dense.js) has its own test
 
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-late-'));

@@ -83,9 +83,23 @@ export async function denseScores(notes, query, { maxEmbedNow = 25 } = {}) {
 // posthog-v3 0.72 → 0.79, mitmproxy 0.48 → 0.73, with 6/11, 12/14 and 6/8 (from 7) tasks still hit; 40–220 ms
 // a request for eight pairs. The 12-layer model separated worse; a cosine confirm on top added nothing.
 export const CE_MODEL = 'Xenova/ms-marco-MiniLM-L-6-v2';
-export const CE_K = Number(process.env.THINKER_CE_K) || 8;
-export const CE_FLOOR = process.env.THINKER_CE_FLOOR !== undefined ? Number(process.env.THINKER_CE_FLOOR) : -3;
-export const ceEnabled = () => process.env.THINKER_CE === 'on';
+// Defaults chosen on 54 labeled tasks (bench/RESULTS.md, "Ranking: labels"): floor 0 and one note gave a useful
+// note 94% of the time and an important one 88%, serving nothing when nothing fit; the request cut to its first
+// 120 tokens kept the note text inside the 512-token pair and took tasks hit from 16 to 21 of 54 at the same
+// precision. `ce` in .thinker/config.json adjusts them ({ enabled, floor, maxNotes, k, queryTokens }), the
+// THINKER_CE* variables override the config, and the user chose floor 0 / one note knowing recall is the price.
+export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 1, k: 8, queryTokens: 120 };
+export function ceConfig(store) {
+  const c = store?.config?.().ce; const cfg = { ...CE_DEFAULTS, ...(c === false ? { enabled: false } : c && typeof c === 'object' ? c : {}) };
+  const e = process.env;
+  if (e.THINKER_CE === 'on') cfg.enabled = true; else if (e.THINKER_CE === 'off') cfg.enabled = false;
+  if (e.THINKER_CE_FLOOR !== undefined && e.THINKER_CE_FLOOR !== '') cfg.floor = Number(e.THINKER_CE_FLOOR);
+  if (e.THINKER_CE_MAX) cfg.maxNotes = Number(e.THINKER_CE_MAX);
+  if (e.THINKER_CE_K) cfg.k = Number(e.THINKER_CE_K);
+  if (e.THINKER_CE_QUERY_TOKENS) cfg.queryTokens = Number(e.THINKER_CE_QUERY_TOKENS);
+  return cfg;
+}
+export const ceEnabled = store => ceConfig(store).enabled;
 let ce = null;
 async function loadCe() {
   if (ce) return ce;
@@ -95,21 +109,26 @@ async function loadCe() {
   ce = { tok, model };
   return ce;
 }
-export const ceText = n => `${n.title}. ${(n.answers || []).slice(0, 3).join(' ')} ${(n.body || '').slice(0, 500)}`;
-export async function ceScores(query, notes) {
+// what the cross-encoder reads for a note: the search text written at phrasing time (ops.js:phraseNotes), else
+// the title, first answers and the head of the body
+export const ceText = n => n.search ? `${n.title}. ${n.search}` : `${n.title}. ${(n.answers || []).slice(0, 3).join(' ')} ${(n.body || '').slice(0, 500)}`;
+export async function ceScores(query, notes, { queryTokens = CE_DEFAULTS.queryTokens } = {}) {
   const { tok, model } = await loadCe();
+  // the request cut to its first tokens: a long request would otherwise push the note text out of the pair
+  let q = String(query).slice(0, 2000);
+  if (queryTokens > 0) { const ids = tok.encode(q, { add_special_tokens: false }); if (ids.length > queryTokens) q = tok.decode(ids.slice(0, queryTokens), { skip_special_tokens: true }); }
   const out = [];
   for (const n of notes) {
-    const inp = tok([String(query).slice(0, 1500)], { text_pair: [ceText(n).slice(0, 1200)], padding: true, truncation: true, max_length: 512 });
+    const inp = tok([q], { text_pair: [ceText(n).slice(0, 1200)], padding: true, truncation: true, max_length: 512 });
     const r = await model(inp);
     out.push(Number(r.logits.data[0]));
   }
   return out;
 }
 // ranked: rank.js rows. Returns the rows the cross-encoder keeps, best first, each with `ce`.
-export async function ceRerank(ranked, query, { k = CE_K, floor = CE_FLOOR } = {}) {
+export async function ceRerank(ranked, query, { k = CE_DEFAULTS.k, floor = CE_DEFAULTS.floor, maxNotes = CE_DEFAULTS.maxNotes, queryTokens = CE_DEFAULTS.queryTokens } = {}) {
   const cands = ranked.slice(0, k);
   if (!cands.length) return cands;
-  const sc = await ceScores(query, cands.map(r => r.note));
-  return cands.map((r, i) => ({ ...r, ce: sc[i] })).filter(r => r.ce >= floor).sort((a, b) => b.ce - a.ce);
+  const sc = await ceScores(query, cands.map(r => r.note), { queryTokens });
+  return cands.map((r, i) => ({ ...r, ce: sc[i] })).filter(r => r.ce >= floor).sort((a, b) => b.ce - a.ce).slice(0, maxNotes > 0 ? maxNotes : undefined);
 }

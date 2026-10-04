@@ -114,9 +114,11 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
     late:       { late: true },
     'late+nudge':    { late: true, nudge: true },
     // ranking comparison (2026-10-04): the hook arm with lexical ranking alone, and with dense scores blended in
-    'hook-bm25':     {},
+    'hook-bm25':     { env: { THINKER_CE: 'off' } },
     'hook-minilm':   { env: { THINKER_DENSE: 'minilm' } },
-    'hook-ce':       { env: { THINKER_CE: 'on' } },
+    'hook-ce':       { env: { THINKER_CE: 'on' } },                                   // the config's defaults (floor 0, one note)
+    'hook-ce1':      { env: { THINKER_CE: 'on', THINKER_CE_FLOOR: '0', THINKER_CE_MAX: '1' } },
+    'hook-ce2':      { env: { THINKER_CE: 'on', THINKER_CE_FLOOR: '0', THINKER_CE_MAX: '2' } },
   };
 
   const cfg = ARMS[arm];
