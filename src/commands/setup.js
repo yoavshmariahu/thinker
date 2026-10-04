@@ -69,7 +69,7 @@ async function rankerCommand(ctx) {
     return;
   }
   const st = await rankerStatus();
-  out(`ranker: ${st.runtime && st.model ? 'on' : 'off'} (${st.modelName}; floor ${CE_DEFAULTS.floor}, ${CE_DEFAULTS.maxNotes} note${CE_DEFAULTS.maxNotes === 1 ? '' : 's'}, request cut to ${CE_DEFAULTS.queryTokens} tokens; \`ce\` in .thinker/config.json adjusts)`);
+  out(`ranker: ${st.runtime && st.model ? 'on' : 'off'} (${st.modelName}; floor ${CE_DEFAULTS.floor}, ${CE_DEFAULTS.maxNotes} note${CE_DEFAULTS.maxNotes === 1 ? '' : 's'}, request cut to ${CE_DEFAULTS.queryTokens} tokens, fallback ${CE_DEFAULTS.fallbackFloor == null ? 'off' : 'best note at ≥ ' + CE_DEFAULTS.fallbackFloor}; \`ce\` in .thinker/config.json adjusts)`);
   out(`runtime: ${st.runtime ? 'installed' : 'missing' + (st.error ? ` (${st.error})` : '')}\nmodel: ${st.model ? 'present' : 'not fetched (thinker ranker fetch)'} in ${st.dir}`);
   if (!(st.runtime && st.model)) out('until both are there the hooks rank by words alone');
 }

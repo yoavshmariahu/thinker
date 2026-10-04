@@ -663,6 +663,7 @@ scores and lab scripts: `bench/runs/ranking-lab-2026-10-04/`.
 | floor 0, two notes | 0.88 | 0.76 | 19/70 | 0/8 | 177 |
 | **floor 0, one note** (the default now) | **0.94** | **0.88** | 15/70 | 0/8 | 121 |
 | floor 0, one note, request cut to 120 tokens | 1.00 | 0.76 | 16/70 | 0/8 | — |
+| same, falling back to the best note at ≥ −1 when nothing clears 0 (**the default now**) | 0.96 | 0.67 | 16/70, 23 tasks hit against 19 | 0/8 | — |
 
 Tasks that get a useful note at prompt time: 33 of 54 before, 16 with floor 0 / one note, 21 with the request cut
 to its first 120 tokens (24% of grafana's pairs exceeded the 512-token limit and lost the note text); counting the
