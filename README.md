@@ -210,12 +210,35 @@ in chunks of files, `--verify` re-checks every finding with a second call,
 finding, for CI. Agents have the same review as the MCP tool `review`, for a
 check before they commit.
 
+The notes a review draws on most are records of past fixes: what the symptom
+was, where the root cause sat, what kind of change resolved it. `thinker
+mine-prs` writes them from merged pull requests; a repository whose work lands
+by direct commits has few of those, and `thinker mine-prs --git --fixes` mines
+the commits whose message says they fix something instead. Notes of kinds that
+sessions never act on when served (`location`, `fix`, `cochange`,
+`convention` by default) are archived rather than served, and review still
+reads them: `thinker archive --list` shows them, `--restore` brings one
+back, and `archive` in `.thinker/config.json` sets the rules or turns them
+off.
+
 ## Cache cost and savings
 
 Run `thinker usage --here` to compare this repository's cache spending with its
 estimated savings, or `thinker usage` for every repository on the machine.
 `--days 7` limits the period; `--json` includes spending by operation, provider/model,
 and repository.
+
+One number in it is measured rather than estimated. The hooks serve nothing in
+15% of sessions (chosen by a hash of the session id, so a session is held out
+for its whole length; `holdout` in `.thinker/config.json` or `THINKER_HOLDOUT`
+changes the share or turns it off), and the stop hook records what each session
+cost by its own transcript: tool calls, model turns, input tokens. The
+"Holdout" section of `thinker usage` compares the sessions that got notes with
+the ones that had notes withheld, as medians per model, once five sessions
+stand on each side. Sessions where nothing would have been served are on
+neither side. This is what the notes do for your own work, on your own
+repository, by your own agent, and it is the number to hold the cache's
+spending against.
 
 The report separates cache initialization (exploration, PR mining, seed distillation
 and phrasings), ongoing session distillation, and maintenance. It records reported
