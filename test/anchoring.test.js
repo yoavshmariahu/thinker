@@ -86,8 +86,8 @@ test('a symbol dep the change altered keeps its stored hash in the deps checkNot
 });
 
 test('fix-like commit messages', () => {
-  for (const s of ['fix: the hook double-served', 'Fixes #12: crash on empty prompt', 'regression in rank since 0.1.9', 'revert "notes: faster"', 'serving: a stale note was served twice (fixed)', 'flaky test on CI']) assert.ok(FIX_LIKE.test(s), s);
-  for (const s of ['docs: holdout', 'bench: posthog runs', 'release thinker 0.1.10', 'setup: one command sets a repository up']) assert.ok(!FIX_LIKE.test(s), s);
+  for (const s of ['fix: the hook double-served', 'Fixes #12: crash on empty prompt', 'regression in rank since 0.1.9', 'serving: a stale note was served twice (fixed)', 'flaky test on CI']) assert.ok(FIX_LIKE.test(s), s);
+  for (const s of ['docs: holdout', 'bench: posthog runs', 'release thinker 0.1.10', 'setup: one command sets a repository up', 'Serve no stale note from the prompt hooks', 'revert "notes: faster"']) assert.ok(!FIX_LIKE.test(s), s);
 });
 
 test('a rewritten body loses the framing it echoes', async () => {

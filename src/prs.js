@@ -18,7 +18,7 @@ export function listMergedPrs(slug, { before, after, limit = 100 }) {
 // "Review strategies": the one PostHog bug the notes caught over the baseline came from a fix PR's
 // note). `thinker mine-prs --fixes` keeps only these; a repository developed by direct commits has
 // no pull requests, and its fix commits are what review wants.
-export const FIX_LIKE = /\b(fix(e[sd])?|bug|regression|revert|crash|broke|broken|wrong|incorrect|leak|race|hang|flak\w*|off[- ]by[- ]one|stale|corrupt\w*)\b/i;
+export const FIX_LIKE = /\b(fix(e[sd])?|bug|regression|crash|broke|broken|wrong|incorrect|leak|race|hang|flak\w*|off[- ]by[- ]one|corrupt\w*)\b/i; // not "stale" or "revert": a word of this repository, and a revert is not a fix record
 export function listMergedCommits(repo, { before, after, limit = 100 } = {}) {
   const args = ['log', '--first-parent', '-n', String(Math.max(limit * 2, 60)), '--format=%H%x1f%P%x1f%aI%x1f%s%x1f%b%x1e'];
   if (before) args.push(`--before=${before}`);
