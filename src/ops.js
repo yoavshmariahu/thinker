@@ -718,9 +718,26 @@ export const BEHAVIOR_VERIFY_SCHEMA = {
     verdict: { type: 'string', enum: ['holds', 'broken', 'moved'] },
     reason: { type: 'string', description: 'one sentence' },
     pointers: { type: 'array', items: { type: 'string' }, description: 'only when verdict=moved: the path:Symbol pointers where the behavior is upheld now' },
+    body: { type: 'string', description: 'only when verdict=broken and the message says the change is merged: the behavior rewritten to state what the code upholds now, in the same form (3-12 lines with path:Symbol pointers), keeping what still holds; empty otherwise' },
   },
   required: ['verdict', 'reason'],
 };
+
+// Whether the code some paths hold is the truth of the repository: committed, and reached by the
+// default branch (origin's HEAD when there is a remote, else a local main or master). A behavior the
+// merged code no longer upholds is revised to match it (the pull request was reviewed and merged with
+// the change called out, so the change is the decision); one broken only in a working tree or on a
+// branch is marked violated, which is what the review and the ⚠ banner are for.
+export function onDefaultBranch(repo, paths = []) {
+  const g = args => execFileSync('git', args, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  try { if (g(['status', '--porcelain', '--untracked-files=no', '--', ...(paths.length ? paths : ['.'])])) return false; } catch { return false; }
+  let target = null;
+  try { target = g(['symbolic-ref', '-q', 'refs/remotes/origin/HEAD']); } catch {}
+  if (!target) for (const name of ['refs/remotes/origin/main', 'refs/remotes/origin/master', 'refs/heads/main', 'refs/heads/master']) { try { g(['rev-parse', '--verify', '-q', name]); target = name; break; } catch {} }
+  if (!target) return false;
+  try { g(['merge-base', '--is-ancestor', 'HEAD', target]); return true; } catch { return false; }
+}
+
 export async function verifyBehavior(store, note, { model } = {}) {
   const repo = store.repo;
   model = model || store.config().verifyModel || 'haiku';
@@ -728,28 +745,43 @@ export async function verifyBehavior(store, note, { model } = {}) {
   const paths = [...new Set(changed.map(c => c.path))];
   const diff = gitDiffFor(repo, note.verifiedCommit, paths);
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
-  const system = 'You check whether a codebase still upholds a desired behavior that a person wrote down. The behavior is the ground truth: never rewrite it, and never conclude that the behavior is wrong. Answer holds when the code shown still does what the behavior states, enforced where the behavior says. Answer broken when the code no longer upholds it (the enforcement was removed, weakened, bypassed or inverted), and say in one sentence what the code does instead. Answer moved only when the behavior is still upheld but at other definitions than the ones named, and give those as path:Symbol pointers. Answer with the JSON alone.';
-  const prompt = `DESIRED BEHAVIOR (${note.mutability || 'mutable'}) "${note.title}"\n${note.body}${note.applies ? `\nApplies: ${note.applies}` : ''}\n\nDEFINITIONS THAT CHANGED SINCE IT WAS LAST CHECKED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'unknown'}\n\nGIT DIFF SINCE THEN (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE WHERE THE BEHAVIOR IS UPHELD:\n${current.slice(0, 40000)}`;
+  // merged code is the truth: a behavior it no longer upholds is revised to match, not held against it
+  const merged = onDefaultBranch(repo, [...new Set((note.deps || []).map(d => d.path))]);
+  const system = `You check whether a codebase still upholds a desired behavior that a person wrote down. Answer holds when the code shown still does what the behavior states, enforced where the behavior says. Answer broken when the code no longer upholds it (the enforcement was removed, weakened, bypassed or inverted), and say in one sentence what the code does instead. Answer moved only when the behavior is still upheld but at other definitions than the ones named, and give those as path:Symbol pointers. ${merged
+    ? 'The change has been merged on the default branch: the code is now the truth of the repository. When the behavior is broken, also write the behavior as the code upholds it now (body): the same form, 3-12 lines with path:Symbol pointers, keeping every part that still holds and stating plainly what changed; never pad it and never invent enforcement the code does not show.'
+    : 'The change is not merged: the behavior stays as the person wrote it; never rewrite it and never conclude that the behavior is wrong.'} Answer with the JSON alone.`;
+  const prompt = `DESIRED BEHAVIOR (${note.mutability || 'mutable'}) "${note.title}"\n${note.body}${note.applies ? `\nApplies: ${note.applies}` : ''}\n\nDEFINITIONS THAT CHANGED SINCE IT WAS LAST CHECKED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'unknown'}\n\nTHE CHANGE IS ${merged ? 'MERGED on the default branch' : 'NOT merged (a working tree or a branch)'}.\n\nGIT DIFF SINCE THEN (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE WHERE THE BEHAVIOR IS UPHELD:\n${current.slice(0, 40000)}`;
   const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: BEHAVIOR_VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
   const v = res.json || {};
   const now = new Date().toISOString(), head = gitHead(repo);
   const rehash = deps => dropShadowedFileDeps((deps || []).map(d => hashDep(repo, d)).filter(d => !d.missing));
+  const reason = String(v.reason || '').trim();
   let next, verdict = v.verdict;
   if (verdict === 'moved' && Array.isArray(v.pointers) && v.pointers.length) {
     const { deps } = resolveDeps(repo, extractDeps(repo, v.pointers.join(' '), []));
     if (deps.length) next = { ...note, deps: rehash(deps), status: 'fresh', verified: now, verifiedCommit: head, history: [...(note.history || []), { at: now, reason: v.reason, prevDeps: note.deps }].slice(-5) };
     else verdict = 'holds'; // nowhere to point: the behavior holds by the model's own account
   }
+  if (!next && verdict === 'broken' && merged) {
+    const body = cleanBody(String(v.body || '').trim(), note.title);
+    if (body && body !== note.body) {
+      // the behavior follows the merged code: new text, pointers from it added to the deps, the old text kept
+      const { deps } = resolveDeps(repo, [...(note.deps || []).map(d => ({ path: d.path, symbol: d.symbol })), ...extractDeps(repo, body, [])]);
+      next = { ...note, body, deps: rehash(deps.length ? deps : note.deps), status: 'fresh', verified: now, verifiedCommit: head, revised: { at: now, commit: head, reason }, history: [...(note.history || []), { at: now, reason: `revised to match the merged code: ${reason}`, prevBody: note.body }].slice(-5) };
+      verdict = 'revised';
+      noteUnreported(store, 'revised', { id: note.id, title: note.title, reason, commit: head });
+    }
+  }
   if (!next && verdict === 'broken') {
     // the deps are re-baselined so that the note reads as violated, not stale, until the code changes again
-    next = { ...note, deps: rehash(note.deps), status: 'violated', verified: now, verifiedCommit: head, violated: { at: now, commit: head, reason: String(v.reason || '').trim(), changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) } };
-    noteUnreported(store, 'violated', { id: note.id, title: note.title, reason: String(v.reason || '').trim() });
+    next = { ...note, deps: rehash(note.deps), status: 'violated', verified: now, verifiedCommit: head, violated: { at: now, commit: head, reason, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) } };
+    noteUnreported(store, 'violated', { id: note.id, title: note.title, reason });
   }
   if (!next) { verdict = 'holds'; next = { ...note, deps: rehash(note.deps), status: 'fresh', verified: now, verifiedCommit: head }; }
   if (verdict !== 'broken') delete next.violated;
   delete next.stale; delete next.verifying;
   store.put(next);
-  store.log({ op: 'verify', id: note.id, kind: 'behavior', verdict, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
+  store.log({ op: 'verify', id: note.id, kind: 'behavior', verdict, merged, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
   return { note: next, verdict, reason: v.reason, cost: res.cost };
 }
 

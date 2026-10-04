@@ -9,6 +9,7 @@ import path from 'node:path';
 import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
 import { readLog } from './usage.js';
 import { reconcileLocal, readyToShareNotice } from './share.js';
+import { writeSystemMarkdown } from './behavior.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
@@ -124,6 +125,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
           if (v.verdict === 'update') r.updated++;
           if (v.verdict === 'invalid') r.retired++;
           if (v.verdict === 'broken') r.violated = (r.violated || 0) + 1; // the notice names it (ops.js:noteUnreported)
+          if (v.verdict === 'revised') r.revised = (r.revised || 0) + 1; // a behavior followed the merged code
         } catch { r.errors++; }
       }
     } else r.capped = true;
@@ -145,7 +147,10 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     const u = state.unreported || {};
     // a behavior found broken during this run was written to the state file by the verification itself
     // (ops.js:noteUnreported), after the state was read: keep it
-    const live = readState(store).unreported?.violated; if (live?.length) u.violated = live;
+    const liveState = readState(store).unreported || {};
+    if (liveState.violated?.length) u.violated = liveState.violated;
+    if (liveState.revised?.length) u.revised = liveState.revised;
+    if (r.revised && !dry) { try { writeSystemMarkdown(store); } catch {} }
     if (!dry) { const notice = readyToShareNotice(store); if (notice) u.share = notice; }
     for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
     if (r.sync && !r.sync.skipped) { u.pulled = (u.pulled || 0) + (r.sync.pulled || 0) + (r.sync.deleted || 0); u.pushed = (u.pushed || 0) + (r.sync.pushed || 0) + (r.sync.retired || 0); }
@@ -187,6 +192,7 @@ export function maintenanceNotice(store) {
   if (u.share) parts.push(u.share);
   if (u.pruned?.length) parts.push(...u.pruned);
   if (u.capped) parts.push(`learning paused for today: $${u.capped.spent.toFixed(2)} of the $${u.capped.cap.toFixed(2)} daily cap spent (maintain.dailyCap in .thinker/config.json raises it)`);
+  if (u.revised?.length) parts.push(`✎ ${u.revised.length === 1 ? 'a desired behavior was' : `${u.revised.length} desired behaviors were`} revised to match the merged code: ${u.revised.slice(0, 3).map(v => `"${v.title}" (${v.id}${v.commit ? ` at ${String(v.commit).slice(0, 10)}` : ''}${v.reason ? `: ${v.reason.slice(0, 120)}` : ''})`).join('; ')}${u.revised.length > 3 ? ', …' : ''}; thinker system shows the new text`);
   if (u.violated?.length) parts.push(`⚠ ${u.violated.length === 1 ? 'a desired behavior is' : `${u.violated.length} desired behaviors are`} no longer upheld by the code: ${u.violated.slice(0, 3).map(v => `"${v.title}" (${v.id}${v.reason ? `: ${v.reason.slice(0, 120)}` : ''})`).join('; ')}${u.violated.length > 3 ? '; …' : ''}; restore the code or revise the behavior (thinker system)`);
   if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} left stale after being re-verified ${maintainConfig(store).verifyChurn}+ times this week (${u.churning.slice(0, 3).join(', ')}${u.churning.length > 3 ? ', …' : ''}): their code is changing; narrow their pointers or retire them`);
   if (!parts.length) return '';
@@ -213,6 +219,7 @@ export function renderMaintain(r) {
   if (r.updated) bits.push(`${r.updated} updated`);
   if (r.retired) bits.push(`${r.retired} retired`);
   if (r.violated) bits.push(`${r.violated} desired ${r.violated === 1 ? 'behavior' : 'behaviors'} found broken`);
+  if (r.revised) bits.push(`${r.revised} desired ${r.revised === 1 ? 'behavior' : 'behaviors'} revised to match the merged code`);
   if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
   if (r.archived) bits.push(`${r.archived} archived`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`);

@@ -1,4 +1,4 @@
-// Desired behaviors (behavior.js): a person's rule the code must uphold. Verification never retires
+// Desired behaviors (behavior.js): a person's rule the code must uphold until a change that breaks it is merged. Verification never retires
 // or rewrites one; a review reports code that stops upholding it; the repair hook, archiving and
 // distillation leave it alone; lookup finds it by kind.
 import { test } from 'node:test';
@@ -77,27 +77,46 @@ test('lookup finds behaviors by kind: all of them with no query, the matching on
   assert.equal(none.included.length, 0);
 });
 
-test('verification answers holds, broken or moved and never retires or rewrites the behavior', async t => {
-  const { repo, store, write, commit, behavior } = fixture(t);
+test('verification: a behavior broken in a working tree or on a branch is violated and its text kept; broken by code merged on the default branch it is revised to match', async t => {
+  const { repo, store, write, commit, behavior, git } = fixture(t);
   const n = behavior({ mutability: 'fixed' });
+  // 1. uncommitted: violated, text untouched
   write('src/core.py', CORE.replace('        validate(ctx)\n', ''));
-  commit('drop validation');
   let [stale] = refresh(store, [store.get(n.id)]);
   assert.equal(stale.status, 'stale');
-  fakeModel(t, repo, { verdict: 'broken', reason: 'invoke no longer calls validate' });
+  fakeModel(t, repo, { verdict: 'broken', reason: 'invoke no longer calls validate', body: 'should be ignored: not merged' });
   let r = await verifyNote(store, stale, {});
   assert.equal(r.verdict, 'broken');
-  const v = store.get(n.id);
+  let v = store.get(n.id);
   assert.equal(v.status, 'violated'); assert.equal(v.body, n.body); assert.equal(v.violated.reason, 'invoke no longer calls validate');
-  assert.equal(v.violated.commit, execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim());
   // re-baselined: it reads as violated, not stale, until the code changes again
   assert.equal(refresh(store, [store.get(n.id)])[0].status, 'violated');
   assert.equal(behaviorState(store.get(n.id)), 'violated');
   assert.match(renderBehaviors(listBehaviors(store)), /^violated\s+\[fixed, local\].*\n\s+since [0-9a-f]{10}: invoke no longer calls validate/m);
-  // the next turn's notice names it
   assert.match(maintenanceNotice(store), /desired behavior is no longer upheld by the code: "Every command validates its context before running"/);
   assert.equal(maintenanceNotice(store), '');
-  // the code is restored: stale again, then holds
+  // 2. committed on a branch: still violated
+  git('checkout', '-qb', 'feature'); git('add', 'src'); git('commit', '-qm', 'drop validation on a branch'); // src only: .thinker/ state stays untracked
+  v = store.get(n.id); v.status = 'stale'; v.stale = { changed: [{ path: 'src/core.py', symbol: 'Command.invoke', reason: 'symbol body changed' }] }; store.put(v);
+  r = await verifyNote(store, store.get(n.id), {});
+  assert.equal(r.verdict, 'broken'); assert.equal(store.get(n.id).status, 'violated'); assert.equal(store.get(n.id).body, n.body);
+  // 3. merged on main: the code is the truth and the behavior is revised to match, the old text in its history
+  git('checkout', '-q', 'main'); git('merge', '-q', '--ff-only', 'feature');
+  v = store.get(n.id); v.status = 'stale'; v.stale = { changed: [{ path: 'src/core.py', symbol: 'Command.invoke', reason: 'symbol body changed' }] }; store.put(v);
+  fakeModel(t, repo, { verdict: 'broken', reason: 'invoke no longer calls validate', body: 'core.py:Command.invoke calls core.py:Command.main directly; nothing validates ctx before main runs, so main must cope with None.' });
+  r = await verifyNote(store, store.get(n.id), {});
+  assert.equal(r.verdict, 'revised');
+  v = store.get(n.id);
+  assert.equal(v.status, 'fresh'); assert.equal(v.violated, undefined);
+  assert.match(v.body, /^core.py:Command.invoke calls core.py:Command.main directly/);
+  assert.equal(v.revised.commit, git('rev-parse', 'HEAD')); assert.equal(v.revised.reason, 'invoke no longer calls validate');
+  assert.equal(v.history.at(-1).prevBody, n.body); assert.match(v.history.at(-1).reason, /revised to match the merged code/);
+  assert.ok(v.deps.some(d => d.symbol === 'Command.main'), 'a pointer of the new text became a dep');
+  assert.equal(behaviorState(v), 'holds');
+  const revisedBody = v.body;
+  assert.match(renderBehaviors(listBehaviors(store)), /holds\s+\[fixed, local, revised \d{4}-\d\d-\d\d to match [0-9a-f]{10}\]/);
+  assert.match(maintenanceNotice(store), /desired behavior was revised to match the merged code: "Every command validates its context before running"/);
+  // the code is restored on main: stale again, then holds
   write('src/core.py', CORE); commit('restore validation');
   [stale] = refresh(store, [store.get(n.id)]);
   assert.equal(stale.status, 'stale');
@@ -112,7 +131,7 @@ test('verification answers holds, broken or moved and never retires or rewrites 
   r = await verifyNote(store, stale, {});
   assert.equal(r.verdict, 'moved');
   const moved = store.get(n.id);
-  assert.equal(moved.status, 'fresh'); assert.equal(moved.body, n.body);
+  assert.equal(moved.status, 'fresh'); assert.equal(moved.body, revisedBody); // moved never rewrites: the text is the revised one from the merge
   assert.deepEqual(moved.deps.map(d => d.symbol).sort(), ['Command.main', 'validate']);
   assert.ok(moved.history.at(-1).prevDeps.length >= 2); // the body's own pointers were deps too
 });

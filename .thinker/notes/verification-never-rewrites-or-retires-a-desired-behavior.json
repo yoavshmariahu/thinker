@@ -1,52 +1,57 @@
 {
   "id": "verification-never-rewrites-or-retires-a-desired-behavior",
-  "title": "Verification never rewrites or retires a desired behavior",
+  "title": "Verification never retires a desired behavior, and rewrites one only to match merged code",
   "kind": "behavior",
   "mutability": "fixed",
   "answers": [
     "can verify change a behavior note",
     "what happens when the code behind a behavior changes",
-    "does verification retire behaviors"
+    "does verification retire behaviors",
+    "when is a behavior revised"
   ],
-  "body": "A `behavior` note is a rule a person wrote; when its deps change, verification asks whether the code still upholds it, never whether the note is right. src/ops.js:verifyNote hands every behavior to src/ops.js:verifyBehavior, whose verdicts are `holds` (re-baseline), `broken` (status `violated`, with the commit and reason; the text is left alone) and `moved` (deps re-pointed, history kept). No path sets a behavior to `invalid`, replaces its body, or lowers its confidence. The ordinary note verdicts `update` and `invalid` must never reach a behavior.",
+  "body": "A `behavior` note is a rule a person wrote. When its deps change, src/ops.js:verifyNote hands it to src/ops.js:verifyBehavior, whose verdicts are `holds` (re-baseline), `moved` (deps re-pointed, history kept), and for code that no longer upholds it either `broken` or `revised`, decided by src/ops.js:onDefaultBranch: code that is not merged (a working tree, a branch, unpushed commits) leaves the text alone and sets status `violated` with the commit and reason; code merged on the default branch is the truth, and the behavior's body is replaced with what the code upholds now, the old body kept in `history` and `revised` recording the commit and reason. No path sets a behavior to `invalid`, lowers its confidence, or rewrites it for unmerged code; the ordinary verdicts `update` and `invalid` never reach a behavior.",
   "tags": [],
   "deps": [
     {
       "path": "src/ops.js",
       "symbol": "verifyNote",
       "hash": "sha256:f350f1c376a9b1e66ded4957",
-      "line": 772,
-      "missing": false,
-      "fanout": {
-        "files": 3,
-        "sites": 4,
-        "refs": 8
-      }
+      "line": 677,
+      "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "verifyBehavior",
-      "hash": "sha256:274983f77d02cb45a8b1df23",
-      "line": 819,
-      "missing": false,
-      "fanout": {
-        "files": 2,
-        "sites": 1,
-        "refs": 2
-      }
+      "hash": "sha256:fd2ea1cab8e673f7621e41cf",
+      "line": 741,
+      "missing": false
+    },
+    {
+      "path": "src/ops.js",
+      "symbol": "onDefaultBranch",
+      "hash": "sha256:0d6132edb6c0a7ef6ce543c3",
+      "line": 726,
+      "missing": false
     }
   ],
   "source": {
     "type": "human"
   },
   "created": "2026-10-04T05:12:42.321Z",
-  "verified": "2026-10-04T05:12:42.321Z",
-  "verifiedCommit": "d5a567af5622de4cf9f8be8af51953d615f32ee2",
+  "verified": "2026-10-04T07:31:16.983Z",
+  "verifiedCommit": "59da77b8fd088e39cb73075a559fe057299cf22c",
   "confidence": 0.95,
   "related": [
     "note-staleness-lifecycle-create-baseline-lazy-refresh-verify",
     "nothing-auto-runs-verifynote-feedback-correction-bypasses-ve",
     "serving-and-assessment-never-rewrite-a-shared-note-s-committ",
     "the-prompt-hooks-serve-no-stale-note"
+  ],
+  "history": [
+    {
+      "at": "2026-10-04T07:31:16.968Z",
+      "reason": "revised by hand on 2026-10-04: merged code is the truth, so a behavior follows it",
+      "prevBody": "A `behavior` note is a rule a person wrote; when its deps change, verification asks whether the code still upholds it, never whether the note is right. src/ops.js:verifyNote hands every behavior to src/ops.js:verifyBehavior, whose verdicts are `holds` (re-baseline), `broken` (status `violated`, with the commit and reason; the text is left alone) and `moved` (deps re-pointed, history kept). No path sets a behavior to `invalid`, replaces its body, or lowers its confidence. The ordinary note verdicts `update` and `invalid` must never reach a behavior."
+    }
   ]
 }
