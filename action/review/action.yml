@@ -1,0 +1,110 @@
+name: thinker pull request review
+description: Check a pull request against the repository's desired behaviors (and notes) with thinker review, and post the result as a pull request review
+branding:
+  icon: shield
+  color: purple
+inputs:
+  anthropic-api-key:
+    description: Model key for the review (a repository secret). Empty means the step reports that nothing was reviewed and passes.
+    required: false
+    default: ''
+  base:
+    description: The branch the pull request merges into; the review covers everything since the merge base
+    required: false
+    default: ${{ github.base_ref }}
+  kinds:
+    description: Note kinds to consult, comma-separated. "behavior" (the default) checks the desired behaviors alone; empty consults every note
+    required: false
+    default: behavior
+  mode:
+    description: Review strategy (per-note, holistic, ensemble, nocache); empty takes thinker's default for the kinds
+    required: false
+    default: ''
+  model:
+    description: Model for the review (sonnet, opus, haiku, or a model id)
+    required: false
+    default: sonnet
+  max:
+    description: Most notes assessed with the model
+    required: false
+    default: '12'
+  fail-on:
+    description: When the step fails - error (a fixed behavior violated, or an error finding), warning, or none
+    required: false
+    default: error
+  post:
+    description: Post the review to the pull request (needs pull-requests write); false only prints it
+    required: false
+    default: 'true'
+  quiet:
+    description: Post nothing when there is nothing to report; false posts the behaviors table even when all is upheld
+    required: false
+    default: 'true'
+  github-token:
+    description: Token to read the pull request and post the review
+    required: false
+    default: ${{ github.token }}
+outputs:
+  report:
+    description: Path of the JSON report
+    value: ${{ steps.review.outputs.report }}
+runs:
+  using: composite
+  steps:
+    - name: Prepare thinker
+      shell: bash
+      run: |
+        set -e
+        cd "$GITHUB_ACTION_PATH/../.."
+        npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent
+        if [ -n "$KEY" ]; then npm install --no-save --ignore-scripts --no-audit --no-fund --silent @anthropic-ai/sdk; fi
+      env:
+        KEY: ${{ inputs.anthropic-api-key }}
+    - name: Fetch the base branch
+      shell: bash
+      run: |
+        set -e
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then git fetch --quiet --unshallow origin || git fetch --quiet --deepen=1000 origin; fi
+        if [ -n "$BASE" ]; then git fetch --quiet origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"; fi
+      env:
+        BASE: ${{ inputs.base }}
+    - name: Review the change
+      id: review
+      shell: bash
+      run: |
+        set +e
+        REPORT="$RUNNER_TEMP/thinker-review.json"
+        echo "report=$REPORT" >> "$GITHUB_OUTPUT"
+        if [ ! -d .thinker ]; then echo '{"noCache":true}' > "$REPORT"; echo "thinker: no .thinker/ in this repository; nothing to review against"; exit 0; fi
+        if [ -z "$ANTHROPIC_API_KEY" ]; then echo '{"error":"no model key: set the anthropic-api-key input from a repository secret"}' > "$REPORT"; echo "thinker: no model key; nothing reviewed"; exit 0; fi
+        ARGS=(review --json --base "origin/$BASE" --model "$MODEL" --max "$MAX")
+        if [ -n "$KINDS" ]; then ARGS+=(--kinds "$KINDS"); fi
+        if [ -n "$MODE" ]; then ARGS+=(--mode "$MODE"); fi
+        node "$GITHUB_ACTION_PATH/../../src/cli.js" "${ARGS[@]}" > "$REPORT" 2> "$RUNNER_TEMP/thinker-review.err"
+        STATUS=$?
+        if [ $STATUS -ne 0 ] || ! node -e 'JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))' "$REPORT" 2>/dev/null; then
+          ERR=$(tail -c 600 "$RUNNER_TEMP/thinker-review.err" | tr -d '\000' | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.stringify(s.trim()||"thinker review exited "+process.argv[1])))' "$STATUS")
+          echo "{\"error\":$ERR}" > "$REPORT"
+          echo "thinker: review failed"; cat "$RUNNER_TEMP/thinker-review.err" | tail -20
+        fi
+        exit 0
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        THINKER_LLM: anthropic
+        THINKER_TELEMETRY: 'off'
+        THINKER_NO_LEARN: '1'
+        THINKER_HOLDOUT: 'off'
+        THINKER_CODEGRAPH: git
+        BASE: ${{ inputs.base }}
+        KINDS: ${{ inputs.kinds }}
+        MODE: ${{ inputs.mode }}
+        MODEL: ${{ inputs.model }}
+        MAX: ${{ inputs.max }}
+    - name: Post the review
+      shell: bash
+      run: node "$GITHUB_ACTION_PATH/post.mjs" "${{ steps.review.outputs.report }}"
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        THINKER_REVIEW_FAIL_ON: ${{ inputs.fail-on }}
+        THINKER_REVIEW_POST: ${{ inputs.post }}
+        THINKER_REVIEW_QUIET: ${{ inputs.quiet }}

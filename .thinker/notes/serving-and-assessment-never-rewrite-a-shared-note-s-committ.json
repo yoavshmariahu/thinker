@@ -1,0 +1,58 @@
+{
+  "id": "serving-and-assessment-never-rewrite-a-shared-note-s-committ",
+  "title": "Serving and assessment never rewrite a shared note's committed file",
+  "kind": "behavior",
+  "mutability": "fixed",
+  "answers": [
+    "why does .thinker/notes not change when notes are served",
+    "where does a shared note's local state go",
+    "who writes .thinker/notes"
+  ],
+  "body": "Files under `.thinker/notes/` change only through an explicit `thinker share` (src/store.js:Store.promote), a sync pull, or a person editing them. Everything a checkout learns about a shared note (uses, servedIn, attest, status, staleness, a pending correction) goes to the overlay under `.thinker/local/shared/`: src/store.js:Store.put writes the overlay and leaves the committed file as it is whenever `isShared(id)`. So orienting, lookups, the end-of-session assessment (src/ops.js:attest) and background verification can run on every checkout without producing a dirty working tree or a merge conflict in the notes.",
+  "tags": [],
+  "deps": [
+    {
+      "path": "src/store.js",
+      "symbol": "Store.put",
+      "hash": "sha256:b50df9bd55dab26f347bd4be",
+      "line": 368,
+      "missing": false
+    },
+    {
+      "path": "src/store.js",
+      "symbol": "Store.promote",
+      "hash": "sha256:1721cd82760f9837a5a3ef35",
+      "line": 396,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 2,
+        "refs": 15
+      }
+    },
+    {
+      "path": "src/ops.js",
+      "symbol": "attest",
+      "hash": "sha256:21e46d400bee9b91f1901e1e",
+      "line": 364,
+      "missing": false,
+      "fanout": {
+        "files": 18,
+        "sites": 8,
+        "refs": 47
+      }
+    }
+  ],
+  "source": {
+    "type": "human"
+  },
+  "created": "2026-10-04T05:12:42.428Z",
+  "verified": "2026-10-04T05:12:42.428Z",
+  "verifiedCommit": "d5a567af5622de4cf9f8be8af51953d615f32ee2",
+  "confidence": 0.95,
+  "related": [
+    "note-staleness-lifecycle-create-baseline-lazy-refresh-verify",
+    "nothing-auto-runs-verifynote-feedback-correction-bypasses-ve",
+    "verification-never-rewrites-or-retires-a-desired-behavior"
+  ]
+}

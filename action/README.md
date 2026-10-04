@@ -1,4 +1,56 @@
-# thinker pull request ingest (GitHub Action)
+# thinker GitHub Actions
+
+Two composite actions: `action/review` checks every pull request against the
+repository's desired behaviors and posts the result as a review; the action at
+`action/` sends a merged pull request to the team's thinker server to be
+distilled into notes.
+
+## Pull request review (`action/review`)
+
+On `pull_request`, runs `thinker review --kinds behavior --base origin/<base>`
+on the checkout and posts one pull request review: findings on changed lines
+as inline comments, the rest and a table of the desired behaviors in play
+(upheld, violated, revised, unrelated) in the body. A violated fixed behavior
+requests changes and fails the check; a push that fixes it dismisses that
+request. Nothing is posted when there is nothing to report. The cache is the
+committed `.thinker/` of the repository (`thinker system add`, `thinker share`),
+so no server is involved; the model key is a repository secret.
+
+```yaml
+# .github/workflows/thinker-review.yml
+name: thinker review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # the merge base with the base branch must resolve
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: yoavshmariahu/thinker/action/review@main
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # kinds: behavior      # '' consults every note, not only the behaviors
+          # model: sonnet
+          # fail-on: error       # warning | none
+          # quiet: 'true'        # 'false' posts the behaviors table even when all is upheld
+```
+
+Pull requests from forks get a read-only `GITHUB_TOKEN`: the review is then in
+the job log and the step summary only. Without the key the step says that
+nothing was reviewed and passes. Measured on this repository: about $0.05 per
+behavior in play, under a minute.
+
+## Pull request ingest (`action`)
 
 When a pull request is merged, this action sends it (title, description, files,
 diff, review comments) to the team's thinker server, which distills it into fix

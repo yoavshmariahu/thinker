@@ -1,0 +1,35 @@
+{
+  "id": "thinker-telemetry-off-and-test-runs-send-no-telemetry",
+  "title": "THINKER_TELEMETRY=off and test runs send no telemetry",
+  "kind": "behavior",
+  "mutability": "fixed",
+  "answers": [
+    "how do I switch telemetry off",
+    "do tests send telemetry",
+    "is telemetry sent from CI"
+  ],
+  "body": "src/telemetry.js:isTelemetryEnabled returns false before any other check when `THINKER_TELEMETRY` is `off`, `0` or `false`, when `THINKER_NO_TELEMETRY=1`, or when `THINKER_NO_LEARN=1`; a test run (`THINKER_TEST=1`, or Node's own test context) never reaches the production endpoint. Every send goes through this gate, so tests, benchmarks, evaluation harnesses and CI reviews that set the variable are not counted as installs or usage. The order matters: the environment switch must win over any repository config or scheduled job that would turn telemetry on.",
+  "tags": [],
+  "deps": [
+    {
+      "path": "src/telemetry.js",
+      "symbol": "isTelemetryEnabled",
+      "hash": "sha256:b5472632016eabe4cf51bd39",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 8,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "human"
+  },
+  "created": "2026-10-04T05:12:42.525Z",
+  "verified": "2026-10-04T05:12:42.525Z",
+  "verifiedCommit": "d5a567af5622de4cf9f8be8af51953d615f32ee2",
+  "confidence": 0.95,
+  "related": []
+}

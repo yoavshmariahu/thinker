@@ -111,28 +111,25 @@ test('changed and removed symbols, and what each note is exposed to: touched by 
   assert.ok(!related.some(n => n.id === 'how-to-run-tests'));
 });
 
-test('findings without a model: a removed symbol still referenced, and a co-change partner left out', t => {
+test('findings without a model: a removed symbol still referenced; no co-change hint', t => {
   const { repo, store, write } = fixture(t);
   write('src/core.py', CORE.replace('        validate(ctx)\n', '').replace('def validate(ctx):\n    if ctx is None:\n        raise ValueError("ctx")\n\n', ''));
   const scope = resolveScope(repo), reader = makeReader(repo, scope);
   const change = collectChange(repo, scope);
   const symbols = changedSymbols(change, reader);
-  const cochange = { totals: { 'src/core.py': 10 }, pairs: { 'src/core.py': { 'src/cli.py': 8, 'src/types.py': 2, 'src/gone.py': 9 } } };
-  const findings = deterministicFindings(repo, change, symbols, reader, { cochange });
+  const findings = deterministicFindings(repo, change, symbols, reader);
   const broken = findings.find(f => f.category === 'broken-reference');
   assert.equal(broken.severity, 'error');
   assert.match(broken.message, /validate was removed from src\/core.py/);
   assert.match(broken.message, /src\/cli.py:1/); // the import
   assert.match(broken.message, /src\/cli.py:4/); // the call
-  const co = findings.filter(f => f.category === 'cochange');
-  assert.deepEqual(co.map(f => f.message.split(' ')[0]), ['src/cli.py']); // below support: types.py; not in the checkout: gone.py
-  assert.equal(co[0].severity, 'info'); // a hint, never a warning: it fires on legitimate changes too
+  assert.equal(findings.length, 1); // the co-change hint ("cli.py usually changes with core.py") is gone with the co-change notes
   // moved, not removed: validate defined in another file now
   write('src/checks.py', 'def validate(ctx):\n    return ctx\n');
-  const again = deterministicFindings(repo, collectChange(repo, scope), changedSymbols(collectChange(repo, scope), reader), makeReader(repo, scope), { cochange });
+  const again = deterministicFindings(repo, collectChange(repo, scope), changedSymbols(collectChange(repo, scope), reader), makeReader(repo, scope));
   assert.ok(!again.some(f => f.category === 'broken-reference'));
   // a commit cannot be grepped for references
-  assert.equal(deterministicFindings(repo, { ...change, head: 'commit' }, symbols, reader, { cochange }).some(f => f.category === 'broken-reference'), false);
+  assert.equal(deterministicFindings(repo, { ...change, head: 'commit' }, symbols, reader).some(f => f.category === 'broken-reference'), false);
   void store;
 });
 
@@ -149,7 +146,7 @@ test('review assembles the report: model findings carry the note and the line, o
   };
   store.put({ ...notes.invariant, id: 'duplicate-view', title: 'Invoke validates first', kind: 'gotcha', confidence: 0.6 });
   const before = JSON.stringify(store.list());
-  const r = await review(store, { strategy: { mode: 'per-note' }, assess, cochange: { totals: {}, pairs: {} } });
+  const r = await review(store, { strategy: { mode: 'per-note' }, assess });
   assert.deepEqual(calls.map(c => c.id).sort(), ['cli-and-core-change-together', 'duplicate-view', 'validate-before-main']);
   // two notes saw the same problem at the same line: one finding, the surer wording, both notes named
   assert.equal(r.findings.length, 1); assert.deepEqual(r.findings[0].notes, ['validate-before-main', 'duplicate-view']); assert.equal(r.findings[0].confidence, 0.9);
@@ -177,7 +174,7 @@ test('a note already stale before the change is reported as drift, assessed anyw
   write('src/core.py', CORE.replace('return self.main(ctx)', 'return self.main(ctx)  # dispatch'));
   const seen = [];
   const assess = async (s, note, exposure) => { seen.push({ id: note.id, stale: exposure.staleBefore.map(d => d.symbol) }); if (note.id === 'validate-before-main') throw new Error('model down'); return silent(); };
-  const r = await review(store, { strategy: { mode: 'per-note' }, assess, cochange: { totals: {}, pairs: {} } });
+  const r = await review(store, { strategy: { mode: 'per-note' }, assess });
   assert.deepEqual(seen.find(s => s.id === 'validate-before-main').stale, ['Command.invoke']);
   assert.deepEqual(r.notes.staleBefore.map(s => s.id), ['validate-before-main']);
   assert.deepEqual(r.errors, [{ id: 'validate-before-main', error: 'model down' }]);
@@ -192,11 +189,11 @@ test('dry run lists what would be assessed without calling the model; --max leav
   const { store, write } = fixture(t);
   write('src/core.py', CORE.replace('return self.main(ctx)', 'return self.main(ctx)  # dispatch'));
   let called = 0;
-  const r = await review(store, { strategy: { mode: 'per-note' }, assess: async () => { called++; return silent(); }, dry: true, cochange: { totals: {}, pairs: {} } });
+  const r = await review(store, { strategy: { mode: 'per-note' }, assess: async () => { called++; return silent(); }, dry: true });
   assert.equal(called, 0); assert.equal(r.notes.assessed, 0);
   assert.deepEqual(r.toAssess.map(x => x.id), ['validate-before-main', 'cli-and-core-change-together']);
   assert.match(renderReview(r), /Notes to assess:/);
-  const capped = await review(store, { strategy: { mode: 'per-note' }, assess: async () => { called++; return silent(); }, max: 1, cochange: { totals: {}, pairs: {} } });
+  const capped = await review(store, { strategy: { mode: 'per-note' }, assess: async () => { called++; return silent(); }, max: 1 });
   assert.equal(called, 1); assert.equal(capped.notes.skipped, 1);
   assert.match(renderReview(capped), /1 left out \(--max\)/);
 });
@@ -230,4 +227,28 @@ test('the CLI renders the report and --strict exits 2 on an error finding', t =>
   const r = JSON.parse(json.stdout);
   assert.equal(r.findings[0].category, 'broken-reference');
   assert.deepEqual(r.files.map(f => f.path), ['src/core.py']);
+});
+
+test('kinds narrows the review to the desired behaviors: one call per behavior in play, nothing else consulted, no baseline call', async t => {
+  const { repo, store, write, notes } = fixture(t);
+  store.put({ ...notes.invariant, id: 'invoke-validates', kind: 'behavior', mutability: 'fixed', title: 'invoke validates ctx before main', source: { type: 'human' } });
+  write('src/core.py', CORE.replace('        validate(ctx)\n', ''));
+  const seen = [];
+  const assess = async (s, note, exposure) => { seen.push(note.id); return { id: note.id, verdict: 'violation', reason: 'invoke no longer validates', findings: [{ severity: 'error', category: 'violation', file: 'src/core.py', line: 5, message: 'invoke skips validate', evidence: '-        validate(ctx)', confidence: 0.9, note: note.id, inChange: true }], noteCorrection: '', cost: 0.01 }; };
+  const r = await review(store, { kinds: ['behavior'], assess });
+  assert.deepEqual(seen, ['invoke-validates']); // the invariant and the co-change note rest on the same code and were not consulted
+  assert.equal(r.strategy.mode, 'per-note'); // the default for a kinds review: a verdict per behavior, no no-notes baseline
+  assert.deepEqual(r.kinds, ['behavior']);
+  assert.equal(r.notes.consulted, 1);
+  assert.deepEqual(r.behaviors.map(b => [b.id, b.outcome]), [['invoke-validates', 'violated']]);
+  assert.equal(r.findings[0].severity, 'error');
+  const text = renderReview(r);
+  assert.match(text, /1 desired behavior consulted/);
+  assert.match(text, /violated +\[fixed\] invoke validates ctx before main/);
+  const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_LOG: 'local', THINKER_CODEGRAPH: 'git', THINKER_AST: 'off' };
+  const dry = spawnSync('node', [cli, 'review', '--dry', '--kinds', 'behavior', '--json', '--repo', repo], { encoding: 'utf8', env });
+  assert.equal(dry.status, 0, dry.stderr);
+  const j = JSON.parse(dry.stdout);
+  assert.deepEqual(j.toAssess.map(x => x.id), ['invoke-validates']);
+  assert.deepEqual(j.behaviors.map(b => b.outcome), ['consulted']);
 });
