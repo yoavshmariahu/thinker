@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { complete } from './llm.js';
+import { tokensOf } from './model-usage.js';
 import { KINDS } from './store.js';
 
 const gh = (...a) => execFileSync('gh', a, { maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
@@ -265,5 +266,5 @@ export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting }
   const label = pr.prNumber ? `PR #${pr.prNumber}` : (pr.hash ? `Commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
   const prompt = `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
   const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000, accounting });
-  return { notes: r.json?.notes || [], cost: r.cost };
+  return { notes: r.json?.notes || [], cost: r.cost, tokens: tokensOf(r) };
 }

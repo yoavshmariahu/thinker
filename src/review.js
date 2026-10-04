@@ -22,6 +22,7 @@ import { hashText, locateSymbol, repoFile, validDepPath, noteTerms } from './dep
 import { outlineText, references, countable } from './codegraph.js';
 import { buildIndex, bm25, tokenize, stem } from './rank.js';
 import { complete } from './llm.js';
+import { tokensOf, formatTokens } from './model-usage.js';
 
 // How a review is run; the defaults are what `thinker review` does: the ensemble, chosen by
 // bench/review-eval.js on planted and reverted bugs (bench/RESULTS.md, "Review strategies"). The
@@ -473,7 +474,7 @@ export async function assessBehavior(store, note, exposure, change, reader, { mo
   if (verdict === 'revised' && !(revisable && mutable)) verdict = 'violation'; // the model may not revise what the change does not
   if (verdict === 'violation' && !findings.length) findings = [behaviorFinding(note, exposure, String(v.reason || '').trim())];
   if (verdict !== 'violation') findings = findings.filter(f => f.confidence >= 0.7); // a bug seen beside a kept behavior must be sure
-  return { id: note.id, verdict, reason: String(v.reason || '').trim(), findings: findings.map(f => behaviorSeverity(f, note)), noteCorrection: '', cost: res.cost || 0, model: `${res.provider}/${res.model}` };
+  return { id: note.id, verdict, reason: String(v.reason || '').trim(), findings: findings.map(f => behaviorSeverity(f, note)), noteCorrection: '', cost: res.cost || 0, tokens: tokensOf(res) || 0, model: `${res.provider}/${res.model}` };
 }
 
 // A violation the model stated but did not place: at the first definition the change touched.
@@ -513,7 +514,7 @@ export async function assessNote(store, note, exposure, change, reader, { model,
   const v = res.json || {};
   // under note_outdated the findings describe the note, not the code: the outdated entry carries them
   const findings = shapeFindings(v.verdict === 'note_outdated' ? [] : v.findings, change, reader, { note: note.id, category: v.verdict === 'violation' ? 'violation' : 'bug' });
-  return { id: note.id, verdict: v.verdict || 'unrelated', reason: String(v.reason || '').trim(), findings, noteCorrection: v.verdict === 'note_outdated' ? String(v.noteCorrection || '').trim() : '', cost: res.cost || 0, model: `${res.provider}/${res.model}` };
+  return { id: note.id, verdict: v.verdict || 'unrelated', reason: String(v.reason || '').trim(), findings, noteCorrection: v.verdict === 'note_outdated' ? String(v.noteCorrection || '').trim() : '', cost: res.cost || 0, tokens: tokensOf(res) || 0, model: `${res.provider}/${res.model}` };
 }
 
 function shapeFindings(raw, change, reader, { note = '', category = 'bug', minConfidence = 0.5 } = {}) {
@@ -563,7 +564,7 @@ export async function assessHolistic(store, notes, exposures, change, reader, { 
     if (n.mutability !== 'fixed' && revisable.has(n.id)) continue; // the change revises it on purpose
     if (!findings.some(f => f.note === n.id)) findings.push(behaviorFinding(n, exposures.get(n.id), String(o.reason || '').trim()));
   }
-  return { id: 'holistic', verdict: 'holistic', reason: String(v.summary || '').trim(), findings, noteCorrection: '', outdated, cost: res.cost || 0, model: `${res.provider}/${res.model}` };
+  return { id: 'holistic', verdict: 'holistic', reason: String(v.summary || '').trim(), findings, noteCorrection: '', outdated, cost: res.cost || 0, tokens: tokensOf(res) || 0, model: `${res.provider}/${res.model}` };
 }
 
 // No notes: the diff and the code of what it touched, as any reviewer without the cache would see it.
@@ -573,7 +574,7 @@ export async function assessNoCache(store, change, symbols, reader, { model, cal
   const prompt = `${changeInventory(change)}\n\nTHE CHANGE:\n${diff.text || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEFINITIONS IT TOUCHED:\n${changedCode(symbols, reader) || '(none)'}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
   const res = await complete({ system, prompt, model, maxTokens: 4000, accounting: { store, purpose: 'review', phase: 'review' }, schema: NOCACHE_SCHEMA });
   const v = res.json || {};
-  return { id: 'nocache', verdict: 'nocache', reason: String(v.summary || '').trim(), findings: shapeFindings(v.findings, change, reader, { category: 'bug' }), noteCorrection: '', cost: res.cost || 0, model: `${res.provider}/${res.model}` };
+  return { id: 'nocache', verdict: 'nocache', reason: String(v.summary || '').trim(), findings: shapeFindings(v.findings, change, reader, { category: 'bug' }), noteCorrection: '', cost: res.cost || 0, tokens: tokensOf(res) || 0, model: `${res.provider}/${res.model}` };
 }
 
 // A second look at one finding: the claim, the hunks of its file and the code around its line,
@@ -588,7 +589,7 @@ export async function verifyFinding(store, f, change, reader, { model } = {}) {
     system: 'You check one finding from a code review against the code. Confirm it (real=true) only when the code shown has the problem the finding describes; a finding that rests on a claim the code does not show, describes a pre-existing condition the change did not cause, claims a file is missing from the change although the list of files in the change names it, or restates a comment rather than a defect is not real. Give the severity the code supports. Everything you need is in this message: do not use tools or read files.',
     prompt: `FINDING (${f.severity}) at ${f.file}:${f.line}:\n${f.message}\nEvidence given: ${f.evidence || '(none)'}\n\n${changeInventory(change)}\n\nTHE CHANGE TO THAT FILE:\n${hunks}\n\nCODE AFTER THE CHANGE AROUND THE LINE:\n${around}` });
   const v = res.json || {};
-  return { real: v.real !== false, severity: SEV[v.severity] !== undefined ? v.severity : f.severity, reason: String(v.reason || '').trim(), cost: res.cost || 0 };
+  return { real: v.real !== false, severity: SEV[v.severity] !== undefined ? v.severity : f.severity, reason: String(v.reason || '').trim(), cost: res.cost || 0, tokens: tokensOf(res) || 0 };
 }
 
 // A small model says whether a note bears on the change at all, from the note and a summary of the
@@ -599,7 +600,7 @@ export async function triageNote(store, note, change, symbols, { model = 'haiku'
   const res = await complete({ model, maxTokens: 300, accounting: { store, purpose: 'review-triage', phase: 'review' }, schema: { type: 'object', properties: { bears: { type: 'boolean' }, reason: { type: 'string' } }, required: ['bears', 'reason'] },
     system: 'Decide whether a cached note about a codebase could bear on a code change: whether the change could violate, contradict or depend on what the note states. Answer bears=true when in doubt; a false no hides a bug, a false yes costs one further look. Everything you need is in this message: do not use tools or read files.',
     prompt: `NOTE (${note.kind}): ${note.title}\n${String(note.body).slice(0, 1500)}\n\nTHE CHANGE:\n${summary}` });
-  return { bears: res.json?.bears !== false, reason: String(res.json?.reason || '').trim(), cost: res.cost || 0 };
+  return { bears: res.json?.bears !== false, reason: String(res.json?.reason || '').trim(), cost: res.cost || 0, tokens: tokensOf(res) || 0 };
 }
 
 // The review. `assess` is the model step (injected by tests). Returns the report as data; render()
@@ -616,7 +617,7 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
   const change = collectChange(repo, scope, { paths });
   change.state = !!scope.state; change.head = scope.head === 'worktree' || scope.head === 'index' ? scope.head : 'commit';
   const notes = only ? store.list().filter(n => only.has(n.kind)) : store.list();
-  const report = { scope: scope.label, state: !!scope.state, strategy: strat, kinds: only ? [...only] : undefined, files: change.files.map(f => ({ path: f.path, status: f.status, added: f.added, removed: f.removed })), notes: { consulted: 0, direct: 0, related: 0, assessed: 0, staleBefore: [], outdated: [], uncovered: [] }, verdicts: [], findings: [], cost: 0, model: model || store.config().reviewModel || 'sonnet', errors: [] };
+  const report = { scope: scope.label, state: !!scope.state, strategy: strat, kinds: only ? [...only] : undefined, files: change.files.map(f => ({ path: f.path, status: f.status, added: f.added, removed: f.removed })), notes: { consulted: 0, direct: 0, related: 0, assessed: 0, staleBefore: [], outdated: [], uncovered: [] }, verdicts: [], findings: [], cost: 0, tokens: 0, model: model || store.config().reviewModel || 'sonnet', errors: [] };
   if (scope.state) {
     // the current code of the given files (every file the notes rest on when none is named)
     const pathSet = new Set(paths.map(p => p.replace(/^\.\//, '')));
@@ -663,7 +664,7 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
           try {
             if (strat.triage) {
               const t = await triageNote(store, n, change, symbols, { model: strat.triageModel });
-              report.triage.push({ id: n.id, bears: t.bears, reason: t.reason }); report.cost += t.cost || 0;
+              report.triage.push({ id: n.id, bears: t.bears, reason: t.reason }); report.cost += t.cost || 0; report.tokens += t.tokens || 0;
               if (!t.bears) { results.push({ id: n.id, verdict: 'unrelated', reason: `triage: ${t.reason}`, findings: [], cost: 0 }); continue; }
             }
             results.push(await assess(store, n, exposures.get(n.id), change, reader, { model: report.model, related: related.includes(n), callers, revisable: revisable.has(n.id) }));
@@ -674,7 +675,7 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
     const raw = [];
     report.models = {}; // which provider and model answered, per call: a fallback to another provider must be visible
     for (const r of results) {
-      report.cost += r.cost || 0;
+      report.cost += r.cost || 0; report.tokens += r.tokens || 0;
       if (r.model) report.models[r.model] = (report.models[r.model] || 0) + 1;
       report.verdicts.push({ id: r.id, verdict: r.verdict, reason: r.reason });
       if (r.verdict === 'note_outdated') report.notes.outdated.push({ id: r.id, reason: r.reason, correction: r.noteCorrection });
@@ -689,7 +690,7 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
         if (f.severity === 'info' || !f.file) return f;
         try {
           const v = await verifyFinding(store, f, change, reader, { model: report.model });
-          report.cost += v.cost || 0;
+          report.cost += v.cost || 0; report.tokens += v.tokens || 0;
           if (!v.real) { report.verified.dropped.push({ file: f.file, line: f.line, message: f.message.slice(0, 120), reason: v.reason }); return null; }
           report.verified.kept++;
           return { ...f, severity: v.severity, verified: v.reason };
@@ -737,7 +738,7 @@ export function renderReview(r, { verbose = false } = {}) {
   if (r.empty) return `thinker review: nothing to review (${r.scope})`;
   const n = r.notes;
   const what = r.kinds?.length === 1 && r.kinds[0] === 'behavior' ? 'desired behavior' : r.kinds?.length ? `${r.kinds.join('/')} note` : 'note';
-  L.push(`thinker review: ${r.scope}, ${r.files.length} file${r.files.length === 1 ? '' : 's'}; ${r.strategy?.mode === 'nocache' ? 'no notes (baseline)' : `${n.consulted} ${what}${n.consulted === 1 ? '' : 's'} consulted`} (${n.direct} on the changed code, ${n.related} related)${r.toAssess?.length && !n.assessed ? `, ${r.toAssess.length} to assess` : n.assessed ? `, ${n.assessed} assessed with ${r.model}${r.cost ? ` ($${r.cost.toFixed(2)})` : ''}` : ''}${n.skipped ? `, ${n.skipped} left out (--max)` : ''}`);
+  L.push(`thinker review: ${r.scope}, ${r.files.length} file${r.files.length === 1 ? '' : 's'}; ${r.strategy?.mode === 'nocache' ? 'no notes (baseline)' : `${n.consulted} ${what}${n.consulted === 1 ? '' : 's'} consulted`} (${n.direct} on the changed code, ${n.related} related)${r.toAssess?.length && !n.assessed ? `, ${r.toAssess.length} to assess` : n.assessed ? `, ${n.assessed} assessed with ${r.model}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}` : ''}${n.skipped ? `, ${n.skipped} left out (--max)` : ''}`);
   if (r.findings.length) {
     L.push('', `Findings: ${r.counts.error} error${r.counts.error === 1 ? '' : 's'}, ${r.counts.warning} warning${r.counts.warning === 1 ? '' : 's'}, ${r.counts.info} info`);
     for (const f of r.findings) {

@@ -66,7 +66,7 @@ secret=$(aws secretsmanager get-secret-value --secret-id "$SECRET_ARN" --query S
 node -e '
 const s = JSON.parse(process.argv[1]);
 const lines = [`THINKER_SERVER_ADMIN_TOKEN=${s.adminToken || ""}`, `ANTHROPIC_API_KEY=${s.anthropicApiKey || ""}`, `THINKER_SERVER_GIT_TOKEN=${s.gitToken || ""}`, `THINKER_SERVER_GITHUB_TOKEN=${s.githubToken || ""}`];
-if (s.dailyCap) lines.push(`THINKER_SERVER_DAILY_CAP=${s.dailyCap}`);
+if (s.dailyTokens) lines.push(`THINKER_SERVER_DAILY_TOKENS=${s.dailyTokens}`);
 require("fs").writeFileSync("/etc/thinker-sync/env", lines.join("\n") + "\n", { mode: 0o600 });
 ' "$secret"
 chown root:thinker /etc/thinker-sync/env; chmod 640 /etc/thinker-sync/env

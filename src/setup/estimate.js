@@ -1,4 +1,6 @@
-// Pre-flight estimate of what building the cache will cost and how long it will take.
+// Pre-flight estimate of what building the cache will take: time, and the tokens of the agent's
+// usage it will run through. No dollar figure: the agent's login is a subscription as often as a
+// metered key, and a price from the API list told most people what they would not pay.
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { discoverAreas } from '../topology.js';
@@ -6,6 +8,12 @@ import { formatDuration, formatBytes } from './ui.js';
 import { hasBin } from './agents.js';
 
 // --- Pre-flight Cache Estimation ---------------------------------------------
+
+// Tokens per unit of work, from this machine's log of earlier builds (`thinker usage --json`):
+// one exploration session and its distillation about 400k (most of them prompt-cache reads of
+// the same context, turn after turn), one pull request about 14k.
+export const TOKENS_PER_AREA = 400_000;
+export const TOKENS_PER_PR = 14_000;
 
 export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false, noPrs = false, slug = null, agent = null } = {}) {
   let commitCount = 0;
@@ -87,6 +95,6 @@ export function estimateCacheBuild(repo, { areas = 12, prs = 60, noSeed = false,
       prsFile: path.relative(process.cwd(), path.join(storeDir, 'prs.json')) || '.thinker/prs.json',
       stateDir: path.relative(process.cwd(), path.join(storeDir, 'state')) || '.thinker/state/',
     },
-    costEstimate: (canSeed ? areasCount * 0.45 : 0) + (canMine ? prsCount * 0.06 : 0),
+    tokenEstimate: (canSeed ? areasCount * TOKENS_PER_AREA : 0) + (canMine ? prsCount * TOKENS_PER_PR : 0),
   };
 }

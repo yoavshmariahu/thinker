@@ -38,22 +38,22 @@ test('maintain verifies stale notes, phrases unphrased ones, and reports once', 
   const verified = [], phrased = [];
   const r = await maintain(store, dir, { fns: {
     spentToday: () => 0,
-    verify: async (s, n) => { verified.push(n.id); return { verdict: n.id === a.id ? 'update' : 'still_valid', cost: 0.01 }; },
-    phrase: async (s, notes) => { phrased.push(...notes.map(n => n.id)); return { done: notes, cost: 0.005 }; },
+    verify: async (s, n) => { verified.push(n.id); return { verdict: n.id === a.id ? 'update' : 'still_valid', tokens: 10000 }; },
+    phrase: async (s, notes) => { phrased.push(...notes.map(n => n.id)); return { done: notes, tokens: 5000 }; },
     minePrs: async () => ({ saved: 9 }),
   } });
   assert.deepEqual(verified, [a.id], 'only the stale note is sent to the model');
   assert.equal(r.verified, 1); assert.equal(r.updated, 1); assert.equal(r.retired, 0);
   assert.deepEqual(phrased.sort(), [a.id, b.id].sort(), 'both notes lack phrasings');
   assert.equal(r.prs, 0, 'the first run only marks where PR mining starts');
-  assert.ok(Math.abs(r.cost - 0.015) < 1e-9);
+  assert.equal(r.tokens, 15000);
   const state = JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8'));
   assert.ok(state.prsAfter);
   // the user hears about it once
   const notice = maintenanceNotice(store);
   assert.match(notice, /1 stale note re-verified \(1 updated\); 2 notes phrased/);
   assert.equal(maintenanceNotice(store), '');
-  assert.match(renderMaintain(r), /1 re-verified, 1 updated, 2 phrased, 0 from pull requests \(\$0\.015\)/);
+  assert.match(renderMaintain(r), /1 re-verified, 1 updated, 2 phrased, 0 from pull requests \(~15k tokens\)/);
   fs.rmSync(dir, { recursive: true, force: true });
 }));
 
@@ -76,7 +76,7 @@ test('maintain mines pull requests merged since its first run', () => withEnv(as
 test('maintain stops at the daily cap, honours the lock, and can be switched off', () => withEnv(async () => {
   const { dir, store } = staleRepo();
   let verifyCalls = 0;
-  const fns = { spentToday: () => DEFAULTS.dailyCap, verify: async () => { verifyCalls++; return { verdict: 'still_valid', cost: 0 }; }, phrase: async (s, n) => ({ done: n, cost: 0 }) };
+  const fns = { spentToday: () => DEFAULTS.dailyTokens, verify: async () => { verifyCalls++; return { verdict: 'still_valid', cost: 0 }; }, phrase: async (s, n) => ({ done: n, cost: 0 }) };
   const r = await maintain(store, dir, { fns });
   assert.equal(r.capped, true); assert.equal(verifyCalls, 0); assert.equal(r.phrased, 0);
   assert.equal(maintenanceNotice(store), '', 'nothing happened, nothing to say');
@@ -88,7 +88,7 @@ test('maintain stops at the daily cap, honours the lock, and can be switched off
   fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ maintain: { enabled: false } }));
   assert.deepEqual(await maintain(store, dir, { fns }), { skipped: 'disabled' });
   // dry: counts, no calls, no state
-  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ maintain: { dailyCap: 5 } }));
+  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ maintain: { dailyTokens: 5_000_000 } }));
   fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.json'));
   const d = await maintain(store, dir, { dry: true, fns: { ...fns, spentToday: () => 0 } });
   assert.equal(d.verified, 1); assert.equal(verifyCalls, 0);
@@ -96,7 +96,7 @@ test('maintain stops at the daily cap, honours the lock, and can be switched off
   fs.rmSync(dir, { recursive: true, force: true });
 }));
 
-test('spentToday sums reported learning and maintenance model cost since local midnight', () => {
+test('spentToday sums the tokens of learning and maintenance model calls since local midnight', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-maintain-home-'));
   const { dir, store } = staleRepo();
   const prev = { THINKER_HOME: process.env.THINKER_HOME, THINKER_LOG: process.env.THINKER_LOG, THINKER_NOTES_DIR: process.env.THINKER_NOTES_DIR };
@@ -108,13 +108,13 @@ test('spentToday sums reported learning and maintenance model cost since local m
     const line = (t, e) => JSON.stringify({ t: t.toISOString(), op: 'model', ...e }) + '\n';
     const origin = repoId(dir);
     fs.writeFileSync(path.join(home, 'log.jsonl'),
-      line(today, { origin, phase: 'maintenance', cost: 0.2 }) +
-      line(today, { origin, phase: 'learning', cost: 0.3 }) +
-      line(today, { origin, phase: 'init', cost: 5 }) +
-      line(today, { origin, phase: 'maintenance', cost: null }) +
-      line(yesterday, { origin, phase: 'maintenance', cost: 7 }) +
-      line(today, { origin: 'elsewhere', phase: 'maintenance', cost: 9 }));
-    assert.ok(Math.abs(spentToday(store, now) - 0.5) < 1e-9);
+      line(today, { origin, phase: 'maintenance', tokens: { totalTokens: 200 }, cost: 0.2 }) +
+      line(today, { origin, phase: 'learning', tokens: { totalTokens: 300 }, cost: 0.3 }) +
+      line(today, { origin, phase: 'init', tokens: { totalTokens: 5000 } }) +
+      line(today, { origin, phase: 'maintenance', tokens: { totalTokens: null }, cost: 0.4 }) +  // no counters: nothing, not an estimate
+      line(yesterday, { origin, phase: 'maintenance', tokens: { totalTokens: 7000 } }) +
+      line(today, { origin: 'elsewhere', phase: 'maintenance', tokens: { totalTokens: 9000 } }));
+    assert.equal(spentToday(store, now), 500);
   } finally {
     for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(home, { recursive: true, force: true });
@@ -159,22 +159,28 @@ test('maintenance re-verifies only notes served lately, and leaves a churning no
 }));
 
 // The daily cap covers learning as well as maintenance; distilling a session is where most
-// of the money goes, so it asks before spending.
+// of the tokens go, so it asks before spending. The cap is in tokens: a dollar figure from list
+// prices meant nothing to the subscriptions most agents run on.
 test('withinDailyCap closes the day once the cap is spent, and the user is told once', () => {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cap-')));
   try {
     const store = new Store(dir).init();
-    assert.equal(withinDailyCap(store, { spentFn: () => 0.4 }).ok, true);
-    const over = withinDailyCap(store, { spentFn: () => 1.25 });
+    assert.equal(withinDailyCap(store, { spentFn: () => 400_000 }).ok, true);
+    const over = withinDailyCap(store, { spentFn: () => 2_500_000 });
     assert.equal(over.ok, false);
-    assert.equal(over.cap, DEFAULTS.dailyCap);
+    assert.equal(over.cap, DEFAULTS.dailyTokens);
     // no cap configured: nothing is withheld
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyTokens: 0 } }));
+    assert.equal(withinDailyCap(store, { spentFn: () => 99e6 }).ok, true);
+    // the old dollar key: switched off stays switched off; any other value is ignored for the default
     fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyCap: 0 } }));
-    assert.equal(withinDailyCap(store, { spentFn: () => 99 }).ok, true);
+    assert.equal(withinDailyCap(store, { spentFn: () => 99e6 }).ok, true);
+    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { dailyCap: 5 } }));
+    assert.equal(withinDailyCap(store, { spentFn: () => 2_500_000 }).cap, DEFAULTS.dailyTokens);
     reportCapped(store, over);
     const notice = maintenanceNotice(store);
     assert.match(notice, /learning paused for today/);
-    assert.match(notice, /\$1\.25 of the \$1\.00 daily cap/);
+    assert.match(notice, /2\.5M of the 2M tokens it may use a day/);
     assert.equal(maintenanceNotice(store), '', 'said once');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

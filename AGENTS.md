@@ -61,8 +61,7 @@ cache at twice the input price and never read again.
 | `src/maintain.js` | background maintenance: re-verify stale notes, phrase new ones, distill newly merged PRs, under a daily cap |
 | `src/guard.js` | anchoring guard: names identifiers in the request that the served notes do not cover |
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
-| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens and in dollars |
-| `src/prices.js` | dollars per token by model: Anthropic's list prices, the user's for other vendors |
+| `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
 | `src/sync.js` | a checkout's side of the central cache: pull and push notes; from the hooks and maintenance once `thinker sync login` has run |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
@@ -110,9 +109,13 @@ The build itself (`thinker setup --build`, or the installer with `--build`):
    (`--clients claude,codex,cursor,gemini`, `all`, or `auto`, the default).
 
 Steps 1 and 2 run through an installed agent with its own login (`--agent`
-picks one). Measured with Claude Sonnet: about $0.45 per area and $0.06 per
-pull request, so roughly $9 with the defaults; other agents do not report
-cost. The estimate is printed before anything runs; in a terminal `setup`
+picks one). Measured on this machine's log: about 400k tokens per area (the
+exploration and its distillation, most of them cached prompt reads) and 14k per
+pull request, so roughly 5.5M tokens and twenty minutes with the defaults
+(`setup/estimate.js:TOKENS_PER_AREA`, `TOKENS_PER_PR`). The estimate is printed
+in tokens and minutes before anything runs, never in dollars: decided 2026-10-04,
+since most agents run on subscriptions and a figure from API list prices told
+people they would spend money they would not. In a terminal `setup`
 asks before spending (`--yes` skips the question). Hook and MCP files are
 written for this checkout only and kept out of commits through
 `.git/info/exclude`; pass `--shared` to write committable files instead.
@@ -193,18 +196,19 @@ model tokens). Missing counters/costs stay unknown. Legacy logs lack setup explo
 and token counts, so this comparison is partial, not measured financial ROI. See
 `src/model-usage.js` for provider normalization.
 
-The same balance is given in dollars where the model is known (`prices.js`). The
-end-of-session assessment records the model the session ran on, read from its
-transcript (`transcripts.js:parseTranscript` returns `model`: Claude Code's
+Nothing is given in dollars (decided 2026-10-04; `prices.js` and the dollar balance
+went with it): the agents run on subscriptions as often as on metered keys, and a
+figure from API list prices told most people what they would not pay. A cost the
+provider itself reported stays in the log and in `usage --json` as data
+(`spending.reportedCost`, `unknownCostCalls`), never estimated from tokens and never
+shown. The end-of-session assessment still records the model the session ran on, read
+from its transcript (`transcripts.js:parseTranscript` returns `model`: Claude Code's
 `message.model`, Codex's `turn_context`, Gemini's message `model`; Cursor names none),
 on the `attest` line; for assessments written before that, `usage` finds the transcript
-by session id (`transcripts.js:sessionModel`). Reading avoided and notes injected are
-priced at that model's input price; a model record with tokens but no reported cost is
-priced from its tokens (`spending.estimatedCost`). Anthropic's list prices are built in;
-other vendors' go in `THINKER_HOME/prices.json` or under `prices` in
-`.thinker/config.json` (`{"gpt-6-sol": {"input": 2, "output": 8}}`, dollars per million).
-What has no model or price is counted and reported (`saved.unpricedServings`,
-`injected.unpricedTokens`, `spending.unpricedCalls`), never taken as zero or as free.
+by session id (`transcripts.js:sessionModel`); the saving is reported by model
+(`saved.byModel`, `unknown` for sessions that named none). Every model answer carries
+its normalized counters (`llm.js:executeProvider` adds `tokens`; `model-usage.js:tokensOf`),
+which is what the commands print after a run (`~24k tokens`).
 
 ## What a note is
 
@@ -370,10 +374,12 @@ Each session both consumes and improves the cache:
    active change: it is left stale, with its ⚠ banner, and named to the user
    once (`maintain.js:pickStale`), to narrow its pointers or retire it. In the
    week this was added, 28 of 80 notes maintenance verified had not been served
-   at all, and one note was rewritten 8 times. Reported model cost of
-   learning and maintenance is summed from the machine's log and a run stops
-   at `dailyCap` (default $1 a day). `maintain` in `.thinker/config.json`
-   overrides `enabled`, `dailyCap`, `verifyPerRun`, `verifyServedDays`,
+   at all, and one note was rewritten 8 times. The tokens the model calls of
+   learning and maintenance reported are summed from the machine's log and a run stops
+   at `dailyTokens` (default 2M tokens a day, about 80 distillations; until 2026-10-04
+   the cap was `dailyCap` in dollars, a key now ignored except that 0 still means no
+   cap). `maintain` in `.thinker/config.json`
+   overrides `enabled`, `dailyTokens`, `verifyPerRun`, `verifyServedDays`,
    `verifyChurn`, `phrasePerRun`, `prs`, `prsPerRun`. What a run did is shown once at the end of the next turn
    (`maintain.js:maintenanceNotice`), through the same channel as the
    cache-hit notice. `thinker maintain [--dry]` is one run by hand;
@@ -557,7 +563,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   of the product. `thinker phrase` adds to each note up to five lines of how
   a user would put it (`says`), written by a small model from the note alone;
   ranking counts them with the title and answers. Notes whose text changed
-  since are done again; about $0.005 a note with Haiku.
+  since are done again; about 3k tokens a note with Haiku.
 - `rerank: "haiku"` in `.thinker/config.json` hands the
   eight best candidates to a small model, which keeps those that bear on the
   request, or none. Its choice is final: no linked note is added to it.
@@ -657,7 +663,7 @@ without a clone the server stores what clients push and reviews fail saying so.
 The review's model call goes through `llm.js`, which on a server means
 `ANTHROPIC_API_KEY` (the SDK is installed beside the release by
 `infra/sync/bootstrap.sh`); the worker stops for the day at
-`THINKER_SERVER_DAILY_CAP` dollars (default 5), summed from the repositories'
+`THINKER_SERVER_DAILY_TOKENS` tokens (default 2,000,000), summed from the repositories'
 logs (`THINKER_LOG=local` on the server).
 
 Two flows (`sync.js`), both automatic once logged in:

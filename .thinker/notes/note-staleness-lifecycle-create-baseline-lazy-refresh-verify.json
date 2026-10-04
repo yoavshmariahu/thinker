@@ -33,14 +33,14 @@
     {
       "path": "src/ops.js",
       "symbol": "verifyNote",
-      "hash": "sha256:f350f1c376a9b1e66ded4957",
-      "line": 699,
+      "hash": "sha256:1498e824893e1bc94e9682bc",
+      "line": 678,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "orient",
-      "hash": "sha256:e00963b61bbc35caf25cdeb8",
+      "hash": "sha256:2e6e7121545eb5c77deb5627",
       "line": 217,
       "missing": false
     },
@@ -48,14 +48,14 @@
       "path": "src/ops.js",
       "symbol": "lookup",
       "hash": "sha256:c786bd92e09e6a8bbcee3553",
-      "line": 490,
+      "line": 469,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "gitDiffFor",
       "hash": "sha256:2ab1811899cbd193dabef5b7",
-      "line": 669,
+      "line": 648,
       "missing": false
     },
     {
@@ -104,7 +104,7 @@
       "path": "src/llm.js",
       "symbol": "complete",
       "hash": "sha256:e34f87f9757b73bd32aca56c",
-      "line": 121,
+      "line": 122,
       "missing": false
     }
   ],
@@ -112,6 +112,6 @@
     "type": "agent"
   },
   "created": "2026-09-26T09:33:10.424Z",
-  "verified": "2026-10-04T05:19:45.189Z",
+  "verified": "2026-10-04T19:07:24.513Z",
   "confidence": 1
 }

@@ -4,7 +4,7 @@
 // through the agents' own logins, and merged pull requests are mined by their maintenance; what
 // they produce reaches the server as notes. The one model call the server makes is the review,
 // through llm.js like everywhere else: ANTHROPIC_API_KEY when set, else an installed agent CLI
-// with its own login. Reported cost is summed from the repositories' logs and a day stops at the cap.
+// with its own login. Reported tokens are summed from the repositories' logs and a day stops at the cap.
 import { spentToday } from '../maintain.js';
 import { provider } from '../llm.js';
 import { review, resolveScope } from '../review.js';
@@ -12,7 +12,7 @@ import { buildReview, publish } from '../review-post.js';
 
 export const DEFAULTS = {
   fetchEveryMs: 10 * 60_000,  // how often a checkout is fetched when asked for
-  dailyCap: Number(process.env.THINKER_SERVER_DAILY_CAP) || 5, // USD of reported model cost a day, all repositories
+  dailyTokens: Number(process.env.THINKER_SERVER_DAILY_TOKENS) || 2_000_000, // tokens of reported model usage a day, all repositories
   tickMs: 20_000,
 };
 
@@ -29,7 +29,7 @@ export class Worker {
 
   hasModel() { return this.fns.review ? true : !!provider(); }
   spentToday() { let total = 0; for (const r of this.repos.list()) { try { total += spentToday(r.store()); } catch {} } return total; }
-  afford() { return this.spentToday() < this.opts.dailyCap; }
+  afford() { return this.spentToday() < this.opts.dailyTokens; }
 
   // Fetch the checkout when it is time; clone it the first time. False when there is none to anchor to.
   async ensureCheckout(repo, { force = false, ref } = {}) {
@@ -75,7 +75,7 @@ export class Worker {
     let posted = { posted: false, dismissed: [] };
     if (this.githubToken) posted = await publish({ review: built, slug, number: rv.number, sha: head, token: this.githubToken, api: this.githubApi || rv.apiUrl || 'https://api.github.com', fetch: this.fns.github || globalThis.fetch, log: m => this.log(repo.id, m) });
     else this.log(repo.id, `review #${rv.number}: no GitHub token (THINKER_SERVER_GITHUB_TOKEN); the review was not posted`);
-    const rec = repo.finishReview(rv.number, { status: 'done', headSha: head, base: scope.base, counts: report.counts || { error: 0, warning: 0, info: 0 }, behaviors: (report.behaviors || []).map(b => ({ id: b.id, title: b.title, mutability: b.mutability, outcome: b.outcome })), findings: (report.findings || []).length, event: built.event, fail: built.fail, summary: built.summary, body: built.body, wouldPost: built.post, posted: posted.posted, postStatus: posted.status, dismissed: posted.dismissed.length, cost: report.cost || 0, model: report.model, errors: report.errors || [] });
+    const rec = repo.finishReview(rv.number, { status: 'done', headSha: head, base: scope.base, counts: report.counts || { error: 0, warning: 0, info: 0 }, behaviors: (report.behaviors || []).map(b => ({ id: b.id, title: b.title, mutability: b.mutability, outcome: b.outcome })), findings: (report.findings || []).length, event: built.event, fail: built.fail, summary: built.summary, body: built.body, wouldPost: built.post, posted: posted.posted, postStatus: posted.status, dismissed: posted.dismissed.length, cost: report.cost || 0, tokens: report.tokens || 0, model: report.model, errors: report.errors || [] });
     this.log(repo.id, `review #${rv.number} at ${head.slice(0, 8)}: ${built.summary}${posted.posted ? `; posted ${built.event}` : built.post ? '; not posted' : ''}`);
     return rec;
   }

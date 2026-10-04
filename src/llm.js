@@ -14,7 +14,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
-import { logModelUsage } from './model-usage.js';
+import { logModelUsage, normalizeModelUsage } from './model-usage.js';
 const ALIASES = { haiku: 'claude-haiku-4-5', sonnet: 'claude-sonnet-5', opus: 'claude-opus-5', fable: 'claude-fable-5-1' };
 export const BINS = { claude: ['claude'], gemini: ['agy', 'gemini'], codex: ['codex'], cursor: ['agent', 'cursor-agent'] };
 export const FALLBACK_ORDER = ['claude', 'gemini', 'codex', 'cursor'];
@@ -111,7 +111,8 @@ async function executeProvider(p, opts) {
     const res = await (p === 'anthropic' ? viaSdk(o) : p === 'claude' ? viaCli(o) : viaOther(p, o));
     if (!reported) response = { ...response, ...res };
     if (opts.accounting) logModelUsage(opts.accounting.store, opts.accounting, response);
-    return { ...res, model: response.model };
+    // every answer carries its normalized counters, so a caller can say what the run used in tokens
+    return { ...res, model: response.model, tokens: normalizeModelUsage(p, response.usage) };
   } catch (err) {
     if (opts.accounting) logModelUsage(opts.accounting.store, opts.accounting, { ...response, failed: true });
     throw err;

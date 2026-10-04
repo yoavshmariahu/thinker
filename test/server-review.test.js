@@ -47,7 +47,7 @@ test('the server reviews a pull request against its clone and posts the review; 
   const s = await listen({ host: '127.0.0.1', port: 0, data: tmp(t, 'server'), adminToken: 'adm', startWorker: false, worker: { githubToken: 'ghs_server', fns: {
     review: async (store, { scope, kinds, max }) => {
       reviewed.push({ scope, kinds, max, notes: store.list().map(n => n.id) });
-      return { scope: scope.label, kinds, model: 'sonnet', cost: 0.05, notes: { consulted: 1, assessed: 1, staleBefore: [], outdated: [], uncovered: [] }, counts: { error: 1, warning: 0, info: 0 }, errors: [],
+      return { scope: scope.label, kinds, model: 'sonnet', cost: 0.05, tokens: 50000, notes: { consulted: 1, assessed: 1, staleBefore: [], outdated: [], uncovered: [] }, counts: { error: 1, warning: 0, info: 0 }, errors: [],
         behaviors: [{ id: 'value-rejects-null', title: 'value rejects null', mutability: 'fixed', outcome: 'violated', reason: 'the null check is gone' }],
         findings: [{ severity: 'error', category: 'violation', file: 'code.js', line: 2, message: 'value no longer throws on null', evidence: '-  if (x === null) throw', confidence: 0.9, note: 'value-rejects-null', notes: ['value-rejects-null'], inChange: true }] };
     },
@@ -98,7 +98,7 @@ test('the server reviews a pull request against its clone and posts the review; 
   const r = await run([send], { GITHUB_EVENT_PATH: event, GITHUB_REPOSITORY: 'acme/widgets', GITHUB_API_URL: 'https://api.github.com', GITHUB_STEP_SUMMARY: summary, THINKER_SYNC_URL: url, THINKER_SYNC_TOKEN: token, THINKER_REVIEW_WAIT: '30' });
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.match(r.stdout, /PR #7 at \w{10} was already reviewed/);
-  assert.match(r.stdout, /posted a REQUEST_CHANGES review \(1 errors, 0 warnings; 1 of 1 behaviors violated, \$0.05\)/);
+  assert.match(r.stdout, /posted a REQUEST_CHANGES review \(1 errors, 0 warnings; 1 of 1 behaviors violated, ~50k tokens\)/);
   assert.match(r.stderr, /failing the check/);
   assert.match(fs.readFileSync(summary, 'utf8'), /value rejects null/);
   // a token that may only read sends nothing

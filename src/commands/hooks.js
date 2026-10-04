@@ -108,10 +108,10 @@ async function hookCommand(ctx) {
     if (!source || !fs.existsSync(source)) return;
     // Sessions are distilled here, through the agent's own login, whether or not this checkout syncs
     // with a team cache: what they produce reaches the cache as notes, on the next push.
-    // Distilling a session is a model call of its own (about 10¢ with Sonnet); it spends from
-    // the same daily budget as maintenance, so a long day of work cannot run up the bill
+    // Distilling a session is a model call of its own (about 25k tokens); it draws on the same
+    // daily token cap as maintenance, so a long day of work cannot run through the agent's usage
     const cap = withinDailyCap(store);
-    if (!cap.ok) { store.log({ op: 'distill-skipped', reason: 'dailyCap', spent: cap.spent, cap: cap.cap, session, client }); reportCapped(store, cap); return; }
+    if (!cap.ok) { store.log({ op: 'distill-skipped', reason: 'dailyTokens', spent: cap.spent, cap: cap.cap, session, client }); reportCapped(store, cap); return; }
     // One distill per session, not per turn: each call carries a fixed prompt, so at the end of a turn
     // only a backlog near the trace limit is distilled (`--batch`). The session's end distills the
     // rest; where the agent fires no end, the catch-up run takes sessions that have gone quiet.

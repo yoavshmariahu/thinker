@@ -10,7 +10,7 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.
   https://api.github.com/repos/yoavshmariahu/thinker/contents/install.sh | bash -s -- --cache gh:caches/<repo>.tgz
 ```
 
-If no cache was built for their repository, `--build` in place of `--cache …` builds one on their machine in the same step (about $9 of their Claude usage with the defaults; the estimate is printed first). With neither flag, the installer still sets the repository up and `thinker setup` asks whether to build the cache, defaulting to no.
+If no cache was built for their repository, `--build` in place of `--cache …` builds one on their machine in the same step (about 5.5M tokens of their Claude usage and twenty minutes with the defaults; the estimate is printed first, in tokens and minutes). With neither flag, the installer still sets the repository up and `thinker setup` asks whether to build the cache, defaulting to no.
 
 That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in the repository, checks every note against their checkout, and adds Claude Code hooks in `.claude/settings.local.json` that inject relevant notes into each request and distill each session into new notes when it ends (`--no-learn` leaves that out). Nothing else is changed and no `sudo` is used. Requirements: git, curl, tar, Node.js 20+.
 
@@ -23,7 +23,7 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--benchmark` | run the paired PR change benchmark during setup |
 | `--no-benchmark` | skip the paired PR benchmark step |
 | `--clients <list>` | agents to wire up: `claude`, `codex`, `cursor`, `gemini`, `all` or `auto` (default `auto`, except with `--no-build`); see "Supported agents" in `AGENTS.md` |
-| `--no-learn` | do not distill the user's own sessions into new notes. Learning is on by default for every agent wired up (uses that agent's login; about $0.05 per session with Claude Sonnet); switch it off for evals |
+| `--no-learn` | do not distill the user's own sessions into new notes. Learning is on by default for every agent wired up (uses that agent's login; about 25k tokens per session distilled); switch it off for evals |
 | `--late` | also serve notes about files as the agent opens them |
 | `--shared` | write hooks to `.claude/settings.json` so the whole team gets them on pull |
 | `--mcp` | also register the MCP server for the chosen agents (needs npm); always on for Cursor |
@@ -100,7 +100,7 @@ Full per-item results and errors are saved under `.thinker/state/` at the path
 printed after each stage. Use `thinker setup --verbose` to also print those
 details in the terminal (`mine-prs` and `seed` accept `--verbose` too).
 
-Cost on PostHog (54k files): about $20 for 259 notes. The cache is keyed to file and symbol hashes, not to a commit, so it stays usable as their code moves: notes whose code changed are flagged stale when served and re-verified in the background if the user has the `claude` CLI.
+Building on PostHog (54k files) gave 259 notes. The cache is keyed to file and symbol hashes, not to a commit, so it stays usable as their code moves: notes whose code changed are flagged stale when served and re-verified in the background if the user has the `claude` CLI.
 
 Alternative delivery: run `thinker share --dry`, then `thinker share` and review and commit `.thinker/notes/` into their repository and have users run the installer without `--cache`. For hosting outside GitHub, `scripts/pack.sh <base-url>` builds a self-contained tarball and installer.
 

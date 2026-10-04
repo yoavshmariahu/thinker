@@ -1,19 +1,22 @@
 // Background maintenance of the cache: what a user would otherwise have to remember to
 // run. It re-verifies stale notes, writes phrasings for notes that lack them, and distills
 // pull requests merged since it first ran. It starts from the catch-up learning run (at most every ten minutes, from the
-// prompt hooks) and from the git post-commit hook, and is bounded by a daily spend cap
-// so it can run unattended. The daily cap counts reported model cost of learning and
-// maintenance in the machine's log; unknown costs count as zero.
+// prompt hooks) and from the git post-commit hook, and is bounded by a daily cap on the
+// tokens learning and maintenance may use, so it can run unattended. The cap counts the
+// tokens the model calls of learning and maintenance reported in the machine's log; a call
+// that reported none counts as zero. Tokens, not dollars: the agents run on subscriptions as
+// often as on metered keys, and a dollar figure from list prices misled more than it warned.
 import fs from 'node:fs';
 import path from 'node:path';
 import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
 import { readLog } from './usage.js';
+import { formatTokens } from './model-usage.js';
 import { reconcileLocal, readyToShareNotice } from './share.js';
 import { writeSystemMarkdown } from './behavior.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
-  dailyCap: 1.0,    // USD of reported model cost per day, learning and maintenance together
+  dailyTokens: 2_000_000, // tokens of reported model usage per day, learning and maintenance together (about 80 distillations); 0: no cap
   verifyPerRun: 10, // stale notes re-verified per run, most served first
   verifyServedDays: 14, // only notes served this recently are re-verified ahead of time (0: all); the rest wait to be served
   verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
@@ -29,30 +32,32 @@ export function maintainConfig(store) {
   return { ...DEFAULTS, ...(c && typeof c === 'object' ? c : {}) };
 }
 
-// Reported cost of learning and maintenance model calls since local midnight.
+// Tokens the model calls of learning and maintenance reported since local midnight.
 export function spentToday(store, now = new Date()) {
   const start = new Date(now); start.setHours(0, 0, 0, 0);
   const since = start.toISOString();
   let total = 0;
   for (const e of readLog(store)) {
-    if (e.t >= since && e.op === 'model' && ['learning', 'maintenance'].includes(e.phase) && typeof e.cost === 'number') total += e.cost;
+    if (e.t >= since && e.op === 'model' && ['learning', 'maintenance'].includes(e.phase) && typeof e.tokens?.totalTokens === 'number') total += e.tokens.totalTokens;
   }
   return total;
 }
 
 // The daily cap has always been documented as covering learning and maintenance together, but
 // only maintenance consulted it: the end-of-turn distillation of a session, which is where most
-// of the money goes, spent freely. Every caller about to spend asks this first. A cap of 0
-// means no cap.
+// of the tokens go, spent freely. Every caller about to spend asks this first. A cap of 0
+// means no cap. The cap was in dollars (`dailyCap`) until October 2026; that key is ignored
+// now, except that a `dailyCap` of 0 or false still means no cap.
 export function withinDailyCap(store, { now = new Date(), spentFn = spentToday } = {}) {
   const cfg = maintainConfig(store);
-  const cap = Number(cfg.dailyCap);
+  const legacyOff = 'dailyCap' in cfg && !cfg.dailyCap && cfg.dailyTokens === DEFAULTS.dailyTokens;
+  const cap = legacyOff ? 0 : Number(cfg.dailyTokens);
   if (!Number.isFinite(cap) || cap <= 0) return { ok: true, spent: 0, cap: 0 };
   const spent = spentFn(store, now);
   return { ok: spent < cap, spent, cap };
 }
 
-// Said once, at the end of a turn: learning stopped because the day's budget is gone.
+// Said once, at the end of a turn: learning stopped because the day's tokens are used up.
 export function reportCapped(store, { spent, cap }) {
   const state = readState(store);
   const u = state.unreported || {};
@@ -100,10 +105,10 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   const state = readState(store);
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, sync: null, cost: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, sync: null, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
-  const budget = cfg.dailyCap - spent;
-  const afford = () => budget - r.cost > 0;
+  const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
+  const afford = () => !cap || cap - spent - r.tokens > 0;
   try {
     if (!dry) reconcileLocal(store);
     // 0. the team's central cache, when this checkout syncs with one (sync.js): free, network only
@@ -121,7 +126,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
         if (dry) { r.verified++; continue; }
         try {
           const v = await (fns.verify || verifyNote)(store, n, {});
-          r.cost += v.cost || 0; r.verified++;
+          r.tokens += v.tokens || 0; r.verified++;
           if (v.verdict === 'update') r.updated++;
           if (v.verdict === 'invalid') r.retired++;
           if (v.verdict === 'broken') r.violated = (r.violated || 0) + 1; // the notice names it (ops.js:noteUnreported)
@@ -134,14 +139,14 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
       const need = store.list().filter(n => n.status !== 'invalid' && !n.archived && (!n.says?.length || n.saysFor !== phraseKey(n))).slice(0, cfg.phrasePerRun);
       if (need.length) {
         if (dry) r.phrased = need.length;
-        else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.cost += p.cost || 0; } catch { r.errors++; } }
+        else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.tokens += p.tokens || 0; } catch { r.errors++; } }
       }
     } else r.capped = true;
     // 4. pull requests merged since maintenance first ran here; further back is `thinker mine-prs`
     if (cfg.prs && fns.minePrs) {
       if (!state.prsAfter) state.prsAfter = new Date().toISOString();
       else if (afford()) {
-        if (!dry) { try { const m = await fns.minePrs({ after: state.prsAfter, limit: cfg.prsPerRun }); r.prs = m?.saved || 0; r.cost += m?.cost || 0; } catch { r.errors++; } }
+        if (!dry) { try { const m = await fns.minePrs({ after: state.prsAfter, limit: cfg.prsPerRun }); r.prs = m?.saved || 0; r.tokens += m?.tokens || 0; } catch { r.errors++; } }
       } else r.capped = true;
     }
     const u = state.unreported || {};
@@ -161,7 +166,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     state.churnNamed = r.churning;
     state.unreported = u; state.at = new Date().toISOString(); state.last = r;
     if (!dry) fs.writeFileSync(stateFile(store), JSON.stringify(state));
-    store.log({ op: 'maintain', ...r, spentBefore: spent, cap: cfg.dailyCap, dry });
+    store.log({ op: 'maintain', ...r, spentBefore: spent, cap, dry });
     return r;
   } finally { if (!dry) fs.rmSync(lock, { force: true }); }
 }
@@ -191,7 +196,7 @@ export function maintenanceNotice(store) {
   if (u.pulled || u.pushed) parts.push(`team cache: ${[u.pulled ? `${u.pulled} ${u.pulled === 1 ? 'note' : 'notes'} pulled` : '', u.pushed ? `${u.pushed} pushed` : ''].filter(Boolean).join(', ')}`);
   if (u.share) parts.push(u.share);
   if (u.pruned?.length) parts.push(...u.pruned);
-  if (u.capped) parts.push(`learning paused for today: $${u.capped.spent.toFixed(2)} of the $${u.capped.cap.toFixed(2)} daily cap spent (maintain.dailyCap in .thinker/config.json raises it)`);
+  if (u.capped) parts.push(`learning paused for today: ${formatTokens(u.capped.spent)} of the ${formatTokens(u.capped.cap)} tokens it may use a day are used (maintain.dailyTokens in .thinker/config.json raises it)`);
   if (u.revised?.length) parts.push(`✎ ${u.revised.length === 1 ? 'a desired behavior was' : `${u.revised.length} desired behaviors were`} revised to match the merged code: ${u.revised.slice(0, 3).map(v => `"${v.title}" (${v.id}${v.commit ? ` at ${String(v.commit).slice(0, 10)}` : ''}${v.reason ? `: ${v.reason.slice(0, 120)}` : ''})`).join('; ')}${u.revised.length > 3 ? ', …' : ''}; thinker system shows the new text`);
   if (u.violated?.length) parts.push(`⚠ ${u.violated.length === 1 ? 'a desired behavior is' : `${u.violated.length} desired behaviors are`} no longer upheld by the code: ${u.violated.slice(0, 3).map(v => `"${v.title}" (${v.id}${v.reason ? `: ${v.reason.slice(0, 120)}` : ''})`).join('; ')}${u.violated.length > 3 ? '; …' : ''}; restore the code or revise the behavior (thinker system)`);
   if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} left stale after being re-verified ${maintainConfig(store).verifyChurn}+ times this week (${u.churning.slice(0, 3).join(', ')}${u.churning.length > 3 ? ', …' : ''}): their code is changing; narrow their pointers or retire them`);
@@ -224,5 +229,5 @@ export function renderMaintain(r) {
   if (r.archived) bits.push(`${r.archived} archived`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`);
   if (r.sync && !r.sync.skipped) bits.push(`team cache ${r.sync.pulled + (r.sync.deleted || 0)}↓ ${r.sync.pushed + (r.sync.retired || 0)}↑`);
-  return `maintained: ${bits.join(', ')}${r.cost ? ` ($${r.cost.toFixed(3)})` : ''}${r.capped ? '; daily cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
+  return `maintained: ${bits.join(', ')}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}${r.capped ? '; daily token cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
 }

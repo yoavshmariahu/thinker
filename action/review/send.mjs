@@ -57,7 +57,7 @@ async function main() {
     console.log(rec.body.replace(/^<!--.*-->\n/, ''));
     if (env.GITHUB_STEP_SUMMARY) { try { fs.appendFileSync(env.GITHUB_STEP_SUMMARY, rec.body.replace(/^<!--.*-->\n/, '') + '\n'); } catch {} }
   }
-  console.log(`thinker: ${rec.posted ? `posted a ${rec.event} review` : rec.wouldPost ? `the review was not posted${rec.postStatus ? ` (${rec.postStatus})` : ''}` : 'nothing to post'} (${rec.summary}${rec.cost ? `, $${Number(rec.cost).toFixed(2)}` : ''})`);
+  console.log(`thinker: ${rec.posted ? `posted a ${rec.event} review` : rec.wouldPost ? `the review was not posted${rec.postStatus ? ` (${rec.postStatus})` : ''}` : 'nothing to post'} (${rec.summary}${rec.tokens ? `, ~${Math.round(Number(rec.tokens) / 1000)}k tokens` : ''})`);
   if (rec.fail) fail(`failing the check (${rec.summary})`);
 }
 main().catch(e => fail(e.message));

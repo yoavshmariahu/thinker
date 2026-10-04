@@ -9,6 +9,7 @@ import { CLIENTS, detectClients, installClient, trustCodex } from '../clients.js
 import { available, provider, findBin } from '../llm.js';
 import { cleanErrorMessage } from '../benchmark.js';
 import { oneLine } from '../progress.js';
+import { formatTokens } from '../model-usage.js';
 import { c, formatBytes, selectMenu } from './ui.js';
 import { githubSlug } from './agents.js';
 
@@ -131,8 +132,8 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
     out(`    • ${c.bold('Target storage:')}     ${c.cyan(estimates.storage.rootDir)} ${c.dim(`(notes in ${estimates.storage.notesDir})`)}`);
     out(`    • ${c.bold('Estimated size:')}     ${c.cyan(estimates.size.notesRange)} ${c.dim(`(${estimates.size.bytesRange} on disk)`)}`);
     out(`    • ${c.bold('Estimated build:')}    ${c.cyan(estimates.timing.formatted)} ${c.dim(`(PRs ${estimates.timing.breakdown.prs}, explore ${estimates.timing.breakdown.exploration})`)}`);
-    if (estimates.costEstimate > 0) {
-      out(`    • ${c.bold('Model usage:')}       ${c.dim(`~$${estimates.costEstimate.toFixed(2)} via your ${agent || provider()} login`)}`);
+    if (estimates.tokenEstimate > 0) {
+      out(`    • ${c.bold('Agent usage:')}       ${c.dim(`~${formatTokens(estimates.tokenEstimate)} tokens through your ${agent || provider()} login, most of them cached prompt reads`)}`);
     }
   } else {
     out(`  ${c.bold('Not reading the code or the pull requests now.')} ${c.dim('thinker setup --build does that.')}`);
@@ -224,14 +225,14 @@ export async function stepBuildCache({ repo, store, estimates, areas = 12, prs =
   return { skipped: false, notes: finalNotes, totalBytes, warnings };
 }
 
-// The one question in `thinker setup` that can cost money: whether to read the repository's
+// The one question in `thinker setup` that spends the agent's usage: whether to read the repository's
 // merged pull requests and explore its code now. Everything else setup does is free, and
 // declining leaves a working install whose cache grows from the user's own sessions.
 // Asked before the agent login flow, so nobody logs in for a step they did not want.
 export async function confirmCacheBuild({ estimates, agent, out = console.log }) {
-  const cost = estimates.costEstimate > 0 ? `, about ${c.cyan(`$${estimates.costEstimate.toFixed(2)}`)} of your ${agent || 'agent'} usage` : '';
+  const usage = estimates.tokenEstimate > 0 ? `, about ${c.cyan(`${formatTokens(estimates.tokenEstimate)} tokens`)} of your ${agent || 'agent'} usage` : '';
   out(`  ${c.bold('Build the cache from this repository now?')} ${c.dim('— optional')}`);
-  out(`    • Mines merged pull requests and explores the code with ${c.bold(agent || 'your agent')}: ${c.cyan(estimates.timing.formatted)}${cost}`);
+  out(`    • Mines merged pull requests and explores the code with ${c.bold(agent || 'your agent')}: ${c.cyan(estimates.timing.formatted)}${usage}`);
   out(`    • ${c.dim('Without it thinker is still set up and working: the cache grows from your own sessions.')}`);
   out(`    • ${c.dim('You can build it any time with: thinker setup --build')}`);
   if (!process.stdin.isTTY) {

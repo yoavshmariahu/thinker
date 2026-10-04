@@ -5,6 +5,8 @@
 //
 // A review requesting changes that an earlier run posted is dismissed when a newer run posts, so a
 // push that fixes the violation clears the request; a plain comment review is left where it is.
+import { formatTokens } from './model-usage.js';
+
 export const MARKER = '<!-- thinker-review -->';
 const ICON = { violated: '❌', upheld: '✅', revised: '✏️', unrelated: '➖', consulted: '👀' };
 const SEV = { error: 0, warning: 1, info: 2 };
@@ -47,7 +49,7 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   else if (r.noCache) L.push('This repository has no `.thinker/` cache, so there is nothing to review against. Run `thinker setup` and commit a few desired behaviors (`thinker system add`).', '');
   else if (r.empty) L.push('Nothing to review: the change holds no code the notes could speak to.', '');
   else {
-    L.push(`${counts.error} error${counts.error === 1 ? '' : 's'}, ${counts.warning} warning${counts.warning === 1 ? '' : 's'}, ${counts.info} info · ${r.notes?.consulted ?? 0} ${r.kinds?.length === 1 && r.kinds[0] === 'behavior' ? 'desired behavior' : 'note'}${(r.notes?.consulted ?? 0) === 1 ? '' : 's'} consulted${r.notes?.assessed ? `, ${r.notes.assessed} assessed with ${esc(r.model)}` : ''}${r.cost ? ` ($${Number(r.cost).toFixed(2)})` : ''}`, '');
+    L.push(`${counts.error} error${counts.error === 1 ? '' : 's'}, ${counts.warning} warning${counts.warning === 1 ? '' : 's'}, ${counts.info} info · ${r.notes?.consulted ?? 0} ${r.kinds?.length === 1 && r.kinds[0] === 'behavior' ? 'desired behavior' : 'note'}${(r.notes?.consulted ?? 0) === 1 ? '' : 's'} consulted${r.notes?.assessed ? `, ${r.notes.assessed} assessed with ${esc(r.model)}` : ''}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}`, '');
     if (behaviors.length) {
       L.push('#### Desired behaviors in play', '', '| | behavior | outcome |', '|---|---|---|');
       for (const b of behaviors) L.push(`| ${ICON[b.outcome] || ''} | ${esc(b.title)} <sub>${b.mutability}, ${code(b.id)}</sub> | ${b.outcome}${b.outcome === 'violated' && b.reason ? `: ${esc(b.reason).slice(0, 200)}` : b.outcome === 'revised' ? ' (this change edits the behavior note)' : ''}${b.before ? ` <sub>${esc(b.before)}</sub>` : ''} |`);

@@ -61,7 +61,7 @@ test('spending separates init, learning and legacy costs without double counting
   store.log({ op: 'orient', session: 'a', served: ['n'], tokens: 50, est: [[1, 1000]] });
   store.log({ op: 'attest', session: 'a', applied: [{ id: 'n', verdict: 'confirmed' }] });
   const u = summarize(store);
-  assert.equal(u.spent, 0.3);
+  assert.equal(Math.round(u.spending.reportedCost * 100) / 100, 0.3);
   assert.equal(u.spending.totalTokens, 670);
   assert.equal(u.spending.calls, 3);
   assert.equal(u.spending.unknownTokenCalls, 1);
@@ -134,7 +134,7 @@ test('invalid model answers still retain reported tokens and cost', async () => 
     await assert.rejects(complete({ prompt: 'test', schema: { type: 'object' }, accounting: { store, purpose: 'distill', phase: 'learning' } }), /no structured output/);
     const u = summarize(store);
     assert.equal(u.spending.totalTokens, 60);
-    assert.equal(u.spent, 0.02);
+    assert.equal(u.spending.reportedCost, 0.02);
     assert.equal(u.spending.failed, 1);
   } finally {
     for (const k of Object.keys(process.env)) if (!(k in previous)) delete process.env[k];
