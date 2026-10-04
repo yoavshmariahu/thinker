@@ -251,7 +251,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   const ceCfg = ceConfig(store);
   let lexical = ranked; // what the lexical ranking held before the cross-encoder: the dropped candidates are still listed by title (`more`)
   if (ceCfg.enabled && ranked.length && maxNotes <= 2) {
-    try { ranked = await ceRerank(ranked, task, ceCfg); chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); maxNotes = Math.min(maxNotes, ceCfg.maxNotes || maxNotes); }
+    try { ranked = await ceRerank(ranked, task, ceCfg); chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); if (ranked.some(r => r.fallback)) ce.push('fallback'); maxNotes = Math.min(maxNotes, ceCfg.maxNotes || maxNotes); }
     catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); } // no runtime or model: the lexical ranking serves as before
   }
   if (rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }

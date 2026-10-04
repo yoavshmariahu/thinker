@@ -90,7 +90,10 @@ export const CE_MODEL = 'Xenova/ms-marco-MiniLM-L-6-v2';
 // 120 tokens kept the note text inside the 512-token pair and took tasks hit from 16 to 21 of 54 at the same
 // precision. `ce` in .thinker/config.json adjusts them ({ enabled, floor, maxNotes, k, queryTokens }), the
 // THINKER_CE* variables override the config, and the user chose floor 0 / one note knowing recall is the price.
-export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 1, k: 8, queryTokens: 120 };
+// fallbackFloor: when nothing clears `floor`, the single best candidate is still served if it scores at least this
+// (null: never). On the 54 labeled tasks it took tasks hit from 19 to 23 at precision 0.96 (from 1.00), and on
+// posthog PR106936 it would have served the note that carried the criterion the agent missed (scored −0.93).
+export const CE_DEFAULTS = { enabled: true, floor: 0, maxNotes: 1, k: 8, queryTokens: 120, fallbackFloor: -1 };
 export function ceConfig(store) {
   const c = store?.config?.().ce; const cfg = { ...CE_DEFAULTS, ...(c === false ? { enabled: false } : c && typeof c === 'object' ? c : {}) };
   const e = process.env;
@@ -99,6 +102,8 @@ export function ceConfig(store) {
   if (e.THINKER_CE_MAX) cfg.maxNotes = Number(e.THINKER_CE_MAX);
   if (e.THINKER_CE_K) cfg.k = Number(e.THINKER_CE_K);
   if (e.THINKER_CE_QUERY_TOKENS) cfg.queryTokens = Number(e.THINKER_CE_QUERY_TOKENS);
+  if (e.THINKER_CE_FALLBACK !== undefined && e.THINKER_CE_FALLBACK !== '') cfg.fallbackFloor = /^(off|none|false)$/i.test(e.THINKER_CE_FALLBACK) ? null : Number(e.THINKER_CE_FALLBACK);
+  if (cfg.fallbackFloor === false) cfg.fallbackFloor = null;
   return cfg;
 }
 export const ceEnabled = store => ceConfig(store).enabled;
@@ -141,9 +146,17 @@ export async function ceScores(query, notes, { queryTokens = CE_DEFAULTS.queryTo
   return out;
 }
 // ranked: rank.js rows. Returns the rows the cross-encoder keeps, best first, each with `ce`.
-export async function ceRerank(ranked, query, { k = CE_DEFAULTS.k, floor = CE_DEFAULTS.floor, maxNotes = CE_DEFAULTS.maxNotes, queryTokens = CE_DEFAULTS.queryTokens } = {}) {
+export async function ceRerank(ranked, query, { k = CE_DEFAULTS.k, floor = CE_DEFAULTS.floor, maxNotes = CE_DEFAULTS.maxNotes, queryTokens = CE_DEFAULTS.queryTokens, fallbackFloor = CE_DEFAULTS.fallbackFloor } = {}) {
   const cands = ranked.slice(0, k);
   if (!cands.length) return cands;
   const sc = await ceScores(query, cands.map(r => r.note), { queryTokens });
-  return cands.map((r, i) => ({ ...r, ce: sc[i] })).filter(r => r.ce >= floor).sort((a, b) => b.ce - a.ce).slice(0, maxNotes > 0 ? maxNotes : undefined);
+  return selectByScore(cands.map((r, i) => ({ ...r, ce: sc[i] })), { floor, maxNotes, fallbackFloor });
+}
+// The selection alone (testable without the model): those at or above the floor, best first, at most maxNotes;
+// none there, the single best if it reaches fallbackFloor, marked `fallback`.
+export function selectByScore(scored, { floor = CE_DEFAULTS.floor, maxNotes = CE_DEFAULTS.maxNotes, fallbackFloor = CE_DEFAULTS.fallbackFloor } = {}) {
+  const kept = scored.filter(r => r.ce >= floor).sort((a, b) => b.ce - a.ce).slice(0, maxNotes > 0 ? maxNotes : undefined);
+  if (kept.length || fallbackFloor == null || !scored.length) return kept;
+  const best = scored.reduce((a, b) => (b.ce > a.ce ? b : a));
+  return best.ce >= fallbackFloor ? [{ ...best, fallback: true }] : [];
 }

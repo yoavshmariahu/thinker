@@ -613,16 +613,20 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   ONNX) reads the request, cut to its first 120 tokens, together with each of
   the eight best lexically gated candidates and gives one relevance logit per
   pair; candidates under the floor are dropped and at most `maxNotes` are
-  served in its order. Defaults `floor: 0, maxNotes: 1` (`dense.js:CE_DEFAULTS`),
+  served in its order. When nothing clears the floor, the single best candidate is still
+  served if it scores at least `fallbackFloor` (default −1; measured 23 tasks
+  hit against 19 at precision 0.96). Defaults `floor: 0, maxNotes: 1,
+  fallbackFloor: -1` (`dense.js:CE_DEFAULTS`),
   chosen on 54 tasks labeled by a Codex judge against the merged fixes
   (`bench/RESULTS.md`, "Ranking: labels"): 94% of served notes useful, 88%
   important, nothing served when nothing fits, a quarter of the tokens; the
   price is reach, 15 of 70 important notes at prompt time against 27, which
   the edit hook recovers in part (it reaches the important notes resting on
   the files the agent opens). `ce` in `.thinker/config.json` adjusts it
-  (`{ enabled, floor, maxNotes, k, queryTokens }`, or `false`); `THINKER_CE=on|off`,
-  `THINKER_CE_FLOOR`, `THINKER_CE_MAX`, `THINKER_CE_K`, `THINKER_CE_QUERY_TOKENS`
-  override the config. The note side is its `search` text, written by
+  (`{ enabled, floor, maxNotes, k, queryTokens, fallbackFloor }`, or `false`);
+  `THINKER_CE=on|off`, `THINKER_CE_FLOOR`, `THINKER_CE_MAX`, `THINKER_CE_K`,
+  `THINKER_CE_QUERY_TOKENS`, `THINKER_CE_FALLBACK` (a score, or `off`) override
+  the config. The note side is its `search` text, written by
   `phraseNotes` beside the phrasings (3–6 sentences from the note alone:
   rule, constraints, tasks, identifiers; `phraseKey` is versioned so notes
   phrased before are done again); on raw note text the cross-encoder did
