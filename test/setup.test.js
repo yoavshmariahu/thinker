@@ -6,6 +6,10 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 // the helpers color their output when stdout is a terminal or npm sets FORCE_COLOR: the assertions below are on plain text
 process.env.NO_COLOR = '1';
+// setup wires the agents' own settings: a home of its own, so this machine's are never touched
+process.env.HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-setup-home-'));
+process.env.CODEX_HOME = path.join(process.env.HOME, '.codex');
+delete process.env.CLAUDE_CONFIG_DIR;
 import { EventEmitter } from 'node:events';
 import { Store } from '../src/store.js';
 import {
@@ -254,7 +258,9 @@ test('runSetup completes compact setup flow in clean repo', async () => {
     // Verify .thinker storage on disk
     assert.ok(fs.existsSync(path.join(repo, '.thinker')));
     assert.ok(fs.existsSync(path.join(repo, '.thinker', 'notes')));
-    assert.ok(fs.existsSync(path.join(repo, '.claude', 'settings.json')));
+    // the hooks go into the user's own settings, for every checkout
+    assert.ok(fs.existsSync(path.join(process.env.HOME, '.claude', 'settings.json')));
+    assert.ok(!fs.existsSync(path.join(repo, '.claude')));
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -384,7 +390,7 @@ test('setup offers the cache build and takes no for an answer outside a terminal
     assert.match(fullOut, /Not a terminal/);
     assert.match(fullOut, /Thinker is ready\./);
     // wiring and the free part of the cache still happened
-    assert.ok(fs.existsSync(path.join(repo, '.claude', 'settings.local.json')) || fs.existsSync(path.join(repo, '.claude', 'settings.json')));
+    assert.ok(fs.existsSync(path.join(process.env.HOME, '.claude', 'settings.json')), 'the agents are wired up, in the user\'s own settings');
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }

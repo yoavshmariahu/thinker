@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { MORE_NOTES_INTRO } from '../cache-guidance.js';
-import { pruneInstalls, prunedLines, refreshWiring, normalizeHookEvent, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from '../clients.js';
+import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from '../clients.js';
 import { parseTranscript } from '../distill.js';
+import { Store, findRepoRoot } from '../store.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession } from '../ops.js';
 import { syncConfig, pullDue, syncState } from '../sync.js';
@@ -13,7 +14,8 @@ import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice } from '../usage.js';
 
 async function hookCommand(ctx) {
-  const { pos, flags, repo, store, out, readStdin, sessionLearning, mcpEntry, HERE, NO_LEARN } = ctx;
+  const { pos, flags, out, readStdin, sessionLearning, HERE, NO_LEARN } = ctx;
+  const cli = path.join(HERE, 'cli.js');
   // the user-facing notice at the end of a turn; THINKER_NOTICE=off or `notice: false` in the config turns it off
   const noticeOn = s => process.env.THINKER_NOTICE !== 'off' && s.config().notice !== false && s.config().notice !== 'off';
   // model calls made by thinker run agents too; their hooks must do nothing
@@ -24,6 +26,24 @@ async function hookCommand(ctx) {
   if (process.env.THINKER_HOOK_DEBUG) fs.appendFileSync(process.env.THINKER_HOOK_DEBUG, JSON.stringify({ hook: pos[0], client, ev }) + '\n');
   // Cursor also runs the Claude Code hooks it imports; its own hooks do the work
   if (client === 'cursor-import') return;
+  // A hook at user scope (--user: the agent's own settings, read in every checkout) takes the
+  // checkout from the agent's input. A checkout that is not set up is served nothing and learns
+  // nothing (`store.exists()` below). Where the checkout's own files run thinker hooks too (set up
+  // before the wiring went machine-wide, with --shared, or a benchmark arm's), those do the work:
+  // this copy's machine-local ones are taken out here, once, and this hook yields to what is left.
+  // THINKER_HOOKS=off silences the hooks outright, as THINKER_MCP=off does the server: for an
+  // arm of a benchmark that must see no notes while the wiring is machine-wide.
+  const userScope = Boolean(flags.user);
+  if (userScope && process.env.THINKER_HOOKS === 'off') return;
+  if (userScope) {
+    const cwd = ev.cwd || ev.workspace_roots?.[0] || ev.workspaceRoots?.[0];
+    if (cwd) { const r = findRepoRoot(cwd); if (r !== ctx.repo) { const base = ctx; ctx = { ...ctx, repo: r, store: new Store(r), mcpEntry: () => base.mcpEntry(r) }; } }
+    if (ctx.store.exists()) {
+      try { const moved = stripRepoWiring(ctx.repo, { cli, clients: [client] }); if (moved.length) { ctx.store.log({ op: 'prune', removed: moved.map(file => ({ file, what: 'repo-scope' })) }); reportPruned(ctx.store, [`moved thinker's hooks for ${client} out of ${moved.join(', ')}: they run from your own settings now, in every repository that is set up`]); } } catch {}
+      if (repoRunsHooks(ctx.repo, client)) return;
+    }
+  }
+  const { repo, store, mcpEntry } = ctx;
   const session = sessionOf(ev);
   // Do not combine unrelated sessions from unsupported/older hook payloads.
   if (['pi', 'windsurf', 'copilot', 'opencode'].includes(client) && session === 'unknown') return;
@@ -35,9 +55,11 @@ async function hookCommand(ctx) {
     if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
     if (store.exists()) pullInBackground(ctx);
     // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
-    if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
-    // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command)
-    if (store.exists()) { try { const w = refreshWiring(repo, { cli: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
+    if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
+    // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command):
+    // the checkout's, and, from a hook at user scope, the user's own
+    if (store.exists()) { try { const w = refreshWiring(repo, { cli, mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
+    if (store.exists() && userScope) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
     if (!store.exists() || !store.list().length || client === 'windsurf') return;
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
     if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });

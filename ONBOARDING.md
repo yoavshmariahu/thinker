@@ -2,7 +2,7 @@
 
 ## What the user runs
 
-The repository is private. Users need access to it and a GitHub token with read access, exported as `GITHUB_TOKEN`. From inside their own repository (anywhere else, the tool is installed alone and the script says to run `thinker setup` inside a repository, the one command that sets a repository up):
+The repository is private. Users need access to it and a GitHub token with read access, exported as `GITHUB_TOKEN`. From inside their own repository (anywhere else, the tool is installed and wired into the agents on the machine, and the script says to run `thinker setup` inside a repository, the one command that sets a repository up):
 
 ```bash
 export GITHUB_TOKEN=<token>
@@ -12,7 +12,7 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.
 
 If no cache was built for their repository, `--build` in place of `--cache …` builds one on their machine in the same step (about 5.5M tokens of their Claude usage and twenty minutes with the defaults; the estimate is printed first, in tokens and minutes). With neither flag, the installer still sets the repository up and `thinker setup` asks whether to build the cache, defaulting to no.
 
-That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in the repository, checks every note against their checkout, and adds Claude Code hooks in `.claude/settings.local.json` that inject relevant notes into each request and distill each session into new notes when it ends (`--no-learn` leaves that out). Nothing else is changed and no `sudo` is used. Requirements: git, curl, tar, Node.js 20+.
+That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in the repository, checks every note against their checkout, and adds hooks and the MCP server to the agents' own settings (`~/.claude/settings.json` and `~/.claude.json` for Claude Code, and the like for Codex, Gemini CLI and Cursor) that inject relevant notes into each request and distill each session into new notes when it ends (`--no-learn` leaves that out). The hooks act only in a repository that is set up. Nothing else is changed and no `sudo` is used. Requirements: git, curl, tar, Node.js 20+.
 
 | option | effect |
 |---|---|
@@ -25,8 +25,8 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--clients <list>` | agents to wire up: `claude`, `codex`, `cursor`, `gemini`, `all` or `auto` (default `auto`, except with `--no-build`); see "Supported agents" in `AGENTS.md` |
 | `--no-learn` | do not distill the user's own sessions into new notes. Learning is on by default for every agent wired up (uses that agent's login; about 25k tokens per session distilled); switch it off for evals |
 | `--late` | also serve notes about files as the agent opens them |
-| `--shared` | write hooks to `.claude/settings.json` so the whole team gets them on pull |
-| `--mcp` | also register the MCP server for the chosen agents (needs npm); always on for Cursor |
+| `--shared` | also write the hooks and MCP entries into the repository's own files (`.claude/settings.json`, `.mcp.json`, …) so the whole team gets them on pull |
+| `--mcp` | accepted for compatibility: the MCP server is always registered (needs npm) |
 | `--no-git-hook` | do not install git hooks; by default pre-commit repairs staged shared notes, post-commit/post-merge maintain the cache, and pre-push reports issues without blocking |
 | `--branch <name>` | install a specific branch or tag version (default `main`; `--ref also accepted) |
 | `--update` | update the thinker CLI to the latest version and exit |
@@ -37,7 +37,7 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 
 Setup has two steps:
 
-1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers. Codex trust is requested when needed. Only detected or explicitly selected agents appear in the connection summary.
+1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers in the agents' own settings, once per machine (`thinker connect` does this step alone, anywhere); the repository gets its git hooks, Cursor's rule and Codex's trust. Codex trust is requested when needed. Only detected or explicitly selected agents appear in the connection summary.
 2. **Choose how to start.** Learn from future sessions (the default), or build a cache now from code and merged pull requests. Setup shows estimated build time and available model cost estimates before asking. Outside a terminal, building requires an explicit flag such as `--build`.
 
 Ongoing learning uses your agent for model calls. Use `--no-learn` to disable it.

@@ -323,6 +323,7 @@ test('cli setup sends installation telemetry in background', async () => {
       env: {
         ...process.env,
         THINKER_HOME: tmpHome,
+        HOME: tmpHome, CODEX_HOME: path.join(tmpHome, '.codex'),
         THINKER_TELEMETRY_URL: `http://127.0.0.1:${port}`,
         THINKER_NO_LEARN: '',
         THINKER_TELEMETRY: 'on',
@@ -373,6 +374,7 @@ test('cli setup sends installation telemetry in background upon completion', asy
       env: {
         ...process.env,
         THINKER_HOME: tmpHome,
+        HOME: tmpHome, CODEX_HOME: path.join(tmpHome, '.codex'),
         THINKER_TELEMETRY_URL: `http://127.0.0.1:${port}`,
         THINKER_NO_LEARN: '',
         THINKER_TELEMETRY: 'on',
