@@ -145,17 +145,23 @@ test('checkPendingNotice reads and removes notice file', () => {
 
 test('maybeCheckDailyUpdateInBackground honors 24h rate limit and flags', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-bg-'));
+  // The check spawns `<cli> update --background`, which updates the install it detects: pointed at this
+  // checkout it would `git pull` and `npm ci` here while the suite runs (seen 2026-10-04: the suite's MCP
+  // tests lost their SDK mid-run). A stub CLI stands in, and the suite runs with THINKER_NO_AUTO_UPDATE=1
+  // (package.json), lifted here for the steps that exercise the check itself.
+  const stubCli = path.join(tmp, 'cli.js'); fs.writeFileSync(stubCli, 'process.exit(0)\n');
+  const noAuto = process.env.THINKER_NO_AUTO_UPDATE; delete process.env.THINKER_NO_AUTO_UPDATE;
   try {
     const stampFile = path.join(tmp, 'state', 'update.last');
 
     // 1. Should write timestamp on first run
-    maybeCheckDailyUpdateInBackground({ home: tmp, cliPath: CLI });
+    maybeCheckDailyUpdateInBackground({ home: tmp, cliPath: stubCli });
     assert.ok(fs.existsSync(stampFile));
 
     const firstTime = fs.statSync(stampFile).mtimeMs;
 
     // 2. Immediate second call should be a no-op (skipped due to <24h)
-    maybeCheckDailyUpdateInBackground({ home: tmp, cliPath: CLI });
+    maybeCheckDailyUpdateInBackground({ home: tmp, cliPath: stubCli });
     const secondTime = fs.statSync(stampFile).mtimeMs;
     assert.equal(firstTime, secondTime);
 
@@ -166,13 +172,14 @@ test('maybeCheckDailyUpdateInBackground honors 24h rate limit and flags', () => 
       // Artificially age the timestamp by 2 days
       const oldDate = new Date(Date.now() - 2 * DAY_MS);
       fs.utimesSync(stampFile, oldDate, oldDate);
-      maybeCheckDailyUpdateInBackground({ home: tmp, cliPath: CLI });
+      maybeCheckDailyUpdateInBackground({ home: tmp, cliPath: stubCli });
       assert.equal(fs.statSync(stampFile).mtimeMs, oldDate.getTime());
     } finally {
       if (oldEnv === undefined) delete process.env.THINKER_NO_AUTO_UPDATE;
       else process.env.THINKER_NO_AUTO_UPDATE = oldEnv;
     }
   } finally {
+    if (noAuto === undefined) delete process.env.THINKER_NO_AUTO_UPDATE; else process.env.THINKER_NO_AUTO_UPDATE = noAuto;
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
