@@ -69,7 +69,7 @@ async function rankerCommand(ctx) {
     return;
   }
   const st = await rankerStatus();
-  out(`ranker: ${st.runtime && st.model ? 'on' : 'off'} (${st.modelName}; floor ${CE_DEFAULTS.floor}, ${CE_DEFAULTS.maxNotes} note${CE_DEFAULTS.maxNotes === 1 ? '' : 's'}, request cut to ${CE_DEFAULTS.queryTokens} tokens; \`ce\` in .thinker/config.json adjusts)`);
+  out(`ranker: ${st.runtime && st.model ? 'on' : 'off'} (${st.modelName}; floor ${CE_DEFAULTS.floor}, ${CE_DEFAULTS.maxNotes} note${CE_DEFAULTS.maxNotes === 1 ? '' : 's'}, request cut to ${CE_DEFAULTS.queryTokens} tokens, fallback ${CE_DEFAULTS.fallbackFloor == null ? 'off' : 'best note at ≥ ' + CE_DEFAULTS.fallbackFloor}; \`ce\` in .thinker/config.json adjusts)`);
   out(`runtime: ${st.runtime ? 'installed' : 'missing' + (st.error ? ` (${st.error})` : '')}\nmodel: ${st.model ? 'present' : 'not fetched (thinker ranker fetch)'} in ${st.dir}`);
   if (!(st.runtime && st.model)) out('until both are there the hooks rank by words alone');
 }
@@ -95,10 +95,14 @@ async function astCommand(ctx) {
 
 // The checkouts thinker has been wired into on this machine: every path the machine's log names
 // that still exists and is set up, and the current one. The log is the only record there is.
-function knownRepos(store, repo) {
+// The checkouts set up on this machine: git checkouts with a .thinker/, as this one and the log name
+// them. A directory under the temp directory is not one (a test's), and neither is the home
+// directory, where .thinker/ is thinker's own home (THINKER_HOME) and not a cache: taken for a
+// checkout, its "wiring" was the user's own files, rewritten in the checkout's form on every rewire.
+export function knownRepos(store, repo) {
   const seen = new Map();
   const tmp = [os.tmpdir(), '/tmp', '/private/tmp', '/private/var/folders', '/var/folders'].map(d => { try { return fs.realpathSync(d); } catch { return d; } });
-  const add = p => { try { const r = fs.realpathSync(p); if (tmp.some(t => r.startsWith(t + path.sep))) return; if (fs.existsSync(path.join(r, '.thinker'))) seen.set(r, true); } catch {} };
+  const add = p => { try { const r = fs.realpathSync(p); if (tmp.some(t => r.startsWith(t + path.sep))) return; if (fs.existsSync(path.join(r, '.git')) && fs.existsSync(path.join(r, '.thinker'))) seen.set(r, true); } catch {} };
   if (store.exists()) add(repo);
   try { for (const e of readLog(store, { all: true })) if (e.repo && typeof e.repo === 'string') add(e.repo); } catch {}
   return [...seen.keys()];

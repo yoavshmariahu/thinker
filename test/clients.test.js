@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
 import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, refreshWiring, inferWiring } from '../src/clients.js';
-import { installGitHooks, preCommitHook } from '../src/git-hooks.js';
+import { installGitHooks, preCommitHook, mainCheckout } from '../src/git-hooks.js';
+import { knownRepos } from '../src/commands/setup.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 
@@ -572,4 +573,38 @@ test('an update wires the user\'s settings from the checkouts: the agents they w
     // the checkouts keep their hooks until their next prompt moves them out (see the hook test above)
     assert.ok(fs.existsSync(path.join(a, '.claude/settings.local.json')));
   });
+});
+
+test('a worktree installs the same git hooks as its main checkout: the shared file is not rewritten by each in turn', () => {
+  const dir = repo();
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'base'], { cwd: dir });
+  const wt = path.join(dir, '.worktrees', 'one');
+  execFileSync('git', ['worktree', 'add', '-q', wt], { cwd: dir });
+  assert.equal(mainCheckout(wt), dir); assert.equal(mainCheckout(dir), dir);
+  installGitHooks(dir, CLI, true);
+  const hook = path.join(dir, '.git', 'hooks', 'post-commit');
+  const text = fs.readFileSync(hook, 'utf8');
+  assert.ok(text.includes(`repo='${dir}'`));
+  const mtime = fs.statSync(hook).mtimeMs;
+  const lines = []; installGitHooks(wt, CLI, true, l => lines.push(l));
+  assert.equal(fs.readFileSync(hook, 'utf8'), text);
+  assert.equal(fs.statSync(hook).mtimeMs, mtime, 'the shared hook is left as it is');
+  assert.ok(lines.every(l => /already in place/.test(l)), lines.join('\n'));
+  assert.deepEqual(refreshWiring(wt, { cli: CLI, mcpEntry: { command: 'node', args: ['/x/mcp.js'] } }).changed, []);
+});
+
+test('the home directory is not a checkout: .thinker/ there is thinker\'s own home, and a hook at user scope serves nothing outside a git checkout', () => {
+  const home = fakeHome();
+  // a .thinker/ with notes, as THINKER_HOME would have, but no .git
+  fs.mkdirSync(path.join(home.HOME, '.thinker', 'notes'), { recursive: true });
+  const dir = repo();
+  const store = new Store(dir);
+  // the log names the home directory, as a command run there does
+  fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
+  fs.appendFileSync(path.join(dir, '.thinker', 'log.jsonl'), JSON.stringify({ t: new Date().toISOString(), repo: home.HOME, op: 'rewire' }) + '\n');
+  const known = inHome({ ...home, THINKER_LOG: 'local' }, () => knownRepos(store, dir));
+  assert.ok(!known.includes(fs.realpathSync(home.HOME)), known.join(', '));
+  const env = { ...process.env, ...home, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off' };
+  const outp = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--user'], { input: JSON.stringify({ session_id: 'h1', prompt: PROMPT, cwd: home.HOME }), encoding: 'utf8', env, cwd: home.HOME }).trim();
+  assert.equal(outp, '');
 });

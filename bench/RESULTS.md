@@ -680,6 +680,7 @@ scores and lab scripts: `bench/runs/ranking-lab-2026-10-04/`.
 | floor 0, two notes | 0.88 | 0.76 | 19/70 | 0/8 | 177 |
 | **floor 0, one note** (the default now) | **0.94** | **0.88** | 15/70 | 0/8 | 121 |
 | floor 0, one note, request cut to 120 tokens | 1.00 | 0.76 | 16/70 | 0/8 | — |
+| same, falling back to the best note at ≥ −1 when nothing clears 0 (**the default now**) | 0.96 | 0.67 | 16/70, 23 tasks hit against 19 | 0/8 | — |
 
 Tasks that get a useful note at prompt time: 33 of 54 before, 16 with floor 0 / one note, 21 with the request cut
 to its first 120 tokens (24% of grafana's pairs exceeded the 512-token limit and lost the note text); counting the
@@ -710,6 +711,32 @@ rather than the text panel's view-mode state in both arms, with the same reasoni
 nothing about which setting is better; they say the mechanism works end to end on Codex (one or two notes
 injected as configured, scores logged) and that the second note is not a free improvement even when it is the
 on-target one. The default stays floor 0, one note.
+
+### Before shipping: old hook against new hook on five real tasks (2026-10-04)
+
+Committed main `8a36e5f` (the cross-encoder default, floor 0, one note, request cut to 120 tokens, before the
+fallback floor landed). Old = the hook as it was (lexical ranking, two notes, `THINKER_CE=off`); new = the default.
+Same noteset, same prompt, bare request first and the benchmark's framing after it for both arms, one seed.
+Codex CLI 0.160 with `gpt-6-astra`, Claude Code with Opus (60 turns max). Codex `gpt-6-sol` judge on the
+calibrated criteria throughout. Runs: `bench/runs/{posthog,grafana}-astra-{old,new}`, `*-opus-oldnew`.
+
+| agent | task | old hook (two notes) | new hook (one note) |
+|---|---|---|---|
+| Astra | grafana PR133191 | pass, 13 calls, 0.46M input | pass, 11 calls, 0.29M |
+| Astra | posthog PR106936 | pass, 19 calls, 1.16M, 2 notes served | fail (5/6 essential), 18 calls, 0.84M, nothing served |
+| Astra | posthog PR106613 | pass, 7 calls, 0.26M | pass, 7 calls, 0.26M |
+| Opus | posthog PR106466 | fail (4/6 essential), 60 calls, 6.8M, $5.40 | fail (4/6, same criteria), 66 calls, 7.1M, $6.24 |
+| Opus | grafana PR133148 | fail (5/6 essential), 65 calls, 5.2M, $4.51, 1 note served | pass, 63 calls, 5.5M, $4.53, nothing served |
+
+Three of five identical in outcome, one loss and one win, both on tasks where the new hook served nothing: on
+PR106936 the old hook's second note ("bulk invite partial-failure semantics") carried the essential criterion the
+new run missed; the cross-encoder had scored every one of the five important candidates below zero (best −0.93),
+which is what the fallback floor (−1) now catches. On PR133148 the old hook's note did not help and the run
+without notes passed. Five tasks, one seed: the default is not worse on outcomes here and is cheaper in tokens
+where both pass; it is not shown better either. Harness notes: the Codex harness reads positional arguments as
+reps/conc when flags come first (pass `--reps 1 --conc 1`); serving through `codex-run.js` writes `uses`/`servedIn`
+into the noteset it is pointed at (revert before committing tracked notesets); `run.js` now puts the request before
+the framing paragraph for every arm.
 
 ## What this says about the design
 
