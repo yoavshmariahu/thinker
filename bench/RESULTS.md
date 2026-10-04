@@ -555,6 +555,92 @@ V2–V5 no longer apply to the base `a0621fe` and were skipped).
   the base cannot be reverted onto it once the surrounding code has moved.
   New revert cases need a newer base.
 
+## Ranking: a cross-encoder over the lexical candidates (2026-10-04, offline)
+
+What the prompt hook serves (two notes) for each task's request, scored against the files the merged fix
+changed; `bench/retrieval.js` with the request as a user would type it (the benchmark's "Implement the
+following change…" framing stripped, since it put words in the query no user types and had been skewing
+every ranking number). Notesets: `grafana-v3` (307 notes, built 2026-10-04 with the current pipeline, all
+phrased), `posthog-v3` (259, phrased), mitmproxy (29). No agent ran; seconds per set.
+
+| set | BM25 (today) | + cross-encoder, floor −3 | floor −2 |
+|---|---|---|---|
+| grafana-v3 (11 of 28 tasks have a relevant note) | precision 0.28, 6/11 tasks hit, 25 notes served | **0.41, 6/11, 17** | 0.42, 5/11, 12 |
+| posthog-v3 (14 of 14) | 0.75, 12/14, 20 | **0.78, 12/14, 23** | 0.80, 12/14, 20 |
+| mitmproxy (8 of 12) | 0.50, 7/8, 20 | **0.73, 6/8, 11** | 0.73, 6/8, 11 |
+
+The reranker (`src/dense.js:ceRerank`, `THINKER_CE=on`, harness arm `hook-ce`) reads the request together
+with each of the eight best lexically gated candidates through `Xenova/ms-marco-MiniLM-L-6-v2` (23 MB, ONNX,
+one relevance logit per pair), drops those under the floor and serves the rest in its order; 40–220 ms per
+request, the hook goes from 0.7 s to about 1.0 s. The runtime (`@huggingface/transformers`) is not a
+dependency of thinker; it was installed beside the checkout for the measurement.
+
+Tried on the same sets and not kept: MiniLM bi-encoder embeddings blended into the score with a cosine gate
+(`THINKER_DENSE=minilm`, kept in the code as the measured negative): more notes served for the same hits
+once the framing was out of the query, and poor at abstaining on tasks with no relevant note; cosine as a
+confirmation gate on top of the lexical gate (grafana 0.28 → 0.35, nothing beyond what the cross-encoder
+gives); matching the request against each phrasing of a note separately (no better than one pooled vector);
+sentence-level request embeddings (precision 0.43–0.50 on grafana, losing one or two hits); one note unless
+the second is nearly as strong (no change); the 12-layer cross-encoder (separates worse); cosine confirm
+stacked on the cross-encoder (nothing extra). The floor was chosen on these 54 tasks, so the gain in the wild
+should be read as somewhat smaller. The transformers.js classification pipeline softmaxes a single-logit
+cross-encoder to 1.0; the logit is read from the model directly.
+
+## Ranking: labels instead of the gold-file proxy (2026-10-04, offline)
+
+Every ranking number above scores a served note as "on target" when it rests on a file the merged fix changed.
+A Codex judge (gpt-6-sol) labeled 761 candidate notes over the same 54 tasks against the merged change (title,
+calibrated criteria, diff excerpt): 2 important guidance, 1 helpful context, 0 irrelevant. Labels, cross-encoder
+scores and lab scripts: `bench/runs/ranking-lab-2026-10-04/`.
+
+- The proxy was wrong often: on grafana 13 of 30 on-gold candidates were judged irrelevant and 46 off-gold
+  judged useful (10 important). Under labels the hook's BM25 top 2 is at precision 0.69 overall (grafana 0.68,
+  posthog 0.84, mitmproxy 0.52), not the 0.28–0.75 the proxy gave.
+- Recall of important notes is the weak side: 27 of 70 reach the prompt hook. The coverage gate, not the ranking,
+  holds them back: on grafana the open lexical ranking has 12 of 17 in its top 8 and only 7 pass the floors.
+  Loosening the floor to 0.15 gains two important notes and costs 16 points of precision.
+- Neither cross-encoder separates important from irrelevant notes on raw note text (ms-marco L6 median logits
+  −4.3 against −4.5 on grafana; mxbai-rerank-xsmall no better). On a 3–6 sentence search description written
+  from the note alone (Haiku, $2.20 for 576 notes) it does. All 54 tasks, prompt hook:
+
+| variant | useful share | important share | important notes served | tasks given a note when none was useful | tokens/task |
+|---|---|---|---|---|---|
+| BM25 top 2 (before) | 0.69 | 0.38 | 27/70 | 4/8 | 514 |
+| cross-encoder on search text, floor −2, two notes | 0.84 | 0.58 | 25/70 | 0/8 | 318 |
+| floor 0, two notes | 0.88 | 0.76 | 19/70 | 0/8 | 177 |
+| **floor 0, one note** (the default now) | **0.94** | **0.88** | 15/70 | 0/8 | 121 |
+| floor 0, one note, request cut to 120 tokens | 1.00 | 0.76 | 16/70 | 0/8 | — |
+
+Tasks that get a useful note at prompt time: 33 of 54 before, 16 with floor 0 / one note, 21 with the request cut
+to its first 120 tokens (24% of grafana's pairs exceeded the 512-token limit and lost the note text); counting the
+edit hook, which serves the rules resting on a file the agent edits, 39 before and 33 after. Important notes that
+rest on a file the fix changed: grafana 7/17, posthog 40/44, mitmproxy 9/9. The floors were chosen on these 54
+tasks; one judge, one prompt; posthog's labels are generous (44 important notes on 14 tasks). The user's call:
+precision first, one note, adjustable (`ce` in the config).
+
+### One note or two: four tasks on Codex (2026-10-04, `*-codex-ce1` / `*-codex-ce2`)
+
+The `hook` arm of `bench/codex-run.js`, Codex CLI 0.160 with `gpt-6-sol`, one seed, the cross-encoder at floor 0
+reading the search text, request cut to 120 tokens; the only difference is `THINKER_CE_MAX` 1 or 2. Graded by the
+Codex judge on the calibrated criteria. Tasks chosen where the two settings serve different notes: on the two
+posthog tasks the second slot carries the on-target note and the first an off-target one; on the grafana tasks the
+second slot is off-target. The hook is handed the bare request (the benchmark's "Implement the following change…"
+paragraph is harness instruction and crowded the request out of the cross-encoder's 120 tokens; with it in front
+nothing was served on any of the four).
+
+| task | one note | two notes |
+|---|---|---|
+| posthog PR106672 | pass, 24 tool calls, 1.02M input tokens, 190 s | fail (6 of 7 essential), 35 calls, 1.28M, 222 s |
+| posthog PR106613 | pass, 16 calls, 0.29M, 55 s | pass, 12 calls, 0.33M, 57 s |
+| grafana PR133206 | fail (4 of 5 essential), 31 calls, 0.89M, 189 s | pass, 26 calls, 0.69M, 145 s |
+| grafana PR133011 | fail (0 essential), 27 calls, 0.92M, 240 s | fail (0 essential), 46 calls, 0.88M, 242 s |
+
+One task flipped each way, one tied, one failed identically in both (the agent edited the panel-edit wrapper
+rather than the text panel's view-mode state in both arms, with the same reasoning). Four tasks and one seed say
+nothing about which setting is better; they say the mechanism works end to end on Codex (one or two notes
+injected as configured, scores logged) and that the second note is not a free improvement even when it is the
+on-target one. The default stays floor 0, one note.
+
 ## What this says about the design
 
 1. **Delivery matters more than retrieval.** Zero-turn injection (hook) is the only delivery that paid for itself; a tool call the agent must discover and invoke costs more than it saves in Claude Code today.

@@ -570,6 +570,33 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   Through an agent's CLI a call took 8 to 13 seconds and about $0.02, which
   is close to the 15 seconds a prompt hook is given, so it is off by default;
   with `ANTHROPIC_API_KEY` the call goes to the API directly.
+- The hooks' notes go through a local cross-encoder before they are served
+  (`dense.js:ceRerank`, on by default): `Xenova/ms-marco-MiniLM-L-6-v2` (23 MB,
+  ONNX) reads the request, cut to its first 120 tokens, together with each of
+  the eight best lexically gated candidates and gives one relevance logit per
+  pair; candidates under the floor are dropped and at most `maxNotes` are
+  served in its order. Defaults `floor: 0, maxNotes: 1` (`dense.js:CE_DEFAULTS`),
+  chosen on 54 tasks labeled by a Codex judge against the merged fixes
+  (`bench/RESULTS.md`, "Ranking: labels"): 94% of served notes useful, 88%
+  important, nothing served when nothing fits, a quarter of the tokens; the
+  price is reach, 15 of 70 important notes at prompt time against 27, which
+  the edit hook recovers in part (it reaches the important notes resting on
+  the files the agent opens). `ce` in `.thinker/config.json` adjusts it
+  (`{ enabled, floor, maxNotes, k, queryTokens }`, or `false`); `THINKER_CE=on|off`,
+  `THINKER_CE_FLOOR`, `THINKER_CE_MAX`, `THINKER_CE_K`, `THINKER_CE_QUERY_TOKENS`
+  override the config. The note side is its `search` text, written by
+  `phraseNotes` beside the phrasings (3–6 sentences from the note alone:
+  rule, constraints, tasks, identifiers; `phraseKey` is versioned so notes
+  phrased before are done again); on raw note text the cross-encoder did
+  not tell important notes from irrelevant ones, on this text it did. An
+  agent's own `orient` (more than two notes) and `lookup` keep the lexical
+  ranking. The runtime (`@huggingface/transformers`) is not a dependency: it
+  is required lazily, must be installed beside the checkout, caches the
+  model under `THINKER_DENSE_DIR` (default `~/.thinker/dense`), and when it
+  is missing the hook logs `ce-error` once and serves the lexical ranking.
+  The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
+  embeddings blended into the score) is the measured negative kept beside
+  it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.
 - Team mode: `.thinker/local/notes/` holds learned notes and ignores itself in git.
   `.thinker/notes/` holds committed content, written only by explicit `thinker share`
   (or `rm` / manual edits). `.thinker/local/shared/` holds per-checkout state and pending

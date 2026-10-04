@@ -11,6 +11,7 @@ import { Store } from '../src/store.js';
 import { createNote, refresh } from '../src/ops.js';
 import { checkNote, narrowFileDep, narrowAtCreation, hashDep } from '../src/deps.js';
 import { FIX_LIKE } from '../src/prs.js';
+process.env.THINKER_CE = 'off'; // the floors under test are the lexical gate's; the cross-encoder (dense.js) has its own test
 
 process.env.THINKER_TELEMETRY = 'off';
 process.env.THINKER_LOG = 'off';
