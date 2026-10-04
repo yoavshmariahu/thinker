@@ -97,3 +97,22 @@ test('a rewritten body loses the framing it echoes', async () => {
   assert.equal(cleanBody('Codex matches hooks by hash.', 'Codex hook state'), 'Codex matches hooks by hash.');
   assert.equal(cleanBody('', 'x'), '');
 });
+
+test('the agent path asks more of a note: a body floor of its own', async () => {
+  const { rank, MIN_COVER } = await import('../src/rank.js');
+  const { orient } = await import('../src/ops.js');
+  assert.equal(MIN_COVER.agentBody, 0.30);
+  const note = { id: 'n', kind: 'gotcha', title: 'fetchRows reads the rows table', answers: ['how are rows fetched'], body: 'src/a.js:fetchRows reads the rows table and returns them in order', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }], confidence: 0.9, status: 'fresh' };
+  const q = 'how are rows fetched by fetchRows and what does the table hold';
+  const [r] = rank([note], { query: q, mode: 'orient', minBody: 0 });
+  assert.ok(r && r.cover > 0, 'served with no floor; its body cover is measured');
+  assert.equal(rank([note], { query: q, mode: 'orient', minBody: r.cover + 0.01 }).length, 0, 'a floor just above its cover keeps it out');
+  assert.equal(rank([note], { query: q, mode: 'orient', minBody: Math.max(0, r.cover - 0.01) }).length, 1, 'just below lets it through');
+  // through orient: the hook's two notes use the hook floor, the agent's five the agent floor
+  const dir = gitRepo(); const store = new Store(dir).init();
+  createNote(store, { title: 'fetchRows reads the rows table', kind: 'gotcha', answers: ['how are rows fetched'], body: 'src/a.js:fetchRows reads the rows table and returns them in order', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
+  const weak = 'rows and tables and order, plus many other words about dashboards, panels, alerts, folders and users';
+  const hook = await orient(store, { task: weak, recordUsage: false, backgroundVerify: false });
+  const agent = await orient(store, { task: weak, budget: 1000, maxNotes: 5, relFloor: 0.7, recordUsage: false, backgroundVerify: false });
+  assert.ok(hook.included.length >= agent.included.length, 'the agent path serves no more than the hook on a weak request');
+});

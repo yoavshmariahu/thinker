@@ -512,7 +512,11 @@ queries; `0,0` turns them off).
   the request's term weight: 0.20 with its body and pointers, 0.05 with its
   title, answers and tags (`rank.js:MIN_COVER`; on the benchmark task sets
   the body floor separates on-target from off-target servings, 0.10 did
-  not). A short query must be covered by more: the weight of about three of
+  not). When the agent calls `orient` itself (up to five notes, a sentence
+  as the request) the body floor is 0.30 (`MIN_COVER.agentBody`): on the
+  offline sets this took grafana's agent-path precision from 0.12 to 0.17 and
+  mitmproxy's from 0.56 to 0.64 with no task losing its on-target note,
+  posthog unchanged at 0.80; 0.35 cost posthog a task. A short query must be covered by more: the weight of about three of
   its words. A request of two or three content words must share two of them
   with the note's title, answers or tags ("run the tests"); a request of one
   content word ("status?") is a turn of conversation and is served nothing.

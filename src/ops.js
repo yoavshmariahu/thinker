@@ -5,7 +5,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation } from './deps.js';
-import { rank, pack, renderNote, renderPointers, estTokens } from './rank.js';
+import { rank, pack, renderNote, renderPointers, estTokens, MIN_COVER } from './rank.js';
 import { annotateFanout, fanout, callers, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
@@ -278,7 +278,9 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
   if (NAIVE) notes = notes.map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; });
   if (refreshFirst) notes = refresh(store, notes);
-  let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient' });
+  // the agent's own call (more than the hook's two notes) asks with a sentence; a higher body floor keeps
+  // the notes that merely share its words out (rank.js:MIN_COVER.agentBody)
+  let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', minBody: maxNotes > 2 ? MIN_COVER.agentBody : undefined });
   if (process.env.THINKER_FORCE === '1') ranked = rank(notes, { query: '', mode: 'orient' }).map(r => ({ ...r, rel: 1 })); // control arm: inject regardless of relevance
   let chosen = false;
   if (process.env.THINKER_FORCE !== '1' && rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }

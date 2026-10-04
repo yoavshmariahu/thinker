@@ -1058,7 +1058,7 @@ async function minePrs(slug, { before, after, again, limit = 20, model, dry, fix
   const failed = new Set();
   const filtered = listed
     .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) &&
-      (p.body || '').length > (useGit ? 10 : 120) && p.additions <= 800 && p.additions >= 3);
+      (fixes || (p.body || '').length > (useGit ? 10 : 120)) && p.additions <= 800 && p.additions >= 3); // a fix commit's subject is its record; most have no body
   let candidates = filtered.length ? filtered : listed.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
   // --fixes: only changes whose message says they fix something (git history has no labels; a repository
   // developed by direct commits has no pull requests to mine, and its fix commits are what review wants)

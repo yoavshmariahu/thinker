@@ -92,7 +92,11 @@ export function bm25(index, qtoks, k1 = 1.4, b = 0.6) {
 // and with its question side (title/answers/tags). rel is relative to the best note, so the
 // best of a poor lot scores near 1; these floors are absolute.
 // THINKER_MIN_COVER=body,question,terms changes them; 0,0 turns them off.
-export const MIN_COVER = { body: 0.20, question: 0.05, terms: 3 };
+// agentBody: the body floor when the agent calls `orient` itself (up to five notes, a one-sentence
+// request): on the offline sets (bench/retrieval.js) the hook's 0.20 let through most of grafana's
+// off-target servings (precision 0.12); 0.30 took it to 0.17 and mitmproxy's 0.56 to 0.64 with no
+// task losing its on-target note, posthog unchanged at 0.80; 0.35 cost posthog a task.
+export const MIN_COVER = { body: 0.20, question: 0.05, terms: 3, agentBody: 0.30 };
 
 // path affinity: 1 if a dep is the current file, decaying by directory distance
 function pathAffinity(note, file) {
@@ -115,7 +119,7 @@ const KIND_PRIOR = { howto: 0.15, gotcha: 0.1, convention: 0.1, cochange: 0, cal
 // "launches without the check" describe the fault.
 export const subject = q => String(q).replace(/\b(?:do not|don't|dont|no need to)\b[^.;:\n]*/gi, ' ');
 
-export function rank(notes, { query = '', file = '', mode = 'orient', loose = false } = {}) {
+export function rank(notes, { query = '', file = '', mode = 'orient', loose = false, minBody } = {}) {
   const idx = buildIndex(notes);
   const qtoks = tokenize(subject(query) + ' ' + (file || ''));
   const qset = new Set(qtoks);
@@ -128,7 +132,7 @@ export function rank(notes, { query = '', file = '', mode = 'orient', loose = fa
   // every note that mentions a test. A longer request shares two discriminative terms, or one and
   // three in the body.
   const short = Q.uniq <= 3;
-  const [floorB = MIN_COVER.body, floorQ = MIN_COVER.question, terms = MIN_COVER.terms] = (process.env.THINKER_MIN_COVER || '').split(',').filter(Boolean).map(Number);
+  const [floorB = minBody ?? MIN_COVER.body, floorQ = MIN_COVER.question, terms = MIN_COVER.terms] = (process.env.THINKER_MIN_COVER || '').split(',').filter(Boolean).map(Number);
   // a short query has little weight to cover, and two shared words are a large share of it:
   // the body must then hold the weight of about `terms` of its words
   const shortFloor = floorB > 0 && Q.uniq > 3 ? Math.min(0.6, terms / Q.uniq) : 0;
