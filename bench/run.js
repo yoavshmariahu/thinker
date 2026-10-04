@@ -113,6 +113,10 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
     prompt:     { notes: (() => { const e = path.join(HERE, 'runs', 'empty-notes'); fs.mkdirSync(e, { recursive: true }); return e; })() },
     late:       { late: true },
     'late+nudge':    { late: true, nudge: true },
+    // ranking comparison (2026-10-04): the hook arm with lexical ranking alone, and with dense scores blended in
+    'hook-bm25':     {},
+    'hook-minilm':   { env: { THINKER_DENSE: 'minilm' } },
+    'hook-ce':       { env: { THINKER_CE: 'on' } },
   };
 
   const cfg = ARMS[arm];
@@ -123,7 +127,7 @@ function runClaude(prompt, { arm, allowEdit, cwd, notesDir: staged }) {
   }
   if (cfg) {
     const nd = cfg.notes || notesDir;
-    const hookEnv = `THINKER_NOTES_DIR=${nd} THINKER_NO_BG_VERIFY=1 `;
+    const hookEnv = `THINKER_NOTES_DIR=${nd} THINKER_NO_BG_VERIFY=1 ${Object.entries(cfg.env || {}).map(([k, v]) => `${k}=${v}`).join(' ')} `.replace(/\s+/g, ' ');
     const budget = flags.budget ? ` --budget ${Number(flags.budget)}` : '';
     const hooks = { UserPromptSubmit: [{ matcher: '', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook prompt --repo ${cwd}${budget}`, timeout: 60 }] }] };
     if (cfg.late) hooks.PostToolUse = [{ matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `${hookEnv}node ${CLI} hook tool --repo ${cwd}`, timeout: 15 }] }];

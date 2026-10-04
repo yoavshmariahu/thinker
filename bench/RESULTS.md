@@ -555,6 +555,37 @@ V2–V5 no longer apply to the base `a0621fe` and were skipped).
   the base cannot be reverted onto it once the surrounding code has moved.
   New revert cases need a newer base.
 
+## Ranking: a cross-encoder over the lexical candidates (2026-10-04, offline)
+
+What the prompt hook serves (two notes) for each task's request, scored against the files the merged fix
+changed; `bench/retrieval.js` with the request as a user would type it (the benchmark's "Implement the
+following change…" framing stripped, since it put words in the query no user types and had been skewing
+every ranking number). Notesets: `grafana-v3` (307 notes, built 2026-10-04 with the current pipeline, all
+phrased), `posthog-v3` (259, phrased), mitmproxy (29). No agent ran; seconds per set.
+
+| set | BM25 (today) | + cross-encoder, floor −3 | floor −2 |
+|---|---|---|---|
+| grafana-v3 (11 of 28 tasks have a relevant note) | precision 0.28, 6/11 tasks hit, 25 notes served | **0.41, 6/11, 17** | 0.42, 5/11, 12 |
+| posthog-v3 (14 of 14) | 0.75, 12/14, 20 | **0.78, 12/14, 23** | 0.80, 12/14, 20 |
+| mitmproxy (8 of 12) | 0.50, 7/8, 20 | **0.73, 6/8, 11** | 0.73, 6/8, 11 |
+
+The reranker (`src/dense.js:ceRerank`, `THINKER_CE=on`, harness arm `hook-ce`) reads the request together
+with each of the eight best lexically gated candidates through `Xenova/ms-marco-MiniLM-L-6-v2` (23 MB, ONNX,
+one relevance logit per pair), drops those under the floor and serves the rest in its order; 40–220 ms per
+request, the hook goes from 0.7 s to about 1.0 s. The runtime (`@huggingface/transformers`) is not a
+dependency of thinker; it was installed beside the checkout for the measurement.
+
+Tried on the same sets and not kept: MiniLM bi-encoder embeddings blended into the score with a cosine gate
+(`THINKER_DENSE=minilm`, kept in the code as the measured negative): more notes served for the same hits
+once the framing was out of the query, and poor at abstaining on tasks with no relevant note; cosine as a
+confirmation gate on top of the lexical gate (grafana 0.28 → 0.35, nothing beyond what the cross-encoder
+gives); matching the request against each phrasing of a note separately (no better than one pooled vector);
+sentence-level request embeddings (precision 0.43–0.50 on grafana, losing one or two hits); one note unless
+the second is nearly as strong (no change); the 12-layer cross-encoder (separates worse); cosine confirm
+stacked on the cross-encoder (nothing extra). The floor was chosen on these 54 tasks, so the gain in the wild
+should be read as somewhat smaller. The transformers.js classification pipeline softmaxes a single-logit
+cross-encoder to 1.0; the logit is read from the model directly.
+
 ## What this says about the design
 
 1. **Delivery matters more than retrieval.** Zero-turn injection (hook) is the only delivery that paid for itself; a tool call the agent must discover and invoke costs more than it saves in Claude Code today.

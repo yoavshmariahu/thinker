@@ -11,6 +11,7 @@ import { servedFields } from './usage.js';
 import { complete } from './llm.js';
 import { loadCochange, partners } from './cochange.js';
 import { anchoringGuard } from './guard.js';
+import { denseEnabled, denseScores, ceEnabled, ceRerank } from './dense.js';
 
 export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
 
@@ -237,8 +238,15 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   if (refreshFirst) notes = refresh(store, notes);
   // the agent's own call (more than the hook's two notes) asks with a sentence; a higher body floor keeps
   // the notes that merely share its words out (rank.js:MIN_COVER.agentBody)
-  let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', minBody: maxNotes > 2 ? MIN_COVER.agentBody : undefined });
+  // THINKER_DENSE=minilm (dense.js, experiment): cosine scores of the request against every note, blended in
+  let dense = null;
+  if (denseEnabled()) { try { dense = await denseScores(notes, task + (file ? ' ' + file : '')); } catch (e) { store.log({ op: 'dense-error', error: String(e.message).slice(0, 200) }); } }
+  let ranked = rank(notes, { query: task, file: normPath(store.repo, file), mode: 'orient', minBody: maxNotes > 2 ? MIN_COVER.agentBody : undefined, dense });
   let chosen = false;
+  // THINKER_CE=on (dense.js, experiment): a cross-encoder reads the request with each of the best candidates and
+  // keeps those it scores relevant; its choice is final, as a model's is
+  let ce = null;
+  if (ceEnabled() && ranked.length) { try { ranked = await ceRerank(ranked, task); chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); } catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); } }
   if (rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
   // what would have been served had staleness not held it back: verified below, as if it had been
   const held = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
@@ -266,7 +274,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // marked served, so a later turn in the same session is held out the same way
   if (holdout) {
     const withheld = packed.included.map(n => n.id);
-    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
+    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
     return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
   }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
@@ -280,7 +288,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   addSnippets(store, packed, budget, snippets);
-  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 

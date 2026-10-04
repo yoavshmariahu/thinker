@@ -565,6 +565,21 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   Through an agent's CLI a call took 8 to 13 seconds and about $0.02, which
   is close to the 15 seconds a prompt hook is given, so it is off by default;
   with `ANTHROPIC_API_KEY` the call goes to the API directly.
+- `THINKER_CE=on` (experiment, `dense.js:ceRerank`): a local cross-encoder
+  (`Xenova/ms-marco-MiniLM-L-6-v2`, 23 MB, ONNX) reads the request together
+  with each of the eight best lexically gated candidates, drops those scoring
+  under `THINKER_CE_FLOOR` (default −3, a raw logit) and serves the rest in
+  its order; its choice is final, like the model's. Measured offline on the
+  bare request (`bench/RESULTS.md`, "Ranking: a cross-encoder"): hook
+  precision grafana-v3 0.28 → 0.41, posthog-v3 0.75 → 0.78, mitmproxy 0.50 →
+  0.73, hits kept but one; 40–220 ms a request, the hook from 0.7 s to about
+  1.0 s. The runtime (`@huggingface/transformers`) is not a dependency and has
+  to be installed beside the checkout; the model is cached under
+  `THINKER_DENSE_DIR` (default `~/.thinker/dense`). `THINKER_DENSE=minilm`
+  (bi-encoder embeddings blended into the score, cosine gate `DENSE_FLOOR`,
+  `bench/dense-embed.js` fills the cache) is the measured negative kept beside
+  it: more notes for the same hits, poor abstention. Harness arms `hook-ce`,
+  `hook-minilm`, `hook-bm25` (`bench/run.js`).
 - Team mode: `.thinker/local/notes/` holds learned notes and ignores itself in git.
   `.thinker/notes/` holds committed content, written only by explicit `thinker share`
   (or `rm` / manual edits). `.thinker/local/shared/` holds per-checkout state and pending

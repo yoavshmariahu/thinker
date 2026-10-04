@@ -22,6 +22,8 @@ const VERBOSE = !!flag('verbose'), JSON_OUT = !!flag('json');
 const at = p => [path.join(ASSETS, p), path.join(HERE, p)].find(f => fs.existsSync(f));
 const SETS = {
   grafana: ['tasks/grafana-hard.json', 'notesets/grafana-v1/notes'],
+  grafana3: ['tasks/grafana-hard.json', 'notesets/grafana-v3/notes'],
+  grafana3full: ['tasks/grafana.json', 'notesets/grafana-v3/notes'],
   mitmproxy: ['tasks/mitmproxy-hard.json', 'repos/mitmproxy/.thinker/notes'],
   posthog: ['tasks/posthog-hard.json', 'notesets/posthog-v2/notes'],
 };
@@ -29,6 +31,7 @@ const SETS = {
 process.env.THINKER_LOG = 'off'; process.env.THINKER_NO_BG_VERIFY = '1';
 const { orient, rememberTask } = await import('../src/ops.js');
 const { rank } = await import('../src/rank.js');
+const { denseScores } = await import('../src/dense.js');
 const { Store } = await import('../src/store.js');
 
 const isTest = f => /(test_|_test\.|\.test\.|\/tests?\/|__tests__|__snapshots__|\.ambr|\.snap|\.stories\.)/.test(f);
@@ -51,7 +54,8 @@ async function run(name) {
     const exists = store.list().some(on);
     // the order alone, with nothing gated: where the first note on a changed file stands, and the top 2
     if (exists) {
-      const all = rank(store.list(), { query: t.prompt, mode: 'orient', cover: { body: 0, question: 0 } });
+      const dense = process.env.THINKER_DENSE ? await denseScores(store.list(), t.prompt) : null; // dense.js, THINKER_DENSE=minilm
+      const all = rank(store.list(), { query: t.prompt, mode: 'orient', cover: { body: 0, question: 0 }, dense });
       const first = all.findIndex(r => on(r.note));
       out.order.push({ task: t.id, first: first < 0 ? Infinity : first + 1, top2: all.slice(0, 2).filter(r => on(r.note)).length });
     }
