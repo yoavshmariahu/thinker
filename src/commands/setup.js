@@ -1,0 +1,264 @@
+// Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
+// updating thinker itself (update, upgrade, switch, branch).
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { initAst, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from '../ast.js';
+import { parseClients, uninstallClients } from '../clients.js';
+import { uninstallGitHooks } from '../git-hooks.js';
+import { runSetup } from '../setup.js';
+import { unscheduleTelemetry } from '../telemetry.js';
+import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, isScheduled, getLaunchAgentPath } from '../update.js';
+import { githubSlug } from './shared.js';
+import { seed, minePrs } from './learn.js';
+
+async function initCommand(ctx) {
+  // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
+  process.stderr.write('thinker: `thinker init` was replaced by `thinker setup`, the one command that sets a repository up.\n  thinker setup              wire up the agents, then offer to build the cache from the code\n  thinker setup --no-build   wire up the agents only (what `init` did)\n');
+  process.exit(1);
+}
+
+async function setupCommand(ctx) {
+  const { repo } = ctx;
+  if (!fs.existsSync(path.join(repo, '.git'))) { process.stderr.write(`thinker: ${repo} is not a git repository. Run \`thinker setup\` from inside the repository to set it up.\n`); process.exit(1); }
+  await setup(ctx);
+  return;
+}
+
+async function uninstallCommand(ctx) {
+  const { flags, repo, store, out } = ctx;
+  // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge
+  unscheduleDaily({ home: thinkerHome() });
+  unscheduleTelemetry({ home: thinkerHome() });
+  uninstallClients(repo);
+  uninstallGitHooks(repo);
+  if (flags.purge) fs.rmSync(store.dir, { recursive: true, force: true });
+  out(`removed thinker hooks and MCP registration from ${repo}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
+  return;
+}
+
+async function astCommand(ctx) {
+  const { pos, flags, out } = ctx;
+  const dir = flags.dir || process.env.THINKER_AST_DIR || path.join(thinkerHome(), 'ast');
+  if (pos[0] === 'install') {
+    fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(path.join(dir, 'package.json'))) fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'thinker-ast', private: true, description: 'tree-sitter parser and grammars for thinker' }, null, 2) + '\n');
+    out(`installing ${AST_PACKAGES.join(' and ')} into ${dir} (about 55 MB)…`);
+    const r = spawnSync('npm', ['install', '--no-audit', '--no-fund', '--silent', '--ignore-scripts', ...AST_PACKAGES], { cwd: dir, stdio: 'inherit' });
+    if (r.status !== 0) { out('npm install failed'); process.exit(1); }
+    const st = await initAst({ dir });
+    if (!st.available) { out(`installed, but the parser did not load: ${st.error || 'unknown error'}`); process.exit(1); }
+    out(`tree-sitter ready: ${st.grammars.join(', ')}. Symbol hashes are upgraded in place as notes are served; \`thinker rehash\` does them all now.`);
+    return;
+  }
+  const st = await initAst();
+  out(st.available ? `tree-sitter: on (${st.dir}); grammars: ${st.grammars.join(', ')}` : `tree-sitter: off (regex heuristics in use)${st.error ? `: ${st.error}` : ''}\nlooked in: ${astDirs().join(', ')}\ninstall with: thinker ast install   (grammars: ${GRAMMAR_NAMES.join(', ')})`);
+  return;
+}
+
+async function updateCommand(ctx) {
+  const { cmd, pos, flags, store, out, HERE } = ctx;
+  const home = thinkerHome();
+  const install = detectInstall(path.resolve(HERE, '..'), home);
+  const targetRef = flags.branch || flags.ref || (pos[0] && !pos[0].startsWith('-') ? pos[0] : null);
+
+  if (cmd === 'branch' && !targetRef) {
+    if (install.type === 'git') {
+      out(`On branch ${install.branch || 'detached'} (${install.commit ? install.commit.slice(0, 7) : 'unknown'})`);
+    } else {
+      out(`On ref ${install.ref || 'main'} (${install.commit ? install.commit.slice(0, 7) : 'unknown'})`);
+    }
+    return;
+  }
+
+  if (flags.status) {
+    out('Thinker installation:');
+    out(`  Type:         ${install.type === 'git' ? 'git checkout' : 'archive'}`);
+    out(`  Path:         ${install.path}`);
+    out(`  Version:      ${install.version}`);
+    if (install.type === 'git') {
+      out(`  Branch:       ${install.branch || 'detached'}`);
+      out(`  Commit:       ${install.commit ? install.commit.slice(0, 7) : 'unknown'}`);
+    } else {
+      out(`  Repository:   ${install.ghrepo || 'yoavshmariahu/thinker'}`);
+      out(`  Ref:          ${install.ref || 'main'}`);
+      out(`  Commit:       ${install.commit ? install.commit.slice(0, 7) : 'unknown'}`);
+    }
+    const sched = isScheduled(home);
+    out('Auto-updates:');
+    out(`  Schedule:     ${sched ? (process.platform === 'darwin' ? 'active (LaunchAgent: ' + getLaunchAgentPath() + ')' : 'active (cron)') : 'inactive'}`);
+    const stamp = path.join(home, 'state', 'update.last');
+    let lastCheck = 'never';
+    try {
+      const st = fs.statSync(stamp);
+      lastCheck = new Date(st.mtimeMs).toLocaleString();
+    } catch {}
+    out(`  Last check:   ${lastCheck}`);
+    return;
+  }
+
+  if (flags.schedule || flags.daily) {
+    try {
+      const res = scheduleDaily({ home, binPath: install.binPath });
+      if (res.type === 'invocation') {
+        out(`Daily OS scheduling unavailable (${res.reason}); thinker will check for updates when invoked, at most once a day, unless auto-updates are disabled.`);
+      } else {
+        out(`Scheduled daily auto-update for thinker (${res.type === 'launchd' ? 'LaunchAgent: ' + res.path : 'cron: ' + res.line}).`);
+      }
+    } catch (e) {
+      out(`Failed to schedule daily auto-update: ${e.message}`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (flags.unschedule) {
+    const res = unscheduleDaily({ home });
+    if (res.unscheduled) out('Removed scheduled daily auto-update for thinker.');
+    else out('No scheduled daily auto-update was found.');
+    return;
+  }
+
+  if (flags.background) {
+    const lock = path.join(home, 'state', 'update.lock');
+    try {
+      if (Date.now() - fs.statSync(lock).mtimeMs < 15 * 60_000) return;
+    } catch {}
+    fs.mkdirSync(path.dirname(lock), { recursive: true });
+    fs.writeFileSync(lock, String(process.pid));
+    try {
+      const chk = await checkUpdate({ home, install });
+      if (chk.available) {
+        const res = await applyUpdate({ home, install, quiet: true, background: true });
+        if (res.updated) {
+          const noticeFile = path.join(home, 'state', 'update-notice.json');
+          fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, at: new Date().toISOString() }));
+          store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: true });
+        }
+      }
+    } catch {}
+    finally {
+      try { fs.rmSync(lock, { force: true }); } catch {}
+    }
+    return;
+  }
+
+  if (!flags.quiet) {
+    if (targetRef && (install.branch !== targetRef && install.ref !== targetRef)) {
+      out(`Checking branch ${targetRef}...`);
+    } else {
+      out('Checking for updates...');
+    }
+  }
+
+  let chk;
+  try {
+    chk = await checkUpdate({ home, install, ghrepo: flags.repo, ref: targetRef });
+  } catch (e) {
+    out(`Update check failed: ${e.message}`);
+    process.exit(1);
+  }
+
+  if (flags.check) {
+    if (chk.available) {
+      const target = chk.targetBranch || chk.targetRef || targetRef || '';
+      out(`Update available${target ? ` for ${target}` : ''}: ${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'}`);
+      if (chk.commitMessage) out(`  ${chk.commitMessage}`);
+    } else {
+      out(`thinker is already up to date on ${chk.branch || chk.ref || 'main'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
+    }
+    return;
+  }
+
+  if (!chk.available && !flags.force) {
+    if (!flags.quiet) {
+      out(`thinker is already up to date on ${chk.branch || chk.ref || 'main'} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version}).`);
+      if (!isScheduled(home)) {
+        out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
+      }
+    }
+    return;
+  }
+
+  if (!flags.quiet) {
+    if (chk.switchingBranch || chk.switchingRef) {
+      out(`Switching thinker to ${chk.targetBranch || chk.targetRef} (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'current'} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'})...`);
+    } else {
+      out(`Updating thinker (${chk.currentCommit ? chk.currentCommit.slice(0, 7) : 'v' + chk.version} → ${chk.latestCommit ? chk.latestCommit.slice(0, 7) : 'latest'})...`);
+    }
+  }
+
+  try {
+    const res = await applyUpdate({ home, install, force: !!flags.force, quiet: !!flags.quiet, ghrepo: flags.repo, ref: targetRef });
+    if (!flags.quiet) {
+      const branchInfo = res.branch ? ` on branch ${res.branch}` : (res.ref ? ` on ref ${res.ref}` : '');
+      out(`Updated thinker${branchInfo} to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
+      if (!isScheduled(home)) {
+        out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');
+      }
+    }
+    store.log({ op: 'update', from: res.from, to: res.to, version: res.version, branch: res.branch || res.ref, auto: false });
+  } catch (e) {
+    out(`Update failed: ${e.message}`);
+    process.exit(1);
+  }
+  return;
+}
+
+// The one command that sets a repository up: wire it into the agents, then offer to build the
+// cache from its code and merged pull requests. The offer is the only step that spends anything,
+// so it is a question (--build answers yes, --no-build answers no and leaves the wiring alone).
+export async function setup(ctx) {
+  const { flags, repo, store, out, learnOn, mcpEntry, HERE } = ctx;
+  const clients = parseClients(flags.clients, parseClients('auto'));
+  const num = (v, d) => v === undefined || v === true || Number.isNaN(Number(v)) ? d : Number(v);
+  const areas = flags['no-seed'] ? 0 : num(flags.areas, 12);
+  const slug = flags['no-prs'] ? null : (typeof flags.slug === 'string' ? flags.slug : githubSlug(repo));
+  const prs = flags['no-prs'] ? 0 : num(flags.prs, 60);
+  const agent = typeof flags.agent === 'string' ? flags.agent : (process.env.THINKER_LLM || null);
+  // asking for a size is asking for the build; --no-build (or both --no-seed and --no-prs) is a no
+  const askedToBuild = Boolean(flags.build) || flags.areas !== undefined || flags.prs !== undefined;
+  const build = flags['no-build'] || (flags['no-seed'] && flags['no-prs']) ? false : (askedToBuild ? true : null);
+
+  await runSetup({
+    repo,
+    store,
+    cliPath: path.join(HERE, 'cli.js'),
+    mcpEntry: mcpEntry(),
+    clients,
+    areas,
+    prs,
+    prNumber: flags.pr ? Number(flags.pr) : null,
+    build,
+    benchmark: Boolean(flags.benchmark),
+    noBenchmark: Boolean(flags['no-benchmark']),
+    noSeed: Boolean(flags['no-seed']) || build === false,
+    noPrs: Boolean(flags['no-prs']) || build === false,
+    noPhrase: Boolean(flags['no-phrase']),
+    model: flags.model,
+    agent,
+    yes: Boolean(flags.yes),
+    hooks: !flags['no-hooks'],
+    learn: !flags['no-hooks'] && learnOn(),
+    late: !flags['no-late'],
+    shared: Boolean(flags.shared),
+    mcp: !flags['no-mcp'],
+    gitHook: !flags['no-git-hook'],
+    noTrust: Boolean(flags['no-trust']),
+    exportFile: typeof flags.export === 'string' ? flags.export : null,
+    out,
+    seedFn: async (opts) => seed(ctx, opts),
+    minePrsFn: async (slug, opts) => minePrs(ctx, slug, { ...opts, repo, phase: 'init' }),
+  });
+}
+
+export const commands = {
+  'init': initCommand,
+  'setup': setupCommand,
+  'uninstall': uninstallCommand,
+  'ast': astCommand,
+  'switch': updateCommand,
+  'branch': updateCommand,
+  'update': updateCommand,
+  'upgrade': updateCommand,
+};

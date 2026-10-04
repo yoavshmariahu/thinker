@@ -45,7 +45,8 @@ cache at twice the input price and never read again.
 
 | path | contents |
 |---|---|
-| `src/cli.js` | `thinker` command: `setup`, `distill`, `orient`, `lookup`, `check`, `verify`, `cochange`, `serve`, ... |
+| `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
+| `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink, cochange), `cache.js` (share, review, export, import, sync, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, seed, mine-prs, and the exploration and PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up and pull they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
 | `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
 | `src/setup.js` | the guided `setup` flow: agent selection and login check, cache build with estimates, optional PR benchmark |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI and Cursor: config files and hook formats |
