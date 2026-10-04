@@ -87,9 +87,9 @@ async function rewireCommand(ctx) {
     if (res.changed.length) out(`${r}: ${dry ? 'would rewrite' : 'rewrote'} ${res.changed.join(', ')}`);
     for (const s of res.skipped) out(`${r}: ${s.client} left alone: ${s.reason}`);
   }
+  if (!dry && summary.changed) store.log({ op: 'rewire', repos: summary.changed, files: summary.files.length });
   if (flags.json) { out(JSON.stringify(summary)); return; }
   if (!quiet) out(summary.changed ? `${dry ? 'would rewire' : 'rewired'} ${summary.changed} of ${summary.repos} checkouts` : `${summary.repos} checkouts checked; the wiring is current`);
-  if (!dry && summary.changed) store.log({ op: 'rewire', repos: summary.changed, files: summary.files.length });
 }
 
 // After an update the new copy rewrites the hooks of every checkout it is wired into, so a new
