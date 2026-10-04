@@ -91,5 +91,6 @@
     "When is a CDC extraction schedule considered active versus stalled",
     "Paused CDC schedules persist indefinitely, is this expected behavior"
   ],
-  "saysFor": "1585:cdc-differs-from-regular"
+  "saysFor": "1585:cdc-differs-from-regular",
+  "search": "CDC sources use one per-source schedule (cdc-extraction-{source_id}), rebuilt by sync_cdc_extraction_schedule with minimum interval from enabled schemas, deleting rather than pausing when empty—unlike per-schema regular schedules. Streaming CDC with paused schedule is steady state, but paused regular schemas are faults. Halt markers (cdc_broken for missing slot/publication, cdc_extraction_paused for non-retryable errors in sync_type_config) are absorbing states via mark_cdc_broken and repair; job updates must not repaint halted schemas healthy. Repair covers all CDC schemas including disabled ones since new slots cannot replay lost data. Applies to CDC sources (sync_type=CDC) in data_load/service.py, stalled_schedules.py, cdc/broken.py, cdc/repair.py, external_data_source/jobs.py."
 }

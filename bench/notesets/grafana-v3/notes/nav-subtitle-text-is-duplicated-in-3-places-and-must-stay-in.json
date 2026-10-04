@@ -1,0 +1,75 @@
+{
+  "id": "nav-subtitle-text-is-duplicated-in-3-places-and-must-stay-in",
+  "title": "Nav subtitle text is duplicated in 3 places and must stay in sync",
+  "kind": "rule",
+  "answers": [
+    "Why do I need to update multiple files to change a nav section's subtitle?",
+    "How do I change the Notebooks (or other nav section) subtitle text?",
+    "Nav subtitle shows old/inconsistent text after I edited one file",
+    "Where is the nav section subtitle defined?"
+  ],
+  "body": "Symptom: updating a nav section's subtitle (e.g. Notebooks) in only one place leaves stale/inconsistent text elsewhere in the UI or in the Go backend nav tree.\nRoot cause: the same subtitle string is hardcoded independently in the Go backend nav builder, the TS nav entry builder, and the i18n translation lookup/locale file - there is no single source of truth.\nFix pattern: when changing a nav item's subtitle, update all of: pkg/services/navtree/navtreeimpl/navtree.go (buildXNavLink), public/app/core/navtree/sections/<id>.navEntry.ts (build), public/app/core/utils/navBarItem-translations.ts (getNavSubTitle case), and the corresponding entry in public/locales/en-US/grafana.json.\nConstraints: applies to any nav tree entry with both a Go-side and TS-side definition plus i18n; generated locale files for other languages are not hand-edited here (English source only).",
+  "applies": "Changing any nav tree item's title/subtitle text across backend and frontend",
+  "tags": [
+    "navtree",
+    "i18n",
+    "notebooks",
+    "sync"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/navtree/navtreeimpl/navtree.go",
+      "hash": "sha256:0785bd8f415c0347e8a68277",
+      "missing": false
+    },
+    {
+      "path": "public/app/core/navtree/sections/notebooks.navEntry.ts",
+      "symbol": "notebooksNavEntry",
+      "hash": "sha256:d9be63ef27ce0b9760249908",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "public/app/core/utils/navBarItem-translations.ts",
+      "symbol": "getNavSubTitle",
+      "hash": "sha256:5daf03d9d305cdadd1cd243f",
+      "line": 228,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 11
+      }
+    },
+    {
+      "path": "public/locales/en-US/grafana.json",
+      "hash": "sha256:cbc8af5aa5e5e2852d108f4d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132928"
+  },
+  "created": "2026-10-04T06:10:09.962Z",
+  "verified": "2026-10-04T06:10:09.962Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Navigation subtitle text appears inconsistent across the interface",
+    "Editing nav item subtitle in one location leaves stale text elsewhere",
+    "Where should I update the navigation section subtitle text",
+    "How to change navigation item description consistently everywhere",
+    "Navigation subtitles don't reflect when I update configuration"
+  ],
+  "saysFor": "939:nav-subtitle-text-is-dup",
+  "search": "Nav section subtitle text (e.g., Notebooks) must be kept in sync across four locations: pkg/services/navtree/navtreeimpl/navtree.go buildXNavLink, public/app/core/navtree/sections/<id>.navEntry.ts build method, public/app/core/utils/navBarItem-translations.ts getNavSubTitle case, and the corresponding entry in public/locales/en-US/grafana.json. There is no single source of truth; the same string is hardcoded independently in the Go backend nav builder, TypeScript nav entry builder, and i18n translation file, making them prone to drift. Updating a subtitle in only one or two places leaves stale or inconsistent text visible in the UI or backend nav tree structure. Generated locale files for languages other than English are not hand-edited; only the English source in grafana.json is maintained manually. This applies to any nav tree item with both backend and frontend definitions that include i18n translations."
+}

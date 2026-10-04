@@ -1,0 +1,144 @@
+{
+  "id": "grafana-flamegraph-levelitem-tree-is-walked-independently-by",
+  "title": "grafana-flamegraph: LevelItem tree is walked independently by 4 files; PaneView/prop additions have a fixed checklist",
+  "kind": "rule",
+  "answers": [
+    "What must I update when I add a new PaneView to grafana-flamegraph?",
+    "Why do canvas rendering and call tree duplicate tree-walking logic?",
+    "What breaks if I change LevelItem's shape in dataTransform.ts?",
+    "How do I thread a new top-level prop through FlameGraphContainer?"
+  ],
+  "body": "The `LevelItem` tree (built by `dataTransform.ts`'s `nestedSetToLevels`) is walked independently, with duplicated logic, by at least 4 files: `dataTransform.ts` builds it; `rendering.ts`'s `walkTree` walks it for canvas drawing; `treeTransforms.ts` (`mergeSubtrees`/`mergeParentSubtrees`) reshapes it for sandwich view; `CallTree/utils.ts` (`buildAllCallTreeNodes`, `buildCallersTree`) re-walks the same `.children`/`.parents` links to build its own `CallTreeNode` tree with its own self/total/diff-percent math. There is no shared reducer — changing `LevelItem`'s fields or invariants requires auditing all four files, not just the one that 'owns' the tree.\n\nAdding a `PaneView` touches: the enum `types.ts:PaneView`, the `switch` in `FlameGraphPane.tsx:FlameGraphPane`, the picker options/width thresholds in `FlameGraphHeader.tsx`, and usually the state object passed through `FlameGraphContextMenu.tsx`'s `GetExtraContextMenuButtonsFunction` (carries `paneView`/`viewMode` so host-injected menu buttons can vary per pane).\n\nAdding a top-level prop to `FlameGraphContainer` must be threaded through `commonPaneProps` (`FlameGraphContainer.tsx`) into `FlameGraphPane`, then into whichever pane component needs it — plain prop drilling, no context. The package reads no feature flags itself, so flag-shaped props must be resolved by the host before being passed in (see `FlameGraphPanel.tsx`). `CollapsedMap` (`dataTransform.ts`) is immutable by convention — `setCollapsedStatus`/`setAllCollapsedStatus` return new maps; mutating it in place breaks identity-based memoization feeding `useFlameRender`.",
+  "applies": "Applies when extending/modifying packages/grafana-flamegraph's view types, pane state, or the LevelItem/CollapsedMap data model; not relevant to unrelated consumer-side panel code beyond the prop-threading point.",
+  "tags": [
+    "grafana-flamegraph",
+    "flamegraph",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/dataTransform.ts",
+      "symbol": "FlameGraphDataContainer",
+      "hash": "sha256:7fda4884dcac495996f3fd3a",
+      "line": 264,
+      "missing": false,
+      "fanout": {
+        "files": 26,
+        "sites": 27,
+        "refs": 84
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/rendering.ts",
+      "symbol": "useFlameRender",
+      "hash": "sha256:6fa2d3944c753e7eddb1f818",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+      "symbol": "mergeParentSubtrees",
+      "hash": "sha256:d4e74d7ab0ce154d6bdd2177",
+      "line": 9,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 11
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/CallTree/utils.ts",
+      "symbol": "CallTreeNode",
+      "hash": "sha256:cbe8b3e82881dae718dbd2c8",
+      "line": 7,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 43
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/types.ts",
+      "symbol": "PaneView",
+      "hash": "sha256:436fe62739819fb7dc971a44",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 0,
+        "refs": 47
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraphPane.tsx",
+      "symbol": "FlameGraphPane",
+      "hash": "sha256:b7a185f42c96fce04b8f9179",
+      "line": 43,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraphHeader.tsx",
+      "symbol": "FlameGraphHeader",
+      "hash": "sha256:ca1b69ab567a91771e6d9edf",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/FlameGraphContextMenu.tsx",
+      "symbol": "GetExtraContextMenuButtonsFunction",
+      "hash": "sha256:40b8f6f6ca802f18cc826be0",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraphContainer.tsx",
+      "symbol": "FlameGraphContainer",
+      "hash": "sha256:ecf4ae9f1d25cbc183268e20",
+      "line": 118,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "769429e0-5a5c-4382-a6fd-8ab41fefbc45"
+  },
+  "created": "2026-10-04T06:20:45.171Z",
+  "verified": "2026-10-04T06:20:45.171Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "grafana-flamegraph-package-control-flow-and-core-data-model"
+  ],
+  "says": [
+    "What updates are needed when adding new flamegraph panel view?",
+    "Why do multiple components duplicate tree-walking logic?",
+    "What breaks when tree structure definition changes?",
+    "How do I pass new parameters through flamegraph container?"
+  ],
+  "saysFor": "1720:grafana-flamegraph-level",
+  "search": "The LevelItem tree in grafana-flamegraph is built once by dataTransform.ts but walked independently with duplicated logic by at least four separate files (dataTransform, rendering.ts's walkTree, treeTransforms.ts's mergeParentSubtrees, and CallTree/utils.ts), each with its own traversal and calculation code; changing LevelItem fields or invariants requires auditing all four files, not just one. Adding a PaneView requires changes to: the enum in types.ts, the switch statement in FlameGraphPane.tsx:FlameGraphPane, picker options/width thresholds in FlameGraphHeader.tsx, and usually state passed through FlameGraphContextMenu.tsx's GetExtraContextMenuButtonsFunction. Adding a top-level prop to FlameGraphContainer must be threaded through commonPaneProps into FlameGraphPane and target pane components via plain prop drilling; feature flags must be resolved by the host before passing in (see FlameGraphPanel.tsx), as the package reads no feature flags itself. CollapsedMap is immutable by convention; setCollapsedStatus/setAllCollapsedStatus return new maps, and mutating in place breaks memoization. Applies when extending view types, pane state, or LevelItem/CollapsedMap models in packages/grafana-flamegraph."
+}

@@ -1,0 +1,47 @@
+{
+  "id": "provisioned-cloud-managed-data-sources-are-read-only-in-ui-r",
+  "title": "Provisioned/Cloud-managed data sources are read-only in UI regardless of data source permissions",
+  "kind": "rule",
+  "answers": [
+    "Why can't I edit a provisioned data source in the UI?",
+    "Why is there no Save & test button on this data source, only Test?",
+    "User has Admin/Edit data source permission but still can't save changes to a data source",
+    "How do I change a provisioned or Grafana Cloud-managed data source?"
+  ],
+  "body": "Symptom: A user with full data source permissions (even Admin) still can't edit a data source's settings in the UI; the settings page shows only a 'Test' button instead of 'Save & test'. Root cause: the data source was added via provisioning (file-based config) or is a Grafana Cloud-managed data source — this read-only lock is independent of, and not overridden by, the RBAC data source permissions system. Fix pattern: this is expected behavior, not a permissions bug — do not 'fix' it by granting more permissions. Correct remediation is to edit the provisioning file and reload/restart (self-managed), open a support ticket (Grafana Cloud), or create a separate manually-added data source pointing at the same backend/credentials as an editable copy. Constraints: applies to any data source whose config originates from provisioning or Cloud management; manually-created 'copy' data sources do NOT stay in sync with the original (credential rotations, URL changes) and must be updated manually.",
+  "applies": "Grafana data source management UI/permissions and provisioning docs",
+  "tags": [
+    "data-sources",
+    "provisioning",
+    "permissions",
+    "docs",
+    "support-escalation"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/administration/data-source-management/_index.md",
+      "hash": "sha256:087e0c6f2fdd1b21672ed0be",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133133"
+  },
+  "created": "2026-10-04T05:49:03.434Z",
+  "verified": "2026-10-04T05:49:03.434Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why can't I edit this provisioned data source in the interface?",
+    "Provisioned data source shows no save button despite admin permissions.",
+    "I want to edit settings on a cloud-managed data source.",
+    "How do I change a provisioned data source configuration?",
+    "Admin user unable to save edits to provisioned data source."
+  ],
+  "saysFor": "1096:provisioned-cloud-manage",
+  "search": "Data sources added via file-based provisioning or managed by Grafana Cloud remain read-only in the UI regardless of user RBAC data source permissions, showing only a 'Test' button instead of 'Save & test'. This is intentional behavior, not a permissions bug—granting more permissions will not unlock the settings page. For self-managed instances, edit the provisioning file and reload/restart; for Grafana Cloud, open a support ticket; alternatively create a separate manually-added data source pointing at the same backend. Be aware that manual copy data sources do not stay in sync with the original (credential rotations, URL changes must be applied manually), and this constraint applies to any data source whose config originates from provisioning or Cloud management."
+}

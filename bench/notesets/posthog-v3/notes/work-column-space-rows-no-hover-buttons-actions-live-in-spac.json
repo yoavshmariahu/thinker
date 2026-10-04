@@ -54,5 +54,6 @@
     "Where do actions for spaces live in the work column",
     "Hovering space rows misaligns the avatar and unread dot"
   ],
-  "saysFor": "839:work-column-space-rows-n"
+  "saysFor": "839:work-column-space-rows-n",
+  "search": "Space rows in the work column must not render hover-revealed buttons because they push the right-aligned PresenceAvatars and unread dot sideways. Actions are accessed via SpaceHoverCard (from ChannelItemHoverCard) on a shared card handle or via context menu, both built from the same preview.actions list. The list format is [New session, ...useChannelActions(channel).actions], and New session must always be first; add new actions to this list only. SpaceActionDialogs must remain mounted as a sibling of the card since actions open dialogs. This invariant applies to Desktop work column space rows and is defined in WorkColumn.tsx:SpaceRow, ChannelsList.tsx:useChannelActions, and features/canvas/AGENTS.md."
 }

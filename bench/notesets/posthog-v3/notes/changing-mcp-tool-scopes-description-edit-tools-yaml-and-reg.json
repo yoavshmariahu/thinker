@@ -57,5 +57,6 @@
     "Regenerating tool definitions doesn't pick up new scope changes",
     "Visibility permissions not appearing in the generated tool specifications"
   ],
-  "saysFor": "790:changing-mcp-tool-scopes"
+  "saysFor": "790:changing-mcp-tool-scopes",
+  "search": "MCP tool scope and description changes require editing the source of truth in products/alerts/mcp/tools.yaml, then regenerating (via hogli build:openapi) to update both services/mcp/schema/generated-tool-definitions.json and tool-definitions-all.json with changed required_scopes and description—never hand-edit the JSONs. Regeneration may affect unrelated files; revert those. Add a unit test in services/mcp/tests/unit/alert-simulate-scopes.test.ts using getToolDefinition(name).required_scopes with hasScopes to verify visibility rules for different token scope sets, including that mutation tools remain hidden from read-only tokens. Applies to MCP tool definitions generated from product tools.yaml files."
 }

@@ -81,5 +81,6 @@
     "Which part renders the actual chart for trends, funnels, and other types?",
     "Where is the visualization type selector control rendered in the interface?"
   ],
-  "saysFor": "1113:insightviz-render-path-q"
+  "saysFor": "1113:insightviz-render-path-q",
+  "search": "InsightViz render path flows Query → InsightViz → InsightVizDisplay → per-type component (TrendInsight/Funnel/Retention/Paths/Journeys/WebAnalyticsInsight). InsightViz builds insightProps, attaches dataNodeLogic and keyed logics via useAttachedLogic, renders EditorFilters + InsightVizDisplay. InsightVizDisplay checks empty state first, then switches on activeView; TrendInsight further dispatches on ChartDisplayType (bar/table/line/pie/BoldNumber/WorldMap via lazyWithRetry). Chart type control uses ChartAlternatives in InsightDisplayConfig.chartTypeControl slot. Applies to adding new insight types, modifying display logic, and changing chart rendering pipelines."
 }

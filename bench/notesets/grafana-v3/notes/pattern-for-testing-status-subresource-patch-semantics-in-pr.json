@@ -1,0 +1,92 @@
+{
+  "id": "pattern-for-testing-status-subresource-patch-semantics-in-pr",
+  "title": "Pattern for testing status-subresource PATCH semantics in provisioning integration tests",
+  "kind": "howto",
+  "answers": [
+    "How to write an integration test for a status-only PATCH on Repository/Connection",
+    "How to test that a bundled spec change on a status patch is rejected",
+    "Generic helper for reading status.conditions in provisioning tests"
+  ],
+  "body": "To exercise status-only vs bundled spec+status PATCH behavior for provisioning kinds, call helper.Repositories.Resource.Patch / helper.Connections.Resource.Patch with types.JSONPatchType and pass \"status\" as the subresource argument. Use the generic readConditions[T]/waitForConditionTypes[T] helpers (parameterized by a getConditions func like repositoryConditions/connectionConditions) instead of writing a per-kind condition reader - the old per-kind readRepositoryConditions/getRepositoryConditions/waitForConditionTypes were removed in favor of this. Assert via a unique condition type the controller never reconciles (not a controller-owned field like status.health), since the controller writes status concurrently and would race a direct value assertion.",
+  "applies": "pkg/tests/apis/provisioning integration tests covering Repository/Connection status subresource behavior",
+  "tags": [
+    "provisioning",
+    "testing",
+    "integration-test"
+  ],
+  "deps": [
+    {
+      "path": "pkg/tests/apis/provisioning/status_patch_test.go",
+      "symbol": "readConditions",
+      "hash": "sha256:7961ba3b36eba5fd1b0c1218",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "pkg/tests/apis/provisioning/status_patch_test.go",
+      "symbol": "waitForConditionTypes",
+      "hash": "sha256:3104405a2269e439b09ac5f4",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 8
+      }
+    },
+    {
+      "path": "pkg/tests/apis/provisioning/status_patch_test.go",
+      "symbol": "repositoryConditions",
+      "hash": "sha256:956d6dc74811ff39709e4513",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 11
+      }
+    },
+    {
+      "path": "pkg/tests/apis/provisioning/status_patch_test.go",
+      "symbol": "connectionConditions",
+      "hash": "sha256:7abac17878b1ab564c7e79b4",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/tests/apis/provisioning/repository_conditions_patch_test.go",
+      "hash": "sha256:f431f10761bae2a294e2dd69",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132708"
+  },
+  "created": "2026-10-04T06:41:47.457Z",
+  "verified": "2026-10-04T06:41:47.457Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How to write integration tests for status-only patches in provisioning resources",
+    "Integration tests should verify that bundled spec changes are rejected in status patches",
+    "Generic helper function for reading status conditions in provisioning integration tests",
+    "How do I test that specification changes are rejected on status-only patches",
+    "Where is the generic helper pattern for reading status conditions in tests"
+  ],
+  "saysFor": "851:pattern-for-testing-stat",
+  "search": "Testing status-subresource PATCH semantics in provisioning integration tests uses the pattern: call helper.Repositories.Resource.Patch or helper.Connections.Resource.Patch with types.JSONPatchType and pass \"status\" as the subresource argument to exercise status-only vs bundled spec+status PATCH behavior. Use the generic readConditions[T] and waitForConditionTypes[T] helpers (parameterized by getConditions functions like repositoryConditions or connectionConditions) rather than writing per-kind condition readers; the old readRepositoryConditions/getRepositoryConditions were removed. Assert via a unique condition type the controller never reconciles—not controller-owned fields like status.health—to avoid races from concurrent controller writes. See pkg/tests/apis/provisioning/status_patch_test.go and repository_conditions_patch_test.go."
+}

@@ -65,5 +65,6 @@
     "Warehouse data filter should require picking a table for each condition",
     "How are data warehouse entries compiled into matching rules"
   ],
-  "saysFor": "857:warehouse-destination-ta"
+  "saysFor": "857:warehouse-destination-ta",
+  "search": "When implementing row filters for warehouse destinations in hog functions, apply per-entry table matching: _build_warehouse_table_filters (posthog/cdp/filters.py) compiles each data_warehouse entry as properties.$source_table = table_name AND <filters>, ORed across entries. Every entry must check its table; otherwise an unfiltered entry silently matches rows from filtered tables. Save-time validation in HogFunctionFiltersSerializer.validate (posthog/cdp/validation.py) must run before placeholder stripping: if an entry has properties but no table_name, raise \"Pick a table for each row filter.\" WAREHOUSE_SOURCE_TABLE_PROPERTY must equal DWH_SOURCE_TABLE_PROPERTY (nodejs/src/cdp/schema/hogflow.ts)."
 }

@@ -1,0 +1,50 @@
+{
+  "id": "mark-temporary-api-compat-shims-with-a-removal-comment-and-d",
+  "title": "Mark temporary API-compat shims with a removal comment and dedicated test file",
+  "kind": "rule",
+  "answers": [
+    "Where to put custom UnmarshalJSON for a generated apiserver type",
+    "Convention for temporary backward-compatibility code in grafana-app-sdk types",
+    "How to test legacy JSON decoding for an app type"
+  ],
+  "body": "Fix pattern/convention: custom (de)serialization logic added only to support reading legacy data is placed in its own file alongside the generated type (e.g. field_requirement_json.go next to the generated field_requirement types), not hand-edited into generated files, and is paired with a dedicated _test.go covering legacy string input, new struct input, mixed slices, and malformed input (rejecting non-string/non-object JSON).\nConstraints: the compatibility code carries an explicit comment stating it is temporary and naming the condition for removal (e.g. \"once those policies are cleared\"); apply this convention whenever adding a stopgap unmarshal/marshal override for a generated CRD/app-sdk type rather than editing the generated file.",
+  "applies": "apps/* app-sdk generated API types that need temporary backward-compat decoding logic",
+  "tags": [
+    "convention",
+    "app-sdk",
+    "generated-code",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/field_requirement_json.go",
+      "hash": "sha256:68c2be72f26cd0cb83ed7ebb",
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/alertrulequality/pkg/apis/alertrulequality/v0alpha1/field_requirement_json_test.go",
+      "hash": "sha256:950d47a57a1c07ca6846a9cf",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132980"
+  },
+  "created": "2026-10-04T06:02:30.681Z",
+  "verified": "2026-10-04T06:02:30.681Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Where to put custom deserialization code for old formats",
+    "How to test that new type still reads legacy JSON",
+    "File placement convention for backward-compatibility code in types",
+    "Documenting removal conditions for temporary compatibility shims",
+    "Adding temporary unmarshal override for legacy data format"
+  ],
+  "saysFor": "825:mark-temporary-api-compa",
+  "search": "Custom (de)serialization logic for reading legacy data must be placed in a separate file alongside the generated type (e.g., field_requirement_json.go paired with generated field_requirement types), never hand-edited into generated files, and paired with a dedicated _test.go file testing legacy string input, new struct input, mixed slices, and malformed (non-string/non-object) JSON rejection. Include an explicit comment in the compatibility code stating it is temporary and naming the removal condition (e.g., once policies are cleared). Constraint: this convention applies only to backward-compat unmarshal/marshal overrides for generated CRD/app-sdk types. Apply when: adding temporary stopgap deserialization logic to apps/* app-sdk generated API types without editing generated files."
+}

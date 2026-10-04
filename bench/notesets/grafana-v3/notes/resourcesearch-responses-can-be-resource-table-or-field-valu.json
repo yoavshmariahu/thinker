@@ -1,0 +1,68 @@
+{
+  "id": "resourcesearch-responses-can-be-resource-table-or-field-valu",
+  "title": "ResourceSearch responses can be RESOURCE_TABLE or FIELD_VALUES — handle both",
+  "kind": "rule",
+  "answers": [
+    "Why does my search result parsing miss rows / silently return no hits?",
+    "How do I read resourcepb.ResourceSearchResponse rows correctly?",
+    "Team validation (title uniqueness / folder ownership) not catching conflicts after a server upgrade",
+    "What result formats does resource search support?"
+  ],
+  "body": "A ResourceSearchResponse's rows live in different places depending on resp.GetResultFormat(): RESOURCE_TABLE (and UNSPECIFIED, for older servers) puts rows in resp.GetResults().GetRows(), while FIELD_VALUES puts rows directly in resp.GetRows(). Any caller that sets ResultFormat: FIELD_VALUES on the request must still branch on the response's actual format (not assume the server honored the request) to stay compatible with older servers that only emit RESOURCE_TABLE. Enforced in pkg/registry/apis/iam/team/validate.go:teamSearchResultNames and pkg/services/team/folderownership/validation.go:ValidateNoOwnedFolders, both via a switch over UNSPECIFIED/RESOURCE_TABLE vs FIELD_VALUES with a default error for unknown formats. Skipping the table branch breaks compatibility with pre-upgrade servers; skipping the FIELD_VALUES branch means new-format responses are silently parsed as empty, so uniqueness/ownership conflicts stop being detected.",
+  "applies": "Any code in Grafana core that calls resourcepb.ResourceIndexClient.Search and reads the rows out of the response.",
+  "tags": [
+    "resourcepb",
+    "search",
+    "resultformat",
+    "iam",
+    "team"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/team/validate.go",
+      "symbol": "teamSearchResultNames",
+      "hash": "sha256:b11bc25c41197e084cb61801",
+      "line": 161,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/services/team/folderownership/validation.go",
+      "symbol": "ValidateNoOwnedFolders",
+      "hash": "sha256:dd476c28ce95d78409f8ee09",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132801"
+  },
+  "created": "2026-10-04T06:28:27.018Z",
+  "verified": "2026-10-04T06:28:27.018Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "key-only-identity-searches-should-request-field-values-with"
+  ],
+  "says": [
+    "Why does search result parsing lose rows after a server upgrade?",
+    "Team validation stopped catching folder ownership problems in search responses",
+    "How do I read resource search results from different response formats?",
+    "Search parsing breaks silently when result format changes between servers",
+    "Results show empty: which response location has the actual search rows?"
+  ],
+  "saysFor": "1022:resourcesearch-responses",
+  "search": "ResourceSearchResponse rows location depends on result format: code calling resourcepb.ResourceIndexClient.Search must branch on response.GetResultFormat() to handle both RESOURCE_TABLE (resp.Results.Rows) and FIELD_VALUES (resp.Rows) locations, even when the request specified FIELD_VALUES. Skipping either branch causes silent data loss or compatibility breaks with older servers. Pattern enforced in pkg/registry/apis/iam/team/validate.go:teamSearchResultNames and pkg/services/team/folderownership/validation.go:ValidateNoOwnedFolders using switch statements over result formats with error handling for unknown formats."
+}

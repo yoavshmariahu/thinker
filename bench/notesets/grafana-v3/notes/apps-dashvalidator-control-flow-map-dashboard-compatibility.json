@@ -1,0 +1,220 @@
+{
+  "id": "apps-dashvalidator-control-flow-map-dashboard-compatibility",
+  "title": "apps/dashvalidator: control flow map (dashboard compatibility check)",
+  "kind": "map",
+  "answers": [
+    "How does a dashboard compatibility check request flow through apps/dashvalidator?",
+    "Where is the dashvalidator check route handled?",
+    "Where do I add a new datasource type for dashvalidator validation?",
+    "What is apps/dashvalidator responsible for?"
+  ],
+  "body": "apps/dashvalidator is an App-SDK app (not pkg/services) exposing one custom route `POST .../check`: given dashboard JSON + a datasource mapping, it scores whether the dashboard's queries reference metrics that exist on the target datasource. Gated by `featuremgmt.FlagDashboardValidatorApp`.\n\nFlow (file:symbol hops):\n- Frontend: `public/app/features/dashboard/dashgrid/DashboardLibrary/api/compatibilityApi.ts:checkDashboardCompatibility` → `/apis/dashvalidator.grafana.app/v1alpha1/.../check`.\n- Wiring: `pkg/registry/apps/dashvalidator/register.go:RegisterAppInstaller` builds the shared `cache.MetricsCache`, registers Prometheus's `cache.MetricsProvider`, builds `validators map[string]validator.DatasourceValidator`, wraps in `DashValidatorAppInstaller` (coarse authz in `GetAuthorizer`). Registered in `pkg/registry/apps/apps.go`/`wireset.go` per the generic App-SDK wiring rule.\n- Route registration & handling: `apps/dashvalidator/pkg/app/app.go:New` wires `VersionedCustomRoutes[\"v1alpha1\"][\"POST check\"]` → `handleCheckRoute`, which enforces single-datasource MVP rule, validates UID, does per-datasource `ac.Evaluate` permission checks, resolves the datasource (`datasourceSvc.GetDataSourceInNamespace`) and an authenticated HTTP client (`datasourceSvc.GetHTTPTransport`), then calls `validator.ValidateDashboardCompatibility`.\n- Datasource-agnostic core: `apps/dashvalidator/pkg/validator/dashboard.go:ValidateDashboardCompatibility` extracts queries, groups by datasource UID, dispatches to the registered `DatasourceValidator`.\n- Prometheus implementation: `prometheus/validator.go:(*Validator).ValidateQueries` → `parser.go:(*Parser).ExtractMetrics` (PromQL AST walk) after `interpolation.go:interpolateForParsing` rewrites template vars → `cache.go:(*MetricsCache).GetMetricsSet` (TTL+singleflight) → on miss `provider.go:(*PrometheusProvider).GetMetrics` → `fetcher.go:(*Fetcher).FetchMetrics` (Prometheus `/api/v1/label/__name__/values`).\n- Response: `app.go` `handleCheckRoute` → `convertToCheckResponse` builds the wire struct, JSON-encoded.\n\nNote `GetKinds()` in `app.go` returns an empty map: the `DashboardCompatibilityScore` CUE kind (`kinds/dashboardcompatibilityscore.cue`) is currently unused/dead — the live route's request/response shape is NOT generated from it.\n\nTests: table-driven + testify throughout; `pkg/app/validation_test.go` uses `httptest` for the handler layer; dedicated `*_test.go` per component (parser, interpolation, cache, fetcher) plus `benchmark_test.go` files in both `validator/` and `validator/prometheus/`.",
+  "tags": [
+    "dashvalidator",
+    "app-sdk",
+    "grafana-apps"
+  ],
+  "deps": [
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "handleCheckRoute",
+      "hash": "sha256:7482364581240ffbeb96c80a",
+      "line": 123,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/dashboard.go",
+      "symbol": "ValidateDashboardCompatibility",
+      "hash": "sha256:9c174e451437e76a35676001",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/prometheus/validator.go",
+      "symbol": "Validator",
+      "hash": "sha256:ded305e2ecf9d5c6b07158ab",
+      "line": 12,
+      "missing": false,
+      "fanout": {
+        "files": 51,
+        "sites": 7,
+        "refs": 123
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/prometheus/parser.go",
+      "symbol": "Parser",
+      "hash": "sha256:e93c6dd629c46d6ec3dfd414",
+      "line": 9,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 2,
+        "refs": 30
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/prometheus/interpolation.go",
+      "symbol": "interpolateForParsing",
+      "hash": "sha256:2cf35db4a46da4265a19fe34",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/cache/cache.go",
+      "symbol": "MetricsCache",
+      "hash": "sha256:7a76c08d97a36560c93b10cf",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 21
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/cache/provider.go",
+      "symbol": "MetricsProvider",
+      "hash": "sha256:1a54f4cc279ff90aa539c04f",
+      "line": 9,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 16
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/prometheus/provider.go",
+      "symbol": "PrometheusProvider",
+      "hash": "sha256:e198ebc3ed9ef601cbbb19f1",
+      "line": 12,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/prometheus/fetcher.go",
+      "hash": "sha256:4103c7dea24e15a6d0fdcce2",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/dashvalidator/register.go",
+      "symbol": "RegisterAppInstaller",
+      "hash": "sha256:cc26c1467bf0bb701c78ff17",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/dashvalidator/register.go",
+      "symbol": "DashValidatorAppInstaller",
+      "hash": "sha256:0aa9804a31e43c3343c3a618",
+      "line": 26,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/dashvalidator/register.go",
+      "symbol": "GetAuthorizer",
+      "hash": "sha256:3f03a5bd594108bd9493822a",
+      "line": 89,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/dashboard/dashgrid/DashboardLibrary/api/compatibilityApi.ts",
+      "symbol": "checkDashboardCompatibility",
+      "hash": "sha256:af2a9dd3eb4aa68fa9c3c91d",
+      "line": 86,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/dashboard/dashgrid/DashboardLibrary/api/compatibilityApi.ts",
+      "symbol": "checkDashboardCompatibility",
+      "hash": "sha256:af2a9dd3eb4aa68fa9c3c91d",
+      "line": 86,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/dashvalidator/register.go",
+      "symbol": "RegisterAppInstaller",
+      "hash": "sha256:cc26c1467bf0bb701c78ff17",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/apps.go",
+      "hash": "sha256:e506fb2133958fc9d9bde400",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/wireset.go",
+      "hash": "sha256:17c223938b09997fa3e72518",
+      "missing": false
+    },
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "New",
+      "hash": "sha256:e921e8f15621f4184267954b",
+      "line": 81,
+      "missing": false
+    },
+    {
+      "path": "apps/dashvalidator/pkg/app/validation_test.go",
+      "hash": "sha256:8334042cb562546a2a8650ce",
+      "missing": false
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/benchmark_test.go",
+      "hash": "sha256:3986b44ea6ab9cf0535e0ac8",
+      "missing": false
+    },
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "GetKinds",
+      "hash": "sha256:16e802ff1adfb36e190c1ac5",
+      "line": 440,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1de355d3-6293-4f9e-a757-9e05444a6d17"
+  },
+  "created": "2026-10-04T06:24:17.704Z",
+  "verified": "2026-10-04T06:24:17.704Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.9,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apps-dashvalidator-request-response-shape-duplicated-by-hand",
+    "adding-a-new-app-sdk-app-requires-two-wiring-edits-in-pkg-re",
+    "pkg-registry-apps-control-flow-map-app-sdk-appinstaller-wiri"
+  ],
+  "says": [
+    "How does dashboard compatibility checking work for datasources?",
+    "Where is the dashboard metric validation request handled?",
+    "Can I add new datasource types to compatibility checking?",
+    "What does the dashboard validator app do?",
+    "Dashboard compatibility check request flows through the system"
+  ],
+  "saysFor": "2630:apps-dashvalidator-contr",
+  "search": "Control flow for dashboard compatibility checking: frontend POST to /apis/dashvalidator.grafana.app/v1alpha1/.../check routes through handleCheckRoute (enforces single-datasource MVP, validates UID, resolves datasource/HTTP transport), dispatches to registered DatasourceValidator per datasource. ValidateDashboardCompatibility extracts and groups queries; Prometheus implementation walks PromQL AST via Parser.ExtractMetrics after interpolation.go rewrites template variables, queries cached metrics (with singleflight) from MetricsCache, and on cache miss calls PrometheusProvider.GetMetrics → Fetcher.FetchMetrics (Prometheus /api/v1/label/__name__/values). Response built by convertToCheckResponse. Note: app.go:GetKinds returns empty—DashboardCompatibilityScore CUE kind is currently unused and not tied to the live route's wire types."
+}

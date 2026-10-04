@@ -69,5 +69,6 @@
     "Slack follow-ups not showing up in thread replies automatically",
     "Slack follow-up mode not affecting untagged message threads"
   ],
-  "saysFor": "837:untagged-follow-up-prefe"
+  "saysFor": "837:untagged-follow-up-prefe",
+  "search": "Untagged follow-up preference defaults to NEVER (opt-in mode) via resolve_untagged_followup_mode when no slack_user_id, no SlackSettings row, NULL column, or unrecognized value. The thread creator's untagged_followup_mode (read from mapping.mentioning_slack_user_id) applies to all thread replies; lookup is per (workspace, user) personal row only with no workspace-wide NULL-user fallback. never mode blocks follow-ups at the webhook stage (_untagged_followups_switched_off); ask and auto modes act in the workflow. Confirmed runs re-check that the creator has not switched off. Applies to Slack follow-up handling and preference resolution."
 }

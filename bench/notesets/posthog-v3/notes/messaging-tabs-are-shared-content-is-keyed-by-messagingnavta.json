@@ -53,5 +53,6 @@
     "Why is a tab blank on the Workflows page?",
     "Where are the tabs shown on both Broadcasts and Workflows pages defined?"
   ],
-  "saysFor": "668:messaging-tabs-are-share"
+  "saysFor": "668:messaging-tabs-are-share",
+  "search": "Messaging tab architecture: tab definitions (label, key, link) are centralized once in messagingTabs.tsx and keyed by MessagingNavTabKey; content rendering is decoupled by WorkflowsScene via MESSAGING_TAB_CONTENT record mapping each key to JSX, while BroadcastsScene renders only plain links to /workflows/<tab>. Adding a MessagingNavTabKey requires a corresponding entry in both MESSAGING_TAB_CONTENT (for type safety) and WORKFLOW_SCENE_TABS (for route resolution); BroadcastsScene does not render tab content, only links. Applies to changes in /workflows and /broadcasts tab bars, new tab additions, and routing refactors. Files: messagingTabs.tsx, WorkflowsScene.tsx, BroadcastsScene.tsx; symbols: messagingNavTabs, MessagingNavTabKey, MESSAGING_TAB_CONTENT, WORKFLOW_SCENE_TABS."
 }

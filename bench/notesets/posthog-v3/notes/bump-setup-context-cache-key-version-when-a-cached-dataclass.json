@@ -51,5 +51,6 @@
     "Why do experiments break when I update the dataclass",
     "Cached experiment values revert to old structure after deploy"
   ],
-  "saysFor": "640:bump-setup-context-cache"
+  "saysFor": "640:bump-setup-context-cache",
+  "search": "Cached dataclass shape changes in setup_context.py require bumping _cache_key version by convention; omitting this causes post-deploy failures when cache restores old instances lacking the new field, breaking serializers or returning wrong data. Adding libs_truncated to TargetSurface shifted prefix from experiment_setup_context_v2_ to v3_. Any new field on cached dataclasses (TargetSurface, etc.) in products/experiments/backend/setup_context.py needs the same version increment, enforced only by comment in _cache_key. Applies to: Modifying cached dataclass shapes in setup_context.py."
 }

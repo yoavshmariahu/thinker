@@ -1,0 +1,57 @@
+{
+  "id": "list-routing-label-only-lists-can-use-search-for-any-kind-fi",
+  "title": "List routing: label-only lists can use search for any kind, field selectors cannot",
+  "kind": "rule",
+  "answers": [
+    "Why does a LIST on an external app's kind filtered by labels return results but one filtered by a field selector returns nothing?",
+    "Can I list resources by label selector for a kind whose manifest isn't compiled into this binary?",
+    "When is a manifest required to serve a LIST from the search index?"
+  ],
+  "body": "Symptom: a label-only LIST for a kind without a compiled-in manifest used to fall back to scanning the store, returning empty early pages with just a continue token, cost scaling with collection size. Root cause: pkg/storage/unified/resource/list_with_selectors.go:shouldUseSearchForList required a manifest match for every list, even when only labels were selected. Fix pattern: when req.Options.Fields is empty, allow search routing unconditionally (labels are indexed for every kind); only check AppManifestsWithKinds when field selectors are present, because selectable fields come from the manifest and the index never indexed fields it doesn't know about. Constraints: do not drop the manifest check for field-selector lists — a field selector against an unindexed field silently returns zero rows, not an error.",
+  "applies": "pkg/storage/unified/resource list routing between search index and store scan",
+  "tags": [
+    "unified-storage",
+    "list",
+    "search-index",
+    "labels",
+    "field-selectors"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "shouldUseSearchForList",
+      "hash": "sha256:7ef8344d65dc9f969f6324a3",
+      "line": 364,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132991"
+  },
+  "created": "2026-10-04T06:00:42.788Z",
+  "verified": "2026-10-04T06:00:42.788Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "list-falls-back-from-search-to-store-scan-only-on-the-first",
+    "list-to-search-routing-guard-must-reject-rv-name-and-keysonl",
+    "search-backed-list-must-emit-continuation-token-when-auth-fi"
+  ],
+  "says": [
+    "Cannot list external resource types with field filters",
+    "Label filters work but field filters don't",
+    "Filtering list by fields returns nothing for custom types",
+    "Field filtering requires the resource manifest to be built-in",
+    "Label selector works but field selector returns empty"
+  ],
+  "saysFor": "901:list-routing-label-only-",
+  "search": "List routing in shouldUseSearchForList must allow label-only LIST requests (empty req.Options.Fields) to use search unconditionally for any kind, but must check AppManifestsWithKinds only when field selectors are present. Root cause: the manifest check was blocking label-only lists for kinds without compiled-in manifests, forcing store scans that returned empty early pages with continue tokens, scaling cost with collection size. Field selector lists must retain the manifest check because selectable fields come from the manifest and unindexed field selectors silently return zero rows instead of erroring. Applies to pkg/storage/unified/resource list routing between search index and store scan backends."
+}

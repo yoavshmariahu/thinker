@@ -51,5 +51,6 @@
     "Revenue attribution shows no data after session precomputation configuration updates",
     "Attribution jobs invalidated by modifications to dimension calculation"
   ],
-  "saysFor": "956:attribution-precompute-w"
+  "saysFor": "956:attribution-precompute-w",
+  "search": "Attribution precompute writer and reader dimension logic in products/marketing_analytics/backend/hogql_queries/attribution_session_dimensions.py are hashed as the job key, so changes to writer queries or project channel rules invalidate existing jobs and must be deployed together. Deploy writer and reader simultaneously, warm fresh jobs, then enable the sessions-precomputation flag. Update SQL snapshots in test_attribution_table_query_runner.ambr (hogql_val_N numbering shifts with query shape) and docs/internal/marketing-attribution-session-precompute.md together with dimension logic changes. Queries with different channel rules or timezone conversion disabled continue using the live path."
 }

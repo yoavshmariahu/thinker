@@ -1,0 +1,67 @@
+{
+  "id": "dedupe-size-measurement-callbacks-before-calling-setstate-to",
+  "title": "Dedupe size/measurement callbacks before calling setState to avoid phantom rerenders",
+  "kind": "rule",
+  "answers": [
+    "setPopoverMaxSize keeps triggering rerenders even though the size values are identical",
+    "Why does React update the DOM on every render even when no attributes visibly changed?",
+    "How to prevent a measurement/observer callback (ResizeObserver, floating-ui size middleware) from causing unnecessary rerenders"
+  ],
+  "body": "Symptom: calling a state setter with a newly-created object (e.g. `{width, height}`) on every measurement callback causes a rerender even when the numeric values are unchanged, and React's reconciliation then does attribute get/set work on elements like <input> with no visible change. Root cause: useComboboxFloat's `size()` middleware `apply` callback called `setPopoverMaxSize({width, height})` unconditionally on every floating-ui measurement, and object identity differs each time so React always rerenders. Fix pattern: keep a `useRef` mirror of the last applied value and compare primitive fields before calling the setter; only call `setPopoverMaxSize` when `width`/`height` actually changed, updating the ref first (see popoverMaxSizeRef in useComboboxFloat.ts). Constraints: use this when a callback-driven state update produces a fresh object/array each invocation but the consumer only cares about value equality, not for state that is genuinely expected to change every call.",
+  "applies": "React state updates driven by external observers/middlewares (ResizeObserver, floating-ui size middleware, etc.) that may report unchanged values",
+  "tags": [
+    "react",
+    "rerender",
+    "performance",
+    "state-management",
+    "grafana-ui"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+      "symbol": "useComboboxFloat",
+      "hash": "sha256:28df1c52551d1b3bfff3f362",
+      "line": 45,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 7
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts",
+      "symbol": "size",
+      "hash": "sha256:ede58e6dd692c7679dd54dd3",
+      "line": 68,
+      "missing": false,
+      "fanout": {
+        "files": 782,
+        "sites": 15,
+        "refs": 1981
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132877"
+  },
+  "created": "2026-10-04T06:18:25.221Z",
+  "verified": "2026-10-04T06:18:25.221Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "combobox-usecomboboxfloat-avoid-autoupdate-loops-when-popove"
+  ],
+  "says": [
+    "Popover size callbacks keep triggering rerenders with identical values",
+    "Why does DOM update on every render with no visible change?",
+    "How to prevent measurement callbacks from causing unnecessary rerenders?",
+    "How to stop size measurements from forcing unnecessary updates?",
+    "Size measurements fire state updates even when dimensions unchanged"
+  ],
+  "saysFor": "1073:dedupe-size-measurement-",
+  "search": "Avoiding phantom rerenders from measurement callbacks: deduplicate state updates by keeping a useRef mirror of the last applied value and comparing primitive fields before calling setState. Root cause: callbacks (ResizeObserver, floating-ui size middleware) invoke state setters with fresh objects each time even when numeric values unchanged, triggering unnecessary rerenders. Fix pattern shown in packages/grafana-ui/src/components/Combobox/useComboboxFloat.ts (useComboboxFloat, size, popoverMaxSizeRef) checks value equality before calling setPopoverMaxSize. Constraint: use only when callback-driven updates produce fresh objects but consumer cares about value equality, not for state genuinely expected to change every call. Applies to React state driven by external observers/middlewares."
+}

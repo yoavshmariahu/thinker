@@ -1,0 +1,77 @@
+{
+  "id": "authinfo-spec-created-must-be-set-on-create-not-just-update",
+  "title": "AuthInfo.Spec.Created must be set on create, not just update",
+  "kind": "rule",
+  "answers": [
+    "Why are AuthInfo objects missing a Created timestamp until updated?",
+    "GetUserAuthModules ordering by most-recently-used is wrong for freshly created auth entries",
+    "Spec.Created is nil/zero on newly created AuthInfo",
+    "What does AuthInfoSpec.Created actually mean?"
+  ],
+  "body": "Symptom: newly created AuthInfo k8s objects had Spec.Created unset, so GetUserAuthModules (which orders modules 'most recently used first' by sorting on this column) misordered or mishandled brand-new entries.\nRoot cause: pkg/services/login/authinfok8s/authinfo.go:SetAuthInfo only populated Spec.Created on the update branch; the create branch built AuthInfoSpec without it.\nFix pattern: when constructing a new AuthInfoSpec, set Created to time.Now().UnixMilli() just like the update path does, so create and update keep the field in sync.\nConstraints: despite its name, Created is actually a last-used/last-touched timestamp (not row creation time) — any new code path that creates or touches an AuthInfo object must set/refresh Spec.Created, or recency-based queries like GetUserAuthModules will be wrong.",
+  "applies": "pkg/services/login/authinfok8s package, any code creating or updating AuthInfo objects",
+  "tags": [
+    "iam",
+    "authinfo",
+    "timestamp",
+    "invariant"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/login/authinfok8s/authinfo.go",
+      "symbol": "GetUserAuthModules",
+      "hash": "sha256:98e1a2899f7ec5bfd60783ee",
+      "line": 130,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 5,
+        "refs": 12
+      }
+    },
+    {
+      "path": "pkg/services/login/authinfok8s/authinfo.go",
+      "symbol": "SetAuthInfo",
+      "hash": "sha256:f85377fbb77565163c754607",
+      "line": 177,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 15,
+        "refs": 25
+      }
+    },
+    {
+      "path": "pkg/services/login/authinfok8s/authinfo.go",
+      "symbol": "SetAuthInfo",
+      "hash": "sha256:f85377fbb77565163c754607",
+      "line": 177,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 15,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133016"
+  },
+  "created": "2026-10-04T05:58:58.970Z",
+  "verified": "2026-10-04T05:58:58.970Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Newly created authentication entries missing timestamp until updated",
+    "Most-recently-used auth module ordering fails for brand new entries",
+    "Creation date field is empty on new auth records",
+    "Why does new auth entry have no timestamp initially?",
+    "Fresh authentication records have nil or zero creation date"
+  ],
+  "saysFor": "870:authinfo-spec-created-mu",
+  "search": "AuthInfo.Spec.Created must be set to time.Now().UnixMilli() on both the create and update code paths in SetAuthInfo (pkg/services/login/authinfok8s/authinfo.go), not just update; the bug occurred because the create branch omitted this field while the update branch populated it, causing GetUserAuthModules to misorder entries when sorting by recency. Despite its name, Created is actually a last-used/last-touched timestamp, not row creation time, so any code path that creates or touches an AuthInfo object must set or refresh Spec.Created, otherwise recency-based queries will return incorrect results. This applies to all code in pkg/services/login/authinfok8s package that constructs or modifies AuthInfo objects."
+}

@@ -84,5 +84,6 @@
     "Why is task running on modal when configured differently?",
     "Sandbox backend selection ignoring environment region preference"
   ],
-  "saysFor": "1268:sandbox-backend-resoluti"
+  "saysFor": "1268:sandbox-backend-resoluti",
+  "search": "Sandbox backend (modal or hogland) is resolved once in activities/get_task_processing_context.py:_resolve_sandbox_backend, fails closed to modal, stored in TaskProcessingContext.sandbox_backend and stable across retries. Modal state override always wins; hogland requires HOGLAND_API_URL+token, non-EU, no custom image, no Pi runtime, default template; hard gates precede hogland override to block stale resume state bypass. Propagation: workflow passes whole context to PrepareSandboxForRepositoryInput/CreateSandboxForRepositoryInput; activities/provision_sandbox.py calls logic/services/sandbox.py:get_sandbox_class_for_run_backend(ctx.sandbox_backend)—only hogland diverts, others fall to get_sandbox_class() so SANDBOX_PROVIDER still works. Never route modal to get_sandbox_class_for_backend. Dead-sandbox: workflow.py:DEAD_SANDBOX_ERROR_TYPES (SandboxNotRunningError, SandboxNotFoundError) for non-retryable detection. Applies to process_task provisioning and sandbox management."
 }

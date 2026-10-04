@@ -85,5 +85,6 @@
     "New alert error codes must be added to the allowlist.",
     "Error codes need to be defined in multiple places to work."
   ],
-  "saysFor": "1156:owner-facing-alert-error"
+  "saysFor": "1156:owner-facing-alert-error",
+  "search": "New owner-readable alert error codes must be updated in four places simultaneously: define code and message in products/alerts/backend/judge/contract.py and re-export via judge/__init__.py and facade/api.py, add to the serializer allowlist in products/alerts/backend/presentation/views/alert.py:get_error (codes omitted collapse to generic 'check configuration' to prevent internal leak), set template context (e.g. provider_unavailable) in posthog/tasks/alerts/utils.py:send_notifications_for_errors for email, and add branching in posthog/temporal/alerts/activities.py:dispatch_alert_error_in_app_notifications. Retry-exhausted errors are keyed on error_type (the exception class name) passed to record_failed_evaluation, which the workflow passes to _failed_evaluation_error to retrieve the code. The email template posthog/templates/email/alert_check_failed_to_evaluate.html receives context variables that must match the context set in send_notifications_for_errors. Task applies to: adding or changing AlertCheck error codes, modifying error notification behavior, or adjusting error message visibility."
 }

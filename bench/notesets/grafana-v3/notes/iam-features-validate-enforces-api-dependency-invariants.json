@@ -1,0 +1,52 @@
+{
+  "id": "iam-features-validate-enforces-api-dependency-invariants",
+  "title": "IAM Features.Validate() enforces API dependency invariants",
+  "kind": "rule",
+  "answers": [
+    "Why does enabling serviceaccounttokens in iam apis config fail validation?",
+    "What enforces IAM API dependency rules at startup?",
+    "Where do I add a new required-API dependency for an IAM feature?"
+  ],
+  "body": "Symptom: enabling service account tokens or service-account resource permissions via explicit startup config silently has no effect or is inconsistent.\nRoot cause: those sub-features depend on a parent API being enabled but nothing enforced it before explicit startup config existed.\nFix pattern: Features.Validate() (pkg/registry/apis/iam/features.go) centrally checks cross-API dependencies (ServiceAccountTokensAPI requires ServiceAccountsAPI; ServiceAccountResourcePermissions requires ResourcePermissionsAPI) and returns an error if violated.\nConstraints: any new IAM API that is only meaningful alongside another API must add its dependency check here; this validation only runs for the explicit-config path, not the legacy per-flag OpenFeature path.",
+  "applies": "pkg/registry/apis/iam/features.go Features.Validate when an IAM sub-feature requires another API",
+  "tags": [
+    "iam",
+    "validation",
+    "startup-config"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/features.go",
+      "symbol": "Features",
+      "hash": "sha256:5b8f6d13f71ebbf33b051b6d",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 78,
+        "sites": 0,
+        "refs": 240
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133036"
+  },
+  "created": "2026-10-04T05:54:56.622Z",
+  "verified": "2026-10-04T05:54:56.622Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "iam-startup-features-dual-path-gating-explicit-config-vs-ope"
+  ],
+  "says": [
+    "Why does enabling service account tokens in startup config fail validation?",
+    "What validates that required parent APIs are enabled during startup?",
+    "How do I add an API dependency requirement for a new feature?",
+    "Service account tokens configured but have no effect or seem inconsistent"
+  ],
+  "saysFor": "815:iam-features-validate-en",
+  "search": "IAM Features.Validate() in pkg/registry/apis/iam/features.go centrally enforces cross-API dependency invariants before startup. The validation checks that ServiceAccountTokensAPI requires ServiceAccountsAPI and ServiceAccountResourcePermissions requires ResourcePermissionsAPI, returning an error if violated. This validation only runs for the explicit-config path (pkg/registry/apis/iam/features.go:Features) and does not apply to the legacy per-flag OpenFeature path, so any new IAM sub-feature with API dependencies must add checks here. Applies when enabling service account tokens or resource permissions via explicit startup config, where dependencies would otherwise be silently ignored."
+}

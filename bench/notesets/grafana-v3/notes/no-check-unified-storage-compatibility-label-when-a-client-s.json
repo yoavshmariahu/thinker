@@ -1,0 +1,54 @@
+{
+  "id": "no-check-unified-storage-compatibility-label-when-a-client-s",
+  "title": "`no-check-unified-storage-compatibility` label: when a client/server unified-storage PR can skip the compat check",
+  "kind": "rule",
+  "answers": [
+    "When can I skip the unified storage compatibility check on a PR?",
+    "Do I need to worry about client/server version mismatch for this change?",
+    "What does the no-check-unified-storage-compatibility label mean?"
+  ],
+  "body": "Fix pattern/convention: the label is appropriate when a PR touches both apistore/ (client) and resource/ or search/ (server) but each side's change is a local error-handling fix that doesn't move responsibility across the client/server boundary and doesn't touch proto/ or resourcepb/ (the wire contract) — in that case any mix of old/new client and server binaries during a rolling deploy still works.\nConstraints: this does not apply if a change alters what resourcepb/proto messages carry, moves a check from server to client (or vice versa), or changes response shape in a way one side relies on the other to interpret — those require the full compatibility check, not the label.",
+  "applies": "PRs spanning pkg/storage/unified/apistore, pkg/storage/unified/resource, pkg/storage/unified/search",
+  "tags": [
+    "unified-storage",
+    "ci-label",
+    "rollout-compatibility"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "hash": "sha256:db0293b27ffa68c6e0462f4d",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "hash": "sha256:9ca24c6d1c87fa4405d3aa5f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132750"
+  },
+  "created": "2026-10-04T06:35:54.449Z",
+  "verified": "2026-10-04T06:35:54.449Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "declare-storageoptions-gvk-for-any-type-shared-aliased-acros",
+    "list-falls-back-from-search-to-store-scan-only-on-the-first",
+    "apistore-maxallowedversion-cap-must-check-the-persisted-enco",
+    "check-rsp-geterror-not-just-err-after-unified-storage-search"
+  ],
+  "says": [
+    "When can I skip unified storage compatibility testing on my pull request?",
+    "Does my client and server change need a full compatibility verification?",
+    "What makes a storage change safe for rolling deploy without compatibility checks?",
+    "Can mixed old and new client and server versions work together?",
+    "Is it safe to skip checks if I only fix local error handling?"
+  ],
+  "saysFor": "797:no-check-unified-storage",
+  "search": "The `no-check-unified-storage-compatibility` label is appropriate when a PR spans both pkg/storage/unified/apistore/ (client) and pkg/storage/unified/resource/ or pkg/storage/unified/search/ (server) but each change is a local error-handling fix that does not move responsibility across the client/server boundary and does not touch proto/ or resourcepb/ wire contracts. The constraint is that the label does not apply if the change alters resourcepb/proto messages, moves a check from server to client or vice versa, or changes response shape in a way one side relies on interpreting—those require the full compatibility check. This pattern ensures rolling deploys with mixed old/new binaries remain compatible."
+}

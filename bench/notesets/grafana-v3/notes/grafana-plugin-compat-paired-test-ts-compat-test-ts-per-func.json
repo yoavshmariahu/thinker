@@ -1,0 +1,74 @@
+{
+  "id": "grafana-plugin-compat-paired-test-ts-compat-test-ts-per-func",
+  "title": "grafana-plugin-compat: paired .test.ts / .compat.test.ts per function, shared srv mocks in utils/mocks.ts",
+  "kind": "map",
+  "answers": [
+    "Where are plugin-compat datasource functions implemented and tested?",
+    "How do I add a new @grafana/plugin-compat wrapper function with both new-API and legacy-fallback coverage?",
+    "Where is the mock DataSourceSrv/BackendSrv used in plugin-compat tests defined?"
+  ],
+  "body": "Each wrapped function lives in its own file under packages/grafana-plugin-compat/src/<domain>/<fnName>.ts and is re-exported from a barrel file like packages/grafana-plugin-compat/src/datasources.ts. Two test files accompany each: `<fnName>.test.ts` mocks `@grafana/runtime/unstable` with the real function present (new-API path), and `<fnName>.compat.test.ts` mocks it as `undefined` to exercise the legacy `getDataSourceSrv()`/`getBackendSrv()` fallback path. Shared mock factories (getMockedDatasourceSrv, getMockedBackendSrv) live in packages/grafana-plugin-compat/src/utils/mocks.ts and must stay excluded from tsconfig.build.json's compiled output since it's test-only.\nUse this layout when adding any new plugin-compat wrapper function.",
+  "applies": "packages/grafana-plugin-compat package structure and test conventions",
+  "tags": [
+    "grafana-plugin-compat",
+    "testing",
+    "mocks",
+    "structure"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-plugin-compat/src/utils/mocks.ts",
+      "symbol": "getMockedDatasourceSrv",
+      "hash": "sha256:166db322205091dc112fa09c",
+      "line": 3,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "packages/grafana-plugin-compat/src/utils/mocks.ts",
+      "symbol": "getMockedBackendSrv",
+      "hash": "sha256:1f80ac52e553adf4663b3e54",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "packages/grafana-plugin-compat/src/datasources.ts",
+      "hash": "sha256:f3ce04215bbf77b8e73c5e9a",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-plugin-compat/tsconfig.build.json",
+      "hash": "sha256:05571fb218812fd6493201bf",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132622"
+  },
+  "created": "2026-10-04T06:55:43.838Z",
+  "verified": "2026-10-04T06:55:43.838Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "New compatibility fallback path not tested or verified",
+    "Mock datasource not initializing in compat tests properly",
+    "Need test coverage for both new and legacy",
+    "Where are test mocks for datasource operations located",
+    "Writing new wrapper function without complete test pairs"
+  ],
+  "saysFor": "849:grafana-plugin-compat-pa",
+  "search": "Each grafana-plugin-compat wrapper function lives in packages/grafana-plugin-compat/src/<domain>/<fnName>.ts and is paired with two test files: <fnName>.test.ts (mocks @grafana/runtime/unstable with the new API present) and <fnName>.compat.test.ts (mocks it as undefined to test legacy getDataSourceSrv()/getBackendSrv() fallback). Shared mock factories (getMockedDatasourceSrv, getMockedBackendSrv) are defined in packages/grafana-plugin-compat/src/utils/mocks.ts and must be excluded from tsconfig.build.json's compiled output since they are test-only. Functions are re-exported via barrel files like packages/grafana-plugin-compat/src/datasources.ts. Follow this structure when adding new plugin-compat wrappers to ensure both modern and legacy API paths are tested."
+}

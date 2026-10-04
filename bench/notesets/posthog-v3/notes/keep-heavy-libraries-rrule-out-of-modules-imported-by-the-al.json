@@ -55,5 +55,6 @@
     "Move large dependency so it only loads for users who need it.",
     "Why did the rrule calendar library end up in my main bundle?"
   ],
-  "saysFor": "893:keep-heavy-libraries-rru"
+  "saysFor": "893:keep-heavy-libraries-rru",
+  "search": "Do not import heavy libraries like rrule (45 KiB) at the top level of products/subscriptions/frontend/components/Subscriptions/utils.tsx, which ships in the eager shell bundle because `canNudgeToSubscribe` is imported on every page. Move editor-only heavy dependencies to separate leaf modules; getNextDeliveryDate was extracted to nextDeliveryDate.ts and imported only by SubscriptionWizard.tsx and views/EditSubscription.tsx. Tests for extracted functions stay in utils.test.ts but import from the new module. Applies to: shell-wide code paths (nudges, nav) that must load fast; any module reachable from authenticated shell initialization."
 }

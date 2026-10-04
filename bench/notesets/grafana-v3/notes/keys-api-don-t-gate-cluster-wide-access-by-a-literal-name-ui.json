@@ -1,0 +1,53 @@
+{
+  "id": "keys-api-don-t-gate-cluster-wide-access-by-a-literal-name-ui",
+  "title": "Keys API: don't gate cluster-wide access by a literal name/UID allowlist",
+  "kind": "rule",
+  "answers": [
+    "Why does list-keys refuse a legitimate service controller/access policy?",
+    "Cluster-wide list-keys returns 403 for a service credential that should be allowed",
+    "How should I gate an endpoint for 'service/system callers only'?"
+  ],
+  "body": "Symptom: cluster-wide list-keys 403s for real service controllers across deployments/tenants.\nRoot cause: pkg/registry/apis/keys/handler.go previously checked identity.IsServiceIdentity plus a hardcoded UID/name allowlist; service credential names vary per deployment and per cluster in multi-tenant, so no literal list matches.\nFix pattern: replace name/UID matching with a type check, claims.IsIdentityType(info.GetIdentityType(), claims.TypeAccessPolicy), so any correctly-typed identity is admitted regardless of its name.\nConstraints: use this when the real requirement is 'this caller is an access-policy/service identity', not 'this caller is one of N known names' — name allowlists break as soon as credentials are provisioned per workload/cluster.",
+  "applies": "pkg/registry/apis/keys and any handler gating by caller identity rather than per-resource RBAC",
+  "tags": [
+    "keys-api",
+    "auth",
+    "identity-type"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/keys/handler.go",
+      "symbol": "requireClusterWideServiceCaller",
+      "hash": "sha256:b61b440b0901981b4a2118ad",
+      "line": 188,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132923"
+  },
+  "created": "2026-10-04T06:12:14.195Z",
+  "verified": "2026-10-04T06:12:14.195Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cluster-wide-authz-gates-need-identity-type-check-not-just-n"
+  ],
+  "says": [
+    "Service credential blocked from listing encryption keys",
+    "List-keys returns 403 for legitimate service account",
+    "Access policy denied cluster-wide key list retrieval",
+    "Multi-tenant service account cannot access keys API",
+    "Why is valid service identity rejected by keys endpoint"
+  ],
+  "saysFor": "829:keys-api-don-t-gate-clus",
+  "search": "The keys API handler requireClusterWideServiceCaller must authenticate cluster-wide service access using claims.IsIdentityType(info.GetIdentityType(), claims.TypeAccessPolicy) instead of name/UID allowlists, because service credential names vary per deployment and tenant in multi-tenant environments. Literal name/UID allowlists fail when credentials are provisioned per workload or cluster; the type check admits any correctly-typed access-policy identity regardless of name. Applies to pkg/registry/apis/keys/handler.go and any handler gating by caller identity type rather than per-resource RBAC."
+}

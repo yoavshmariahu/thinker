@@ -1,7 +1,7 @@
 {
   "id": "uniqueness-constraints-for-experiment-metrics-and-results",
   "title": "Uniqueness constraints for experiment metrics and results",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "What must be unique for experiment metrics?",
     "What is the ExperimentMetricResult key?",
@@ -25,8 +25,8 @@
     {
       "path": "products/experiments/backend/timeseries_sync.py",
       "symbol": "_copy_points",
-      "hash": "sha256:562b10b5d7e26b210e5eab53",
-      "line": 124,
+      "hash": "sha256:3673a5f13d64b57894460a01",
+      "line": 162,
       "missing": false
     },
     {
@@ -61,17 +61,15 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.85,
   "status": "fresh",
-  "uses": 55,
+  "uses": 57,
   "related": [
     "places-that-must-compute-the-same-metric-fingerprint-saved-v",
     "experiment-metric-fingerprints-computation-and-call-sites",
     "experiment-metric-identity-uuid-vs-config-fingerprint",
     "map-an-experimentholdout-onto-flag-filters-via-apply-holdout"
   ],
-  "lastUsed": "2026-09-28T01:03:15.041Z",
+  "lastUsed": "2026-10-04T19:09:02.936Z",
   "servedIn": [
-    "c4b634ff-422c-475d-afa9-f7a795ebe7cc",
-    "672f69c3-5335-4ede-a2d5-12c5d57e495f",
     "c69af017-cce4-4452-be45-169e91d6a1b0",
     "df08fa0c-693c-47b2-965e-dff04c5bcc38",
     "02a562b6-0187-47bf-a33c-19cbc171d1c8",
@@ -99,7 +97,9 @@
     "probe-PR106672-hard",
     "probe-PR105887-hard",
     "probe-PR106672-hard",
-    "probe-PR105887-hard"
+    "probe-PR105887-hard",
+    "x-1791140822345",
+    "codex-posthog-codex-ce2-PR106672-hard-0"
   ],
   "says": [
     "Experiment metric results showing duplicates for same time window",
@@ -108,5 +108,6 @@
     "Why is experiment metric not uniquely keyed by fingerprint",
     "Experiment metric validation preventing duplicate metric UUIDs"
   ],
-  "saysFor": "1184:uniqueness-constraints-f"
+  "saysFor": "1184:uniqueness-constraints-f",
+  "search": "Experiment metrics enforce multiple uniqueness layers: metric.uuid unique across primary, secondary, and saved metrics per experiment via validate_no_duplicate_metric_uuids and _assign_uuids_to_metrics; ExperimentMetricResult unique_together on (experiment, metric_uuid, query_to) with fingerprint stored separately but not in the key. Writers use update_or_create with fingerprint in defaults (different fingerprint overwrites in place). _copy_points writes at newest_point + 1s, not at the point's own query_to, else it rewrites the timeseries row's fingerprint. Readers must match both recalc fingerprint AND query_to since one config accumulates multiple rows. One active recalc per (experiment, fingerprint) and one per experiment metrics. Applies to experiments backend recalculation, timeseries sync, and result queries."
 }

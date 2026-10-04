@@ -1,0 +1,66 @@
+{
+  "id": "key-only-folder-registry-searches-should-request-field-value",
+  "title": "Key-only folder registry searches should request FIELD_VALUES with only SEARCH_FIELD_NAME",
+  "kind": "rule",
+  "answers": [
+    "How should cascade deletion / child-folder searches be scoped for performance?",
+    "What fields/result format to request for identity-only folder searches",
+    "Pattern for lightweight registry search requests"
+  ],
+  "body": "Convention: when a folder/dashboard/variable search only needs resource identity (names for cascade deletion, child-UID lists for depth validation), set Fields: []string{resource.SEARCH_FIELD_NAME} and ResultFormat: resourcepb.ResourceSearchRequest_FIELD_VALUES instead of defaulting to RESOURCE_TABLE, which avoids fetching/transferring unneeded columns. Pagination must still be driven by TotalHits + offset (bleve Search doesn't populate NextPageToken reliably), not by a page token.",
+  "applies": "pkg/registry/apis/folders code issuing ResourceSearchRequest for identity-only lookups (cascade delete, subtree depth validation).",
+  "tags": [
+    "search",
+    "folders",
+    "pagination",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/folders/cascade_delete_storage.go",
+      "symbol": "dashboardsInFolder",
+      "hash": "sha256:3d775ee64cce9008478753a8",
+      "line": 275,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/registry/apis/folders/validate.go",
+      "symbol": "getChildrenBatch",
+      "hash": "sha256:fa95d5a0fab18e09eb9305d9",
+      "line": 529,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132794"
+  },
+  "created": "2026-10-04T06:29:55.593Z",
+  "verified": "2026-10-04T06:29:55.593Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "decodesearchrows-shared-decoder-bridging-resource-table-and"
+  ],
+  "says": [
+    "Folder searches slower when checking for child resources",
+    "Cascade deletion fetches unnecessary folder metadata during lookups",
+    "Finding child folders retrieves too much data",
+    "Folder identity searches minimize returned fields for performance",
+    "Why does finding folders by name fetch all metadata"
+  ],
+  "saysFor": "576:key-only-folder-registry",
+  "search": "Folder registry searches for identity-only lookups (cascade deletion, child-UID depth validation) must request ResourceSearchRequest with Fields: []string{resource.SEARCH_FIELD_NAME} and ResultFormat: resourcepb.ResourceSearchRequest_FIELD_VALUES instead of RESOURCE_TABLE to avoid fetching unnecessary columns. Pagination must be driven by TotalHits + offset rather than NextPageToken, since bleve Search does not populate NextPageToken reliably. Applies to dashboardsInFolder and getChildrenBatch in pkg/registry/apis/folders/cascade_delete_storage.go and pkg/registry/apis/folders/validate.go."
+}

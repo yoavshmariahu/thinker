@@ -51,5 +51,6 @@
     "Scheduled golden bake job is overwriting the default golden with hotplug variant",
     "How to ensure manual golden bake respects fixed versus pluggable memory variants?"
   ],
-  "saysFor": "855:golden-bake-alias-promot"
+  "saysFor": "855:golden-bake-alias-promot",
+  "search": "Golden snapshot bake workflow (.github/workflows/cd-tasks-golden-snapshot.yml) must keep promoted alias synchronized with the baked variant: BOX_MEM_BOOT_MIB unset (or default) → promote to posthog-tasks-default (fixed 20 GiB), BOX_MEM_BOOT_MIB set → promote to posthog-tasks-hotplug. The promotion step currently hardcodes posthog-tasks-default; manual dispatch with box_mem_boot_mib parameter risks overwriting fixed-size default with pluggable snapshot while hogland_sandbox.py:HOGLAND_HOTPLUG_SNAPSHOT_ALIAS (alias:posthog-tasks-hotplug) is what flagged runs restore from—this mismatch breaks sandboxes. Scheduled workflow runs must keep baking fixed default; hotplug alias must exist before the flag is enabled for a team. Applies to: cd-tasks-golden-snapshot workflow, bake-golden.sh, hogland snapshot alias constants; invariant requires coordination between bake parameters, promotion logic, and HOGLAND_HOTPLUG_SNAPSHOT_ALIAS."
 }

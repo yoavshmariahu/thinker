@@ -50,5 +50,6 @@
     "Backend testing skipped even after I labeled the pull request",
     "The events schema validation check didn't run after labeling"
   ],
-  "saysFor": "704:label-events-don-t-start"
+  "saysFor": "704:label-events-don-t-start",
+  "search": "The Backend CI trigger in .github/workflows/ci-backend.yml uses `types: [opened, synchronize, reopened, ready_for_review]`, so the `labeled` event type does not start CI; a label takes effect only on the next push or ready_for_review transition. Convention: add the `test-new-events-schema` label while the PR is draft so ready_for_review triggers the run. If the PR must open ready_for_review, label immediately and push another commit. Do not add `labeled` to trigger types to avoid rerunning unrelated label changes. Applies to: backend PR workflows in agent and human-driven development."
 }

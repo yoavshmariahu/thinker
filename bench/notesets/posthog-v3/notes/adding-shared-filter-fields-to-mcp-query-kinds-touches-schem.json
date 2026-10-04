@@ -68,5 +68,6 @@
     "How to regenerate MCP query schema",
     "MCP generated types out of date"
   ],
-  "saysFor": "882:adding-shared-filter-fie"
+  "saysFor": "882:adding-shared-filter-fie",
+  "search": "Adding a shared filter field to MCP query kinds requires coordinated changes across frontend schema, generated files, runner WHERE clause, and one test per runner: the frontend/src/queries/schema/schema-general.ts is the source of truth, and pnpm schema:build regenerates frontend/src/queries/schema.json, posthog/schema.py, and services/mcp/src/api/generated.ts (never hand-edit these). Update the runner WHERE in products/mcp_analytics/backend/hogql_queries/tool_tables.py and add a per-runner case in posthog/mcp_analytics/backend/tests/test_tool_tables.py:TestMCPToolDetailSharedFilters covering unfiltered query, property filter, filterTestAccounts, and team.test_account_filters. The services/mcp/src/tools/generated/mcp_analytics.ts is generated from products/mcp_analytics/mcp/tools.yaml, and CI regenerates it, so the PR diff includes it."
 }

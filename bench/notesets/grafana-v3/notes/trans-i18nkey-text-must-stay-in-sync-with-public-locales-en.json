@@ -1,0 +1,55 @@
+{
+  "id": "trans-i18nkey-text-must-stay-in-sync-with-public-locales-en",
+  "title": "Trans i18nKey text must stay in sync with public/locales/en-US/grafana.json",
+  "kind": "rule",
+  "answers": [
+    "Why did my i18n text change not show up / why is there an extraction script mismatch?",
+    "How do I update copy that uses <Trans i18nKey=...>?",
+    "What else must I change when editing an Alert/Trans string in the dashboard UI?"
+  ],
+  "body": "Mechanism: every <Trans i18nKey=\"...\"> or t('key') string used in components has a corresponding entry in public/locales/en-US/grafana.json keyed by the same i18nKey; the two must be edited together (e.g. PublicDashboardAlert.tsx and grafana.json 'public-sharing.alert-text' were both updated in the same commit). Editing only the JSX string without updating grafana.json (or vice versa) leaves English users seeing stale/mismatched copy, since the JSON file is the source actually rendered at runtime for the default locale. When changing user-facing copy wrapped in Trans, grep public/locales/en-US/grafana.json for the i18nKey and update it in the same PR.",
+  "applies": "Any PR editing text inside <Trans i18nKey> or t() calls in public/app frontend code.",
+  "tags": [
+    "i18n",
+    "frontend",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard/components/ShareModal/SharePublicDashboard/ModalAlerts/PublicDashboardAlert.tsx",
+      "symbol": "PublicDashboardAlert",
+      "hash": "sha256:bfcf9c91bec8f392096d6d31",
+      "line": 10,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "public/locales/en-US/grafana.json",
+      "hash": "sha256:cbc8af5aa5e5e2852d108f4d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132961"
+  },
+  "created": "2026-10-04T06:03:46.158Z",
+  "verified": "2026-10-04T06:03:46.158Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "The public dashboard share modal still shows old warning text after our copy revision.",
+    "Update the disclaimer notice wording displayed inside the public sharing settings dialog.",
+    "Text updates to the public sharing alert banner do not appear in the interface.",
+    "Make sure English copy in the dashboard sharing popup reflects the approved legal text.",
+    "Publishing a dashboard displays outdated information banner copy instead of the new text."
+  ],
+  "saysFor": "735:trans-i18nkey-text-must-"
+}

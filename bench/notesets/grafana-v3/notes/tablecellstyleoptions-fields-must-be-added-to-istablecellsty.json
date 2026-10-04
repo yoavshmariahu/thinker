@@ -1,0 +1,64 @@
+{
+  "id": "tablecellstyleoptions-fields-must-be-added-to-istablecellsty",
+  "title": "TableCellStyleOptions fields must be added to isTableCellStylesKeyEqual too",
+  "kind": "rule",
+  "answers": [
+    "Why doesn't a new table cell style option take effect / why is the old style cached?",
+    "I added a field to TableCellStyleOptions but cell styles don't update",
+    "How do I add a new per-cell style option to TableNG?"
+  ],
+  "body": "Symptom: a new option that should change per-cell CSS (e.g. hover/overflow behavior) appears to have no effect because memoized styles are reused.\nRoot cause: cell style getters (getDefaultCellStyles, getMaxHeightCellStyles, AutoCell/PillCell getStyles) are memoized by a cache key compared in packages/grafana-ui/src/components/Table/TableNG/styles.ts:isTableCellStylesKeyEqual, which only checks explicitly listed TableCellStyleOptions fields.\nFix pattern: when adding a field to TableCellStyleOptions (packages/grafana-ui/src/components/Table/TableNG/types.ts:TableCellStyleOptions), also add it to the equality checks in isTableCellStylesKeyEqual, or the memoized style will be stale for differing values of the new field.\nConstraints: only applies to style getters that go through the memoized cache keyed by TableCellStyleOptions; one-off, non-memoized styling is unaffected.",
+  "applies": "packages/grafana-ui/src/components/Table/TableNG styles/cell-style getters",
+  "tags": [
+    "table",
+    "tableng",
+    "memoization",
+    "css"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Table/TableNG/styles.ts",
+      "symbol": "isTableCellStylesKeyEqual",
+      "hash": "sha256:8229a29aefc0bcb6630ab4c3",
+      "line": 46,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Table/TableNG/types.ts",
+      "symbol": "TableCellStyleOptions",
+      "hash": "sha256:7b06486cbfd56966a4d70a95",
+      "line": 290,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 7
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132829"
+  },
+  "created": "2026-10-04T06:24:30.919Z",
+  "verified": "2026-10-04T06:24:30.919Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "New table cell style option has no visible effect",
+    "Table cell styling not updating after adding new option",
+    "Cache invalidation needed when extending cell style options",
+    "Memoized cell styles stay old after configuration change",
+    "Add new cell style field to memoization check"
+  ],
+  "saysFor": "957:tablecellstyleoptions-fi",
+  "search": "When adding a field to TableCellStyleOptions, the field must also be added to the equality checks in isTableCellStylesKeyEqual, because cell style getters (getDefaultCellStyles, getMaxHeightCellStyles, AutoCell/PillCell getStyles) are memoized and reuse cached styles based on this cache-key comparison. Without updating the equality check, new options will appear to have no effect because the memoized style getter will return stale results for differing values of the new field. This constraint only applies to style getters that go through the memoized cache keyed by TableCellStyleOptions; one-off, non-memoized styling in TableNG is unaffected. See packages/grafana-ui/src/components/Table/TableNG/types.ts and styles.ts."
+}

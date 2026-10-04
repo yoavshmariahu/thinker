@@ -1,0 +1,82 @@
+{
+  "id": "apistore-maxallowedversion-cap-must-check-the-persisted-enco",
+  "title": "apistore maxAllowedVersion cap must check the persisted encoded version, not the declared one",
+  "kind": "rule",
+  "answers": [
+    "version cap / maxAllowedVersion bypassed when a serializer or codec upconverts the stored version",
+    "how is the storage version cap enforced in apistore",
+    "write stored at a version above the configured maximum despite the request declaring a lower one",
+    "rejected write still leaves a payload behind"
+  ],
+  "body": "Symptom: a write whose declared version is under the group's configured max-allowed version still ends up persisted above the cap (or an over-cap write isn't rejected) because a codec/serializer silently converted to a different storage version.\nRoot cause: checking the object's declared version instead of the bytes actually written lets any encoder/serializer that up-converts slip past the cap - pkg/storage/unified/apistore/prepare.go:Storage.encode / persistedVersion.\nFix pattern: encode first, then derive the group/version to check from the encoded JSON via persistedVersion; reject (never rewrite, return nil raw) if that version exceeds the cap or if its group differs from the resource's own group (which can't be ranked and would otherwise slip through unregistered).\nConstraints: enforcement only applies when `enforceCap=true` and `VersionPolicy.HasMaxAllowed(group)` is true; deletion-related updates pass `enforceCap=false` deliberately so an already-over-cap object stays removable (drain-only policy). Applies to any custom Serializer plugged into apistore, not just the default codec.",
+  "applies": "pkg/storage/unified/apistore writes going through Storage.encode, including custom Serializer implementations",
+  "tags": [
+    "apistore",
+    "version-policy",
+    "maxallowedversion",
+    "encode"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "persistedVersion",
+      "hash": "sha256:3380a0879e7b1b04ad01ee50",
+      "line": 499,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "persistedVersion",
+      "hash": "sha256:3380a0879e7b1b04ad01ee50",
+      "line": 499,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "persistedVersion",
+      "hash": "sha256:3380a0879e7b1b04ad01ee50",
+      "line": 499,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133083"
+  },
+  "created": "2026-10-04T05:52:53.260Z",
+  "verified": "2026-10-04T05:52:53.260Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "storage-options-must-be-scoped-per-gvr-not-registered-into-a",
+    "no-check-unified-storage-compatibility-label-when-a-client-s",
+    "resources-with-no-declared-gvk-must-stay-on-the-codec-path",
+    "shared-go-types-across-gvks-need-a-declared-gvk-not-scheme-g"
+  ],
+  "says": [
+    "Storage version limit silently bypassed by codec serialization conversion",
+    "Data persisted above configured maximum version despite enforcement rules",
+    "Write operations exceeding version cap not rejected or caught",
+    "Version limits ignored when encoder upgrades to incompatible format",
+    "Declared version under cap but actual stored data exceeds maximum"
+  ],
+  "saysFor": "1198:apistore-maxallowedversi",
+  "search": "Version cap enforcement in apistore must check the persisted encoded JSON version (via persistedVersion in pkg/storage/unified/apistore/prepare.go) rather than the object's declared version, to prevent encoders that up-convert from bypassing the cap. Encode first, then derive the group/version from the encoded JSON bytes and reject (returning nil raw, never rewriting) if the version exceeds the cap or if its group differs from the resource's group. Enforcement applies only when enforceCap=true and VersionPolicy.HasMaxAllowed(group) is true; deletion updates deliberately pass enforceCap=false to keep over-cap objects removable (drain-only policy). This rule applies to all writes through Storage.encode in pkg/storage/unified/apistore, including custom Serializer implementations."
+}

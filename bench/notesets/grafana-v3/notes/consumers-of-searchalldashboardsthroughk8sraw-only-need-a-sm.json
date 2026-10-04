@@ -1,0 +1,52 @@
+{
+  "id": "consumers-of-searchalldashboardsthroughk8sraw-only-need-a-sm",
+  "title": "Consumers of searchAllDashboardsThroughK8sRaw only need a small field subset",
+  "kind": "map",
+  "answers": [
+    "Who consumes the results of searchAllDashboardsThroughK8sRaw?",
+    "Which DashboardHit fields does provisioning actually read?",
+    "Is it safe to drop a field from internal dashboard search results?"
+  ],
+  "body": "searchAllDashboardsThroughK8sRaw feeds exactly two private consumers: the provisioning reader, which uses manager, source, and legacy-ID fields, and a second consumer that only reads name, title, and folder. Neither reads labels or updatedBy, which is why those table-only fields could be dropped from the request without breaking callers. The single-page /api/search path is a separate code path and is unaffected by this request. Before removing/adding a field here, re-check both consumers since this function has no other callers.",
+  "applies": "pkg/services/dashboards/service/dashboard_service.go internal search helpers feeding provisioning and dashboard listing consumers.",
+  "tags": [
+    "dashboards",
+    "search",
+    "provisioning"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "symbol": "searchAllDashboardsThroughK8sRaw",
+      "hash": "sha256:4672176585298e23e54f47bb",
+      "line": 2149,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132626"
+  },
+  "created": "2026-10-04T06:53:14.700Z",
+  "verified": "2026-10-04T06:53:14.700Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "internal-dashboard-search-requests-use-field-values-not-reso"
+  ],
+  "says": [
+    "Which fields from the dashboard search results are actually consumed downstream",
+    "Is it safe to remove or add a field from the internal dashboard search response",
+    "What dashboard properties do provisioning and other consumers actually read",
+    "Can I drop unused fields from dashboard search without breaking anything"
+  ],
+  "saysFor": "611:consumers-of-searchallda",
+  "search": "searchAllDashboardsThroughK8sRaw has exactly two private consumers: the provisioning reader (which reads manager, source, and legacy-ID fields) and a second consumer (which reads only name, title, and folder). Neither consumer reads labels or updatedBy fields, so those table-only fields could be safely dropped from the request without breaking callers. The /api/search endpoint is a separate code path and unaffected by changes to this function. Before removing or adding fields to searchAllDashboardsThroughK8sRaw, verify both consumers still function correctly, as this function has no other callers. Path: pkg/services/dashboards/service/dashboard_service.go."
+}

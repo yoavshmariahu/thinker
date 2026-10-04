@@ -49,5 +49,6 @@
     "POST-based read operations are blocked in impersonation mode",
     "View-only access prevents checking campaign blast radius metrics"
   ],
-  "saysFor": "1078:read-only-impersonation-"
+  "saysFor": "1078:read-only-impersonation-",
+  "search": "POST-body read endpoints fail with 403 `impersonation_read_only` in read-only impersonation sessions when not allowlisted. Add one `(\"POST\", re.compile(...))` entry to `READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS` in `posthog/middleware.py` naming the single action, following the pattern of neighboring entries with `/?$` and `(environments|projects)/([0-9]+|@current)` prefix. Only allowlist actions verified to write nothing (no DB writes, no token spending); do not change how read-only status is decided elsewhere (viewset declarations remain the security boundary). Affects `POST hog_flows/user_blast_radius` and `POST feature_flags/user_blast_radius` style endpoints that use POST because filters exceed query-string size limits. Test cases in `posthog/test/test_middleware.py:test_read_only_impersonation_allows_allowlisted_post`."
 }

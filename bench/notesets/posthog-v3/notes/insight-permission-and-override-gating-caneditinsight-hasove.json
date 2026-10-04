@@ -72,5 +72,6 @@
     "What determines whether the Edit button is enabled or disabled for an insight?",
     "Where are the permission and override checks for editing insights implemented?"
   ],
-  "saysFor": "1348:insight-permission-and-o"
+  "saysFor": "1348:insight-permission-and-o",
+  "search": "Insight permission gating uses three selectors in `insightLogic.tsx`: `canEditInsight` (true if `insight.user_access_level` missing or satisfies Editor permission, ignoring mode/dashboard/overrides), `hasOverrides` (derived from filtersOverride/variablesOverride/tileFiltersOverride), and `editingDisabledReason` (either 'Discard overrides to edit the insight.' or null). canEditInsight must gate Edit button in InsightPageHeader (with AccessControlAction minAccessLevel=Editor), InsightVizDisplay.canCheckUncheckSeries, retention filters, and InsightDisplayConfig. editingDisabledReason applies only where passed as `disabledReason` parameter (InsightDisplayConfig, InsightDateFilter, ColorCustomizationColumn, retention pickers). New edit controls must add both checks. Applies to scenes/insights and product_analytics controls; dashboard tiles use dashboardId props."
 }

@@ -1,0 +1,91 @@
+{
+  "id": "central-place-for-errorresult-grpc-code-translation-in-unifi",
+  "title": "Central place for ErrorResult -> gRPC code translation in unified storage",
+  "kind": "map",
+  "answers": [
+    "Where is HTTP/ErrorResult converted to a gRPC status code for unified storage metrics?",
+    "What function should a new call site use to derive a gRPC code from a resourcepb.ErrorResult?"
+  ],
+  "body": "pkg/storage/unified/resource/errors.go:grpcCodeFromErrorResult is the single function that converts a resourcepb.ErrorResult (HTTP code + Reason) into a grpc code; it replaced the old HTTP-only grpcCodeFromHTTPStatus. It is used by grpc_interceptor.go:UnaryRequestDurationInterceptor for request-duration metric labels and by search.go's VectorSearch metrics path. New call sites that need a gRPC code for a response carrying an embedded ErrorResult should route through this function rather than re-deriving the mapping from the raw HTTP code.",
+  "applies": "pkg/storage/unified/resource",
+  "tags": [
+    "grpc",
+    "error-mapping",
+    "unified-storage",
+    "map"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/errors.go",
+      "symbol": "grpcCodeFromErrorResult",
+      "hash": "sha256:5cbd9c03994c65b7b703dfaa",
+      "line": 359,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/grpc_interceptor.go",
+      "symbol": "UnaryRequestDurationInterceptor",
+      "hash": "sha256:dff76b85d7589c5832d2eda8",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/search.go",
+      "symbol": "VectorSearch",
+      "hash": "sha256:99c692d0e9d742f2e1e2873b",
+      "line": 812,
+      "missing": false,
+      "fanout": {
+        "files": 22,
+        "sites": 53,
+        "refs": 98
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/grpc_interceptor.go",
+      "symbol": "UnaryRequestDurationInterceptor",
+      "hash": "sha256:dff76b85d7589c5832d2eda8",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132895"
+  },
+  "created": "2026-10-04T06:15:33.426Z",
+  "verified": "2026-10-04T06:15:33.426Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "grpc-request-duration-metric-must-reflect-embedded-errorresu",
+    "errorresult-reason-must-stay-mapped-in-grpccodefromreason-to",
+    "indexfeature-must-be-recorded-before-it-can-be-required"
+  ],
+  "says": [
+    "Where is the central function converting errors to gRPC codes",
+    "How should ErrorResult be converted to gRPC status in new code",
+    "What function maps HTTP error codes to gRPC status codes",
+    "New call site needs to derive gRPC code from error result",
+    "Where do we translate between HTTP and gRPC error codes"
+  ],
+  "saysFor": "618:central-place-for-errorr",
+  "search": "pkg/storage/unified/resource/errors.go:grpcCodeFromErrorResult is the single function converting resourcepb.ErrorResult (HTTP code + Reason) to gRPC code, replacing the older HTTP-only grpcCodeFromHTTPStatus mapping. It is called by grpc_interceptor.go:UnaryRequestDurationInterceptor for metric labels and by search.go:VectorSearch metrics. New code sites in unified storage needing a gRPC code for responses with embedded ErrorResult must route through grpcCodeFromErrorResult rather than deriving codes directly from raw HTTP status."
+}

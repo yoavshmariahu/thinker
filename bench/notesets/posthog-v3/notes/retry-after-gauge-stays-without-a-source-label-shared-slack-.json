@@ -48,5 +48,6 @@
     "Rate limit metrics don't break down by workflow",
     "Slack integration monitoring lacks per-flow throttle visibility"
   ],
-  "saysFor": "584:retry-after-gauge-stays-"
+  "saysFor": "584:retry-after-gauge-stays-",
+  "search": "The Slack `Retry-After` gauge keeps per-bucket labels only, omitting `source`, because Slack enforces one rate limit per workspace, app, and method—all flows wait on the same reset. Adding a `source` label would split one bucket into redundant per-flow series showing identical reset times (rejected in review). Per-flow 429 attribution instead comes from `slack_api_requests_total{status_code=\"429\", source=...}`. Client construction is in `posthog/models/integration/slack.py:SlackIntegration`. Applies to Slack egress metrics instrumentation in `posthog/egress/slack` and SlackIntegration."
 }

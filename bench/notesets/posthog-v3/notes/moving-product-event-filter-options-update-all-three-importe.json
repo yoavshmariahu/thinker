@@ -53,5 +53,6 @@
     "How do I adjust which event filters appear in hog triggers?",
     "Event filter changes not showing in the hog function UI"
   ],
-  "saysFor": "609:moving-product-event-fil"
+  "saysFor": "609:moving-product-event-fil",
+  "search": "Product event filter options are defined in frontend/src/scenes/hog-functions/filters/productEventFilterOptions.ts with its test productEventFilterOptions.test.ts, imported by three consumers: HogFunctionFiltersInternal.tsx, taxonomicFilterLogic.tsx, and utils/buildTaxonomicGroups.tsx. New contexts or options must be added to the .ts module only, never to component files, keeping the module free of logic and component imports. All four files (definition, test, and three importers) must be updated together when moving or extending options. Applies to hog function Trigger field product event options and taxonomic filter groups."
 }

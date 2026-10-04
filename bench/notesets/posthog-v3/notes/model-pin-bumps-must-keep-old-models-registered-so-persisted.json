@@ -49,5 +49,6 @@
     "Why did an in-flight review change model after a model bump?",
     "What happens to persisted review arm when a model is removed from the task catalog?"
   ],
-  "saysFor": "909:model-pin-bumps-must-kee"
+  "saysFor": "909:model-pin-bumps-must-kee",
+  "search": "Model pin changes must keep old models registered because persisted ReviewReport review arms resolve through `resolve_review_arm` in products/review_hog/backend/reviewer/constants.py, which falls back to DEFAULT_REVIEW_ARM and stamps `review_arm_fallback` when a persisted arm becomes unsupported. Deregistering an old model or narrowing its supported efforts silently upgrades in-flight reports to the new default, risking cost overruns (cheap-tier low efforts become xhigh). Keep or extend legacy test params like `_LEGACY_CODEX_ARM` in products/review_hog/backend/reviewer/tests/test_constants.py with each model pin change. Applies to any change of REVIEW_MODEL, FLASH_ARM, VALIDATION_MODEL pins or task-catalog registration of ReviewHog models."
 }

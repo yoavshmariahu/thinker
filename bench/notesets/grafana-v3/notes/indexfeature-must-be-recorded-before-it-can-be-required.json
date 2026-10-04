@@ -1,0 +1,77 @@
+{
+  "id": "indexfeature-must-be-recorded-before-it-can-be-required",
+  "title": "IndexFeature must be recorded before it can be required",
+  "kind": "rule",
+  "answers": [
+    "How do I add a new index feature / capability flag for the search index?",
+    "Why would requiring a new index feature cause indexes to rebuild forever?",
+    "What's the two-step process for rolling out a new index-mapping behavior?"
+  ],
+  "body": "Symptom: a feature added straight to RequiredIndexFeatures would make every pre-existing index (which never recorded it) look permanently out of date, triggering endless rebuilds.\nRoot cause: IndexFeaturesForNewIndex(false) / currentIndexFeatures only lists what new indexes record; RequiredIndexFeatures(postRankAuthz) checks what an existing index must have to be considered current — these are deliberately separate lists.\nFix pattern: first add the feature to currentIndexFeatures and knownIndexFeatures only (recorded, not required) for one release; add it to RequiredIndexFeatures in a later release once all live indexes have had a chance to be built/rebuilt with it set.\nConstraints: applies to any new per-index capability flag in this file; does not apply to features that are purely informational/diagnostic and never enforced as required.",
+  "applies": "pkg/storage/unified/resource/search.go IndexFeature list changes",
+  "tags": [
+    "search-index",
+    "bleve",
+    "index-features",
+    "rollout"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/search.go",
+      "symbol": "currentIndexFeatures",
+      "hash": "sha256:0ee04c0e9e9500f7e77cb6d7",
+      "line": 167,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/search.go",
+      "symbol": "RequiredIndexFeatures",
+      "hash": "sha256:e9d484df2a486ccb16f32d32",
+      "line": 218,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 8,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/search.go",
+      "symbol": "IndexFeaturesForNewIndex",
+      "hash": "sha256:810a08cd2eeb434f2a38fa42",
+      "line": 207,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132633"
+  },
+  "created": "2026-10-04T06:52:48.125Z",
+  "verified": "2026-10-04T06:52:48.125Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "stale-index-rebuild-triggers-differ-by-resource-kind"
+  ],
+  "says": [
+    "How do I add a new feature or capability to search index?",
+    "Why does adding a required index feature cause endless rebuilding?",
+    "What's the correct rollout sequence for a new index feature?",
+    "New search feature requirement immediately breaks all existing indexes"
+  ],
+  "saysFor": "906:indexfeature-must-be-rec",
+  "search": "New per-index capability flags in pkg/storage/unified/resource/search.go must be added to currentIndexFeatures and knownIndexFeatures first (recorded, not required) for one release before being added to RequiredIndexFeatures in a later release. The currentIndexFeatures/IndexFeaturesForNewIndex(false) list defines what new indexes record; RequiredIndexFeatures(postRankAuthz) checks what existing indexes must have to be current—these are deliberately separate to prevent pre-existing indexes without the flag from looking permanently out of date and triggering endless rebuilds. Two-release rollout pattern is mandatory for any new index capability flag in this file; does not apply to purely informational or diagnostic features that are never enforced as required. Applies to IndexFeature list changes in pkg/storage/unified/resource/search.go:currentIndexFeatures, pkg/storage/unified/resource/search.go:RequiredIndexFeatures, and pkg/storage/unified/resource/search.go:IndexFeaturesForNewIndex."
+}

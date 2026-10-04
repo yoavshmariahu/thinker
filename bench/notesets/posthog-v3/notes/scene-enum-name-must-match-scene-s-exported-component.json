@@ -69,5 +69,6 @@
     "How should scene names relate to component files?",
     "Scene chunk preload not working for new page"
   ],
-  "saysFor": "687:scene-enum-name-must-mat"
+  "saysFor": "687:scene-enum-name-must-mat",
+  "search": "Scene component registration: the Scene enum value in sceneTypes.ts must match the first and only exported component name of the scene module, so chunk preloading works in parallel across all scenes. This requirement is not enforced by any build check, so preloading silently breaks if names drift between the enum and the component. Affects adding new core scenes and debugging missing preloads. Paths: frontend/src/scenes/sceneTypes.ts:Scene, appScenes.ts, scenes.ts:routes. The sceneTypes.ts comment documents the rule; appScenes maps Scene keys to lazy imports."
 }

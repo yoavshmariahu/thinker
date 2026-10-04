@@ -1,0 +1,52 @@
+{
+  "id": "wrap-settestflags-in-act-when-testing-hooks-via-renderhook",
+  "title": "Wrap setTestFlags in act() when testing hooks via renderHook",
+  "kind": "rule",
+  "answers": [
+    "Why do I get 'An update to TestComponent inside a test was not wrapped in act(...)' when testing a feature-flag hook?",
+    "Do I need act() around setTestFlags in tests?",
+    "How to test hooks that depend on OpenFeature flags without React act warnings?"
+  ],
+  "body": "Symptom: a test using renderHook() to test a hook that reads a feature flag (e.g. via useFlagX) throws 'An update to TestComponent inside a test was not wrapped in act(...)' when calling setTestFlags. Root cause: renderHook wraps the hook in a hidden TestComponent; setTestFlags fires an OpenFeature change event asynchronously, and the TestComponent's resulting setState happens outside the synchronous call, not inside setTestFlags itself (which only wraps its own internal act). Fix pattern: wrap the setTestFlags call itself in `await act(async () => { setTestFlags(...) })` in tests that use renderHook on a flag-consuming hook — this differs from other call sites of setTestFlags (e.g. full component render tests) which don't need the extra act(). Constraints: only needed for renderHook-based hook tests reacting to flag-change events; not a general rule for every setTestFlags usage.",
+  "applies": "Unit tests for hooks (via @testing-library/react renderHook) that consume OpenFeature/unleash-style flags via @grafana/test-utils/unstable's setTestFlags.",
+  "tags": [
+    "testing",
+    "react",
+    "feature-flags",
+    "act"
+  ],
+  "deps": [
+    {
+      "path": "public/app/core/navigation/mtFallback.test.ts",
+      "symbol": "setMTFallbackFlag",
+      "hash": "sha256:9e25b54e73aa0be518e237d0",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132881"
+  },
+  "created": "2026-10-04T06:17:53.731Z",
+  "verified": "2026-10-04T06:17:53.731Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Testing hook that reads feature flag shows wrapping error",
+    "Hook test fails when updating feature flag state",
+    "Feature flag update in test requires explicit wrapping",
+    "Hook test for flags needs protection when changing state",
+    "Changing feature flags during test causes test warning"
+  ],
+  "saysFor": "953:wrap-settestflags-in-act",
+  "search": "When testing hooks via renderHook() that consume OpenFeature flags via setTestFlags, the setTestFlags call itself must be wrapped in `await act(async () => { ... })` because renderHook embeds the hook in a hidden TestComponent, and OpenFeature's flag-change event fires asynchronously outside setTestFlags' internal act. This differs from other setTestFlags call sites (full component render tests) which don't need the extra act(). Required only for renderHook-based hook tests reacting to flag-change events, using @testing-library/react renderHook and @grafana/test-utils/unstable's setTestFlags. Example: public/app/core/navigation/mtFallback.test.ts:setMTFallbackFlag."
+}

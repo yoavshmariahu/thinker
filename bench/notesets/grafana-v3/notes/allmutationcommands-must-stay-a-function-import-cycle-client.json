@@ -1,0 +1,65 @@
+{
+  "id": "allmutationcommands-must-stay-a-function-import-cycle-client",
+  "title": "allMutationCommands must stay a function (import cycle); _clients stack is spliced by identity, never popped",
+  "kind": "rule",
+  "answers": [
+    "Why is allMutationCommands() a function instead of a module-level constant array?",
+    "Why can't the mutation client list use client.pop() on deactivation?",
+    "Safe pattern for removing a document's mutation client when multiple documents are mounted at once"
+  ],
+  "body": "`commandRegistry.ts:allMutationCommands()` is deliberately a function, not a module-level array: eagerly reading `DASHBOARD_COMMANDS`/`NOTEBOOK_COMMANDS` at import time would run into a real cycle (dashboard command → PanelMenuBehavior → extensions registry → RestrictedGrafanaApisProvider → dashboardMutationApi → commandRegistry). Converting it back to a constant reintroduces the cycle. `dashboardMutationApi.ts` keeps mounted clients in a stack (`_clients`), not a single slot, because more than one document can be active at once (e.g. a notebook rendered outside the notebooks route over a dashboard). On deactivation it must remove the specific client by identity (`lastIndexOf`/splice), not `pop()`, because deactivation order across documents is not guaranteed to be LIFO.",
+  "applies": "Applies to public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/{commandRegistry.ts,dashboardMutationApi.ts}; unrelated to the alerting restricted API.",
+  "tags": [
+    "restrictedgrafanaapis",
+    "dashboardmutationapi",
+    "circular-dependency"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/commandRegistry.ts",
+      "symbol": "allMutationCommands",
+      "hash": "sha256:5f08525cbc5e1541a4f46377",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 6
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "_clients",
+      "hash": "sha256:9bc2e8cd6c319b5b0d1339e2",
+      "line": 26,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "6ab22831-72f1-4740-aac6-17ed5e9b7480"
+  },
+  "created": "2026-10-04T06:03:24.859Z",
+  "verified": "2026-10-04T06:03:24.859Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "restrictedgrafanaapis-how-to-add-a-new-restricted-api-and-wi",
+    "dashboardplanpreview-owns-plan-preview-page-navigation-not-t",
+    "render-plan-must-stay-listed-as-available-even-with-no-dashb"
+  ],
+  "says": [
+    "Why is allMutationCommands() a function instead of a module-level constant array?",
+    "Why can't the mutation client list use client.pop() on deactivation?",
+    "Safe pattern for removing a document's mutation client when multiple documents are mounted at once"
+  ],
+  "saysFor": "890:allmutationcommands-must",
+  "search": "allMutationCommands must remain a function rather than a module-level constant because eagerly reading DASHBOARD_COMMANDS/NOTEBOOK_COMMANDS at import time would reintroduce a real import cycle through the extensions registry. The _clients stack in dashboardMutationApi.ts must track mounted clients by identity using lastIndexOf/splice rather than pop(), since multiple documents can be active simultaneously and deactivation order is not guaranteed LIFO. Converting back to a constant or using pop() violates the invariant. Found in public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/commandRegistry.ts and dashboardMutationApi.ts; unrelated to alerting restricted API."
+}

@@ -90,5 +90,6 @@
     "Adding a new field to heatmap capture requests",
     "Wildcard URL pattern not being saved in heatmap"
   ],
-  "saysFor": "1018:toolbar-heatmap-capture-"
+  "saysFor": "1018:toolbar-heatmap-capture-",
+  "search": "Toolbar heatmap capture: the data_url field must be passed through buildBaseFormData in frontend, SavedHeatmapCaptureRequestSerializer (URLField, required=False, allow_blank=True) in backend, and regenerated API clients without hand-editing. The data_url carries the optional overlay pattern (defaults to url when omitted/empty); any new form builder or serializer change must include it in both frontend/src/toolbar/stats/heatmapCaptureLogic.ts and products/web_analytics/backend/api/heatmaps_api.py. Serializer changes automatically require regenerating products/web_analytics/frontend/generated/api.schemas.ts, api.ts, api.zod.ts, and services/mcp/src/api/generated.ts. Tests in heatmapCaptureLogic.test.ts and test_heatmap_screenshots.py cover exact, wildcard, omitted, and empty cases for the /saved/capture/ endpoint."
 }

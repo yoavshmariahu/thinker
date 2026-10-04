@@ -1,0 +1,64 @@
+{
+  "id": "gate-feature-flagged-panel-options-at-render-use-site-not-ju",
+  "title": "Gate feature-flagged panel options at render/use site, not just in the options pane",
+  "kind": "rule",
+  "answers": [
+    "Panel still uses per-row rendering/pagination or shows the frame selector after the text.newFeatures flag is turned off",
+    "A saved panel keeps a pre-GA behavior even though the option is hidden in the editor",
+    "How to properly gate a new panel option behind a feature flag"
+  ],
+  "body": "Symptom: a panel saved while a feature flag was on keeps using the gated behavior (per-row render mode, frame selection, pagination) even after the flag is turned off, because the flag was only checked when deciding what to show/offer in the options pane.\nRoot cause: public/app/plugins/panel/text/v2/module.tsx's showForData/useFieldConfig gating only controlled editor visibility; public/app/plugins/panel/text/v2/TextNGPanel.tsx read options.renderMode/options.frameIndex directly, and saved panel JSON persists those fields independent of current flag state.\nFix pattern: compute the flag once per render (e.g. `const newFeatures = isTextNewFeaturesEnabled()`), derive a gated local value (`renderMode = newFeatures ? options.renderMode : RenderMode.Once`, `currentFrameIndex = newFeatures ? getCurrentFrameIndex(...) : 0`), and thread that gated value everywhere downstream (series slicing, pagination, templateOf, renderPanelContent) instead of the raw option.\nConstraints: applies to any pre-GA option stored in panel JSON and controlled by a feature flag; once the feature is GA and the flag removed, the gating and fallback branch should be deleted.",
+  "applies": "Panel options behind a pre-GA feature flag, where options persist in saved dashboard JSON independent of flag state",
+  "tags": [
+    "feature-flag",
+    "text-panel",
+    "panel-options"
+  ],
+  "deps": [
+    {
+      "path": "public/app/plugins/panel/text/v2/TextNGPanel.tsx",
+      "symbol": "TextNGPanel",
+      "hash": "sha256:18146b97dba56c1ea60f4261",
+      "line": 51,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 48
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/text/v2/module.tsx",
+      "symbol": "showForData",
+      "hash": "sha256:b6b92ff22cc77e568dbc8057",
+      "line": 11,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132931"
+  },
+  "created": "2026-10-04T06:09:56.032Z",
+  "verified": "2026-10-04T06:09:56.032Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "text-v2-view-mode-state-must-stay-lifted-in-textngpanel-not"
+  ],
+  "says": [
+    "Saved panel continues using disabled feature after flag is turned off",
+    "Panel option persists even though it's hidden in the editor",
+    "Feature-flagged panel behavior doesn't revert when flag is disabled",
+    "How to properly disable panel features when feature flag is turned off"
+  ],
+  "saysFor": "1242:gate-feature-flagged-pan",
+  "search": "Feature-flagged panel options must be gated at render/use site, not just in the options pane editor, because saved panel JSON persists those options independent of flag state. Fix pattern: compute the flag once per render, derive a gated local value with fallback (e.g., `renderMode = newFeatures ? options.renderMode : RenderMode.Once`), and thread that gated value to all downstream consumers (series slicing, pagination, templateOf, renderPanelContent) instead of the raw option. Constraint: applies only to pre-GA options stored in panel JSON; once the feature is GA and flag removed, delete the gating and fallback logic. Applies to panel options behind pre-GA feature flags where options persist in saved dashboard JSON. Paths: public/app/plugins/panel/text/v2/TextNGPanel.tsx:TextNGPanel, public/app/plugins/panel/text/v2/module.tsx:showForData."
+}

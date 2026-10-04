@@ -1,0 +1,66 @@
+{
+  "id": "clipboard-copy-pass-pending-promises-to-clipboarditem-don-t",
+  "title": "Clipboard copy: pass pending promises to ClipboardItem, don't await before writing",
+  "kind": "rule",
+  "answers": [
+    "Clipboard copy fails in Safari after an async call",
+    "Copy to clipboard not working for short links / notebook export",
+    "NotAllowedError on navigator.clipboard.write after await"
+  ],
+  "body": "Symptom: 'Copy to clipboard' silently fails in Safari (or any browser) when the text to copy is fetched/computed asynchronously (e.g. short link creation, notebook markdown export) before the copy happens.\nRoot cause: browsers require clipboard.write to be called synchronously within the user-gesture (click) to preserve 'user activation'; awaiting an async value first and then calling clipboard.write/writeText happens outside that window and gets refused.\nFix pattern: pass the still-pending `Promise<string>` straight into `new ClipboardItem({'text/plain': Promise.resolve(text)})` and call `navigator.clipboard.write` synchronously in the click handler, letting the promise resolve later — see copyTextToClipboard in packages/grafana-ui/src/utils/copyToClipboard.ts and its use in public/app/core/utils/shortLinks.ts:createAndCopyShortLink and public/app/features/notebook/export/NotebookExportMenu.tsx:onCopy.\nConstraints: only matters when ClipboardItem/clipboard.write is available (secure context); the execCommand fallback has no such workaround since it requires the text synchronously, so async text must be awaited before falling back.",
+  "applies": "Any clipboard-copy flow where the text to copy is produced asynchronously (API call, computed markdown, etc.)",
+  "tags": [
+    "clipboard",
+    "safari",
+    "user-activation"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/utils/copyToClipboard.ts",
+      "symbol": "copyTextToClipboard",
+      "hash": "sha256:6899ec054565a17538711ef2",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 18,
+        "refs": 38
+      }
+    },
+    {
+      "path": "public/app/core/utils/shortLinks.ts",
+      "symbol": "createAndCopyShortLink",
+      "hash": "sha256:39e9f289401594beaf3e2621",
+      "line": 92,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 10,
+        "refs": 25
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132731"
+  },
+  "created": "2026-10-04T06:38:21.911Z",
+  "verified": "2026-10-04T06:38:21.911Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "always-await-catch-copytexttoclipboard-before-showing-a-succ",
+    "use-grafana-ui-copytexttoclipboard-instead-of-a-bespoke-clip"
+  ],
+  "says": [
+    "Clipboard copy fails in Safari after creating a short link asynchronously",
+    "Copy to clipboard doesn't work when the content is generated on demand",
+    "Why does the copy button silently fail in Safari and other browsers?",
+    "Copying notebook markdown export fails with NotAllowedError in the browser",
+    "How can we copy dynamically generated content to the user's clipboard?"
+  ],
+  "saysFor": "1232:clipboard-copy-pass-pend",
+  "search": "Browser clipboard copy pattern for asynchronous text: pass the pending Promise<string> directly into new ClipboardItem({'text/plain': Promise.resolve(text)}) and call navigator.clipboard.write synchronously within the user-gesture click handler, letting the promise resolve later. Awaiting async text before clipboard.write silently fails in Safari and other browsers because the Clipboard API requires user activation at the moment of the write call, which is lost after an await outside the gesture window. This pattern is used in copyTextToClipboard (packages/grafana-ui/src/utils/copyToClipboard.ts), createAndCopyShortLink (public/app/core/utils/shortLinks.ts), and NotebookExportMenu.tsx:onCopy for fetched/computed content like short links and notebook markdown. Exception: the execCommand fallback has no workaround since it requires text synchronously, so async text must be awaited before falling back. Only applies when ClipboardItem and clipboard.write are available in secure contexts."
+}

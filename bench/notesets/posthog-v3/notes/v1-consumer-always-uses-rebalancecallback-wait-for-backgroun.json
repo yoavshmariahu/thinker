@@ -60,5 +60,6 @@
     "CONSUMER_WAIT_FOR_BACKGROUND_TASKS_ON_REBALANCE setting no longer exists",
     "v1 consumer rebalance behavior changed with deprecated flag"
   ],
-  "saysFor": "740:v1-consumer-always-uses-"
+  "saysFor": "740:v1-consumer-always-uses-",
+  "search": "When configuring the v1 Kafka consumer (nodejs/src/common/kafka/consumer/consumer-v1.ts), it unconditionally passes rebalanceCallback via rebalance_cb; the CONSUMER_WAIT_FOR_BACKGROUND_TASKS_ON_REBALANCE flag was removed from CommonConfig and KafkaConsumerBaseConfig. Every code path that sets rebalanceCoordination.isRebalancing must call resetRebalanceCoordination to clear the pause, because the consume loop skips consumption while isRebalancing. Do not reintroduce any mode that bypasses rebalanceCallback, even though with rebalance_cb: true, node-rdkafka handles assign/unassign internally and the callback and kafkaConsumerAssignment metrics never fire."
 }

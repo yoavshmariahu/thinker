@@ -1,0 +1,56 @@
+{
+  "id": "merge-receivers-follows-the-map-in-map-out-added-uids-shape",
+  "title": "merge.Receivers follows the map-in/map-out+added-UIDs shape of its siblings",
+  "kind": "rule",
+  "answers": [
+    "How should a new mergeable AMConfigV1 resource's merge function be shaped?",
+    "Why does merge.Receivers take a map now instead of a slice?",
+    "How do I merge imported/extra config receivers into existing ones?"
+  ],
+  "body": "Fix pattern: `merge.Receivers` (notifier/merge/merge.go) now takes the existing resources as `map[ResourceUID]PostableApiReceiver` and a list of incoming receivers, and returns the merged map plus `[]ResourceUID` of the added/renamed keys — mirroring `TimeIntervals`, `MergeInhibitionRules`, and `MergeTemplates` instead of the old slice-in/slice-out-with-map-bridged-by-caller style. Callers that previously relied on index arithmetic over the merged slice (e.g. `merged[len(original):]`) must instead iterate the returned added-UIDs and look each up in the merged map, as done in `legacy_storage/imported.go`. Constraints: any new mergeable AMConfigV1 resource type added to MergeExtraConfig should follow this same map-in/map-out+added-UIDs signature for consistency.",
+  "applies": "pkg/services/ngalert/notifier/merge and legacy_storage/imported.go",
+  "tags": [
+    "alertmanager",
+    "merge",
+    "receivers"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/merge/merge.go",
+      "symbol": "Receivers",
+      "hash": "sha256:73218d94e716adf2d80ad29a",
+      "line": 293,
+      "missing": false,
+      "fanout": {
+        "files": 52,
+        "sites": 5,
+        "refs": 246
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/imported.go",
+      "hash": "sha256:658333896eccc9bb6cc1a2c8",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132925"
+  },
+  "created": "2026-10-04T06:11:49.669Z",
+  "verified": "2026-10-04T06:11:49.669Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Merge function returning slice but API now expects map",
+    "How to iterate newly-added resources from updated merge function",
+    "Merging extra config into existing receivers with new API",
+    "Updated merge pattern for config resources returns added keys",
+    "Converting merge slice results to map-based pattern"
+  ],
+  "saysFor": "846:merge-receivers-follows-",
+  "search": "merge.Receivers takes a map[ResourceUID]PostableApiReceiver of existing resources plus a list of incoming receivers, returning the merged map and []ResourceUID of added/renamed keys—matching the pattern of TimeIntervals, MergeInhibitionRules, and MergeTemplates. Callers that previously used slice indexing (e.g., merged[len(original):]) must instead iterate the returned UIDs and look each up in the merged map, as shown in legacy_storage/imported.go. Constraint: any new mergeable AMConfigV1 resource type added to MergeExtraConfig must follow this map-in/map-out+added-UIDs signature for consistency; the old slice-in/slice-out-with-map-bridged-by-caller style is no longer the pattern. Apply when: working with pkg/services/ngalert/notifier/merge and related merge operations, or adding new mergeable AMConfigV1 resource types."
+}

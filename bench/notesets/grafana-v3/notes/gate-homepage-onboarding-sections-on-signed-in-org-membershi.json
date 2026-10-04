@@ -1,0 +1,55 @@
+{
+  "id": "gate-homepage-onboarding-sections-on-signed-in-org-membershi",
+  "title": "Gate homepage onboarding sections on signed-in org membership",
+  "kind": "rule",
+  "answers": [
+    "Why do anonymous users see an empty 'No solutions were found' overview on the homepage?",
+    "Recommendations/stack overview showing for anonymous or None-role users",
+    "How to gate a homepage redesign section to real org members"
+  ],
+  "body": "Symptom: anonymous viewers (or users with org role None, e.g. anon-auth configured with Editor/Admin role) saw an empty 'Your observability stack overview' with 'No solutions were found', and could still see Recommendations.\nRoot cause: public/app/features/home/HomePage.tsx rendered <Recommendations>/<Overview> and ran solution placement (resolveOverviewCard) for any user whenever the growthHomepage flag was on, without checking identity.\nFix pattern: compute a single `showSolutions = contextSrv.isSignedIn && contextSrv.user.orgRole !== OrgRole.None` and use it to both skip rendering the sections and skip the placement effect's work (`resolveOverviewCard` loop), so no datasource/needsAttention probes run for excluded users.\nConstraints: applies only to onboarding/solution-discovery surfaces meant for real org members; signed-in org members (any role except None) are unaffected. Don't reuse this gate for sections that should still work for anonymous read-only dashboards.",
+  "applies": "public/app/features/home homepage redesign (grafana.growthHomepage flag) onboarding sections",
+  "tags": [
+    "homepage",
+    "anonymous-access",
+    "org-role",
+    "feature-flag-gating",
+    "growthhomepage"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/home/HomePage.tsx",
+      "symbol": "HomePage",
+      "hash": "sha256:edc4315a23986e916cd48357",
+      "line": 60,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 33
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132844"
+  },
+  "created": "2026-10-04T06:21:46.270Z",
+  "verified": "2026-10-04T06:21:46.270Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "homepage-loading-skeleton-must-mirror-the-real-section-order",
+    "homepageskeleton-blocks-are-opt-in-and-must-mirror-the-real"
+  ],
+  "says": [
+    "Why do anonymous users see empty stack overview on homepage?",
+    "Homepage sections render for users without organization membership",
+    "Recommendations visible to users lacking proper authentication status",
+    "How to restrict homepage redesign sections to organization members"
+  ],
+  "saysFor": "1046:gate-homepage-onboarding",
+  "search": "Gating homepage onboarding sections on signed-in org membership: compute `showSolutions = contextSrv.isSignedIn && contextSrv.user.orgRole !== OrgRole.None` and use it to skip both rendering overview/recommendations sections and their placement effect (resolveOverviewCard loop), preventing datasource probes for anonymous or None-role users. Applies to public/app/features/home/HomePage.tsx:HomePage under the grafana.growthHomepage flag. Constraint: only gate onboarding/solution-discovery surfaces meant for real org members; do not reuse for anonymous read-only dashboards. Task kind: homepage redesign implementation, anon-auth configuration with Editor/Admin roles."
+}

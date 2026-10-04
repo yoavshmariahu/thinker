@@ -1,0 +1,53 @@
+{
+  "id": "import-to-gma-review-step-don-t-style-clickable-actions-as-s",
+  "title": "Import-to-GMA review step: don't style clickable actions as static badges",
+  "kind": "rule",
+  "answers": [
+    "Why does the Preview control on the Import wizard review step look like a badge instead of a button?",
+    "How should I add an interactive action next to a static status label in the Review step cards?",
+    "Preview icon/badge is not perceivable as clickable"
+  ],
+  "body": "Symptom: Users reported the 'Preview' control on the Review step (Notification Resources / Alert Rules cards) looked identical to the static, non-interactive 'Skipped' badge next to it — nothing signaled it was clickable except a tiny eye icon.\nRoot cause: the control was a plain <button> styled with a custom CSS class (`styles.badgeWithIcon` in public/app/features/alerting/unified/components/import-to-gma/ImportToGMA.tsx) that visually matched the success-colored status badges on the same screen.\nFix pattern: split status text from the action — render the status as plain `Text` and render the action as a real `Button` (variant=\"secondary\", icon=\"eye\") from `@grafana/ui`, so interactive controls are visually and semantically distinct from static badges/labels.\nConstraints: applies to any review/summary screen mixing static status indicators with clickable affordances; don't reuse badge-style CSS classes for anything with an onClick handler.",
+  "applies": "Alerting Import-to-GMA wizard Review step; generally any UI mixing static status badges with clickable preview/action controls",
+  "tags": [
+    "alerting",
+    "import-to-gma",
+    "ui",
+    "accessibility"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/ImportToGMA.tsx",
+      "symbol": "ReviewStep",
+      "hash": "sha256:2096bfaaef29f198215b656e",
+      "line": 886,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132711"
+  },
+  "created": "2026-10-04T06:40:30.175Z",
+  "verified": "2026-10-04T06:40:30.175Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "give-identical-sibling-buttons-distinct-aria-labels-not-just"
+  ],
+  "says": [
+    "Why does the Preview button look like a static badge?",
+    "How do I add an interactive action next to a status indicator?",
+    "The Preview control is styled to look like a status badge",
+    "Users cannot tell the Preview action is clickable from styling"
+  ],
+  "saysFor": "1028:import-to-gma-review-ste",
+  "search": "Import-to-GMA Review step in public/app/features/alerting/unified/components/import-to-gma/ImportToGMA.tsx:ReviewStep must not style clickable Preview controls as static badges. The issue: plain <button> elements styled with styles.badgeWithIcon visually matched non-interactive success-colored status badges on the same card, making the Preview control appear non-clickable. Fix: render status as plain Text and the action as a real Button component (variant=\"secondary\", icon=\"eye\") from @grafana/ui, ensuring interactive controls are visually and semantically distinct from static labels. Applies to any review/summary screen mixing static status indicators with clickable preview or action affordances."
+}

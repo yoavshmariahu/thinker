@@ -1,0 +1,168 @@
+{
+  "id": "user-caused-token-errors-must-be-swallowed-with-status-patch",
+  "title": "User-caused token errors must be swallowed with status patches, not returned to workqueue",
+  "kind": "rule",
+  "answers": [
+    "Why does a provisioning repository keep showing an error after the GitHub App was uninstalled?",
+    "How do I surface a user-caused token/auth failure without paging on-call?",
+    "Repository controller logs noisy errors for permission-revoked / app-uninstalled repos",
+    "How should user-caused reconcile errors be reported on repository status?"
+  ],
+  "body": "Symptom: repos whose git provider access was revoked (app uninstalled, permissions revoked, installation gone, repo not selected) kept generating error-level logs and workqueue retries indistinguishable from real system failures.\nRoot cause: pkg/registry/apis/provisioning/controller/repository.go RepositoryController.process returned token-generation errors straight to the workqueue regardless of cause.\nFix pattern: classify with rc.isUserCaused(err) (wraps classifyTokenErrorCause); for user-caused token errors build health/Ready patches via rc.tokenFailurePatchOps(obj, err), append to patchOperations, stash swallowedErr/swallowedPhase = err, reconcilePhaseToken for metrics, log at Warn, and return (repoType, nil) so it is not retried or double-reported.\nConstraints: only applies to errors isUserCaused already recognizes (lost-access sentinels); any other/system token error must still be returned as err so it is retried and counted under a non-user cause.",
+  "applies": "pkg/registry/apis/provisioning/controller/repository.go RepositoryController.process, generateRepositoryToken call sites",
+  "tags": [
+    "provisioning",
+    "git-sync",
+    "token",
+    "error-handling",
+    "status",
+    "logging"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "RepositoryController",
+      "hash": "sha256:1b1f9b79d557d23d596ca380",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 99
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "patchOperations",
+      "hash": "sha256:7064bf3841e394f0d0ee3d54",
+      "line": 733,
+      "missing": false,
+      "fanout": {
+        "files": 16,
+        "sites": 0,
+        "refs": 132
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "repoType",
+      "hash": "sha256:bbc0e5fefef10ad0f01936b4",
+      "line": 845,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 0,
+        "refs": 110
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "isUserCaused",
+      "hash": "sha256:8570c4075ea4bff8fafc7f3c",
+      "line": 1469,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "RepositoryController",
+      "hash": "sha256:1b1f9b79d557d23d596ca380",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 99
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "patchOperations",
+      "hash": "sha256:7064bf3841e394f0d0ee3d54",
+      "line": 733,
+      "missing": false,
+      "fanout": {
+        "files": 16,
+        "sites": 0,
+        "refs": 132
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "repoType",
+      "hash": "sha256:bbc0e5fefef10ad0f01936b4",
+      "line": 845,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 0,
+        "refs": 110
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "isUserCaused",
+      "hash": "sha256:8570c4075ea4bff8fafc7f3c",
+      "line": 1469,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 7,
+        "refs": 8
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "RepositoryController",
+      "hash": "sha256:1b1f9b79d557d23d596ca380",
+      "line": 54,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "patchOperations",
+      "hash": "sha256:7064bf3841e394f0d0ee3d54",
+      "line": 733,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "repoType",
+      "hash": "sha256:bbc0e5fefef10ad0f01936b4",
+      "line": 845,
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "isUserCaused",
+      "hash": "sha256:8570c4075ea4bff8fafc7f3c",
+      "line": 1469,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133004"
+  },
+  "created": "2026-10-04T05:59:50.734Z",
+  "verified": "2026-10-04T05:59:50.734Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "don-t-log-an-error-in-repositorycontroller-process-right-bef"
+  ],
+  "says": [
+    "Repository keeps showing errors after GitHub App is uninstalled",
+    "How should missing repository credentials be reported to users?",
+    "Repository errors from revoked access should not trigger alerts",
+    "Token errors caused by users should not page on-call"
+  ],
+  "saysFor": "1059:user-caused-token-errors",
+  "search": "User-caused token errors must be classified with rc.isUserCaused(err) and swallowed via status patches (rc.tokenFailurePatchOps) appended to patchOperations, returning (repoType, nil) to prevent workqueue retries, not returned as errors. Applies only to token errors that isUserCaused() already recognizes (lost-access sentinels like revoked git provider access); system-level token errors must still be returned for retry and non-user-cause metrics. Avoid confusion with real system failures by logging swallowed user-caused errors at Warn level, setting swallowedErr/swallowedPhase, and reconciling reconcilePhaseToken for metrics. Required in pkg/registry/apis/provisioning/controller/repository.go:RepositoryController.process and all generateRepositoryToken call sites."
+}

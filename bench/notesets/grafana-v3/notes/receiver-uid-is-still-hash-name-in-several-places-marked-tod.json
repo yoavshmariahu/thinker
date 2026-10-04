@@ -1,0 +1,135 @@
+{
+  "id": "receiver-uid-is-still-hash-name-in-several-places-marked-tod",
+  "title": "Receiver UID is still hash(name) in several places — marked TODO for future static-UID migration",
+  "kind": "map",
+  "answers": [
+    "Where does the code still assume a receiver's UID equals a hash of its name?",
+    "What needs to change when receivers get independently-persisted UIDs instead of name-derived ones?",
+    "Which call sites break if receiver UID is no longer deterministic from name?"
+  ],
+  "body": "PostableApiReceiver/models.Receiver now carry a real persisted UID (via ResourceMetadata / legacy_storage.ReceiverToPostableApiReceiver), but several call sites still compute the UID as v1.ReceiverUID(name)/legacy_storage.NameToUid(name) and are marked with `// TODO: This won't work with static UIDs.` comments: pkg/services/ngalert/api/api_alertmanager.go:ReceiverStatus.GetUID, pkg/services/ngalert/notifier/alertmanager_config.go:cleanPermissions, pkg/services/ngalert/notifier/legacy_storage/routes.go:ResetUserDefinedRoute, pkg/services/ngalert/notifier/receiver_svc.go:GetReceivers/CreateReceiver. When receivers move to independently-persisted (non-name-derived) UIDs, grep for these TODOs — they are the remaining surface that must change together.",
+  "applies": "Future work that decouples receiver UID from its name (static/persisted UIDs).",
+  "tags": [
+    "alerting",
+    "receivers",
+    "uid",
+    "migration"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/receiver_svc.go",
+      "symbol": "GetReceivers",
+      "hash": "sha256:f8d50c75aafef5b7ed7a2140",
+      "line": 205,
+      "missing": false,
+      "fanout": {
+        "files": 28,
+        "sites": 49,
+        "refs": 64
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/receiver_svc.go",
+      "symbol": "CreateReceiver",
+      "hash": "sha256:1da2014016869552a04bdbb8",
+      "line": 359,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 13,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/routes.go",
+      "symbol": "ResetUserDefinedRoute",
+      "hash": "sha256:b7045a27a1e7222b3d55f224",
+      "line": 181,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/alertmanager_config.go",
+      "symbol": "cleanPermissions",
+      "hash": "sha256:9ebeba406d8880592161592a",
+      "line": 599,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/api/api_alertmanager.go",
+      "symbol": "ReceiverStatus",
+      "hash": "sha256:d8b2d4ac707ce7836ded6c0b",
+      "line": 275,
+      "missing": false,
+      "fanout": {
+        "files": 15,
+        "sites": 1,
+        "refs": 35
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/alertmanager_config.go",
+      "symbol": "cleanPermissions",
+      "hash": "sha256:9ebeba406d8880592161592a",
+      "line": 599,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/routes.go",
+      "symbol": "ResetUserDefinedRoute",
+      "hash": "sha256:b7045a27a1e7222b3d55f224",
+      "line": 181,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/receiver_svc.go",
+      "symbol": "GetReceivers",
+      "hash": "sha256:f8d50c75aafef5b7ed7a2140",
+      "line": 205,
+      "missing": false,
+      "fanout": {
+        "files": 28,
+        "sites": 49,
+        "refs": 64
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132926"
+  },
+  "created": "2026-10-04T06:10:52.756Z",
+  "verified": "2026-10-04T06:10:52.756Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Which code paths compute receiver ID by hashing the name?",
+    "Several locations still derive receiver ID from receiver name.",
+    "What code breaks when receiver IDs aren't name-derived anymore?",
+    "Receiver ID generation from name needs to change for persistence.",
+    "Where is receiver ID still being calculated from name?"
+  ],
+  "saysFor": "854:receiver-uid-is-still-ha"
+}

@@ -86,5 +86,6 @@
     "Changing error priority, title, or description via the API.",
     "Updating status or assignee for multiple errors at once."
   ],
-  "saysFor": "990:issue-mutation-call-path"
+  "saysFor": "990:issue-mutation-call-path",
+  "search": "Issue mutations follow view → facade → logic → model path; ErrorTrackingIssueViewSet calls facade, which calls functions like update_issue, merge_issues, assign_issue in products/error_tracking/backend/logic/issue_mutations.py. Updates (status/severity/name/description) are transactional with activity log and lifecycle event, but WRITABLE_ISSUE_STATUSES restricts API to active/resolved/suppressed. Exception: set_issue_cohort omits activity log; merge_issues uses select_for_update and raw SQL. sync_issues_to_clickhouse runs after transaction block (not on_commit), leaving Postgres committed on exceptions. Applies to issue update/merge/split/assign/bulk workflows."
 }

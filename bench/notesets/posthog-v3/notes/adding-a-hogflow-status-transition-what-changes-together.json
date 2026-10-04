@@ -106,5 +106,6 @@
     "Workflow won't transition to active or running state",
     "Can't edit and change status in the same request"
   ],
-  "saysFor": "1083:adding-a-hogflow-status-"
+  "saysFor": "1083:adding-a-hogflow-status-",
+  "search": "HogFlow status transition requires coordinated changes to persisted state HogFlow.State, HogFlowSerializer.status ChoiceField, HogFlowViewSet perform_create/perform_update logic, and backend/facade/api.py enable/disable gating. Django migration needed for status choices; post_save hog_flow_saved triggers reload_hog_flows_on_workers except for draft-only saves; mixed status+field MCP payloads rejected on active flows. Regenerate MCP tools and frontend types via hogli build:openapi; update frontend status table and test. Applies to HogFlow lifecycle and status changes; pure display changes need only frontend edits via BroadcastStatus."
 }

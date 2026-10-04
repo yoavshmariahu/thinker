@@ -1,0 +1,79 @@
+{
+  "id": "apistore-serializer-is-the-single-extension-point-for-encode",
+  "title": "apistore.Serializer is the single extension point for encode/decode across write, read, list, watch",
+  "kind": "map",
+  "answers": [
+    "where to plug in custom JSON encoding/decoding for a unified-storage resource",
+    "how does apistore decide to use the codec vs raw JSON for a resource",
+    "where is watch decoding's context propagation handled in apistore",
+    "what implements the Serializer interface for apistore storage"
+  ],
+  "body": "pkg/storage/unified/apistore/serializer.go defines the `Serializer` interface (context-aware Encode/Decode) with two built-ins: `jsonSerializer` (direct JSON, preserves the object's own GVK, no scheme lookup) and `codecSerializer` (wraps a runtime.Codec; preserveGVK=true makes it behave like jsonSerializer for declared-GVK resources, matching pre-PR default behavior).\n`StorageOptions.Serializer` (pkg/storage/unified/apistore/store.go:StorageOptions) lets a resource override the default; when nil, `NewStorage` builds a `codecSerializer{codec: config.Codec, preserveGVK: !opts.GVK.Empty()}`.\nAll Storage paths (prepareObjectForStorage/Update, reads, lists, watch decode) now go through `s.serializer` instead of a bare `s.codec`, and watch decoding keeps the request's context (including cancellation) rather than a detached one.",
+  "applies": "anyone adding or changing resource storage behavior in pkg/storage/unified/apistore or callers via RESTOptionsGetter",
+  "tags": [
+    "apistore",
+    "serializer",
+    "architecture"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/serializer.go",
+      "symbol": "Serializer",
+      "hash": "sha256:5e1893e044cae5ec52b3e896",
+      "line": 12,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 16
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "symbol": "NewStorage",
+      "hash": "sha256:0b23582971beae0e026b12af",
+      "line": 162,
+      "missing": false,
+      "fanout": {
+        "files": 17,
+        "sites": 25,
+        "refs": 38
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/store.go",
+      "symbol": "StorageOptions",
+      "hash": "sha256:ef8e6febdec939c116adae3e",
+      "line": 74,
+      "missing": false,
+      "fanout": {
+        "files": 39,
+        "sites": 0,
+        "refs": 195
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133083"
+  },
+  "created": "2026-10-04T05:52:54.173Z",
+  "verified": "2026-10-04T05:52:54.173Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "use-jsonserializer-when-one-go-type-backs-multiple-gvks-in-a",
+    "storageoptions-gvk-must-be-all-or-nothing-group-version-kind"
+  ],
+  "says": [
+    "Where to plug in custom JSON serialization for storage resources",
+    "How storage decides between runtime codec and raw JSON encoding",
+    "Watch operations and context handling through JSON decode steps",
+    "Custom encode and decode logic for specific unified storage types",
+    "Implementing resource-specific JSON serialization behavior in unified storage layer"
+  ],
+  "saysFor": "933:apistore-serializer-is-t",
+  "search": "The Serializer interface in apistore is the unified extension point for encode/decode across all Storage paths: prepareObjectForStorage, reads, lists, and watch decode—all now route through s.serializer instead of a bare codec. Two built-in implementations exist: jsonSerializer (preserves object's own GVK, no scheme lookup) and codecSerializer (wraps runtime.Codec with optional preserveGVK=true for GVK preservation); StorageOptions.Serializer allows per-resource override, defaulting to codecSerializer with preserveGVK based on opts.GVK. Watch decoding now preserves the request's context including cancellation rather than using a detached context. This guidance applies to tasks involving custom resource storage behavior in pkg/storage/unified/apistore or callers using RESTOptionsGetter. Key symbols: Serializer interface, codecSerializer, jsonSerializer, StorageOptions, NewStorage."
+}

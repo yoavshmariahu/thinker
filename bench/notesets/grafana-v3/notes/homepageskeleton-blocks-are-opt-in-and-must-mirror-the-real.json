@@ -1,0 +1,66 @@
+{
+  "id": "homepageskeleton-blocks-are-opt-in-and-must-mirror-the-real",
+  "title": "HomePageSkeleton blocks are opt-in and must mirror the real page's conditional sections",
+  "kind": "rule",
+  "answers": [
+    "Why does the homepage layout shift when the skeleton disappears?",
+    "How to add/remove a loading skeleton block that matches a conditionally rendered section",
+    "Skeleton reserves space for a section that never renders"
+  ],
+  "body": "Fix pattern: HomePageSkeleton (public/app/features/home/HomePageSkeleton.tsx) takes boolean show* props (showAlertsCard, showIRMNewsCard, showExtra, showSolutions) and only renders a HomeSection block when the corresponding prop is true, so the skeleton never reserves space for a section the real HomePage won't render.\nConstraint/invariant: whenever HomePage.tsx adds or conditionally hides a top-level section, the matching show* flag must be threaded into HomePageSkeleton with the same condition, otherwise the page shifts on reveal (skeleton block collapses/appears after content loads). Each opt-in block should carry its own data-testid (e.g. home-page-skeleton-solutions) for test assertions.",
+  "applies": "public/app/features/home homepage redesign loading skeleton",
+  "tags": [
+    "homepage",
+    "skeleton",
+    "layout-shift",
+    "loading-state"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/home/HomePageSkeleton.tsx",
+      "symbol": "HomePageSkeleton",
+      "hash": "sha256:d5d85a03d89b5fdb21742a47",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 10
+      }
+    },
+    {
+      "path": "public/app/features/home/HomePage.tsx",
+      "symbol": "HomePage",
+      "hash": "sha256:edc4315a23986e916cd48357",
+      "line": 60,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 33
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132844"
+  },
+  "created": "2026-10-04T06:21:46.995Z",
+  "verified": "2026-10-04T06:21:46.995Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "homepage-loading-skeleton-must-mirror-the-real-section-order",
+    "gate-homepage-onboarding-sections-on-signed-in-org-membershi"
+  ],
+  "says": [
+    "Homepage layout shifts when the loading skeleton disappears",
+    "How do I hide a skeleton block for hidden sections?",
+    "Skeleton reserves space for a section that never renders",
+    "Adding a new section breaks the homepage loading layout"
+  ],
+  "saysFor": "789:homepageskeleton-blocks-",
+  "search": "HomePageSkeleton (public/app/features/home/HomePageSkeleton.tsx) takes boolean show* props (showAlertsCard, showIRMNewsCard, showExtra, showSolutions) that conditionally render HomeSection blocks, preventing layout shift when sections are hidden in the real HomePage. Critical invariant: whenever HomePage.tsx adds or conditionally hides a top-level section, thread the matching show* flag into HomePageSkeleton with the same condition, otherwise the page shifts when content loads. Each opt-in block should carry data-testid (e.g., home-page-skeleton-solutions) for test assertions. Applies to homepage redesign loading skeleton when adding conditional sections."
+}

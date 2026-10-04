@@ -65,5 +65,6 @@
     "Why doesn't record.column syntax work in warehouse row conditions",
     "How do I reference data warehouse table columns in workflow filters"
   ],
-  "saysFor": "1098:warehouse-row-filters-mu"
+  "saysFor": "1098:warehouse-row-filters-mu",
+  "search": "When compiling warehouse row filters in the HogVM bytecode compiler, column reads must resolve to properties.<col> because rows reach the filter under properties (no person context). Picker filters use _as_row_properties (rewrite to event type); SQL filters use _resolve_warehouse_columns with _WarehouseRowFields to rewrite (bare unknown or record.x becomes properties.x), only when filters.source is in DATA_WAREHOUSE_SOURCES. Locals (lambda args, let, lambda names) shadow columns; real globals (timestamp, event) are never moved, so reference them as record.x or properties.x if needed. Test account filters are NOT rewritten and stay under unknown-global guard; event-source filters with unknown names must be refused. Bytecode compiles at save time, so existing filters need re-save to pick up changes."
 }

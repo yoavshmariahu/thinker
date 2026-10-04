@@ -1,0 +1,99 @@
+{
+  "id": "large-int64-values-resource-version-must-be-stored-as-string",
+  "title": "Large int64 values (resource version) must be stored as strings in Bleve, not numbers",
+  "kind": "rule",
+  "answers": [
+    "Why is ResourceSearchRow.resource_version / the rv column always zero?",
+    "Search results return resource version 0 even though the document has a version",
+    "How do I store a large int64 (resource version) in a Bleve index field?",
+    "Folder children / label-selector list returns wrong or missing resourceVersion"
+  ],
+  "body": "Symptom: search results always carried resource_version 0 / empty rv column; the label/field-selector list path read the latest version instead of the indexed one, and folder children returned no resourceVersion.\nRoot cause: Bleve stores all numbers as float64, which cannot represent an int64 resource version exactly (~1.9e18 > 2^53), so storing RV as a number silently rounds it to a wrong or empty value (pkg/storage/unified/resource/document.go:IndexableDocument).\nFix pattern: store the value as a decimal string in a dedicated internal field (RVString/_rv, set in UpdateCopyFields) instead of the numeric field, and parse it back to int64 on read (pkg/storage/unified/search/bleve_field_values.go:bleveIndex.hitResourceVersion), serving it via row.ResourceVersion rather than through the generic cell encoder (which rejects a string for an INT64 column) in pkg/storage/unified/search/bleve.go:bleveIndex.hitsToTable.\nConstraints: use this string-then-parse pattern for any field whose value can exceed 2^53 and needs exact round-tripping through Bleve (deleted_rv already does this); on parse failure or absent field, treat the value as 0/unknown rather than erroring, since old indexes won't have the field until rebuilt.",
+  "applies": "pkg/storage/unified/resource and pkg/storage/unified/search Bleve document mapping and search result builders",
+  "tags": [
+    "search",
+    "bleve",
+    "resource-version",
+    "int64-precision"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/document.go",
+      "symbol": "IndexableDocument",
+      "hash": "sha256:12b8ea9718c2e643132fd011",
+      "line": 67,
+      "missing": false,
+      "fanout": {
+        "files": 28,
+        "sites": 0,
+        "refs": 116
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/document.go",
+      "symbol": "UpdateCopyFields",
+      "hash": "sha256:8914303a2d44cf4b57fa58be",
+      "line": 179,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 9,
+        "refs": 15
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve_field_values.go",
+      "hash": "sha256:d486482f3c1c108022f463c7",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "bleveIndex",
+      "hash": "sha256:395e13a592b368e4b07c525b",
+      "line": 1768,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 0,
+        "refs": 142
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/document.go",
+      "symbol": "IndexableDocument",
+      "hash": "sha256:12b8ea9718c2e643132fd011",
+      "line": 67,
+      "missing": false,
+      "fanout": {
+        "files": 28,
+        "sites": 0,
+        "refs": 116
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132625"
+  },
+  "created": "2026-10-04T06:53:52.306Z",
+  "verified": "2026-10-04T06:53:52.306Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "bleve-build-info-must-record-mapped-selectable-fields-not-ju",
+    "distinguish-field-has-limited-capability-warn-flag-gated-fro",
+    "selectable-field-filters-must-be-checked-against-what-the-in",
+    "batchauthzsearcher-warns-when-a-search-matches-documents-but"
+  ],
+  "says": [
+    "Why does the resource version show zero in search results?",
+    "Version information missing from list items",
+    "Search displays incorrect or zero version numbers",
+    "Folder children don't include version in listing",
+    "Item versions not stored properly in search index"
+  ],
+  "saysFor": "1315:large-int64-values-resou",
+  "search": "Large int64 resource versions (values approaching 1.9e18) must be stored as decimal strings in Bleve indexes, not numbers, because Bleve stores all numbers as float64 which loses precision for int64 > 2^53, resulting in empty or rounded resourceVersion in search results. The pattern (implemented in pkg/storage/unified/resource/document.go:IndexableDocument via UpdateCopyFields) stores the value in a dedicated _rv string field and parses it back in pkg/storage/unified/search/bleve_field_values.go during hitResourceVersion and bleveIndex.hitsToTable. On parse failure or missing field in old indexes, default to 0 rather than error; apply this string-then-parse pattern to any indexed field whose value can exceed 2^53."
+}

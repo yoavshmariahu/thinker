@@ -1,0 +1,142 @@
+{
+  "id": "teams-membership-endpoints-gate-once-at-startup-not-per-requ",
+  "title": "Teams membership endpoints: gate once at startup, not per-request",
+  "kind": "rule",
+  "answers": [
+    "Why does disabling kubernetesTeamsApi flag leave some Teams API routes working and others returning 403?",
+    "Why doesn't enabling the Teams API feature flag at runtime add the members/teams subresource?",
+    "How should a feature-flagged REST subresource be gated in pkg/registry/apis/iam?",
+    "403 'functionality not available' on /teams/{name}/members or /users/{name}/teams"
+  ],
+  "body": "Symptom: with a remote OpenFeature provider, toggling the Teams API flag at runtime made /teams/{name}/members and /users/{name}/teams inconsistent with the rest of the already-installed Teams API (disabling returned 403 on just these two routes while other Teams routes stayed up; enabling couldn't add routes absent at startup).\nRoot cause: team.TeamMembersREST.Connect and user.UserTeamREST.Connect each re-evaluated FlagKubernetesTeamsApi via openfeature at request time, duplicating the gating already done once at API install time in register.go's UpdateAPIGroupInfo/UpdateTeamsAPIGroup/UpdateUsersAPIGroup.\nFix pattern: route/subresource availability driven by a feature flag must be decided exactly once, at startup registration (register.go), by only registering the storage key when the flag is enabled; REST handler Connect methods must not re-check the flag. Pass any resolved flag state into the registration function as a plain bool param (e.g. enableTeamsAPI into UpdateUsersAPIGroup), not via a compatibility constructor that embeds an openfeature client.\nConstraints: applies to any subresource/route whose presence is feature-flag-gated in pkg/registry/apis/iam/register.go. Does not apply to flags that intentionally need live, per-request re-evaluation (none currently in this package after this PR).",
+  "applies": "pkg/registry/apis/iam (Teams API: team.TeamMembersREST, user.UserTeamREST, and register.go API-group wiring)",
+  "tags": [
+    "iam",
+    "teams-api",
+    "feature-flags",
+    "openfeature",
+    "registration-gating"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateAPIGroupInfo",
+      "hash": "sha256:428e2b592c23d4c4dfe6cd32",
+      "line": 400,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 11,
+        "refs": 22
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateTeamsAPIGroup",
+      "hash": "sha256:a6c15b656332f35d87711cd1",
+      "line": 600,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateUsersAPIGroup",
+      "hash": "sha256:83cf38c291d2680a47390de8",
+      "line": 716,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateAPIGroupInfo",
+      "hash": "sha256:428e2b592c23d4c4dfe6cd32",
+      "line": 400,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 11,
+        "refs": 22
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateTeamsAPIGroup",
+      "hash": "sha256:a6c15b656332f35d87711cd1",
+      "line": 600,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/register.go",
+      "symbol": "UpdateUsersAPIGroup",
+      "hash": "sha256:83cf38c291d2680a47390de8",
+      "line": 716,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/team/rest_members.go",
+      "symbol": "Connect",
+      "hash": "sha256:752e444065eb4fda4b767295",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 87,
+        "refs": 143
+      }
+    },
+    {
+      "path": "pkg/registry/apis/iam/user/rest_user_team.go",
+      "symbol": "Connect",
+      "hash": "sha256:038ba7bdad85b566c4bf31ca",
+      "line": 74,
+      "missing": false,
+      "fanout": {
+        "files": 48,
+        "sites": 87,
+        "refs": 143
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133157"
+  },
+  "created": "2026-10-04T05:48:14.195Z",
+  "verified": "2026-10-04T05:48:14.195Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "nested-iam-rest-handlers-need-a-withfeature-constructor-to-h",
+    "iam-user-team-membership-search-decode-layer-location",
+    "iam-startup-features-dual-path-gating-explicit-config-vs-ope"
+  ],
+  "says": [
+    "Teams members endpoint returns 403 after disabling flag",
+    "Runtime feature flag toggle doesn't update API routes",
+    "Some team routes work while members endpoint forbidden",
+    "Why teams routes gate differently for same flag",
+    "Feature gating should happen at startup not request"
+  ],
+  "saysFor": "1386:teams-membership-endpoin",
+  "search": "Teams membership endpoints must gate feature flag access once at startup during API registration in pkg/registry/apis/iam/register.go, not re-evaluated per-request in handler Connect methods. The root cause of inconsistency (some routes returning 403 while others stay up when toggling the flag at runtime) is that team.TeamMembersREST.Connect and user.UserTeamREST.Connect each re-check FlagKubernetesTeamsApi instead of trusting the registration-time decision in UpdateAPIGroupInfo, UpdateTeamsAPIGroup, or UpdateUsersAPIGroup. Route/subresource availability driven by a feature flag must be decided exactly once by only registering the storage key when enabled; pass any resolved flag state as a plain bool parameter (e.g., enableTeamsAPI) into the registration function, not via a compatibility constructor that embeds an openfeature client. This constraint applies to any subresource/route gated by a feature flag in pkg/registry/apis/iam, but not to flags intentionally requiring live per-request re-evaluation."
+}

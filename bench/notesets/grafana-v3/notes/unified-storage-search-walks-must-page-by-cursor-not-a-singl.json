@@ -1,0 +1,56 @@
+{
+  "id": "unified-storage-search-walks-must-page-by-cursor-not-a-singl",
+  "title": "Unified storage search walks must page by cursor, not a single large Limit",
+  "kind": "rule",
+  "answers": [
+    "Why did folder tree migration validation report fake differences on large installs?",
+    "How should I fetch 'all' resources of a kind from unified storage search?",
+    "Validator says folders differ between legacy and unified storage but they don't",
+    "Search request with a huge Limit silently drops results"
+  ],
+  "body": "Symptom: FolderTreeValidator reported spurious folder-tree mismatches on namespaces with many folders.\nRoot cause: pkg/storage/unified/migrations/validator.go:buildUnifiedFolderParentMap sent a single Search with Limit: 100000; servers silently truncate at the limit, so the comparison ran against a partial folder set.\nFix pattern: page the Search request using SearchAfter set to the last row's sort values (ResourceSearchRow.GetSortFields()/ResourceTableRow.GetSortFields()), looping until a page comes back smaller than the requested page size.\nConstraints: use cursor-based paging, not offset, whenever the underlying data can be created/deleted between page fetches — an offset shifts and can skip or duplicate rows; applies to any ResourceClient.Search-based 'walk everything' logic, not just folders.",
+  "applies": "Any code calling resourcepb ResourceIndexClient.Search / Resource search client to enumerate an entire result set across unified storage.",
+  "tags": [
+    "unified-storage",
+    "search",
+    "pagination",
+    "migration-validator",
+    "bugfix"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/migrations/validator.go",
+      "symbol": "buildUnifiedFolderParentMap",
+      "hash": "sha256:651a2158ad6395665d5331ce",
+      "line": 339,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132984"
+  },
+  "created": "2026-10-04T06:01:57.860Z",
+  "verified": "2026-10-04T06:01:57.860Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "cursor-paging-loop-must-detect-a-non-advancing-or-missing-cu",
+    "folder-parent-map-search-has-a-fixed-100k-limit-not-paginate"
+  ],
+  "says": [
+    "Folder tree migration validation reports incorrect missing folder discrepancies on large accounts.",
+    "Ensure the folder migration checker successfully processes directories containing thousands of dashboard folders.",
+    "Organizations with massive folder structures see false comparison errors during storage upgrades.",
+    "The folder structure validator must inspect every nested subfolder without dropping items.",
+    "Dashboard folder verification falsely claims folder parent relationships differ after migration."
+  ],
+  "saysFor": "883:unified-storage-search-w"
+}

@@ -1,0 +1,45 @@
+{
+  "id": "toasts-from-useappnotification-must-be-asserted-via-the-mock",
+  "title": "Toasts from useAppNotification must be asserted via the mocked hook, not the DOM",
+  "kind": "howto",
+  "answers": [
+    "How do I test that a success/error toast was shown?",
+    "Why doesn't screen.findByText find my toast message?",
+    "How to assert app notifications in RTL tests?"
+  ],
+  "body": "Toasts raised through `useAppNotification()` (e.g. `notifyApp.success(...)`) never render into the DOM tree under test — they go through the app notification system. To assert them, `jest.mock('app/core/copy/appNotification')` and provide a mocked return value (`{ success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() }`), then assert the jest.fn() was called with the expected title/body args instead of querying screen text.",
+  "applies": "Any RTL test for a component that calls useAppNotification() to show toasts.",
+  "tags": [
+    "testing",
+    "toast",
+    "notifications",
+    "alerting"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.test.tsx",
+      "hash": "sha256:e64d789c1d45d639373d2d4d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133035"
+  },
+  "created": "2026-10-04T05:55:13.811Z",
+  "verified": "2026-10-04T05:55:13.811Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Show a confirmation toast notification after successfully importing the alert manager configuration.",
+    "No popup alert appears on screen when completing the first import setup step.",
+    "Display an error toast popup if uploading alert manager resources fails to save.",
+    "Users receive no warning banner when attempting to import conflicting alert definitions.",
+    "Add an informational message popup confirming that contact points were imported properly."
+  ],
+  "saysFor": "528:toasts-from-useappnotifi",
+  "search": "Toasts from useAppNotification() do not render into the DOM—they go through the app notification system and cannot be queried via screen/getByText. Mock app/core/copy/appNotification with jest.mock() and provide a mocked return object ({ success: jest.fn(), error: jest.fn(), warning: jest.fn(), info: jest.fn() }), then assert the jest.fn() was called with the expected title/body arguments instead of asserting DOM content. This pattern is essential for RTL tests of any component calling useAppNotification() to show toasts, as demonstrated in public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.test.tsx."
+}

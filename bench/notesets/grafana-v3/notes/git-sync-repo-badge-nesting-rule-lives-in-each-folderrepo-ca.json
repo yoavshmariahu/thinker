@@ -1,0 +1,74 @@
+{
+  "id": "git-sync-repo-badge-nesting-rule-lives-in-each-folderrepo-ca",
+  "title": "Git Sync / repo badge nesting rule lives in each FolderRepo caller, not in FolderRepo itself",
+  "kind": "rule",
+  "answers": [
+    "Why doesn't the Git Sync badge show on a nested folder in search results?",
+    "Why does the repository badge show on every row of a browse tree instead of just the root?",
+    "How do I add a repository badge to a new folder list without breaking nested rows?",
+    "Managed-by badge missing/duplicated on child folder rows"
+  ],
+  "body": "FolderRepo (public/app/core/components/NestedFolderPicker/FolderRepo.tsx) only decides badge visibility via `isItemManagedByRepository(folder)`; it no longer looks at `parentUID` at all. Each consumer must itself decide whether to render <FolderRepo>: NestedFolderList's Row (public/app/core/components/NestedFolderPicker/NestedFolderList.tsx) computes `showRepoBadge = isSearchItem || !item.parentUID` where `isSearchItem = !foldersAreOpenable` (an explicit prop, not inferred from level/parentUID heuristics anymore); NameCell for the plain browse-dashboards tree (public/app/features/browse-dashboards/components/NameCell.tsx) uses `showRepoBadge = !item.parentUID`. Rule: in browse/tree views only the root row of a managed folder gets the badge (children visually inherit it); in flat search result lists every matching row must get its own badge since there is no visible managed ancestor to inherit from. Any new row renderer that wraps FolderRepo must replicate this root-vs-search distinction itself.",
+  "applies": "Any component rendering FolderRepo for folder rows in browse trees or search results (NestedFolderPicker, browse-dashboards DashboardsTree).",
+  "tags": [
+    "provisioning",
+    "git-sync",
+    "folder-picker",
+    "browse-dashboards",
+    "badge"
+  ],
+  "deps": [
+    {
+      "path": "public/app/core/components/NestedFolderPicker/FolderRepo.tsx",
+      "symbol": "FolderRepo",
+      "hash": "sha256:438e17f8e72c142816ad0390",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 22
+      }
+    },
+    {
+      "path": "public/app/core/components/NestedFolderPicker/NestedFolderList.tsx",
+      "symbol": "Row",
+      "hash": "sha256:837cfeec37451b01ebe4cf3c",
+      "line": 143,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/browse-dashboards/components/NameCell.tsx",
+      "symbol": "NameCell",
+      "hash": "sha256:2016b96ff80c87d72b2e35ad",
+      "line": 26,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132790"
+  },
+  "created": "2026-10-04T06:30:42.420Z",
+  "verified": "2026-10-04T06:30:42.420Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "managedresourceitem-is-the-shared-minimal-shape-for-reposito"
+  ],
+  "says": [
+    "Why doesn't the managed-by badge appear on nested folder search?",
+    "Repository label shows on every folder row, not just root",
+    "Adding managed-by badge causes duplicate badges on nested folders",
+    "Git repository badge appears multiple times on child folder rows"
+  ],
+  "saysFor": "1102:git-sync-repo-badge-nest",
+  "search": "Repository badge visibility logic lives in each FolderRepo caller, not in FolderRepo itself: public/app/core/components/NestedFolderPicker/FolderRepo.tsx:FolderRepo only checks `isItemManagedByRepository(folder)`, while NestedFolderList.tsx:Row computes `showRepoBadge = isSearchItem || !item.parentUID` and NameCell.tsx uses `showRepoBadge = !item.parentUID`. Constraint: in browse trees, only the root row of a managed folder shows the badge (children inherit visually); in flat search results, every matching row must show its own badge. Task kind: folder/dashboard tree and search result rendering."
+}

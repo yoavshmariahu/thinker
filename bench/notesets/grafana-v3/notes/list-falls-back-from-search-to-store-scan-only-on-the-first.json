@@ -1,0 +1,104 @@
+{
+  "id": "list-falls-back-from-search-to-store-scan-only-on-the-first",
+  "title": "LIST falls back from search to store scan only on the first page",
+  "kind": "rule",
+  "answers": [
+    "LIST with field selector errors instead of falling back on page 2",
+    "Store scan fallback for selectable-field filters",
+    "Why doesn't pagination fall back when the index lacks a field",
+    "How List decides between search-backed and store-scan-backed listing"
+  ],
+  "body": "Invariant: when search refuses a List because the index lacks a requested selectable field (resource.IsSelectableFieldNotIndexed), the caller may fall back to a plain store scan (which reads objects and filters in-process) ONLY when req.NextPageToken is empty. A later page's continue token encodes a position in the search result set that a store scan cannot resume from, so on later pages the error must be surfaced to the client instead.\nEnforced in pkg/storage/unified/resource/list_with_selectors.go:searchForList (checks req.NextPageToken == \"\" before converting the search error into errSearchCannotAnswerList) and pkg/storage/unified/resource/server.go:Server.List (treats errors.Is(err, errSearchCannotAnswerList) as the fallback signal and otherwise returns the response/error as-is).\nIf this ordering/guard is skipped, a mid-pagination fallback would silently restart or desync the listing instead of erroring.",
+  "applies": "pkg/storage/unified/resource List path when search is used for field/label selectors",
+  "tags": [
+    "unified-storage",
+    "list",
+    "pagination",
+    "search-fallback"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "searchForList",
+      "hash": "sha256:0d4343841a6a21c5e4a36a1e",
+      "line": 160,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "errSearchCannotAnswerList",
+      "hash": "sha256:cdf554839046db0d4e5372bf",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "hash": "sha256:76032a33efe3e6ca99134b8a",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "errSearchCannotAnswerList",
+      "hash": "sha256:cdf554839046db0d4e5372bf",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "searchForList",
+      "hash": "sha256:0d4343841a6a21c5e4a36a1e",
+      "line": 160,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "hash": "sha256:76032a33efe3e6ca99134b8a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133102"
+  },
+  "created": "2026-10-04T05:51:07.612Z",
+  "verified": "2026-10-04T05:51:07.612Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "request-only-needed-fields-exact-rv-when-using-field-values",
+    "search-backed-list-must-emit-continuation-token-when-auth-fi",
+    "search-backed-list-resources-allowlist-gates-store-list-via",
+    "watch-must-treat-grpc-unavailable-on-send-as-consumer-discon"
+  ],
+  "says": [
+    "Cannot navigate to next page with field filters",
+    "Second page fails when filtering by custom fields",
+    "Pagination breaks with field-based list filtering",
+    "Continue token errors when using field selectors",
+    "Field filters only work on the first page"
+  ],
+  "saysFor": "986:list-falls-back-from-sea",
+  "search": "LIST falls back from search to store scan only on first page, requiring a req.NextPageToken == \"\" guard in searchForList before converting IsSelectableFieldNotIndexed errors to errSearchCannotAnswerList; later pages must surface the error instead. The invariant is enforced by checking the guard in pkg/storage/unified/resource/list_with_selectors.go:searchForList and treating errSearchCannotAnswerList as fallback signal in Server.List. Applies when the search index lacks a requested field selector in LIST operations. Skipping this guard causes mid-pagination fallbacks to silently restart or desynchronize the listing instead of erroring to the client."
+}

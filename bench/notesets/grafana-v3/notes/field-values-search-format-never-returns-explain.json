@@ -1,0 +1,57 @@
+{
+  "id": "field-values-search-format-never-returns-explain",
+  "title": "FIELD_VALUES search format never returns _explain",
+  "kind": "rule",
+  "answers": [
+    "Why does ?explain=true have no effect on team search?",
+    "Explain/debug scoring missing from field-value search results",
+    "Does FIELD_VALUES result format support search explain output?"
+  ],
+  "body": "Constraint: the FIELD_VALUES result format explicitly skips the `_explain` field (pkg/storage/unified/search/bleve_field_values.go:147); only RESOURCE_TABLE appends an _explain column. Any consumer switching a search request to FIELD_VALUES still gets Explain computed server-side if requested, but has no way to read it back — if the consumer's response type never decoded _explain anyway (as in team search), this is just wasted computation, not a regression. Before relying on explain output with FIELD_VALUES, either keep RESOURCE_TABLE or add explain support to the field-values path first.",
+  "applies": "Any search handler using ResourceSearchRequest_FIELD_VALUES with Explain=true",
+  "tags": [
+    "search",
+    "explain",
+    "bleve"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/search/bleve_field_values.go",
+      "hash": "sha256:d486482f3c1c108022f463c7",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/iam/team/search.go",
+      "symbol": "DoTeamSearch",
+      "hash": "sha256:d0a886ad1d8693a578349d97",
+      "line": 256,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132811"
+  },
+  "created": "2026-10-04T06:26:14.930Z",
+  "verified": "2026-10-04T06:26:14.930Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-response-parser-must-branch-on-resultformat",
+    "team-search-must-not-request-explain-with-field-values-resul"
+  ],
+  "says": [
+    "Search explain output is missing from search result details",
+    "Why doesn't the explain parameter work on team search",
+    "Cannot retrieve search scoring information with certain search result formats"
+  ],
+  "saysFor": "645:field-values-search-form",
+  "search": "FIELD_VALUES result format explicitly skips the _explain field, unlike RESOURCE_TABLE which appends it; Explain is computed server-side when requested but cannot be read back through FIELD_VALUES. Any search handler switching to ResourceSearchRequest_FIELD_VALUES with Explain=true will waste server computation if the response path never decoded _explain. Before relying on explain output with FIELD_VALUES, either keep RESOURCE_TABLE or add explain support to the field-values path in pkg/storage/unified/search/bleve_field_values.go:147 and consumers like pkg/registry/apis/iam/team/search.go:DoTeamSearch."
+}

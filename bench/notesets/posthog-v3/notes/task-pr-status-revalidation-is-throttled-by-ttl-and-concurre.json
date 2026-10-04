@@ -46,5 +46,6 @@
     "Opening a new pull request shows status color faster than existing ones",
     "Task list limits concurrent GitHub lookups to keep background work bounded"
   ],
-  "saysFor": "766:task-pr-status-revalidat"
+  "saysFor": "766:task-pr-status-revalidat",
+  "search": "Task PR status revalidation in products/desktop/packages/workspace-server must be throttled to prevent per-row lookups from hammering GitHub. TaskPrStatusService enforces three limits: REVALIDATION_TTL_MS (30s) via lastRevalidations, MAX_CONCURRENT_REVALIDATIONS (4) via withRevalidationSlot, and in-flight dedupe via taskPrRevalidations. A changed cloudPrUrl bypasses TTL for immediate refresh, but all other repeated checks queue or skip for up to 30s latency. Remove any throttle and 50 visible work-column rows trigger unbound concurrent GitHub requests. Tests in task-pr-status.test.ts cover all three mechanisms."
 }

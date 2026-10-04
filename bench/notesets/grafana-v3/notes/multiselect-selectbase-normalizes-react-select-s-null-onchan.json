@@ -1,0 +1,57 @@
+{
+  "id": "multiselect-selectbase-normalizes-react-select-s-null-onchan",
+  "title": "MultiSelect/SelectBase normalizes react-select's null onChange for multi-select",
+  "kind": "rule",
+  "answers": [
+    "Why does removing the last tag/option crash my multi-select handler?",
+    "Do I need to handle null from onChange in a MultiSelect consumer?",
+    "react-select passes null when the last multi-value is removed"
+  ],
+  "body": "Invariant: react-select calls onChange with `null` (not `[]`) when the last value is removed from a multi-select. SelectBase already normalizes this for isMulti before handing the value to react-select/consumers (packages/grafana-ui/src/components/Select/SelectBase.tsx:218-226, onChangeWithEmpty), so components built on MultiSelect (e.g. TagFilter in notebook's NotebookDocumentHeader) receive `[]`, never `null`, and must not call `.forEach`/array methods defensively assuming null. If you consume raw react-select directly (bypassing SelectBase), you still need to normalize null yourself.",
+  "applies": "Any component using grafana-ui MultiSelect/SelectBase for multi-value selects, e.g. notebook tag editing.",
+  "tags": [
+    "grafana-ui",
+    "select",
+    "notebooks",
+    "regression-test"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Select/SelectBase.tsx",
+      "symbol": "onChangeWithEmpty",
+      "hash": "sha256:3fad83a458c0553ea92e905a",
+      "line": 218,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "public/app/features/notebook/scene/layout-notebook/NotebookDocumentHeader.test.tsx",
+      "hash": "sha256:e1dba07062806ae3e1f4e82a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132947"
+  },
+  "created": "2026-10-04T06:05:28.242Z",
+  "verified": "2026-10-04T06:05:28.242Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Removing the last tag crashes my multi-select change handler",
+    "How do I handle empty state for multi-select fields",
+    "Multi-select passes wrong value when final option removed",
+    "Tag field stops working when you remove all selections",
+    "Multi-select option removal fails with incompatible value type"
+  ],
+  "saysFor": "673:multiselect-selectbase-n",
+  "search": "MultiSelect/SelectBase normalizes react-select's null onChange to [] for multi-select values before passing to consumers. React-select calls onChange with null (not []) when the last value is removed, but SelectBase already handles this normalization (packages/grafana-ui/src/components/Select/SelectBase.tsx:218-226, onChangeWithEmpty) so components like TagFilter in notebook's NotebookDocumentHeader receive [] and must not call array methods defensively assuming null. If consuming raw react-select directly (bypassing SelectBase), you must normalize null yourself. Applies to any component using grafana-ui MultiSelect/SelectBase for multi-value selects; see public/app/features/notebook/scene/layout-notebook/NotebookDocumentHeader.test.tsx for context."
+}

@@ -84,5 +84,6 @@
     "How to add activity logging to model",
     "Activity trail missing for model type"
   ],
-  "saysFor": "1059:adding-an-activity-logge"
+  "saysFor": "1059:adding-an-activity-logge",
+  "search": "Adding a model with activity logging (using ModelActivityMixin) requires defining scope, creating a receiver module, wiring it into initialization, and updating test baselines. Register the model name in the ActivityScope literal in posthog/models/activity_logging/activity_log.py, implement a @mutable_receiver handler in a dedicated light module (e.g., activity_logging.py) with no viewset imports, import it in AppConfig.ready() so it wires into celery/temporal/migrate, add a baseline line to setup_receivers_baseline.txt, and regenerate scope enums in generated files. Applies to any product model needing activity-log entries."
 }

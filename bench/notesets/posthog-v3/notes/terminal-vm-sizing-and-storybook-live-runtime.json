@@ -53,5 +53,6 @@
     "Terminal installed tools temporary storage and tmpfs mounting",
     "Storybook terminal story with live VM instead of mock"
   ],
-  "saysFor": "617:terminal-vm-sizing-and-s"
+  "saysFor": "617:terminal-vm-sizing-and-s",
+  "search": "Terminal guest VM memory is configured as 512 MiB (memory_size: 512 * 1024 * 1024) in terminalRuntime.ts, with installed tools stored on a separate 256 MiB tmpfs at /opt/posthog-packages mounted in the boot script; this tmpfs is cleared when the terminal stops. Comments and documentation must not hard-code memory size constants; follow the pattern in terminalCommands.ts instead. Storybook stories mock TerminalRuntime.prototype.start in TerminalScene.stories.tsx to avoid firmware and boot dependencies in visual test snapshots, except stories that set parameters: { liveRuntime: true } and tags: ['!test'] (see LiveRuntime), which use the real VM and are skipped by visual tests. This convention applies to terminal runtime configuration in terminalRuntime.ts and story writing in TerminalScene.stories.tsx."
 }

@@ -1,0 +1,47 @@
+{
+  "id": "suppressing-grafana-no-config-feature-toggles-lint-errors",
+  "title": "Suppressing @grafana/no-config-feature-toggles lint errors",
+  "kind": "rule",
+  "answers": [
+    "How do I fix a @grafana/no-config-feature-toggles lint failure blocking CI?",
+    "CI lint fails on new file using old-style config feature toggles",
+    "How to unblock main when a new usage of the legacy feature toggle API trips the eslint rule",
+    "eslint-suppressions.json count mismatch for feature toggles"
+  ],
+  "body": "Symptom: CI/lint fails with '@grafana/no-config-feature-toggles' on a file that reads feature toggles via the old config-based API instead of OpenFeature.\nRoot cause: the file introduces/uses a call site of the legacy toggle API (e.g. public/app/features/dashboard-scene/scene/VizPanelSubHeader.tsx) that isn't yet migrated to OpenFeature, and isn't listed in the suppressions allowlist.\nFix pattern: add (or bump) an entry in eslint-suppressions.json keyed by the exact file path with the rule name and a 'count' equal to the number of flagged occurrences in that file; this is an intentional, temporary unblock, not a real fix - the underlying call sites still need OpenFeature migration later.\nConstraints: only use this to unblock CI while migration is pending; the count must exactly match the number of violations in the file or lint will fail again (too low) or silently allow new violations (too high, if not reviewed).",
+  "applies": "Any PR touching public/app files that trips eslint-suppressions.json-tracked rules, especially @grafana/no-config-feature-toggles during the OpenFeature migration.",
+  "tags": [
+    "eslint",
+    "lint",
+    "feature-toggles",
+    "openfeature",
+    "ci"
+  ],
+  "deps": [
+    {
+      "path": "eslint-suppressions.json",
+      "hash": "sha256:1f13ac6bb69a2f8addb985cd",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133116"
+  },
+  "created": "2026-10-04T05:50:37.164Z",
+  "verified": "2026-10-04T05:50:37.164Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "CI lint error blocks deployment with feature toggle rule",
+    "Add file to feature toggle suppressions to unblock build",
+    "Old-style feature toggle API triggers new eslint rule",
+    "How to temporarily suppress feature toggle lint warnings",
+    "Feature toggle lint rule blocking main deployment"
+  ],
+  "saysFor": "986:suppressing-grafana-no-c",
+  "search": "Unblocking @grafana/no-config-feature-toggles lint errors requires adding an entry to eslint-suppressions.json keyed by the file path, with the rule name and a 'count' equal to the exact number of flagged occurrences in that file. This is an intentional, temporary unblock during the OpenFeature migration, not a permanent fix; the underlying call sites using the legacy config-based API still require migration later. The count must match violations precisely—too low and lint fails again, too high and new violations are silently allowed if not reviewed. This applies to any PR touching public/app files that trips the @grafana/no-config-feature-toggles rule while OpenFeature migration is pending."
+}

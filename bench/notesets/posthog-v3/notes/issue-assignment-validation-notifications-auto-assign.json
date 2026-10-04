@@ -81,5 +81,6 @@
     "Validating that the person I'm assigning this error to actually exists.",
     "How do I unassign someone from an error they're tracking?"
   ],
-  "saysFor": "802:issue-assignment-validat"
+  "saysFor": "802:issue-assignment-validat",
+  "search": "Issue assignment validates org membership/role and creates/updates the one-to-one ErrorTrackingIssueAssignment via _assign_one, sending notifications synchronously (dispatch_issue_assigned_realtime, send_error_tracking_issue_assigned). Auto-assignment rules run in cymbal at ingestion, not Django. Set assignee:null to unassign via ErrorTrackingIssueAssigneeWriteSerializer. Applies to issue assignment endpoints, bulk_update_issues(action=assign), and auto-rule setup in products/error_tracking/backend/logic/issue_mutations.py, /notifications.py, /rules.py, and rust/cymbal/src/modes/processing/rules/assignment.rs."
 }

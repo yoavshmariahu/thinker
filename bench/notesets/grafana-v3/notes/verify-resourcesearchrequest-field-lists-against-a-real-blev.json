@@ -1,0 +1,66 @@
+{
+  "id": "verify-resourcesearchrequest-field-lists-against-a-real-blev",
+  "title": "Verify ResourceSearchRequest field lists against a real bleve index, not just a mock",
+  "kind": "howto",
+  "answers": [
+    "How do I test that a search request's field list is actually supported?",
+    "How to write a regression test for 'unknown response field' errors",
+    "Mock-based test passed but production search request failed — how to catch that earlier?"
+  ],
+  "body": "A mock-based test that just asserts the request shape (e.g. via fakeK8sClient.On(...)) never validates whether the requested fields are actually supported by the result format — that's how an invalid field list shipped previously. Capture the production-built request with mock.MatchedBy, then run it through a real search.NewBleveBackend/BuildIndex populated with a resource.IndexableDocument, call index.Search with the captured request, and parse via dashboardsearch.ParseResults. Run it for both FIELD_VALUES and RESOURCE_TABLE and assert the consumed hit fields match, so an unsupported field or a format regression fails in the test rather than in production.",
+  "applies": "Tests covering code that builds resourcepb.ResourceSearchRequest in pkg/services/folder or pkg/services/dashboards where field-list correctness matters.",
+  "tags": [
+    "testing",
+    "search",
+    "bleve",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/folder/folderimpl/folder_unifiedstorage_test.go",
+      "symbol": "TestSearchFolders",
+      "hash": "sha256:4f6e4e369e814065541fe480",
+      "line": 573,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/services/dashboards/service/search/search.go",
+      "symbol": "ParseResults",
+      "hash": "sha256:71865eb7cde07f5a042f2fd5",
+      "line": 121,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 35,
+        "refs": 35
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132840"
+  },
+  "created": "2026-10-04T06:22:37.808Z",
+  "verified": "2026-10-04T06:22:37.808Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "clients-must-keep-parsing-resourcetable-responses-even-when"
+  ],
+  "says": [
+    "Search field validation test fails only in production",
+    "Regression test for unsupported search result fields",
+    "Search request field compatibility with real backend",
+    "Catch invalid search fields before deployment",
+    "Production search fails though mock test passed"
+  ],
+  "saysFor": "750:verify-resourcesearchreq",
+  "search": "Tests covering ResourceSearchRequest field lists in pkg/services/folder or pkg/services/dashboards must verify against a real bleve index backend, not just mock assertion on request shape, since mock-based tests never validate whether requested fields are actually supported by the result format. Capture the production request using mock.MatchedBy, run it through search.NewBleveBackend with a real BuildIndex populated from resource.IndexableDocument, call index.Search, and parse results via dashboardsearch.ParseResults for both FIELD_VALUES and RESOURCE_TABLE formats. This pattern (modeled on pkg/services/folder/folderimpl/folder_unifiedstorage_test.go:TestSearchFolders) catches invalid field lists and format regressions in tests rather than production."
+}

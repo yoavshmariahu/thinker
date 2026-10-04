@@ -1,0 +1,43 @@
+{
+  "id": "new-apiserver-subpackages-must-be-listed-in-enterprise-impor",
+  "title": "New apiserver subpackages must be listed in enterprise_imports.go",
+  "kind": "rule",
+  "answers": [
+    "Why doesn't the enterprise build pick up my new pkg/services/apiserver subpackage?",
+    "What else do I need to touch when adding a new package under pkg/services/apiserver that enterprise code depends on?"
+  ],
+  "body": "Symptom: an enterprise extension (built with -tags enterprise) fails to see a new package under pkg/services/apiserver (e.g. keysroutes) even though it compiles in grafana/grafana itself.\nRoot cause: pkg/extensions/enterprise_imports.go maintains an explicit blank-import list of apiserver subpackages used by the enterprise overlay; a package missing from that list isn't wired into the enterprise build graph.\nFix pattern: add `_ \"github.com/grafana/grafana/pkg/services/apiserver/<newpkg>\"` to pkg/extensions/enterprise_imports.go whenever a new apiserver subpackage (route builder, client, options, etc.) is introduced for enterprise consumption.\nConstraints: only needed for packages the enterprise overlay actually imports; verify by building `-tags enterprise` with the enterprise source overlaid, since OSS CI alone won't catch a missing entry.",
+  "applies": "pkg/extensions/enterprise_imports.go whenever adding a pkg/services/apiserver subpackage consumed by grafana-enterprise",
+  "tags": [
+    "enterprise",
+    "build",
+    "apiserver"
+  ],
+  "deps": [
+    {
+      "path": "pkg/extensions/enterprise_imports.go",
+      "hash": "sha256:9639c408397a8aeccfdf2a00",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132922"
+  },
+  "created": "2026-10-04T06:12:42.161Z",
+  "verified": "2026-10-04T06:12:42.161Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why doesn't the enterprise build see my new API server feature?",
+    "What step did I miss adding a new API server module to enterprise?",
+    "How do I register a new API server component for enterprise builds?",
+    "Enterprise version cannot access a new API server package I created?",
+    "Do I need to list new API server packages somewhere for enterprise?"
+  ],
+  "saysFor": "918:new-apiserver-subpackage",
+  "search": "Enterprise build wiring for apiserver subpackages: new packages under pkg/services/apiserver must be added as blank imports to pkg/extensions/enterprise_imports.go whenever consumed by grafana-enterprise, or the enterprise build will fail to see them despite OSS compilation succeeding. The fix is `_ \"github.com/grafana/grafana/pkg/services/apiserver/<newpkg>\"` in that file. Only packages actually imported by enterprise overlay need this; verify by building with `-tags enterprise` and enterprise source overlaid, since OSS CI alone cannot detect missing entries."
+}

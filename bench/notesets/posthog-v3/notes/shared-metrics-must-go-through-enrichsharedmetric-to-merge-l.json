@@ -1,7 +1,7 @@
 {
   "id": "shared-metrics-must-go-through-enrichsharedmetric-to-merge-l",
   "title": "Shared metrics must go through enrichSharedMetric to merge link metadata",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "How are shared metrics converted to inline experiment metrics?",
     "Where do shared metric breakdowns and breakdown attribution get merged?",
@@ -51,9 +51,9 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 33,
+  "uses": 36,
   "related": [],
-  "lastUsed": "2026-09-27T21:36:07.475Z",
+  "lastUsed": "2026-10-04T19:09:02.933Z",
   "servedIn": [
     "5aaee5b7-e296-4b13-92ed-c17b05bd0815",
     "ffd5d7a2-4585-4abf-82a8-6ebeb4e1eab6",
@@ -81,7 +81,10 @@
     "probe-PR106672-hard",
     "probe-PR106672-hard",
     "probe-PR106672-hard",
-    "probe-PR106672-hard"
+    "probe-PR106672-hard",
+    "x-1791140822345",
+    "codex-posthog-codex-ce1-PR106672-hard-0",
+    "codex-posthog-codex-ce2-PR106672-hard-0"
   ],
   "says": [
     "Saved metric breakdown settings lost in experiment",
@@ -90,5 +93,6 @@
     "Metric link metadata not applied to experiment",
     "Shared metric attributes missing from experiment display"
   ],
-  "saysFor": "833:shared-metrics-must-go-t"
+  "saysFor": "833:shared-metrics-must-go-t",
+  "search": "Saved/shared metrics on experiments (experiment.saved_metrics) must be reshaped using enrichSharedMetric in frontend/src/scenes/experiments/utils.ts to properly merge link metadata into the inline ExperimentMetric shape. enrichSharedMetric sets name, sharedMetricId, isSharedMetric: true, and merges per-experiment metadata: breakdownAttributionType/Value (only when type is defined), breakdownFilter.breakdowns (defaults to []), and breakdown_limit (only when defined). Both getOrderedMetricsWithResults and metricResults call enrichSharedMetric after filtering by metadata?.type === metricType. New consumers should reuse enrichSharedMetric rather than inlining a copy to prevent divergent fixes; all metadata-merging changes belong in this one function. utils.test.ts covers both callers."
 }

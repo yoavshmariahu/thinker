@@ -1,0 +1,51 @@
+{
+  "id": "adding-a-new-per-resource-apiserver-endpoint-flag",
+  "title": "Adding a new per-resource apiserver endpoint flag",
+  "kind": "rule",
+  "answers": [
+    "How do I add a flag to enable a new per-resource endpoint (like list-keys) in the standalone apiserver?",
+    "Why can't the standalone grafana-apiserver serve an endpoint that works when configured via ini?",
+    "Where do EnableSearchAPI/EnableTrashAPI-style flags live?"
+  ],
+  "body": "Symptom: a server configured by command-line flags (not an ini file) cannot serve a per-resource endpoint (e.g. list-keys) even though the ini equivalent exists and works.\nRoot cause: ExtraOptions had no bool field/flag mirroring the ini setting, so the standalone apiserver path never turned the feature on (pkg/services/apiserver/options/extra.go:ExtraOptions).\nFix pattern: add a new bool field to ExtraOptions mirroring the `[grafana-apiserver] enable_*` ini key, wire it with fs.BoolVar in ExtraOptions.AddFlags using a `--grafana-apiserver-enable-*-api` flag name, matching the ini default (on/off) based on how long the feature has shipped.\nConstraints: keep each endpoint's flag separate (don't fold into an existing one) so deployments can toggle one endpoint without affecting others; new endpoints that haven't shipped long default to off.",
+  "applies": "pkg/services/apiserver/options when adding a flag-controlled toggle for a new per-resource API endpoint",
+  "tags": [
+    "apiserver",
+    "flags",
+    "extraoptions"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/apiserver/options/extra.go",
+      "symbol": "ExtraOptions",
+      "hash": "sha256:f37a0c6221f8b3f3247834d0",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132922"
+  },
+  "created": "2026-10-04T06:12:41.409Z",
+  "verified": "2026-10-04T06:12:41.409Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Endpoint works in config file but command-line flag doesn't enable it",
+    "How do I add a command-line flag for a new server endpoint?",
+    "New per-resource endpoint unavailable via flags despite ini equivalent working",
+    "Standalone server can't serve endpoint that works in configuration file",
+    "Where are per-resource endpoint feature flags defined for command line?"
+  ],
+  "saysFor": "900:adding-a-new-per-resourc",
+  "search": "Command-line-configured apiservers cannot serve per-resource endpoints (e.g., list-keys) unless a bool field in pkg/services/apiserver/options/extra.go:ExtraOptions mirrors the [grafana-apiserver] ini setting and is wired with fs.BoolVar using flag name `--grafana-apiserver-enable-*-api`. Each endpoint gets its own separate flag for independent toggling; new endpoints default to off unless the feature shipped long ago. Applies when adding flag-controlled per-resource API endpoint toggles. Paths: pkg/services/apiserver/options/extra.go:ExtraOptions, fs.BoolVar calls for flag binding."
+}

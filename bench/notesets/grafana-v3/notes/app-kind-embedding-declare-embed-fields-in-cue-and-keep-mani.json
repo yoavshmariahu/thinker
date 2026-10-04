@@ -1,0 +1,64 @@
+{
+  "id": "app-kind-embedding-declare-embed-fields-in-cue-and-keep-mani",
+  "title": "App kind embedding: declare embed fields in CUE and keep manifestdata.go in sync",
+  "kind": "rule",
+  "answers": [
+    "How do I make a field searchable/embeddable for AI/semantic search on a resource?",
+    "Why is my new embed field not showing up in the generated Go manifest?",
+    "How do folder title/description get used for generated embeddings?",
+    "What files need to change to add embedding inputs to an app kind?"
+  ],
+  "body": "Fix pattern: to make a kind's fields usable for generated embeddings (semantic search), add an `embed: fields: [{name, path}]` block to the kind's *.cue file (apps/folder/kinds/folder.cue:foldersV1) AND add `embed: <plural>: reembedVersion: 1` to the manifest.cue (apps/folder/kinds/manifest.cue:manifest). The corresponding generated Go file apps/<app>/pkg/apis/manifestdata/<app>_manifest.go must mirror both: `app.ManifestData.Embed` map keyed by plural resource name, and per-version-kind `Embed: &app.ManifestVersionKindEmbed{Fields: []app.ManifestVersionKindEmbedField{...}}`. These three locations (kind cue, manifest cue, generated manifestdata.go) must list the same embed fields/paths for every version of the kind, or the platform's embedding pipeline won't pick up the field. Constraints: applies to any app-platform kind wanting generated embeddings; bump `reembedVersion` whenever the set of embedded fields/paths changes so existing stored embeddings get regenerated.",
+  "applies": "app-platform kinds (apps/<name>/kinds/*.cue) that declare embed fields for generated embeddings/semantic search",
+  "tags": [
+    "app-platform",
+    "embeddings",
+    "cue",
+    "codegen",
+    "folder"
+  ],
+  "deps": [
+    {
+      "path": "apps/folder/kinds/folder.cue",
+      "hash": "sha256:0520a05e4c0155e330535c11",
+      "missing": false
+    },
+    {
+      "path": "apps/folder/kinds/manifest.cue",
+      "hash": "sha256:f126db187f71c69b66b4d426",
+      "missing": false
+    },
+    {
+      "path": "apps/folder/pkg/apis/manifestdata/folder_manifest.go",
+      "symbol": "appManifestData",
+      "hash": "sha256:046fc001caf0e43ff12b2eac",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 22,
+        "sites": 0,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132715"
+  },
+  "created": "2026-10-04T06:39:40.264Z",
+  "verified": "2026-10-04T06:39:40.264Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Making app fields searchable using semantic or AI powered search",
+    "New embed field not appearing in generated resource definitions",
+    "How folder title and description contribute to generated search indexes",
+    "Keeping embed field definitions synchronized across CUE and generated code",
+    "Adding fields to app resources for intelligent semantic search capability"
+  ],
+  "saysFor": "1063:app-kind-embedding-decla",
+  "search": "App-platform kind embeddings for semantic search require synchronization across three locations: add embed: fields: [{name, path}] block to the kind's *.cue file (apps/<app>/kinds/<kind>.cue), add embed: <plural>: reembedVersion: 1 to manifest.cue (apps/<app>/kinds/manifest.cue), and mirror both in the generated manifestdata.go file's app.ManifestData.Embed map keyed by plural resource name. Failure to keep these three synchronized silently breaks the platform's embedding pipeline and prevents new embeddings from being generated. Whenever the set of embedded fields or paths changes, bump reembedVersion to trigger regeneration of stored embeddings. This applies to any app-platform kind (apps/<name>/kinds/*.cue) that requires field-level embeddings for semantic search functionality. Key locations: apps/folder/kinds/folder.cue, apps/folder/kinds/manifest.cue, apps/folder/pkg/apis/manifestdata/folder_manifest.go:appManifestData."
+}

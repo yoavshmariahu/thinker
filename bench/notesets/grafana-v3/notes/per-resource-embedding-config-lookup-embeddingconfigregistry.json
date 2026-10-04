@@ -1,0 +1,66 @@
+{
+  "id": "per-resource-embedding-config-lookup-embeddingconfigregistry",
+  "title": "Per-resource embedding config lookup: EmbeddingConfigRegistry.For(gvr)",
+  "kind": "map",
+  "answers": [
+    "Where do I get the embeddable fields declared for a resource's app manifest?",
+    "How is the SDK's embed declaration (fields + reembedVersion) exposed to unified storage?",
+    "Is there a registry mapping GVR to embedding config, like the search fields registry?"
+  ],
+  "body": "App-SDK embed declarations (per-kind ManifestVersionKindEmbed.Fields plus the resource-level ManifestResourceEmbed.ReembedVersion) are consolidated into pkg/storage/unified/resource/embedding_config.go:EmbeddingConfigRegistry, built from builtin resource.AppManifests() plus live watcher manifests (live replaces a resource's config entirely, including API versions it doesn't redeclare). Look up via EmbeddingConfigRegistry.For(gvr) — requires the exact stored apiVersion; returns (config, false) when no embed declaration exists, vs (emptyFields, true) when one exists with zero fields. Reachable from resource.SearchOptions.EmbeddingConfig, constructed only when cfg.EnableSearch or cfg.VectorIndexingEnabled in pkg/storage/unified/search/options.go:NewSearchOptions. Builder selection and actual embedding generation are out of scope here — this PR only exposes the config.",
+  "applies": "Code that needs to know which fields to embed for a resource/version, or the resource's re-embedding revision, e.g. embedding generation or backfill built on unified storage.",
+  "tags": [
+    "search",
+    "embedding",
+    "unified-storage",
+    "manifest"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/embedding_config.go",
+      "symbol": "EmbeddingConfigRegistry",
+      "hash": "sha256:a75e1c0ad0bdbb92840106e9",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 11
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/options.go",
+      "symbol": "NewSearchOptions",
+      "hash": "sha256:cc0319cb94b5e5ce22649d96",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 9,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132698"
+  },
+  "created": "2026-10-04T06:43:51.820Z",
+  "verified": "2026-10-04T06:43:51.820Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "manifest-derived-registries-must-be-wired-through-searchopti"
+  ],
+  "says": [
+    "Where are the embedded fields declared for a resource type",
+    "How do I look up which fields are marked as embeddable for a resource",
+    "Registry that maps resource types to their embedding field declarations",
+    "Where is the registry listing which fields can be embedded for each resource",
+    "How to find the embedding configuration for a specific resource kind"
+  ],
+  "saysFor": "948:per-resource-embedding-c",
+  "search": "EmbeddingConfigRegistry.For(gvr) retrieves embedding field configs by exact apiVersion, distinguishing no-declaration (config, false) from zero-field-declaration (emptyFields, true). The registry consolidates App-SDK ManifestVersionKindEmbed.Fields and ReembedVersion from builtin and live-watched manifests, where live configs replace a resource's declaration entirely. Access occurs only via resource.SearchOptions.EmbeddingConfig when cfg.EnableSearch or cfg.VectorIndexingEnabled in NewSearchOptions. Applies to determining which fields to embed for a resource, embedding generation, or unified-storage backfill operations. Key locations: pkg/storage/unified/resource/embedding_config.go:EmbeddingConfigRegistry and pkg/storage/unified/search/options.go:NewSearchOptions."
+}

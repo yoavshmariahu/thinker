@@ -47,5 +47,6 @@
     "Show me only the priority or critical reports",
     "How do I find reports that are already done?"
   ],
-  "saysFor": "1132:inbox-actionability-filt"
+  "saysFor": "1132:inbox-actionability-filt",
+  "search": "Inbox actionability filtering reads cached columns `SignalReport.latest_actionability` and `latest_already_addressed`, not artefact JSON; enforced in `_apply_signal_report_actionability_filter`, `_apply_signal_report_already_addressed_filter`, and `_apply_signal_report_inbox_view_filter`. The `latest_already_addressed` column is nullable; filtering for false must use `filter(latest_already_addressed=False)` not `exclude(...=True)`, since exclude permits NULL (unjudged) reports. Reports with NULL cached columns drop from actionability tabs, so any code writing judgment artefacts must keep these columns current via receivers or `backfill_report_actionability` command. Applies to SignalReportViewSet inbox list queries in `products/signals/backend/views.py`; test coverage at `test_filter_already_addressed_false_excludes_reports_nobody_judged`."
 }

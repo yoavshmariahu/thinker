@@ -54,5 +54,6 @@
     "Why is an MCP tool hidden from my API key catalog",
     "tool disappears from MCP catalog instead of erroring"
   ],
-  "saysFor": "1100:mcp-tool-scopes-must-not"
+  "saysFor": "1100:mcp-tool-scopes-must-not",
+  "search": "MCP tool scopes declared in products/alerts/mcp/tools.yaml must match exactly what the backend endpoint enforces; `hasScopes` in services/mcp/src/lib/api.ts is all-or-nothing and hides the entire tool if any declared scope is missing. Over-declaring scopes (e.g. alert:write for `alert-simulate` when the viewset only enforces alert:read + insight:read) causes read-only tokens to lose tool access entirely, falling back to weaker raw queries. The fix pattern is to set `scopes:` to exactly what the viewset's required_scopes are and keep mode-specific stricter checks (like `_require_write_scope_for_charged_simulation`) on the backend with documentation in the tool description. Do not hoist a single mode's requirement onto the whole tool. Keep `readOnly: false` when any mode spends budget; `hasScope` treats :write as granting :read, so write-scoped callers remain unaffected. See products/alerts/mcp/tools.yaml and services/mcp/tests/unit/alert-simulate-scopes.test.ts."
 }

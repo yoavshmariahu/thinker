@@ -1,0 +1,66 @@
+{
+  "id": "request-field-values-result-format-for-targeted-registry-sea",
+  "title": "Request FIELD_VALUES result format for targeted registry searches",
+  "kind": "rule",
+  "answers": [
+    "How do I query unified storage search for just one or two fields efficiently?",
+    "Why does a ResourceSearchRequest return RESOURCE_TABLE columns instead of typed fields?",
+    "How to avoid pulling default search fields when only checking hit count or one field?"
+  ],
+  "body": "Symptom: registry code manually indexed `Results.Columns`/`Results.Rows` by column name (e.g. 'folder') to pull search results, which is brittle and pulls default fields even when only one field or just the hit count is needed.\nRoot cause: ResourceSearchRequest defaulted to RESOURCE_TABLE format; consumers had to find column indexes themselves (pkg/registry/apis/dashboard/search.go:getDashboardsUIDsSharedWithUser, pkg/registry/apis/dashboard/register.go:validateLibraryPanelDelete).\nFix pattern: set `ResultFormat: resourcepb.ResourceSearchRequest_FIELD_VALUES` and an explicit `Fields` list (e.g. `[]string{resource.SEARCH_FIELD_FOLDER}` or just `resource.SEARCH_FIELD_NAME}` when only `TotalHits` matters), then parse the response with `dashboardsearch.ParseResults(resp, 0)` and read typed `Hits[i].Folder`/`.Name` instead of cell indexing.\nConstraints: apply when a caller only needs a known, small set of fields from a dashboard/folder registry search; when only the hit count is needed, request the minimal Fields set to skip default-field cost; this is specific to ResourceSearchRequest/dashboard registry searches, not generic storage queries.",
+  "applies": "pkg/registry/apis/dashboard registry search call sites building ResourceSearchRequest",
+  "tags": [
+    "search",
+    "resourcepb",
+    "dashboards",
+    "registry"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/dashboard/search.go",
+      "symbol": "getDashboardsUIDsSharedWithUser",
+      "hash": "sha256:3e4fd597316e6ef39aded4bc",
+      "line": 1100,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/registry/apis/dashboard/register.go",
+      "symbol": "validateLibraryPanelDelete",
+      "hash": "sha256:cc94b1ca4b5c2de47d055d8d",
+      "line": 510,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132669"
+  },
+  "created": "2026-10-04T06:49:51.148Z",
+  "verified": "2026-10-04T06:49:51.148Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboard-group-resources-storage-options-live-in-named-per"
+  ],
+  "says": [
+    "Why does resource search return all columns when I need just one?",
+    "How to efficiently check a single field without pulling default columns?",
+    "Registry searches should avoid fetching columns you don't actually use",
+    "Is there a way to verify hit count without loading all fields?",
+    "How to request only the specific fields needed instead of all defaults?"
+  ],
+  "saysFor": "1221:request-field-values-res",
+  "search": "Registry code performing targeted dashboard/folder searches should request ResultFormat: FIELD_VALUES with an explicit, narrowed Fields list instead of defaulting to RESOURCE_TABLE format, which requires brittle manual indexing of Results.Columns/Results.Rows by column name and fetches unnecessary default fields. Set Fields to only the needed columns (e.g. []string{resource.SEARCH_FIELD_FOLDER} or just resource.SEARCH_FIELD_NAME when only TotalHits is needed) and parse results with dashboardsearch.ParseResults(resp, 0) to access typed fields like Hits[i].Folder/.Name directly instead of cell indexing. This pattern eliminates manual column lookup and reduces cost by skipping default-field computation. Applies to ResourceSearchRequest call sites in pkg/registry/apis/dashboard/search.go and pkg/registry/apis/dashboard/register.go when building targeted dashboard/folder searches; not applicable to generic storage queries."
+}

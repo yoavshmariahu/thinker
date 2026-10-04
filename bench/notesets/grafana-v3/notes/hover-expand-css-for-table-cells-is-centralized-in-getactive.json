@@ -1,0 +1,51 @@
+{
+  "id": "hover-expand-css-for-table-cells-is-centralized-in-getactive",
+  "title": "Hover-expand CSS for table cells is centralized in getActiveCellSelector",
+  "kind": "map",
+  "answers": [
+    "Where is hover-to-expand behavior implemented for table cells?",
+    "How do I add a new cell type that expands on hover like AutoCell?",
+    "Why does hover expansion not work in Safari?"
+  ],
+  "body": "The selector that lets an overflowing table cell expand (on hover and/or when selected) is built once in packages/grafana-ui/src/components/Table/TableNG/styles.ts:getActiveCellSelector and consumed by every cell renderer that supports overflow: AutoCell (packages/grafana-ui/src/components/Table/TableNG/Cells/AutoCell.tsx:buildAutoCellStyles), PillCell (packages/grafana-ui/src/components/Table/TableNG/Cells/PillCell.tsx:getStyles), SummaryCell (packages/grafana-ui/src/components/Table/TableNG/components/SummaryCell.tsx), and the generic getDefaultCellStyles/getMaxHeightCellStyles.\ngetActiveCellSelector(isNested, hoverOverflow) omits the `:hover` branch when hoverOverflow is false or when IS_SAFARI_26 is true, but always keeps the `aria-selected` (click-to-expand) branch.\nAny new cell renderer that wants hover-to-expand behavior must route through this helper (passing hoverOverflow from TableCellStyleOptions) instead of hand-rolling a hover selector, to stay consistent with the hoverOverflow option and the Safari 26 workaround.",
+  "applies": "packages/grafana-ui/src/components/Table/TableNG cell renderers and shared cell styles",
+  "tags": [
+    "table",
+    "tableng",
+    "css",
+    "hover"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Table/TableNG/styles.ts",
+      "symbol": "getActiveCellSelector",
+      "hash": "sha256:748894e19886a72e585e388b",
+      "line": 570,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 8,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132829"
+  },
+  "created": "2026-10-04T06:24:31.325Z",
+  "verified": "2026-10-04T06:24:31.325Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I add hover-expand behavior to new cell types?",
+    "Where is the table cell hover expansion behavior defined?",
+    "Table cell hover expansion doesn't work correctly in Safari",
+    "Why doesn't cell overflow expand on hover?"
+  ],
+  "saysFor": "1115:hover-expand-css-for-tab",
+  "search": "Hover-to-expand CSS behavior for table cells is built once in getActiveCellSelector (packages/grafana-ui/src/components/Table/TableNG/styles.ts) and consumed by AutoCell, PillCell, SummaryCell, and generic getDefaultCellStyles/getMaxHeightCellStyles. getActiveCellSelector(isNested, hoverOverflow) omits :hover when hoverOverflow is false or IS_SAFARI_26 is true, but always preserves aria-selected (click-to-expand) branch. New cell renderers must route through this helper with hoverOverflow from TableCellStyleOptions instead of hand-rolling hover selectors to stay consistent with the hoverOverflow option and Safari 26 workaround. Applies when implementing new table cell renderers with overflow behavior."
+}

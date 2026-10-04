@@ -1,0 +1,65 @@
+{
+  "id": "v2-export-must-preserve-dashboard-datasource-shared-dashboar",
+  "title": "v2 export must preserve Dashboard datasource (SHARED_DASHBOARD_QUERY) references",
+  "kind": "rule",
+  "answers": [
+    "Why does a reused panel show Random Walk data after importing an exported dashboard?",
+    "Exported v2 dashboard loses '-- Dashboard --' datasource reference",
+    "Panel that reuses another panel's results breaks after export/import",
+    "How should the Dashboard datasource be handled during dashboard export?"
+  ],
+  "body": "Symptom: after exporting a v2 dashboard ('Share dashboard with another instance') and reimporting, a panel that reused another panel's query results instead shows Grafana's built-in Random Walk data.\nRoot cause: makeExportableV2 in exporters.ts treated the stable `-- Dashboard --` datasource reference (SHARED_DASHBOARD_QUERY) as if it were an instance-specific datasource UID, anonymizing/remapping it like any other datasource.\nFix pattern: before generating export labels or stripping/remapping a query's datasource UID, check if it equals SHARED_DASHBOARD_QUERY and return early, leaving the reference untouched.\nConstraints: applies only to this exact built-in '-- Dashboard --' reference; other built-in datasources (e.g. grafana/testdata), ordinary datasource anonymization, migrations, and runtime datasource resolution must keep their existing behavior unchanged.",
+  "applies": "public/app/features/dashboard-scene/scene/export/exporters.ts — v2 dashboard export (makeExportableV2), including library panels inlined for external export",
+  "tags": [
+    "dashboards",
+    "export",
+    "v2-schema",
+    "datasource"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/export/exporters.ts",
+      "symbol": "makeExportableV2",
+      "hash": "sha256:380f3045b677a3d81039df7c",
+      "line": 423,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 12,
+        "refs": 19
+      }
+    },
+    {
+      "path": "public/app/plugins/datasource/dashboard/constants.ts",
+      "symbol": "SHARED_DASHBOARD_QUERY",
+      "hash": "sha256:f774aab2db51ee0712fd0459",
+      "line": 1,
+      "missing": false,
+      "fanout": {
+        "files": 26,
+        "sites": 0,
+        "refs": 136
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133093"
+  },
+  "created": "2026-10-04T05:51:52.494Z",
+  "verified": "2026-10-04T05:51:52.494Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Reused panel shows Random Walk after dashboard export",
+    "Dashboard query reference lost on export and import",
+    "Panel fetching from another panel breaks after import",
+    "Shared dashboard data source replaced during export",
+    "Dashboard to instance copy loses panel query links"
+  ],
+  "saysFor": "954:v2-export-must-preserve-",
+  "search": "v2 dashboard export in makeExportableV2 (public/app/features/dashboard-scene/scene/export/exporters.ts) must check if a query's datasource UID equals SHARED_DASHBOARD_QUERY (public/app/plugins/datasource/dashboard/constants.ts) and skip anonymization/remapping for it, leaving the '-- Dashboard --' reference untouched. Failing to preserve this stable built-in reference causes reimported dashboards to show Random Walk data instead of shared panel query results. This constraint applies only to the SHARED_DASHBOARD_QUERY reference itself; all other datasource anonymization, built-in datasources (testdata), migrations, and runtime resolution keep existing behavior unchanged."
+}

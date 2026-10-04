@@ -74,5 +74,6 @@
     "Which ml_inference module can other products import?",
     "Where are gateway errors mapped to HTTP statuses?"
   ],
-  "saysFor": "1130:ml-inference-backend-lay"
+  "saysFor": "1130:ml-inference-backend-lay",
+  "search": "ml_inference backend uses three-layer architecture (presentation → facade → logic) with tach exposing only facade.* and views.*; facade/contracts.py defines frozen pydantic dataclasses DecisionRequest (MAX_QUESTIONS_PER_REQUEST=32), DecisionQuestion (per-type criteria validation in __post_init__), and DecisionAnswer types. Gateway errors map to HTTP status codes: DecisionsDisabled→404, unreachable gateway→503, DecisionGatewayError→502 (body may echo state); feature flag DECISIONS_FEATURE_FLAG gates logic/decisions.py. Validation is duplicated across presentation/serializers.py and facade/contracts.py. Applies to decision API implementation, error handling paths, and validation constraints. Files: contracts.py, api.py, decisions.py, serializers.py, views.py; symbols: DecisionRequest, DecisionQuestion, decide, decide_unchecked, DecisionsDisabledError."
 }

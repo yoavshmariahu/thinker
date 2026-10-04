@@ -1,0 +1,53 @@
+{
+  "id": "display-search-field-lists-are-per-resource-and-must-match-t",
+  "title": "Display search field lists are per-resource and must match the decode keys",
+  "kind": "rule",
+  "answers": [
+    "How do I add/remove a field requested in IAM display search?",
+    "Why does service-account search request fewer fields than user search?",
+    "Adding a new searchable field to user or service-account display lookup"
+  ],
+  "body": "Symptom: a field (e.g. email/login) is missing or wrongly populated for one identity type but not another in display search results.\nRoot cause: pkg/registry/apis/iam/display/search.go uses separate field-name slices per resource (userSearchDisplayFields vs serviceAccountSearchDisplayFields, service accounts omit USER_EMAIL/USER_LOGIN) wired into buildSearchJobs via the per-target `fields` entry.\nFix pattern: when adding a field, add its constant to the relevant resource's field slice AND add a corresponding extraction line in decodeDisplayRows/decodeDisplayTableRows (values[fieldConstant] or column index lookup) — the Fields sent in the request and the keys read out of DecodeSearchValues/table columns must stay in sync.\nConstraints: field name constants come from resource.SEARCH_FIELD_* and builders.USER_EMAIL/USER_LOGIN; don't add a field to one resource's request list without a matching decode path, or it will be silently ignored.",
+  "applies": "pkg/registry/apis/iam/display/search.go (buildSearchJobs, decodeDisplayRows)",
+  "tags": [
+    "iam",
+    "search",
+    "fields"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/display/search.go",
+      "symbol": "buildSearchJobs",
+      "hash": "sha256:9de7b9ee60bc8defa2d44bf1",
+      "line": 95,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132807"
+  },
+  "created": "2026-10-04T06:27:11.171Z",
+  "verified": "2026-10-04T06:27:11.171Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "iam-display-search-must-decode-both-resource-table-and-field"
+  ],
+  "says": [
+    "How do I add a new searchable field to user lookup?",
+    "Email field appears in user search results but not service-account results",
+    "Why do service accounts request fewer fields than regular users in search?",
+    "Adding a field to display search requires updates in multiple places",
+    "Field values appear for some identity types but blank for others"
+  ],
+  "saysFor": "1022:display-search-field-lis",
+  "search": "Display search field lists are per-resource and must match decode keys: userSearchDisplayFields and serviceAccountSearchDisplayFields in pkg/registry/apis/iam/display/search.go carry separate field-name slices (service accounts omit USER_EMAIL/USER_LOGIN), wired into buildSearchJobs via the per-target `fields` entry. When adding a field, add its constant to the relevant resource's field slice AND add a matching extraction line in decodeDisplayRows/decodeDisplayTableRows so the Fields in the request and the keys read from DecodeSearchValues/table columns stay in sync. Field name constants come from resource.SEARCH_FIELD_* and builders.USER_EMAIL/USER_LOGIN; a field missing from either the request list or decode path will be silently ignored. Applies to tasks modifying pkg/registry/apis/iam/display/search.go (buildSearchJobs, decodeDisplayRows)."
+}

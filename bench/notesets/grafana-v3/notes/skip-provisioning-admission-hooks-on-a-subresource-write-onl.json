@@ -1,0 +1,102 @@
+{
+  "id": "skip-provisioning-admission-hooks-on-a-subresource-write-onl",
+  "title": "Skip provisioning admission hooks on a subresource write only when spec/secure provably unchanged",
+  "kind": "rule",
+  "answers": [
+    "Status patch fails with an unrelated spec validation/mutation error",
+    "PATCH /status on Repository or Connection blocked by mutation hook error",
+    "Why does updating status re-run spec validation",
+    "How to skip mutation/validation for a provisioning subresource request"
+  ],
+  "body": "Symptom: provisioning status-only PATCH requests (e.g. PATCH .../status) failed with mutation/validation errors about spec (e.g. \"resolve gitlab project: authentication failed\", \"spec.github.path: duplicate repository path\") even though the request only touched status, so status could never be updated to reflect the real failure.\nRoot cause: Mutate/Validate on Repository and Connection ran unconditionally on every update including subresource requests, re-mutating/re-validating spec/secure that wasn't part of the request.\nFix pattern: at the top of Mutate/Validate, when a.GetSubresource() != \"\", call provisioningadmission.SpecAndSecureChanged(a); if false, return nil immediately without running spec/secure mutation or validation.\nConstraints: only skip when GetSubresource() is non-empty AND SpecAndSecureChanged is false; a subresource request that bundles a real spec/secure change must still go through the normal hooks, so new subresource handlers must perform both checks together (not \"subresource != spec\" alone) or invalid spec changes get smuggled through disguised as status writes.",
+  "applies": "apps/provisioning admission Mutate/Validate hooks for Repository and Connection, and any future provisioning kind that handles subresource updates",
+  "tags": [
+    "provisioning",
+    "admission",
+    "status-subresource"
+  ],
+  "deps": [
+    {
+      "path": "apps/provisioning/pkg/apis/admission/subresource.go",
+      "symbol": "SpecAndSecureChanged",
+      "hash": "sha256:8b728fa3b00cd7e27a8123d2",
+      "line": 10,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/mutator.go",
+      "symbol": "Mutate",
+      "hash": "sha256:8a0b3d9cfb6c33a45120fd51",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 71,
+        "sites": 124,
+        "refs": 199
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/repository/validator.go",
+      "symbol": "Validate",
+      "hash": "sha256:af33ea57f139bb5ab2cf264e",
+      "line": 57,
+      "missing": false,
+      "fanout": {
+        "files": 296,
+        "sites": 472,
+        "refs": 766
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/connection/mutator.go",
+      "symbol": "Mutate",
+      "hash": "sha256:7d43e24635a6ec8733311c58",
+      "line": 32,
+      "missing": false,
+      "fanout": {
+        "files": 71,
+        "sites": 124,
+        "refs": 199
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/connection/validator.go",
+      "symbol": "Validate",
+      "hash": "sha256:b13fa61666892cdcdd8afc7a",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 296,
+        "sites": 472,
+        "refs": 766
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132708"
+  },
+  "created": "2026-10-04T06:41:45.739Z",
+  "verified": "2026-10-04T06:41:45.739Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "specandsecurechanged-must-fail-closed-on-errors-or-missing-o"
+  ],
+  "says": [
+    "Status-only patch blocked by mutation error about unchanged spec field.",
+    "Updating repository status fails with spec validation error.",
+    "PATCH /status rejected because spec re-validation runs inappropriately.",
+    "Status update re-validates specification even though spec didn't change.",
+    "How to skip spec validation when patching status subresource only?"
+  ],
+  "saysFor": "1200:skip-provisioning-admiss",
+  "search": "Skip provisioning admission spec/secure mutation and validation only when both conditions hold: GetSubresource() is non-empty AND provisioningadmission.SpecAndSecureChanged(a) returns false; call SpecAndSecureChanged at top of Mutate/Validate in apps/provisioning/pkg/repository/mutator.go, apps/provisioning/pkg/connection/mutator.go and their validators. Cannot skip with subresource-check alone; a subresource request that bundles real spec/secure changes must pass both checks or invalid spec changes get smuggled through. Applies to provisioning admission hooks for Repository and Connection (apps/provisioning/pkg/repository and pkg/connection) and any future provisioning kind handling subresource updates."
+}

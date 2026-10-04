@@ -50,5 +50,6 @@
     "Settings won't close after I open a detail page inside it",
     "Back button closes but the X button doesn't work in settings"
   ],
-  "saysFor": "681:closing-settings-when-a-"
+  "saysFor": "681:closing-settings-when-a-",
+  "search": "In SettingsLayout, the back handler is defined only when children exist (a page opened on its own route inside settings); it either pushes childBackHref (preserving tabId) or navigateToSettings(category). The dismiss handler is set to back ?? closeSettings and is used for the close button, backdrop click (onDismiss/onClose), and Escape (onEscape={back} and onBack). Calling closeSettings() directly from a child route breaks because there is no settings route to navigate back to. Escape hotkey handling moved from SettingsPanel to SettingsDialogFrame; the search input still clears its query on first Escape. Applies to SettingsLayout, SettingsPanel, and SettingsDialogFrame when closing from child pages."
 }

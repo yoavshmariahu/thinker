@@ -102,5 +102,6 @@
     "How are external data imports split between warehouse products?",
     "Where does the system define valid external data sync types?"
   ],
-  "saysFor": "1304:data-warehouse-split-mod"
+  "saysFor": "1304:data-warehouse-split-mod",
+  "search": "Data warehouse functionality is split between two products: products/warehouse_sources/backend/ owns models (ExternalDataSource, ExternalDataSchema, ExternalDataJob in models/), Temporal workflows (temporal/data_imports/), and CDC logic; products/data_warehouse/backend/ owns schedules (data_load/service.py). There is NO posthog/temporal/data_imports directory. Status enums live in warehouse_sources/backend/facade/types.py (ExternalDataSourceStatus, ExternalDataSchemaStatus with Running/Paused/Error/Completed/Failed/BillingLimitReached states, and ExternalDataSchemaSyncType modes). Schemas are the schedulable/pausable unit; source status is deprecated. Facades in both products use lazy PEP 562 re-exports (_LAZY + __getattr__) to avoid import cycles and keep temporalio off django.setup. ExternalDataSchemaQuerySet.update is the chokepoint for bulk operations."
 }

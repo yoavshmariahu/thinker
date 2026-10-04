@@ -1,0 +1,58 @@
+{
+  "id": "direct-config-featuretoggles-access-is-lint-flagged-use-open",
+  "title": "Direct config.featureToggles access is lint-flagged; use OpenFeature instead",
+  "kind": "rule",
+  "answers": [
+    "Why did eslint-suppressions.json entry for my file disappear after migrating a flag?",
+    "What is the @grafana/no-config-feature-toggles eslint rule enforcing?",
+    "Can I read config.featureToggles.<flag> directly in a component?"
+  ],
+  "body": "Symptom: a file reading `config.featureToggles.<name>` has a pre-existing suppression entry in eslint-suppressions.json for `@grafana/no-config-feature-toggles`. Root cause: direct config.featureToggles access bypasses OpenFeature and is disallowed by lint except where explicitly suppressed. Fix pattern: replace the direct read with `getFeatureFlagClient().getBooleanValue(FlagKeys.X, default)` or a generated `useFlagX()` hook (both from '@grafana/runtime/internal'), then remove the now-unneeded suppression entry for that file/count in eslint-suppressions.json. Constraints: applies to frontend TSX/TS files checking feature toggles; does not apply to Go backend flag checks.",
+  "applies": "Frontend code in public/app checking feature toggle values",
+  "tags": [
+    "feature-flags",
+    "eslint",
+    "lint-rule"
+  ],
+  "deps": [
+    {
+      "path": "eslint-suppressions.json",
+      "hash": "sha256:1f13ac6bb69a2f8addb985cd",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/VizPanelSubHeader.tsx",
+      "symbol": "VizPanelSubHeader",
+      "hash": "sha256:3ae1682c571d652110d907dd",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 7,
+        "refs": 15
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133118"
+  },
+  "created": "2026-10-04T05:50:22.037Z",
+  "verified": "2026-10-04T05:50:22.037Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "migrating-a-legacy-feature-toggle-to-openfeature"
+  ],
+  "says": [
+    "Why does eslint complain about direct feature toggle access?",
+    "What's the proper way to read feature flags in components?",
+    "How should I check a feature toggle instead of direct config?",
+    "Lint rule suppressions disappear after migrating feature flag access patterns",
+    "Linter flags direct feature toggle reads – what's the proper pattern?"
+  ],
+  "saysFor": "757:direct-config-featuretog",
+  "search": "Replacing direct config.featureToggles reads: direct access is lint-flagged (@grafana/no-config-feature-toggles in eslint-suppressions.json); replace with getFeatureFlagClient().getBooleanValue(FlagKeys.X, default) or generated useFlagX() hook from '@grafana/runtime/internal'. Remove the suppression entry from eslint-suppressions.json once replaced. Example: public/app/features/dashboard-scene/scene/VizPanelSubHeader.tsx. Constraint: applies to frontend TSX/TS files only, not Go backend flag checks. Applies to any frontend code checking feature toggle values."
+}

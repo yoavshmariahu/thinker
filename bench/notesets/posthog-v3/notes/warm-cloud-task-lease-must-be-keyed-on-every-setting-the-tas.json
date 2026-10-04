@@ -58,5 +58,6 @@
     "Selected task configuration doesn't carry to cloud execution",
     "Cloud task warm lease ignores permission and runtime settings"
   ],
-  "saysFor": "1033:warm-cloud-task-lease-mu"
+  "saysFor": "1033:warm-cloud-task-lease-mu",
+  "search": "A prewarmed cloud task's lease key must include every setting that differs at submit time; stale leases reused with wrong settings cause the task to start in Default mode despite other selections. Lease key is built by `buildWarmTaskLeaseKey` in `products/desktop/packages/ui/src/features/task-detail/hooks/warmTaskLease.ts` and includes runtimeAdapter, model, permissionMode, sandbox env, and custom image (but deliberately not reasoningEffort). The normalized value must be in effect dependencies, the warm request body (`initial_permission_mode`), and lease key parts on store/take; `takeWarmTaskLease` in taskCreationSaga.ts must pass the same values as `useWarmTask`. Applies to desktop cloud task prewarm logic in useWarmTask, warmTaskLease, and taskCreationSaga warm path."
 }

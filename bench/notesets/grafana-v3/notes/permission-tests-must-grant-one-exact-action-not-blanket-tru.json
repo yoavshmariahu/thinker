@@ -1,0 +1,63 @@
+{
+  "id": "permission-tests-must-grant-one-exact-action-not-blanket-tru",
+  "title": "Permission tests must grant one exact action, not blanket true/false",
+  "kind": "rule",
+  "answers": [
+    "How should I write a test for an RBAC permission check?",
+    "Why did my permission check regression slip through tests?",
+    "Test pattern for AccessControlAction checks"
+  ],
+  "body": "Convention enforced by review on this PR: tests for RBAC-gated helpers must not stub contextSrv.hasPermission to always return true/false (that passes even if the code checks the wrong action, e.g. a revert from notebooks:create back to notebooks:write or dashboards:create). Instead grant the exact single action under test, assert the check passes, then grant every other related action except it and assert the check fails. See public/app/features/notebook/permissions.test.ts and public/app/features/notebook/mutation-api/commands/permissions.test.ts for the pattern (a `grant(...actions)` helper mocking hasPermission against an explicit allow-list).",
+  "applies": "Unit tests for any contextSrv.hasPermission-based gating logic in the frontend",
+  "tags": [
+    "testing",
+    "rbac",
+    "permissions"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/notebook/permissions.test.ts",
+      "symbol": "grant",
+      "hash": "sha256:003c089d16744a74cb98770a",
+      "line": 6,
+      "missing": false,
+      "fanout": {
+        "files": 41,
+        "sites": 10,
+        "refs": 105
+      }
+    },
+    {
+      "path": "public/app/features/notebook/mutation-api/commands/permissions.test.ts",
+      "symbol": "grant",
+      "hash": "sha256:003c089d16744a74cb98770a",
+      "line": 9,
+      "missing": false,
+      "fanout": {
+        "files": 41,
+        "sites": 10,
+        "refs": 105
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132699"
+  },
+  "created": "2026-10-04T06:42:58.381Z",
+  "verified": "2026-10-04T06:42:58.381Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How should I write an integration test that validates permission checks",
+    "Permission check regression slipped through tests that always allow all actions",
+    "Test pattern for validating RBAC permission checks in unit tests",
+    "Why do permission tests need to grant one specific action instead of true or false",
+    "How to test that the correct permission action is being checked"
+  ],
+  "saysFor": "724:permission-tests-must-gr",
+  "search": "Permission tests for RBAC-gated helpers must not stub contextSrv.hasPermission to always return true/false, as this passes even if code checks the wrong action (e.g., reverts from notebooks:create back to notebooks:write). Instead, grant the exact single action under test and assert the check passes, then grant every other related action except it and assert the check fails. The grant(...actions) helper (public/app/features/notebook/permissions.test.ts, public/app/features/notebook/mutation-api/commands/permissions.test.ts) mocks hasPermission against an explicit allow-list for this pattern. Applies to unit tests for any contextSrv.hasPermission-based gating logic in the frontend."
+}

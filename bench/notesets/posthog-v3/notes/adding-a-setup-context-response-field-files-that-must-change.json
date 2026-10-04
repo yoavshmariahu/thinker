@@ -80,5 +80,6 @@
     "Experiment wizard missing new target surface option",
     "Setup context doesn't include required field for feature"
   ],
-  "saysFor": "988:adding-a-setup-context-r"
+  "saysFor": "988:adding-a-setup-context-r",
+  "search": "Adding a setup context response field requires synchronized changes to the backend dataclass and _compute_* builder in products/experiments/backend/setup_context.py, cache key version bump in _cache_key, serializer help_text in products/experiments/backend/presentation/serializers.py, and regeneration (not hand-edit) of products/experiments/frontend/generated/api.schemas.ts and services/mcp/src/api/generated.ts. The SetupInspector.stories.tsx FULL_CONTEXT fixture must include all required fields or types break; update tests and products/experiments/skills/creating-experiments/references/setup-decisions.md if agents need the field. Applies to experiment setup context endpoint changes."
 }

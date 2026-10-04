@@ -1,0 +1,67 @@
+{
+  "id": "explore-logs-drilldown-shared-settings-vs-dashboard-panel-op",
+  "title": "Explore/Logs Drilldown shared-settings vs Dashboard panel-option persistence must stay disconnected",
+  "kind": "rule",
+  "answers": [
+    "Enabling hover overflow in a dashboard panel also changed behavior in Explore, is that expected?",
+    "Should dashboard panel options and Explore local storage settings for logs table be linked?",
+    "Why doesn't toggling a logstable control in Explore affect dashboards or vice versa?"
+  ],
+  "body": "Invariant: a logs table display setting exposed as a Dashboard panel option (persisted into the dashboard JSON) must not be wired to the same local-storage key used for the equivalent sidebar/control setting in Explore and Logs Drilldown; the two surfaces intentionally don't share state. Enforced conceptually in public/app/plugins/panel/logstable/module.tsx (hoverOverflow panel option) vs. Explore/Logs Drilldown local-storage-backed controls — if someone connects them, changing a setting on one dashboard panel would unexpectedly change behavior for every user viewing Explore/Logs Drilldown (and vice versa).\nFix pattern: keep per-surface state independent — panel options for dashboards, local storage keys for Explore/Logs Drilldown — even if the underlying feature (e.g. hover-to-expand overflowing cells) is the same.\nConstraints: applies to any shared logstable/Logs UI behavior exposed differently to Dashboards vs Explore/Logs Drilldown; not relevant for settings only ever exposed in one surface.",
+  "applies": "Grafana logstable panel and its counterparts in Explore / Logs Drilldown",
+  "tags": [
+    "logs",
+    "logstable",
+    "explore",
+    "panel-options",
+    "state-isolation"
+  ],
+  "deps": [
+    {
+      "path": "public/app/plugins/panel/logstable/module.tsx",
+      "symbol": "plugin",
+      "hash": "sha256:2c40fef0bb2e907284cf32df",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 683,
+        "sites": 7,
+        "refs": 1965
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/logstable/LogsTable.tsx",
+      "symbol": "LogsTable",
+      "hash": "sha256:6d38573dbb340ba58f732b2b",
+      "line": 56,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 1,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132882"
+  },
+  "created": "2026-10-04T06:17:21.785Z",
+  "verified": "2026-10-04T06:17:21.785Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logstable-boolean-option-defaults-must-be-set-in-3-places",
+    "custom-option-editors-must-not-write-a-default-value-on-rend"
+  ],
+  "says": [
+    "Toggling hover overflow in a dashboard panel unexpectedly changes Explore logs display",
+    "Dashboard log table options shouldn't affect all users' Explore sidebar behavior",
+    "Changing a log table setting in a dashboard alters Explore for everyone",
+    "Panel-level log display controls are unintentionally syncing with Explore sidebar settings"
+  ],
+  "saysFor": "1110:explore-logs-drilldown-s",
+  "search": "Dashboard panel options and Explore/Logs Drilldown sidebar settings must maintain separate persistence, even for identical UI features like hover-to-expand behavior. A logs table setting exposed as a Dashboard panel option (persisted in dashboard JSON) must not share the same local-storage key as the equivalent Explore/Logs Drilldown control, because connecting them would cause dashboard panel changes to unexpectedly affect all Explore/Logs Drilldown users globally. Example: public/app/plugins/panel/logstable/module.tsx:hoverOverflow is a panel option, kept distinct from Explore's local-storage-backed equivalent. Fix pattern: keep per-surface state independent. Applies to any shared logstable behavior exposed differently across Dashboard versus Explore/Logs Drilldown surfaces."
+}

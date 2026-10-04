@@ -1,0 +1,70 @@
+{
+  "id": "search-backed-list-must-emit-continuation-token-when-auth-fi",
+  "title": "Search-backed List must emit continuation token when auth filtering shrinks a page",
+  "kind": "rule",
+  "answers": [
+    "Why does paging through a search-backed list silently skip or miss resources?",
+    "List stops returning NextPageToken even though more authorized items exist",
+    "How should authorization filtering interact with list pagination tokens?",
+    "Continuation token missing after RBAC/authz filters out rows from a full page"
+  ],
+  "body": "Symptom: a client paging through a search-backed LIST (via list_with_selectors) stops receiving a NextPageToken even though unauthorized/filtered rows mean more matching resources remain, so later pages are silently lost.\nRoot cause: listWithSelectors only looked at the raw search page size vs limit to decide whether to continue; it didn't account for authorization filtering shrinking a full page, or for post-rank authorization returning a short page when the search total was inexact (pkg/storage/unified/resource/list_with_selectors.go:listWithSelectors).\nFix pattern: after building the response rows, call searchListNeedsContinue(limit, rowCount, totalHitsExact) — continue if limit>0 and rowCount>0 and (rowCount>=limit OR total is inexact) — and if so build a token from the last scanned row's sortFields plus the original listRv (not a new RV), via NewSearchContinueToken.\nConstraints: only applies to search/index-backed LIST paths using sortFields-based continuation; if the last row has no sortFields the code logs a warning and returns no token (can't safely continue) instead of guessing. The token must reuse the request's original listRv so results stay pinned to one consistent snapshot across pages.",
+  "applies": "pkg/storage/unified/resource list_with_selectors.go and any search-backed LIST path with authorization filtering or inexact totals",
+  "tags": [
+    "pagination",
+    "authorization",
+    "unified-storage",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "searchListNeedsContinue",
+      "hash": "sha256:788426443f75b3508dfadcad",
+      "line": 154,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "listWithSelectors",
+      "hash": "sha256:6d80df33d24814945220c3b0",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 22,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133017"
+  },
+  "created": "2026-10-04T05:58:44.384Z",
+  "verified": "2026-10-04T05:58:44.384Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "list-falls-back-from-search-to-store-scan-only-on-the-first",
+    "listwithselectors-transport-errors-vs-embedded-search-errors",
+    "request-only-needed-fields-exact-rv-when-using-field-values",
+    "search-backed-list-resources-allowlist-gates-store-list-via"
+  ],
+  "says": [
+    "Paging through resource list silently skips items after filtering",
+    "List stops returning continuation token when authorization filters apply",
+    "Why does search list pagination break after permissions filtering?",
+    "Pagination token missing even though more authorized resources exist",
+    "Listing resources with authorization filtering loses later pages"
+  ],
+  "saysFor": "1302:search-backed-list-must-",
+  "search": "Search-backed LIST pagination must emit NextPageToken when authorization filtering shrinks a full page or when search total count is inexact, not just when raw search page size meets limit. Call pkg/storage/unified/resource/list_with_selectors.go:searchListNeedsContinue(limit, rowCount, totalHitsExact) after building response rows; build token from last scanned row's sortFields plus the request's original listRv (not a new one) via NewSearchContinueToken. If last row lacks sortFields, log warning and return no token. Applies to pkg/storage/unified/resource list_with_selectors.go and any search/index-backed LIST with auth filtering or inexact totals."
+}

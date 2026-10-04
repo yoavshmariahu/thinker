@@ -1,0 +1,51 @@
+{
+  "id": "newtestsqlkvbackend-takes-a-bool-backwardscompatible-not-a-m",
+  "title": "NewTestSqlKvBackend takes a bool (backwardsCompatible), not a mode enum",
+  "kind": "rule",
+  "answers": [
+    "How do I create a test SQL KV backend for unified storage tests?",
+    "What happened to SQLKVBackendMode / SQLKVBackendModeRVManager / SQLKVBackendModeLeases?",
+    "Why does NewTestSqlKvBackend take a bool now?"
+  ],
+  "body": "Fix pattern: the SQLKVBackendMode enum (RVManager/Leases/OptimisticLocking) was collapsed into a single bool parameter since plain optimistic-locking mode no longer exists as a backend configuration. NewTestSqlKvBackend(t, ctx, backwardsCompatible bool) in pkg/storage/unified/testing/storage_backend_sql_compatibility.go: true wires an rvmanager.ResourceVersionManager for legacy SQL compat, false sets kvOpts.Holder for plain lease-based KV. Constraints: when writing new integration/benchmark tests for the SQL-backed KV store, call this with a bool, not a mode constant — the old constants (SQLKVBackendModeRVManager etc.) no longer exist in this package.",
+  "applies": "pkg/storage/unified/testing/storage_backend_sql_compatibility.go NewTestSqlKvBackend and its callers in pkg/storage/unified/testing and pkg/storage/unified/sql/test",
+  "tags": [
+    "unified-storage",
+    "testing",
+    "sql-kv"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/testing/storage_backend_sql_compatibility.go",
+      "symbol": "NewTestSqlKvBackend",
+      "hash": "sha256:57abcc985185625f34da9f40",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 13,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132691"
+  },
+  "created": "2026-10-04T06:45:37.695Z",
+  "verified": "2026-10-04T06:45:37.695Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I set up a test database for the new storage backend?",
+    "Test setup fails because SQLKVBackendMode parameter no longer exists?",
+    "Old backend mode options don't work in test configuration anymore?",
+    "What boolean value should I pass to create a test storage backend?",
+    "Storage backend test setup changed from enum modes to simple boolean?"
+  ],
+  "saysFor": "731:newtestsqlkvbackend-take",
+  "search": "NewTestSqlKvBackend in pkg/storage/unified/testing/storage_backend_sql_compatibility.go takes a bool parameter (backwardsCompatible), not a mode enum, because the SQLKVBackendMode enum (RVManager, Leases, OptimisticLocking) was collapsed and plain optimistic-locking mode no longer exists. Pass true to wire rvmanager.ResourceVersionManager for legacy SQL compatibility, false to set kvOpts.Holder for lease-based KV. The old mode constants (SQLKVBackendModeRVManager, etc.) no longer exist in this package; use this bool signature when writing integration or benchmark tests for SQL-backed KV store in pkg/storage/unified."
+}

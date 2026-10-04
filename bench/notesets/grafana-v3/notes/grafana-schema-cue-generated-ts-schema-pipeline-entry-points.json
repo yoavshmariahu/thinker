@@ -1,0 +1,121 @@
+{
+  "id": "grafana-schema-cue-generated-ts-schema-pipeline-entry-points",
+  "title": "grafana-schema: CUE-generated TS schema pipeline (entry points & flow)",
+  "kind": "map",
+  "answers": [
+    "Where do @grafana/schema types come from?",
+    "How does CUE generation flow into packages/grafana-schema?",
+    "What is src/veneer/ for in grafana-schema?",
+    "Where are composable panel option types generated?"
+  ],
+  "body": "packages/grafana-schema/src is a generation *target*, not hand-written source (files have 'EDITING IS FUTILE' headers). Three families:\n- Core/common schemas: `kinds/gen.go` walks `kinds/<x>/*.cue`, runs jennies incl. `pkg/codegen/jenny_tsveneerindex.go:TSVeneerIndexJenny`, writes `src/raw/dashboard/x/types.gen.ts` + `src/index.gen.ts`. Separately `public/app/plugins/gen.go:genCommon` reads `src/common/*.cue` directly (these .cue files ARE canonical; the comment in `src/common/dataquery_gen.cue` claiming a `pkg/kindsys/dataquery.cue` origin is stale/wrong) and regenerates `src/common/common.gen.ts` via `cuetsy.Generate`.\n- Composable (per-plugin) kinds: each plugin's `public/app/plugins/panel/<name>/panelcfg.cue` imports `ui \"github.com/grafana/grafana/packages/grafana-schema/src/common\"`; `public/app/plugins/gen.go` emits output to BOTH the plugin-local `panelcfg.gen.ts` AND the mirrored `packages/grafana-schema/src/raw/composable/<name>/panelcfg/x/types.gen.ts`.\n- App-SDK resource schemas: `src/schema/dashboard/v2beta1/` etc., versioned dirs (v0alpha1, v1beta1, v2, v2alpha1, v2beta1), exposed via `package.json` exports map subpaths like `./apis/dashboard.grafana.app/*`.\nPublic entry is `src/index.ts`, which re-exports `veneer/common.types`, `veneer/librarypanel.types`, `index.gen.ts`, plus one manual enum override (`LegendDisplayMode`) kept because CUE can't deprecate individual enum members. Regenerate everything with `make gen-cue` from repo root; CI checks drift via `CODEGEN_VERIFY` env var (see `public/app/plugins/gen.go` around `genCommon` call).",
+  "tags": [
+    "grafana-schema",
+    "codegen",
+    "cue"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-schema/src/index.ts",
+      "symbol": "LegendDisplayMode",
+      "hash": "sha256:a90d2be90ddee52bc09506e7",
+      "line": 16,
+      "missing": false,
+      "fanout": {
+        "files": 38,
+        "sites": 0,
+        "refs": 113
+      }
+    },
+    {
+      "path": "packages/grafana-schema/src/index.gen.ts",
+      "hash": "sha256:0e1d644dcc1ce134b2b83897",
+      "missing": false
+    },
+    {
+      "path": "kinds/gen.go",
+      "symbol": "main",
+      "hash": "sha256:47dd69107f714390efb0089d",
+      "line": 32,
+      "missing": false
+    },
+    {
+      "path": "public/app/plugins/gen.go",
+      "symbol": "genCommon",
+      "hash": "sha256:0852c68eaf0efbea0abd7cfc",
+      "line": 97,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/codegen/jenny_tsveneerindex.go",
+      "symbol": "TSVeneerIndexJenny",
+      "hash": "sha256:3f8b46d36e85ded5740c6f39",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "packages/grafana-schema/src/common/dataquery_gen.cue",
+      "hash": "sha256:018afc3198211552357522f6",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-schema/package.json",
+      "hash": "sha256:e31ddff0e0d1fa8c0b515065",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-schema/src/raw/dashboard/x/types.gen.ts",
+      "hash": "sha256:72b87aa9e4280ba37ffe1a02",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-schema/src/common/common.gen.ts",
+      "symbol": "LegendDisplayMode",
+      "hash": "sha256:72437990480ff299e3eee54a",
+      "line": 452,
+      "missing": false,
+      "fanout": {
+        "files": 38,
+        "sites": 0,
+        "refs": 114
+      }
+    },
+    {
+      "path": "scripts/prepare-npm-package.js",
+      "hash": "sha256:f3ca3c04700e659c60522a1f",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "be65373d-b93c-416f-91fd-d753bef918d6"
+  },
+  "created": "2026-10-04T06:14:58.145Z",
+  "verified": "2026-10-04T06:14:58.145Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "grafana-schema-never-hand-edit-generated-files-cue-edits-mus"
+  ],
+  "says": [
+    "Where do panel configuration types come from originally",
+    "Generated panel option types not reflecting my schema edits",
+    "Composable panel types are missing or appearing wrong",
+    "CUE schema changes not updating TypeScript type definitions",
+    "How does code generation flow from schema source"
+  ],
+  "saysFor": "1650:grafana-schema-cue-gener",
+  "search": "grafana-schema/src is a generated target with three schema families: (1) Core/common schemas via kinds/gen.go with TSVeneerIndexJenny (output: src/raw/dashboard/*/types.gen.ts + src/index.gen.ts); (2) composable per-plugin kinds via public/app/plugins/gen.go reading src/common/*.cue (output: plugin-local panelcfg.gen.ts and mirror at src/raw/composable/<name>/panelcfg/*/types.gen.ts); (3) app-SDK resources at src/schema/dashboard/v2beta1/ etc. All generated files have 'EDITING IS FUTILE' headers. Public entry point is packages/grafana-schema/src/index.ts, which re-exports veneer/common.types, veneer/librarypanel.types, index.gen.ts, plus LegendDisplayMode (manual override, kept because CUE cannot deprecate individual enum members). Regenerate via make gen-cue; CI verifies with CODEGEN_VERIFY env var. Understand this flow when tracing schema source origins, determining which .cue file affects a TS type, or adding new output paths."
+}

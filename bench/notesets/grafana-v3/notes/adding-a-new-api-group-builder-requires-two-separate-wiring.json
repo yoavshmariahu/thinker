@@ -1,0 +1,59 @@
+{
+  "id": "adding-a-new-api-group-builder-requires-two-separate-wiring",
+  "title": "Adding a new API group builder requires two separate wiring edits",
+  "kind": "rule",
+  "answers": [
+    "Why doesn't my new API group builder ever get registered?",
+    "What do I need to update when adding a new RegisterAPIService to pkg/registry/apis?",
+    "wireset.go vs apis.go — which do I need to edit for a new builder?"
+  ],
+  "body": "A new API group builder's `RegisterAPIService(...)` provider must be added to BOTH `pkg/registry/apis/wireset.go` (the `wire.NewSet` listing, so Wire knows how to construct it) AND `pkg/registry/apis/apis.go:ProvideRegistryServiceSink` (which takes a pointer to every builder solely to force Wire to instantiate it, since nothing else otherwise depends on the builder's return value). If the sink parameter is omitted, Wire never constructs the builder (it has no other consumer), so `RegisterAPI` is never called and the API group silently never appears on the server — no error, no panic, just a missing group. This is the easiest step to forget when extending the registry.",
+  "applies": "Only applies when introducing a brand-new API group builder (new RegisterAPIService provider) in pkg/registry/apis; changes to an already-wired builder's internal logic don't need this.",
+  "tags": [
+    "apiserver",
+    "registry-apis",
+    "wire",
+    "di"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/apis.go",
+      "symbol": "ProvideRegistryServiceSink",
+      "hash": "sha256:f7532fc3f0ba8677e7f32196",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/registry/apis/wireset.go",
+      "hash": "sha256:82bf3453f529c4695d79f044",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "7bbb8c94-6793-40aa-9497-4e18bfa47116"
+  },
+  "created": "2026-10-04T05:49:58.328Z",
+  "verified": "2026-10-04T05:49:58.328Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pkg-registry-apis-control-flow-map-apiserver-builder-plumbin"
+  ],
+  "says": [
+    "New API group never appears on server after adding the builder",
+    "Where do I register a new API group in the API registry?",
+    "Adding one API builder entry isn't enough to make it available",
+    "Why isn't my new API group being constructed or registered?",
+    "API group silently missing from discovery despite builder implementation"
+  ],
+  "saysFor": "742:adding-a-new-api-group-b",
+  "search": "Adding a new API group builder requires wiring in two locations: pkg/registry/apis/wireset.go (the Wire set so Wire can construct it) and pkg/registry/apis/apis.go:ProvideRegistryServiceSink (a parameter forcing Wire to instantiate it, since the builder has no other consumer). Omitting the sink parameter causes Wire to skip construction entirely, making the API group silently never appear at runtime with no error or panic—this is the most commonly forgotten step. Applies only to brand-new RegisterAPIService providers; internal changes to existing builders need not touch the sink. Paths: pkg/registry/apis/wireset.go, pkg/registry/apis/apis.go:ProvideRegistryServiceSink."
+}

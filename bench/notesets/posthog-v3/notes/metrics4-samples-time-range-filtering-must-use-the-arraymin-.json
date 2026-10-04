@@ -50,5 +50,6 @@
     "Why does querying metrics4_samples read whole edge hours?",
     "indexHint on metrics4_samples timestamp"
   ],
-  "saysFor": "969:metrics4-samples-time-ra"
+  "saysFor": "969:metrics4-samples-time-ra",
+  "search": "metrics4_samples time-range filtering must use arrayMin(timestamp_arr) and arrayMax(timestamp_arr) alias expressions with minmax indexes (idx_timestamp_min_minmax, idx_timestamp_max_minmax) to avoid full-scan of edge-hour rows; filter syntax is `arrayMin(timestamp_arr) <= maxt AND arrayMax(timestamp_arr) >= mint` or wrapped via indexHint. Filtering only on time_bucket bypasses indexes entirely for edge hours. Minmax indexes exist only on parts written after migration 0331 (no MATERIALIZE INDEX for older parts), so older data loses pruning until expiration. Applies to queries against metrics4_samples and any changes to timestamp index columns. Files: metrics4.hcl, metrics4.py, 0331_metrics4_samples_timestamp_minmax.py; symbols: arrayMin, arrayMax, timestamp_min, timestamp_max."
 }

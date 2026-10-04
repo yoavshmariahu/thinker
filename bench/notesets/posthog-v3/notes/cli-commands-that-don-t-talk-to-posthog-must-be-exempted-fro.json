@@ -54,5 +54,6 @@
     "Where can I mark a command to skip the credentials check",
     "Adding a subcommand that never contacts the analytics service"
   ],
-  "saysFor": "657:cli-commands-that-don-t-"
+  "saysFor": "657:cli-commands-that-don-t-",
+  "search": "Adding a Commands enum variant in cli/src/commands.rs requires changes in four places: the enum variant itself, telemetry_command_name match arm, dispatch match, and pub mod in cli/src/lib.rs. If the command never contacts PostHog, add it to the matches! exemption list alongside Login and Api, or init_context will error without a token (the Update command was caught by review for missing this exemption). Also add a changesets entry (cargo/posthog-cli: patch) and update cli/README.md. Applies to adding new CLI subcommands."
 }

@@ -1,0 +1,52 @@
+{
+  "id": "per-action-toast-feedback-must-stay-independent-of-shared-va",
+  "title": "Per-action toast feedback must stay independent of shared validation/banner state",
+  "kind": "rule",
+  "answers": [
+    "Why does the drop still show a toast even when the config is invalid?",
+    "Should per-file upload feedback depend on the overall dry-run result?",
+    "How should success confirmation relate to a shared error banner?"
+  ],
+  "body": "Symptom: Users could not tell if a drag-and-drop onto a dropzone succeeded, because the only shared signal (the dry-run validation banner) could show the same warning/error regardless of whether this particular drop worked.\nRoot cause: onDrop handlers only updated form state and re-ran the shared dry-run validation (public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx:Step1Content), giving no per-action acknowledgement.\nFix pattern: Fire a `notifyApp.success(...)` toast directly inside each onDrop callback, independent of the shared validation/banner state, so it confirms the local action succeeded even when the banner reports an unrelated warning or error.\nConstraints: Use this pattern when a UI has a shared status indicator (banner, validation summary) that doesn't reflect the success of discrete sub-actions (file drops, item adds); don't use it to replace validation errors themselves, which still belong in the banner.",
+  "applies": "Multi-step forms/wizards with discrete add/drop actions plus a shared validation banner (e.g. import-to-gma wizard Step 1).",
+  "tags": [
+    "alerting",
+    "import-to-gma",
+    "ux",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx",
+      "symbol": "Step1Content",
+      "hash": "sha256:1fe7ada771e222d47970198c",
+      "line": 111,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 45
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133035"
+  },
+  "created": "2026-10-04T05:55:14.321Z",
+  "verified": "2026-10-04T05:55:14.321Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Drag and drop shows no success confirmation even when file uploads",
+    "Per-action upload feedback disappears when the overall validation shows errors",
+    "How should individual drop confirmations work independently of shared error banner",
+    "Drop succeeds but user sees no toast because validation banner shows warnings",
+    "File upload should show success toast even when config has other validation errors"
+  ],
+  "saysFor": "1062:per-action-toast-feedbac",
+  "search": "Multi-step forms with discrete add/drop actions and a shared validation banner must fire per-action toast feedback independently by calling notifyApp.success() directly inside each onDrop callback, not relying on the shared banner to confirm individual actions. The shared validation state (banner or dry-run result) often reports unrelated warnings or errors and gives no acknowledgement that a particular drop or add succeeded, so the per-action toast decouples action feedback from validation state. Do not use this pattern to replace validation errors themselves, which belong in the banner. This applies to multi-step wizards like the alerting import-to-gma Step 1 (public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx)."
+}

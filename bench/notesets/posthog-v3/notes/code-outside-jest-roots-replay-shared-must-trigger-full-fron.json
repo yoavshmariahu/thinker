@@ -54,5 +54,6 @@
     "How do I ensure tests run for changes outside the frontend folder",
     "Shared package edits aren't caught by the test dependency detection"
   ],
-  "saysFor": "817:code-outside-jest-roots-"
+  "saysFor": "817:code-outside-jest-roots-",
+  "search": "Frontend jest selection with `--findRelatedTests` cannot trace imports from sources outside jest roots like `common/replay-shared/src/**`, so changes there must trigger the full frontend jest suite instead of only related tests. Enforcement requires identical patterns in two places: `.github/workflows/ci-frontend.yml` (including `common/replay-shared/src/**` in `frontend_code` paths-filter and calling `fall_back unindexed_dependency` in the selection script) and the case-loop patterns, which must mirror the filter exactly. Any new source directory outside jest roots that frontend imports needs the same dual treatment in both files. Draft PRs still skip the full run. Applies to CI frontend jest selection and adding new packages outside jest roots."
 }

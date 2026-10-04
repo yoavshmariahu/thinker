@@ -107,5 +107,6 @@
     "Broadcast shows sending when job still waiting in queue",
     "Broadcast archive state persists even after workflow execution finishes"
   ],
-  "saysFor": "1132:broadcast-status-is-deri"
+  "saysFor": "1132:broadcast-status-is-deri",
+  "search": "Broadcast status in the UI is derived from HogFlow.State (draft/active/archived) plus the latest HogFlowBatchJob.State (waiting/queued/active/completed/cancelled/failed), with no dedicated broadcast model or status column. The BroadcastStatus enum (draft|scheduled|sending|sent|failed|archived) maps flow states (draft/archived) directly, while job states determine the rest: waiting/queued/active→sending, completed→sent, failed/cancelled→failed, and no job→scheduled. Broadcasts are HogFlows filtered by origin_product='broadcasts' (HogFlow.OriginProduct.BROADCASTS). Test cases in broadcastStatus.test.ts pin the mapping; BroadcastsTable.tsx:STATUS_CONFIG defines labels and colors and checks item.status==='draft' directly. BroadcastScene.tsx returns NotFound unless origin_product is broadcasts; draft status routes to BroadcastWizard, other statuses show read-only summary. Applies to broadcast UI display, status derivation, and scene navigation in frontend/Broadcasts/."
 }

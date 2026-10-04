@@ -1,0 +1,82 @@
+{
+  "id": "aggregate-router-discovery-must-request-handle-aggregated-di",
+  "title": "Aggregate router discovery must request/handle aggregated discovery format",
+  "kind": "rule",
+  "answers": [
+    "Why don't CRDs show up when apiextensions-apiserver is aggregated under the router?",
+    "Introspection of resources on an aggregate apiserver fails to list CRD-backed groups",
+    "/apis discovery on router misses groups served by a standalone apiextensions apiserver",
+    "How should discoverGroups request /apis from aggregate backends?"
+  ],
+  "body": "Symptom: when an apiextensions-apiserver (baas_apiserver) is configured as an aggregate backend, the router's /apis discovery never lists CRD-backed groups, only apiextensions.k8s.io itself.\nRoot cause: discoverGroups (pkg/router/aggregate_discovery.go) called /apis with no Accept header, getting the classic APIGroupList, which on that server is served from a static map populated only at startup for apiextensions.k8s.io -- CRD groups are only ever pushed into that server's aggregated-discovery manager, never into the classic list.\nFix pattern: set Accept to request the aggregated discovery format first (aggregatedDiscoveryJSON + \", application/json\"), then branch decoding on the response Content-Type: if it contains \"apidiscovery.k8s.io\" decode as apidiscoveryv2.APIGroupDiscoveryList and convert to []metav1.APIGroup (apiGroupDiscoveryListToGroups), otherwise fall back to decoding classic APIGroupList -- targets that ignore the Accept header or don't support the format still negotiate down correctly.\nConstraints: applies to any active-polling discovery of a k8s-style apiserver aggregated under the router; when converting, versions are kept in the order returned and the first version becomes PreferredVersion -- do not reorder without checking that convention.",
+  "applies": "pkg/router discovery of aggregate (non-forward) backends polling /apis on a k8s-style target apiserver",
+  "tags": [
+    "router",
+    "discovery",
+    "apiextensions",
+    "aggregation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "discoverGroups",
+      "hash": "sha256:76d0e2520fc7ce49bba2e288",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 7,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "decodeDiscoveryResponse",
+      "hash": "sha256:541f271a0f43d870ea86a531",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/router/aggregate_discovery.go",
+      "symbol": "apiGroupDiscoveryListToGroups",
+      "hash": "sha256:d381faa3e3dd42a191e4f431",
+      "line": 75,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132966"
+  },
+  "created": "2026-10-04T06:03:13.069Z",
+  "verified": "2026-10-04T06:03:13.069Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 2,
+  "related": [],
+  "says": [
+    "CRD-backed resource groups don't appear in API discovery on router",
+    "Custom resources from aggregate apiserver missing from discovery list",
+    "Why don't custom resource definitions show up on aggregated router?",
+    "Aggregated apiserver groups fail to appear in discovery responses",
+    "API discovery misses groups served by downstream aggregate backends"
+  ],
+  "saysFor": "1352:aggregate-router-discove",
+  "search": "Router discovery of CRD-backed groups from an apiextensions-apiserver aggregate backend requires requesting the aggregated discovery format: set Accept header to aggregated discovery format first (aggregatedDiscoveryJSON + \", application/json\"), then branch decoding on response Content-Type to distinguish apidiscoveryv2.APIGroupDiscoveryList (if content-type contains \"apidiscovery.k8s.io\") from classic APIGroupList. Without this, the classic /apis endpoint on that server only lists apiextensions.k8s.io because CRD groups exist only in the aggregated-discovery manager, not the static startup map. When converting, preserve version ordering and set the first version as PreferredVersion. Applies to pkg/router/aggregate_discovery.go functions discoverGroups, decodeDiscoveryResponse, and apiGroupDiscoveryListToGroups.",
+  "lastUsed": "2026-10-04T19:09:35.099Z",
+  "servedIn": [
+    "codex-grafana-codex-ce1-PR133206-hard-0",
+    "codex-grafana-codex-ce2-PR133206-hard-0"
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "id": "text-panel-use-istextnewfeaturesenabled-helper-not-raw-getfe",
+  "title": "Text panel: use isTextNewFeaturesEnabled() helper, not raw getFeatureFlagClient calls",
+  "kind": "rule",
+  "answers": [
+    "Where is the text.newFeatures flag checked",
+    "How to add a new feature behind the text panel's newFeatures flag",
+    "Avoid duplicating getFeatureFlagClient boolean checks in the text panel"
+  ],
+  "body": "Convention: all checks of the text.newFeatures flag go through `isTextNewFeaturesEnabled()` in public/app/plugins/panel/text/v2/utils.ts, which calls getFeatureFlagClient().getBooleanValue(FlagKeys.TextNewFeatures, false). Previously each file (module.tsx, renderContent.ts, TextNGHtmlView.tsx, TextNGFormatToolbar.tsx) duplicated the raw call with a hardcoded 'text.newFeatures' string, risking drift. The flag is read fresh on every call (not cached/memoized) since its value can change after providers settle.\nFix pattern: when adding a new flag-gated code path in this panel, import and call isTextNewFeaturesEnabled() rather than calling getFeatureFlagClient() directly or hardcoding the flag name; use the FlagKeys enum, not a string literal.\nConstraints: specific to the text/v2 panel package; other panels have their own flag-check conventions.",
+  "applies": "public/app/plugins/panel/text/v2/** when gating code behind the text.newFeatures flag",
+  "tags": [
+    "feature-flag",
+    "text-panel",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "public/app/plugins/panel/text/v2/utils.ts",
+      "symbol": "isTextNewFeaturesEnabled",
+      "hash": "sha256:d254767d0eee19dcabf0bbe8",
+      "line": 9,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 6,
+        "refs": 11
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/text/v2/renderContent.ts",
+      "symbol": "isTextNewFeaturesEnabled",
+      "hash": "sha256:ee9a7f145f86308b2b3ae797",
+      "line": 74,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 6,
+        "refs": 10
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/text/v2/renderContent.ts",
+      "symbol": "renderContent",
+      "hash": "sha256:c281b8dfe075e713d29ee472",
+      "line": 195,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 9,
+        "refs": 21
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132931"
+  },
+  "created": "2026-10-04T06:09:57.012Z",
+  "verified": "2026-10-04T06:09:57.012Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Where is the text panel's experimental features toggle checked?",
+    "Adding a new experimental capability to text panel behind a flag",
+    "Text panel feature flag check duplicated across multiple files",
+    "How do I control which text panel features are experimental?",
+    "Consolidating text panel flag checks to prevent inconsistency"
+  ],
+  "saysFor": "938:text-panel-use-istextnew",
+  "search": "Text v2 panel feature flag checks must centralize through isTextNewFeaturesEnabled() helper in public/app/plugins/panel/text/v2/utils.ts, not raw getFeatureFlagClient calls scattered across module.tsx, renderContent.ts, TextNGHtmlView.tsx, TextNGFormatToolbar.tsx. Previously duplicated raw calls with hardcoded 'text.newFeatures' string created drift risk; use FlagKeys.TextNewFeatures enum instead. The flag reads fresh on every call (not cached), so value changes after providers settle. This convention is specific to text/v2 panel; other panels have different flag-check patterns. Applies when gating code behind text.newFeatures flag in public/app/plugins/panel/text/v2/**."
+}

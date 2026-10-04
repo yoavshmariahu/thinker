@@ -46,5 +46,6 @@
     "Short style rounding away needed decimals",
     "Why table not keeping decimals in short"
   ],
-  "saysFor": "357:table-cell-selector-igno"
+  "saysFor": "357:table-cell-selector-igno",
+  "search": "In dataVisualizationLogic.ts tabularData selector, the decimalPlaces formatting branch applies only when decimalPlaces != null AND style !== 'short'; under short style, decimalPlaces is ignored regardless of its value. For example, 12.345 displays as 12.3 under short style to match the settings panel text. Tests are in dataVisualizationLogic.test.ts. Applies to table cell formatting logic."
 }

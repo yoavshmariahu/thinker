@@ -1,0 +1,57 @@
+{
+  "id": "internal-bleve-index-fields-deleted-provisioned-rv-are-store",
+  "title": "Internal Bleve index fields (_deleted, _provisioned, _rv) are stored/mapped but not caller-requestable",
+  "kind": "rule",
+  "answers": [
+    "How do I add an internal-only field to the search index that isn't a public search field?",
+    "Why does requesting field '_rv' from search fail?",
+    "Convention for underscore-prefixed index fields",
+    "How are stored-but-not-indexed fields mapped in Bleve?"
+  ],
+  "body": "Convention: fields that search results need internally but that are not part of the public ResourceSearchRow contract are named with a leading underscore (_deleted, _provisioned, _rv) and mapped with a dedicated stored-only FieldMapping helper (pkg/storage/unified/search/bleve_mappings.go:internalStoredStringField, mirroring internalBoolField) rather than being declared as a regular SearchFieldDefinition.\nSuch fields are force-loaded on every search via pkg/storage/unified/search/bleve_postrank_authz.go:bleveIndex.ensureSearchFields regardless of which fields the caller asked for, but requesting the internal field name directly in a search request is rejected/errors rather than exposing the raw stored value.\nConstraints: follow this when adding any index-internal bookkeeping value; do not expose the underscore field name as a selectable/response field, derive the public value (e.g. row.ResourceVersion) from it in the result-building path instead.",
+  "applies": "pkg/storage/unified/search Bleve index mapping and field-loading logic",
+  "tags": [
+    "search",
+    "bleve",
+    "field-mapping",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/search/bleve_mappings.go",
+      "symbol": "internalStoredStringField",
+      "hash": "sha256:e12c1a39c04f6955cdc9468c",
+      "line": 679,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve_postrank_authz.go",
+      "hash": "sha256:946bbca7db2c2a1406943f8d",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132625"
+  },
+  "created": "2026-10-04T06:53:52.680Z",
+  "verified": "2026-10-04T06:53:52.680Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I add an internal-only field not exposed to users?",
+    "Why does requesting this internal field from search return an error?",
+    "What naming convention should internal backend-only index fields follow?",
+    "How are internal fields stored without being part of public search?"
+  ],
+  "saysFor": "1063:internal-bleve-index-fie",
+  "search": "Backend-only fields in Bleve indexes (_deleted, _provisioned, _rv) are mapped and stored for internal search logic but must never be exposed as caller-selectable or response fields. These fields are declared with internalStoredStringField or internalBoolField helpers (not SearchFieldDefinition) in pkg/storage/unified/search/bleve_mappings.go and force-loaded on every search via pkg/storage/unified/search/bleve_postrank_authz.go:ensureSearchFields regardless of caller request, yet are rejected if a request directly names the underscore field. When adding any new index-internal bookkeeping value, follow this pattern: derive the public value (e.g. row.ResourceVersion) in the result-building path instead of exposing the raw stored name. Applies to pkg/storage/unified/search Bleve index mapping and field-loading logic."
+}

@@ -80,5 +80,6 @@
     "Where to find user and organization membership definitions",
     "Parent team and child environment relationships in the model"
   ],
-  "saysFor": "833:team-organization-user-p"
+  "saysFor": "833:team-organization-user-p",
+  "search": "PostHog's core model hierarchy chains Organization → Project ↔ Team → User memberships with specific FK and M2M paths. Organization (posthog/models/organization.py) is the top-level tenant with M2M to User via OrganizationMembership (level, joined_at, invited_by); Project (posthog/models/project.py) is FK'd to Organization (related_name `projects`); Team (posthog/models/team/team.py) has FK to organization and project with child_teams under parent_team for environment scoping. User (posthog/models/user.py, custom AbstractUser) is not owned by a single org; role derives from OrganizationMembership level. RootTeamMixin (posthog/models/utils.py) resolves child teams to parent for project-scoped data queries."
 }

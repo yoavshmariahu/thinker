@@ -54,5 +54,6 @@
     "Changes made through the API weren't recorded",
     "Bulk operations are missing from the audit trail"
   ],
-  "saysFor": "603:activity-logging-modelac"
+  "saysFor": "603:activity-logging-modelac",
+  "search": "ModelActivityMixin sends activity signal on save() for creates/updates (set activity_logging_on_delete=True for deletes); writes bypassing save() like QuerySet.update and bulk_create skip the signal entirely. Call log_activity() explicitly for non-save writes; use changes_between for diffs and ImpersonatedContext for impersonation tracking. Applies to models inheriting ModelActivityMixin versus queries that batch-update without triggering the ORM save path. Guides when to log manually and what audit trail gaps exist in bulk operations."
 }

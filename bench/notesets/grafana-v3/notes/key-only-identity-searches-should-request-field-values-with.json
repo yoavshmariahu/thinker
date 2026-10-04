@@ -1,0 +1,66 @@
+{
+  "id": "key-only-identity-searches-should-request-field-values-with",
+  "title": "Key-only identity searches should request FIELD_VALUES with just SEARCH_FIELD_NAME",
+  "kind": "rule",
+  "answers": [
+    "How should I write a search request that only needs to tell one resource from another by identity?",
+    "Why request the title field when validation only compares row.Key.Name?",
+    "What's the minimal search request for a self-vs-other-resource uniqueness check?"
+  ],
+  "body": "When a search exists only to distinguish 'this resource' from 'another resource' (e.g. title-uniqueness self-match checks, or existence checks like folder-ownership), the filter (Options.Fields) can still match on a semantic field like title, but the requested Fields/ResultFormat should not fetch that field back — only resource.SEARCH_FIELD_NAME is needed, via ResultFormat: resourcepb.ResourceSearchRequest_FIELD_VALUES. The exact-match filter stays on the real field (e.g. SEARCH_FIELD_TITLE) in Options.Fields; only the returned payload is minimized. See pkg/registry/apis/iam/team/validate.go:validateTitleUnique and pkg/services/team/folderownership/validation.go:ValidateNoOwnedFolders for the pattern.",
+  "applies": "New or modified resourcepb.Search calls in Grafana core whose only use of the result is comparing resource identity (Key.Name), not any other field value.",
+  "tags": [
+    "resourcepb",
+    "search",
+    "field_values",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/team/validate.go",
+      "symbol": "validateTitleUnique",
+      "hash": "sha256:376d0953aeb057bccd01daa7",
+      "line": 99,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/services/team/folderownership/validation.go",
+      "symbol": "ValidateNoOwnedFolders",
+      "hash": "sha256:dd476c28ce95d78409f8ee09",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132801"
+  },
+  "created": "2026-10-04T06:28:27.628Z",
+  "verified": "2026-10-04T06:28:27.628Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "resourcesearch-responses-can-be-resource-table-or-field-valu"
+  ],
+  "says": [
+    "Resource uniqueness checks fetch more fields than necessary",
+    "Title validation searches return excessive resource data",
+    "Why does unique name validation require full resource information",
+    "Identity verification fetches unnecessary fields from search results",
+    "Folder ownership checks request more data than needed"
+  ],
+  "saysFor": "793:key-only-identity-search",
+  "search": "When a resource search exists solely to distinguish identity (title uniqueness self-match checks, folder-ownership existence validation), the filter Options.Fields can target semantic fields like SEARCH_FIELD_TITLE, but the returned Fields and ResultFormat must request only resource.SEARCH_FIELD_NAME via resourcepb.ResourceSearchRequest_FIELD_VALUES. This minimizes the returned payload to just Key.Name comparisons while keeping the exact-match filter on the actual field. Applies to new or modified resourcepb.Search calls in Grafana core where the result is used only for identity comparison, exemplified in validateTitleUnique (pkg/registry/apis/iam/team/validate.go) and ValidateNoOwnedFolders (pkg/services/team/folderownership/validation.go)."
+}

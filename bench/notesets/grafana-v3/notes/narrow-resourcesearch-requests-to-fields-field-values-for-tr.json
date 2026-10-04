@@ -1,0 +1,55 @@
+{
+  "id": "narrow-resourcesearch-requests-to-fields-field-values-for-tr",
+  "title": "Narrow ResourceSearch requests to Fields + FIELD_VALUES for tree-only queries",
+  "kind": "rule",
+  "answers": [
+    "How to make a folder/resource search request fetch only the fields it needs",
+    "What is SEARCH_FIELD_FOLDER used for",
+    "How to reduce payload size when searching unified storage for parent-folder info"
+  ],
+  "body": "Symptom: folder-tree build-out from unified storage pulls full resource rows when only the parent-folder relationship is needed.\nFix pattern: set ResourceSearchRequest.Fields to the minimal field list (e.g. []string{resource.SEARCH_FIELD_FOLDER}) and ResultFormat to resourcepb.ResourceSearchRequest_FIELD_VALUES so the server returns only those field values instead of full RESOURCE_TABLE rows.\nConstraints: the decoding side must still handle RESOURCE_TABLE as a fallback (see sibling note on decode branching); this pattern is for read paths that only need specific indexed field values, not for full-resource retrieval.",
+  "applies": "callers of resourcepb.ResourceSearchRequest in pkg/services/authz/rbac/store/folder_store.go and similar unified-storage search integrations",
+  "tags": [
+    "authz",
+    "folder-store",
+    "unified-storage",
+    "resource-search",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/authz/rbac/store/folder_store.go",
+      "symbol": "listFoldersViaSearch",
+      "hash": "sha256:904221b91d894f6ca1ee39e9",
+      "line": 195,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132795"
+  },
+  "created": "2026-10-04T06:29:24.889Z",
+  "verified": "2026-10-04T06:29:24.889Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "authz-folder-search-decodes-both-resource-table-and-field-va"
+  ],
+  "says": [
+    "Folder tree loading fetches too much resource data",
+    "How to reduce data payload when searching folder structure",
+    "Resource search pulls full data when only paths needed",
+    "Storage folder tree building downloads unnecessary resource information",
+    "Minimize bandwidth for parent folder relationship queries in storage"
+  ],
+  "saysFor": "701:narrow-resourcesearch-re",
+  "search": "ResourceSearch requests for tree-only queries must narrow Fields and set ResultFormat to FIELD_VALUES to avoid pulling full resource rows. In pkg/services/authz/rbac/store/folder_store.go:listFoldersViaSearch, set ResourceSearchRequest.Fields to the minimal field list (e.g. []string{resource.SEARCH_FIELD_FOLDER}) and ResultFormat to resourcepb.ResourceSearchRequest_FIELD_VALUES so the server returns only indexed field values instead of full RESOURCE_TABLE rows. The decoding side must still handle RESOURCE_TABLE as a fallback for compatibility. Applies to callers of resourcepb.ResourceSearchRequest in pkg/services/authz/rbac/store/folder_store.go and similar unified-storage search integrations that only need specific indexed fields, not full-resource retrieval."
+}

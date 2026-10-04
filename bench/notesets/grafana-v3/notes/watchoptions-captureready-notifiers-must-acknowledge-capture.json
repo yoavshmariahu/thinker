@@ -1,0 +1,145 @@
+{
+  "id": "watchoptions-captureready-notifiers-must-acknowledge-capture",
+  "title": "WatchOptions.captureReady: notifiers must acknowledge capture before returning",
+  "kind": "rule",
+  "answers": [
+    "How do I signal that a watch/notifier has finished establishing capture?",
+    "Why does my new Notifier implementation hang a snapshot-to-live caller?",
+    "What is captureReady / opts.captured in notifier.go for?"
+  ],
+  "body": "Symptom: a future snapshot-to-live cutover can't tell whether a Watch() call has actually started capturing events or is still setting up (e.g. subscribing, fetching last resource version).\nRoot cause: WatchOptions had no startup signal; callers assumed the returned channel meant capture had begun.\nFix pattern: WatchOptions.captureReady (pkg/storage/unified/resource/notifier.go) is a buffered one-shot channel; opts.captured(err) must be invoked by every Notifier.Watch implementation exactly once, with nil on success or an error on failure, before (or instead of) streaming events. channelNotifier acks immediately after registering the subscriber; pollingNotifier acks after the initial resource-version lookup (or on error, closes events and returns without streaming); natsNotifier only acks after the NATS subscription's WaitReady succeeds (notifier_nats.go:trySubscribe).\nConstraints: captureReady may be nil (ordinary watchers) — opts.captured is a no-op then. Any new Notifier implementation added later must call opts.captured(...) or the handoff signal will hang forever.",
+  "applies": "implementations of resource.Notifier.Watch in pkg/storage/unified/resource",
+  "tags": [
+    "notifier",
+    "watch",
+    "snapshot-to-live",
+    "readiness"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/notifier.go",
+      "symbol": "Watch",
+      "hash": "sha256:dae7ecfcf9a7dd38d9e49021",
+      "line": 110,
+      "missing": false,
+      "fanout": {
+        "files": 60,
+        "sites": 118,
+        "refs": 204
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier.go",
+      "symbol": "WatchOptions",
+      "hash": "sha256:1b37cc4b3e1bdf510d76d7a9",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 22,
+        "sites": 0,
+        "refs": 49
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier.go",
+      "symbol": "channelNotifier",
+      "hash": "sha256:98cbcab4dbae3515c598aa6a",
+      "line": 97,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier.go",
+      "symbol": "pollingNotifier",
+      "hash": "sha256:dd74c1b795e19244c5c6577f",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 31
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier_nats.go",
+      "symbol": "Watch",
+      "hash": "sha256:79a604a187fbfea6ff30bfa6",
+      "line": 151,
+      "missing": false,
+      "fanout": {
+        "files": 60,
+        "sites": 118,
+        "refs": 204
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier_nats.go",
+      "symbol": "natsNotifier",
+      "hash": "sha256:1dfa5ec1a41fdf2cf2e51df3",
+      "line": 49,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 17
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier_nats.go",
+      "symbol": "trySubscribe",
+      "hash": "sha256:5b071611aa7544b5988dc6c1",
+      "line": 201,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier_nats.go",
+      "symbol": "trySubscribe",
+      "hash": "sha256:5b071611aa7544b5988dc6c1",
+      "line": 201,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier.go",
+      "symbol": "Watch",
+      "hash": "sha256:dae7ecfcf9a7dd38d9e49021",
+      "line": 110,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133040"
+  },
+  "created": "2026-10-04T05:54:24.778Z",
+  "verified": "2026-10-04T05:54:24.778Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "nats-watch-resubscription-must-wait-for-round-trip-ack-not-j"
+  ],
+  "says": [
+    "Watch returns before capturing events successfully",
+    "Snapshot migration hangs waiting for capture confirmation",
+    "Notifier doesn't signal when capture begins",
+    "New Watch implementation doesn't acknowledge startup complete",
+    "Capture ready signal missing from notifier"
+  ],
+  "saysFor": "1164:watchoptions-captureread",
+  "search": "Every Notifier.Watch implementation must call opts.captured(err) exactly once before returning to acknowledge that event capture has begun, either with nil on success or an error on failure. This signals WatchOptions.captureReady (a buffered one-shot channel) in pkg/storage/unified/resource/notifier.go. channelNotifier acks immediately after subscribing; pollingNotifier acks after the initial resource-version lookup; natsNotifier only acks after NATS subscription WaitReady succeeds. If captureReady is nil (ordinary watchers), opts.captured is a no-op; any new Notifier must still call it or the handoff signal hangs forever."
+}

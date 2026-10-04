@@ -1,0 +1,50 @@
+{
+  "id": "handle-both-resource-table-and-field-values-in-resourcesearc",
+  "title": "Handle both RESOURCE_TABLE and FIELD_VALUES in ResourceSearchResponse consumers",
+  "kind": "rule",
+  "answers": [
+    "Why does the shared-dashboard folder check fail against an older Grafana server?",
+    "How to check if a search response contains a given field when the result format may vary?",
+    "What breaks if I assume search responses always use FIELD_VALUES format?"
+  ],
+  "body": "Symptom: folder-field presence check for shared-dashboard permission lookups could silently misbehave if the search backend server is on an older version.\nRoot cause: a client may request FIELD_VALUES but an older server still responds with RESOURCE_TABLE; field presence must be checked against whichever format was actually returned.\nFix pattern: pkg/registry/apis/dashboard/search.go:searchResponseHasField branches on `response.GetResultFormat()`, checking `response.GetFields()` for FIELD_VALUES or `response.GetResults().GetColumns()` for RESOURCE_TABLE.\nConstraints: any new code that inspects a ResourceSearchResponse for a specific field's presence (not just by index) must go through this kind of format-aware check rather than assuming the requested ResultFormat was honored, to stay compatible with mixed-version deployments.",
+  "applies": "Code in pkg/registry/apis/dashboard reading ResourceSearchResponse from the unified storage search client",
+  "tags": [
+    "search",
+    "backward-compatibility",
+    "resourcepb"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/dashboard/search.go",
+      "symbol": "searchResponseHasField",
+      "hash": "sha256:3d3a4b4de0c57f2f8a42ca0a",
+      "line": 1219,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132669"
+  },
+  "created": "2026-10-04T06:49:51.557Z",
+  "verified": "2026-10-04T06:49:51.557Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Shared dashboard permission check fails against older Grafana servers",
+    "Dashboard search breaks when querying against previous versions",
+    "Folder field detection in search responses fails inconsistently",
+    "Search response format compatibility issue prevents dashboard sharing"
+  ],
+  "saysFor": "917:handle-both-resource-tab",
+  "search": "ResourceSearchResponse consumers must branch on response.GetResultFormat() and check the corresponding field location because a client requesting FIELD_VALUES may receive RESOURCE_TABLE from an older server in mixed-version deployments. Field-presence checks must inspect response.GetFields() for FIELD_VALUES or response.GetResults().GetColumns() for RESOURCE_TABLE format rather than assuming the requested format was honored. This pattern is implemented in pkg/registry/apis/dashboard/search.go:searchResponseHasField and must be applied to any new code reading ResourceSearchResponse from the unified storage search client to maintain backward compatibility."
+}

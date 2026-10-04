@@ -1,0 +1,103 @@
+{
+  "id": "internal-dashboard-search-requests-use-field-values-not-reso",
+  "title": "Internal dashboard search requests use FIELD_VALUES, not RESOURCE_TABLE",
+  "kind": "rule",
+  "answers": [
+    "Why does GetDashboardTags/searchAllDashboardsThroughK8sRaw set ResultFormat to FIELD_VALUES?",
+    "Which fields can't be requested when ResultFormat is FIELD_VALUES?",
+    "Why was labels/updatedBy removed from the internal search field list?",
+    "How to add a new internal dashboard search field safely"
+  ],
+  "body": "Symptom: none reported by users; this is a preventive invariant for internal (non-paginated-UI) dashboard searches. Root cause: FIELD_VALUES is a typed result format that has no typed definition for resource.SEARCH_FIELD_LABELS or resource.SEARCH_FIELD_UPDATED_BY — those only existed in the legacy RESOURCE_TABLE format. Fix pattern: when switching an internal search request to ResultFormat: FIELD_VALUES, strip any table-only fields from request.Fields via slices.DeleteFunc before sending (see dashboard_service.go:searchAllDashboardsThroughK8sRaw), and keep GetDashboardTags's facet query on FIELD_VALUES too. Constraints: response PARSING must still branch on the server's actual returned format (RESOURCE_TABLE or FIELD_VALUES) to stay compatible with older search servers — only the outgoing request format/fields changed, not the parser.",
+  "applies": "Any code building a resourcepb.ResourceSearchRequest for internal (non-/api/search) dashboard lookups in pkg/services/dashboards/service.",
+  "tags": [
+    "dashboards",
+    "search",
+    "resourcepb",
+    "field_values"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "symbol": "searchAllDashboardsThroughK8sRaw",
+      "hash": "sha256:4672176585298e23e54f47bb",
+      "line": 2149,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "symbol": "GetDashboardTags",
+      "hash": "sha256:cdd95ba638b5b6001345119e",
+      "line": 1655,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 4,
+        "refs": 11
+      }
+    },
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "symbol": "searchAllDashboardsThroughK8sRaw",
+      "hash": "sha256:4672176585298e23e54f47bb",
+      "line": 2149,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "symbol": "GetDashboardTags",
+      "hash": "sha256:cdd95ba638b5b6001345119e",
+      "line": 1655,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 4,
+        "refs": 11
+      }
+    },
+    {
+      "path": "pkg/services/dashboards/service/dashboard_service.go",
+      "symbol": "searchAllDashboardsThroughK8sRaw",
+      "hash": "sha256:4672176585298e23e54f47bb",
+      "line": 2149,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132626"
+  },
+  "created": "2026-10-04T06:53:14.405Z",
+  "verified": "2026-10-04T06:53:14.405Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "consumers-of-searchalldashboardsthroughk8sraw-only-need-a-sm"
+  ],
+  "says": [
+    "Dashboard search results missing fields like owner or modification date",
+    "Why are some dashboard metadata fields unavailable in searches",
+    "Dashboard search field behavior changed after configuring internal searches",
+    "Adding new dashboard search fields breaks existing searches",
+    "Dashboard search returns incomplete data about recent modifications"
+  ],
+  "saysFor": "918:internal-dashboard-searc",
+  "search": "Internal (non-paginated UI) dashboard search requests in pkg/services/dashboards/service/dashboard_service.go must use ResultFormat: FIELD_VALUES rather than RESOURCE_TABLE because FIELD_VALUES lacks typed definitions for resource.SEARCH_FIELD_LABELS and resource.SEARCH_FIELD_UPDATED_BY. When switching an internal search request from RESOURCE_TABLE to FIELD_VALUES, strip table-only fields from request.Fields via slices.DeleteFunc before sending (see searchAllDashboardsThroughK8sRaw), and keep GetDashboardTags's facet query on FIELD_VALUES as well. Response parsing must still branch on the server's actual returned format (RESOURCE_TABLE or FIELD_VALUES) to maintain compatibility with older search servers—only the outgoing request format and fields changed, not the parser. Applies to any resourcepb.ResourceSearchRequest built for internal (non-/api/search) dashboard lookups in pkg/services/dashboards/service."
+}

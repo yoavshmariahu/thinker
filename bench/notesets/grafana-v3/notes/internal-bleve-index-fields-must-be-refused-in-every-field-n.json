@@ -1,0 +1,81 @@
+{
+  "id": "internal-bleve-index-fields-must-be-refused-in-every-field-n",
+  "title": "Internal Bleve index fields must be refused in every field-naming place in a search request",
+  "kind": "rule",
+  "answers": [
+    "Why does filtering/sorting on _deleted, _provisioned or _rv silently return no/wrong results?",
+    "How do I add validation for a new backend-only index field?",
+    "Why does my request to a search field return 400 instead of empty results?",
+    "Search field is internal, request should be rejected"
+  ],
+  "body": "Symptom: a request naming _deleted, _provisioned or _rv (fields mapped into the Bleve index for backend use only, never declared as search fields) got a 200 with a filter matching nothing, a sort ordering by nothing, or the field silently dropped from the response. Root cause: pkg/storage/unified/search/bleve.go:toBleveSearchRequest built the query without checking field names against anything. Fix pattern: classify such names once in pkg/storage/unified/resource/standard_search_fields.go (internalSearchFieldNames / IsInternalSearchField), then call a single gate — rejectInternalFields in pkg/storage/unified/search/bleve.go — at the top of toBleveSearchRequest, checking req.Fields, req.SortBy, req.QueryFields, req.Facet and req.Options.Fields (filters). Constraints: req.Options.Labels is deliberately excluded — a label key is user data, not an index field name, so an object may legitimately carry a label named like an internal field. When adding a new backend-only index field, add it to internalSearchFieldNames; when adding a new request shape that can name a field (a new filter/sort/facet kind), it must also be added to rejectInternalFields or the gate silently misses it.",
+  "applies": "Any change to pkg/storage/unified/search or pkg/storage/unified/resource that adds a backend-only index field or a new way for a ResourceSearchRequest to name a field.",
+  "tags": [
+    "search",
+    "bleve",
+    "validation",
+    "unified-storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/standard_search_fields.go",
+      "symbol": "IsInternalSearchField",
+      "hash": "sha256:f67b835061d993fb2814c349",
+      "line": 167,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "rejectInternalFields",
+      "hash": "sha256:fb3a4220abf2f8323f39d056",
+      "line": 2989,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "toBleveSearchRequest",
+      "hash": "sha256:e2a96441d922dfb558b74c9a",
+      "line": 2600,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 14,
+        "refs": 16
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132666"
+  },
+  "created": "2026-10-04T06:50:14.416Z",
+  "verified": "2026-10-04T06:50:14.416Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "selectable-field-filters-must-be-checked-against-what-the-in",
+    "distinguish-field-has-limited-capability-warn-flag-gated-fro",
+    "bleve-build-info-must-record-mapped-selectable-fields-not-ju",
+    "batchauthzsearcher-warns-when-a-search-matches-documents-but"
+  ],
+  "says": [
+    "Why do filters and sorts on internal fields fail silently?",
+    "How do I add validation to reject requests for backend fields?",
+    "Why does a search request return an error instead of working?",
+    "How do I prevent users from filtering or sorting on internal fields?"
+  ],
+  "saysFor": "1283:internal-bleve-index-fie",
+  "search": "Field names _deleted, _provisioned, and _rv must be rejected in every location where a ResourceSearchRequest can name a field in pkg/storage/unified/search/bleve.go:toBleveSearchRequest; if not validated, internal fields are silently dropped, match nothing, or disappear from responses. Define internalSearchFieldNames once in pkg/storage/unified/resource/standard_search_fields.go (IsInternalSearchField), then call rejectInternalFields gate at the top of toBleveSearchRequest to check req.Fields, req.SortBy, req.QueryFields, req.Facet, and req.Options.Fields; req.Options.Labels is deliberately excluded since label keys are user data, not index field names. When adding a new backend-only index field, add it to internalSearchFieldNames; when adding a new request shape that can name a field (new filter, sort, or facet kind), it must also be covered by rejectInternalFields or the gate silently misses it. Applies to any change in pkg/storage/unified/search or pkg/storage/unified/resource that adds a backend-only index field or a new way to name a field in a search request."
+}

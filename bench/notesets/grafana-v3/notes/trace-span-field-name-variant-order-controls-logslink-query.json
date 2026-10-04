@@ -1,0 +1,63 @@
+{
+  "id": "trace-span-field-name-variant-order-controls-logslink-query",
+  "title": "Trace/span field-name variant order controls logsLink query priority",
+  "kind": "rule",
+  "answers": [
+    "Why do trace_id-based log queries come before traceID ones in Explore?",
+    "How is the order of generated Loki log queries for a trace determined?",
+    "Changing the order of trace_id/traceID field variants breaks tests",
+    "Where is the list of possible trace/span field name casings for logs correlation?"
+  ],
+  "body": "Symptom: Explore 'logs for this span' queries tried less-common field casings (traceID) before the much more common trace_id, requiring extra queries/time to find a match.\nRoot cause: TRACE_SPAN_ID_FIELD_VARIANTS in public/app/features/explore/TraceView/components/logsLink.ts lists field-name pairs in the order they are probed/queried; order directly drives query generation order and refId suffixes (t2l:default:<trace field>).\nFix pattern: Reorder the variants array by real-world match frequency (most common first) rather than alphabetically/arbitrarily; no logic change needed, only array order.\nConstraints: This array is duplicated (not imported) in public/app/features/explore/TraceView/components/logsLink.test.ts and public/app/features/explore/TraceView/createSpanLink.test.ts for test fixtures — any reorder or addition here must be mirrored there, and test assertions keyed on queries[0]/refId index must be updated to match the new order.",
+  "applies": "public/app/features/explore/TraceView/components/logsLink.ts and tests that hardcode TRACE_SPAN_ID_FIELD_VARIANTS",
+  "tags": [
+    "explore",
+    "logslink",
+    "tracetologs",
+    "ordering"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/explore/TraceView/components/logsLink.ts",
+      "symbol": "TRACE_SPAN_ID_FIELD_VARIANTS",
+      "hash": "sha256:17e74514bf56ea4eba2fc623",
+      "line": 176,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "public/app/features/explore/TraceView/components/logsLink.test.ts",
+      "hash": "sha256:0f2d0d37da7ac283c1044a59",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/explore/TraceView/createSpanLink.test.ts",
+      "hash": "sha256:226b2bb8ca4b5e309aad48b7",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132686"
+  },
+  "created": "2026-10-04T06:45:58.666Z",
+  "verified": "2026-10-04T06:45:58.666Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Clicking logs for this span in trace view takes too long to load.",
+    "Correlated log queries should search standard trace identifier fields before trying alternative casings.",
+    "Navigating from a trace span to related logs triggers multiple slow fallback queries.",
+    "Speed up log retrieval when jumping to logs from an open trace waterfall.",
+    "Explore screen delays displaying logs for the selected span due to query ordering."
+  ],
+  "saysFor": "1023:trace-span-field-name-va",
+  "search": "The TRACE_SPAN_ID_FIELD_VARIANTS array order in public/app/features/explore/TraceView/components/logsLink.ts directly controls the sequence of field-name queries and refId suffix generation in logs-link queries. Reordering variants by real-world match frequency (most common field names first) reduces unnecessary queries—for example, probing trace_id before the less-common traceID improves Explore performance. This array is duplicated (not imported) in test fixtures at public/app/features/explore/TraceView/components/logsLink.test.ts and public/app/features/explore/TraceView/createSpanLink.test.ts; any reorder or addition must be mirrored in both test files and all assertions keyed on query index or refId must be updated to reflect the new order."
+}

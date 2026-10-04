@@ -1,0 +1,71 @@
+{
+  "id": "reuse-copystringtoclipboard-clipboardbutton-for-clipboard-wr",
+  "title": "Reuse copyStringToClipboard / ClipboardButton for clipboard writes instead of calling navigator.clipboard directly",
+  "kind": "rule",
+  "answers": [
+    "What's the right way to add a copy-to-clipboard button?",
+    "Should I call navigator.clipboard.writeText directly in a component?",
+    "Grafana convention for copy link / copy to clipboard UI"
+  ],
+  "body": "Fix pattern / convention: for simple copy actions tied to a button, use @grafana/ui's ClipboardButton with a getText() callback instead of hand-rolling an <a>/<Button> with an onClick that calls navigator.clipboard.writeText — this was requested in review and replaced a custom anchor+Button+onClick implementation in ShareSpanButton.tsx. For copy actions not expressed as a ClipboardButton (e.g. a menu item), call the shared copyStringToClipboard(string) helper rather than navigator.clipboard.writeText directly, since it already encodes the ClipboardItem/isSecureContext/execCommand fallback chain.\nConstraints: applies to any new copy-to-clipboard UI; if ClipboardButton can't be used (non-button context), always route through copyStringToClipboard rather than re-implementing the secure-context/feature-detection logic.",
+  "applies": "Grafana frontend components adding or modifying copy-to-clipboard functionality",
+  "tags": [
+    "clipboard",
+    "frontend",
+    "convention",
+    "grafana-ui"
+  ],
+  "deps": [
+    {
+      "path": "public/app/core/utils/explore.ts",
+      "hash": "sha256:a893621351d6bfe25c84a2f4",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/explore/TraceView/components/TraceTimelineViewer/SpanDetail/ShareSpanButton.tsx",
+      "symbol": "ShareSpanButton",
+      "hash": "sha256:808ddd3b3c6656a42c6a3018",
+      "line": 39,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "public/app/features/explore/TraceView/components/TraceTimelineViewer/SpanDetail/ShareSpanButton.tsx",
+      "symbol": "getText",
+      "hash": "sha256:a989db2d78afa811485b71a3",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 55,
+        "sites": 19,
+        "refs": 70
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132624"
+  },
+  "created": "2026-10-04T06:54:49.539Z",
+  "verified": "2026-10-04T06:54:49.539Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "sanitize-and-absolutize-link-hrefs-before-copying-as-a-share"
+  ],
+  "says": [
+    "Copy button should use standard Grafana component not custom",
+    "Implement copy-to-clipboard following established Grafana UI patterns",
+    "Copy feature fails on secure contexts and older browsers",
+    "Add copy-link button using standard ClipboardButton correctly",
+    "Standard fallback needed for clipboard in legacy browsers"
+  ],
+  "saysFor": "941:reuse-copystringtoclipbo",
+  "search": "Clipboard write operations must route through either @grafana/ui's ClipboardButton with getText() callback for button-tied actions, or the copyStringToClipboard(string) helper for non-button contexts—do not call navigator.clipboard.writeText directly. The copyStringToClipboard function encodes the ClipboardItem, isSecureContext, and execCommand fallback chain, preventing reimplementation drift. Applies to any new or modified copy-to-clipboard UI functionality in Grafana frontend components, including menu items and other non-button copy surfaces."
+}

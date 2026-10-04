@@ -97,5 +97,6 @@
     "How is the product manifest file processed during the build?",
     "Can I hand-edit the products file or will it be overwritten?"
   ],
-  "saysFor": "1291:frontend-product-manifes"
+  "saysFor": "1291:frontend-product-manifes",
+  "search": "ProductManifest contract (frontend/src/types.ts) specifies name, scenes, routes, redirects, urls, fileSystemTypes, tree items, and setupProbe; frontend/build-products.mjs generates products.tsx (GENERATED, DO NOT EDIT) by scanning products/*/manifest.tsx via TypeScript AST without import, using .cache/products.hash to skip unchanged inputs, outputting productRoutes, productRedirects, productConfiguration, productUrls, fileSystemTypes, productSetupProbes, and getTreeItems* functions. Generator does not copy imports—new icons/types used in manifests must be manually imported in products.tsx (see products/README.md 'Manual setup'). Generated productScenes.tsx holds lazy scene imports separately to prevent test correlation. Python backend reads frontend/src/products.json (tree metadata) via posthog/products.py:Products. Consumers spread manifests into frontend/src/scenes/urls.ts (productUrls), scenes.ts (productConfiguration/redirects/routes), and appScenes.ts (productScenes). Applies to: adding products, understanding manifest-to-scene flow, modifying route/redirect/URL configuration, integrating new product metadata."
 }

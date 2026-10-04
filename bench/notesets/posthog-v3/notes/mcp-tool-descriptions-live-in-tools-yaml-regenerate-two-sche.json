@@ -53,5 +53,6 @@
     "AI observability MCP tools lack current documentation in the API",
     "Generated tool definition files need regeneration after YAML update"
   ],
-  "saysFor": "670:mcp-tool-descriptions-li"
+  "saysFor": "670:mcp-tool-descriptions-li",
+  "search": "MCP tool descriptions for AI observability are authored in products/ai_observability/mcp/tools.yaml (entries like `llma-prompt-get`, `llma-prompt-list`, `llma-prompt-update`) and automatically mirrored verbatim into two generated files: services/mcp/schema/generated-tool-definitions.json and services/mcp/schema/tool-definitions-all.json. Description-only changes require no handler or schema changes, but both JSON files must be regenerated together (not hand-edited) to remain in sync with the YAML source. Tool descriptions in tools.yaml serve as the documentation surface for these tools, so behavior notes belong there. Both schema JSONs must be committed together whenever tools.yaml descriptions change."
 }

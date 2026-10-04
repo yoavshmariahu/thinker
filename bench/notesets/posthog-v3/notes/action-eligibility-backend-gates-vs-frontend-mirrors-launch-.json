@@ -125,5 +125,6 @@
     "Running a scheduled workflow gives an API error",
     "The run now button won't let me start the workflow"
   ],
-  "saysFor": "1498:action-eligibility-backe"
+  "saysFor": "1498:action-eligibility-backe",
+  "search": "Backend vs frontend enforcement for workflow actions: launch batch requires status==active, audience token, and limit check at HogFlowViewSet.batch_jobs; run now requires trigger.type==schedule and 5KB variable cap; edit has no backend rule (frontend isReadOnly only); stop acts on waiting|queued|active states with race condition handling; resend replays ClickHouse without endpoint. Edit/enable/archive are frontend-only gates in broadcastWizardLogic and workflowsLogic, not enforced by server. Guides batch trigger authorization, action button disabled states, and identifying where gates are actual constraints vs UI cosmetic."
 }

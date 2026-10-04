@@ -63,5 +63,6 @@
     "New data connector isn't available in import setup",
     "Where to register newly implemented data import source"
   ],
-  "saysFor": "833:adding-a-source-config-f"
+  "saysFor": "833:adding-a-source-config-f",
+  "search": "Source config fields in source.py:get_source_config (SourceFieldInputConfig entries like api_key, table_ids) must match the regenerated generated_configs/<name>.py; generated configs are never hand-edited. Drop unreleasedSource=True, set releaseStatus=ReleaseStatus.ALPHA, move the source from scaffolded to implemented section in SOURCES.md, and set supported_versions/default_version. Every HTTP call requires explicit timeout (e.g., REQUEST_TIMEOUT_SECONDS=60). Applies to implementing any scaffolded warehouse source under products/warehouse_sources/backend/temporal/data_imports/sources/<name>/."
 }

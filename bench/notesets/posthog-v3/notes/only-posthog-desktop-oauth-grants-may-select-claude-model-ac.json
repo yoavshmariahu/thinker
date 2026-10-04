@@ -49,5 +49,6 @@
     "Personal API tokens cannot start runs using the user's Claude subscription.",
     "Why does own-subscription require a desktop app OAuth token?"
   ],
-  "saysFor": "1118:only-posthog-desktop-oau"
+  "saysFor": "1118:only-posthog-desktop-oau",
+  "search": "Only PostHog Desktop OAuth grants may select claude_model_access=\"own-subscription\" on task run creation; all other callers (API keys, browser sessions, sandbox tokens, mobile client) receive a 400 error. The check is enforced in products/tasks/backend/presentation/serializers.py:_validate_subscription_caller using _is_desktop_app_grant, which verifies the OAuth client ID against POSTHOG_CODE_OAUTH_APP_CLIENT_IDS and confirms is_interactive_desktop_grant status. The mobile client POSTHOG_DESKTOP_MOBILE_APP_CLIENT_ID_US is deliberately excluded because it cannot hand over a Claude token, even though it counts as Desktop for provenance. Skipping this check causes runs to fail after the 120s timeout waiting for a Claude token from a Desktop that isn't watching. The validation is shared by TaskRunCreateRequestSerializer and TaskRunBootstrapCreateRequestSerializer, so both /run/ and /runs/ endpoints are covered. Task applies to: new OAuth clients or callers setting claude_model_access; run-creation serializer modifications."
 }

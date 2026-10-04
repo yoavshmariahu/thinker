@@ -1,0 +1,45 @@
+{
+  "id": "replace-core-generated-test-mocks-with-a-local-mock-when-an",
+  "title": "Replace core-generated test mocks with a local mock when an app drops the core dependency",
+  "kind": "rule",
+  "answers": [
+    "resource.NewMockResourceClient is undefined after removing the grafana core dependency",
+    "How do I mock the quota client in tests without importing grafana core?",
+    "Tests in apps/quotas fail to compile after go.mod no longer requires github.com/grafana/grafana"
+  ],
+  "body": "Symptom: test code in a decoupled app module (apps/*) fails to compile because it used a generated mock (e.g. resource.NewMockResourceClient) that lives in grafana core, which the module no longer depends on.\nFix pattern: define a small local mock in the app's own test file that implements only the narrowed interface the production code now depends on (e.g. resourcepb.QuotasClient), instead of importing core's generated mock.\nConstraints: applies once the app module no longer requires github.com/grafana/grafana; app modules that still depend on core should keep using the shared core mock rather than duplicating it.",
+  "applies": "apps/* test code after narrowing a client field away from a core-generated mock type",
+  "tags": [
+    "testing",
+    "mocks",
+    "apps",
+    "quotas"
+  ],
+  "deps": [
+    {
+      "path": "apps/quotas/go.mod",
+      "hash": "sha256:9afb40738990ebe241794aad",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132839"
+  },
+  "created": "2026-10-04T06:23:14.336Z",
+  "verified": "2026-10-04T06:23:14.336Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Tests fail compiling after removing core dependency for quota client mock",
+    "How do I mock the quota client without importing the full core?",
+    "Resource mock is undefined: test broken after decoupling from core library",
+    "Decoupled app modules need their own mocks after dropping core dependency",
+    "Mock generation fails when resource no longer requires the core package"
+  ],
+  "saysFor": "712:replace-core-generated-t",
+  "search": "When an app module in apps/* drops its dependency on github.com/grafana/grafana, test code using core-generated mocks (e.g. resource.NewMockResourceClient) fails to compile; replace them with a small local mock in the app's test file that implements only the narrowed interface the production code now depends on. Define the local mock to satisfy interfaces like resourcepb.QuotasClient rather than duplicating the full core mock. This rule applies only to decoupled app modules that no longer require core; app modules still depending on core should keep using the shared core mock to avoid duplication. Applies to apps/* test code after narrowing a client field away from a core-generated mock type, as exemplified in apps/quotas/go.mod."
+}

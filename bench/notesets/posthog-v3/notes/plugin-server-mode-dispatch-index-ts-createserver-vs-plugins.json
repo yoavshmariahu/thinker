@@ -64,5 +64,6 @@
     "Where is the plugin server mode selection logic",
     "Ingestion configuration selected correct mode but server started wrong"
   ],
-  "saysFor": "908:plugin-server-mode-dispa"
+  "saysFor": "908:plugin-server-mode-dispa",
+  "search": "Plugin server instantiation dispatches on `defaultConfig.PLUGIN_SERVER_MODE` (enum in `nodejs/src/common/config.ts:PluginServerMode`) via `nodejs/src/index.ts:createServer`, which instantiates mode-specific classes: `IngestionGeneralServer`, `IngestionApiServer`, `IngestionSessionReplayServer`, `ErrorTrackingServer`, `RecordingApiServer` (in `nodejs/src/servers/`), or falls back to `PluginServer` (`nodejs/src/server.ts`) for CDP modes and local-dev combined modes. All mode servers share base classes `NodeServer`/`ServerLifecycle` from `nodejs/src/servers/base-server.ts`. PluginServer's `startServices` only builds services enabled by `nodejs/src/capabilities.ts:getPluginServerCapabilities`; capability groups like `CAPABILITIES_CDP` allow devs to combine features. Shared infrastructure (config, Kafka, IngestionOutputs, KafkaProducerRegistry, PG/Redis pools, TeamManager) lives in `nodejs/src/common/`. Applies to adding new ingestion modes or modifying server initialization logic."
 }

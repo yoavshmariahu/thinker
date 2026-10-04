@@ -47,5 +47,6 @@
     "Presence avatars showing duplicate when person actively editing",
     "Own user icon redundantly shown in row presence"
   ],
-  "saysFor": "764:row-presence-avatar-is-s"
+  "saysFor": "764:row-presence-avatar-is-s",
+  "search": "Canvas row presence must never render the current user's own avatar; enforce null-return in ChannelItemPresence.tsx:RowPresence when currentUserUuid && author.user.uuid === currentUserUuid, checked before idle-tier logic. ActiveRowPresence builds labels only for others (\"<label> is working on this\", \"<label> was here recently\"), never self-referential. Feed rows in ChannelFeedView show author avatar separately and are outside this rule. Do not reintroduce own-user labels or avatars in ChannelItemRow. Applies only to products/desktop/packages/ui Spaces channel task/canvas row presence."
 }

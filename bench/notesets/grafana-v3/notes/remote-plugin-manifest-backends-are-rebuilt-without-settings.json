@@ -1,0 +1,124 @@
+{
+  "id": "remote-plugin-manifest-backends-are-rebuilt-without-settings",
+  "title": "Remote plugin-manifest backends are rebuilt without settings deps and keyed by full entry fingerprint",
+  "kind": "rule",
+  "answers": [
+    "How does the router detect a remote plugin deployment moved to a new host and reload it?",
+    "Why do remote/plugins_url-discovered plugins not expose settings, health, resources, proxy?",
+    "Backend for a plugin-manifests target doesn't refresh when its deployment host changes"
+  ],
+  "body": "Root cause/mechanism: pkg/router/plugin_manifests.go:pluginManifestsTarget.poll builds each remote backend via router.NewPluginBackend, but explicitly nils deps.PluginClient, ContextProvider, PluginSettings, and DualWrite before calling it, because remote deployments (discovered from plugins_url) have no local settings/gRPC client access yet.\nInvariant: backend identity/reload is driven by pluginDeploymentKey (sha256 of the whole marshaled definition.PluginDeployment, including Host) — any field in that struct changing (e.g. deployment host) must change the key so the dirty channel fires and the router swaps in a fresh pluginDeploymentBackend; see pkg/router/plugin_manifests_test.go:TestPluginManifestsTargetReloadsOnHostChange.\nConstraints: real gRPC client wiring for these remote backends (the TODO in poll's client-provider func) is deferred to a follow-up PR — don't assume ServeHTTP on these backends does real proxying yet.",
+  "applies": "pkg/router plugin-manifests discovery/reload path for remote (plugins_url) plugin deployments",
+  "tags": [
+    "router",
+    "plugin-manifests",
+    "remote-deployment",
+    "reload"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/plugin_manifests.go",
+      "symbol": "pluginManifestsTarget",
+      "hash": "sha256:610ab09ff5d628a6f76ad6d4",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pkg/router/plugin_manifests.go",
+      "symbol": "pluginDeploymentKey",
+      "hash": "sha256:c220d8b0c86539382b40f673",
+      "line": 237,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/router/plugin.go",
+      "symbol": "NewPluginBackend",
+      "hash": "sha256:f1020c15009445e24aa86843",
+      "line": 206,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/router/plugin_manifests.go",
+      "symbol": "pluginManifestsTarget",
+      "hash": "sha256:610ab09ff5d628a6f76ad6d4",
+      "line": 29,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pkg/router/plugin_manifests.go",
+      "symbol": "pluginDeploymentKey",
+      "hash": "sha256:c220d8b0c86539382b40f673",
+      "line": 237,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/router/plugin_manifests.go",
+      "symbol": "pluginDeploymentBackend",
+      "hash": "sha256:2e51f317e94d9a137d32443c",
+      "line": 246,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/router/plugin_manifests_test.go",
+      "symbol": "TestPluginManifestsTargetReloadsOnHostChange",
+      "hash": "sha256:1554dd8064f1736e920707bc",
+      "line": 169,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132852"
+  },
+  "created": "2026-10-04T06:20:58.686Z",
+  "verified": "2026-10-04T06:20:58.686Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why don't remotely discovered plugins show settings or health status?",
+    "Remote plugin deployment moved to new host but didn't reload.",
+    "How does the system detect a remote plugin host change?",
+    "Plugins from URL lack settings, health, and resource endpoints.",
+    "Remote plugin requires manual restart after changing deployment location."
+  ],
+  "saysFor": "1041:remote-plugin-manifest-b",
+  "search": "Remote plugin-manifest backends in pkg/router/plugin_manifests.go are rebuilt without settings dependencies via pluginManifestsTarget.poll, which explicitly nils deps.PluginClient, ContextProvider, PluginSettings, and DualWrite before calling router.NewPluginBackend, because remote deployments (discovered from plugins_url) have no local settings/gRPC client access. Backend identity and reload are keyed by pluginDeploymentKey (sha256 of the full marshaled definition.PluginDeployment including Host); any field change must change the key to fire the dirty channel and swap in a fresh pluginDeploymentBackend (verified in pkg/router/plugin_manifests_test.go:TestPluginManifestsTargetReloadsOnHostChange). Constraint: real gRPC client wiring (TODO in poll's client-provider func) is deferred—do not assume ServeHTTP does real proxying yet. Applies to remote (plugins_url) plugin deployment discovery and reload in pkg/router."
+}

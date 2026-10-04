@@ -1,0 +1,65 @@
+{
+  "id": "openfeature-eval-context-must-use-concrete-namespace-never-w",
+  "title": "OpenFeature eval context must use concrete namespace, never wildcard '*'",
+  "kind": "rule",
+  "answers": [
+    "Why do flag evaluations fail with a namespace mismatch for cluster-wide/service tokens?",
+    "OpenFeature targeting key is '*' and gets rejected downstream",
+    "How is the namespace chosen for OpenFeature evaluation context?",
+    "Feature flag requests rejected due to namespace mismatch when using wildcard identity"
+  ],
+  "body": "Symptom: requests authenticated with a wildcard identity namespace (e.g. cluster-wide service token) get their OpenFeature flag evaluations rejected downstream as a namespace mismatch.\nRoot cause: pkg/services/contexthandler/contexthandler.go:setRequestContext used id.Namespace directly to build the OpenFeature evaluation context whenever id != nil, even if that namespace was empty or the wildcard '*', which doesn't match the caller's concrete auth namespace.\nFix pattern: when deriving a namespace/targeting-key value from an identity for use in a downstream system, explicitly fall back to a concrete value (stack namespace or 'default') whenever the identity's namespace is empty or a wildcard sentinel ('*') — don't propagate wildcard/sentinel values into contexts that require exact matching.\nConstraints: applies to any code building openfeature.NewEvaluationContext or similar targeting contexts from identity.Namespace; does not apply to authz checks where '*' is a valid intentional wildcard match.",
+  "applies": "pkg/services/contexthandler when building OpenFeature evaluation context from request identity",
+  "tags": [
+    "openfeature",
+    "contexthandler",
+    "namespace",
+    "feature-flags"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/contexthandler/contexthandler.go",
+      "symbol": "setRequestContext",
+      "hash": "sha256:d6dcb9bee504a0d88bd24fc0",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 10,
+        "refs": 15
+      }
+    },
+    {
+      "path": "pkg/services/contexthandler/contexthandler.go",
+      "symbol": "setRequestContext",
+      "hash": "sha256:d6dcb9bee504a0d88bd24fc0",
+      "line": 103,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 10,
+        "refs": 15
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133033"
+  },
+  "created": "2026-10-04T05:55:41.840Z",
+  "verified": "2026-10-04T05:55:41.840Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Feature flag evaluation fails for wildcard service token namespace",
+    "Cluster-wide service token rejected when evaluating feature flags",
+    "Why do feature flags reject wildcard authentication identity namespaces",
+    "Feature flag requests fail namespace check with wildcard tokens",
+    "Wildcard identity breaks feature flag evaluation downstream"
+  ],
+  "saysFor": "1084:openfeature-eval-context",
+  "search": "When building an OpenFeature evaluation context in pkg/services/contexthandler/contexthandler.go:setRequestContext, replace wildcard '*' or empty identity.Namespace with a concrete fallback (stack namespace or 'default') rather than propagating the sentinel. Wildcard namespaces in downstream flag evaluations cause namespace-mismatch rejections; this constraint does not apply to authorization checks where '*' is a valid wildcard. Necessary for any code deriving a targeting-key from identity.Namespace for openfeature.NewEvaluationContext or similar exact-match targeting systems."
+}

@@ -1,0 +1,118 @@
+{
+  "id": "grafana-flamegraph-package-control-flow-and-core-data-model",
+  "title": "grafana-flamegraph package: control flow and core data model",
+  "kind": "map",
+  "answers": [
+    "Where does control flow start in @grafana/flamegraph?",
+    "How does a DataFrame become the flame graph/top table/call tree views?",
+    "What is FlameGraphDataContainer and who consumes it?",
+    "Who calls into @grafana/flamegraph and how are feature flags passed in?"
+  ],
+  "body": "Public API is `packages/grafana-flamegraph/src/index.ts`: exports `FlameGraph` (= `FlameGraphContainer`) plus `checkFields`/`getMessageCheckFieldsResult` (hosts must validate the DataFrame before rendering). Consumers: `public/app/plugins/panel/flamegraph/FlameGraphPanel.tsx` (dashboard panel, reads feature flags itself and passes plain booleans in), Explore's `FlameGraphExploreContainer.tsx`, trace view's `SpanFlameGraph.tsx`.\n\nFlow: `FlameGraphContainer.tsx:FlameGraphContainer` builds a `FlameGraphDataContainer` from the `data` prop, owns view-mode/pane-selection + cross-pane state (search, focus, shared sandwich symbol), renders `FlameGraphHeader` + one/two `FlameGraphPane`. `FlameGraphPane.tsx:FlameGraphPane` owns per-pane state (focus, zoom range, text align, local sandwich item, `CollapsedMap`) and `switch`es on `paneView` to render `FlameGraphTopTableContainer` (TopTable/), `FlameGraph`→`FlameGraphCanvas`→`useFlameRender` (FlameGraph/rendering.ts), or `FlameGraphCallTreeContainer` (CallTree/). Interactions bubble up via callback props (`onTableSymbolClick`, `onViewSelected`, etc.) for host telemetry; `getExtraContextMenuButtons` lets hosts inject context-menu items.\n\nCore model: `dataTransform.ts:FlameGraphDataContainer` lazily converts the flat nested-set DataFrame into `LevelItem[][]` via `nestedSetToLevels`, building a children/parents-linked tree, a `uniqueLabelsMap` (search), and a `CollapsedMap`. Sandwich view reshapes this tree via `treeTransforms.ts: mergeSubtrees`/`mergeParentSubtrees`.\n\nPackage reads no feature flags/config itself (used standalone by Pyroscope too) — flags are read by the host and passed in as booleans (see `FlameGraphPanel.tsx`).",
+  "tags": [
+    "grafana-flamegraph",
+    "flamegraph",
+    "architecture"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-flamegraph/src/index.ts",
+      "hash": "sha256:392512b6208c8ad2dde31e3a",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraphContainer.tsx",
+      "symbol": "FlameGraphContainer",
+      "hash": "sha256:ecf4ae9f1d25cbc183268e20",
+      "line": 118,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 21
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraphPane.tsx",
+      "symbol": "FlameGraphPane",
+      "hash": "sha256:b7a185f42c96fce04b8f9179",
+      "line": 43,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/dataTransform.ts",
+      "symbol": "FlameGraphDataContainer",
+      "hash": "sha256:7fda4884dcac495996f3fd3a",
+      "line": 264,
+      "missing": false,
+      "fanout": {
+        "files": 26,
+        "sites": 27,
+        "refs": 84
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/treeTransforms.ts",
+      "symbol": "mergeParentSubtrees",
+      "hash": "sha256:d4e74d7ab0ce154d6bdd2177",
+      "line": 9,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 6,
+        "refs": 11
+      }
+    },
+    {
+      "path": "packages/grafana-flamegraph/src/FlameGraph/rendering.ts",
+      "symbol": "useFlameRender",
+      "hash": "sha256:6fa2d3944c753e7eddb1f818",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/flamegraph/FlameGraphPanel.tsx",
+      "symbol": "FlameGraphPanel",
+      "hash": "sha256:ff7ee09287875f082084ba08",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "769429e0-5a5c-4382-a6fd-8ab41fefbc45"
+  },
+  "created": "2026-10-04T06:20:42.267Z",
+  "verified": "2026-10-04T06:20:42.267Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "grafana-flamegraph-levelitem-tree-is-walked-independently-by"
+  ],
+  "says": [
+    "Flame graph view not rendering data from datasource",
+    "Function call tree not synchronized with graph selection",
+    "Search across function names not working in flamegraph",
+    "Toggle between flamegraph and table view display broken",
+    "Data structure not converting to flame graph format"
+  ],
+  "saysFor": "1753:grafana-flamegraph-packa",
+  "search": "The grafana-flamegraph package architecture and data flow: FlameGraphContainer (public via index.ts) orchestrates pane selection and renders FlameGraphPane(s); data transforms lazily via FlameGraphDataContainer from nested-set DataFrame to tree structure with search/collapse maps; interactions bubble up through callback props (onTableSymbolClick, onViewSelected). The package doesn't read feature flags itself—hosts (FlameGraphPanel.tsx, FlameGraphExploreContainer.tsx, SpanFlameGraph.tsx) must validate the input DataFrame via checkFields/getMessageCheckFieldsResult and pass flags as plain booleans. Key entry points: packages/grafana-flamegraph/src/index.ts (public API), FlameGraphDataContainer (dataTransform.ts), mergeParentSubtrees (treeTransforms.ts), useFlameRender (rendering.ts). Use this guidance when integrating flamegraph into dashboards/Explore/traces, extending context-menu buttons via getExtraContextMenuButtons, or understanding per-pane state (focus, zoom, search) and cross-pane state (sandwich selection)."
+}

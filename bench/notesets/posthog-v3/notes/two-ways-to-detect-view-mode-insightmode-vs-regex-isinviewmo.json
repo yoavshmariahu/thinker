@@ -57,5 +57,6 @@
     "Insight details display incorrectly in certain pages",
     "Switching between insight views causes mode to change"
   ],
-  "saysFor": "367:two-ways-to-detect-view-"
+  "saysFor": "367:two-ways-to-detect-view-",
+  "search": "Two separate view-mode detection mechanisms in insights UI can disagree: insightLogic.tsx's isInViewMode (L977) uses a regex pattern on router pathname (`/insights/[a-zA-Z0-9]+$`), while insightSceneLogic's insightMode reads actual scene state. They diverge on subscriptions, alerts, sharing sub-paths, and new routes. Prefer insightMode for scene-level UI components; be aware which mechanism each component uses. Does not apply to embedded or dashboard tiles where no scene exists."
 }

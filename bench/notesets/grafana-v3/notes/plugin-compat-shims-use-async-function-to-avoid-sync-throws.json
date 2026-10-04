@@ -1,0 +1,89 @@
+{
+  "id": "plugin-compat-shims-use-async-function-to-avoid-sync-throws",
+  "title": "Plugin-compat shims: use `async function` to avoid sync throws leaking past the Promise API",
+  "kind": "rule",
+  "answers": [
+    "Why does getDataSourceInstance throw synchronously instead of rejecting?",
+    "My try/catch around an await of a compat function doesn't catch the error",
+    "How should a plugin-compat wrapper call getDataSourceSrv()/getBackendSrv() safely?",
+    "Fallback datasource/plugin-settings call crashes instead of returning a rejected promise"
+  ],
+  "body": "Symptom: calling a `@grafana/plugin-compat` function (e.g. getDataSourceInstance) when the host hasn't set up the legacy srv throws synchronously instead of giving back a rejected Promise, breaking `await`/`.catch()` callers.\nRoot cause: the wrapper and its legacy fallback were plain functions that returned `getDataSourceSrv().get(...)` directly; if `getDataSourceSrv()` itself throws (srv not initialized), that throw happens before any Promise is created.\nFix pattern: declare both the public wrapper and its `backwardsCompatible*` fallback as `async function`, even though the body just returns a Promise - this makes the JS runtime catch any synchronous throw inside and turn it into a rejected Promise automatically.\nConstraints: applies to any compat/shim function that calls a host-provided getter (srv) which may not be initialized; verify with a test that calls `setDataSourceSrv(undefined)` / `setBackendSrv(undefined)` and asserts `await expect(fn()).rejects.toThrow()`.",
+  "applies": "packages/grafana-plugin-compat shim functions wrapping @grafana/runtime srv getters",
+  "tags": [
+    "grafana-plugin-compat",
+    "async",
+    "promise-rejection",
+    "datasource"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-plugin-compat/src/datasources/getDataSourceInstance.ts",
+      "symbol": "getDataSourceInstance",
+      "hash": "sha256:5eb6bf5e8720d03bcb594452",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 117,
+        "sites": 165,
+        "refs": 394
+      }
+    },
+    {
+      "path": "packages/grafana-plugin-compat/src/datasources/getDataSourceInstanceList.ts",
+      "symbol": "getDataSourceInstanceList",
+      "hash": "sha256:6817bd8093918b15ebea3e28",
+      "line": 9,
+      "missing": false,
+      "fanout": {
+        "files": 33,
+        "sites": 54,
+        "refs": 125
+      }
+    },
+    {
+      "path": "packages/grafana-plugin-compat/src/datasources/getDataSourceInstanceSettings.ts",
+      "symbol": "getDataSourceInstanceSettings",
+      "hash": "sha256:73425cc15845f62b36fb4118",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 82,
+        "sites": 126,
+        "refs": 273
+      }
+    },
+    {
+      "path": "packages/grafana-plugin-compat/src/apps.ts",
+      "symbol": "getPluginSettings",
+      "hash": "sha256:ba1134cf9efa4f72cbc479ff",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 28,
+        "sites": 42,
+        "refs": 106
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132622"
+  },
+  "created": "2026-10-04T06:55:43.147Z",
+  "verified": "2026-10-04T06:55:43.147Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Plugin compatibility function throws synchronously instead of rejecting",
+    "Try-catch block unable to catch compatibility wrapper error",
+    "DataSource lookup throws when compatibility layer undefined",
+    "Async-await fails when using compatibility wrapper function",
+    "Plugin settings fallback crashes instead of returning error"
+  ],
+  "saysFor": "1075:plugin-compat-shims-use-",
+  "search": "Plugin-compat shim functions wrapping @grafana/runtime srv getters must use async function, even if body just returns a Promise, to catch synchronous throws from uninitialized srv and convert to rejected Promise. Symptom: calling getDataSourceInstance, getDataSourceInstanceList, getDataSourceInstanceSettings, getPluginSettings when srv not set up throws synchronously before Promise creation, breaking await/catch. Root cause: plain function returning srv call directly. Fix: declare wrapper and backwardsCompatible* fallback as async function. Constraints: applies only to compat/shim functions calling host-provided getters (setDataSourceSrv, setBackendSrv); verify with test calling setDataSourceSrv(undefined) and asserting await expect(fn()).rejects.toThrow(). Applies when: adding new compat shims or fixing existing ones that break Promise error handling."
+}

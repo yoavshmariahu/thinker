@@ -1,0 +1,43 @@
+{
+  "id": "do-not-quote-plugin-in-gf-install-plugins-loop",
+  "title": "Do not quote ${plugin} in GF_INSTALL_PLUGINS loop",
+  "kind": "rule",
+  "answers": [
+    "Why is ${plugin} unquoted in the grafana cli plugins install call?",
+    "GF_INSTALL_PLUGINS single-plugin install fails or installs wrong thing when quoted",
+    "How does run.sh pass a plugin spec to grafana cli plugins install?"
+  ],
+  "body": "Symptom: quoting `${plugin}` in the plugin-install command breaks installs (reviewer explicitly asked to keep it unquoted and the author reverted the quoting).\nRoot cause: packaging/docker/run.sh's non-semicolon plugin branch calls `grafana cli --pluginsDir \"${GF_PATHS_PLUGINS}\" plugins install ${plugin}`; the grafana cli command parses plugin id/version as separate positional args (`args[n]`), relying on shell word-splitting of the unquoted variable.\nFix pattern: leave `${plugin}` unquoted in that specific call even though it looks like a quoting bug; only the URL/folder vars in the semicolon branch should be quoted.\nConstraints: applies only to this grafana-cli plugin-install invocation; a proper fix would change the grafana cli to accept a single combined arg, but that is an unmade follow-up.",
+  "applies": "packaging/docker/run.sh GF_INSTALL_PLUGINS handling",
+  "tags": [
+    "docker",
+    "plugins",
+    "cli",
+    "shell-quoting"
+  ],
+  "deps": [
+    {
+      "path": "packaging/docker/run.sh",
+      "hash": "sha256:513d6357562fee98f96dd3a6",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132643"
+  },
+  "created": "2026-10-04T06:51:31.904Z",
+  "verified": "2026-10-04T06:51:31.904Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why is ${plugin} unquoted in the grafana cli plugins install call?",
+    "GF_INSTALL_PLUGINS single-plugin install fails or installs wrong thing when quoted",
+    "How does run.sh pass a plugin spec to grafana cli plugins install?"
+  ],
+  "saysFor": "856:do-not-quote-plugin-in-g",
+  "search": "Do not quote ${plugin} in the grafana cli plugin-install invocation in packaging/docker/run.sh's GF_INSTALL_PLUGINS non-semicolon branch: the command calls `grafana cli --pluginsDir \"${GF_PATHS_PLUGINS}\" plugins install ${plugin}` and the grafana cli parser requires word-splitting of the unquoted variable to separate plugin id and version into positional arguments. Quoting ${plugin} breaks installs even though it appears to be a quoting bug. The URL and folder variables in the semicolon branch should remain quoted, but only the grafana cli plugin-install call must keep ${plugin} unquoted. Applies to packaging/docker/run.sh GF_INSTALL_PLUGINS handling."
+}

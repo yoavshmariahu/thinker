@@ -1,0 +1,80 @@
+{
+  "id": "annotation-app-spans-require-threaded-tracer-not-package-lev",
+  "title": "Annotation app spans require threaded tracer, not package-level otel.Tracer()",
+  "kind": "rule",
+  "answers": [
+    "Why are annotation API traces missing or incomplete in Tempo/Jaeger?",
+    "Annotation spans not showing up even though tracing is enabled",
+    "How should tracer be obtained in pkg/registry/apps/annotation code?",
+    "Lazy-loaded global tracer not resolved error for annotations"
+  ],
+  "body": "Symptom: annotation.* spans (list/get/create/update/delete, authz checks, search, tags, graphite, cleanup) are missing or use a no-op tracer even though tracing is configured.\nRoot cause: a package-level `var tracer = otel.Tracer(...)` in pkg/registry/apps/annotation/tracing.go was initialized at package load, before the real TracerProvider (lazy-loaded via wire) was set globally — so it got bound to the no-op provider.\nFix pattern: delete the package-level tracer var and thread `trace.Tracer` explicitly through every constructor in the call chain (RegisterAppInstaller -> NewAppInstaller -> AppInstaller.tracer -> k8sRESTAdapter/instrumentedStore/search/tags/graphite handlers/DashboardFolderResolver/canAccessAnnotation(s)), storing it on each struct and using `s.tracer.Start(...)` instead of a package var.\nConstraints: applies to any Grafana app/service wired via wire.go where the OTel TracerProvider is configured lazily at startup; do not reintroduce `otel.Tracer(...)` as a package-level var in this area — use the injected `tracing.Tracer` (pkg/infra/tracing) passed from RegisterAppInstaller instead.",
+  "applies": "pkg/registry/apps/annotation/** and any Grafana app installer wired through wire.go that needs OTel tracing",
+  "tags": [
+    "tracing",
+    "otel",
+    "wire",
+    "annotations",
+    "dependency-injection"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/annotation/register.go",
+      "symbol": "NewAppInstaller",
+      "hash": "sha256:802540b653c08c782b301910",
+      "line": 67,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/registry/apps/annotation/k8s_adapter.go",
+      "symbol": "k8sRESTAdapter",
+      "hash": "sha256:215ce3a1ebba0af7d8da4cb4",
+      "line": 88,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 34
+      }
+    },
+    {
+      "path": "pkg/registry/apps/annotation/authz.go",
+      "symbol": "canAccessAnnotations",
+      "hash": "sha256:4fa2dbddbaab23947de97227",
+      "line": 51,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 11,
+        "refs": 13
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133034"
+  },
+  "created": "2026-10-04T05:55:32.300Z",
+  "verified": "2026-10-04T05:55:32.300Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "new-annotations-api-always-sets-timeend-point-range-conventi"
+  ],
+  "says": [
+    "Why are annotation operations missing from trace visualization completely",
+    "Annotation API calls not appearing in distributed trace collector data",
+    "Trace spans incomplete for annotation list, create, and delete actions",
+    "Annotation permission checks and searches absent from observability platform",
+    "Enabling tracing does not capture annotation or tag search operations"
+  ],
+  "saysFor": "1195:annotation-app-spans-req",
+  "search": "Annotation app spans (list/get/create/update/delete, authz, search, tags, graphite, cleanup) bound to a no-op tracer because pkg/registry/apps/annotation/tracing.go's package-level otel.Tracer() initialized before the real TracerProvider was set globally. Thread trace.Tracer explicitly through the constructor chain (RegisterAppInstaller → NewAppInstaller → AppInstaller.tracer → k8sRESTAdapter/instrumentedStore/search/tags/handlers/canAccessAnnotations), storing it on each struct and calling s.tracer.Start(...). Delete the package-level tracer var and do not reintroduce otel.Tracer() as a package var in this area; instead use the injected tracing.Tracer from RegisterAppInstaller. This pattern applies to any Grafana app/service wired via wire.go with lazy OTel TracerProvider configuration."
+}

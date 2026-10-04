@@ -1,0 +1,53 @@
+{
+  "id": "point-vs-range-detection-in-migrationproxy-update-must-accep",
+  "title": "Point-vs-range detection in MigrationProxy.Update must accept both nil and Time-equal TimeEnd",
+  "kind": "rule",
+  "answers": [
+    "Why did updating a legacy annotation's time accidentally turn a point into a range (or vice versa)?",
+    "How do I check if an annotation is a 'point' when some records predate the TimeEnd==Time convention?",
+    "MigrationProxy.Update is mishandling EpochEnd when moving an annotation's time",
+    "What's the correct way to detect caller-omitted EpochEnd in the legacy annotations API?"
+  ],
+  "body": "Symptom: moving a point annotation's time via the legacy annotations API could flip it into a range annotation, or vice versa, once the new API started writing TimeEnd == Time for points instead of nil. Root cause: pkg/services/annotations/annotationsapi/handler.go:MigrationProxy.Update classified 'is this a point' solely by existing.Spec.TimeEnd == nil, which misses newly-created points that now have TimeEnd == Time. Fix pattern: classify wasPoint as existing.Spec.TimeEnd == nil OR *existing.Spec.TimeEnd == existing.Spec.Time, and treat the caller as having omitted EpochEnd when item.EpochEnd == 0 OR it equals the old/new Time (legacy clients send EpochEnd == Epoch instead of omitting it); when both hold, move TimeEnd together with Time (nil stays nil, Time-equal moves to the new Time). Constraints: only applies to the legacy-API compatibility shim that must interoperate with both old (nil TimeEnd) and new (TimeEnd==Time) point conventions; a pure new-API write path can rely solely on TimeEnd == Time.",
+  "applies": "pkg/services/annotations/annotationsapi/handler.go MigrationProxy, i.e. legacy annotations API requests proxied to the new annotations API.",
+  "tags": [
+    "annotations",
+    "api",
+    "legacy-compat",
+    "bugfix"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/annotations/annotationsapi/handler.go",
+      "symbol": "MigrationProxy",
+      "hash": "sha256:e14a38d3cbf2ce0bc938b8fe",
+      "line": 48,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132713"
+  },
+  "created": "2026-10-04T06:40:11.131Z",
+  "verified": "2026-10-04T06:40:11.131Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Point annotation inadvertently converted to range after update",
+    "Annotation type flips when moving annotation timestamp",
+    "System cannot distinguish point from range annotations correctly",
+    "Legacy annotation migration inadvertently changes point-range classification",
+    "Annotation end time treated as range incorrectly"
+  ],
+  "saysFor": "1111:point-vs-range-detection",
+  "search": "Legacy annotations API (MigrationProxy.Update in pkg/services/annotations/annotationsapi/handler.go) must detect point-vs-range handling both old (nil TimeEnd) and new (TimeEnd==Time) point conventions simultaneously. Classify wasPoint as existing.Spec.TimeEnd == nil OR *existing.Spec.TimeEnd == existing.Spec.Time; treat EpochEnd as omitted when == 0 or == old/new Time (legacy clients send EpochEnd == Epoch instead). Move TimeEnd together with Time in both cases (nil stays nil, Time-equal moves to new Time). Pitfall: wrong classification flips point to range or vice versa. Constraints: applies only to legacy-API compat shim proxying to new API, not pure new-API writes which rely solely on TimeEnd == Time. Applies when: fixing legacy annotations proxies, migrating annotations across old/new format boundaries."
+}

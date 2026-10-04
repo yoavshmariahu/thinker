@@ -78,5 +78,6 @@
     "Where is the insight list default sort order implemented",
     "How to fix insight list tests after updating the ranking"
   ],
-  "saysFor": "687:changing-insight-list-or"
+  "saysFor": "687:changing-insight-list-or",
+  "search": "Changing the default insight list order in order_queryset (products/product_analytics/backend/presentation/insight.py) requires updating the SQL snapshot in test_insight.ambr (the ORDER BY clause before LIMIT 100) and adding a regression test in test_insight.py that asserts the new default order by using opposite order values that fail under the old default. The snapshot mechanism captures the full query shape, so any ordering change must be reflected there. Applies to changes in default insight list ordering or its query structure in the insight API."
 }

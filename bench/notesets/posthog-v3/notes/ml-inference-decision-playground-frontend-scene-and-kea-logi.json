@@ -1,7 +1,7 @@
 {
   "id": "ml-inference-decision-playground-frontend-scene-and-kea-logi",
   "title": "ml_inference decision playground frontend scene and kea logic",
-  "kind": "location",
+  "kind": "map",
   "answers": [
     "Where is the decision playground logic?",
     "How does the playground call the decide API?",
@@ -43,9 +43,9 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 13,
+  "uses": 15,
   "related": [],
-  "lastUsed": "2026-09-27T10:39:29.593Z",
+  "lastUsed": "2026-10-04T19:13:37.199Z",
   "servedIn": [
     "2b19a50b-56fd-4370-9d5a-970da64f9822",
     "39034c00-ed72-48f7-af96-e0ae7a43f8f4",
@@ -58,12 +58,15 @@
     "5e7fd372-cd68-44a7-9ca2-4c2265e30575",
     "2e9c5e0e-8c55-49dd-8d88-b1af1258e010",
     "bfd0b942-05ea-4de0-8124-617bfe642978",
-    "4fe0275b-9983-4db4-8bc8-786b37f97773"
+    "4fe0275b-9983-4db4-8bc8-786b37f97773",
+    "codex-posthog-codex-ce1-PR106613-hard-0",
+    "codex-posthog-codex-ce2-PR106613-hard-0"
   ],
   "says": [
     "Where is the decision playground logic?",
     "How does the playground call the decide API?",
     "How is the playground scene gated?"
   ],
-  "saysFor": "956:ml-inference-decision-pl"
+  "saysFor": "956:ml-inference-decision-pl",
+  "search": "DecisionPlaygroundScene binds via SceneExport to decisionPlaygroundLogic Kea logic; gated on FEATURE_FLAGS.ML_INFERENCE_DECISIONS or preflight.is_debug; asks decisions via generated mlInferenceDecisionsDecideCreate. decisionPlaygroundLogic exports pure helpers buildDecideRequest, questionsToJson, questionsFromJson, and manages state: questions, askedQuestions (answers labeled with asked questions via listener), questionsView, questionsJson with selectors requestBody, questionsJsonError, askDisabledReason. Listener snapshots askedQuestions on askDecision; setQuestionsJson validates JSON parsing. Applies to decision playground UI building, question/answer serialization, and feature-flagged scenes. Files: DecisionPlaygroundScene.tsx, decisionPlaygroundLogic.ts, decisionPlaygroundLogic.test.ts; symbols: decisionPlaygroundLogic, buildDecideRequest, EXAMPLE_STATE."
 }

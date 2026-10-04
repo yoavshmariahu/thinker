@@ -1,0 +1,69 @@
+{
+  "id": "errorresult-reason-must-stay-mapped-in-grpccodefromreason-to",
+  "title": "ErrorResult.Reason must stay mapped in grpcCodeFromReason to avoid lossy HTTP->gRPC code collisions",
+  "kind": "rule",
+  "answers": [
+    "Why is a 409/400 error reported with the wrong gRPC code (AlreadyExists vs Aborted, InvalidArgument vs FailedPrecondition)?",
+    "ErrorResult with HTTP 200 incorrectly reported as success",
+    "Adding a new error reason to unified storage and getting it mapped correctly to a gRPC status code"
+  ],
+  "body": "Symptom: several gRPC codes collapse onto the same HTTP status (409 -> AlreadyExists or Aborted; 400 family -> InvalidArgument/FailedPrecondition/OutOfRange), causing ambiguous or wrong gRPC codes in metrics/logging; also an ErrorResult with httpCode 200 was mislabeled as success.\nRoot cause: the old grpcCodeFromHTTPStatus mapped HTTP status alone, which is inherently lossy.\nFix pattern: grpcCodeFromErrorResult first consults res.Reason via grpcCodeFromReason (a metav1.StatusReason -> grpccodes.Code table) and only falls back to the HTTP-status heuristic when the reason is empty or unrecognized (logging a warning in that case); a non-nil ErrorResult can never return OK — httpCode 200 with a non-nil ErrorResult now maps to Internal with a warning.\nConstraints: when unified storage starts producing a new metav1.StatusReason, add a case to grpcCodeFromReason or it silently falls back to the coarser HTTP-code mapping (logged as \"Unrecognized error reason\"); this translation is used for internal labeling/metrics, not for the actual gRPC status returned to clients.",
+  "applies": "pkg/storage/unified/resource error-to-grpc-code translation (used for metrics/labels on ErrorResult responses)",
+  "tags": [
+    "grpc",
+    "error-mapping",
+    "unified-storage",
+    "metrics"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/errors.go",
+      "symbol": "grpcCodeFromErrorResult",
+      "hash": "sha256:5cbd9c03994c65b7b703dfaa",
+      "line": 359,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/errors.go",
+      "symbol": "grpcCodeFromReason",
+      "hash": "sha256:80f6abf0e71c7bad0b2b7eb6",
+      "line": 420,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132895"
+  },
+  "created": "2026-10-04T06:15:32.245Z",
+  "verified": "2026-10-04T06:15:32.245Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "central-place-for-errorresult-grpc-code-translation-in-unifi",
+    "grpc-request-duration-metric-must-reflect-embedded-errorresu"
+  ],
+  "says": [
+    "Why is a 409/400 error reported with the wrong gRPC code (AlreadyExists vs Aborted, InvalidArgument vs FailedPrecondition)?",
+    "ErrorResult with HTTP 200 incorrectly reported as success",
+    "Adding a new error reason to unified storage and getting it mapped correctly to a gRPC status code"
+  ],
+  "saysFor": "1175:errorresult-reason-must-",
+  "lastUsed": "2026-10-04T07:11:55.660Z",
+  "servedIn": [
+    "smoke-1791097913775"
+  ],
+  "search": "Map ErrorResult.Reason via grpcCodeFromReason in grpcCodeFromErrorResult to prevent lossy HTTP-to-gRPC code collisions (e.g., 409 ambiguously mapping to AlreadyExists or Aborted). Consult res.Reason first through the metav1.StatusReason table; only fall back to HTTP-status heuristic with a warning if reason is empty or unrecognized. Never return OK for a non-nil ErrorResult; httpCode 200 with non-nil result maps to Internal with warning. When unified storage introduces a new metav1.StatusReason, add a case to grpcCodeFromReason or it silently falls back to coarser HTTP mapping. Used for internal metrics/labels on ErrorResult responses, not client-facing gRPC status. Affects pkg/storage/unified/resource/errors.go."
+}

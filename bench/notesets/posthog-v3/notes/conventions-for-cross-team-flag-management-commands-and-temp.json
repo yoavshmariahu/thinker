@@ -83,5 +83,6 @@
     "How does the background worker know to flag problematic flags?",
     "Can I repair flags for multiple teams in a single operation?"
   ],
-  "saysFor": "1121:conventions-for-cross-te"
+  "saysFor": "1121:conventions-for-cross-te",
+  "search": "Management commands `audit_flag_filters.py` and `repair_replay_linked_flag_keys.py` are read-only by default with `--limit` (0=all, negative→CommandError), `--team-id` (nonexistent→CommandError), and `--json`; they iterate via keyset pagination (`id__gt`, chunk 500) not `.iterator()` due to PgBouncer server-side cursors disabled. Output is bounded: `MAX_TRACKED_UNKNOWN_KEYS`, capped samples, `_sanitize_for_console`, frozen dataclasses, outcome enums; repair counts and skips unsafe rows, rewriting under team lock. Temporal health checks subclass `HealthCheck` with `name`, unique `kind`, and `owner=JobOwners.TEAM_FEATURE_FLAGS`, registered in `HEALTH_CHECK_MODULES` in `registry.py`; `detect(team_ids)` returns `dict[team_id, list[HealthCheckResult]]` with absent teams treated healthy, filtering by `team_id__in`. Applies to cross-team iteration in products/feature_flags."
 }

@@ -1,0 +1,73 @@
+{
+  "id": "local-file-provisioning-uses-the-same-repository-crd-as-git",
+  "title": "Local file provisioning uses the same Repository CRD as Git Sync",
+  "kind": "map",
+  "answers": [
+    "How do I provision a local file system / dashboards as code (not via UI)?",
+    "What's the YAML schema for local/file provisioning?",
+    "Why is there no `type: file` in the Repository resource?",
+    "How does the UI's 'file provisioning / local storage' map to the Repository CRD?"
+  ],
+  "body": "Local file provisioning is not a separate CRD — it's the same `provisioning.grafana.app/v0alpha1` `Repository` resource used by Git Sync, with `spec.type: local` and `spec.local.path` set to a directory on the Grafana server's filesystem. The path must fall under a `permitted_provisioning_paths` entry in grafana.ini/custom.ini. Shared fields `spec.sync` (enabled/intervalSeconds/target) and `spec.workflows` behave identically to Git Sync repos. Push/manage it with `gcx resources push|get|edit|delete repository/<name>`, same as any other Repository.",
+  "applies": "Any work on Grafana's as-code provisioning (Repository resource, gcx resources commands, or Git Sync / local storage docs/code).",
+  "tags": [
+    "provisioning",
+    "as-code",
+    "repository-crd",
+    "gcx",
+    "docs"
+  ],
+  "deps": [
+    {
+      "path": "apps/provisioning/pkg/apis/provisioning/v0alpha1/types.go",
+      "symbol": "Repository",
+      "hash": "sha256:09f3a84a4868abf47a882f68",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 209,
+        "sites": 2,
+        "refs": 1995
+      }
+    },
+    {
+      "path": "apps/provisioning/pkg/apis/provisioning/v0alpha1/types.go",
+      "symbol": "LocalRepositoryConfig",
+      "hash": "sha256:47eb52d28c5508a4c60fbe31",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 71
+      }
+    },
+    {
+      "path": "docs/sources/as-code/observability-as-code/provision-resources/file-path-setup.md",
+      "hash": "sha256:24d61f85f4057851ac0f8d74",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132767"
+  },
+  "created": "2026-10-04T06:34:21.808Z",
+  "verified": "2026-10-04T06:34:21.808Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apps-provisioning-pkg-architecture-control-flow-map"
+  ],
+  "says": [
+    "How do I set up local file provisioning?",
+    "YAML configuration for local file provisioning",
+    "Provisioning dashboards from a local file path",
+    "Repository configuration for local file provisioning",
+    "Enable provisioning using local files instead of Git Sync"
+  ],
+  "saysFor": "618:local-file-provisioning-",
+  "search": "Local file provisioning uses the same provisioning.grafana.app/v0alpha1 Repository CRD as Git Sync, with spec.type: local and spec.local.path pointing to a filesystem directory under a permitted_provisioning_paths entry in grafana.ini. Shared fields spec.sync (enabled/intervalSeconds/target) and spec.workflows function identically to Git Sync repos. Manage via `gcx resources push|get|edit|delete repository/<name>` commands. Applies to Grafana as-code provisioning work covering Repository resources, gcx commands, or Git Sync and local storage documentation and implementation."
+}

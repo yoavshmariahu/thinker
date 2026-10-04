@@ -55,5 +55,6 @@
     "Scouts still count against limit but ignore it during seeding",
     "Why doesn't reducing the cap pause any currently running scouts"
   ],
-  "saysFor": "755:lowering-the-enabled-sco"
+  "saysFor": "755:lowering-the-enabled-sco",
+  "search": "Lowering the enabled-scout cap in products/signals only blocks new scout enables via views._reject_if_enabled_cap_reached; it does not pause existing scouts or resume anything when raised. Tests must patch products.signals.backend.scout_harness.team_limits.MAX_ENABLED_SCOUTS_PER_TEAM, not config_registry or views. The MAX_SCOUTS_PER_RUNS_QUERY constant in tools/runs.py deliberately stays 10x the team cap and is not per-project."
 }

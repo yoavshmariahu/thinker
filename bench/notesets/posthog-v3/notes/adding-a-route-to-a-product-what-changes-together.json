@@ -63,5 +63,6 @@
     "Backend endpoint isn't accessible from the frontend",
     "Where to define new page routes for product"
   ],
-  "saysFor": "764:adding-a-route-to-a-prod"
+  "saysFor": "764:adding-a-route-to-a-prod",
+  "search": "Product route addition coordinates edits in products/<name>/manifest.tsx (routes tuple, scenes with matching name, urls via combineUrl), then rerun frontend/build-products.mjs and commit regenerated products.tsx/productScenes.tsx/products.json. Do not hand-edit generated products.tsx; new icon/enum imports added by hand. Hyphenated routes trigger semgrep rule frontend-route-hyphen (existing ones use nosemgrep). Backend requires viewset registration and hogli build:openapi for TS/MCP regeneration. Applies to products with manifest.tsx; server SPA serving and build-app-url-manifest.mjs behavior unverified."
 }

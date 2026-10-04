@@ -119,5 +119,6 @@
     "Scene manifest not generating corresponding route url",
     "Custom scene component inaccessible through navigation"
   ],
-  "saysFor": "1448:scene-registration-routi"
+  "saysFor": "1448:scene-registration-routi",
+  "search": "Scene registration flow from product manifest to runtime scene loading: manifest.tsx → pnpm build:products → generated products.tsx and productScenes.tsx → scenes.ts routes and appScenes lazy imports → sceneLogic runtime resolver. Core scenes are hand-written; product scenes are generated from products/<name>/manifest.tsx. SceneExport must export component and optional logic/paramsToProps/productKey/emptyState. At runtime, sceneLogic uses retryImport to load the module from appScenes, then reads the scene export; unknown Scene IDs fall back to Scene.Error404. Paths: frontend/src/scenes/sceneTypes.ts:Scene and SceneExport, scenes.ts:routes and sceneConfigurations, appScenes.ts, sceneLogic.tsx, frontend/build-products.mjs, products/<name>/manifest.tsx."
 }

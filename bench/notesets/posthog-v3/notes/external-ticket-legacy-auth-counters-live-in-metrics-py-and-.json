@@ -54,5 +54,6 @@
     "Finding which customers depend on legacy token authentication for ticket integration",
     "Temporary metrics for legacy external ticket authentication should be cleaned up with route"
   ],
-  "saysFor": "1002:external-ticket-legacy-a"
+  "saysFor": "1002:external-ticket-legacy-a",
+  "search": "Two Prometheus counters track legacy secret_api_token authentication on the external ticket route, both incremented in _authenticate_team (products/conversations/backend/api/external.py), and both defined in products/conversations/backend/metrics.py: TICKET_ACTION_AUTH_COUNTER (posthog_conversations_ticket_action_auth_total) and LEGACY_TICKET_AUTH_BY_TEAM_COUNTER (posthog_conversations_external_ticket_legacy_team_total). The per-team counter is explicitly temporary (issue #63111) and must be deleted together with the route and its import; do not leave it orphaned. The test test_authenticated_requests_increment_the_legacy_auth_counters in products/conversations/backend/api/tests/test_external.py validates both from a single authenticated GET and must be updated if either counter changes. Applies to adding metrics on the external ticket route or removing the legacy authentication mechanism."
 }

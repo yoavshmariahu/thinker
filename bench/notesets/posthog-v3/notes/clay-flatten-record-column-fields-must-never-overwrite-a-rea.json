@@ -58,5 +58,6 @@
     "Clay enrichment information not showing in the warehouse table",
     "Real column name is overwriting Clay enrichment metadata"
   ],
-  "saysFor": "730:clay-flatten-record-colu"
+  "saysFor": "730:clay-flatten-record-colu",
+  "search": "Clay source row flattening in clay/clay.py:flatten_record maps cells to values and puts enrichment metadata in <column>_fields, but must not overwrite if <column>_fields exists as a real column in the record (guard: fields_column not in record). Clay schema configuration via ClaySource.get_schemas has no primary key and uses full replace with supports_incremental=False and supports_append=False. Table IDs are parsed from pasted text via regex pattern (t_...) in parse_table_ids since Clay has no list-tables endpoint; tests place existing _fields columns first due to order-independence. Applies to Clay source schema configuration and row flattening."
 }

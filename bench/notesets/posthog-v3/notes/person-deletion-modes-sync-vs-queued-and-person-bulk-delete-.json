@@ -61,5 +61,6 @@
     "Deleting many people at once may benefit from queued processing.",
     "Queued deletion batches people instead of processing all simultaneously."
   ],
-  "saysFor": "1067:person-deletion-modes-sy"
+  "saysFor": "1067:person-deletion-modes-sy",
+  "search": "Person bulk deletion routes through sync or async (queued) path based on PERSON_BULK_DELETE_ASYNC setting and allow_queued parameter. Flow: PersonViewSet in posthog/api/person.py routes to either _queue_bulk_delete_persons (Celery async) or delete_persons_profile (sync), controlled by the environment variable PERSON_BULK_DELETE_ASYNC (default False, defined in posthog/settings/__init__.py:136). Queued deletion paginates distinct IDs at 5000 per page and 20,000 per batch, uses deletion flags (delete_profile, delete_recordings, delete_events, keep_person), and caps recording workflows at 100 persons or 2000 distinct IDs. API constraint: max 1000 ids or distinct_ids per call, never both. Applies to bulk_delete.py and delete_persons.py async flow."
 }

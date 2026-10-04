@@ -1,0 +1,81 @@
+{
+  "id": "per-resource-history-pruning-limit-must-cover-delete-recreat",
+  "title": "Per-resource history-pruning limit must cover delete+recreate races for Watch",
+  "kind": "rule",
+  "answers": [
+    "Watch errors fetching previous state of a resource",
+    "jobs Watch stream fails after resource is deleted and recreated quickly",
+    "error getting previous value during Watch on provisioning jobs",
+    "why does pruning the kv history break Watch delete events"
+  ],
+  "body": "Symptom: a Watch stream errors trying to load the previous version of a resource (via WrittenEvent.PreviousRV) shortly after that resource was deleted and quickly recreated.\nRoot cause: pkg/storage/unified/resource/pruner_history_limits.go customPrunerHistoryLimits had `provisioning.grafana.app/jobs` set to 1, so pruneEvents (storage_backend.go kvStorageBackend.pruneEvents) deleted the prior deleted-version data before a Watch consumer could read it.\nFix pattern: raise the per-resource entry in customPrunerHistoryLimits (LookupPrunerHistoryLimit) enough to survive the resource's observed recreate interval (e.g. jobs recreated ~hourly -> limit 3); a limit of 1 is only safe for resources nobody watches for history (e.g. historicjobs, terminal audit records).\nConstraints: applies to any group/resource added to customPrunerHistoryLimits whose Watch consumers rely on PreviousRV/previous value; not needed for resources without such watchers.",
+  "applies": "pkg/storage/unified/resource/pruner_history_limits.go customPrunerHistoryLimits entries and any resource watched via Watch() PreviousRV",
+  "tags": [
+    "unified-storage",
+    "watch",
+    "pruning",
+    "jobs"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/pruner_history_limits.go",
+      "symbol": "LookupPrunerHistoryLimit",
+      "hash": "sha256:e160840313592aea6ae2b064",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "pruneEvents",
+      "hash": "sha256:9da7a7f4b71a187be21520b7",
+      "line": 579,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 7,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "kvStorageBackend",
+      "hash": "sha256:2f8eafde978396cefa9b70ab",
+      "line": 81,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 103
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132830"
+  },
+  "created": "2026-10-04T06:23:45.082Z",
+  "verified": "2026-10-04T06:23:45.082Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "kv-backend-write-serialization-relies-solely-on-leases-not-o",
+    "datastore-batchdelete-is-the-exported-bulk-delete-api-use-it",
+    "kv-backend-conflict-metric-name-is-tied-to-an-external-ops-d"
+  ],
+  "says": [
+    "Watch stream errors getting previous state after resource is deleted and recreated",
+    "Pruning history too aggressively breaks Watch operations for recently recreated resources",
+    "Why does Watch fail trying to fetch previous version of a deleted-then-recreated resource",
+    "History pruning limit is too low for resources that are quickly deleted and recreated",
+    "Watch stream error: cannot load previous state of resource that was just deleted"
+  ],
+  "saysFor": "1027:per-resource-history-pru",
+  "search": "Per-resource history-pruning limits in customPrunerHistoryLimits must survive a resource's delete-and-recreate interval; a limit of 1 is unsafe for watched resources. When limits are too low, Watch streams error trying to load WrittenEvent.PreviousRV after delete+recreate, because pruneEvents deletes prior deleted-version data before Watch consumers read it. Fix: raise the customPrunerHistoryLimits entry high enough for the resource's observed recreate interval (hourly recreation → limit ≥3); a limit of 1 is only safe for unwatched resources (e.g., historicjobs, terminal audits). Applies to any group/resource with Watch consumers relying on PreviousRV. Key locations: pkg/storage/unified/resource/pruner_history_limits.go:LookupPrunerHistoryLimit, customPrunerHistoryLimits, and pkg/storage/unified/resource/storage_backend.go:kvStorageBackend.pruneEvents."
+}

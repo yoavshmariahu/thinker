@@ -90,5 +90,6 @@
     "Activity context like team identity missing from async task outputs",
     "Different teams' scheduled tasks sometimes interfere with each other"
   ],
-  "saysFor": "1216:workflow-and-activity-de"
+  "saysFor": "1216:workflow-and-activity-de",
+  "search": "Temporal workflows must subclass PostHogWorkflow with @workflow.defn(name=\"kebab-name\") decorator and implement static parse_inputs(list[str]) that JSON-decodes to an inputs dataclass. Activities are @activity.defn async functions taking a single inputs dataclass (often @frozen), with context (team_id, ids) traveling in the inputs; ambient context is accessed via current_workflow_id and current_activity_attempt from common/activity_context.py. Django/non-deterministic imports must go under workflow.unsafe.imports_passed_through(); never pass keyword fields to activity.logger or workflow.logger (use extra={} in workflows, structlog in activities). Adding commands to an existing workflow requires workflow.patched decoration (see .claude/rules/temporal-workflow-versioning.md). This convention applies to code under posthog/temporal and product backend/temporal packages."
 }

@@ -56,5 +56,6 @@
     "Where is S3 transient error handling configured?",
     "Which storage errors get automatically retried in pipeline?"
   ],
-  "saysFor": "685:transient-object-store-c"
+  "saysFor": "685:transient-object-store-c",
+  "search": "The shared is_transient_object_store_error classifier (pipelines/core/delta/errors.py) and TRANSIENT_OBJECT_STORE_ERRORS tuple control retry and error-tracking suppression for copy_file, vacuum, compact, DeltaTable.is_deltatable(), and delete_folder in data_imports/util.py. Adding a message substring to the tuple enables retries and suppresses error capture everywhere, so only add idempotent, self-clearing conditions; each entry must have an explanatory comment above the tuple. Matching is by exact message substring (e.g., fixed S3 text), and test cases in pipelines/core/delta/test/test_delta_errors.py::TestIsTransientObjectStoreError must cover new patterns. Any change to warehouse_sources data_imports transient error classification affects all delta pipeline operations simultaneously."
 }

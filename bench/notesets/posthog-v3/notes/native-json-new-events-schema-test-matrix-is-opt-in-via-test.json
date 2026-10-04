@@ -52,5 +52,6 @@
     "Need test-new-events-schema label to check my changes",
     "CI skipped backend schema tests for this pull request"
   ],
-  "saysFor": "864:native-json-new-events-s"
+  "saysFor": "864:native-json-new-events-s",
+  "search": "Backend CI test matrix doubles (schema_modes [false, true]) only when RUN_NEW_EVENTS_SCHEMA is 'true', controlled in .github/workflows/ci-backend.yml by label check: `contains(github.event.pull_request.labels.*.name, 'test-new-events-schema') || github.event_name == 'workflow_dispatch'`. Merge queue and scheduled master runs are legacy-schema only, so untagged PRs touching event-schema code never test against native JSON before merge. Label PRs changing event ingestion/cleaning, event/property reads, generated SQL over events, or schema-specific snapshots (see AGENTS.md and .github/pull_request_template.md). Leave unrelated PRs unlabeled because the label doubles CI time. Applies to any PR touching events-table code or snapshots."
 }

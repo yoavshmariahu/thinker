@@ -1,0 +1,95 @@
+{
+  "id": "sanitize-user-controlled-rule-labels-before-using-them-as-me",
+  "title": "Sanitize user-controlled rule labels before using them as metric label values",
+  "kind": "rule",
+  "answers": [
+    "Why does the plugin origin metric show garbage/control characters?",
+    "How do I safely expose an alert rule label as a Prometheus metric label?",
+    "grafana_alerting_plugin_origin_rules has weird or oversized origin values",
+    "__grafana_origin label is not validated, can it break metrics?"
+  ],
+  "body": "Symptom: grafana_alerting_plugin_origin_rules{origin=...} can contain control characters, CRLF, or very long strings because the value comes straight from the rule's __grafana_origin label.\nRoot cause: pkg/services/ngalert/models.PluginGrafanaOriginLabel (__grafana_origin) is never checked against LabelsUserCannotSpecify, so any caller with rule-write permission can set it to arbitrary text, and pkg/services/ngalert/schedule/metrics.go:updateRulesMetrics previously read it unmodified.\nFix pattern: before using an unvalidated, user/plugin-controlled label as a metric label (or HTTP header) value, strip ASCII control chars and cap the byte length via util.SanitizeControlChars.\nConstraints: applies to any rule/annotation label not covered by LabelsUserCannotSpecify that ends up as a metric label, log field, or header; does not apply to labels already validated at write time.",
+  "applies": "ngalert: any place a rule/plugin-supplied label value is turned into a metric label, header, or other exposed field",
+  "tags": [
+    "ngalert",
+    "metrics",
+    "sanitization",
+    "labels",
+    "security"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/schedule/metrics.go",
+      "symbol": "sanitizePluginOriginLabel",
+      "hash": "sha256:bada5dc743bba02bc6593048",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/eval/eval.go",
+      "symbol": "sanitizeHeaderValue",
+      "hash": "sha256:7aecba6742340cb1ce98a4f7",
+      "line": 343,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/util/strings.go",
+      "symbol": "SanitizeControlChars",
+      "hash": "sha256:2e305f99f4f31e970f5f6a4a",
+      "line": 199,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/schedule/metrics.go",
+      "symbol": "updateRulesMetrics",
+      "hash": "sha256:b02b4f395e5e3bc9b54b8b91",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 34,
+        "refs": 34
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132680"
+  },
+  "created": "2026-10-04T06:47:21.908Z",
+  "verified": "2026-10-04T06:47:21.908Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "util-sanitizecontrolchars-is-the-shared-helper-for-stripping",
+    "sanitizecontrolchars-must-strip-full-unicode-control-range-n",
+    "scheduler-alert-rule-gauge-metrics-three-places-must-change",
+    "updaterulesmetrics-derives-per-org-breakdowns-from-rule-labe"
+  ],
+  "says": [
+    "Why does the plugin origin metric show garbled control characters?",
+    "Alert rule labels expose weird characters when used in metrics",
+    "How do I safely expose an alert rule label as a metric label?",
+    "Plugin origin field contains control characters breaking metrics",
+    "Long or malformed strings appear in the plugin origin metric value"
+  ],
+  "saysFor": "962:sanitize-user-controlled",
+  "search": "Rule label sanitization for metric labels and headers: before using any rule or plugin-controlled label (such as __grafana_origin) as a metric label value or HTTP header, strip ASCII and Unicode control characters and cap byte length via pkg/util/strings.go:SanitizeControlChars. Applies to labels not covered by LabelsUserCannotSpecify; does not apply to labels already validated at write time. Prevents control characters and CRLF injection in grafana_alerting_plugin_origin_rules and other exposed fields. Used in pkg/services/ngalert/schedule/metrics.go:sanitizePluginOriginLabel, sanitizeHeaderValue, updateRulesMetrics, and pkg/services/ngalert/eval/eval.go."
+}

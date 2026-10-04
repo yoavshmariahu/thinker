@@ -102,5 +102,6 @@
     "Frontend metric value doesn't match what backend computed",
     "Metric fingerprint changed unexpectedly after metrics sync"
   ],
-  "saysFor": "1474:places-that-must-compute"
+  "saysFor": "1474:places-that-must-compute",
+  "search": "Metric fingerprint must be computed identically across all callers (stored metrics, saved metrics via `presentation/serializers.py:ExperimentSerializer`, discovery/sync via `timeseries_sync.py:sync_timeseries_recalculation`, recalculation via `temporal/recalculation_logic.py`) using identical inputs (start_date, get_experiment_stats_method, exposure_criteria, only_count_matured_users, excluded_variants) and the same metric dict. Stored fingerprints are written on create/update and re-derived on launch via `experiment_service.py:_recompute_fingerprints`; saved metrics get fingerprint injected at read time via `query.fingerprint` (not stored). Saved metrics use `_merge_saved_metric_breakdowns` from `link.metadata[\"type\"]` (default primary), while recalc hashes the merged dict; reconciliation via `_strip_empty_breakdowns` (test: `test_only_real_breakdowns_change_the_fingerprint`). Critical pitfall: fingerprint derives from mutable experiment fields, diverging between write and read if fields change; `temporal/metric_resolution.py:find_metric_dict` resolves saved and inline metrics by uuid; frontend keys by metric_uuid. Gates: `is_scheduled_metric`, `is_daily_timeseries_metric` (retention excluded from daily). Applies to any change in fingerprint inputs, normalization, or metric merging logic."
 }

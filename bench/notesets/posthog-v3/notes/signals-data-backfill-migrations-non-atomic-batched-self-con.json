@@ -46,5 +46,6 @@
     "How to resume interrupted data backfill",
     "Signals data backfill migration process"
   ],
-  "saysFor": "1163:signals-data-backfill-mi"
+  "saysFor": "1163:signals-data-backfill-mi",
+  "search": "Signals data backfill migrations follow the pattern in products/signals/backend/migrations/0154_backfill_report_actionability.py: set atomic=False, process id-ordered batches using cursor id__gt (resumable; only select still-unfilled rows), wrap in RunPython(..., RunPython.noop, elidable=True). Every non-atomic migration requires an entry in posthog/management/migration_analysis/atomic_false_acknowledged_migrations.txt (format signals.0154_...) and update products/signals/backend/migrations/max_migration.txt. Parse historical models inside the migration, not the live parser, so applied migrations don't change when live code changes; skip malformed rows instead of failing. Use update() not save() to preserve updated_at; repeat NULL conditions in UPDATE to prevent concurrent receiver write overwrites. Unknown actionability strings are cached as-is; only overlong values are dropped."
 }

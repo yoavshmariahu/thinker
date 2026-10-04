@@ -1,0 +1,52 @@
+{
+  "id": "don-t-wrap-already-focusable-elements-in-tooltip-it-adds-a-s",
+  "title": "Don't wrap already-focusable elements in Tooltip; it adds a second unlabeled tab stop",
+  "kind": "rule",
+  "answers": [
+    "Why does the drag handle have two tab stops, one with no accessible name?",
+    "Icon inside Tooltip creates an extra focusable element for screen readers",
+    "How to add hover text to an icon without breaking keyboard navigation",
+    "Tooltip component makes children focusable unexpectedly"
+  ],
+  "body": "Symptom: a keyboard/screen-reader user tabs past a control (e.g. drag handle) and lands on an extra, unlabeled stop right after it.\nRoot cause: grafana-ui's Tooltip makes its child a tab stop by itself, so wrapping an Icon inside a Tooltip inside an already-focusable/aria-labeled container (e.g. a div with aria-label and dragHandleProps) creates a second, nameless stop — see public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx:NotebookCellFrame.\nFix pattern: when the parent element is already focusable and labeled, drop the Tooltip wrapper and set the hover/accessible text via the Icon's title prop instead, reusing the same label string for both aria-label and title.\nConstraints: applies when an icon sits inside an already-interactive, aria-labeled parent; for icons that are not otherwise focusable/labeled, Tooltip remains the right way to provide hover text.",
+  "applies": "grafana-ui components combining Icon + Tooltip inside an already-focusable/aria-labeled parent",
+  "tags": [
+    "a11y",
+    "tooltip",
+    "focus-management",
+    "grafana-ui"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/notebook/scene/layout-notebook/edit/NotebookCellFrame.tsx",
+      "symbol": "NotebookCellFrame",
+      "hash": "sha256:2e555f28dbd0caa3db44704e",
+      "line": 95,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 14
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132745"
+  },
+  "created": "2026-10-04T06:37:14.982Z",
+  "verified": "2026-10-04T06:37:14.982Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does the drag handle have two tab stops, one with no accessible name?",
+    "Icon inside Tooltip creates an extra focusable element for screen readers",
+    "How to add hover text to an icon without breaking keyboard navigation",
+    "Tooltip component makes children focusable unexpectedly"
+  ],
+  "saysFor": "982:don-t-wrap-already-focus",
+  "search": "Do not wrap an Icon (or other element) in grafana-ui's Tooltip when the parent is already focusable and aria-labeled, as this creates a second, nameless keyboard tab stop. Instead, set hover text via the Icon's title prop, reusing the label string for both aria-label and title attributes. The rule applies to grafana-ui components where an Icon sits inside an interactive parent with aria-label. Tooltip wrapping remains appropriate for icons that are not otherwise focusable or labeled. Addresses accessibility issues in NotebookCellFrame and similar notebook scene components."
+}

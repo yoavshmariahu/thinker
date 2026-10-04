@@ -50,5 +50,6 @@
     "How does the server decide when the next export runs",
     "Changing export frequency doesn't update the preview date correctly"
   ],
-  "saysFor": "802:client-next-delivery-pre"
+  "saysFor": "802:client-next-delivery-pre",
+  "search": "The authoritative subscription delivery schedule is defined in Subscription.set_next_delivery_date (products/exports/backend); the frontend preview mirror is getNextDeliveryDate (products/subscriptions/frontend/components/Subscriptions/nextDeliveryDate.ts). The backend function contains a comment naming the frontend file—update it if either function moves. Schedule rule changes (RRULE fields, frequency, bysetpos, byweekday) must be reflected in both implementations to keep the preview accurate. Known gaps in the preview that are not addressed: it ignores count/until_date and the server's 15-minute scheduling buffer. Note: the comment in nextDeliveryDate.ts still cites the older backend path posthog/models/subscription.py and should be updated. Applies to subscription scheduling changes across backend model and frontend editor preview."
 }

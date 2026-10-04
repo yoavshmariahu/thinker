@@ -1,0 +1,51 @@
+{
+  "id": "new-generic-route-path-segments-must-be-added-to-reservednam",
+  "title": "New generic route path segments must be added to reservedNames",
+  "kind": "rule",
+  "answers": [
+    "Can an object be named the same as a generic route segment (e.g. 'list-keys', 'search', 'trash')?",
+    "Why does saving a resource named 'list-keys' fail with 'name is reserved'?",
+    "What do I need to update when adding a new generic subresource-style route?"
+  ],
+  "body": "Symptom: an object saved under the same name as a generic route segment (search, trash, history, query, list-keys) could collide with or be shadowed by that route. Root cause/enforcement: pkg/apimachinery/validation/validation.go reservedNames list, checked by IsReservedName / IsValidGrafanaName. Fix pattern: when adding a new generic route mounted at `{resource}/{segment}`, add its path-segment constant (e.g. utils.ListKeysPathSegment) to reservedNames, even if the collision isn't currently reachable (list-keys is POST-only so a GET-by-name object still coexists today) — it's defensive, for consistency and in case a conflicting verb is ever added on `{resource}/{name}`.",
+  "applies": "Any new generic route mounted as a literal path segment under a resource collection.",
+  "tags": [
+    "validation",
+    "naming",
+    "routing"
+  ],
+  "deps": [
+    {
+      "path": "pkg/apimachinery/validation/validation.go",
+      "symbol": "reservedNames",
+      "hash": "sha256:b3c2a5490dc537779e6509e4",
+      "line": 65,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132806"
+  },
+  "created": "2026-10-04T06:27:44.355Z",
+  "verified": "2026-10-04T06:27:44.355Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why can't I save a resource named search, trash, or list-keys?",
+    "Saving an item fails because its name matches a special route segment?",
+    "Resource names get rejected as reserved when they conflict with routes?",
+    "When adding a generic endpoint, what resource names become unavailable?",
+    "Name validation blocks certain item names to prevent route collisions?"
+  ],
+  "saysFor": "742:new-generic-route-path-s",
+  "search": "New generic route path segments must be added to reservedNames in pkg/apimachinery/validation/validation.go to prevent resource objects from colliding with or being shadowed by routes (e.g., search, trash, history, query, list-keys). Add the path-segment constant (e.g., utils.ListKeysPathSegment) to reservedNames defensively even if the collision is not currently reachable through existing verbs, to protect against future verb additions and maintain consistency. The IsReservedName and IsValidGrafanaName functions enforce this list; applies to any generic route mounted as a literal path segment under a resource collection."
+}

@@ -1,0 +1,77 @@
+{
+  "id": "managedresourceitem-is-the-shared-minimal-shape-for-reposito",
+  "title": "ManagedResourceItem is the shared minimal shape for repository-badge checks",
+  "kind": "map",
+  "answers": [
+    "Where is 'is this folder managed by a repository' decided?",
+    "What type should a folder/search-hit implement to work with FolderRepo?",
+    "Where does the Git Sync badge logic for folders live across the codebase?"
+  ],
+  "body": "FolderRepo's `folder` prop was changed from concrete `FolderDTO | DashboardViewItem` to the generic `ManagedResourceItem` interface (public/app/features/provisioning/utils/managedResource.ts), which now requires only `managedBy` and `managerId`. `isItemManagedByRepository` in the same file is the single source of truth for \"is this item repo-managed\"; any new list/DTO type that wants a repo badge just needs to carry those two fields and can be passed straight to FolderRepo without a custom adapter. If a new managed-resource field is needed for badge rendering, add it to `ManagedResourceItem` rather than widening FolderRepo's prop type again.",
+  "applies": "Any new UI surface (folder lists, dashboard rows, pickers) that needs to show repository/Git Sync management status.",
+  "tags": [
+    "provisioning",
+    "git-sync",
+    "types"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/provisioning/utils/managedResource.ts",
+      "symbol": "ManagedResourceItem",
+      "hash": "sha256:cebd46859113045b0a1d0625",
+      "line": 99,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 3
+      }
+    },
+    {
+      "path": "public/app/features/provisioning/utils/managedResource.ts",
+      "symbol": "isItemManagedByRepository",
+      "hash": "sha256:38df22d01443c66151d25e6c",
+      "line": 109,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 19,
+        "refs": 31
+      }
+    },
+    {
+      "path": "public/app/core/components/NestedFolderPicker/FolderRepo.tsx",
+      "symbol": "FolderRepo",
+      "hash": "sha256:438e17f8e72c142816ad0390",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132790"
+  },
+  "created": "2026-10-04T06:30:44.353Z",
+  "verified": "2026-10-04T06:30:44.353Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "git-sync-repo-badge-nesting-rule-lives-in-each-folderrepo-ca"
+  ],
+  "says": [
+    "Where is the check for whether a folder is repository managed?",
+    "What type does a resource need to display repository sync badges?",
+    "How do I add git sync indicators to custom resource types?",
+    "Where does the logic for repo-managed badges live in the code?",
+    "Which interface should custom folder types implement for repository badges?"
+  ],
+  "saysFor": "725:managedresourceitem-is-t",
+  "search": "ManagedResourceItem is the shared minimal interface for repository-badge checks; it requires only managedBy and managerId fields, replacing concrete types (FolderDTO, DashboardViewItem). Use isItemManagedByRepository in public/app/features/provisioning/utils/managedResource.ts as the single source of truth for \"is this repo-managed\"; any new DTO that wants a repo badge just needs these two fields and can be passed directly to FolderRepo without a custom adapter. If a new field is needed for badge rendering, add it to ManagedResourceItem rather than widening FolderRepo's prop type again. This pattern applies to any new UI surface (folder lists, dashboard rows, resource pickers) that displays repository/Git Sync management status. Prevents prop-type proliferation and centralizes repo-badge logic."
+}

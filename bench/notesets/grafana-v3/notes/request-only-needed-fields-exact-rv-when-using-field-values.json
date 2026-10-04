@@ -1,0 +1,56 @@
+{
+  "id": "request-only-needed-fields-exact-rv-when-using-field-values",
+  "title": "Request only needed fields + exact RV when using FIELD_VALUES search for list pagination",
+  "kind": "rule",
+  "answers": [
+    "Why does listWithSelectors set Fields and ResultFormat on the search request?",
+    "How to get exact (non-approximate) resource version from a search-backed list",
+    "Next page token uses wrong/empty sort fields for field-value search results"
+  ],
+  "body": "Symptom: list responses backed by the search index could carry an approximate or missing resource version, and continuation tokens need per-row sort fields to resume pagination correctly. Fix pattern: when listing via search, request ResultFormat: FIELD_VALUES with Fields: []string{SEARCH_FIELD_RV} so the response returns exact RV metadata plus SortFields per row, then build the next-page token from row.sortFields (not resourceVersion) via NewSearchContinueToken. Constraints: applies to selector-backed list paths that page through search results; don't assume FIELD_VALUES rows carry the full resource table shape — use ResourceSearchRow.GetKey()/GetResourceVersion()/GetSortFields(), distinct from ResourceTableRow.",
+  "applies": "pkg/storage/unified/resource list-with-selectors search path",
+  "tags": [
+    "search",
+    "pagination",
+    "resource-version"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "listWithSelectors",
+      "hash": "sha256:6d80df33d24814945220c3b0",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 22,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132900"
+  },
+  "created": "2026-10-04T06:14:01.364Z",
+  "verified": "2026-10-04T06:14:01.364Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "search-backed-list-must-emit-continuation-token-when-auth-fi",
+    "check-rsp-geterror-not-just-err-after-unified-storage-search",
+    "list-falls-back-from-search-to-store-scan-only-on-the-first",
+    "listwithselectors-transport-errors-vs-embedded-search-errors"
+  ],
+  "says": [
+    "Why does the pagination token lose sort fields between search pages?",
+    "How do I get exact resource version from search, not approximate?",
+    "List continuation breaks: next page doesn't resume from the correct position",
+    "Search-backed lists return incorrect version metadata for pagination token resumption",
+    "Why are sort fields missing when you paginate through search results?"
+  ],
+  "saysFor": "811:request-only-needed-fiel",
+  "search": "When listing via search with FIELD_VALUES result format, request Fields: []string{SEARCH_FIELD_RV} to obtain exact resource version metadata plus SortFields per row for correct pagination, since search index responses carry approximate or missing resource versions. Build the next-page continuation token from row.sortFields using NewSearchContinueToken rather than resourceVersion, and access row data via ResourceSearchRow.GetKey()/GetResourceVersion()/GetSortFields() — not ResourceTableRow methods, which assume the full resource table shape. This rule applies only to selector-backed list paths that page through search results (pkg/storage/unified/resource/list_with_selectors.go); do not assume FIELD_VALUES rows include all fields from a full resource table."
+}

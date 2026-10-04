@@ -48,5 +48,6 @@
     "How to stop warehouse source retrying when API key expires",
     "DoIt 403 invalid token error should fail immediately not retry forever"
   ],
-  "saysFor": "955:doit-rejected-key-errors"
+  "saysFor": "955:doit-rejected-key-errors",
+  "search": "DoIt warehouse source must register all rejected-key error patterns in get_non_retryable_errors dict (in doit/source.py) with a message containing the word \"reconnect\" to prevent infinite retries. Symptom: API keys rejected with both 401 \"invalid or revoked access key\" and 403 \"invalid token: missing expiration\" must map to the shared bad_key message (\"...create a new key and reconnect.\"). Keys are substring patterns matched against error text. Constraint: only register errors where retry cannot succeed (bad credentials, not transient failures); the test checks that the message contains \"reconnect\". New DoIt bad-key error texts should reuse the bad_key variable. Applies to doit/source.py:get_non_retryable_errors and the same pattern for other warehouse sources' error classification maps."
 }

@@ -1,0 +1,83 @@
+{
+  "id": "grpc-request-duration-metric-must-reflect-embedded-errorresu",
+  "title": "gRPC request-duration metric must reflect embedded ErrorResult, not just transport err",
+  "kind": "rule",
+  "answers": [
+    "Why does a request with an embedded Error field show status_code=OK in storage_server_grpc_request_duration_seconds?",
+    "VectorSearch/Read response Error isn't reflected in grpc status metric",
+    "How to make gRPC metrics show the real error code when the RPC itself returned nil error"
+  ],
+  "body": "Symptom: unified-storage responses that succeed at the transport level but carry a populated ErrorResult (e.g. ReadResponse.Error, VectorSearchResponse.Error) were labeled status_code=OK in gRPC duration metrics.\nRoot cause: pkg/storage/unified/resource/grpc_interceptor.go:UnaryRequestDurationInterceptor only derived the metric label from status.Code(err), ignoring any Error field embedded in the response message.\nFix pattern: after calling handler, when err == nil, type-assert the response to an interface exposing GetError() *resourcepb.ErrorResult and compute the metric code via grpcCodeFromErrorResult(result.GetError()) instead of defaulting to OK.\nConstraints: only applies to response messages that have a protobuf-generated GetError() accessor for an embedded ErrorResult field; a transport-level grpc error (non-nil err) still takes precedence over any embedded Error.",
+  "applies": "pkg/storage/unified/resource gRPC interceptors and any resourcepb response type with an embedded ErrorResult field",
+  "tags": [
+    "grpc",
+    "metrics",
+    "unified-storage",
+    "error-handling"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/grpc_interceptor.go",
+      "symbol": "UnaryRequestDurationInterceptor",
+      "hash": "sha256:dff76b85d7589c5832d2eda8",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/errors.go",
+      "symbol": "grpcCodeFromErrorResult",
+      "hash": "sha256:5cbd9c03994c65b7b703dfaa",
+      "line": 359,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 7,
+        "refs": 9
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/grpc_interceptor.go",
+      "symbol": "GetError",
+      "hash": "sha256:3b98971213ae977b585a5980",
+      "line": 28,
+      "missing": false,
+      "fanout": {
+        "files": 36,
+        "sites": 76,
+        "refs": 77
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132895"
+  },
+  "created": "2026-10-04T06:15:31.562Z",
+  "verified": "2026-10-04T06:15:31.562Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "central-place-for-errorresult-grpc-code-translation-in-unifi",
+    "errorresult-reason-must-stay-mapped-in-grpccodefromreason-to"
+  ],
+  "says": [
+    "Error response showing as success in request duration metric",
+    "Failed search request reports OK status in metrics",
+    "Request error embedded in response not reflected in metrics",
+    "Latency metric displays OK despite request failing",
+    "Response error code not affecting gRPC metric label"
+  ],
+  "saysFor": "970:grpc-request-duration-me",
+  "lastUsed": "2026-10-04T07:11:55.659Z",
+  "servedIn": [
+    "smoke-1791097913775"
+  ],
+  "search": "gRPC request-duration metric status_code labels must capture embedded ErrorResult fields in response messages, not only transport-level gRPC errors, to correctly reflect actual failure even when the gRPC call succeeds at the protocol level. After the handler returns with err == nil, type-assert the response to an interface exposing GetError() *resourcepb.ErrorResult, then set the metric status_code via grpcCodeFromErrorResult() instead of defaulting to OK. Transport-level errors (non-nil err) still take precedence over embedded errors. Applies to gRPC interceptors like UnaryRequestDurationInterceptor in pkg/storage/unified/resource/grpc_interceptor.go and any resourcepb response type with an embedded ErrorResult field. See pkg/storage/unified/resource/errors.go:grpcCodeFromErrorResult for implementation."
+}

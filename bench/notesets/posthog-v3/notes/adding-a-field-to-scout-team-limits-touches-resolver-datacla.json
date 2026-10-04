@@ -82,5 +82,6 @@
     "Scout hit the max events per team threshold",
     "Configure per-team limits for signal detection"
   ],
-  "saysFor": "780:adding-a-field-to-scout-"
+  "saysFor": "780:adding-a-field-to-scout-",
+  "search": "Adding a scout team limit requires touching five places: TEAM_CONFIG_* constant, resolver, and ScoutTeamLimits dataclass field in scout_harness/team_limits.py; ScoutLimitsSerializer field in serializers.py; regenerate api.schemas.ts with hogli build:openapi (do not hand-edit); update AGENTS.md and limits.py comment. Tests live in test_scout_coordinator.py (resolver matrices), test_scout_harness_api.py, and test_scout_status.py. Guides payload schema sync and prevents hand-edited API schema drift in products/signals."
 }

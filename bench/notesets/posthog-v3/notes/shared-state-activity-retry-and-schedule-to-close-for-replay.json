@@ -56,5 +56,6 @@
     "Replay Vision media preparation timeout behavior",
     "Configure how many times thumbnail export retries"
   ],
-  "saysFor": "809:shared-state-activity-re"
+  "saysFor": "809:shared-state-activity-re",
+  "search": "Replay Vision temporal workflows use shared STATE_ACTIVITY_RETRY and STATE_ACTIVITY_SCHEDULE_TO_CLOSE constants from products/replay_vision/backend/temporal/constants.py for state-write activities (Postgres writes moving observations or media between states). STATE_ACTIVITY_RETRY is 5 attempts with 1s initial, 10s max interval (~15s backoff), and STATE_ACTIVITY_SCHEDULE_TO_CLOSE is 3 minutes; the 3-min ceiling keeps the failure path inside APPLY_SCANNER_EXECUTION_TIMEOUT, while maximum_attempts controls actual retry count. Don't define per-workflow copies like _STATE_ACTIVITY_RETRY. Used in products/replay_vision/backend/temporal/workflow.py (ApplyScanner) and media_workflow.py (prepare/finalize thumbnail); evaluation_workflow.py has its own deliberate policy outside scope."
 }

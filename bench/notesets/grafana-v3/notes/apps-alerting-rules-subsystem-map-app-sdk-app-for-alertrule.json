@@ -1,0 +1,182 @@
+{
+  "id": "apps-alerting-rules-subsystem-map-app-sdk-app-for-alertrule",
+  "title": "apps/alerting/rules — subsystem map (App-SDK app for AlertRule/RecordingRule/RuleSequence/Config)",
+  "kind": "map",
+  "answers": [
+    "Where is admission validation/mutation for alert rules handled?",
+    "How does control flow into apps/alerting/rules from the rest of Grafana?",
+    "What does apps/alerting/rules own vs not own?",
+    "Where is RuleSequence membership tracked?"
+  ],
+  "body": "apps/alerting/rules is a Grafana App-SDK app implementing k8s API group `rules.alerting.grafana.app/v0alpha1` with kinds AlertRule, RecordingRule, RuleSequence, Config. It only does schema (CUE), mutation/defaulting, and admission validation — rule evaluation/storage lives in pkg/services/ngalert/.\n- Entry point: `apps/alerting/rules/pkg/app/app.go:New` builds a `simple.AppManagedKind` per kind (from `apps/alerting/rules/pkg/apis/types.go:GetKinds`) via `buildKindValidator`/`buildKindMutator`/`buildKindWatcher`.\n- External wiring: `pkg/registry/apps/alerting/rules/register.go:RegisterAppInstaller` supplies the real `config.RuntimeConfig` (`apps/alerting/rules/pkg/app/config/runtime.go`) — FolderValidator, NotificationSettingsValidator, ResolveRuleRef, MembershipResolver, search handlers — backed by ngalert/folder service/unified storage. Inside the app dir, RuntimeConfig is just an interface boundary.\n- Admission: `apps/alerting/rules/pkg/app/validation/builder.go:Builder.Build` fans out per-action ValidateFuncs (`OnWrite`/`OnDelete`/`WithOpenAPIValidation`); mutators (e.g. `alertrule/mutator.go:NewMutator`) run first. Delete requests only populate `req.OldObject`, not `req.Object` (handled explicitly in `Builder.Build`'s switch).\n- RuleSequence state: `apps/alerting/rules/pkg/app/rulesequence/membership_index.go:MembershipIndex` is an in-memory watch-backed index kept in sync by app-sdk's informer calling Add/Update/Delete; before initial sync it is empty and Resolve returns not-found (intentionally permissive).\n- Search routes are wired via `kinds/searchRoutes.cue` + `apps/alerting/rules/pkg/app/search_routes_test.go:buildSearchRoutes`, served through `config.RuntimeConfig.SearchRulesHandler`/`SearchAlertRulesHandler`/`SearchRecordingRulesHandler`.\n- Tests are pure unit tests with hand-built RuntimeConfig fakes (`app_test.go`), no server/DB: run `go test ./apps/alerting/rules/...`.",
+  "tags": [
+    "alerting",
+    "apps-sdk",
+    "admission-webhook",
+    "rules"
+  ],
+  "deps": [
+    {
+      "path": "apps/alerting/rules/pkg/app/app.go",
+      "symbol": "New",
+      "hash": "sha256:c09cec6cb80bdc1febdf8e74",
+      "line": 22,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/apis/types.go",
+      "symbol": "GetKinds",
+      "hash": "sha256:55fa50bfb9c69cf079f3b554",
+      "line": 10,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/config/runtime.go",
+      "symbol": "RuntimeConfig",
+      "hash": "sha256:c3c709f4e1e5a2b9afeb71b1",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 20,
+        "sites": 0,
+        "refs": 53
+      }
+    },
+    {
+      "path": "pkg/registry/apps/alerting/rules/register.go",
+      "symbol": "RegisterAppInstaller",
+      "hash": "sha256:57064f57d2689e8ee0ee57b8",
+      "line": 62,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 26,
+        "refs": 40
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/validation/builder.go",
+      "symbol": "Builder",
+      "hash": "sha256:21e557f0db59174737d0f5af",
+      "line": 28,
+      "missing": false,
+      "fanout": {
+        "files": 114,
+        "sites": 0,
+        "refs": 271
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/validation/builder.go",
+      "symbol": "OnWrite",
+      "hash": "sha256:c3f4408a17d84e25d0d086aa",
+      "line": 42,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 14,
+        "refs": 14
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/validation/builder.go",
+      "symbol": "OnDelete",
+      "hash": "sha256:186a46068238a12259bc8ed7",
+      "line": 46,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 12,
+        "refs": 20
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/validation/builder.go",
+      "symbol": "WithOpenAPIValidation",
+      "hash": "sha256:ba4a933fa8ffd8ab634ef2f9",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/alertrule/mutator.go",
+      "symbol": "NewMutator",
+      "hash": "sha256:5e64e7280db7824c1ab56c94",
+      "line": 12,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/rulesequence/membership_index.go",
+      "symbol": "MembershipIndex",
+      "hash": "sha256:81dd2113e31d1ffdedf6e537",
+      "line": 14,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/search_routes_test.go",
+      "symbol": "TestBuildSearchRoutes_routesCoexist",
+      "hash": "sha256:6ba4a2a3a914f1af280f830e",
+      "line": 17,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/app_test.go",
+      "symbol": "OnWrite",
+      "hash": "sha256:1dfbbf76bfd28fd732e78152",
+      "line": 30,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/app_test.go",
+      "symbol": "OnDelete",
+      "hash": "sha256:48be6f7e90f87e7a8028886f",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/app_test.go",
+      "symbol": "WithOpenAPIValidation",
+      "hash": "sha256:92267731b9cb600d52f9ac50",
+      "line": 111,
+      "missing": false
+    },
+    {
+      "path": "apps/alerting/rules/pkg/app/app_test.go",
+      "symbol": "Resolve",
+      "hash": "sha256:1a9b4fc83618b7effb82288e",
+      "line": 60,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "02a9f12d-c8f1-442d-92fa-5d778d9f1628"
+  },
+  "created": "2026-10-04T05:58:14.225Z",
+  "verified": "2026-10-04T05:58:14.225Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apps-alerting-rules-what-must-change-together-when-extending"
+  ],
+  "says": [
+    "How are alert rules validated when they are saved?",
+    "Where does alert rule validation and mutation happen?",
+    "Which components handle alert rule schema and admission?",
+    "Does the alert subsystem manage rule sequence membership?",
+    "What does the alert rules app own versus other services?"
+  ],
+  "saysFor": "2014:apps-alerting-rules-subs",
+  "search": "apps/alerting/rules is an App-SDK app for k8s API group rules.alerting.grafana.app/v0alpha1 implementing AlertRule, RecordingRule, RuleSequence, and Config kinds; it handles only schema validation and mutation (rule evaluation/storage remains in pkg/services/ngalert/). Entry point apps/alerting/rules/pkg/app/app.go:New builds simple.AppManagedKind per kind via buildKindValidator/buildKindMutator/buildKindWatcher; admission validation via apps/alerting/rules/pkg/app/validation/builder.go:Builder.Build fans out per-action ValidateFuncs (OnWrite, OnDelete, WithOpenAPIValidation) with mutators running first, and Delete requests only populate req.OldObject, not req.Object. RuleSequence state is kept in a watch-backed MembershipIndex that remains empty before initial sync and intentionally returns not-found (permissive) to Resolve queries. External wiring via pkg/registry/apps/alerting/rules/register.go:RegisterAppInstaller supplies the real RuntimeConfig backed by ngalert services; search routes are wired via kinds/searchRoutes.cue. This applies when adding validation rules, mutators, search handlers, or managing kind lifecycle for alerting kinds."
+}

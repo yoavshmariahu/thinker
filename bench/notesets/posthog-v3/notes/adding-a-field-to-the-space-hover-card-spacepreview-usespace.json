@@ -59,5 +59,6 @@
     "Space details are loading too slowly in the preview",
     "Add indicator for blocked or waiting sessions to card"
   ],
-  "saysFor": "1024:adding-a-field-to-the-sp"
+  "saysFor": "1024:adding-a-field-to-the-sp",
+  "search": "Adding a fact to the space hover card threads through SpaceOverview and NO_OVERVIEW in useRecentSpaceTasks.ts, passed as explicit props through SpacePreviewContent in SpacePreview.tsx, seeded in SpacePreview.stories.tsx CardFrame args, and sourced from space-tree-tasks query. Rows must call usePrefetchSpaceTasks with 250ms delay to warm the card; SpacePreviewPayload needs unreadSessions and blockedSessions from caller; WorkColumn.test.tsx must mock useUnreadSessionCount and useBlockedSessionCount hooks. Guides data flow from query through hooks to card render and story setup."
 }

@@ -58,5 +58,6 @@
     "Metrics show duplicate unavailable events when alert system retries failed checks",
     "AI detection failures counted per retry attempt instead of per scheduled check"
   ],
-  "saysFor": "983:ai-detector-unavailable-"
+  "saysFor": "983:ai-detector-unavailable-",
+  "search": "The metric posthog_insight_alerts_ai_detector_checks_total{outcome=\"unavailable\"} increments once per scheduled check only when the retry-exhausted path writes an errored check, enforced in posthog/temporal/alerts/activities.py:record_failed_evaluation by incrementing only when error.get(\"code\") == LLM_DETECTOR_UNAVAILABLE_ERROR_CODE AND an errored check was actually written. The evaluate_alert and _evaluate functions must NOT call record_ai_detector_check_outcome(\"unavailable\") when re-raising LLMDetectorUnavailableError, because a retry that then succeeds would otherwise count both failure and success. Early returns in _record (alert disabled, gone, or next_check_at in future) write no errored check and must not move the counter. Tests test_an_unavailable_detector_is_not_counted_on_every_attempt and test_counts_one_unavailable_outcome_per_recorded_failure in posthog/temporal/tests/test_alerts_activities.py verify the constraint."
 }

@@ -75,5 +75,6 @@
     "The insights list is very slow unless I explicitly set a sort order",
     "Fetching insights performs poorly when the API request has no order parameter"
   ],
-  "saysFor": "1055:insight-list-default-ord"
+  "saysFor": "1055:insight-list-default-ord",
+  "search": "Insight list API default ordering must use an indexed column: `order_queryset` in `products/product_analytics/backend/presentation/insight.py` defaulted to `order_by(\"order\")`, causing full table scans since `Insight.order` is nullable and unindexed. Fix: default to `order_by(\"-last_modified_at\", \"-pk\")` backed by partial index `dashboarditem_team_lmod_idx` on (team_id, -last_modified_at) WHERE NOT deleted; `-pk` provides stable pagination tiebreaker. Constraints: never add index on `order` (NULL for nearly all rows); retain `with_last_viewed_at` annotation; `search` branch remains unordered for relevance ranking. Pitfall: changing the default changes response order for clients sending no `order` param."
 }

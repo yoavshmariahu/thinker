@@ -117,5 +117,6 @@
     "Finding flag status and staleness checking logic",
     "Feature flag model storage and table structure"
   ],
-  "saysFor": "1013:feature-flags-backend-li"
+  "saysFor": "1013:feature-flags-backend-li",
+  "search": "Feature flags backend lives in products/feature_flags/backend, not posthog/models; there is no posthog/models/feature_flag/ directory. The FeatureFlag model (products/feature_flags/backend/models/feature_flag.py) stores filters in a JSONField; use objects for active flags and objects_including_soft_deleted to include soft-deleted rows. Serialized caches are maintained in flags_cache.py:update_flags_cache (HyperCache/Redis) and local_evaluation.py:update_flag_definitions_cache (SDK local-eval blob), with filter shape validation in filters_validation.py:collect_filters_violations. Status and staleness checks live in flag_status.py:FeatureFlagStatusChecker, and actual evaluation is in Rust (rust/feature-flags/src/flags/flag_matching.rs). Management commands are split: cache warm/verify in posthog/management/commands/, audit/repair/delete in products/feature_flags/backend/management/commands/. Temporal health checks are in products/feature_flags/backend/temporal/health_checks/stale_flags.py."
 }

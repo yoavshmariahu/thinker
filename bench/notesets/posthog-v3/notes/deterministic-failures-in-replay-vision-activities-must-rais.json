@@ -44,5 +44,6 @@
     "Replay observation thumbnail export loops endlessly on missing data",
     "Deterministic export errors should stop retrying after first failure"
   ],
-  "saysFor": "655:deterministic-failures-i"
+  "saysFor": "655:deterministic-failures-i",
+  "search": "Deterministic failures in Replay Vision activities must raise ApplicationError with non_retryable=True to prevent Temporal from burning all retry attempts on unrecoverable errors. In observation_media.py:prepare_observation_thumbnail_activity, catch ExportedAsset.DoesNotExist and empty content_location and convert them to ApplicationError(..., non_retryable=True). This constraint applies to any new lookups added to these activities. The test pattern in test_observation_media.py asserts caught.value.non_retryable is True. Applies to Replay Vision media and observation activities where missing analysis assets or missing content locations signal permanent, non-recoverable failures."
 }

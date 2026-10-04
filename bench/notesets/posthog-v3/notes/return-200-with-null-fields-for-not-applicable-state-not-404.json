@@ -51,5 +51,6 @@
     "Retention banner spamming error tracking with feature unavailable",
     "Why no error when retention window not supported here?"
   ],
-  "saysFor": "805:return-200-with-null-fie"
+  "saysFor": "805:return-200-with-null-fie",
+  "search": "Return 200 with null fields instead of 404 when a feature or data window does not apply to a project; 404 must signal 'no such project or no access', and every non-2xx response is captured as `client_request_failure` event, causing spam when polled by frontend. Use `allow_null=True` in serializers like `EventsRetentionSerializer` in `products/product_analytics/backend/presentation/events_retention.py:EventsRetentionViewSet.list`. Do not add an 'enforced' boolean alongside null values; null itself conveys 'not applicable'. Frontend consumer `loadRetentionMonths` in `frontend/src/scenes/insights/dataRetention/dataRetentionBannerLogic.ts` treats null as 'not enforced' and has no 404 catch. Applies to DRF endpoints whose data may not apply to a project, especially those polled by frontend logics."
 }

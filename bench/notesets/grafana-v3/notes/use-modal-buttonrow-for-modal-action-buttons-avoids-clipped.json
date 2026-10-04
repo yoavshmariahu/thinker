@@ -1,0 +1,80 @@
+{
+  "id": "use-modal-buttonrow-for-modal-action-buttons-avoids-clipped",
+  "title": "Use Modal.ButtonRow for modal action buttons (avoids clipped focus ring)",
+  "kind": "rule",
+  "answers": [
+    "Why is the focus outline cut off on buttons inside a modal?",
+    "Focus ring/box-shadow gets clipped on confirm/cancel buttons in a dialog",
+    "How should I lay out the action buttons in a modal footer?",
+    "Button focus halo looks chopped off at the edge of the modal"
+  ],
+  "body": "Symptom: the keyboard focus ring around buttons at the bottom of a modal (e.g. Confirm/Dismiss) is visually cut off/clipped.\nRoot cause: wrapping action buttons in a plain `<div>` + `Stack` with only custom padding (e.g. `buttonsContainer: css({ paddingTop: theme.spacing(3) })`) doesn't reserve enough space/overflow for the focus box-shadow at the container edge, as seen in packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx before the fix.\nFix pattern: replace the ad-hoc `<div className={styles.buttonsContainer}><Stack>...</Stack></div>` wrapper with `Modal.ButtonRow` from packages/grafana-ui/src/components/Modal/Modal.tsx, which already accounts for focus-ring spacing for its children.\nConstraints: applies to any modal/dialog footer containing action buttons in grafana-ui; don't hand-roll a Stack+div button container with custom padding for this purpose — use Modal.ButtonRow so focus styles aren't clipped.",
+  "applies": "grafana-ui modal/dialog components with action button rows (ConfirmModal, custom modals built on Modal)",
+  "tags": [
+    "grafana-ui",
+    "modal",
+    "focus-ring",
+    "accessibility",
+    "confirmmodal"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+      "symbol": "ConfirmContent",
+      "hash": "sha256:1b0f886b4db1e45987b16f83",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Modal/Modal.tsx",
+      "symbol": "className",
+      "hash": "sha256:314ffc12fa6966bb1e933692",
+      "line": 77,
+      "missing": false,
+      "fanout": {
+        "files": 552,
+        "sites": 0,
+        "refs": 1993
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Modal/Modal.tsx",
+      "symbol": "Modal",
+      "hash": "sha256:7779e1d4696b38669ad4fdb5",
+      "line": 46,
+      "missing": false,
+      "fanout": {
+        "files": 131,
+        "sites": 0,
+        "refs": 552
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132979"
+  },
+  "created": "2026-10-04T06:02:45.781Z",
+  "verified": "2026-10-04T06:02:45.781Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "avoid-manual-focus-useeffect-in-components-nested-inside-oth",
+    "confirmcontent-no-longer-owns-focus-caller-supplies-refs-for"
+  ],
+  "says": [
+    "Focus outline on modal action buttons is being clipped off",
+    "How should buttons at the bottom of a modal be arranged?",
+    "Button focus ring appears cut off at the modal edge",
+    "Modal footer needs proper spacing for button focus indicators"
+  ],
+  "saysFor": "1009:use-modal-buttonrow-for-",
+  "search": "Modal button focus-ring clipping prevention: use `Modal.ButtonRow` (packages/grafana-ui/src/components/Modal/Modal.tsx) instead of custom `<div className={styles.buttonsContainer}><Stack>...</Stack></div>` with padding-only styling for action buttons in modals (ConfirmModal, custom Modal-based dialogs). Custom padding on the wrapper doesn't reserve enough overflow space for the focus box-shadow at the container edge, clipping the ring. Modal.ButtonRow already accounts for focus-ring spacing for its children. Constraint: do not hand-roll Stack+div button containers with custom padding for this purpose. Applies to grafana-ui modal/dialog components with action button rows at the footer."
+}

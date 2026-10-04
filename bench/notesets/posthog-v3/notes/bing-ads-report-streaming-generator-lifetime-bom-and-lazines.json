@@ -66,5 +66,6 @@
     "Data import freezes when Bing Ads report generator abandoned mid-download",
     "Bing Ads performance report returns empty when generator not consumed fully"
   ],
-  "saysFor": "1048:bing-ads-report-streamin"
+  "saysFor": "1048:bing-ads-report-streamin",
+  "search": "Bing Ads report streaming functions are generators where nothing executes until the generator is fully drained; tests must wrap calls in list() to trigger execution. The yield from sits inside the SDK working directory context manager and try block, so the temporary directory persists throughout iteration and download faults still receive fault wrapping. Abandoned iterators must be manually closed. The BOM is stripped via utf-8-sig decoding in io.TextIOWrapper with newline=\"\" over zip_file.open—do not use plain utf-8 or the first column becomes corrupted with the BOM character. iter_csv_row_pages must not drain its source generator before yielding; test_iter_csv_row_pages_reads_lazily guards this lazy behavior. download_file returning None still signals an empty report (yields nothing, no exception). Applies to edits in bing_ads/utils.py:iter_report_row_pages, bing_ads/client.py:get_performance_report and BingAdsClient.get_performance_report, and their tests."
 }

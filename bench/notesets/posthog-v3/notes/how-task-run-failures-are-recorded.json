@@ -97,5 +97,6 @@
     "What information is recorded about task run errors?",
     "I need to see the complete error message"
   ],
-  "saysFor": "596:how-task-run-failures-ar"
+  "saysFor": "596:how-task-run-failures-ar",
+  "search": "Task run failures are recorded via workflow.py:ProcessTaskWorkflow._update_task_run_status(status, error_message, error_type, timed_out_inactivity, ...) calling the update_task_run_status activity; error_type is determined by _failure_error_type which maps temporal TimeoutType (lowercased name), string cause type, or falls back to exception class name. The TaskRun model (models.py:TaskRun.mark_failed) is the primary storage; facade functions fail_task_run and claim_and_fail_stale_run are janitor/reaper code paths. Error telemetry in error_telemetry.py:truncate_error_message preserves the tail (500 chars) rather than the beginning, since root cause appears at the end of agent output."
 }

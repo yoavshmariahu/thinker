@@ -82,5 +82,6 @@
     "Should I run backend and frontend tests together?",
     "What testing variants and options are available?"
   ],
-  "saysFor": "1175:hogli-is-the-task-runner"
+  "saysFor": "1175:hogli-is-the-task-runner",
+  "search": "hogli (bin/hogli) is the central task runner with commands declared in hogli.yaml implementing test, lint, format, and codegen entry points. `hogli test <path>` autodetects pytest/jest/playwright/rust/go; `hogli test:python` and `hogli test:js` run language-specific suites with pytest.ini (DJANGO_SETTINGS_MODULE=posthog.settings, asyncio_mode=auto) and jest sharding (SHARD_INDEX/SHARD_COUNT). Python linting uses ruff via hogli lint:python:fix with config [tool.ruff] in pyproject.toml; JavaScript uses oxlint (.oxlintrc.json) and oxfmt (.oxfmtrc.json). Type checking spans mypy (repo-wide cache-fine-grained per CLAUDE.md) and frontend typescript:check (tsgo --noEmit). Applies to local development workflows, CI integration, code quality gates, and infrastructure setup."
 }

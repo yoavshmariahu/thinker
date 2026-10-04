@@ -1,0 +1,50 @@
+{
+  "id": "mutabledataframe-length-needs-a-setter-for-clonedeep-safety",
+  "title": "MutableDataFrame.length needs a setter for cloneDeep-safety",
+  "kind": "rule",
+  "answers": [
+    "TypeError: Cannot set property length of #<d> which has only a getter",
+    "cloneDeep crashes on a DataFrame in Explore with Rspack/ESM build",
+    "Why does lodash cloneDeep throw on MutableDataFrame but not in Jest?",
+    "Plugin crashes calling cloneDeep(props.data) on a DataFrame"
+  ],
+  "body": "Symptom: cloneDeep(mutableDataFrame) throws 'Cannot set property length ... which has only a getter' — only in strict-mode ESM bundles (e.g. Rspack), not in Jest (which transpiles lodash to CommonJS, non-strict).\nRoot cause: packages/grafana-data/src/dataframe/MutableDataFrame.ts MutableDataFrame.length was getter-only (derived from this.first.length); generic deep-clone utilities read a property then write it back onto the clone, which throws in strict mode when there's no setter.\nFix pattern: add a no-op setter alongside a derived/computed getter so generic object copiers (lodash cloneDeep, structuredClone-like utilities) can write back the value they read without throwing.\nConstraints: apply this to any class with a getter-only property that may be visited by a generic deep-clone/copy routine; write a test that assigns the property directly (clone.length = 3) rather than via Jest's cloneDeep, since Jest's CommonJS lodash won't reproduce strict-mode failures.",
+  "applies": "Any getter-only/derived property on classes (especially DataFrame implementations in grafana-data) that may be passed through generic object-copying utilities like lodash cloneDeep.",
+  "tags": [
+    "dataframe",
+    "strict-mode",
+    "esm",
+    "lodash",
+    "clonedeep",
+    "rspack"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/dataframe/MutableDataFrame.ts",
+      "symbol": "MutableDataFrame.length",
+      "hash": "sha256:43ad0430d0b0e4f460c6fd75",
+      "line": 73,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132648"
+  },
+  "created": "2026-10-04T06:51:08.241Z",
+  "verified": "2026-10-04T06:51:08.241Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Deep copying a data frame throws property length error",
+    "Data frame clone fails in production but works in tests",
+    "Plugin crashes when deep cloning data frame for processing",
+    "Why does cloning data frame fail in production only",
+    "Data frame deep copy fails in strict mode environment"
+  ],
+  "saysFor": "1035:mutabledataframe-length-",
+  "search": "MutableDataFrame.length property requires both a getter and setter to prevent cloneDeep failures in strict-mode ESM bundles like Rspack. The property was getter-only (derived from this.first.length) in packages/grafana-data/src/dataframe/MutableDataFrame.ts, causing generic deep-clone utilities to throw 'Cannot set property length ... which has only a getter' when they read and write back the value. Add a no-op setter alongside the computed getter so lodash cloneDeep and similar utilities can write without throwing; Jest's CommonJS transpilation hides this, so test by assigning directly (clone.length = 3) rather than relying on Jest's cloneDeep. Applies to any getter-only derived property on classes (especially DataFrame implementations in grafana-data) that may pass through generic object-copying routines."
+}

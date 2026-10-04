@@ -1,0 +1,95 @@
+{
+  "id": "new-pkg-api-endpoint-must-update-handler-registerroutes-rbac",
+  "title": "New pkg/api endpoint must update handler + registerRoutes + RBAC action/declareFixedRoles + swagger doc",
+  "kind": "rule",
+  "answers": [
+    "What do I need to change when adding a new pkg/api endpoint?",
+    "Why would a new endpoint always return 403?",
+    "What breaks if I add a handler without updating accesscontrol.go?",
+    "Where do swagger docs for a handler live?"
+  ],
+  "body": "Adding/changing an endpoint in pkg/api touches several places together, not just the handler:\n1. Handler method on `*HTTPServer` in the relevant domain file (e.g. org.go, dashboard.go), returning `response.Response`.\n2. A route-registration line inside `registerRoutes()` (pkg/api/api.go) with the correct `authorize(ac.EvalPermission(...))`/`reqSignedIn` middleware — RBAC checks are enforced as middleware wrapping the route, not as in-handler guards (in-handler checks are only used when the scope depends on a DB lookup, e.g. dashboard UID scopes).\n3. If the action doesn't exist yet, it must be declared and granted to roles in pkg/api/accesscontrol.go's fixed role registrations, which are installed via `hs.declareFixedRoles()` (called from `ProvideHTTPServer`, pkg/api/http_server.go). Skipping this leaves the endpoint either always-403 or accidentally wide open depending on which check was left out.\n4. Swagger: handlers carry a `// swagger:route METHOD /path tag opId` doc comment directly above them, and response payload shapes are declared as `swagger:response` types in pkg/api/swagger_responses.go; changing a handler's request/response shape without updating these (and running `make swagger-gen`) leaves the generated OpenAPI/TS client stale.\n5. New DI dependency for a handler requires adding the field/constructor arg to the `HTTPServer` struct and `ProvideHTTPServer` in pkg/api/http_server.go, then regenerating Wire (`make gen-go`).\nUse `web.Bind(c.Req, &cmd)` for request binding (see dashboard.go's PostDashboard), not manual JSON decoding — it does validation/error formatting consistently.",
+  "applies": "Applies when adding or changing an /api/... HTTP endpoint under pkg/api. Does not apply to pure internal service logic with no new HTTP surface.",
+  "tags": [
+    "pkg/api",
+    "rbac",
+    "swagger",
+    "wire",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/api.go",
+      "symbol": "registerRoutes",
+      "hash": "sha256:eac3cefc58fedea6d11e699b",
+      "line": 64,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 33,
+        "refs": 37
+      }
+    },
+    {
+      "path": "pkg/api/http_server.go",
+      "symbol": "ProvideHTTPServer",
+      "hash": "sha256:e37539bdb918cf203936d51b",
+      "line": 249,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/api/accesscontrol.go",
+      "hash": "sha256:5347f0fc3fdbb6b75ab47200",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/swagger_responses.go",
+      "hash": "sha256:9b196decd5f40691f5d824d8",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/dashboard.go",
+      "symbol": "PostDashboard",
+      "hash": "sha256:1e4141a9cf86a1f0a160ff4d",
+      "line": 347,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/api/org.go",
+      "hash": "sha256:146c671104a35bca83d6dd02",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "a09f1f58-00d4-4123-ae06-2939e99785de"
+  },
+  "created": "2026-10-04T06:00:23.161Z",
+  "verified": "2026-10-04T06:00:23.161Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pkg-api-control-flow-map-construction-route-registration-req"
+  ],
+  "says": [
+    "Why does my new endpoint always return permission denied?",
+    "What multiple places do I need to update for a new API endpoint?",
+    "New endpoint handler added but it won't show in API documentation?",
+    "Forgot to update permissions, new endpoint returns 403 forbidden?",
+    "Adding an API endpoint requires changes in authorization and specs?"
+  ],
+  "saysFor": "1721:new-pkg-api-endpoint-mus",
+  "search": "New /api/... HTTP endpoints in pkg/api require coordinated changes: (1) handler method on HTTPServer in domain file (org.go, dashboard.go) returning response.Response; (2) route registration in registerRoutes (pkg/api/api.go) with middleware authorize(ac.EvalPermission(...)) or reqSignedIn—RBAC is middleware-enforced, not in-handler, except when scope depends on DB lookup like dashboard UID; (3) new RBAC actions declared in pkg/api/accesscontrol.go fixed role registrations called from ProvideHTTPServer; (4) swagger doc comments above handlers and response types in pkg/api/swagger_responses.go, then run make swagger-gen; (5) new DI dependencies added to HTTPServer struct and ProvideHTTPServer, then make gen-go. Use web.Bind(c.Req, &cmd) for request binding. Missing RBAC declaration leaves endpoint 403 or accidentally wide-open."
+}

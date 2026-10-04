@@ -48,5 +48,6 @@
     "Admin allowlist grants unintended write access to read-only impersonation users",
     "Approving workflow read endpoint opens write operations through same prefix"
   ],
-  "saysFor": "759:allowlist-entries-must-n"
+  "saysFor": "759:allowlist-entries-must-n",
+  "search": "Allowlist entries in READ_ONLY_IMPERSONATION_ALLOWLISTED_PATHS (posthog/middleware.py) must specify the exact action, not a URL prefix, because the same prefix often hosts both read and write actions (e.g., hog_flows/ has publish, bulk_delete, run, batch_jobs; logs/ has CRUD viewsets). Widening to a prefix grants write access to read-only sessions. Every new entry requires two parameterized test cases in posthog/test/test_middleware.py: one in test_read_only_impersonation_allows_allowlisted_post and mutating siblings in test_read_only_impersonation_blocks_mutating_siblings. Applies to any edit of the read-only impersonation allowlist."
 }

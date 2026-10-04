@@ -62,5 +62,6 @@
     "Product scene not appearing in the app",
     "New page exists but routing doesn't find it"
   ],
-  "saysFor": "514:adding-a-product-scene-c"
+  "saysFor": "514:adding-a-product-scene-c",
+  "search": "Product scene addition requires coordinated edits to products/<name>/manifest.tsx (scenes, routes, urls entries) and Scene enum in frontend/src/scenes/sceneTypes.ts, followed by pnpm build:products regeneration. Never hand-edit frontend/src/products.tsx or productScenes.tsx; page module must export SceneExport with name matching the Scene enum value. Core scenes handled separately in scenes.ts/appScenes.ts per frontend/src/AGENTS.md Rule 2. Applies to product-based scenes within the products/ directory structure."
 }

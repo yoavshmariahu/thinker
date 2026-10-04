@@ -1,0 +1,58 @@
+{
+  "id": "use-grafana-ui-copytexttoclipboard-instead-of-a-bespoke-clip",
+  "title": "Use @grafana/ui copyTextToClipboard instead of a bespoke clipboard implementation",
+  "kind": "rule",
+  "answers": [
+    "How do I copy text to the clipboard in Grafana UI code?",
+    "Why are there multiple clipboard copy functions / which one should I use?",
+    "ClipboardButton/explore.ts/notebook export clipboard duplication"
+  ],
+  "body": "Symptom: three near-identical clipboard-copy implementations existed (ClipboardButton's copyText, explore.ts's copyStringToClipboard, notebook export's copyToClipboard), each with slightly different Safari/secure-context handling.\nRoot cause: no shared util, so clipboard logic was copy-pasted and could drift.\nFix pattern: all clipboard writes now go through the single exported `copyTextToClipboard` in packages/grafana-ui/src/utils/copyToClipboard.ts (re-exported from packages/grafana-ui/src/index.ts). New code that needs to copy text should import it from `@grafana/ui` rather than writing a new textarea/execCommand fallback or calling navigator.clipboard directly.\nConstraints: it accepts `string | Promise<string>` and an optional element ref for the fallback's append target; it returns a promise that rejects on failure, so callers must handle that (see related note on awaiting it).",
+  "applies": "Any Grafana frontend code (core app or grafana-ui) that needs to copy text to the system clipboard",
+  "tags": [
+    "clipboard",
+    "grafana-ui",
+    "consolidation"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/utils/copyToClipboard.ts",
+      "symbol": "copyTextToClipboard",
+      "hash": "sha256:6899ec054565a17538711ef2",
+      "line": 5,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 18,
+        "refs": 38
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/index.ts",
+      "hash": "sha256:4cb30fbb3dbfb767325996de",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132731"
+  },
+  "created": "2026-10-04T06:38:21.073Z",
+  "verified": "2026-10-04T06:38:21.073Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "always-await-catch-copytexttoclipboard-before-showing-a-succ",
+    "clipboard-copy-pass-pending-promises-to-clipboarditem-don-t"
+  ],
+  "says": [
+    "How do I copy text to the clipboard in the UI?",
+    "Why do different features have different copy-to-clipboard implementations?",
+    "Text copying duplicated across explore, notebooks, and other features",
+    "All clipboard operations should use the single shared utility"
+  ],
+  "saysFor": "976:use-grafana-ui-copytextt",
+  "search": "Clipboard-copy utility consolidation: use the shared `copyTextToClipboard` export from `@grafana/ui` (packages/grafana-ui/src/utils/copyToClipboard.ts, re-exported in packages/grafana-ui/src/index.ts) instead of custom textarea/execCommand or navigator.clipboard implementations. Accepts `string | Promise<string>` and optional element ref for the fallback target; returns a promise that rejects on failure, requiring callers to handle errors. Replaces bespoke clipboard logic (ClipboardButton.copyText, explore.ts.copyStringToClipboard, notebook export.copyToClipboard) that had drifted in Safari/secure-context handling. Applies to any Grafana frontend code (core app or grafana-ui) that needs to copy text to the system clipboard."
+}

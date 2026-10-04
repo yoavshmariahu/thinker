@@ -1,0 +1,89 @@
+{
+  "id": "childrenbyparentuid-openfolders-are-keyed-by-folder-uid-only",
+  "title": "childrenByParentUID/openFolders are keyed by folder UID only",
+  "kind": "rule",
+  "answers": [
+    "Why must folder children lookups check item.kind === 'folder'?",
+    "Can a dashboard have an entry in childrenByParentUID?",
+    "Rule for indexing childrenByParentUID in browse-dashboards"
+  ],
+  "body": "Invariant: public/app/features/browse-dashboards/types.ts:BrowseDashboardsState.childrenByParentUID (and openFolders) must only ever be indexed with a folder's UID, never a dashboard's UID, even though a dashboard can share its parent folder's UID in unified storage. Enforced by the `item.kind !== 'folder' -> return false/leaf` guards in BrowseView.tsx:hasSelectedDescendants and state/hooks.ts's tree-flattening mapItem (public/app/features/browse-dashboards/state/hooks.ts). If a non-folder item is treated as having a children collection under its own UID, the tree recursion and selection-descendant walk loop infinitely (crash/hang) because the lookup under that UID resolves back to the dashboard's own sibling folder data. Any new code reading childrenByParentUID[item.uid] must first check item.kind === 'folder'.",
+  "applies": "browse-dashboards state reducers/selectors/components that read childrenByParentUID or openFolders",
+  "tags": [
+    "browse-dashboards",
+    "invariant",
+    "state-shape"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/browse-dashboards/types.ts",
+      "symbol": "BrowseDashboardsState",
+      "hash": "sha256:ebfb38fb336d8cc8692bc471",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 22
+      }
+    },
+    {
+      "path": "public/app/features/browse-dashboards/components/BrowseView.tsx",
+      "symbol": "hasSelectedDescendants",
+      "hash": "sha256:54dba6fe42b492b3e7ab55fd",
+      "line": 247,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 3
+      }
+    },
+    {
+      "path": "public/app/features/browse-dashboards/state/hooks.ts",
+      "symbol": "createFlatTree",
+      "hash": "sha256:1c37ab1e621724e7d39ebed7",
+      "line": 133,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "public/app/features/browse-dashboards/types.ts",
+      "symbol": "BrowseDashboardsState",
+      "hash": "sha256:ebfb38fb336d8cc8692bc471",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132634"
+  },
+  "created": "2026-10-04T06:52:29.314Z",
+  "verified": "2026-10-04T06:52:29.314Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboard-folder-uid-collisions-must-be-disambiguated-by-kin"
+  ],
+  "says": [
+    "Why does the dashboard tree hang or freeze when loading certain items?",
+    "Can a dashboard entry appear in the folder children lookup index?",
+    "Why must we check that an item is a folder before looking up children?",
+    "What causes infinite recursion when navigating the folder tree in browse view?",
+    "How should folder children lookup be implemented to avoid infinite loops?"
+  ],
+  "saysFor": "884:childrenbyparentuid-open",
+  "search": "browse-dashboards state tree invariant: childrenByParentUID and openFolders in BrowseDashboardsState must only be indexed by folder UID, never dashboard UID, even though dashboards can share their parent folder's UID in unified storage. Accessing with non-folder UIDs causes infinite recursion because the lookup resolves back to the dashboard's sibling folder data, crashing the tree recursion and selection-descendant walks. Guarded by item.kind !== 'folder' checks in BrowseView.tsx:hasSelectedDescendants and state/hooks.ts:createFlatTree's mapItem function. New code reading childrenByParentUID[item.uid] must first check item.kind === 'folder'. Applies to browse-dashboards state reducers, selectors, and components reading these collections; pointers include BrowseDashboardsState type definition and hasSelectedDescendants logic."
+}

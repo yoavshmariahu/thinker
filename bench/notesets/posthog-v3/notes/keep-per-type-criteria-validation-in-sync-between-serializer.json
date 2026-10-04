@@ -70,5 +70,6 @@
     "Adding a new question type means updating validation in two places.",
     "What criteria are required for each decision question type?"
   ],
-  "saysFor": "642:keep-per-type-criteria-v"
+  "saysFor": "642:keep-per-type-criteria-v",
+  "search": "Per-type criteria validation rules exist in both DecisionQuestion.__post_init__ (products/ml_inference/backend/facade/contracts.py) and DecisionQuestionSerializer.validate (products/ml_inference/backend/presentation/serializers.py); they must match: SCORE requires ≥2 labels, CHOICE requires non-empty dict, NOUL rejects list. MAX_QUESTIONS_PER_REQUEST limit is enforced in both DecisionRequest and DecideRequestSerializer.validate_questions. After changing serializers, regenerate frontend/generated/{api.ts, api.schemas.ts, api.zod.ts} via `hogli build:openapi` without manual editing. Applies to: changes in ml_inference question types, criteria rules, or request limits."
 }

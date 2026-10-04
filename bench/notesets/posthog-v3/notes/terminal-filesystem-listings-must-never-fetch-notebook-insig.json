@@ -55,5 +55,6 @@
     "How does terminal determine file type from API response?",
     "Avoiding paginating all notebooks when listing directory"
   ],
-  "saysFor": "792:terminal-filesystem-list"
+  "saysFor": "792:terminal-filesystem-list",
+  "search": "Terminal filesystem listing must use fileSystemList with include_content_type: true and never reintroduce notebooksList or insightsList pagination in loadDirectory or refresh, which would paginate every notebook and SQL insight and stall the listing. File extensions derive from meta.content_type via the extension() function, not from filename patterns. When content_type changes on a node, posthogFilesystem.ts:mountEntries must retire the entry under its old extension to prevent stale duplicates. Content itself loads only on open via notebooksRetrieve or insightsRetrieve. Tests must assert that notebooksList, insightsList, and apiMutator are never called during listing or refresh operations. This invariant applies to directory listing code in frontend/src/scenes/terminal/posthogFilesystem.ts:directoryEntries and frontend/src/scenes/terminal/posthogFilesystem.test.ts."
 }

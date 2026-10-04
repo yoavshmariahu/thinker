@@ -1,0 +1,165 @@
+{
+  "id": "apps-plugins-control-flow-plugin-install-records-vs-synthesi",
+  "title": "apps/plugins control flow: Plugin install records vs synthesized Meta lookups",
+  "kind": "map",
+  "answers": [
+    "How does apps/plugins work end to end?",
+    "Where does a GET on plugins.grafana.app/Meta get its data from?",
+    "How is the plugins app wired into the API server and background sync?",
+    "What is the difference between the Plugin kind and the Meta kind?"
+  ],
+  "body": "apps/plugins exposes two kinds under plugins.grafana.app (apps/plugins/kinds/manifest.cue): `Plugin` (apps/plugins/kinds/plugin.cue) is a real CRUD install record {id, version, url?, parentId?}; `Meta` (apps/plugins/kinds/meta.cue) is full plugin.json/signature/module metadata, never stored (`search.endpoint:false` on both kinds) — synthesized per request.\n\nEntry points:\n- API: `pkg/registry/apps/plugins/register.go:ProvideAppInstaller` builds a `meta.ProviderManager` (apps/plugins/pkg/app/meta/manager.go:NewProviderManager, chaining CoreProvider + LocalProvider in order — first success wins, each Result carries its own TTL) and passes it to `apps/plugins/pkg/app/app.go:New`/`NewPluginsAppInstaller`. `InstallAPIs` (app.go) swaps default REST storage via `apps/plugins/pkg/app/storage_wrapper.go:customStorageWrapper`: `Meta`→`apps/plugins/pkg/app/meta_storage.go:NewMetaStorage` (read-only), `Plugin`→`apps/plugins/pkg/app/plugin_storage.go:newPluginStorage` (generic store + lifecycle hooks).\n- Background sync: `pkg/services/pluginsintegration/installsync/syncer.go` (feature toggles `pluginInstallAPISync` + `pluginStoreServiceLoading`, per apps/plugins/README.md) calls `apps/plugins/pkg/app/install/registrar.go:InstallRegistrar.SyncNamespace` once per org namespace at startup to push on-disk plugins into the API.\n- CatalogProvider (meta/catalog.go, calls grafana.com) and the `meta.Provider` interface exist but are NOT in the default chain built in register.go today — only Core+Local are wired.\n\nWiring: blank-imported in `pkg/extensions/enterprise_imports.go` (apps/plugins/pkg/apis/plugins/v0alpha1, .../pkg/app, .../pkg/app/meta, .../pkg/app/metrics, pkg/registry/apps/plugins) — same mechanism as other App-SDK apps.",
+  "applies": "Describes apps/plugins specifically (its own Go module under apps/plugins/go.mod); other apps/* modules have their own separate control-flow maps.",
+  "tags": [
+    "apps/plugins",
+    "control-flow",
+    "app-sdk"
+  ],
+  "deps": [
+    {
+      "path": "apps/plugins/kinds/manifest.cue",
+      "hash": "sha256:b6cc727f304153f4d95a3150",
+      "missing": false
+    },
+    {
+      "path": "apps/plugins/kinds/plugin.cue",
+      "hash": "sha256:d8635f6b9a3afa86fc7c47f1",
+      "missing": false
+    },
+    {
+      "path": "apps/plugins/kinds/meta.cue",
+      "hash": "sha256:32edeb2934e02aca66e50fbd",
+      "missing": false
+    },
+    {
+      "path": "apps/plugins/pkg/app/app.go",
+      "symbol": "New",
+      "hash": "sha256:638bb2afb510a58c769a1612",
+      "line": 25,
+      "missing": false
+    },
+    {
+      "path": "apps/plugins/pkg/app/meta/manager.go",
+      "symbol": "NewProviderManager",
+      "hash": "sha256:da56c15482f12e82e3da1bd3",
+      "line": 34,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 25,
+        "refs": 26
+      }
+    },
+    {
+      "path": "apps/plugins/pkg/app/storage_wrapper.go",
+      "symbol": "customStorageWrapper",
+      "hash": "sha256:f51f508a6b68e8509bc763ca",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "apps/plugins/pkg/app/meta_storage.go",
+      "symbol": "NewMetaStorage",
+      "hash": "sha256:4f39e79032422402521b26b1",
+      "line": 47,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 6,
+        "refs": 6
+      }
+    },
+    {
+      "path": "apps/plugins/pkg/app/plugin_storage.go",
+      "symbol": "newPluginStorage",
+      "hash": "sha256:e5d9ae766aa7a5be8e96a6c9",
+      "line": 92,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/registry/apps/plugins/register.go",
+      "symbol": "ProvideAppInstaller",
+      "hash": "sha256:013bfdf086b584e1a95e676a",
+      "line": 41,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 5,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pkg/services/pluginsintegration/installsync/syncer.go",
+      "symbol": "running",
+      "hash": "sha256:eada0de277dbb852f32fe4db",
+      "line": 149,
+      "missing": false,
+      "fanout": {
+        "files": 273,
+        "sites": 7,
+        "refs": 525
+      }
+    },
+    {
+      "path": "apps/plugins/pkg/app/install/registrar.go",
+      "symbol": "InstallRegistrar",
+      "hash": "sha256:41066b23ca0b76eeb416f395",
+      "line": 188,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 11
+      }
+    },
+    {
+      "path": "pkg/extensions/enterprise_imports.go",
+      "hash": "sha256:9639c408397a8aeccfdf2a00",
+      "missing": false
+    },
+    {
+      "path": "apps/plugins/README.md",
+      "hash": "sha256:9db444d75cd8ab82cf38c5c5",
+      "missing": false
+    },
+    {
+      "path": "apps/plugins/pkg/app/meta/catalog.go",
+      "symbol": "CatalogProvider",
+      "hash": "sha256:0ce9227a94670f541f60215e",
+      "line": 24,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "387a306e-033d-4059-ac0f-98db072f9fd3"
+  },
+  "created": "2026-10-04T06:27:37.682Z",
+  "verified": "2026-10-04T06:27:37.682Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apps-plugins-hook-annotations-converters-and-new-kind-storag"
+  ],
+  "says": [
+    "How does the plugin management system work end to end?",
+    "Where does the system fetch plugin metadata for queries?",
+    "Does the plugin system cache metadata or look it up live?",
+    "How are plugin discovery and metadata retrieval configured?",
+    "What plugin information is stored versus computed on demand?"
+  ],
+  "saysFor": "1818:apps-plugins-control-flo",
+  "search": "Control flow for apps/plugins: Plugin (real CRUD install record: {id, version, url?, parentId?}) is stored via customStorageWrapper's newPluginStorage; Meta (full plugin.json/signature/module metadata) is synthesized per request via ProviderManager and never stored. API wiring in register.go:ProvideAppInstaller builds ProviderManager chaining CoreProvider + LocalProvider—first success wins, each result carries own TTL—and passes it to app.go:New; InstallAPIs swaps default REST storage for both kinds via storage_wrapper.go. Background sync via pluginsintegration/installsync/syncer.go calls InstallRegistrar.SyncNamespace at startup per org namespace to push on-disk plugins into API. CatalogProvider (meta/catalog.go, calls grafana.com) exists but is NOT wired in the default provider chain. All apps/plugins code blank-imported in pkg/extensions/enterprise_imports.go."
+}

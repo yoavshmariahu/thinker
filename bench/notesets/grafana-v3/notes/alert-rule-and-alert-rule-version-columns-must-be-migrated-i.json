@@ -1,0 +1,50 @@
+{
+  "id": "alert-rule-and-alert-rule-version-columns-must-be-migrated-i",
+  "title": "alert_rule and alert_rule_version columns must be migrated in lockstep",
+  "kind": "rule",
+  "answers": [
+    "Why does the alert rule version history show a different/truncated value than the live rule?",
+    "Do I need to migrate alert_rule_version too when changing an alert_rule column?",
+    "Alert rule versioning keeps stale or wrong column type"
+  ],
+  "body": "Invariant: alert_rule and alert_rule_version tables carry duplicate columns (e.g. missing_series_evals_to_resolve) that must be kept in sync in both schema and data, since every rule update writes a new version row via the versioning mechanism.\nEnforced at: pkg/services/ngalert/store/alert_rule_test.go TestIntegrationUpdateAlertRules asserts both the current alert_rule row and the corresponding alertRuleVersion row carry the same value after an update.\nWhat breaks if skipped: migrating/widening only one of the two tables' columns causes data loss or truncation in the version history even though the live rule is correct, or vice versa.\nFix pattern seen here: any migration touching an alert_rule column must add a matching migration for the same column on alert_rule_version.",
+  "applies": "Any schema change to pkg/services/ngalert alert_rule table",
+  "tags": [
+    "ngalert",
+    "alert_rule_version",
+    "migrations",
+    "alerting"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/store/alert_rule_test.go",
+      "symbol": "TestIntegrationUpdateAlertRules",
+      "hash": "sha256:8f1b517b1aac4e4bfd42a410",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133023"
+  },
+  "created": "2026-10-04T05:57:27.053Z",
+  "verified": "2026-10-04T05:57:27.053Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does the alert rule version history show a different/truncated value than the live rule?",
+    "Do I need to migrate alert_rule_version too when changing an alert_rule column?",
+    "Alert rule versioning keeps stale or wrong column type"
+  ],
+  "saysFor": "853:alert-rule-and-alert-rul",
+  "search": "The alert_rule and alert_rule_version tables carry duplicate columns (e.g., missing_series_evals_to_resolve) that must be kept in sync in both schema and data because every rule update writes a new version row. Any schema migration to an alert_rule column must add a matching migration for the same column on alert_rule_version, or data loss/truncation occurs in the version history even though the live rule appears correct. Conformance is enforced by TestIntegrationUpdateAlertRules in pkg/services/ngalert/store/alert_rule_test.go, which asserts both the current alert_rule row and the corresponding alertRuleVersion row carry the same value after an update. Applies to any schema change in pkg/services/ngalert affecting alert_rule."
+}

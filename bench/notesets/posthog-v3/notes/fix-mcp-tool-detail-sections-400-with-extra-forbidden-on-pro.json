@@ -57,5 +57,6 @@
     "Extra properties rejected on tool analytics queries",
     "Tool filters don't narrow data in detail view"
   ],
-  "saysFor": "1069:fix-mcp-tool-detail-sect"
+  "saysFor": "1069:fix-mcp-tool-detail-sect",
+  "search": "MCP tool detail page sections fail with 400 'extra_forbidden' error on properties and filterTestAccounts fields because the frontend spreads dashboard shared filters into query builders without TypeScript declaring the fields. The generated pydantic models in posthog/schema.py use extra='forbid', so QueryRequest rejects undeclared fields before runners execute. Fix by declaring properties?: MCPAnalyticsPropertyFilter[] and filterTestAccounts?: boolean on each affected query kind in frontend/src/queries/schema/schema-general.ts (e.g., MCPToolStatsQuery), regenerate with pnpm schema:build, and apply in runner WHERE via shared_filter_exprs. TypeScript cannot catch this due to spread property excess checks; logic tests mocking api.query also miss it; only backend schema validation or runner tests detect it. Applies to any MCP analytics query kind that receives shared dashboard filters from the frontend."
 }

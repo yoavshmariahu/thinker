@@ -1,7 +1,7 @@
 {
   "id": "experiment-metric-uuid-assignment-and-resolution",
   "title": "Experiment metric uuid assignment and resolution",
-  "kind": "location",
+  "kind": "map",
   "answers": [
     "Where are experiment metric uuids assigned?",
     "How is a metric uuid resolved to a definition?",
@@ -52,13 +52,13 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.8,
   "status": "fresh",
-  "uses": 16,
+  "uses": 17,
   "related": [
     "experiment-metric-identity-uuid-vs-config-fingerprint",
     "places-that-must-compute-the-same-metric-fingerprint-saved-v",
     "map-an-experimentholdout-onto-flag-filters-via-apply-holdout"
   ],
-  "lastUsed": "2026-09-26T23:34:11.979Z",
+  "lastUsed": "2026-10-04T19:07:12.431Z",
   "servedIn": [
     "5236f0e8-dfa7-4876-91bb-cce8adfe04ac",
     "7c625711-0708-4f3b-bb82-483db78692b8",
@@ -75,7 +75,8 @@
     "b1480431-e51f-41d1-99be-1bdab52e1970",
     "d6de17d5-8e0d-4f82-a244-1b3ad814b8b9",
     "36249c18-3dd5-4db5-aceb-ad444635e403",
-    "9d7cb4d1-d895-491e-920b-ba43d2189f27"
+    "9d7cb4d1-d895-491e-920b-ba43d2189f27",
+    "x-1791140822345"
   ],
   "says": [
     "Where does experiment metric get its stable identifier when creating metrics",
@@ -84,5 +85,6 @@
     "Experiment clone should regenerate all metric uuids not reuse existing ones",
     "How are metric uuids shared across primary secondary and saved metric references"
   ],
-  "saysFor": "941:experiment-metric-uuid-a"
+  "saysFor": "941:experiment-metric-uuid-a",
+  "search": "Experiment metric uuids are assigned centrally with a single uniqueness space across primary, secondary, and saved-metric uuids via `experiment_service.py:ExperimentService._assign_uuids_to_metrics`, which fills missing uuids and regenerates duplicates using `_collect_saved_metric_uuids` to check uniqueness; `validate_no_duplicate_metric_uuids` enforces this constraint, and `_regenerate_all_metric_uuids` handles clone flows. Saved metric uuids are minted on create and pinned on update by `experiment_saved_metric_service.py:ExperimentSavedMetricService.normalize_query_for_write`, which rejects changes to existing uuids; the uuid lives inside `ExperimentSavedMetric.query`. Resolution of inline and saved metrics is performed by `temporal/metric_resolution.py:iter_metric_dicts` and `find_metric_dict`, which merge per-experiment breakdowns from `ExperimentToSavedMetric.metadata` into saved metrics via `_merge_saved_metric_breakdowns`. Daily timeseries metric types are limited to mean, funnel, and ratio via `DAILY_TIMESERIES_METRIC_TYPES`. Applies to uuid assignment and resolution across inline and saved metrics in experiment backends."
 }

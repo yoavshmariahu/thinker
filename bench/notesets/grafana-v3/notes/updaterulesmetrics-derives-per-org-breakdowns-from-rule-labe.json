@@ -1,0 +1,57 @@
+{
+  "id": "updaterulesmetrics-derives-per-org-breakdowns-from-rule-labe",
+  "title": "updateRulesMetrics derives per-org breakdowns from rule labels in one pass",
+  "kind": "map",
+  "answers": [
+    "Where are alert rule label-based metrics computed?",
+    "How does the scheduler know which org/plugin a rule belongs to for metrics?",
+    "Where is the __grafana_origin label consumed for fleet-wide metrics?"
+  ],
+  "body": "pkg/services/ngalert/schedule/metrics.go:updateRulesMetrics iterates all schedulable alert rules once per tick, bucketing by rule.OrgID and then by a label value (e.g. models.PluginGrafanaOriginLabel for plugin origin, group for rule groups, an import marker for Prometheus-imported rules). Rules without the relevant label are silently excluded from that metric rather than counted under an empty key.\nThis is the place to add new label-derived, per-org fleet metrics without introducing extra passes over alertRules.",
+  "applies": "ngalert scheduler metrics computed per tick from the in-memory rule list",
+  "tags": [
+    "alerting",
+    "metrics",
+    "scheduler"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/schedule/metrics.go",
+      "symbol": "updateRulesMetrics",
+      "hash": "sha256:b02b4f395e5e3bc9b54b8b91",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 34,
+        "refs": 34
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/metrics/scheduler.go",
+      "hash": "sha256:0c10b0b7bece127e0a24cb94",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132670"
+  },
+  "created": "2026-10-04T06:49:27.006Z",
+  "verified": "2026-10-04T06:49:27.006Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "scheduler-alert-rule-gauge-metrics-three-places-must-change",
+    "sanitize-user-controlled-rule-labels-before-using-them-as-me"
+  ],
+  "says": [
+    "How are alert rule metrics broken down by organization?",
+    "Where do plugin-origin metrics for scheduled rules come from?",
+    "Alert metrics calculated once per org using rule labels",
+    "Adding new per-organization metric breakdowns based on rule properties"
+  ],
+  "saysFor": "593:updaterulesmetrics-deriv"
+}

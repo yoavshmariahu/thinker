@@ -45,5 +45,6 @@
     "How to ensure suspension banner shows on all email sending screens",
     "New email sending surface missing suspension banner by default"
   ],
-  "saysFor": "518:email-suspension-banner-"
+  "saysFor": "518:email-suspension-banner-",
+  "search": "The EmailSuspensionBanner component (products/workflows/frontend/EmailSuspensionBanner.tsx) must be rendered on every scene that sends email (WorkflowsScene, BroadcastsScene) to warn suspended projects. Render the banner under the title section; do not inline a copy of the component as it provides unified warning for both workflow and broadcast emails. The component reads workflowsEmailSuspensionLogic and maintains data-attr workflows-email-suspended-banner. Applies to all messaging scenes in products/workflows/frontend that handle email sending."
 }

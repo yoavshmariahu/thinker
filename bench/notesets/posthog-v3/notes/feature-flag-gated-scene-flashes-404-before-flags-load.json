@@ -66,5 +66,6 @@
     "Avoid rendering not found while feature flags are still loading on first page visit",
     "How to properly gate a scene on a feature flag without momentary 404 flash"
   ],
-  "saysFor": "950:feature-flag-gated-scene"
+  "saysFor": "950:feature-flag-gated-scene",
+  "search": "Feature-flag-gated scenes flash a 404 not-found page briefly on first load because the flag is unset until posthog-js returns flags. Fix by reading receivedFeatureFlags and featureFlagsTimedOut from featureFlagLogic and appLogic respectively; when a flag is falsy, render NotFound only if receivedFeatureFlags || featureFlagsTimedOut, otherwise render a Spinner. This pattern applies to products/ml_inference/frontend/DecisionPlaygroundScene.tsx and similar scenes that return NotFound when a flag is off. Already-true flags (persisted or pinned in tests) render immediately, so snapshots remain unchanged. Keep the timeout branch to prevent an infinite spinner if the flags request fails."
 }

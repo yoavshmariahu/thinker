@@ -1,0 +1,75 @@
+{
+  "id": "frontend-service-route-fallback-gated-by-grafana-mtfallback",
+  "title": "Frontend-service route fallback gated by grafana.mtFallback allow list",
+  "kind": "rule",
+  "answers": [
+    "Why does a route show a loading/progress screen instead of the page for a while?",
+    "How do I add a route to the MT instant-startup allow list?",
+    "Where is the fallback loader for unsupported routes implemented?",
+    "Why does my new route briefly render PageFallbackLoader instead of my component?"
+  ],
+  "body": "Symptom: navigating to certain routes under the frontend-service split briefly shows a generic progress/skeleton screen (PageFallbackLoader) for up to 60s instead of the real page, even though the route works. Root cause/mechanism: GrafanaRoute calls useMTFallback(location) which reads the grafana.mtFallback feature flag value ({ allowList: string[] }) and matches location.pathname against each pattern with react-router-dom-v5-compat's matchPath; if the path isn't matched by any allow-list entry, it's treated as unsupported and the fallback renders until a 60s timeout elapses or the flag/path changes. Fix pattern: to make a route skip the fallback, add its path (or a wildcard like '/dashboards/*' to cover nested routes) to the allowList value of the grafana.mtFallback flag — don't special-case it in GrafanaRoute. Constraints: an empty/missing allowList means every route is allowed (no fallback shown); wildcard matching relies on matchPath semantics, so patterns must be valid route-path syntax, not glob.",
+  "applies": "Any route rendered via GrafanaRoute in the frontend-service (MT instant startup) architecture.",
+  "tags": [
+    "frontend-service",
+    "feature-flag",
+    "routing",
+    "mtfallback"
+  ],
+  "deps": [
+    {
+      "path": "public/app/core/navigation/mtFallback.ts",
+      "symbol": "useMTFallback",
+      "hash": "sha256:79b59f07b4386cd91127582c",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "public/app/core/navigation/GrafanaRoute.tsx",
+      "symbol": "GrafanaRoute",
+      "hash": "sha256:29b8faa6b24e6fdb3837601e",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 14
+      }
+    },
+    {
+      "path": "public/app/core/components/PageLoader/PageFallbackLoader.tsx",
+      "symbol": "PageFallbackLoader",
+      "hash": "sha256:04b8e367f2592fdb9a0cbcbf",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132881"
+  },
+  "created": "2026-10-04T06:17:53.409Z",
+  "verified": "2026-10-04T06:17:53.409Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does a route show a loading screen instead of the page?",
+    "Navigation displays progress screen before content loads on new routes",
+    "How do I prevent routes from showing a loading fallback?",
+    "Certain routes briefly display a loading skeleton screen"
+  ],
+  "saysFor": "1089:frontend-service-route-f"
+}

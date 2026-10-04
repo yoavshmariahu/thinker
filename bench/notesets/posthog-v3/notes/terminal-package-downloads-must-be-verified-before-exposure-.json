@@ -48,5 +48,6 @@
     "How does terminal ensure downloaded packages are authentic?",
     "Fixing terminal tool download and cache validation process"
   ],
-  "saysFor": "947:terminal-package-downloa"
+  "saysFor": "947:terminal-package-downloa",
+  "search": "Terminal package download must verify compressed size, SHA-256 hash, and unpacked archiveSize before exposing bytes to the guest, deleting the cache entry on mismatch to allow retry. Fetches must use only the commit-pinned baseUrl with credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer', and a timeout combined with the abort signal. Cache content only after verification is complete and while the signal is not aborted; cache hits must be re-verified. Cache errors or missing caches must not block install since storage is optional, and in-flight downloads are shared via the downloads map and cleaned in finally so failures remain retryable. The install-tool script stages into a temp directory and mv's the final result, ensuring no partial install remains on extraction failure. This invariant applies to the package download and verification logic in frontend/src/scenes/terminal/terminalPackages.ts:TerminalPackages.download and frontend/src/scenes/terminal/terminalPackages.test.ts."
 }

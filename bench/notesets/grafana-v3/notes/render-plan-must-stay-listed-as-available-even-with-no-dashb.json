@@ -1,0 +1,78 @@
+{
+  "id": "render-plan-must-stay-listed-as-available-even-with-no-dashb",
+  "title": "RENDER_PLAN must stay listed as available even with no dashboard client mounted",
+  "kind": "rule",
+  "answers": [
+    "Why does getAvailableCommands() include RENDER_PLAN with no dashboard open?",
+    "Assistant can't discover the preview command before navigating to a dashboard",
+    "Invariant for exposing mutation commands that can open their own page"
+  ],
+  "body": "Symptom: a caller checking dashboardMutationApi.getAvailableCommands() before any dashboard is loaded (e.g. from /explore) used to see an empty list, making RENDER_PLAN undiscoverable until a dashboard happened to be mounted. Fix/invariant: getAvailableCommands() unconditionally includes 'RENDER_PLAN' merged with whatever the active client (dashboard or notebook) reports, since RENDER_PLAN is handled by DashboardPlanPreview and can open its own /dashboard/new page rather than requiring a pre-existing client. Enforced in dashboardMutationApi.ts getAvailableCommands and execute (which special-cases RENDER_PLAN/END_PLANNING before falling back to currentClient()). If this invariant is broken, callers must poll/navigate to a dashboard first to discover a command meant to be usable from anywhere.",
+  "applies": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts command discovery and dispatch",
+  "tags": [
+    "mutation-api",
+    "dashboard-plan",
+    "assistant"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "dashboardMutationApi",
+      "hash": "sha256:6487bfbc284b2d02c21f3789",
+      "line": 79,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 27
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "getAvailableCommands",
+      "hash": "sha256:8c51b77e09639df1ec3287d5",
+      "line": 100,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 21,
+        "refs": 24
+      }
+    },
+    {
+      "path": "public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts",
+      "symbol": "currentClient",
+      "hash": "sha256:2bdbb1b46bc6254c2180743d",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 3,
+        "refs": 3
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133029"
+  },
+  "created": "2026-10-04T05:56:29.334Z",
+  "verified": "2026-10-04T05:56:29.334Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "dashboardplanpreview-owns-plan-preview-page-navigation-not-t",
+    "restrictedgrafanaapis-how-to-add-a-new-restricted-api-and-wi"
+  ],
+  "says": [
+    "Why can't I discover plan preview until after opening a dashboard?",
+    "Preview command should be available from explore without a dashboard loaded",
+    "How does the assistant find available commands before dashboard navigation?",
+    "Mutation preview disappeared from options when I closed the dashboard window",
+    "Should preview be listed as available before any dashboard is actually opened?"
+  ],
+  "saysFor": "882:render-plan-must-stay-li",
+  "search": "RENDER_PLAN command must remain listed as available unconditionally by getAvailableCommands() even when no dashboard is mounted, by merging 'RENDER_PLAN' with the active client's reported commands. RENDER_PLAN is handled by DashboardPlanPreview and can independently open /dashboard/new rather than requiring a pre-existing dashboard client, so it must not disappear from discovery when called from /explore or before any client mounts. The invariant is enforced in dashboardMutationApi.ts getAvailableCommands() and execute(), which special-case RENDER_PLAN/END_PLANNING before falling back to currentClient(). Applies to command discovery and dispatch in public/app/features/plugins/components/restrictedGrafanaApis/dashboardMutation/dashboardMutationApi.ts; breaking this invariant forces callers to navigate to a dashboard first just to discover a command that must work from anywhere."
+}

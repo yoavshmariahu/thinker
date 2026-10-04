@@ -1,0 +1,65 @@
+{
+  "id": "table-theme-surface-colors-live-in-themedefinitions-json-und",
+  "title": "Table theme surface colors live in themeDefinitions JSON, under components.table",
+  "kind": "map",
+  "answers": [
+    "Where do I edit the actual hex values for table header/row/selected-row colors?",
+    "Which file controls the visual-refresh table selected-row color?",
+    "How do classic vs visual-refresh table colors differ and where are they defined?"
+  ],
+  "body": "The resolved colors for table header background, borders, striped/hover/selected row backgrounds are defined per theme in packages/grafana-data/src/themes/themeDefinitions/*.json under the `table` block (e.g. visual_refresh_dark.json and visual_refresh_light.json have `table.rowSelectedBackground`). These are validated against the createComponents schema (packages/grafana-data/src/themes/createComponents.ts) and consumed by TableNG via theme.components.table — not computed in component code. To tune a table color for a specific theme, edit the matching themeDefinitions JSON file rather than styles.ts.",
+  "applies": "grafana-data theme definitions and anything consuming theme.components.table",
+  "tags": [
+    "theming",
+    "table"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-data/src/themes/themeDefinitions/visual_refresh_dark.json",
+      "hash": "sha256:91afcec05893188840d951ae",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/themes/themeDefinitions/visual_refresh_light.json",
+      "hash": "sha256:2a099a0c2e7b6a5760a5e7e7",
+      "missing": false
+    },
+    {
+      "path": "packages/grafana-data/src/themes/createComponents.ts",
+      "symbol": "createComponents",
+      "hash": "sha256:a7ab8c87c0c4679d5f22aa3b",
+      "line": 212,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 1,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132693"
+  },
+  "created": "2026-10-04T06:44:27.820Z",
+  "verified": "2026-10-04T06:44:27.820Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "tableng-colors-come-from-theme-components-table-not-recomput",
+    "shared-table-color-tokens-live-in-theme-components-table",
+    "storybook-a11y-ci-matrix-must-list-every-theme-that-needs-co",
+    "visually-check-table-row-selected-color-via-logstable-s-scro"
+  ],
+  "says": [
+    "Where do table header and row colors get defined",
+    "Edit table colors by theme in theme definition files",
+    "Table selected row color varies by visual refresh theme",
+    "Customize table colors per light and dark theme",
+    "Table theme colors live in component definition JSON"
+  ],
+  "saysFor": "689:table-theme-surface-colo",
+  "search": "Table theme surface colors—header background, borders, striped/hover/selected row backgrounds—are defined per theme in packages/grafana-data/src/themes/themeDefinitions JSON files (e.g. visual_refresh_dark.json, visual_refresh_light.json) under the `table` block (e.g. `table.rowSelectedBackground`). These colors are validated against the createComponents schema and consumed by TableNG via `theme.components.table`, not computed in component style code. To tune a table color for a specific theme, edit the corresponding themeDefinitions JSON file rather than styles.ts. This applies to grafana-data theme definitions and any code consuming `theme.components.table`."
+}

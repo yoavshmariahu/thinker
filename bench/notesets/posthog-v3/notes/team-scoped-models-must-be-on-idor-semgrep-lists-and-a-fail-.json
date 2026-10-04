@@ -62,5 +62,6 @@
     "Team scoping prevents users from seeing data outside their environment",
     "Multiple database managers protect against accidental cross-environment contamination"
   ],
-  "saysFor": "606:team-scoped-models-must-"
+  "saysFor": "606:team-scoped-models-must-",
+  "search": "New per-environment models with a team FK must implement fail-closed IDOR protection via two mandatory steps. (1) Set `objects = EnvironmentScopedManager()` (filters by literal team id, blocking sibling environment access), `all_teams = models.Manager()`, and `Meta.default_manager_name = \"all_teams\"`, as shown in products/tracing/backend/models.py:TracesRetentionRule. (2) Add the model class name to BOTH class-name alternation lists in .semgrep/rules/security/idor-team-scoped-models.yaml. The CI check .github/scripts/check-idor-model-coverage.py enforces both requirements; omitting either fails CI or leaves an IDOR vulnerability in unscan positions."
 }

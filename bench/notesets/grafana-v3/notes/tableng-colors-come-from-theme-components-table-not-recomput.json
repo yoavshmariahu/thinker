@@ -1,0 +1,101 @@
+{
+  "id": "tableng-colors-come-from-theme-components-table-not-recomput",
+  "title": "TableNG colors come from theme.components.table, not recomputed in styles.ts",
+  "kind": "rule",
+  "answers": [
+    "Why do table header/row/hover colors look inconsistent between classic and visual-refresh themes?",
+    "How should I change the Table's row-selected, row-hover, header, or border colors?",
+    "Where is the Table's color logic supposed to live?"
+  ],
+  "body": "Symptom: table surface colors (header background, row hover, row-selected, borders) drift out of sync between light/dark/visual-refresh themes or need re-tuning magic numbers whenever a new theme is added.\nRoot cause: TableNG used to derive these colors itself in grafana-ui/src/components/Table/TableNG/styles.ts:getGridStyles with ad-hoc math (emphasize on background.primary/canvas, darken/lighten of theme.colors.warning.main, a hand-picked HEADER_BACKGROUND_EMPHASIS constant).\nFix pattern: read base colors from theme.components.table (headerBackground, border, rowHoverBackground, rowSelectedBackground) and only derive *dependent* states locally: selected-row hover via theme.colors.emphasize(table.rowSelectedBackground, 0.05), header divider via colorManipulator.onBackground(theme.colors.secondary.shade, headerBackgroundColor), focused-cell border via theme.colors.action.selectedBorder.\nConstraints: table.border and table.rowHoverBackground/rowSelectedBackground are already resolved solid colors, so they must be used directly (no onBackground compositing); only colors mixed from a semi-transparent input (secondary.shade) need onBackground. getGridStyles still gates the distinct header surface on the tableRefreshEnabled/table.refresh flag, independent of visualDesignRefresh.",
+  "applies": "grafana-ui TableNG style derivation (getGridStyles) and any new table-adjacent UI reading theme colors",
+  "tags": [
+    "theming",
+    "tableng",
+    "styles"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/Table/TableNG/styles.ts",
+      "symbol": "getGridStyles",
+      "hash": "sha256:94d79aba1a2f0f53f94568dc",
+      "line": 71,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 11
+      }
+    },
+    {
+      "path": "packages/grafana-data/src/themes/createComponents.ts",
+      "symbol": "headerBackground",
+      "hash": "sha256:98c930c40cd85ea436bacab5",
+      "line": 373,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "packages/grafana-data/src/themes/createComponents.ts",
+      "symbol": "rowHoverBackground",
+      "hash": "sha256:42fad0a27e7b86a9561d0792",
+      "line": 379,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 0,
+        "refs": 22
+      }
+    },
+    {
+      "path": "packages/grafana-data/src/themes/createComponents.ts",
+      "symbol": "rowSelectedBackground",
+      "hash": "sha256:1db5133cc43b6dae9e06660a",
+      "line": 374,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 9
+      }
+    },
+    {
+      "path": "packages/grafana-data/src/themes/colorManipulator.ts",
+      "symbol": "onBackground",
+      "hash": "sha256:294a5c64f41cd7c120fc2092",
+      "line": 369,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 19,
+        "refs": 23
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132693"
+  },
+  "created": "2026-10-04T06:44:27.255Z",
+  "verified": "2026-10-04T06:44:27.255Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "shared-table-color-tokens-live-in-theme-components-table"
+  ],
+  "says": [
+    "Table colors inconsistent when switching between light and dark",
+    "How to change table row hover or selected background",
+    "Table colors should come from theme not component",
+    "Table header color differs between classic and refresh",
+    "Move table color logic from styles to theme"
+  ],
+  "saysFor": "1371:tableng-colors-come-from",
+  "search": "TableNG must read base table surface colors—header background, row hover, row-selected, borders—from theme.components.table (headerBackground, border, rowHoverBackground, rowSelectedBackground) instead of recomputing them locally in styles.ts with ad-hoc math. Dependent states can still be derived locally: selected-row hover via theme.colors.emphasize(table.rowSelectedBackground, 0.05), header divider via colorManipulator.onBackground(theme.colors.secondary.shade, headerBackgroundColor). Constraint: table.border and rowHoverBackground/rowSelectedBackground are already resolved solid colors and must be used directly without onBackground compositing; only colors mixed from semi-transparent input need onBackground. The getGridStyles function still gates the distinct header surface on tableRefreshEnabled/table.refresh independent of visualDesignRefresh. This guidance applies to TableNG style derivation in getGridStyles and any new table-adjacent UI reading theme colors."
+}

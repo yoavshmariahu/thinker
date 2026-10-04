@@ -52,5 +52,6 @@
     "Why do marketing attribution reports show different session counts",
     "Sessions from a week ago vanished when attribution cache enabled"
   ],
-  "saysFor": "848:cached-attribution-live-"
+  "saysFor": "848:cached-attribution-live-",
+  "search": "Attribution session dimension queries exclude sessions with ID timestamp more than three days before the extended attribution read window in both live and cached (precompute) paths, preserving existing behavior documented as a limitation. The three-day cutoff is enforced in products/marketing_analytics/backend/hogql_queries/attribution_session_dimensions.py (writer and live exception lookups) and covered by parity tests (two days before included, five days before excluded). Widening the limit in only one path diverges cached and live results; change and validate both together in attribution_session_dimensions.py and test_attribution_sessions_precompute_parity.py. Applies to: Marketing analytics attribution tables and live vs. sessions-precompute readers. Doc: docs/internal/marketing-attribution-session-precompute.md."
 }

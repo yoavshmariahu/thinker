@@ -56,5 +56,6 @@
     "Web pre-aggregation scheduled job fails every run repeatedly",
     "Data warehouse aggregation query fails Code 36 on distributed insert"
   ],
-  "saysFor": "1232:web-pre-aggregation-inse"
+  "saysFor": "1232:web-pre-aggregation-inse",
+  "search": "Web pre-aggregation INSERTs must not depend on objects like dictionaries that exist only on some data hosts; distributed INSERTs evaluating host-dependent objects fail on hosts lacking them. Symptom: scheduled job fails with `Code: 36 ... Dictionary not found` in ClickHouse logs. Fix: replace `dictHas('web_pre_aggregated_teams_dict', team_id)` in `posthog/models/web_preaggregated/sql.py:get_team_filters` with `team_id GLOBAL IN (SELECT team_id FROM web_pre_aggregated_teams FINAL WHERE version > 0)` from WEB_PRE_AGGREGATED_SELECTED_TEAMS_SQL, which runs the subquery once on the initiator. Do not inline selected IDs as `IN (...)` lists (grows with selection, hits query size limit). The team selection asset no longer runs SYSTEM RELOAD DICTIONARY since nothing reads the dictionary now. Applies to web analytics pre-aggregation INSERT SQL and team selection dagster asset."
 }

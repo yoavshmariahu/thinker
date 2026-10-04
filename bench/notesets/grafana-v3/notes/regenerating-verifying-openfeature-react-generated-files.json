@@ -1,0 +1,59 @@
+{
+  "id": "regenerating-verifying-openfeature-react-generated-files",
+  "title": "Regenerating/verifying OpenFeature React generated files",
+  "kind": "howto",
+  "answers": [
+    "How do I regenerate the OpenFeature React hooks and typings after changing a feature flag?",
+    "What command updates openfeature-types.gen.d.ts and the react hooks file?",
+    "How do I verify feature-toggle generated files are up to date?"
+  ],
+  "body": "Run `make gen-feature-toggles` to regenerate generated OpenFeature files (e.g. packages/grafana-runtime/src/internal/openFeature/openfeature-types.gen.d.ts) after editing registry flags or their Expression. Verify generation and typed mapping with `go test ./pkg/services/featuremgmt -run 'TestGenerateOpenFeatureReactForFlags|TestFeatureToggleFiles' -count=1`, and check consumer compile with `yarn typecheck`. TestFeatureToggleFiles uses verifyAndGenerateFile to compare generated output against the on-disk file, failing if they drift (pkg/services/featuremgmt/toggles_gen_test.go:TestFeatureToggleFiles).",
+  "applies": "Any change to pkg/services/featuremgmt feature flag registry/templates affecting generated frontend OpenFeature files.",
+  "tags": [
+    "featuremgmt",
+    "codegen",
+    "make",
+    "testing"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/featuremgmt/toggles_gen_test.go",
+      "symbol": "TestFeatureToggleFiles",
+      "hash": "sha256:3999f6ca6a04c31d26651648",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    },
+    {
+      "path": "packages/grafana-runtime/src/internal/openFeature/openfeature-types.gen.d.ts",
+      "hash": "sha256:0299f08fe4324b7d67c31f3e",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132684"
+  },
+  "created": "2026-10-04T06:46:27.989Z",
+  "verified": "2026-10-04T06:46:27.989Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "frontend-openfeature-hooks-typings-are-typed-from-the-flag-s"
+  ],
+  "says": [
+    "How do I regenerate the OpenFeature React type definition files?",
+    "Generated feature flag types are out of sync with registry.",
+    "What command rebuilds the generated OpenFeature type definitions?",
+    "I need to update generated files after changing feature flags.",
+    "Generated OpenFeature files don't match current flag definitions."
+  ],
+  "saysFor": "665:regenerating-verifying-o",
+  "search": "Regenerating OpenFeature React generated files requires running `make gen-feature-toggles` after editing registry flags or Expression. Verification uses `go test ./pkg/services/featuremgmt -run 'TestGenerateOpenFeatureReactForFlags|TestFeatureToggleFiles' -count=1` (which calls verifyAndGenerateFile in pkg/services/featuremgmt/toggles_gen_test.go:TestFeatureToggleFiles) and `yarn typecheck` to check consumer compilation. The test fails if generated output in packages/grafana-runtime/src/internal/openFeature/openfeature-types.gen.d.ts drifts from on-disk state. This applies to any change in pkg/services/featuremgmt feature flag registry or templates affecting generated frontend files."
+}

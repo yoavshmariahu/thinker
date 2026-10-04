@@ -63,5 +63,6 @@
     "Terminal ph subcommand not recognized or working",
     "Adding new shell utility to PostHog terminal"
   ],
-  "saysFor": "997:adding-a-terminal-shell-"
+  "saysFor": "997:adding-a-terminal-shell-",
+  "search": "Adding a terminal shell command requires coordinating script definition, VM boot setup, subcommand handler, and help text together. The command must be defined as a script (e.g., OPEN_SCRIPT) and registered in terminalCommands.ts, copied to /usr/bin/ via boot commands in terminalRuntime.ts, wired to a `ph <name>` subcommand in posthogCommands.ts:PosthogCommands.execute, and documented in posthogFilesystem.ts. The shell wrapper resolves symlinks via realpath and calls ph, so the VM boot copy is required for the command to be found. Applies to adding or modifying shell commands in frontend/src/scenes/terminal."
 }

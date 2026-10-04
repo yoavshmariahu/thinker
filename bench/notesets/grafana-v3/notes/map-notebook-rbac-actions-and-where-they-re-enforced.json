@@ -1,0 +1,140 @@
+{
+  "id": "map-notebook-rbac-actions-and-where-they-re-enforced",
+  "title": "Map: notebook RBAC actions and where they're enforced",
+  "kind": "map",
+  "answers": [
+    "Where are notebook permissions checked in the frontend?",
+    "Where is notebooks:create enforced?",
+    "What file defines the notebooks RBAC actions?"
+  ],
+  "body": "Notebooks have their own four RBAC actions (notebooks:create/read/write/delete) defined in public/app/types/accessControl.ts (AccessControlAction.NotebooksCreate/Read/Write/Delete), independent of dashboards:* actions. Frontend org-level checks live in public/app/features/notebook/permissions.ts (canCreateNotebooks/canEditNotebooks/canDeleteNotebooks/canAddPanelToNotebook); the mutation-API layer has its own parallel checks in public/app/features/notebook/mutation-api/commands/permissions.ts (requiresNotebookRead/Edit/Create). Routes are gated in public/app/routes/routes.tsx, and the nav entry in public/app/core/navtree/sections/notebooks.navEntry.ts. All of these are org-level (no per-notebook scope); the backend verb-to-action mapping they must match is in pkg/registry/apis/folders/sub_access.go:160-165. Note: notebooks:create is granted via a folders:* scope rather than notebooks:*, but hasPermission ignores scope so the check still works.",
+  "applies": "Any future change to notebook RBAC behavior or adding a new notebook action",
+  "tags": [
+    "rbac",
+    "notebooks",
+    "map"
+  ],
+  "deps": [
+    {
+      "path": "public/app/types/accessControl.ts",
+      "symbol": "AccessControlAction",
+      "hash": "sha256:d246ea0801d811d7b6f3d0de",
+      "line": 11,
+      "missing": false,
+      "fanout": {
+        "files": 298,
+        "sites": 0,
+        "refs": 1729
+      }
+    },
+    {
+      "path": "public/app/features/notebook/permissions.ts",
+      "symbol": "canCreateNotebooks",
+      "hash": "sha256:d5c75ce2994a7dae275fb26e",
+      "line": 22,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 7
+      }
+    },
+    {
+      "path": "public/app/features/notebook/permissions.ts",
+      "symbol": "canEditNotebooks",
+      "hash": "sha256:3aa68a5971478d47976fd4b5",
+      "line": 14,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 7,
+        "refs": 15
+      }
+    },
+    {
+      "path": "public/app/features/notebook/permissions.ts",
+      "symbol": "canDeleteNotebooks",
+      "hash": "sha256:474d9e3a26848de7fc4fc351",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 3,
+        "refs": 7
+      }
+    },
+    {
+      "path": "public/app/features/notebook/permissions.ts",
+      "symbol": "canAddPanelToNotebook",
+      "hash": "sha256:b36c12891403a63d403877c9",
+      "line": 35,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 8
+      }
+    },
+    {
+      "path": "public/app/features/notebook/mutation-api/commands/permissions.ts",
+      "symbol": "requiresNotebookRead",
+      "hash": "sha256:77aabd864c3f6e4fa9b1a5d1",
+      "line": 26,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "public/app/routes/routes.tsx",
+      "hash": "sha256:b94578b5343aef6488f55844",
+      "missing": false
+    },
+    {
+      "path": "public/app/core/navtree/sections/notebooks.navEntry.ts",
+      "hash": "sha256:7e17c732a9bda471d9f651ee",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/folders/sub_access.go",
+      "hash": "sha256:120ac36ef8f936b5db706703",
+      "missing": false
+    },
+    {
+      "path": "public/app/types/accessControl.ts",
+      "symbol": "AccessControlAction.NotebooksCreate",
+      "hash": "sha256:cf58cc2e261708489435db8a",
+      "line": 85,
+      "missing": false,
+      "fanout": {
+        "files": 10,
+        "sites": 0,
+        "refs": 15
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132699"
+  },
+  "created": "2026-10-04T06:43:00.994Z",
+  "verified": "2026-10-04T06:43:00.994Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "give-each-crud-verb-its-own-rbac-action-never-substitute-wri"
+  ],
+  "says": [
+    "Where are notebook permission checks located in the system",
+    "What are all the notebook access control permission types",
+    "How notebook creation and editing permissions are enforced",
+    "Notebook permission enforcement in UI and API layers",
+    "Complete mapping of notebook permissions to enforcement locations"
+  ],
+  "saysFor": "1010:map-notebook-rbac-action",
+  "search": "Notebooks use four independent RBAC actions (notebooks:create/read/write/delete) defined in AccessControlAction, separate from dashboard:* actions and enforced at org level only. Frontend checks are in canCreateNotebooks/canEditNotebooks/canDeleteNotebooks/canAddPanelToNotebook (public/app/features/notebook/permissions.ts), while mutation-API checks are in requiresNotebookRead/Edit/Create (public/app/features/notebook/mutation-api/commands/permissions.ts); routes are gated in routes.tsx and nav in notebooks.navEntry.ts. Per-notebook scope does not exist; notebooks:create is granted via folders:* scope (not notebooks:*), but hasPermission ignores scope so the check still works. Backend verb-to-action mapping in pkg/registry/apis/folders/sub_access.go:160-165 must match all these checks. Apply when: modifying notebook RBAC behavior, adding new notebook actions, or changing permission enforcement flow."
+}

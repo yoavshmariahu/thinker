@@ -1,0 +1,97 @@
+{
+  "id": "manifest-derived-registries-must-be-wired-through-searchopti",
+  "title": "Manifest-derived registries must be wired through SearchOptions.ReloadManifests and service.go's reload gating",
+  "kind": "rule",
+  "answers": [
+    "I added a new field to SearchOptions populated from app manifests but live updates never reach it",
+    "How do I hook a new manifest-derived registry into the live manifest watcher?",
+    "Where is the single entry point for reloading search fields and embedding config together?"
+  ],
+  "body": "Mechanism: pkg/storage/unified/resource/search_field_manifest.go:SearchOptions.ReloadManifests(builtin, live) is the single call that reloads every manifest-derived registry (EmbeddingConfigRegistry.Reload, then ApplyManifests for SearchFields) so they stay consistent on each poll. pkg/storage/unified/sql/service.go:service.registerServer only starts the manifest-watcher subservice if any such registry on SearchOptions is non-nil, and its callback invokes ReloadManifests (not the old per-registry ApplyManifests call). Adding a new registry to resource.SearchOptions (server.go) requires: (1) constructing it in search/options.go:NewSearchOptions, (2) reloading it inside ReloadManifests, (3) including it in the non-nil check in service.go — otherwise the watcher either won't start or won't refresh the new registry on live updates.",
+  "applies": "Adding any new app-manifest-derived lookup/registry consumed by unified storage search/indexing.",
+  "tags": [
+    "search",
+    "manifest-watcher",
+    "unified-storage",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/search_field_manifest.go",
+      "symbol": "ApplyManifests",
+      "hash": "sha256:2e8e42b17560d27cb1e30530",
+      "line": 168,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/search_field_manifest.go",
+      "symbol": "ReloadManifests",
+      "hash": "sha256:67ab21e1ccb8a957aa60d0b8",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/server.go",
+      "symbol": "SearchOptions",
+      "hash": "sha256:3ba706d646d775b111786acc",
+      "line": 286,
+      "missing": false,
+      "fanout": {
+        "files": 33,
+        "sites": 0,
+        "refs": 141
+      }
+    },
+    {
+      "path": "pkg/storage/unified/sql/service.go",
+      "hash": "sha256:80974cc214872ba5161b3fa4",
+      "missing": false
+    },
+    {
+      "path": "pkg/storage/unified/search/options.go",
+      "symbol": "NewSearchOptions",
+      "hash": "sha256:cc0319cb94b5e5ce22649d96",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 9,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132698"
+  },
+  "created": "2026-10-04T06:43:51.148Z",
+  "verified": "2026-10-04T06:43:51.148Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "watch-must-treat-grpc-unavailable-on-send-as-consumer-discon",
+    "per-resource-embedding-config-lookup-embeddingconfigregistry",
+    "list-falls-back-from-search-to-store-scan-only-on-the-first"
+  ],
+  "says": [
+    "New manifest field not being updated by live manifest watcher",
+    "How to connect custom registry to manifest reload cycle",
+    "Where is the master control for refreshing all manifest registries",
+    "Custom manifest registry changes ignored by live update system",
+    "Single entry point for wiring manifest-derived registries into updates"
+  ],
+  "saysFor": "950:manifest-derived-registr",
+  "search": "Manifest-derived registries must wire through SearchOptions.ReloadManifests (pkg/storage/unified/resource/search_field_manifest.go) and service.go's reload gating to stay consistent on each poll. SearchOptions.ReloadManifests is the single call that reloads EmbeddingConfigRegistry and applies SearchFields manifests via ApplyManifests; pkg/storage/unified/sql/service.go:registerServer only starts the manifest-watcher subservice if any registry on SearchOptions is non-nil and invokes ReloadManifests. Adding a new app-manifest-derived registry requires: (1) constructing it in pkg/storage/unified/search/options.go:NewSearchOptions, (2) reloading it inside ReloadManifests, and (3) including it in the non-nil check in service.go—otherwise the watcher won't start or won't refresh the registry on live updates. Applies to adding new app-manifest-derived lookup/registry consumed by unified storage search/indexing."
+}

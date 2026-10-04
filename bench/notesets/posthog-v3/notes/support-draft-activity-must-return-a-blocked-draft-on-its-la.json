@@ -1,7 +1,7 @@
 {
   "id": "support-draft-activity-must-return-a-blocked-draft-on-its-la",
   "title": "Support draft activity must return a blocked draft on its last attempt, never raise",
-  "kind": "invariant",
+  "kind": "rule",
   "answers": [
     "Support ticket stuck on Processing after draft agent fails",
     "Why does the draft activity return a blocked_on_knowledge draft instead of raising?",
@@ -38,9 +38,10 @@
     {
       "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
       "symbol": "llm_attempts",
-      "hash": "sha256:b817c12538502b6f342a15a2",
+      "hash": "sha256:ffa757cf4b1db9b9cc0e42bf",
       "line": 98,
-      "missing": false
+      "missing": false,
+      "symbolMissing": true
     }
   ],
   "source": {
@@ -63,5 +64,6 @@
     "Draft activity failure prevents ticket handoff",
     "Ticket frozen on draft activity failure"
   ],
-  "saysFor": "997:support-draft-activity-m"
+  "saysFor": "997:support-draft-activity-m",
+  "search": "The draft activity in ai_reply must raise only while retries remain; on the final attempt it must return a blocked draft (confidence 0.0, verdict blocked_on_knowledge) instead of raising. The _give_up function enforces this: it raises DraftNotProducedError while llm_attempts() < DRAFT_ACTIVITY_MAX_ATTEMPTS, otherwise returns the blocked draft. If the final attempt raises, the workflow fails before recording a result and the ticket stays in_progress (shown as \"Processing\"). Keep DRAFT_ACTIVITY_MAX_ATTEMPTS constant in ai_reply/constants.py in sync with the RetryPolicy maximum_attempts in pipeline.py; the value stays 2 to preserve workflow replay. Route every new failure path in _draft_async through _give_up."
 }

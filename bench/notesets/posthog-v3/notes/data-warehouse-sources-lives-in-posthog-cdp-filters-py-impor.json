@@ -62,5 +62,6 @@
     "Why do I get a circular dependency when importing warehouse sources?",
     "Which module owns the warehouse sources list definition?"
   ],
-  "saysFor": "431:data-warehouse-sources-l"
+  "saysFor": "431:data-warehouse-sources-l",
+  "search": "DATA_WAREHOUSE_SOURCES must be imported from posthog.cdp.filters, not posthog.cdp.validation, despite validation.py also importing it. This import location is required because the compiler needs DATA_WAREHOUSE_SOURCES in filters.py, and validation.py imports filters, creating a circular dependency if other code imports from validation instead. New code in CDP/workflows backend modules (e.g., products/cdp/backend/api/hog_function.py, products/workflows/backend/api/hog_flow.py) must follow this convention to avoid import cycles."
 }

@@ -1,0 +1,48 @@
+{
+  "id": "drop-an-app-module-s-core-dependency-by-narrowing-the-client",
+  "title": "Drop an app module's core dependency by narrowing the client field type",
+  "kind": "rule",
+  "answers": [
+    "How do we remove apps/<name>'s dependency on github.com/grafana/grafana?",
+    "apps/quotas go.mod still requires grafana core, how was that broken?",
+    "Why doesn't pkg/registry/apps/quotas/register.go need to change when core dependency is removed?"
+  ],
+  "body": "Symptom: an apps/* module requires github.com/grafana/grafana in go.mod just to hold a field typed as core's resource.ResourceClient, creating a replace-directive cycle and preventing the module from being consumed outside this repo.\nRoot cause: the app only ever calls methods that are already declared on a standalone generated pb interface (e.g. resourcepb.QuotasClient) that the app already depends on directly; the concrete core type is used only because it's a superset.\nFix pattern: change the field/interface type to the narrower pb-generated interface the app already imports (resourcepb.QuotasClient). Core's concrete resource.ResourceClient still implements it structurally, so callers in pkg/registry/apps/<name>/register.go that construct and pass the core client need no change.\nConstraints: applies only when every core method actually used is already exposed on a standalone module interface (commonly pkg/storage/unified/resourcepb). Does not apply if business logic, not just a client call, lives in core.",
+  "applies": "apps/* modules that embed a core unifiedStorage/resource.ResourceClient-typed field and want to drop the grafana core dependency (remaining candidates per PR description: advisor, dashvalidator, iam, plugins)",
+  "tags": [
+    "go.mod",
+    "dependency-decoupling",
+    "apps",
+    "quotas"
+  ],
+  "deps": [
+    {
+      "path": "apps/quotas/go.mod",
+      "hash": "sha256:9afb40738990ebe241794aad",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/quotas/register.go",
+      "hash": "sha256:b6c514dc8bf7c27b865e9cf1",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132839"
+  },
+  "created": "2026-10-04T06:23:14.237Z",
+  "verified": "2026-10-04T06:23:14.237Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do we remove apps/<name>'s dependency on github.com/grafana/grafana?",
+    "apps/quotas go.mod still requires grafana core, how was that broken?",
+    "Why doesn't pkg/registry/apps/quotas/register.go need to change when core dependency is removed?"
+  ],
+  "saysFor": "1095:drop-an-app-module-s-cor",
+  "search": "Replace a concrete core resource.ResourceClient field type with the narrower pb-generated interface (e.g., resourcepb.QuotasClient) it already depends on, eliminating the apps/* module's unnecessary dependency on github.com/grafana/grafana. The app only calls methods already exposed on the pb interface; core's client implements it structurally so existing register.go callers need no code changes. Apply only when every core method used exists on a standalone module interface like resourcepb; does not apply if business logic (not just client calls) lives in core. Candidate modules: advisor, dashvalidator, iam, plugins. See apps/quotas/go.mod and pkg/registry/apps/quotas/register.go."
+}

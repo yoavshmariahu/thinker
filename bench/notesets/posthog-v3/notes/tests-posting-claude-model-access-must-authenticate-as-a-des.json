@@ -45,5 +45,6 @@
     "Testing model access requires which type of OAuth client?",
     "Authentication works in production but test keeps failing"
   ],
-  "saysFor": "998:tests-posting-claude-mod"
+  "saysFor": "998:tests-posting-claude-mod",
+  "search": "Tests posting claude_model_access (e.g., own-subscription in task run or resume flows) must authenticate as a Desktop OAuth client via self._oauth_client(ARRAY_APP_CLIENT_ID_DEV).post(...), not plain session auth; plain self.client is now rejected. In products/tasks/backend/tests/test_api.py, see test_run_endpoint_persists_agent_toggle and test_resume_requires_explicit_claude_billing_choice; serializer tests in test_presentation_serializers.py build OAuthAccessTokenAuthentication with OAuthAccessToken setting source_refresh_token_id so is_interactive_desktop_grant passes, otherwise the token is not treated as an interactive Desktop grant. Negative cases must cover personal API key, session, mobile, and sandbox callers, expecting 400 with attr == \"claude_model_access\" and no TaskRun created. Applies to products/tasks backend tests."
 }

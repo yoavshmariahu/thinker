@@ -60,5 +60,6 @@
     "Taxonomic filtering imports dependencies that shouldn't be on the shell",
     "The main authenticated bundle includes unnecessary dompurify and liquidjs"
   ],
-  "saysFor": "857:keep-shell-loaded-logics"
+  "saysFor": "857:keep-shell-loaded-logics",
+  "search": "taxonomicFilterLogic and buildTaxonomicGroups load on every authenticated page and must not import heavy logic; never import product event filters from HogFunctionFiltersInternal.tsx. Import from frontend/src/scenes/hog-functions/filters/productEventFilterOptions.ts instead (getProductEventFilterOptions, getProductEventPropertyFilterOptions, getProductEventPropertyValues). HogFunctionFiltersInternal.tsx imports hogFunctionConfigurationLogic which pulls liquidjs, dompurify, and survey utils (~153 KiB). Move pure helpers from component files to dependency-free .ts modules. Applies to: frontend/src/lib/components/TaxonomicFilter and any eagerly loaded shell module."
 }

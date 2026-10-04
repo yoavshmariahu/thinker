@@ -1,0 +1,48 @@
+{
+  "id": "provisioning-docs-present-ui-and-as-code-setup-as-peer-secti",
+  "title": "Provisioning docs present UI and as-code setup as peer sections mirroring each other",
+  "kind": "rule",
+  "answers": [
+    "How should I structure docs when a resource can be set up via UI and via gcx/as-code?",
+    "Where should as-code setup instructions for a provisioning method live?"
+  ],
+  "body": "Fix pattern: when a resource supports both UI-based and as-code setup, document them as peer H2 sections ('Set up X using the UI' / 'Set up X as code') on the same page rather than only documenting the UI, and factor shared prerequisites (like configuring permitted paths) into a common section referenced by both. Constraints: the as-code section should mirror the structure of the existing Git Sync as-code doc (git-sync/git-sync-setup/set-up-code.md) — create resource YAML, push with gcx, manage with get/edit/delete, verify — for consistency across provisioning docs; add a note mapping UI terminology (e.g. 'local storage') to the actual CRD fields (`spec.type`, `spec.local.path`) so readers don't assume a different/nonexistent schema.",
+  "applies": "Documentation for any Grafana provisioning/as-code feature that has both a UI wizard and a gcx/Repository-CRD based setup.",
+  "tags": [
+    "docs",
+    "provisioning",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/as-code/observability-as-code/git-sync/git-sync-setup/set-up-code.md",
+      "hash": "sha256:ad2bb344be8330f1d61027a9",
+      "missing": false
+    },
+    {
+      "path": "docs/sources/as-code/observability-as-code/provision-resources/file-path-setup.md",
+      "hash": "sha256:24d61f85f4057851ac0f8d74",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132767"
+  },
+  "created": "2026-10-04T06:34:21.904Z",
+  "verified": "2026-10-04T06:34:21.904Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.6,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Where are the code-based setup instructions for this provisioning method?",
+    "Documentation should show both UI and code setup methods together.",
+    "I need to map UI field names to provisioning field names.",
+    "How should we document resources supporting both UI and as-code?",
+    "Provisioning documentation lists only UI steps, not code-based steps."
+  ],
+  "saysFor": "828:provisioning-docs-presen",
+  "search": "When a Grafana resource supports both UI-based and as-code setup, document them as peer H2 sections ('Set up X using the UI' / 'Set up X as code') on the same page with shared prerequisites factored into a common section. The as-code section must mirror the structure of the Git Sync setup docs (git-sync/git-sync-setup/set-up-code.md)—create resource YAML, push with gcx, manage with get/edit/delete, verify—for consistency across provisioning docs. Include an explicit mapping between UI terminology (e.g., 'local storage') and actual CRD fields (spec.type, spec.local.path) to prevent readers from assuming a different schema exists. This pattern applies to documentation for any Grafana provisioning/as-code feature with both a UI wizard and a gcx/Repository-CRD based setup."
+}

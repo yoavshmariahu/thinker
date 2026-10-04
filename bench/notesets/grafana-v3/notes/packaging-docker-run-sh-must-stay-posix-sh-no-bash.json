@@ -1,0 +1,51 @@
+{
+  "id": "packaging-docker-run-sh-must-stay-posix-sh-no-bash",
+  "title": "packaging/docker/run.sh must stay POSIX sh (no bash)",
+  "kind": "rule",
+  "answers": [
+    "Why can't I use bash syntax in the Docker entrypoint script?",
+    "How do I get an env var by dynamic name in run.sh?",
+    "Script breaks in the alpine docker image with 'bad substitution' or '[[: not found'",
+    "Can I add bashisms to packaging/docker/run.sh?"
+  ],
+  "body": "Symptom: entrypoint fails in the alpine container with errors like 'bad substitution', '[[: not found', or similar shell errors.\nRoot cause: the alpine Docker image no longer installs bash (Dockerfile apk add lines dropped 'bash') to shrink attack surface/image size, so run.sh runs under ash/dash, not bash.\nFix pattern: avoid bashisms in packaging/docker/run.sh — no indirect variable expansion `${!var}` (use `printenv \"$var_name\"` or `eval var=\"\\$$var_name\"`), no `[[ ]]` tests (use `case`/`[ ]`), no `$(< file)` (use `$(cat file)`).\nConstraints: applies to packaging/docker/run.sh and any other script baked into the production Docker image (shebang `#!/bin/sh`); does not apply to build-time scripts run in stages that still install bash (Dockerfile build-stage apk add).",
+  "applies": "packaging/docker/run.sh and scripts executed inside the final alpine Docker image",
+  "tags": [
+    "docker",
+    "shell",
+    "posix-sh",
+    "alpine"
+  ],
+  "deps": [
+    {
+      "path": "packaging/docker/run.sh",
+      "hash": "sha256:513d6357562fee98f96dd3a6",
+      "missing": false
+    },
+    {
+      "path": "Dockerfile",
+      "hash": "sha256:193e53ba17322e23d8669ba5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132643"
+  },
+  "created": "2026-10-04T06:51:31.889Z",
+  "verified": "2026-10-04T06:51:31.889Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Alpine Docker container entrypoint fails with bad substitution or bracket not found errors",
+    "Why can't I use bash syntax like double brackets in the Docker run script",
+    "Shell script in production Docker image must work without bash installed",
+    "How do I reference environment variables by dynamic name in POSIX shell",
+    "Bash-only syntax breaks the production Docker image but works in development"
+  ],
+  "saysFor": "830:packaging-docker-run-sh-",
+  "search": "The script packaging/docker/run.sh must use only POSIX sh syntax because the Alpine Docker image no longer installs bash, so scripts run under ash/dash and bashisms cause entrypoint failures ('bad substitution', '[[: not found'). Avoid indirect variable expansion ${!var} (use printenv \"$var_name\" or eval), [[ ]] conditionals (use case or [ ]), and $(< file) (use $(cat file)). This applies to any script with shebang #!/bin/sh baked into the final production image, but not to build-stage scripts run in Dockerfile stages that still install bash. Check packaging/docker/run.sh and the Dockerfile for compliance."
+}

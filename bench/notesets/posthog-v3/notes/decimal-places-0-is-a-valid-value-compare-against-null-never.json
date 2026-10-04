@@ -50,5 +50,6 @@
     "Decimal places formatting not applied when value is zero in data table",
     "Insight formatting ignores zero as a valid decimal places configuration"
   ],
-  "saysFor": "864:decimal-places-0-is-a-va"
+  "saysFor": "864:decimal-places-0-is-a-va",
+  "search": "Decimal places 0 is a valid value and must be compared against null, never truthiness. When decimalPlaces is set to 0 in SQL insights (style None), a falsy check causes the formatter to skip rounding and return raw floats instead of rounded values. Use `decimalPlaces != null` in formatDataWithSettings (dataVisualizationLogic.ts) and formatSqlSeriesValue (sqlLineGraphAdapter.ts) to test for configuration. Do not use `toFixed(decimalPlaces ?? 0)` as this truncates unset decimals, which must retain full precision. Number style formatting already works correctly because toLocaleString accepts 0. Applies to frontend/src/queries/nodes/DataVisualization decimal formatting in Big number and table cells."
 }

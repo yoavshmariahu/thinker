@@ -1,0 +1,50 @@
+{
+  "id": "don-t-clonedeep-a-dataframe-you-only-read-from",
+  "title": "Don't cloneDeep a DataFrame you only read from",
+  "kind": "rule",
+  "answers": [
+    "Why was cloneDeep removed from RawListContainer?",
+    "Should I clone a DataFrame prop before reading its fields?",
+    "Avoiding unnecessary deep clones of DataFrame in React components"
+  ],
+  "body": "Fix pattern: RawListContainer used cloneDeep(tableResult) on a DataFrame prop even though it never mutated the frame, just read fields/values from it; removing the clone and using the prop directly avoids needless copying and the strict-mode cloneDeep crash risk from getter-only derived fields on frame implementations.\nConstraints: applies when a component only reads from a DataFrame (fields, values, length) — if a component genuinely mutates the frame it still needs its own copy, but prefer a shallow/structural copy over cloneDeep on frame objects that expose derived getters.",
+  "applies": "React components/hooks in public/app that receive DataFrame props and only read (don't mutate) them.",
+  "tags": [
+    "dataframe",
+    "performance",
+    "clonedeep",
+    "explore"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/explore/PrometheusListView/RawListContainer.tsx",
+      "symbol": "RawListContainer",
+      "hash": "sha256:772cb0cd1239cc1e6b0c1825",
+      "line": 61,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132648"
+  },
+  "created": "2026-10-04T06:51:08.661Z",
+  "verified": "2026-10-04T06:51:08.661Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why was cloneDeep removed from RawListContainer?",
+    "Should I clone a DataFrame prop before reading its fields?",
+    "Avoiding unnecessary deep clones of DataFrame in React components"
+  ],
+  "saysFor": "630:don-t-clonedeep-a-datafr",
+  "search": "Avoid cloneDeep on DataFrame props that components only read from, not mutate. Unnecessary cloning causes performance waste and triggers strict-mode crashes on getter-only derived fields. The rule applies to React components and hooks in public/app that receive DataFrame props and access their fields, values, or length without mutation; use the prop directly instead. If a component genuinely mutates the frame, prefer shallow or structural copies over cloneDeep. Affects RawListContainer in public/app/features/explore/PrometheusListView/."
+}

@@ -102,5 +102,6 @@
     "What happens to events after they're processed?",
     "I need to add a custom transformation step"
   ],
-  "saysFor": "1429:ingestion-pipeline-layer"
+  "saysFor": "1429:ingestion-pipeline-layer",
+  "search": "Ingestion pipeline architecture spans three layers: framework defines ProcessingStep (value => Promise<PipelineResult>) with results (OK/DLQ/DROP/REDIRECT, each with sideEffects and warnings) in `nodejs/src/ingestion/framework/{steps,results,pipeline.interface}.ts`; builders like `newPipelineBuilder`, `newChunkPipelineBuilder` provide `.pipe/.pipeChunk/.sequentially/.concurrentlyPerGroup/.compose`, ending with `.handleResults()/.handleSideEffects()/.build()`. Common layer in `src/ingestion/common/` provides `newCommonIngestionPipeline` (beforeBatch, per-event, afterBatch) and `CommonIngestionConsumer`. Concrete pipelines in `src/ingestion/pipelines/{analytics,ai,clientwarnings,errortracking,heatmaps,metrics,sessionreplay}`; analytics pipeline `joined-ingestion-pipeline.ts:createJoinedIngestionPipeline` chains rate limit/prefetch → parseMessage/resolveTeam → preprocessing → `concurrentlyPerGroup(getTokenAndDistinctId)` → event subpipeline."
 }

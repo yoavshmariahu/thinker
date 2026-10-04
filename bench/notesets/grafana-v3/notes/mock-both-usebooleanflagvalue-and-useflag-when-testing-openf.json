@@ -1,0 +1,89 @@
+{
+  "id": "mock-both-usebooleanflagvalue-and-useflag-when-testing-openf",
+  "title": "Mock both useBooleanFlagValue and useFlag when testing OpenFeature-gated components",
+  "kind": "rule",
+  "answers": [
+    "Why does my feature-flag-gated test not react to the mocked flag value?",
+    "How do I mock @openfeature/react-sdk in Jest tests",
+    "useFlag mock isn't working in my component test",
+    "Flag-controlled UI section not appearing/disappearing in tests"
+  ],
+  "body": "Symptom: a Jest test mocks @openfeature/react-sdk's useBooleanFlagValue but a component controlled by a generated hook (useFlagGrafana*) still renders with the wrong default, because that hook internally calls useFlag, not useBooleanFlagValue.\nRoot cause: generated per-flag hooks in packages/grafana-runtime/src/internal/openFeature/openfeature.gen.ts (e.g. useFlagGrafanaLogDetailsDisplayedFieldControls) call useFlag, while legacy call sites use useBooleanFlagValue directly - both exist in the same codebase.\nFix pattern: when jest.mock('@openfeature/react-sdk', ...), mock both useBooleanFlagValue and useFlag (returning {value: ...}) with jest.requireActual spread in, and drive both from the same flags map in a setBooleanFlags helper so either call style is controllable.\nConstraints: applies to any test touching a component that reads flags via @grafana/runtime/internal generated hooks; not needed if the component only ever calls useBooleanFlagValue directly.",
+  "applies": "Jest tests for React components that read OpenFeature flags via @grafana/runtime/internal generated hooks or useBooleanFlagValue",
+  "tags": [
+    "testing",
+    "feature-flags",
+    "openfeature",
+    "jest"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-runtime/src/internal/openFeature/openfeature.gen.ts",
+      "symbol": "useFlagGrafanaLogDetailsDisplayedFieldControls",
+      "hash": "sha256:3e4c2ed6ac5fa51131cd1e44",
+      "line": 667,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "public/app/features/logs/components/panel/LogLineDetails.test.tsx",
+      "symbol": "useBooleanFlagValue",
+      "hash": "sha256:96cc4abe996005f22f1a9644",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 41,
+        "sites": 38,
+        "refs": 83
+      }
+    },
+    {
+      "path": "public/app/features/logs/components/panel/LogLineDetails.test.tsx",
+      "symbol": "useFlag",
+      "hash": "sha256:1e8298e09616735ded8ec7e1",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 104,
+        "refs": 106
+      }
+    },
+    {
+      "path": "public/app/features/logs/components/panel/LogLineDetails.test.tsx",
+      "symbol": "setBooleanFlags",
+      "hash": "sha256:baffabcd1b5209ed2c456b1f",
+      "line": 40,
+      "missing": false,
+      "fanout": {
+        "files": 9,
+        "sites": 27,
+        "refs": 27
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132672"
+  },
+  "created": "2026-10-04T06:48:27.562Z",
+  "verified": "2026-10-04T06:48:27.562Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Feature flag test ignores mock and uses wrong value",
+    "Mocking feature flag functions for Jest component tests",
+    "Generated feature hook not responding to mocked flag value",
+    "Feature-controlled UI not appearing in tests despite mocked flag",
+    "Both flag hook functions need to be mocked for tests"
+  ],
+  "saysFor": "1055:mock-both-usebooleanflag",
+  "search": "Testing OpenFeature-gated components requires mocking both useBooleanFlagValue and useFlag from @openfeature/react-sdk with a shared flags map. Generated per-flag hooks in packages/grafana-runtime/src/internal/openFeature/openfeature.gen.ts (e.g. useFlagGrafanaLogDetailsDisplayedFieldControls) call useFlag internally, while some call sites use useBooleanFlagValue directly; mocking only one causes the component to render with wrong defaults. Apply jest.mock with jest.requireActual spread and a setBooleanFlags helper to drive both call styles from the same state. This applies to Jest tests for React components reading flags via @grafana/runtime/internal generated hooks or useBooleanFlagValue; not needed if the component only calls useBooleanFlagValue directly. See public/app/features/logs/components/panel/LogLineDetails.test.tsx for pattern."
+}

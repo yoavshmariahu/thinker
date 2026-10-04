@@ -84,5 +84,6 @@
     "CLI update failed silently without error message",
     "Updated CLI doesn't overwrite the previous version"
   ],
-  "saysFor": "1030:self-update-must-match-t"
+  "saysFor": "1030:self-update-must-match-t",
+  "search": "CLI self-update implementation must mirror cargo-dist installer behavior: receipt_path checks XDG_CONFIG_HOME on all platforms first, then LOCALAPPDATA on Windows or ~/.config elsewhere, never LOCALAPPDATA-only (which misclassifies XDG installs); run_installer must set POSTHOG_CLI_INSTALL_DIR environment variable so the installer writes to the receipt's prefix, else the binary stays stale; Windows InstallMethod::ScriptWindows outputs irm <install.ps1> | iex because Copy-Item cannot overwrite a running exe. Version checks use posthog-cli/stable/dist-manifest.json releases[0].app_version by equality, never GitHub API or semver comparison. Re-verify against published installers if cargo-dist is upgraded. Paths: cli/src/update.rs (receipt_path, run_installer, InstallMethod::ScriptWindows), dist-manifest.json, install.ps1."
 }

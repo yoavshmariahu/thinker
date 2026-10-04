@@ -58,5 +58,6 @@
     "Warehouse pipeline loses progress when interrupted during sync",
     "Resumable cursors don't work with POST request bodies"
   ],
-  "saysFor": "914:resumable-rest-warehouse"
+  "saysFor": "914:resumable-rest-warehouse",
+  "search": "Resumable REST warehouse sources use `JSONResponseCursorPaginator(cursor_path=\"cursor\", cursor_param=\"cursor\", param_location=\"json\")` for APIs taking cursor in request body. Resume state is seeded via `resumable_source_manager.can_resume()/load_state()` with `initial_paginator_state={\"cursor\": ...}` and saved through `resume_hook=save_checkpoint` calling `save_state`, which stages the cursor; the pipeline commits after batch write. The resume config class must be `@dataclasses.dataclass(frozen=True)` (bare `@dataclass` fails semgrep and repo invariants). Source class subclasses `ResumableSource[Config, ResumeConfig]` and implements `get_resumable_source_manager` and `source_for_pipeline`. Clay in `products/warehouse_sources/backend/temporal/data_imports/sources/clay/clay.py:clay_source` and `ClayResumeConfig` is the template; autumn was the model. Applies to warehouse_sources data_imports sources."
 }

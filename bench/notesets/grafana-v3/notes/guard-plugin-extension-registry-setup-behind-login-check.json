@@ -1,0 +1,83 @@
+{
+  "id": "guard-plugin-extension-registry-setup-behind-login-check",
+  "title": "Guard plugin-extension registry setup behind login check",
+  "kind": "rule",
+  "answers": [
+    "Why is /metas called on the login screen?",
+    "How to avoid unnecessary plugin registry API calls for anonymous users",
+    "getPluginExtensionRegistries fires before login",
+    "Unnecessary network call on Grafana login page"
+  ],
+  "body": "Symptom: Grafana called the plugin-extension registries setup (hitting /metas) even on the login screen before a user was authenticated.\nRoot cause: AppWrapper.tsx called getPluginExtensionRegistries() unconditionally on mount, and app.ts also called it a second time redundantly.\nFix pattern: gate any call that needs a logged-in user behind `contextSrv.user.orgRole !== ''`, and keep only one call site; initialize state with a safe default (`initRegistries([])`) so the provider always has a value even when the guarded call is skipped.\nConstraints: applies to initialization code that depends on an authenticated user (orgRole set); do not apply this guard to code paths required for anonymous/public access (public dashboards, snapshots).",
+  "applies": "public/app/AppWrapper.tsx and public/app/app.ts plugin-extension registry initialization",
+  "tags": [
+    "plugins",
+    "extensions",
+    "login",
+    "performance"
+  ],
+  "deps": [
+    {
+      "path": "public/app/AppWrapper.tsx",
+      "symbol": "AppWrapper",
+      "hash": "sha256:e6c12d7f122269973417eb54",
+      "line": 63,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 9
+      }
+    },
+    {
+      "path": "public/app/features/plugins/extensions/registry/setup.ts",
+      "symbol": "initRegistries",
+      "hash": "sha256:a08c9cb2f9592ee43dd75c70",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "public/app/app.ts",
+      "hash": "sha256:26aff64d6334e6d00b681876",
+      "missing": false
+    },
+    {
+      "path": "public/app/features/plugins/extensions/registry/setup.ts",
+      "symbol": "getPluginExtensionRegistries",
+      "hash": "sha256:e60fd457a53a36c76fe681c0",
+      "line": 86,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 11,
+        "refs": 22
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132681"
+  },
+  "created": "2026-10-04T06:46:44.897Z",
+  "verified": "2026-10-04T06:46:44.897Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "getpanelpluginmetas-must-still-run-unconditionally-public-da"
+  ],
+  "says": [
+    "Why is plugin registry initialized before I log in?",
+    "Stop fetching plugin extensions when user isn't authenticated yet",
+    "Avoid unnecessary network requests on the login screen",
+    "Plugin registry loading happens too early in startup"
+  ],
+  "saysFor": "800:guard-plugin-extension-r",
+  "search": "Plugin-extension registry setup calls must be guarded by a login check because the registries endpoint requires an authenticated user, yet AppWrapper and app.ts were calling it unconditionally even on the login screen. Gate calls to getPluginExtensionRegistries() behind `contextSrv.user.orgRole !== ''`, keep only one initialization call site, and initialize provider state with a safe default (initRegistries([])) so it always has a value when the guarded call is skipped. Do not apply this guard to code paths required for public/anonymous access like public dashboards or snapshots. Applies to public/app/AppWrapper.tsx and public/app/app.ts initialization of plugin-extension registries in public/app/features/plugins/extensions/registry/setup.ts."
+}

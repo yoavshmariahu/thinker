@@ -1,0 +1,66 @@
+{
+  "id": "custom-option-editors-must-not-write-a-default-value-on-rend",
+  "title": "Custom option editors must not write a default value on render, only on user interaction",
+  "kind": "rule",
+  "answers": [
+    "Why does my dashboard show as unsaved/dirty just from opening it?",
+    "How do I add a toggle option that defaults to on without marking old panels dirty?",
+    "Pattern for custom panel option editors with a default value"
+  ],
+  "body": "Symptom: opening an older panel/dashboard that predates a new option shows it as dirty/modified even though the user changed nothing.\nRoot cause: a custom PanelOptionsEditor calling onChange while just rendering the effective default for an undefined option value writes that default into the panel's options object.\nFix pattern: in the editor, display `value ?? default` for the control's checked/value state, but only call onChange from the actual interaction handler (see public/app/plugins/panel/logstable/HoverOverflowEditor.tsx), never during render/mount for the undefined case.\nConstraints: applies to any addCustomEditor for a boolean/enum option added after a visualization's initial release where omitted should mean 'enabled by default'; doesn't apply where the schema itself should normalize/persist the default (e.g. via migration).",
+  "applies": "Custom PanelOptionsEditorBuilder editors (addCustomEditor) for options with a non-undefined effective default",
+  "tags": [
+    "panel-options",
+    "dashboard-dirty",
+    "editor-convention"
+  ],
+  "deps": [
+    {
+      "path": "public/app/plugins/panel/logstable/HoverOverflowEditor.tsx",
+      "symbol": "HoverOverflowEditor",
+      "hash": "sha256:16952a8f0a642bdf2d63d101",
+      "line": 4,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 5
+      }
+    },
+    {
+      "path": "public/app/plugins/panel/logstable/module.tsx",
+      "symbol": "plugin",
+      "hash": "sha256:2c40fef0bb2e907284cf32df",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 683,
+        "sites": 7,
+        "refs": 1965
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132829"
+  },
+  "created": "2026-10-04T06:24:32.053Z",
+  "verified": "2026-10-04T06:24:32.053Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "logstable-boolean-option-defaults-must-be-set-in-3-places",
+    "explore-logs-drilldown-shared-settings-vs-dashboard-panel-op"
+  ],
+  "says": [
+    "Dashboard shows unsaved just from opening old panel",
+    "New toggle option marks panel dirty without user changes",
+    "Opening panel makes it appear modified though untouched",
+    "Adding optional setting makes existing panels look changed",
+    "Prevent new option from marking old panels as modified"
+  ],
+  "saysFor": "935:custom-option-editors-mu",
+  "search": "Custom PanelOptionsEditor implementations (addCustomEditor) must not call onChange during render or mount when displaying the effective default for an undefined option value; this marks older panels/dashboards as dirty/modified without user action. Display `value ?? default` for the control's checked/value state, but only invoke onChange from actual user interaction handlers, as shown in public/app/plugins/panel/logstable/HoverOverflowEditor.tsx. Applies to boolean/enum options added after a panel's initial release where an omitted value should mean 'enabled by default', and does not apply where the schema itself should normalize or persist the default via migration. Without this distinction, users opening pre-existing dashboards see unsaved changes they did not make."
+}

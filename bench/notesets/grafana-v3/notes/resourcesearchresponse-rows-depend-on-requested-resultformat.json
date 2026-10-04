@@ -1,0 +1,69 @@
+{
+  "id": "resourcesearchresponse-rows-depend-on-requested-resultformat",
+  "title": "ResourceSearchResponse rows depend on requested ResultFormat",
+  "kind": "rule",
+  "answers": [
+    "Why does my search-index existence check miss rows / always return empty?",
+    "How do I check if a ResourceSearchRequest returned any matches?",
+    "FIELD_VALUES search returns rows but rsp.Results.Rows is empty",
+    "Supporting both old and new search servers for row-count checks"
+  ],
+  "body": "Symptom: a Search() existence/uniqueness check against the resource index silently finds 0 matches even though a matching resource exists, when the request uses ResultFormat FIELD_VALUES.\nRoot cause: ResourceSearchResponse stores hits in different places depending on ResultFormat — RESOURCE_TABLE (and UNSPECIFIED, for older search servers) puts rows in rsp.Results.Rows, while FIELD_VALUES puts them directly in rsp.Rows. Code that only checks rsp.Results.Rows misses FIELD_VALUES hits.\nFix pattern: branch on rsp.GetResultFormat() to pick the right row slice (see searchResponseHasRows), and explicitly set ResultFormat on the request plus a minimal Fields projection (e.g. just resource.SEARCH_FIELD_NAME) when you only need presence/absence, not full field data.\nConstraints: apply this whenever writing new Search() callers that only care whether results exist; default/UNSPECIFIED must still be treated as RESOURCE_TABLE for backward compatibility with older search servers that don't set ResultFormat.",
+  "applies": "Any code calling resourcepb ResourceIndexClient.Search and inspecting ResourceSearchResponse rows/results",
+  "tags": [
+    "unified-storage",
+    "search",
+    "resourcepb",
+    "backward-compat"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "searchResponseHasRows",
+      "hash": "sha256:c0fd0521a5d1b7523d915314",
+      "line": 269,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/apistore/prepare.go",
+      "symbol": "searchResponseHasRows",
+      "hash": "sha256:c0fd0521a5d1b7523d915314",
+      "line": 269,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 2
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132875"
+  },
+  "created": "2026-10-04T06:18:45.441Z",
+  "verified": "2026-10-04T06:18:45.441Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "declare-storageoptions-gvk-for-any-type-shared-aliased-acros",
+    "apistore-maxallowedversion-cap-must-check-the-persisted-enco",
+    "storage-options-must-be-scoped-per-gvr-not-registered-into-a"
+  ],
+  "says": [
+    "Resource search never finds matches despite database having valid records",
+    "Existence check returns zero always in search index",
+    "Search servers return row data in incompatible locations",
+    "Verify search found results fails upgrading server version",
+    "Row count check breaks across different search server versions"
+  ],
+  "saysFor": "1070:resourcesearchresponse-r",
+  "search": "ResourceSearchResponse rows exist in different fields per result format: RESOURCE_TABLE/UNSPECIFIED in rsp.Results.Rows, FIELD_VALUES directly in rsp.Rows; code checking only Results.Rows finds zero matches when the response uses FIELD_VALUES despite TotalHits > 0. Fix: branch on GetResultFormat() to select the correct row slice (see pkg/storage/unified/apistore/prepare.go:searchResponseHasRows). Set ResultFormat and minimal Fields projection when only checking existence, treating UNSPECIFIED as RESOURCE_TABLE for older server compatibility."
+}

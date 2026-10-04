@@ -57,5 +57,6 @@
     "Person deletion process seems stuck in an intermediate state",
     "Reviving a user after soft delete is broken"
   ],
-  "saysFor": "1122:person-tombstones-in-cli"
+  "saysFor": "1122:person-tombstones-in-cli",
+  "search": "Soft delete in ClickHouse uses version-based tombstoning where `is_deleted = argMax(is_deleted, version)`, never \"any row deleted\", implemented in `posthog/models/person/deletion.py` via `_delete_person` (version+100), `_delete_ch_distinct_id`, and the ordered sweep `_run_ordered_delete`. Split_person uses version+101 to override deletes; revival via `reset_all_deleted_person_distinct_ids` raises versions by +100 (default 2500) and PG floors via SetPersonVersionFloor/SetPersonDistinctIdVersionFloor without lowering. The sweep deletes below snapshot max then max, bounded by snapshot max_version, using run_id-scoped snapshot tables in `posthog/clickhouse/cleanup_snapshots`. Critical constraint: plugin-server generateKafkaPersonUpdateMessage must stay in sync with the version offset, `_require_snapshot_intact` fails if 14-day TTL shrunk a snapshot, and `recheck_revived_persons` must run before distinct id and person deletes. Applies to person deletion workflows and ClickHouse maintenance operations."
 }

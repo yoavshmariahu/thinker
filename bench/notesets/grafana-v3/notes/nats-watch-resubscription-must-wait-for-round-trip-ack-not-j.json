@@ -1,0 +1,66 @@
+{
+  "id": "nats-watch-resubscription-must-wait-for-round-trip-ack-not-j",
+  "title": "NATS watch resubscription must wait for round-trip ack, not just local SUB success",
+  "kind": "rule",
+  "answers": [
+    "Why does natsNotifier retry subscribing instead of using it right away?",
+    "NATS watch missed events after reconnect",
+    "How should a notifier confirm a NATS subscription is truly active?"
+  ],
+  "body": "Symptom: natsNotifier reports it 'subscribed to nats watch stream' and starts forwarding events, but under disconnect/reconnect the subscription was only queued client-side and events get lost before the server actually processes SUB.\nRoot cause: natsNotifier.trySubscribe (pkg/storage/unified/resource/notifier_nats.go) previously treated Subscribe() returning without error as success.\nFix pattern: after Subscribe(), call sub.WaitReady(ctx) with a context bounded by defaultMaxBackoff; on WaitReady failure, call sub.Unsubscribe() and return false so the outer backoff loop retries instead of declaring the watch live.\nConstraints: applies specifically to the retry/backoff path that establishes live capture (trySubscribe); it does not apply to notifiers (channel/polling) that don't talk to an external bus.",
+  "applies": "pkg/storage/unified/resource/notifier_nats.go natsNotifier retry/backoff subscription logic",
+  "tags": [
+    "nats",
+    "notifier",
+    "retry",
+    "readiness"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/notifier_nats.go",
+      "symbol": "natsNotifier",
+      "hash": "sha256:1dfa5ec1a41fdf2cf2e51df3",
+      "line": 49,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 17
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/notifier_nats.go",
+      "symbol": "trySubscribe",
+      "hash": "sha256:5b071611aa7544b5988dc6c1",
+      "line": 201,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133040"
+  },
+  "created": "2026-10-04T05:54:25.461Z",
+  "verified": "2026-10-04T05:54:25.461Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "watchoptions-captureready-notifiers-must-acknowledge-capture"
+  ],
+  "says": [
+    "Live event stream loses messages after connection recovery",
+    "Watcher says it connected but events never arrive",
+    "Subscription succeeds locally but server never actually processes it",
+    "How do I verify event subscription is confirmed server-side",
+    "Real-time events skip data after unexpected disconnection happens"
+  ],
+  "saysFor": "895:nats-watch-resubscriptio",
+  "search": "NATS watch resubscription in pkg/storage/unified/resource/notifier_nats.go:natsNotifier.trySubscribe must call sub.WaitReady(ctx) after Subscribe() to wait for server round-trip acknowledgment, not just local SUB success. Without this call, resubscription under disconnect/reconnect appears live while events are silently lost before the server processes the SUB frame. The context passed to WaitReady should be bounded by defaultMaxBackoff; if WaitReady fails, call sub.Unsubscribe() and return false to trigger outer backoff loop retry instead of declaring the watch live. This rule applies specifically to the retry/backoff path that establishes live capture and does not apply to notifiers using channels or polling instead of external bus connection. Snapshot-to-live guarantees break if resubscription succeeds locally without waiting for server-side round-trip ack."
+}

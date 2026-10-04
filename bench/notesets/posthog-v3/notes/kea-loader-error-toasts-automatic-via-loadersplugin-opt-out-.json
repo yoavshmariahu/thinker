@@ -54,5 +54,6 @@
     "Custom error behavior when a loader finishes but the data wasn't found.",
     "Prevent toast notifications for expected failure states."
   ],
-  "saysFor": "1016:kea-loader-error-toasts-"
+  "saysFor": "1016:kea-loader-error-toasts-",
+  "search": "Kea loadersPlugin automatically toasts non-2xx responses except 200/201/204/401/409 and 403 on load* actions; skip auto-toast via ERROR_FILTER_ALLOW_LIST in frontend/src/initKea.ts (entries: loadBilling, loadRecordingMeta) and ACCESS_DENIED_SELF_HANDLED for 403-only or NOT_FOUND_SELF_HANDLED for 404 as expected state. Never try/catch inside loader handler—it swallows errors before loadFooFailure fires; use listeners or lemonToast.error(...) for custom behavior. Success toasts go inside handler after successful calls (revokeSession pattern in loginSessionsLogic). Applies to kea-loaders error handling configuration."
 }

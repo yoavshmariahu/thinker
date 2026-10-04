@@ -63,5 +63,6 @@
     "Safely adding column to existing table",
     "Product model migration location conventions"
   ],
-  "saysFor": "1172:adding-model-fields-and-"
+  "saysFor": "1172:adding-model-fields-and-",
+  "search": "Adding model fields and migrations requires separate locations by database: core models in posthog/models/ with migrations in posthog/migrations/ (tracked by max_migration.txt), product models in products/<name>/backend/ with separate migrations; declare product databases in products/db_routing.yaml with no cross-DB foreign keys or migration dependencies (enforced by test_migration_dependencies_share_a_database.py). NOT NULL fields must set both default= and db_default=; use module-level callables for growing enum choices; generate with DEBUG=1 ./manage.py makemigrations [app] and resolve conflicts via manage.py rebase_migration <app>. Never use RemoveField or RemoveTable directly; instead use deprecate_field/untrack_field for columns and SafeDropTable for tables. Domain fields belong in extension models (OneToOne with primary_key in posthog/models/team/extensions.py:register_team_extension_signal), not on Team itself. Use string foreign keys (e.g., \"posthog.Team\") and run the migration analyzer (posthog/management/migration_analysis/policies.py) to check policies like HotTableAlterPolicy and AtomicFalsePolicy."
 }

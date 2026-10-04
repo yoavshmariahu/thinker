@@ -52,5 +52,6 @@
     "Can I customize the loading cards shown on exported dashboards?",
     "Where does the dashboard exporter get its loading fallback?"
   ],
-  "saysFor": "837:dashboardloadingstate-is"
+  "saysFor": "837:dashboardloadingstate-is",
+  "search": "The DashboardLoadingState component (products/dashboards/frontend/components/DashboardLoadingState/DashboardLoadingState.tsx) is reused by both the in-app dashboard and the exporter for shared/exported dashboard views. It accepts props showControls (default true) and tileCount (default 8); the exporter renders it with showControls=false as the Suspense fallback for LazyDashboardScene. Test selectors are data-attr=\"dashboard-loading-controls\" and data-attr=\"dashboard-loading-tile\" (tested in Exporter.test.tsx). Markup or prop changes to the skeleton component affect both the app dashboard and shared/exported views, requiring verification at both call sites in Exporter.tsx and the main dashboard."
 }

@@ -1,0 +1,44 @@
+{
+  "id": "object-typed-openfeature-flags-need-conditional-jsonvalue-im",
+  "title": "Object-typed OpenFeature flags need conditional JsonValue import in generated file",
+  "kind": "rule",
+  "answers": [
+    "Why does the generated openfeature react file sometimes import JsonValue and sometimes not?",
+    "How do object-valued flags get their TypeScript type in the generated hooks file?"
+  ],
+  "body": "Symptom: generated OpenFeature React file fails to typecheck/lint because it imports an unused type, or an object-valued flag's hook has no type for its default value. Root cause: the template previously had no notion of object-typed flags or their TS type. Fix pattern: template data now carries Flagset.HasObject (set true if any flag's Type == \"object\"); openfeature_react.tmpl conditionally imports `type JsonValue` from @openfeature/react-sdk only when HasObject is true, and object flags' hooks return JsonValue. Constraints: any future flag value shape added to the typed-flag mapping that needs a new TS type must follow this same opt-in import pattern to avoid unused imports when no flag of that type exists.",
+  "applies": "pkg/services/featuremgmt/openfeature_react.tmpl generation for React OpenFeature hooks.",
+  "tags": [
+    "featuremgmt",
+    "openfeature",
+    "codegen",
+    "template"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/featuremgmt/openfeature_react.tmpl",
+      "hash": "sha256:c838558004ba5ba5a28b278b",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132684"
+  },
+  "created": "2026-10-04T06:46:27.661Z",
+  "verified": "2026-10-04T06:46:27.661Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Generated feature flag file imports unused JsonValue type sometimes",
+    "Object-valued feature flags missing type in generated hook signatures",
+    "Why does object-typed flag generation have import errors",
+    "Generated feature flags code has unused type imports",
+    "Object flag defaults untyped in generated react hooks file"
+  ],
+  "saysFor": "801:object-typed-openfeature",
+  "search": "OpenFeature React hook generation in pkg/services/featuremgmt/openfeature_react.tmpl must conditionally import type JsonValue from @openfeature/react-sdk only when Flagset.HasObject is true, preventing unused-import typecheck/lint failures. Object-valued flags' hooks return JsonValue; non-object flag shapes bypass this import. Any future flag value type added to the typed-flag mapping must follow the same conditional opt-in pattern for the import to avoid unused types when that flag shape doesn't exist in a given flagset."
+}

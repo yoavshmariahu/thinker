@@ -1,0 +1,52 @@
+{
+  "id": "folder-doc-tab-selection-must-match-discovery-s-case-insensi",
+  "title": "Folder doc tab selection must match discovery's case-insensitivity",
+  "kind": "rule",
+  "answers": [
+    "Why does a README link to a doc with different capitalization open the wrong document?",
+    "Folder doc tab falls back to README even though the linked file exists",
+    "docTab URL param doesn't select the right tab when casing differs",
+    "Contributing.md link opens README instead of the Contributing tab"
+  ],
+  "body": "Symptom: a folder README link (or shared URL) naming a doc with different capitalization than the actual file (e.g. `CONTRIBUTING.md` vs `contributing.md`) silently falls back to showing the README tab, with the intended tab present but unselected.\nRoot cause: FolderReadmePanel.tsx matched the `docTab` URL param against `doc.fileName` with a case-sensitive `===`, while doc discovery (which decides what counts as README/Contributing/Security) has always been case-insensitive — the two lookups were out of sync.\nFix pattern: lowercase both the user-supplied/URL-supplied name and the repo file name before comparing, mirroring the case-insensitivity already used at discovery time.\nConstraints: applies to any matching of a user-authored or URL-carried file reference against real repo file names in this feature; does not apply to display — tab links must still render the file's real on-disk casing. A name genuinely absent from the folder should still fall back to the README.",
+  "applies": "public/app/features/provisioning/components/Folders/FolderReadmePanel.tsx — matching docTab URL param to folder docs",
+  "tags": [
+    "provisioning",
+    "case-insensitive",
+    "folder-docs",
+    "git-sync"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/provisioning/components/Folders/FolderReadmePanel.tsx",
+      "symbol": "FolderReadmePanelContent",
+      "hash": "sha256:0bc2373b253a6d394956f536",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132825"
+  },
+  "created": "2026-10-04T06:24:43.950Z",
+  "verified": "2026-10-04T06:24:43.950Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does a file link with different capitalization select the wrong tab?",
+    "Folder document tab falls back to default even though file exists",
+    "Documentation link with different capitalization shows wrong tab",
+    "How to ensure consistent tab selection regardless of file name case"
+  ],
+  "saysFor": "1049:folder-doc-tab-selection",
+  "search": "Folder doc tab selection in FolderReadmePanel must use case-insensitive comparison when matching the docTab URL parameter against real folder file names, mirroring the case-insensitivity of doc discovery. The root cause of incorrect README fallback is case-sensitive === comparison between user-supplied/URL-supplied names and repo file names; fix by lowercasing both values before comparing. Display of tab links must still preserve the file's real on-disk casing, and genuinely absent names should still fall back to README. Applies to public/app/features/provisioning/components/Folders/FolderReadmePanelContent matching docTab URL parameters to folder docs."
+}

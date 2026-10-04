@@ -1,0 +1,66 @@
+{
+  "id": "custom-select-option-renderers-must-reuse-getselectstyles-no",
+  "title": "Custom Select option renderers must reuse getSelectStyles, not hand-rolled CSS",
+  "kind": "rule",
+  "answers": [
+    "TimeZonePicker looks different/inconsistent from other Select dropdowns",
+    "Custom select option component doesn't show focus ring or selected state correctly",
+    "Why does this select option ignore the base Select styling/accessibility fixes?",
+    "How should a custom option component for Select be styled?"
+  ],
+  "body": "Symptom: TimeZonePicker's dropdown options had custom hover/selected styling (own padding, border-radius, checkmark icon) that looked and behaved differently from the base Select, and missed accessibility fixes (e.g. focus ring) applied to Select generally.\nRoot cause: WideTimeZoneOption/CompactTimeZoneOption in packages/grafana-ui/src/components/DateTimePickers/TimeZonePicker/TimeZoneOption.tsx defined their own `container`/`containerFocused` styles and manually rendered an Icon for isSelected instead of using the shared Select option styles.\nFix pattern: replace custom container/focus/selected CSS with classes from getSelectStyles (packages/grafana-ui/src/components/Select/getSelectStyles.ts): `option`, `optionFocused`, `optionFocusRing` (gated on `selectProps?.showFocusRing`), `optionSelected`, `optionDisabled`. Drop manual checkmark rendering since `optionSelected` style communicates selection like native Select options; accept and thread through a `selectProps` prop with `showFocusRing`.\nConstraints: applies to any custom `components.Option` passed into react-select based Select/Combobox; do not reintroduce bespoke hover/selected CSS in option renderers, since it will drift from future base-Select accessibility/style updates (see #130740).",
+  "applies": "grafana-ui components that render custom option UI for Select-based pickers",
+  "tags": [
+    "grafana-ui",
+    "select",
+    "timezonepicker",
+    "accessibility",
+    "styling"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/DateTimePickers/TimeZonePicker/TimeZoneOption.tsx",
+      "symbol": "WideTimeZoneOption",
+      "hash": "sha256:5341eacf82d2276967ff5117",
+      "line": 31,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/Select/getSelectStyles.ts",
+      "symbol": "getSelectStyles",
+      "hash": "sha256:5abc21bff41e067f64204dc9",
+      "line": 8,
+      "missing": false,
+      "fanout": {
+        "files": 16,
+        "sites": 15,
+        "refs": 36
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132800"
+  },
+  "created": "2026-10-04T06:28:41.412Z",
+  "verified": "2026-10-04T06:28:41.412Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Custom dropdown options look different from standard Select styling",
+    "TimeZone picker doesn't show focus ring like others",
+    "Selected state styling inconsistent across dropdown option types",
+    "Custom option component missing accessibility improvements from base",
+    "Dropdown styles inconsistent between select variants and pickers"
+  ],
+  "saysFor": "1343:custom-select-option-ren",
+  "search": "Custom option renderers for react-select based Select/Combobox components (custom components.Option) must reuse CSS classes from getSelectStyles in packages/grafana-ui/src/components/Select/getSelectStyles.ts rather than hand-rolling hover, focus, and selected styles. Use the shared classes: option, optionFocused, optionFocusRing (gated on selectProps?.showFocusRing), optionSelected, and optionDisabled; drop manual checkmark Icon rendering since optionSelected communicates selection like the base Select. Thread through a selectProps prop with showFocusRing to preserve accessibility fixes (focus rings, etc.) that the base Select receives in future updates. Custom CSS in option renderers (like TimeZonePicker's WideTimeZoneOption) drifts from base-Select behavior and misses accessibility fixes."
+}

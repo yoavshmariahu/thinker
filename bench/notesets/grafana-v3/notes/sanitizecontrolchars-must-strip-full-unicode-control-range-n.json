@@ -1,0 +1,56 @@
+{
+  "id": "sanitizecontrolchars-must-strip-full-unicode-control-range-n",
+  "title": "SanitizeControlChars must strip full unicode control range, not just ASCII",
+  "kind": "rule",
+  "answers": [
+    "Why are C1 control characters (0x80-0x9F) not stripped from plugin origin or header values?",
+    "How should I sanitize untrusted strings used in metric labels or HTTP headers?",
+    "SanitizeControlChars isn't removing all control characters",
+    "What does util.SanitizeControlChars guarantee?"
+  ],
+  "body": "Symptom: untrusted strings (plugin IDs used as metric label values, datasource header values during alert eval) could still contain non-ASCII control characters like U+0085/U+009F after sanitization.\nRoot cause: pkg/util/strings.go:SanitizeControlChars only filtered runes with r < 0x20 or r == 0x7f, missing the Unicode C1 control range (0x80-0x9F).\nFix pattern: use unicode.IsControl(r) instead of hand-rolled ASCII range checks when stripping control characters from untrusted input that feeds metric labels, headers, or log/trace attributes.\nConstraints: applies whenever sanitizing strings for use as metric label values or outgoing header values; TruncateUTF8 byte-truncation afterward is unaffected and still required to cap size.",
+  "applies": "pkg/util/strings.go SanitizeControlChars and its callers (plugin origin metric label, eval datasource header sanitization)",
+  "tags": [
+    "alerting",
+    "sanitization",
+    "security",
+    "unicode"
+  ],
+  "deps": [
+    {
+      "path": "pkg/util/strings.go",
+      "symbol": "SanitizeControlChars",
+      "hash": "sha256:2e305f99f4f31e970f5f6a4a",
+      "line": 199,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132744"
+  },
+  "created": "2026-10-04T06:37:24.667Z",
+  "verified": "2026-10-04T06:37:24.667Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "util-sanitizecontrolchars-is-the-shared-helper-for-stripping",
+    "sanitize-user-controlled-rule-labels-before-using-them-as-me"
+  ],
+  "says": [
+    "Non-ASCII control characters remain in plugin origin after cleaning",
+    "How should I sanitize untrusted strings for metrics and headers?",
+    "Extended Unicode control range not removed from header values",
+    "Alert evaluation headers still contain control characters",
+    "Sanitization misses the full Unicode control character range"
+  ],
+  "saysFor": "812:sanitizecontrolchars-mus",
+  "search": "SanitizeControlChars implementation must use unicode.IsControl(r) instead of ASCII range checks to catch full Unicode control range including C1 controls (0x80-0x9F), not just ASCII (r < 0x20 or r == 0x7f). Required for untrusted strings used as metric label values or outgoing header values in ngalert datasource eval and plugin origin metrics. TruncateUTF8 byte-length capping must still follow sanitization. Located in pkg/util/strings.go:SanitizeControlChars and consulted by pkg/services/ngalert/schedule/metrics.go and eval datasource header paths."
+}

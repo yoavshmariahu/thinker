@@ -57,5 +57,6 @@
     "Event processing gap when Kafka partitions reassign",
     "Ingestion resumes slowly following Kafka rebalancing event"
   ],
-  "saysFor": "943:v1-consumer-stalls-after"
+  "saysFor": "943:v1-consumer-stalls-after",
+  "search": "When debugging v1 Kafka consumer rebalance stalls (symptom: rebalancing_timeout_forcing_recovery log after CONSUMER_REBALANCE_TIMEOUT_MS), the root cause is rebalanceCallback sets isRebalancing on revoke but only resets it on the next ASSIGN callback from the paused consume loop. Apply this fix pattern: call completeRevocation in all revoke paths (tasks done, error, no tasks), with the reset in finally block so a throwing unassign (disconnected consumer) still clears the pause. Do not gate the reset on remaining assignments or on an assign callback arriving."
 }

@@ -67,5 +67,6 @@
     "When do tests need to run serially instead of parallel?",
     "What command sets up the testing databases?"
   ],
-  "saysFor": "789:testing-nodejs-jest-conf"
+  "saysFor": "789:testing-nodejs-jest-conf",
+  "search": "Node.js tests in nodejs/ must use dedicated test databases (test_posthog, test_persons, test_behavioral_cohorts, test_cyclotron*, ClickHouse posthog_test), never dev databases; create with pnpm --filter=@posthog/nodejs setup:test and validate via database-guard.ts which blocks destructive helpers on non-test DBs. Two Jest configs exist: jest.config.js for *.test.ts (parallel) and jest.serial.config.js for *.serial.test.ts (--runInBand for shared mutable infrastructure); run via pnpm jest <path> from nodejs/ or hogli test <path> from repo root, with test:parallel and test:serial scripts in package.json. Examples: src/ingestion/ingestion-consumer.serial.test.ts. Unit tests assert with isOkResult/PipelineResultType. Applies to node.js test infrastructure and setup."
 }

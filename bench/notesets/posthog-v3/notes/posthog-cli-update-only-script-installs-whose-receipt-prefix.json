@@ -67,5 +67,6 @@
     "Self-update process targets incompatible or alternate installations",
     "Multiple posthog-cli copies interfere with detecting the owner"
   ],
-  "saysFor": "1007:posthog-cli-update-only-"
+  "saysFor": "1007:posthog-cli-update-only-",
+  "search": "The posthog-cli update command only self-updates script installs by checking whether the receipt's install_prefix contains the canonicalized running exe path via classify_path in cli/src/update.rs; a receipt's existence alone is not proof of ownership. Without this guard, debug builds or package-manager copies would wrongly self-update from stale receipts. Path checks win over receipts: Cellar → Homebrew, node_modules → Npm(path), .cargo/bin parent → Cargo, then script, else Unknown; use std::fs::canonicalize not read_link (Homebrew symlinks are relative). npm is a single InstallMethod::Npm(PathBuf) variant covering all distributions; any new InstallMethod must return guidance from InstallMethod::guidance, guarded by only_a_script_install_updates_itself."
 }

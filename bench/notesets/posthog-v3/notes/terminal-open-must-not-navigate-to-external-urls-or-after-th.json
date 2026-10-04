@@ -56,5 +56,6 @@
     "Open command security validation and internal link checking",
     "Why does terminal open command reject certain navigation paths?"
   ],
-  "saysFor": "1027:terminal-open-must-not-n"
+  "saysFor": "1027:terminal-open-must-not-n",
+  "search": "Terminal open command must guard against external navigation and navigation after terminal stop using two checks: PosthogFilesystem.navigationUrl (posthogFilesystem.ts) only returns internal hrefs starting with /, rejecting //, backslash, control chars, and whitespace with error 'no PostHog page'; and PosthogCommands.execute('open') must re-check this.signal.aborted after async node resolution before calling navigate. Node resolution walks folders with loadChildren and uses stored identity (references, fileSystemTypes[type].href), never calling notebooksRetrieve or fileSystemRetrieve, to preserve lazy loading. Tests must assert lazy-loading methods are not called during navigation resolution. This invariant prevents injection attacks and ensures lazy resolution in terminal open/navigation code in frontend/src/scenes/terminal/posthogFilesystem.ts, posthogCommands.ts, and terminalLogic.ts."
 }

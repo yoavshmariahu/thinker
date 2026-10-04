@@ -1,0 +1,53 @@
+{
+  "id": "sanitize-and-absolutize-link-hrefs-before-copying-as-a-share",
+  "title": "Sanitize and absolutize link hrefs before copying as a share URL",
+  "kind": "rule",
+  "answers": [
+    "Why would a shared span link be blank or unsafe?",
+    "How to safely turn a LinkModel href into a copyable share URL",
+    "Span share button copies wrong or dangerous URL"
+  ],
+  "body": "Root cause risk: a LinkModel's href may be relative, missing, or (if derived from user/data-driven content) unsafe; copying it raw as a share link can produce an invalid or unsafe URL.\nFix pattern: build the share URL via new URL(href, window.location.href).href then textUtil.sanitizeUrl(...), and fall back to window.location.href whenever href is missing, sanitization returns '' or 'about:blank', or URL construction throws. See getShareUrl in public/app/features/explore/TraceView/components/TraceTimelineViewer/SpanDetail/ShareSpanButton.tsx.\nConstraints: applies to any 'Share'/'Copy link' action that copies a link derived from a LinkModel or other data-sourced href, not to static same-origin links the app itself constructs.",
+  "applies": "TraceView span detail share functionality and similar data-derived link-copy features",
+  "tags": [
+    "traceview",
+    "security",
+    "url-sanitization"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/explore/TraceView/components/TraceTimelineViewer/SpanDetail/ShareSpanButton.tsx",
+      "symbol": "getShareUrl",
+      "hash": "sha256:995c73f5434d6d2490abd237",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 1,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132624"
+  },
+  "created": "2026-10-04T06:54:49.931Z",
+  "verified": "2026-10-04T06:54:49.931Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "reuse-copystringtoclipboard-clipboardbutton-for-clipboard-wr"
+  ],
+  "says": [
+    "Shared link appears blank or navigates to wrong page",
+    "Copy link produces unsafe or malformed URL for sharing",
+    "Relative links fail when copied as shareable URLs",
+    "Missing link destination breaks copy-as-link feature",
+    "Share button copies unvalidated dangerous URL from response"
+  ],
+  "saysFor": "799:sanitize-and-absolutize-",
+  "search": "Share URLs derived from link hrefs must be built by calling new URL(href, window.location.href).href then textUtil.sanitizeUrl(...), with fallback to window.location.href if the href is missing, sanitization returns '' or 'about:blank', or URL construction throws. This pattern prevents invalid or unsafe URLs from relative, missing, or data-driven hrefs being copied as share links. Applies to Share/Copy link actions on data-sourced hrefs like LinkModel entries in TraceView span details and similar data-driven link-copy features, not to static same-origin links the app constructs itself."
+}

@@ -1,0 +1,65 @@
+{
+  "id": "nil-identity-must-be-guarded-in-auth-hooks-before-dereferenc",
+  "title": "Nil identity must be guarded in auth hooks before dereference",
+  "kind": "rule",
+  "answers": [
+    "Panic in ClearUserPermissionCacheHook on nil identity",
+    "Login fails with confusing nil pointer dereference instead of real auth error",
+    "Why does a secondary panic mask the original authentication failure",
+    "Guard pattern for identity.Requester possibly nil in sync hooks"
+  ],
+  "body": "Symptom: a failed login flow triggers a nil pointer panic inside ClearUserPermissionCacheHook, which masks the original authentication error that caused ident to be nil.\nRoot cause: pkg/services/authn/authnimpl/sync/rbac_sync.go:ClearUserPermissionCacheHook only checked `err != nil` before using `ident`, but hooks can be invoked with a nil identity even when err is nil (or ident can be nil independent of err).\nFix pattern: add an explicit nil check for the identity/requester parameter alongside the error check (`if err != nil || ident == nil { return }`) before any dereference, in any hook that receives an identity.Requester that may legitimately be nil on auth failure paths.\nConstraints: applies to post-login/auth hooks that accept a possibly-nil identity.Requester; does not apply where the caller guarantees non-nil identity by contract.",
+  "applies": "authn hooks in pkg/services/authn/authnimpl/sync that receive identity.Requester and run after login/auth events",
+  "tags": [
+    "iam",
+    "nil-check",
+    "authn",
+    "panic"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/authn/authnimpl/sync/rbac_sync.go",
+      "symbol": "ClearUserPermissionCacheHook",
+      "hash": "sha256:65d017aa4f461121398931fc",
+      "line": 342,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 5
+      }
+    },
+    {
+      "path": "pkg/services/authn/authnimpl/sync/rbac_sync.go",
+      "symbol": "ClearUserPermissionCacheHook",
+      "hash": "sha256:65d017aa4f461121398931fc",
+      "line": 342,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132688"
+  },
+  "created": "2026-10-04T06:45:45.634Z",
+  "verified": "2026-10-04T06:45:45.634Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Login fails with a confusing nil pointer panic instead of real error?",
+    "Authentication error gets masked by a secondary crash in permission cache?",
+    "Why does permission sync crash with a panic during failed login?",
+    "Failed login triggers nil pointer dereference instead of proper error message?",
+    "Secondary panic hides the actual authentication failure reason completely?"
+  ],
+  "saysFor": "912:nil-identity-must-be-gua",
+  "search": "Auth hooks receiving identity.Requester must check for nil identity alongside error status before dereferencing. The root cause is that ClearUserPermissionCacheHook in pkg/services/authn/authnimpl/sync/rbac_sync.go checked only `err != nil` but hooks can receive nil identity even when err is nil, causing nil pointer panics that mask the original authentication error. Fix by adding `if err != nil || ident == nil { return }` before any dereference of the identity parameter. This applies to post-login/auth hooks in pkg/services/authn/authnimpl/sync that accept possibly-nil identity.Requester, but does not apply where the caller's contract guarantees non-nil identity."
+}

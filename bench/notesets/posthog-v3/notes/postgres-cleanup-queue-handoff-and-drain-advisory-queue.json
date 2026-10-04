@@ -63,5 +63,6 @@
     "How long should deletion of a customer record take",
     "Undeleting a user after cleanup started removes them again"
   ],
-  "saysFor": "1073:postgres-cleanup-queue-h"
+  "saysFor": "1073:postgres-cleanup-queue-h",
+  "search": "Postgres cleanup queue for person deletion is advisory (people can be revived after queueing) and drains using keyset pagination on primary key, not timestamps. persist_deleted_persons (dags/clickhouse_cleanup.py) queues before ClickHouse deletion; person_pg_cleanup_drain_job (dags/person_pg_cleanup_drain.py) drains via DeleteTombstonedPersons, which deletes only while tombstoned and removes queue rows once resolved. The migration (20260910000001_reshape_person_pg_cleanup_queue_for_drain.sql) replaced timestamp indexes with primary-key keyset because cleaned_at/deleted_at indexing was unusable. Configuration: max_runtime_seconds (24h), retry_backoff_seconds, rpc_retry_window_seconds; celery_sweeps_enabled (models/async_deletion/celery_fallback.py) blocks Celery sweeps in Dagster to prevent dual mutations in 30-day windows."
 }

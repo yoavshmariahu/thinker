@@ -1,0 +1,51 @@
+{
+  "id": "filedropzone-accept-option-matches-by-mime-type-not-extensio",
+  "title": "FileDropzone accept option matches by MIME type, not extension",
+  "kind": "rule",
+  "answers": [
+    "Why does my FileDropzone accept wrong file types (e.g. .txt accepted when only .yml allowed)?",
+    "FileDropzone extension filter not working / accepting unwanted files",
+    "How to properly restrict FileDropzone to specific file extensions"
+  ],
+  "body": "Symptom: a FileDropzone configured with `accept: ['.yaml', '.yml']` also silently accepts files with unrelated extensions (e.g. a `.txt` file) because its MIME-type detection buckets '.txt' and '.yml' together.\nRoot cause: Grafana's `FileDropzone` `options.accept` buckets files by inferred MIME type, not by filename extension, so extensions that share a MIME bucket slip through.\nFix pattern: pass a custom `options.validator(file)` that re-checks `file.name.toLowerCase().endsWith(ext)` against the allowed extension list and returns a `{ code: 'file-invalid-type', message }` object when it fails (see `validateYamlFileExtension` in public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx).\nConstraints: only needed when the accepted extensions map to MIME types shared with extensions you want to reject; pure extension lists that map 1:1 to unique MIME types don't need this.",
+  "applies": "Any usage of Grafana's FileDropzone component with options.accept restricted by file extension",
+  "tags": [
+    "alerting",
+    "filedropzone",
+    "file-upload",
+    "validation"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx",
+      "symbol": "validateYamlFileExtension",
+      "hash": "sha256:5e0fae044582e81cf0c3de48",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132705"
+  },
+  "created": "2026-10-04T06:42:20.869Z",
+  "verified": "2026-10-04T06:42:20.869Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "File upload field accepts wrong file types despite extension restrictions",
+    "Upload component lets through files it should reject based on file extension",
+    "Why doesn't the file type filter on the upload component work correctly",
+    "How to properly restrict uploads to specific file extensions"
+  ],
+  "saysFor": "987:filedropzone-accept-opti",
+  "search": "FileDropzone accept option matches files by inferred MIME type, not filename extension, so extensions that share a MIME bucket silently slip through rejection rules. A FileDropzone configured with accept ['.yaml', '.yml'] will also accept .txt files because MIME-type detection buckets .txt and .yml together. Pass a custom options.validator(file) that re-checks file.name.toLowerCase().endsWith(ext) and returns {code: 'file-invalid-type', message} on mismatch, following the pattern in public/app/features/alerting/unified/components/import-to-gma/steps/Step1AlertmanagerResources.tsx:validateYamlFileExtension. This is only needed when accepted extensions map to MIME types shared with extensions you want to reject."
+}

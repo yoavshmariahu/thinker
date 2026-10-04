@@ -1,0 +1,42 @@
+{
+  "id": "connectivity-error-handling-guidance-lives-in-guides-connect",
+  "title": "Connectivity/error-handling guidance lives in guides/connectivity-errors.md",
+  "kind": "map",
+  "answers": [
+    "Where are docs about handling data source connectivity errors in alert rules?",
+    "Where should I add guidance about no-data/error-handling or alert noise reduction?"
+  ],
+  "body": "General guidance for configuring alert rule behavior on execution errors/timeouts, choosing per-rule vs dedicated health alerts, and reducing redundant error notifications is consolidated in docs/sources/alerting/guides/connectivity-errors.md, organized by subsections with anchors (e.g. #build-a-dedicated-data-source-health-alert). It cross-references the no-data/error-handling config page and pending-period concept via `ref:configure-nodata-and-error-handling` and `ref:pending-period` shortcodes rather than hardcoded URLs.",
+  "applies": "Grafana docs repo, alerting guides section.",
+  "tags": [
+    "docs",
+    "alerting",
+    "navigation"
+  ],
+  "deps": [
+    {
+      "path": "docs/sources/alerting/guides/connectivity-errors.md",
+      "hash": "sha256:bb308036271735dcb13bcb52",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132810"
+  },
+  "created": "2026-10-04T06:26:47.682Z",
+  "verified": "2026-10-04T06:26:47.682Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.7,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Where are the docs on configuring alert rules for data source connectivity errors",
+    "How to reduce alert noise from data source timeouts and connection failures",
+    "Documentation for no-data and error handling behavior in alert rules",
+    "Where should I document new guidance about error alert configuration"
+  ],
+  "saysFor": "605:connectivity-error-handl",
+  "search": "Connectivity and error-handling guidance for alert rule execution, timeouts, and notification behavior is consolidated in docs/sources/alerting/guides/connectivity-errors.md. The guide covers per-rule vs dedicated health alert configuration, redundant error notification reduction, and cross-references pending-period and configure-nodata-and-error-handling via shortcode refs rather than hardcoded URLs. Content is organized by subsections with anchors (e.g., #build-a-dedicated-data-source-health-alert) for precise linking. Applies when documenting or referencing alert rule error handling, data source health checks, and pending period concepts in the Grafana docs repo alerting guides section."
+}

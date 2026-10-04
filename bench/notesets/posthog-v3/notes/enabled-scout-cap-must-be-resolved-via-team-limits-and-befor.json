@@ -84,5 +84,6 @@
     "Increase the maximum scouts allowed for a project team",
     "Scout cap enforcement should respect the team limits configuration flag"
   ],
-  "saysFor": "1246:enabled-scout-cap-must-b"
+  "saysFor": "1246:enabled-scout-cap-must-b",
+  "search": "Scout enabled ceiling is resolved via team_limits.py (resolve_max_enabled_scouts(layers) or max_enabled_scouts_for_team(canonical_team_id)), not the constant MAX_ENABLED_SCOUTS_PER_TEAM; resolution order is team_configs[project] → default_team_config → constant, with key max_enabled_scouts in signals-scout payload. Invalid values (None, 0, negative, float, str, bool) fall through to next layer; flag read failure yields constant, never 0. Resolve the cap BEFORE transaction.atomic() since flag read is a network operation; pass resolved value via kwarg (max_enabled_scouts=) to locked callers: transition_status_by_system, reconcile_operational_configs, _resume_operational_config. Enforce at views._reject_if_enabled_cap_reached, create_scout_for_source, config create/partial_update, config_registry.register_missing_configs, and SignalScoutConfig.transition_status_by_system; metadata limits.max_enabled_scouts must report the same resolved value. Applies to products/signals/backend/scout_harness config writes, auto-registration, system resume, and metadata endpoint."
 }

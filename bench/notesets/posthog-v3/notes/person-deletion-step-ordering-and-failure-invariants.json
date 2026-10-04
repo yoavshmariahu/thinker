@@ -54,5 +54,6 @@
     "Person deletion steps must run in a specific strict order.",
     "If person metadata deletion fails, the profile persists until retry."
   ],
-  "saysFor": "859:person-deletion-step-ord"
+  "saysFor": "859:person-deletion-step-ord",
+  "search": "PersonDeletionStep pipeline enforces strict ordering with Postgres deletion only after all earlier steps succeed. Steps are: resolve persons, fetch distinct IDs, queue training deletion, queue recording deletion, tombstone ClickHouse, delete Postgres, log activity. Profile (Postgres) delete runs last because retry of earlier steps requires the distinct IDs it removes; a failing person is excluded from all subsequent steps so retry only redoes that person. Activity logging is last, deduplicates persons already having a deleted log entry, and records any failure as LOG_ACTIVITY without raising. Failures tracked via _record_step_failure and PERSON_DELETION_STEP_FAILURES_COUNTER; delete_persons_async retries failed UUIDs up to MAX_DELETION_RETRIES. This ordering applies to the bulk_delete.py pipeline, not the offline ClickHouse sweep."
 }

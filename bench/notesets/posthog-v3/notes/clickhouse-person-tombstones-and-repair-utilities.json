@@ -1,7 +1,7 @@
 {
   "id": "clickhouse-person-tombstones-and-repair-utilities",
   "title": "ClickHouse person tombstones and repair utilities",
-  "kind": "gotcha",
+  "kind": "rule",
   "answers": [
     "How are person tombstones written?",
     "Why version + 100 for deleted persons?",
@@ -19,8 +19,8 @@
     {
       "path": "posthog/models/person/util.py",
       "symbol": "_delete_person",
-      "hash": "sha256:ff37e4c0266eb0ca97fe2288",
-      "line": 697,
+      "hash": "sha256:acec6d9c8ac4e538978cdafd",
+      "line": 702,
       "missing": false
     },
     {
@@ -55,5 +55,6 @@
     "What's the process when a person record gets removed entirely",
     "Why aren't deleted persons truly gone from the data system"
   ],
-  "saysFor": "949:clickhouse-person-tombst"
+  "saysFor": "949:clickhouse-person-tombst",
+  "search": "Person deletion in posthog/models/person/util.py:delete_person creates tombstones using create_person(..., is_deleted=True, version=version+100) to win ClickHouse ReplacingMergeTree merges; split_person uses +101, and the +100 offset must stay synchronized with plugin-server generateKafkaPersonUpdateMessage. Tombstone version applies to ClickHouse person/person_distinct_id2 rows only; Postgres rows are hard-deleted; _get_distinct_ids_with_version fallback is racy. Repair utilities in posthog/models/person/deletion.py (reset_deleted_person_distinct_ids via version 2500, tombstone_orphaned_ch_persons) fix PG-missing-but-CH-live drift, reporting reverse drift without repair. Applies to person deletion tombstoning and orphaned person repair."
 }

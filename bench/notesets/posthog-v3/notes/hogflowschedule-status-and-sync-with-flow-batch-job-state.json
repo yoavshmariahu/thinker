@@ -119,5 +119,6 @@
     "What happens when I change a schedule's recurring rule?",
     "What are the different batch job versus schedule status states?"
   ],
-  "saysFor": "1084:hogflowschedule-status-a"
+  "saysFor": "1084:hogflowschedule-status-a",
+  "search": "HogFlowSchedule status (active|paused|completed per HogFlowSchedule.Status) synchronizes with HogFlow state and HogFlowBatchJob progression across waiting, queued, active, completed, cancelled, and failed states. The scheduler alone sets completed when RRULE exhausts; audience changes trigger pauses via _pause_schedules_on_audience_change; editing RRULE resets next_run_at and reactivates unless already paused, allowing completed→active transitions. Batch triggers for agent sources require an active parent flow and confirm token; RRULE validation enforces at most hourly frequency. Frontend's workflowLogic (products/workflows/frontend/Workflows/workflowLogic.ts) reloads schedules and calls setSchedules on save success. Applies to schedule lifecycle, RRULE edits, batch job correlation, internal_process_due_schedules advancement, and agent source creation."
 }

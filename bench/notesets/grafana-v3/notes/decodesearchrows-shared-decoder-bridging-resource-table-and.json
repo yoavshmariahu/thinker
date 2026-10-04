@@ -1,0 +1,64 @@
+{
+  "id": "decodesearchrows-shared-decoder-bridging-resource-table-and",
+  "title": "decodeSearchRows: shared decoder bridging RESOURCE_TABLE and FIELD_VALUES search responses",
+  "kind": "map",
+  "answers": [
+    "Where is search response decoding handled for folder registry searches?",
+    "How to decode a ResourceSearchResponse that could be RESOURCE_TABLE or FIELD_VALUES?",
+    "Compatibility with older servers still returning RESOURCE_TABLE"
+  ],
+  "body": "pkg/registry/apis/folders/sub_children.go:decodeSearchRows() is the shared decoder for resourcepb.ResourceSearchResponse used by cascade_delete_storage.go, sub_children.go, and validate.go. It switches on response.GetResultFormat(): RESOURCE_TABLE/UNSPECIFIED reads Results.Rows/Columns (old servers), FIELD_VALUES reads response.Rows via resource.DecodeSearchValues(response.Fields, row) (new servers). Any new folder registry search call should reuse this helper instead of hand-rolling row extraction, to stay compatible across server versions during rollout.",
+  "applies": "Folder registry code (pkg/registry/apis/folders) consuming ResourceIndexClient.Search responses.",
+  "tags": [
+    "search",
+    "folders",
+    "decoding",
+    "compatibility"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/folders/sub_children.go",
+      "symbol": "decodeSearchRows",
+      "hash": "sha256:06c4be769b8026139a6d5b08",
+      "line": 179,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/registry/apis/folders/cascade_delete_storage.go",
+      "hash": "sha256:158a242867407c3ef58bbf8b",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apis/folders/validate.go",
+      "hash": "sha256:2be612ac69c11c0167c95f15",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132794"
+  },
+  "created": "2026-10-04T06:29:55.035Z",
+  "verified": "2026-10-04T06:29:55.035Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "key-only-folder-registry-searches-should-request-field-value"
+  ],
+  "says": [
+    "How to decode folder search results with mixed formats",
+    "Search decoding fails with older server versions",
+    "Where is the compatible decoder for search responses",
+    "Handling folder search with different server response types",
+    "Search result compatibility across different server versions"
+  ],
+  "saysFor": "653:decodesearchrows-shared-",
+  "search": "pkg/registry/apis/folders/sub_children.go:decodeSearchRows() is the shared decoder for resourcepb.ResourceSearchResponse bridging RESOURCE_TABLE and FIELD_VALUES formats across server versions. It switches on response.GetResultFormat(): RESOURCE_TABLE/UNSPECIFIED reads Results.Rows/Columns (old servers), FIELD_VALUES reads response.Rows via resource.DecodeSearchValues(response.Fields, row) (new servers). Any new folder registry search call should reuse this helper instead of hand-rolling row extraction to stay compatible across versions during rollout. The helper is used by pkg/registry/apis/folders/cascade_delete_storage.go, sub_children.go, and validate.go. This applies to folder registry code (pkg/registry/apis/folders) consuming ResourceIndexClient.Search responses."
+}

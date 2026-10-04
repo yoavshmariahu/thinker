@@ -1,0 +1,74 @@
+{
+  "id": "testing-route-level-authorization-with-real-middleware-via-w",
+  "title": "Testing route-level authorization with real middleware via webtest.Server",
+  "kind": "howto",
+  "answers": [
+    "How do I write a test that exercises actual route registration and the authorization middleware, not just the handler?",
+    "How to test single-org vs multi-org permission behavior for an API route?"
+  ],
+  "body": "Use SetupAPITestServer(t, func(hs *HTTPServer) {...}) to build a full webtest.Server with real route registration + auth middleware, then drive requests with server.NewRequest(method, path, body) wrapped in webtest.RequestWithSignedInUser(req, user.SignedInUser{...}). To simulate the authn layer supplying per-org permission snapshots, set hs.authnService to authntest.FakeService with Identity.Permissions keyed by org ID (accesscontrol.GlobalOrgID for global), and set hs.Cfg.RBAC.SingleOrganization to toggle single/multi-org mode. Stub out downstream dependencies (userService, starService, orgService, preferenceService, TeamService, authInfoService, AuthTokenService, accesscontrolService) with the *test fakes so the handler itself doesn't fail for unrelated reasons.",
+  "applies": "HTTP-level authorization tests for pkg/api routes using RouteRegister + authorizeInOrg middleware",
+  "tags": [
+    "testing",
+    "accesscontrol",
+    "webtest"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/admin_users_test.go",
+      "symbol": "setupAdminUsersAuthorizationServer",
+      "hash": "sha256:a657e3817a85cbb359fa7934",
+      "line": 726,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/web/webtest/webtest.go",
+      "symbol": "Server",
+      "hash": "sha256:55ad4f5a132760d60651b654",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 226,
+        "sites": 10,
+        "refs": 638
+      }
+    },
+    {
+      "path": "pkg/web/webtest/webtest.go",
+      "symbol": "RequestWithSignedInUser",
+      "hash": "sha256:d34c97aad0939f3f0629412e",
+      "line": 117,
+      "missing": false,
+      "fanout": {
+        "files": 34,
+        "sites": 179,
+        "refs": 179
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133013"
+  },
+  "created": "2026-10-04T05:59:23.815Z",
+  "verified": "2026-10-04T05:59:23.815Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How do I test API route permissions with real authorization middleware?",
+    "Testing whether endpoint respects single-org or multi-org access rules",
+    "Does this route enforce organization permissions correctly?",
+    "Testing API authorization without mocking the entire auth system",
+    "Verifying per-organization access control on an endpoint"
+  ],
+  "saysFor": "849:testing-route-level-auth",
+  "search": "Testing HTTP-level authorization in pkg/api routes requires SetupAPITestServer with full route registration and auth middleware, then driving requests with server.NewRequest wrapped in webtest.RequestWithSignedInUser. Configure authntest.FakeService with Identity.Permissions keyed by org ID (accesscontrol.GlobalOrgID for global) and toggle hs.Cfg.RBAC.SingleOrganization for multi/single-org mode. Stub downstream dependencies (userService, starService, orgService, preferenceService, TeamService, authInfoService, AuthTokenService, accesscontrolService) with *test fakes to isolate authorization testing. Key symbols: pkg/api/admin_users_test.go:setupAdminUsersAuthorizationServer, pkg/web/webtest/webtest.go:Server, pkg/web/webtest/webtest.go:RequestWithSignedInUser."
+}

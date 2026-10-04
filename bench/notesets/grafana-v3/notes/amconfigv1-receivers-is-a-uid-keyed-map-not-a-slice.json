@@ -1,0 +1,90 @@
+{
+  "id": "amconfigv1-receivers-is-a-uid-keyed-map-not-a-slice",
+  "title": "AMConfigV1.Receivers is a UID-keyed map, not a slice",
+  "kind": "rule",
+  "answers": [
+    "Why does cfg.Receivers[0] fail to compile?",
+    "How do I add, find, or delete a receiver in AMConfigV1?",
+    "How is receiver identity represented in the alertmanager config model?",
+    "Why did receivers.json fixtures change ordering?"
+  ],
+  "body": "Symptom: code doing slice search/append/index-splice on AMConfigV1.Receivers (e.g. `cfg.Receivers[0]`, `append(cfg.Receivers, r)`, `slices.IndexFunc`) no longer compiles or is wrong. Root cause: Receivers is now `map[ResourceUID]PostableApiReceiver` keyed by `v1.ReceiverUID(name) = models.NameToUid(name)`, matching the Templates/InhibitionRules/TimeIntervals pattern. Fix pattern: look up/insert/delete via `v1.ReceiverUID(name)`; call `cfg.GetReceivers()` when you need a deterministic, name-sorted `[]*PostableApiReceiver` for iteration or serialization (map order is not stable). Constraints: in tests, build the map via `v1.ReceiversFromSlice(...)` instead of a slice literal; this is a structural change only, receiver UID/identity is unchanged from before.",
+  "applies": "pkg/services/ngalert/notifier/legacy_storage and notifier/merge code touching AMConfigV1.Receivers",
+  "tags": [
+    "alertmanager",
+    "receivers",
+    "data-model"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/model.go",
+      "symbol": "AMConfigV1",
+      "hash": "sha256:c824584edb6a0aecce3a775f",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 33,
+        "sites": 0,
+        "refs": 152
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/model.go",
+      "symbol": "PostableApiReceiver",
+      "hash": "sha256:de9cbd4b9617f30156c87cfc",
+      "line": 513,
+      "missing": false,
+      "fanout": {
+        "files": 33,
+        "sites": 0,
+        "refs": 121
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/receivers.go",
+      "symbol": "ReceiverUID",
+      "hash": "sha256:0b94396f2eb3c7cc00de80fa",
+      "line": 13,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 21,
+        "refs": 23
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/v1/testing.go",
+      "symbol": "ReceiversFromSlice",
+      "hash": "sha256:13b9913968ca9824de94af3b",
+      "line": 3,
+      "missing": false,
+      "fanout": {
+        "files": 13,
+        "sites": 33,
+        "refs": 34
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132925"
+  },
+  "created": "2026-10-04T06:11:48.946Z",
+  "verified": "2026-10-04T06:11:48.946Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "amconfigv1-fingerprints-must-exclude-resourcemetadata",
+    "amconfigv1-receivers-is-top-level-validation-of-receiver-ref"
+  ],
+  "says": [
+    "Why does cfg.Receivers[0] fail to compile?",
+    "How do I add, find, or delete a receiver in AMConfigV1?",
+    "How is receiver identity represented in the alertmanager config model?",
+    "Why did receivers.json fixtures change ordering?"
+  ],
+  "saysFor": "817:amconfigv1-receivers-is-",
+  "search": "AMConfigV1.Receivers is now a map[ResourceUID]PostableApiReceiver keyed by v1.ReceiverUID(name), not a slice; slice operations (indexing, append, slices.IndexFunc) no longer work. Perform lookups/inserts/deletes via v1.ReceiverUID(name) keys and call cfg.GetReceivers() when a deterministic, name-sorted list is needed for iteration or serialization (map iteration order is unstable). In tests, build the map using v1.ReceiversFromSlice(...) instead of slice literals. This structural change applies to code in pkg/services/ngalert/notifier/legacy_storage/v1 and notifier/merge code accessing AMConfigV1.Receivers; receiver identity is unchanged."
+}

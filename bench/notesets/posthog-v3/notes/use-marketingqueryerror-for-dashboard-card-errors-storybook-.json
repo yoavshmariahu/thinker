@@ -54,5 +54,6 @@
     "Marketing dashboard errors render collapsed in visual test snapshots",
     "Marketing error component needs fixed width in test stories"
   ],
-  "saysFor": "920:use-marketingqueryerror-"
+  "saysFor": "920:use-marketingqueryerror-",
+  "search": "Use MarketingQueryError component (not bare LemonBanner) for dashboard card errors in the marketing analytics dashboard, with props message, queryId (nullable), onRetry, and loading. When building Storybook stories, wrap MarketingQueryError in fixed-width containers (w-[60rem] max-w-full or w-[32.5rem] for narrow) to prevent container query collapse in snapshots. Table, overview, and retention surfaces are exceptions: they keep using InsightErrorState with queryId prop. New stories add generated-hash entries to frontend/snapshots.yml and use mswDecorator returning 500 for /api/environments/:team_id/query/:kind/ for failure scenarios."
 }

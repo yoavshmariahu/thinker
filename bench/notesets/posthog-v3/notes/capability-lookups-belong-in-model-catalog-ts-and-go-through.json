@@ -59,5 +59,6 @@
     "New model options not recognized in the UI dropdown",
     "How do I check if a model supports extended context"
   ],
-  "saysFor": "820:capability-lookups-belon"
+  "saysFor": "820:capability-lookups-belon",
+  "search": "Per-model capability lookups go in products/desktop/packages/shared/src/model-catalog.ts (not reasoning-effort.ts) beside labelForModel/accessFlagForModel, reading catalogModelFor(modelId) and defaulting to false/undefined for unknown models. Normalization via normalizeModelId is mandatory because the gateway serves some model ids provider-qualified; raw id checks silently drop to 200k context window. Python mirror in products/tasks/backend/model_catalog.py uses _MODEL_BY_ID.get(normalize_model_id(...)) and must be added to __all__. Keep the @posthog/shared re-export in packages/shared/src/index.ts pointing at the new home so call sites don't change. Applies to: Adding capability accessors for models in desktop shared package or tasks backend catalog."
 }

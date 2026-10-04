@@ -1,0 +1,66 @@
+{
+  "id": "homepage-loading-skeleton-must-mirror-the-real-section-order",
+  "title": "HomePage loading skeleton must mirror the real section order",
+  "kind": "rule",
+  "answers": [
+    "Homepage skeleton flashes sections in the wrong order while loading",
+    "Loading placeholder on home page doesn't match final layout order",
+    "Where to update the homepage skeleton after reordering sections"
+  ],
+  "body": "Symptom: on the redesigned homepage, the loading skeleton shows blocks in a different order than the loaded content, causing a visible layout shift.\nRoot cause: HomePageSkeleton.tsx renders its JSX blocks (Recommendations/Overview skeleton vs Dashboards/Alerts grid skeleton) independently from HomePage.tsx's actual render order.\nFix pattern: whenever HomePage.tsx's section order changes (e.g. moving a HomeGrid above/below Recommendations), move the matching block in HomePageSkeleton.tsx to the same position so skeleton order == real order.\nConstraints: applies to public/app/features/home/HomePage.tsx and HomePageSkeleton.tsx under the grafana.growthHomepage redesign branch; does not apply to the legacy (non-redesign) branch which is unaffected.",
+  "applies": "public/app/features/home/HomePage.tsx and HomePageSkeleton.tsx, grafana.growthHomepage redesign layout",
+  "tags": [
+    "homepage",
+    "skeleton",
+    "layout",
+    "growthhomepage"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/home/HomePage.tsx",
+      "symbol": "HomePage",
+      "hash": "sha256:edc4315a23986e916cd48357",
+      "line": 60,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 33
+      }
+    },
+    {
+      "path": "public/app/features/home/HomePageSkeleton.tsx",
+      "symbol": "HomePageSkeleton",
+      "hash": "sha256:d5d85a03d89b5fdb21742a47",
+      "line": 18,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132616"
+  },
+  "created": "2026-10-04T06:56:09.709Z",
+  "verified": "2026-10-04T06:56:09.709Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "homepageskeleton-blocks-are-opt-in-and-must-mirror-the-real",
+    "gate-homepage-onboarding-sections-on-signed-in-org-membershi"
+  ],
+  "says": [
+    "Homepage loading skeleton displays sections in the wrong order",
+    "Content layout shifts when the homepage skeleton finishes loading",
+    "Where should I reorder the homepage loading placeholder sections?",
+    "Loading skeleton doesn't match the final homepage section order"
+  ],
+  "saysFor": "815:homepage-loading-skeleto",
+  "search": "HomePage loading skeleton (public/app/features/home/HomePageSkeleton.tsx) causes visible layout shift when its JSX block order diverges from the real HomePage.tsx section render order. Fix: whenever HomePage.tsx section order changes (e.g., moving HomeGrid above/below Recommendations), move the matching skeleton block in HomePageSkeleton.tsx to the same position to ensure skeleton order == real order. Constraint: applies only to the grafana.growthHomepage redesign branch; legacy non-redesign branch is unaffected. Applies when reordering homepage sections or adding sections to the redesigned homepage."
+}

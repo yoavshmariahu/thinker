@@ -1,0 +1,75 @@
+{
+  "id": "testing-openfeature-backed-flags-use-settestflags-not-config",
+  "title": "Testing OpenFeature-backed flags: use setTestFlags, not config.featureToggles",
+  "kind": "rule",
+  "answers": [
+    "How do I set a feature flag value in a test after migrating it to OpenFeature?",
+    "My test mutates config.featureToggles but the flag isn't picked up by the component",
+    "How to reset feature flags between tests?"
+  ],
+  "body": "Fix pattern: once a flag is consumed via `useFlagX()`/`getFeatureFlagClient()`, tests must set it with `setTestFlags({ [FlagKeys.X]: true })` from '@grafana/test-utils/unstable' (key from `FlagKeys` in '@grafana/runtime/internal'), not by assigning `config.featureToggles.<name>` directly — the OpenFeature client no longer reads that config path. Constraint: call `setTestFlags()` with no args in `afterEach` to reset flag state between tests, otherwise flags leak across test cases.",
+  "applies": "Jest tests for components/hooks that read flags via getFeatureFlagClient or useFlag* hooks",
+  "tags": [
+    "feature-flags",
+    "testing",
+    "openfeature"
+  ],
+  "deps": [
+    {
+      "path": "public/app/features/dashboard-scene/scene/VizPanelSubHeader.test.tsx",
+      "symbol": "setTestFlags",
+      "hash": "sha256:344b485c9807ec2dedd75957",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 136,
+        "sites": 548,
+        "refs": 721
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/VizPanelSubHeader.test.tsx",
+      "symbol": "afterEach",
+      "hash": "sha256:d7ac213fe3cba20aedcd1d7c",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 611,
+        "sites": 800,
+        "refs": 826
+      }
+    },
+    {
+      "path": "public/app/features/dashboard-scene/scene/VizPanelSubHeader.test.tsx",
+      "symbol": "setTestFlags",
+      "hash": "sha256:344b485c9807ec2dedd75957",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 136,
+        "sites": 548,
+        "refs": 721
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133118"
+  },
+  "created": "2026-10-04T05:50:23.091Z",
+  "verified": "2026-10-04T05:50:23.091Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Feature flag value not applying in my test after migration",
+    "How do I enable an experimental feature for this specific test?",
+    "Feature toggle resets between tests unexpectedly",
+    "Component ignores the toggle value I set in test config",
+    "Setting feature flags for OpenFeature without hardcoded strings"
+  ],
+  "saysFor": "562:testing-openfeature-back",
+  "search": "Testing OpenFeature-backed feature flags requires calling setTestFlags({ [FlagKeys.X]: true }) from '@grafana/test-utils/unstable' instead of assigning config.featureToggles directly, because the OpenFeature client no longer reads that config path. The FlagKeys enum is imported from '@grafana/runtime/internal' and applies to components/hooks consuming flags via useFlagX() or getFeatureFlagClient() calls. In afterEach cleanup, call setTestFlags() with no arguments to reset flag state between tests; omitting this causes flags to leak across test cases. See public/app/features/dashboard-scene/scene/VizPanelSubHeader.test.tsx for pattern examples."
+}

@@ -1,0 +1,58 @@
+{
+  "id": "new-generic-apiserver-routes-must-feed-both-setupconfig-and",
+  "title": "New generic apiserver routes must feed both SetupConfig and AugmentWebServicesWithCustomRoutes",
+  "kind": "rule",
+  "answers": [
+    "Why does a new route work with curl but not appear in the OpenAPI spec?",
+    "Why is a route documented in the spec but returns 404/refuses when called?",
+    "How do I mount a new generic endpoint (like search, trash, list-keys) on the apiserver?"
+  ],
+  "body": "Invariant: any slice of route builders passed into the apiserver must feed BOTH builder.SetupConfig and builder.AugmentWebServicesWithCustomRoutes in pkg/services/apiserver/service.go:start. A route reaching only SetupConfig is documented in OpenAPI but never actually served; reaching only the augment call makes it served but absent from the generated spec. Gating a route builder behind a config bool (e.g. keysroutes.Build's enabled flag) makes the gate genuine only because both call sites consume the same slice: off means absent from both, not mounted-but-refusing.",
+  "applies": "Any new cross-cutting route (search/trash/keys-style) mounted globally in the Grafana apiserver service.",
+  "tags": [
+    "apiserver",
+    "routing",
+    "openapi"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/apiserver/keysroutes/keysroutes.go",
+      "symbol": "Build",
+      "hash": "sha256:f14a8b90f7be86f700374b90",
+      "line": 24,
+      "missing": false,
+      "fanout": {
+        "files": 283,
+        "sites": 530,
+        "refs": 789
+      }
+    },
+    {
+      "path": "pkg/services/apiserver/service.go",
+      "symbol": "start",
+      "hash": "sha256:1e0b9ea7819713ffa14eb77a",
+      "line": 291,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132806"
+  },
+  "created": "2026-10-04T06:27:44.034Z",
+  "verified": "2026-10-04T06:27:44.034Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Why does my new endpoint appear in docs but returns 404 when called?",
+    "Route works with direct HTTP calls but missing from the API specification?",
+    "How do I properly mount a new search or filtering endpoint correctly?",
+    "Endpoint documented in spec but server refuses the actual request?",
+    "New custom route not showing up in both documentation and responses?"
+  ],
+  "saysFor": "667:new-generic-apiserver-ro",
+  "search": "Generic apiserver routes must feed both SetupConfig and AugmentWebServicesWithCustomRoutes in pkg/services/apiserver/service.go:start, enforced by having both sites consume the same route-builder slice (e.g., keysroutes.Build). Passing routes only to SetupConfig documents them in OpenAPI but doesn't serve them; only to AugmentWebServicesWithCustomRoutes serves them undocumented. Config-gated builders work correctly because the same gate applies to both call sites, making off-state truly absent from both, not mounted-and-refusing. Applies to cross-cutting routes like search, trash, and keys-style endpoints mounted globally in the Grafana apiserver."
+}

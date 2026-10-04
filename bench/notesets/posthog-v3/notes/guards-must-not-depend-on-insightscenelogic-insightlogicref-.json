@@ -74,5 +74,6 @@
     "How to check if the current screen is showing a specific insight?",
     "Insight scene logic reference is stale compared to the actual insight ID?"
   ],
-  "saysFor": "821:guards-must-not-depend-o"
+  "saysFor": "821:guards-must-not-depend-o",
+  "search": "Guard logic for verifying insight scene identity must prioritize activeSceneId, insightId, and dashboardId from insightSceneLogic over insightLogicRef. The insightLogicRef reducer lags synchronous URL-matching actions and can be stale or null during mount, risking unintended PATCH operations during editor edit mode. The isInsightSceneInstance enforcer in frontend/src/scenes/insights/insightDataLogic.tsx implements the correct pattern with activeSceneId === Scene.Insight, insightId === props.dashboardItemId, and matching dashboardId checks. Tests must mock insightLogicRef as null to catch this scenario (see persistDisplayOptions describe in insightDataLogic.test.ts). Applies to code checking whether a scene instance matches a specific insight/dashboard identity."
 }

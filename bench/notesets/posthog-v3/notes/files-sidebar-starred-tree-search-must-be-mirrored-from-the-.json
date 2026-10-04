@@ -64,5 +64,6 @@
     "Search doesn't apply to shortcuts in files tab",
     "Why starred section stays visible after clearing search"
   ],
-  "saysFor": "938:files-sidebar-starred-tr"
+  "saysFor": "938:files-sidebar-starred-tr",
+  "search": "Files sidebar: starred tree search must be mirrored from the project tree via navFilesTabLogic. The Files tab renders two projectTreeLogic instances (project tree FILES_TREE_KEY at project://, and starred tree FILES_STARRED_TREE_KEY at shortcuts:// with shortcutScope files), but only the project tree owns the search input. navFilesTabLogic (frontend/src/layout/panel-layout/navbar/tabs/navFilesTabLogic.ts) listens to setSearchTerm and clearSearch events from the project tree and forwards them to the starred tree; it must be mounted via useValues() or useMountedLogic() or starred files will stop filtering and never restore. Import the two tree keys from navFilesTabLogic instead of hardcoding 'navbar-files' strings to ensure logic keys match between navFilesTabLogic and NavTabFiles.tsx. Applies to simple-sidepanel flag Files tab; regression tests in navFilesTabLogic.test.ts."
 }

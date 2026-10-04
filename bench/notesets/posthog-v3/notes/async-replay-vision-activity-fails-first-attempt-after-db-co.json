@@ -46,5 +46,6 @@
     "Activity first attempt fails and never retries following database disconnection",
     "Async task stalls with dead database connection after network reset"
   ],
-  "saysFor": "921:async-replay-vision-acti"
+  "saysFor": "921:async-replay-vision-acti",
+  "search": "Async Replay Vision activities decorated with track_activity (products/replay_vision/backend/temporal/decorators.py) fail on their first attempt after a Postgres connection drop because async_wrapper never called close_stale_db_connections, leaving dead connections on the long-lived thread. Fix by invoking await sync_to_async(close_stale_db_connections)() before the activity, guarded by if not settings.TEST. The settings.TEST skip mirrors close_db_connections behavior and remains untested; this pattern does not help with multi-minute Postgres outages. Applies to all async track_activity decorated activities in Replay Vision Temporal."
 }

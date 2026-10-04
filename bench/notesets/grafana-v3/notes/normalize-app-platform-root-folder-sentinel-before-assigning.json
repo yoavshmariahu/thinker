@@ -1,0 +1,65 @@
+{
+  "id": "normalize-app-platform-root-folder-sentinel-before-assigning",
+  "title": "Normalize app-platform root-folder sentinel before assigning parentUID",
+  "kind": "rule",
+  "answers": [
+    "Root folder from app-platform search is treated as if it has a parent",
+    "isRootFolderUID is needed before using item.folder as parentUID",
+    "Why does the managed root folder show up nested / lose its badge in the app-platform folder tree?",
+    "parentUID wrong for root folders coming from searchDashboardsAndFolders"
+  ],
+  "body": "The app-platform search API returns `folder` as a sentinel (e.g. 'general') for root-level items instead of an empty/undefined value. useFoldersQueryAppPlatform (public/app/core/components/NestedFolderPicker/useFoldersQueryAppPlatform.ts) previously assigned `parentUID: item.folder` directly, which made root folders look like they had a parent to any code using `!item.parentUID` as the \"is root\" check (e.g. badge visibility, tree root detection). Fix: wrap with `isRootFolderUID(item.folder) ? undefined : item.folder` (from app/features/search/constants) before setting parentUID. Apply this normalization anywhere a DashboardViewItem-shaped object is built from raw app-platform search hits and `folder` is mapped to `parentUID`.",
+  "applies": "Code mapping app-platform search/folder API responses into DashboardViewItem/DashboardsTreeItem shapes (useFoldersQueryAppPlatform and similar hooks).",
+  "tags": [
+    "app-platform",
+    "folders",
+    "search",
+    "parentuid"
+  ],
+  "deps": [
+    {
+      "path": "public/app/core/components/NestedFolderPicker/useFoldersQueryAppPlatform.ts",
+      "symbol": "useFoldersQueryAppPlatform",
+      "hash": "sha256:e84886d0171f72ca7654f758",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 7
+      }
+    },
+    {
+      "path": "public/app/features/search/constants.ts",
+      "symbol": "isRootFolderUID",
+      "hash": "sha256:60e8a15dd033786892aa4c70",
+      "line": 6,
+      "missing": false,
+      "fanout": {
+        "files": 15,
+        "sites": 23,
+        "refs": 38
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132790"
+  },
+  "created": "2026-10-04T06:30:43.270Z",
+  "verified": "2026-10-04T06:30:43.270Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Root folder appears nested in folder picker when selected from search",
+    "Root folder loses its special badge after being picked from app-platform search",
+    "Why is root folder showing as a child in the folder tree",
+    "Root folder incorrectly assigned a parent folder value",
+    "Managed root folder should not show as nested in the picker"
+  ],
+  "saysFor": "806:normalize-app-platform-r",
+  "search": "When mapping app-platform search API responses to DashboardViewItem shapes, normalize the root-folder sentinel value returned by the `folder` field before assigning it to `parentUID`. The app-platform search API returns sentinels like 'general' instead of empty/undefined for root-level items, so code using `!item.parentUID` as the \"is root\" check (badge visibility, tree root detection) incorrectly treats root folders as having parents. Apply the fix `isRootFolderUID(item.folder) ? undefined : item.folder` from public/app/features/search/constants.ts before setting parentUID in hooks like useFoldersQueryAppPlatform (public/app/core/components/NestedFolderPicker/useFoldersQueryAppPlatform.ts) and similar folder API consumers."
+}

@@ -49,5 +49,6 @@
     "Error shows wrong query ID because it pulled from cached response",
     "Failed query result lacks an ID to trace the request back"
   ],
-  "saysFor": "1104:marketing-analytics-quer"
+  "saysFor": "1104:marketing-analytics-quer",
+  "search": "Every Marketing Analytics error state must pass the query ID derived from dataNodeLogic as responseErrorObject?.queryId ?? queryId, prioritizing the error object's ID over the current request queryId and never falling back to response.query_status.id from a previous response. Applied across NewMarketingAnalyticsDashboard.tsx (traffic and customers use separate logics), RetentionResults.tsx, MarketingAnalyticsOverview.tsx, and AttributionTab components. New surfaces must destructure responseErrorObject and queryId from useValues(logic) and pass the result to InsightErrorState or MarketingQueryError."
 }

@@ -1,0 +1,56 @@
+{
+  "id": "team-search-must-not-request-explain-with-field-values-resul",
+  "title": "Team search must not request Explain with FIELD_VALUES result format",
+  "kind": "rule",
+  "answers": [
+    "Why does team search ignore the explain query param?",
+    "explain=true has no effect on /teams/search",
+    "Search explanations missing from team search API response",
+    "How should ResourceSearchRequest.Explain be set for FIELD_VALUES result format"
+  ],
+  "body": "Symptom: callers pass ?explain=true to the team search endpoint but the response never contains search explanations.\nRoot cause: DoTeamSearch built a resourcepb.ResourceSearchRequest with ResultFormat: FIELD_VALUES, but FIELD_VALUES result format does not expose Explain data in the API response, so setting Explain was useless.\nFix pattern: when ResultFormat is FIELD_VALUES, do not set Explain on the ResourceSearchRequest; drop any explain query-param parsing that feeds it.\nConstraints: applies to any search handler using resourcepb.ResourceSearchRequest with ResultFormat_FIELD_VALUES; if a result format other than FIELD_VALUES is used and the frontend needs explain output, Explain may be reintroduced for that handler.",
+  "applies": "pkg/registry/apis/iam/team/search.go DoTeamSearch and any future search handler using FIELD_VALUES result format",
+  "tags": [
+    "iam",
+    "team-search",
+    "resourcepb",
+    "search-explain"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/iam/team/search.go",
+      "symbol": "DoTeamSearch",
+      "hash": "sha256:d0a886ad1d8693a578349d97",
+      "line": 256,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 11,
+        "refs": 12
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132876"
+  },
+  "created": "2026-10-04T06:18:34.290Z",
+  "verified": "2026-10-04T06:18:34.290Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "field-values-search-format-never-returns-explain",
+    "search-response-parser-must-branch-on-resultformat"
+  ],
+  "says": [
+    "Team search ignores explain query parameter in request",
+    "Search explanations missing from team search API response",
+    "Explain flag has no effect on teams search",
+    "Why team search doesn't return explanation data",
+    "Team search explain parameter not working"
+  ],
+  "saysFor": "796:team-search-must-not-req",
+  "search": "The team search endpoint must not set Explain on ResourceSearchRequest when ResultFormat is FIELD_VALUES, because FIELD_VALUES result format does not expose Explain data in the API response. Any explain query parameter parsing (from ?explain=true) that feeds the Explain field must be dropped for handlers using FIELD_VALUES. This constraint applies to DoTeamSearch in pkg/registry/apis/iam/team/search.go and any future search handler using resourcepb.ResourceSearchRequest with ResultFormat_FIELD_VALUES. Other result formats may support Explain and can reintroduce the field if needed for frontend output. Fixes callers who pass ?explain=true but receive no explanation data in response."
+}

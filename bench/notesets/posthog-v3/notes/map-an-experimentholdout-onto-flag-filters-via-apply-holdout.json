@@ -86,5 +86,6 @@
     "Removing experiment holdout should clear it from the active flag",
     "Where does the holdout ID get written to in feature flag settings"
   ],
-  "saysFor": "811:map-an-experimentholdout"
+  "saysFor": "811:map-an-experimentholdout",
+  "search": "Map ExperimentHoldout to flag filters using the _apply_holdout helper function in products/experiments/backend/experiment_service.py, not by calling set_holdout directly. _apply_holdout wraps the facade's set_holdout and passes None for both holdout_id and exclusion_percentage when holdout is None (clearing it). Existing callers are _ensure_feature_flag (create path) and _sync_feature_flag_on_update (filters-rebuild and holdout-only update branches); do not inline holdout.id ternaries at call sites."
 }

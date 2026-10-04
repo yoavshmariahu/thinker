@@ -1,7 +1,7 @@
 {
   "id": "temporal-schedules-in-data-load-service-per-schema-sync-and-",
   "title": "Temporal schedules in data_load service (per-schema sync and per-source CDC)",
-  "kind": "callpath",
+  "kind": "map",
   "answers": [
     "How are external data sync schedules created?",
     "How is the CDC extraction schedule scheduled/paused?",
@@ -24,8 +24,8 @@
     {
       "path": "products/data_warehouse/backend/logic/data_load/service.py",
       "symbol": "to_temporal_schedule",
-      "hash": "sha256:681458a53a2302e9cd069c4f",
-      "line": 100,
+      "hash": "sha256:d8e2d049d329753b36207154",
+      "line": 110,
       "missing": false
     },
     {
@@ -78,5 +78,6 @@
     "Changing data capture extraction frequency and schedule management",
     "Multiple concurrent sync operations are throttled to prevent backlog"
   ],
-  "saysFor": "1448:temporal-schedules-in-da"
+  "saysFor": "1448:temporal-schedules-in-da",
+  "search": "Data warehouse schedules in products/data_warehouse/backend/logic/data_load/service.py follow two patterns: per-schema via get_sync_schedule (offset from sync_time_of_day else deterministic jitter by schema id) → to_temporal_schedule (starts external-data-job workflow, workflow id = schema id, overlap SKIP, paused = not should_sync) → sync_external_data_job_workflow (create/update on ScheduleAlreadyRunningError); and per-source CDC with id cdc-extraction-{source_id}, interval = cdc_min_interval (min active CDC schemas' sync_frequency_interval, default CDC_DEFAULT_INTERVAL 1h). pause_/unpause_external_data_schedule and bulk_* variants (concurrency 100) swallow NOT_FOUND; sync_cdc_extraction_schedule deleted if source type lacks CDC or no active schemas. Pause does not stop in-flight runs. ensure_cdc_slot_cleanup_schedule = global hourly cdc-slot-cleanup-global; discover schemas every 6h (DISCOVER_SCHEMAS_INTERVAL). Feature-gated by is_cdc_enabled_for_team (dwh-postgres-cdc flag). Workflows: ExternalDataJobWorkflow, CDCExtractionWorkflow, CDCSlotCleanupWorkflow, discover_schemas_workflow from warehouse_sources/backend/temporal/data_imports/."
 }

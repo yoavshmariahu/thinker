@@ -1,0 +1,53 @@
+{
+  "id": "dashboard-search-sort-param-must-translate-legacy-ui-sort-na",
+  "title": "Dashboard search 'sort' param must translate legacy/UI sort names to index fields",
+  "kind": "rule",
+  "answers": [
+    "Why does dashboard search return results in a random order?",
+    "Why does sort=viewed-recently-desc or sort=name_sort not sort anything?",
+    "How to support old /api/search sort names in the new dashboard search API",
+    "Sort capability violation metric is nonzero for dashboards resource"
+  ],
+  "body": "Symptom: dashboard search results come back in arbitrary order, and grafana_index_server_search_capability_violations_total{capability=\"sort\",resource=\"dashboards\"} increments, when the 'sort' query param is an old /api/search name (viewed-recently-desc, errors-desc, alpha-asc, etc.) or the UI's legacy name_sort value, none of which name an actual index field.\nRoot cause: convertHttpSearchRequestToResourceSearchRequest in pkg/registry/apis/dashboard/search.go used to pass the raw sort string straight through (minus a leading '-') as the index Field name, so unrecognized spellings matched nothing.\nFix pattern: before building the Sort entry, run the raw value through a translation step (parseSortParam) that strips the '-' direction prefix, checks a small alias map for UI-only names, then falls back to the shared legacy-sort parser (pkg/services/search/sort.ParseSortName) which also recovers the implied direction for suffix-style names like '-desc'/'-asc'.\nConstraints: names not found in the alias map or the legacy parser must be passed through unchanged (not rejected) so an actually-misspelled field is still reported by the backend's sort-capability check; this only applies to clients still sending browser-stored/bookmarked sort values, not to new index field names.",
+  "applies": "pkg/registry/apis/dashboard/search.go convertHttpSearchRequestToResourceSearchRequest and any other endpoint accepting a 'sort' query param tied to the dashboards/unified search index.",
+  "tags": [
+    "search",
+    "dashboards",
+    "sort",
+    "backward-compatibility"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/dashboard/search.go",
+      "symbol": "parseSortParam",
+      "hash": "sha256:49f08de733317c07e63c1888",
+      "line": 1062,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 2,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133099"
+  },
+  "created": "2026-10-04T05:51:39.909Z",
+  "verified": "2026-10-04T05:51:39.909Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Dashboard search results come back in random order",
+    "Sort by name or recently-viewed doesn't actually sort",
+    "Legacy sort parameters don't work in new search API",
+    "Search returns capability violation when sorting dashboards",
+    "Old /api/search sort names broken in new implementation"
+  ],
+  "saysFor": "1367:dashboard-search-sort-pa",
+  "search": "Dashboard search 'sort' query param must translate legacy /api/search and UI sort names (viewed-recently-desc, errors-desc, alpha-asc, name_sort, etc.) to actual index field names via parseSortParam in pkg/registry/apis/dashboard/search.go before building Sort entries. The function strips '-' direction prefixes, checks a translation alias map, then falls back to pkg/services/search/sort.ParseSortName to recover implied direction from suffix-style names. Unrecognized names must pass through unchanged (not rejected) so the backend's sort-capability metric (grafana_index_server_search_capability_violations_total) correctly reports misspellings; omitting translation leaves results in arbitrary order. Applies to convertHttpSearchRequestToResourceSearchRequest and any dashboards/unified search endpoint accepting 'sort' param."
+}

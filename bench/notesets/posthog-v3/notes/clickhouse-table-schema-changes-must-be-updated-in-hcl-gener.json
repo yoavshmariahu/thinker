@@ -79,5 +79,6 @@
     "Generated configurations don't match my manual schema edits",
     "Where are all the places a table definition needs updating"
   ],
-  "saysFor": "1003:clickhouse-table-schema-"
+  "saysFor": "1003:clickhouse-table-schema-",
+  "search": "ClickHouse table schema changes in the logs role must update the source HCL definition, all golden files (dev/prod-us/prod-eu/local-multi and local-single), generated SQL files, the Python table definition, test snapshots (two CREATE TABLE occurrences), and a new migration with bumped max_migration.txt simultaneously. Verify with bash scripts: diff.sh, gen-golden.sh, gen-sql.sh, check.sh to ensure goldens match every node and SQL is fresh. Skipping any single file leaves drift between HCL, Python definition, and the migration. Applies to tables in posthog/clickhouse/hcl (logs role, metrics4_samples) managed via HCL infrastructure. Pointers: metrics4.hcl, metrics4.py:METRICS4_SAMPLES_TABLE_SQL, test/__snapshots__/test_schema.ambr, migrations/, and verification scripts."
 }

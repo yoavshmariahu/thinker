@@ -1,0 +1,112 @@
+{
+  "id": "nats-subscription-implementers-must-provide-waitready",
+  "title": "nats.Subscription implementers must provide WaitReady",
+  "kind": "rule",
+  "answers": [
+    "How do I know a NATS subscription is actually established vs just locally queued?",
+    "Adding a new nats.Subscription implementation breaks the build",
+    "Why does my fake/mock Subscription need a WaitReady method?"
+  ],
+  "body": "Symptom: a watcher believes it is receiving live events but the SUB frame was only queued locally while the client was disconnected, so events are silently missed during a snapshot-to-live handoff.\nRoot cause: pkg/infra/nats/subscriber.go previously returned the raw nats.go Subscription, which has no way to tell 'queued' from 'server acknowledged'.\nFix pattern: the Subscription interface (pkg/infra/nats/subscriber.go:Subscription) now requires WaitReady(ctx) in addition to Unsubscribe(); the real implementation (readySubscription.WaitReady) calls conn.FlushWithContext to force a round-trip ack. Any type implementing nats.Subscription (including test fakes) must add WaitReady.\nConstraints: WaitReady's ctx must carry a deadline; ordinary subscribers that don't need handoff guarantees can ignore the result, but snapshot-to-live style consumers must call it before trusting delivery.",
+  "applies": "any code implementing or consuming pkg/infra/nats.Subscription, including test fakes in pkg/registry/apis/provisioning/informer and pkg/storage/unified/informer",
+  "tags": [
+    "nats",
+    "subscription",
+    "interface",
+    "snapshot-to-live"
+  ],
+  "deps": [
+    {
+      "path": "pkg/infra/nats/subscriber.go",
+      "symbol": "Subscription",
+      "hash": "sha256:b31be7101f3671447082ae10",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 35,
+        "sites": 0,
+        "refs": 156
+      }
+    },
+    {
+      "path": "pkg/infra/nats/subscriber.go",
+      "symbol": "Subscription",
+      "hash": "sha256:b31be7101f3671447082ae10",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 35,
+        "sites": 0,
+        "refs": 156
+      }
+    },
+    {
+      "path": "pkg/infra/nats/subscriber.go",
+      "symbol": "WaitReady",
+      "hash": "sha256:c54db97167129a0bcf6cec86",
+      "line": 186,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 7,
+        "refs": 14
+      }
+    },
+    {
+      "path": "pkg/infra/nats/subscriber.go",
+      "symbol": "Unsubscribe",
+      "hash": "sha256:dd8ad46afe4659331b321c42",
+      "line": 145,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 15,
+        "refs": 19
+      }
+    },
+    {
+      "path": "pkg/infra/nats/subscriber.go",
+      "symbol": "readySubscription",
+      "hash": "sha256:2cf7fd574fd7de18845ae6d6",
+      "line": 181,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/infra/nats/subscriber.go",
+      "symbol": "Unsubscribe",
+      "hash": "sha256:dd8ad46afe4659331b321c42",
+      "line": 145,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 15,
+        "refs": 19
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133040"
+  },
+  "created": "2026-10-04T05:54:22.591Z",
+  "verified": "2026-10-04T05:54:22.591Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "Watch events stop arriving after connection failure and recovery",
+    "Real-time subscription gets confirmed locally but not by server",
+    "How to verify live events subscription is truly established",
+    "Mock subscription implementation in tests needs additional confirmation method",
+    "Event messages get missed because subscription confirmation is incomplete"
+  ],
+  "saysFor": "945:nats-subscription-implem",
+  "search": "The nats.Subscription interface requires implementations to provide a WaitReady(ctx) method that calls conn.FlushWithContext to ensure server-acknowledged subscriptions before claiming liveness. This prevents silent event loss during snapshot-to-live handoffs where a SUB frame may be queued client-side but not yet processed by the server. The context passed to WaitReady must carry a deadline; only snapshot-to-live style consumers need to call it before trusting delivery, though ordinary subscribers can ignore the result. Any type implementing pkg/infra/nats.Subscription must provide WaitReady, including test fakes in pkg/registry/apis/provisioning/informer and pkg/storage/unified/informer. When consuming subscriptions, call sub.WaitReady(ctx) after Subscribe() to confirm server-side liveness before forwarding events."
+}

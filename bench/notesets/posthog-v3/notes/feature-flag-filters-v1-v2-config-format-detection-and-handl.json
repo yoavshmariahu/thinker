@@ -126,5 +126,6 @@
     "How to tell if a feature flag uses v1 or v2 filter configuration format",
     "Non-v1 flag configurations raise errors when v1 specific readers attempt to parse them"
   ],
-  "saysFor": "1444:feature-flag-filters-v1-"
+  "saysFor": "1444:feature-flag-filters-v1-",
+  "search": "Feature flag config format is determined by detect_config_format (products/feature_flags/backend/facade/config.py), which returns v1, v2, or unsupported based on the filters.version field: absent/null/{}/version==1 means v1, version==2 means v2, and strings/bools/other numbers mean unsupported (which is never treated as v1). Check format before reading any v1-specific keys (groups, multivariate, payloads); v1-only readers in legacy_definitions.py, dependency_formats.py, and flags_cache.py:_stored_dependency_ids must guard with detect_config_format. Readers raise ConfigFormatError for unsupported formats, but cache builders omit the row instead via _omit_unsupported_flags and drop transitive dependents. Non-v1 rows are rejected regardless of active/deleted status, so inactive v2 rows are never blanked into v1 entries. Malformed v1 differs from unsupported: ConfigFormatError skips quietly, but TypeError/ValueError in legacy_definitions.py:_is_supported_legacy_flag warns and increments FLAG_PROCESSING_ERROR_COUNTER without failing the team. Applies to any new code reading flag.filters."
 }

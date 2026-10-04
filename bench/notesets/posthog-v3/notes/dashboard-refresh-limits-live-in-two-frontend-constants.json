@@ -52,5 +52,6 @@
     "Where are the auto-refresh timing options configured?",
     "How do I change the minimum wait time between dashboard refreshes?"
   ],
-  "saysFor": "901:dashboard-refresh-limits"
+  "saysFor": "901:dashboard-refresh-limits",
+  "search": "Dashboard refresh timing is controlled by two separate, non-derived constants: manual refresh cooldown (DASHBOARD_MIN_REFRESH_INTERVAL_MINUTES in dashboardUtils.ts, default 5 minutes) and auto-refresh menu options (REFRESH_INTERVAL_SECONDS in DashboardReloadAction.tsx, default [900, 1800, 3600] seconds). Editing refresh intervals or cooldown requires updating both constants independently. Tests calling setAutoRefresh() in dashboardLogic.test.ts must use values present in the REFRESH_INTERVAL_SECONDS list, and test hooks validate blockRefresh boundaries ('insight refresh') and page visibility auto-resume. Changes affect the dashboard scene's refresh UI and scheduler behavior."
 }

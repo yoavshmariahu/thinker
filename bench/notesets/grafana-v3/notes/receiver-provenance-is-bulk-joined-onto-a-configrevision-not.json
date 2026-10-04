@@ -1,0 +1,66 @@
+{
+  "id": "receiver-provenance-is-bulk-joined-onto-a-configrevision-not",
+  "title": "Receiver provenance is bulk-joined onto a ConfigRevision, not passed per-call",
+  "kind": "rule",
+  "answers": [
+    "Why is a receiver's Provenance empty/ProvenanceNone when I read it from a ConfigRevision?",
+    "How do I get the correct provisioning Provenance on a receiver read from alertmanager config?",
+    "GetReceiver/GetReceivers no longer take a provenances map argument"
+  ],
+  "body": "Receiver Provenance is no longer threaded as a `provenances map[string]models.Provenance` parameter through ConfigRevision.GetReceiver/GetReceivers. Instead it must be joined onto the whole revision up front via rev.AssignReceiverProvenances(provenances) (pkg/services/ngalert/notifier/legacy_storage/receivers.go:AssignReceiverProvenances), which mutates every v1.PostableApiReceiver.Provenance in rev.Config.Receivers in place. ReceiverService callers must call the private helper assignProvenance(ctx, orgID, revision) (pkg/services/ngalert/notifier/receiver_svc.go:assignProvenance) before any GetReceiver/GetReceivers call, or returned receivers will have the wrong/default Provenance. If skipped, provisioning-protection logic (export/edit guards keyed on Provenance) silently sees the wrong value.",
+  "applies": "Any code path in notifier/legacy_storage or provisioning that reads receivers out of a ConfigRevision and needs correct Provenance.",
+  "tags": [
+    "alerting",
+    "provenance",
+    "receivers",
+    "legacy_storage"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/notifier/legacy_storage/receivers.go",
+      "symbol": "AssignReceiverProvenances",
+      "hash": "sha256:c53ed36227a23e85bee24993",
+      "line": 211,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 3
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/notifier/receiver_svc.go",
+      "symbol": "assignProvenance",
+      "hash": "sha256:62b076ea94d2cd1ac18827a3",
+      "line": 712,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 4,
+        "refs": 4
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132926"
+  },
+  "created": "2026-10-04T06:10:50.434Z",
+  "verified": "2026-10-04T06:10:50.434Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "receiver-uid-is-still-hash-name-in-several-places-marked-tod"
+  ],
+  "says": [
+    "Why is receiver provenance empty when read from configuration?",
+    "Receiver provenance shows none instead of actual provisioning source.",
+    "How can I verify receivers have correct provisioning information?",
+    "Receiver provenance missing after reading from alertmanager configuration.",
+    "I need the correct provisioning source shown on receivers."
+  ],
+  "saysFor": "882:receiver-provenance-is-b",
+  "search": "Receiver provenance is no longer threaded as a per-call parameter but is bulk-joined onto a ConfigRevision via rev.AssignReceiverProvenances(provenances), which mutates every v1.PostableApiReceiver.Provenance in place. ReceiverService callers must invoke the private helper assignProvenance(ctx, orgID, revision) before any GetReceiver/GetReceivers call; if skipped, receivers are returned with wrong/default provenance values. This is critical because provisioning-protection logic (export/edit guards) is keyed on the provenance value and silently sees the wrong result if assignProvenance is not called first. The pattern applies to any code path in notifier/legacy_storage or provisioning that reads receivers out of a ConfigRevision and needs correct provenance."
+}

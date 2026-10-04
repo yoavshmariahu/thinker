@@ -1,7 +1,7 @@
 {
   "id": "ml-inference-route-registration-backend-auto-discovery-and-f",
   "title": "ml_inference route registration: backend auto-discovery and frontend scene URL",
-  "kind": "callpath",
+  "kind": "map",
   "answers": [
     "How are ml_inference routes registered?",
     "Do I need to edit rest_router.py when adding a product API?",
@@ -56,12 +56,12 @@
   "verifiedCommit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
   "confidence": 0.85,
   "status": "fresh",
-  "uses": 33,
+  "uses": 34,
   "related": [
     "backend-product-route-auto-discovery",
     "router-registration-core-vs-product-routes"
   ],
-  "lastUsed": "2026-09-27T22:01:54.071Z",
+  "lastUsed": "2026-10-04T19:13:37.200Z",
   "servedIn": [
     "2b19a50b-56fd-4370-9d5a-970da64f9822",
     "39034c00-ed72-48f7-af96-e0ae7a43f8f4",
@@ -89,12 +89,14 @@
     "probe-PR106613-hard",
     "probe-PR106613-hard",
     "probe-PR106613-hard",
-    "probe-PR106613-hard"
+    "probe-PR106613-hard",
+    "codex-posthog-codex-ce2-PR106613-hard-0"
   ],
   "says": [
     "How are ml_inference routes registered?",
     "Do I need to edit rest_router.py when adding a product API?",
     "Where is the decision playground URL mapped to a scene?"
   ],
-  "saysFor": "935:ml-inference-route-regis"
+  "saysFor": "935:ml-inference-route-regis",
+  "search": "ml_inference backend routes are auto-discovered: posthog/api/rest_router.py loads products via load_product_modules(\"routes\") and calls register_routes(routers) for each product; products/ml_inference/backend/routes.py registers DecisionViewSet on routers.projects at path ml_inference/decisions with parent lookup [\"team_id\"]. Discovery is eager at ROOT_URLCONF import (not AppConfig.ready()); MlInferenceConfig must be listed in INSTALLED_APPS (posthog/settings/web.py). Frontend route mapping is separate: products/ml_inference/manifest.tsx maps /ml-inference/decisions to DecisionPlayground scene; frontend/src/productScenes.tsx lazy-imports it. Applies to adding new routes, understanding route auto-discovery, and backend-frontend coordination. Files: routes.py, rest_router.py, manifest.tsx, apps.py, routing.py; symbols: register_routes, RouterRegistry, MlInferenceConfig."
 }

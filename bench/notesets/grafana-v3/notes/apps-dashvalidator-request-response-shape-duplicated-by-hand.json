@@ -1,0 +1,186 @@
+{
+  "id": "apps-dashvalidator-request-response-shape-duplicated-by-hand",
+  "title": "apps/dashvalidator: request/response shape duplicated by hand; panics are intentional",
+  "kind": "rule",
+  "answers": [
+    "What breaks if I add a field to dashvalidator's check request/response?",
+    "Why does MetricsCache.RegisterProvider / prometheus.NewValidator panic?",
+    "How do I add a new datasource type to dashvalidator?",
+    "Is the dashvalidator CompatibilityScore 0-1 or 0-100?"
+  ],
+  "body": "The `check` route's request/response shape has NO codegen tying it together (unlike the dead `DashboardCompatibilityScore` CUE kind, which does have CUE→Go/TS gen via `make gen-cue` but is unused — `app.go:GetKinds` returns empty). It is hand-duplicated in three places that must be edited together when a field changes: `apps/dashvalidator/kinds/manifest.cue` (`routes.namespaced.\"/check\"`), the `checkRequest`/`checkResponse`/`datasourceResult`/`queryResult` structs in `apps/dashvalidator/pkg/app/app.go`, and the TS interfaces in `public/.../compatibilityApi.ts`. Internal types `validator.QueryResult`/`validator.DatasourceValidationResult` are separate from the wire structs and bridged only by `app.go:convertToCheckResponse`.\n\nScore scale differs by layer: Go's `CompatibilityScore` is 0.0-1.0 (`validator/dashboard.go`, `prometheus/validator.go`), but the CUE kind schema and TS comments describe 0-100 — don't assume one scale carries across layers.\n\nAdding a new datasource type requires touching: a package implementing `validator.DatasourceValidator` (`validator/types.go`) and optionally `cache.MetricsProvider` (`cache/provider.go`); both the `validators` map entry and `metricsCache.RegisterProvider` call in `pkg/registry/apps/dashvalidator/register.go`; the hardcoded \"currently only 'prometheus' is supported\" error string in `app.go`; and the MVP single-datasource gates in `dashboard.go` and `app.go:handleCheckRoute` if true multi-datasource support is intended.\n\n`MetricsCache.RegisterProvider` (`cache/cache.go`) panics on duplicate registration and `prometheus.NewValidator` (`prometheus/validator.go`) panics on nil cache — these are deliberate startup-time wiring guards, not bugs to silence with defensive checks.",
+  "applies": "Applies to the live hand-built /check route request/response path; does not apply to the DashboardCompatibilityScore CUE kind, which is currently dead code (GetKinds() returns empty).",
+  "tags": [
+    "dashvalidator",
+    "app-sdk",
+    "codegen"
+  ],
+  "deps": [
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "GetKinds",
+      "hash": "sha256:16e802ff1adfb36e190c1ac5",
+      "line": 440,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "checkRequest",
+      "hash": "sha256:b8f348be447d8e7e44160b49",
+      "line": 36,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 61
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "checkResponse",
+      "hash": "sha256:75a8c6d5e89ed067398f1486",
+      "line": 49,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 1,
+        "refs": 9
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "datasourceResult",
+      "hash": "sha256:0b963755652e440a50e4fd7e",
+      "line": 55,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 6
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/dashboard.go",
+      "symbol": "DashboardCompatibilityResult",
+      "hash": "sha256:16aa7a1776f32d59589da305",
+      "line": 15,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 8
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/prometheus/validator.go",
+      "symbol": "NewValidator",
+      "hash": "sha256:19cf839e56fadda63fb1e9e8",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 14,
+        "sites": 32,
+        "refs": 33
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/cache/cache.go",
+      "symbol": "MetricsCache",
+      "hash": "sha256:7a76c08d97a36560c93b10cf",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 6,
+        "sites": 0,
+        "refs": 21
+      }
+    },
+    {
+      "path": "apps/dashvalidator/pkg/cache/provider.go",
+      "symbol": "MetricsProvider",
+      "hash": "sha256:1a54f4cc279ff90aa539c04f",
+      "line": 9,
+      "missing": false,
+      "fanout": {
+        "files": 8,
+        "sites": 0,
+        "refs": 16
+      }
+    },
+    {
+      "path": "apps/dashvalidator/kinds/manifest.cue",
+      "hash": "sha256:83801368fe8849318001444e",
+      "missing": false
+    },
+    {
+      "path": "pkg/registry/apps/dashvalidator/register.go",
+      "symbol": "RegisterAppInstaller",
+      "hash": "sha256:cc26c1467bf0bb701c78ff17",
+      "line": 31,
+      "missing": false
+    },
+    {
+      "path": "public/app/features/dashboard/dashgrid/DashboardLibrary/api/compatibilityApi.ts",
+      "hash": "sha256:bf5e2919adc7c41677452143",
+      "missing": false
+    },
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "GetKinds",
+      "hash": "sha256:16e802ff1adfb36e190c1ac5",
+      "line": 440,
+      "missing": false
+    },
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "convertToCheckResponse",
+      "hash": "sha256:e924b9741239275993b356fc",
+      "line": 385,
+      "missing": false
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/types.go",
+      "hash": "sha256:c243272f5c560b67794ab88d",
+      "missing": false
+    },
+    {
+      "path": "apps/dashvalidator/pkg/validator/prometheus/provider.go",
+      "hash": "sha256:2fbb2354982b180775e3b391",
+      "missing": false
+    },
+    {
+      "path": "apps/dashvalidator/pkg/app/app.go",
+      "symbol": "handleCheckRoute",
+      "hash": "sha256:7482364581240ffbeb96c80a",
+      "line": 123,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "1de355d3-6293-4f9e-a757-9e05444a6d17"
+  },
+  "created": "2026-10-04T06:24:20.247Z",
+  "verified": "2026-10-04T06:24:20.247Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apps-dashvalidator-control-flow-map-dashboard-compatibility"
+  ],
+  "says": [
+    "Changing dashboard validator request format needs multiple updates",
+    "Why do datasource additions cause panics in validation?",
+    "Is dashboard validator score between 0-1 or 0-100?",
+    "Which fields can I include in validator check requests?",
+    "Dashboard validator response format is inconsistent across code paths"
+  ],
+  "saysFor": "1827:apps-dashvalidator-reque",
+  "search": "The /check route request/response shape has no codegen and is hand-duplicated in three places that must be edited together: manifest.cue (routes.namespaced.\"/check\"), checkRequest/checkResponse/datasourceResult/queryResult structs in app.go, and compatibilityApi.ts TS interfaces; internal validator.QueryResult and validator.DatasourceValidationResult types are separate and bridged only by convertToCheckResponse. Score values differ by layer—Go uses 0.0–1.0 (validator/dashboard.go, prometheus/validator.go) but CUE schema and TS comments describe 0–100, so don't assume scales carry across layers. Adding a new datasource type requires implementing validator.DatasourceValidator (and optionally cache.MetricsProvider), updating validators map and metricsCache.RegisterProvider in register.go, the hardcoded \"only 'prometheus' is supported\" error string in app.go, and MVP single-datasource guards. MetricsCache.RegisterProvider panics on duplicate registration and prometheus.NewValidator panics on nil cache—deliberate startup-time wiring guards, not bugs to suppress."
+}

@@ -1,0 +1,116 @@
+{
+  "id": "kv-backend-write-serialization-relies-solely-on-leases-not-o",
+  "title": "KV backend write serialization relies solely on leases, not optimistic locking",
+  "kind": "rule",
+  "answers": [
+    "How does the KV storage backend prevent concurrent write conflicts?",
+    "Why was GetLatestAndPredecessor / optimistic locking removed from the KV backend?",
+    "Do I need to re-check resource version after writing in kvStorageBackend.WriteEvent?"
+  ],
+  "body": "Symptom: none (proactive cleanup) — dead optimistic-locking code paths existed alongside always-on leases. Root cause: pkg/storage/unified/resource/storage_backend.go kvStorageBackend.WriteEvent had a post-write re-read/compare step (via dataStore.GetLatestAndPredecessor) guarded by `if !leasesActive`, but leases are always acquired (acquireWriteLease is unconditional, no longer 'maybe'), so that branch was unreachable. Fix pattern: removed GetLatestAndPredecessor, confirmExistence, and the post-write version-check block entirely; concurrency safety now comes only from the per-resource lease acquired in acquireWriteLease before any write. Constraints: any future change to WriteEvent must assume a lease is always held for the duration of the write — do not reintroduce 'optimistic' post-write verification, and do not make lease acquisition conditional without re-adding equivalent conflict detection.",
+  "applies": "pkg/storage/unified/resource/storage_backend.go kvStorageBackend.WriteEvent and acquireWriteLease",
+  "tags": [
+    "unified-storage",
+    "kv-backend",
+    "concurrency",
+    "leases"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "kvStorageBackend",
+      "hash": "sha256:2f8eafde978396cefa9b70ab",
+      "line": 81,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 103
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "acquireWriteLease",
+      "hash": "sha256:5151164388bdf5b6f4168b64",
+      "line": 921,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "WriteEvent",
+      "hash": "sha256:3899255659da7d63be9e0919",
+      "line": 1014,
+      "missing": false,
+      "fanout": {
+        "files": 25,
+        "sites": 211,
+        "refs": 315
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "kvStorageBackend",
+      "hash": "sha256:2f8eafde978396cefa9b70ab",
+      "line": 81,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 103
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "acquireWriteLease",
+      "hash": "sha256:5151164388bdf5b6f4168b64",
+      "line": 921,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 2
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "WriteEvent",
+      "hash": "sha256:3899255659da7d63be9e0919",
+      "line": 1014,
+      "missing": false,
+      "fanout": {
+        "files": 25,
+        "sites": 211,
+        "refs": 315
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132691"
+  },
+  "created": "2026-10-04T06:45:36.584Z",
+  "verified": "2026-10-04T06:45:36.584Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "per-resource-history-pruning-limit-must-cover-delete-recreat",
+    "datastore-batchdelete-is-the-exported-bulk-delete-api-use-it",
+    "kv-backend-conflict-metric-name-is-tied-to-an-external-ops-d"
+  ],
+  "says": [
+    "KV storage removed optimistic locking conflict prevention",
+    "Write serialization relies solely on lease acquisition",
+    "Why were version checks removed from storage writes",
+    "Concurrent write safety changed from version checking to leases",
+    "Do I need to verify resource version after write"
+  ],
+  "saysFor": "989:kv-backend-write-seriali",
+  "search": "Write serialization in kvStorageBackend.WriteEvent relies exclusively on per-resource leases acquired unconditionally in acquireWriteLease, not optimistic locking; the post-write version-check branch (GetLatestAndPredecessor, confirmExistence) was removed because it was unreachable when leases are always active. Any change to WriteEvent or acquireWriteLease in pkg/storage/unified/resource/storage_backend.go must preserve the assumption that a lease is held for the entire write duration. Do not reintroduce post-write optimistic verification, conditionally defer lease acquisition, or add version-compare logic without re-implementing equivalent conflict detection in the lease mechanism."
+}

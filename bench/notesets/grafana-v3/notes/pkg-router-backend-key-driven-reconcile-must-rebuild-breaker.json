@@ -1,0 +1,170 @@
+{
+  "id": "pkg-router-backend-key-driven-reconcile-must-rebuild-breaker",
+  "title": "pkg/router/: Backend.Key()-driven reconcile must rebuild breaker + discovery together",
+  "kind": "rule",
+  "answers": [
+    "What breaks if I add a new RoutesLoader or Backend implementation in pkg/router?",
+    "When does the circuit breaker get recreated in pkg/router?",
+    "Can one API group be served by multiple Backends in pkg/router?"
+  ],
+  "body": "`router.go:GrafanaRouter.reconcile` treats `Backend.Key()` as the single fingerprint driving three things that must stay consistent: (1) whether the group's handler is rebuilt vs left alone (compared against the stored `handlerEntry.lastKey`), (2) whether a fresh `gobreaker` instance is minted for that group (new key = target may have moved, so the old breaker's state is stale) vs kept across an unchanged-key reconcile, and (3) the discovery docs rebuilt in `publish()` from the live `served` map. A new `Backend`/`RoutesLoader` implementation must implement `Key()` to change whenever the underlying route truly changes, or stale breakers/handlers linger.\n\nThe design also assumes one backend owns ALL versions of a group (not per-version backends) — `/apis/{group}` is built by iterating backends 1:1, not merged. Relaxing that invariant requires updating `discovery.go`/`discovery_handler.go` discovery synthesis at the same time, per pkg/router/AGENTS.md.\n\nSeparately, `types.go`'s `Backend`/`RoutesLoader`/`Router` interfaces are consumed directly by every implementation (`forward.go`, `dummy.go`, `plugin.go`, `aggregate_*.go`, `st_fallback.go`) plus `reconcile`/`publish`; narrowing or deleting a method requires updating all of them (some methods, like `Router.HandleFunc`'s `next` param, are intentionally unused today as a future-mounting seam — don't remove them as \"dead code\").",
+  "applies": "Applies to any change touching Backend/RoutesLoader implementations, reconcile, or discovery synthesis in pkg/router; does not apply to the hot serving path (HandleFunc) which only reads the published snapshot.",
+  "tags": [
+    "pkg/router",
+    "breaker",
+    "reconcile",
+    "discovery"
+  ],
+  "deps": [
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "GrafanaRouter",
+      "hash": "sha256:7323cc07643753efbf43dd91",
+      "line": 77,
+      "missing": false,
+      "fanout": {
+        "files": 12,
+        "sites": 0,
+        "refs": 31
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "handlerEntry",
+      "hash": "sha256:664804b8f5dbcfa6bf72e4f8",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 1,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "publish",
+      "hash": "sha256:d1862d22538cbd35fa9f2d06",
+      "line": 477,
+      "missing": false,
+      "fanout": {
+        "files": 59,
+        "sites": 24,
+        "refs": 124
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "reconcile",
+      "hash": "sha256:1aec0bc1534d2c8449317681",
+      "line": 408,
+      "missing": false,
+      "fanout": {
+        "files": 94,
+        "sites": 27,
+        "refs": 295
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "handlerEntry",
+      "hash": "sha256:664804b8f5dbcfa6bf72e4f8",
+      "line": 23,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 1,
+        "refs": 13
+      }
+    },
+    {
+      "path": "pkg/router/router.go",
+      "symbol": "publish",
+      "hash": "sha256:d1862d22538cbd35fa9f2d06",
+      "line": 477,
+      "missing": false,
+      "fanout": {
+        "files": 59,
+        "sites": 24,
+        "refs": 124
+      }
+    },
+    {
+      "path": "pkg/router/types.go",
+      "symbol": "Backend",
+      "hash": "sha256:77de994ef6035694fd8cba97",
+      "line": 10,
+      "missing": false,
+      "fanout": {
+        "files": 113,
+        "sites": 4,
+        "refs": 381
+      }
+    },
+    {
+      "path": "pkg/router/discovery.go",
+      "symbol": "buildAPIGroupList",
+      "hash": "sha256:ae405194446f2e78c4ae4598",
+      "line": 30,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 5,
+        "refs": 7
+      }
+    },
+    {
+      "path": "pkg/router/discovery_handler.go",
+      "hash": "sha256:46ba2e0fe14d6b46f4944640",
+      "missing": false
+    },
+    {
+      "path": "pkg/router/forward.go",
+      "hash": "sha256:603747e8d174324630e68822",
+      "missing": false
+    },
+    {
+      "path": "pkg/router/dummy.go",
+      "hash": "sha256:ba9400c7a2d5b135f4e315fc",
+      "missing": false
+    },
+    {
+      "path": "pkg/router/plugin.go",
+      "hash": "sha256:a3bf985018b7fa651a1564a9",
+      "missing": false
+    },
+    {
+      "path": "pkg/router/st_fallback.go",
+      "symbol": "forward",
+      "hash": "sha256:94dfaa83ec9b5e600e534ee3",
+      "line": 186,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "fd57f6a1-a2ca-4192-b48e-284d7812b1dd"
+  },
+  "created": "2026-10-04T06:11:57.114Z",
+  "verified": "2026-10-04T06:11:57.114Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 1,
+  "related": [
+    "pkg-router-reverse-proxy-api-aggregator-control-flow-map",
+    "single-tenant-fallback-resolvehost-cache-wiring"
+  ],
+  "says": [
+    "Circuit breaker persists old state after routes change",
+    "Handler not rebuilt when backend implementation changes routes",
+    "Discovery documents display old API groups and versions",
+    "New backend implementation breaks router state synchronization",
+    "Old circuit breaker configuration blocks requests unnecessarily"
+  ],
+  "saysFor": "1481:pkg-router-backend-key-d",
+  "search": "Backend.Key() consistency in pkg/router reconcile: Key() fingerprint must change whenever the underlying route truly changes, because reconcile treats it as the single driver for three coupled concerns: (1) whether to rebuild the handler vs keep it, (2) whether to create a fresh gobreaker instance vs reuse (new key = target moved, old breaker state stale), (3) discovery docs rebuilt in publish(). Stale breakers/handlers linger if Key() fails to change. Design invariant: one backend owns ALL versions of a group (not per-version backends); relaxing this requires updating discovery.go/discovery_handler.go per pkg/router/AGENTS.md. Interfaces Backend, RoutesLoader, Router in types.go are consumed by all implementations (forward.go, dummy.go, plugin.go, aggregate_*.go, st_fallback.go) plus reconcile/publish; changes require updating all. Applies when: implementing new Backend/RoutesLoader or modifying reconcile/discovery.",
+  "lastUsed": "2026-10-04T19:09:35.100Z",
+  "servedIn": [
+    "codex-grafana-codex-ce2-PR133206-hard-0"
+  ]
+}

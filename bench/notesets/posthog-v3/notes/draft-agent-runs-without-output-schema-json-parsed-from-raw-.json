@@ -1,7 +1,7 @@
 {
   "id": "draft-agent-runs-without-output-schema-json-parsed-from-raw-",
   "title": "Draft agent runs without output_schema; JSON parsed from raw text",
-  "kind": "gotcha",
+  "kind": "rule",
   "answers": [
     "Why does the support draft not send output_schema?",
     "Draft poll fails with 'no agent message'",
@@ -40,8 +40,8 @@
     {
       "path": "products/conversations/backend/temporal/ai_reply/activities/draft.py",
       "symbol": "_draft_async",
-      "hash": "sha256:bf4bdbd3ced84fc013fc1878",
-      "line": 232,
+      "hash": "sha256:96e60292141549af38fc6664",
+      "line": 235,
       "missing": false
     }
   ],
@@ -64,5 +64,6 @@
     "Draft nudge keeps asking for JSON response formatting until correct format sent",
     "How is the support draft response extracted from raw agent output text"
   ],
-  "saysFor": "1062:draft-agent-runs-without"
+  "saysFor": "1062:draft-agent-runs-without",
+  "search": "Support draft calls MultiTurnSession.start_raw without output_schema; JSON is parsed from raw text by _parse_draft, which extracts the last JSON object validating as SupportReplyDraft, ignoring example or ticket JSON before it. Do not restore output_schema as it causes task completion before agent messages reach the log, breaking polling. If the first turn yields no draft JSON, _draft_from_session sends a follow-up nudge (_DRAFT_JSON_NUDGE) with _DRAFT_NUDGE_POLL_SECONDS; the first poll plus two nudge polls must fit within the 20-minute activity timeout. Confidence score coercion still guards invalid values. Handle changes in products/conversations; do not modify products/tasks runner as it affects other callers. Applies to products/conversations/backend/temporal/ai_reply/activities/draft.py (_draft_async, _draft_from_session, _parse_draft) and tests."
 }

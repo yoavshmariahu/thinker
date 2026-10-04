@@ -93,5 +93,6 @@
     "Who is responsible for updating task run status in the workflow system?",
     "Why won't a task transition to failed if it's already in a final state?"
   ],
-  "saysFor": "1746:invariants-for-recording"
+  "saysFor": "1746:invariants-for-recording",
+  "search": "update_task_run_status.py:update_task_run_status is the single writer for task run status; analytics task_run_completed/failed are emitted only in _capture_terminal_analytics when old_status differs from input.status. Terminal statuses (completed/failed/cancelled) are final—row reads use select_for_update and same-status repeats are allowed but different-status transitions to terminal are skipped. error_message writes only if truthy, truncated to 500 chars via error_telemetry.truncate_error_message; error_type is always set from _failure_error_type or passed via handle_loop_run_terminal. New input fields must be optional with defaults for in-flight workflow payload compatibility. Applies to modifying temporal task run workflows, adding terminal states, and error reporting."
 }

@@ -1,0 +1,77 @@
+{
+  "id": "util-sanitizecontrolchars-is-the-shared-helper-for-stripping",
+  "title": "util.SanitizeControlChars is the shared helper for stripping control chars + safe UTF-8 truncation",
+  "kind": "rule",
+  "answers": [
+    "How do I strip control characters and truncate a string safely in Grafana backend code?",
+    "What function avoids splitting a multi-byte rune when truncating a label/header value?",
+    "Is there an existing util for sanitizing untrusted strings before exposing them?"
+  ],
+  "body": "util.SanitizeControlChars(s, maxBytes) in pkg/util/strings.go strips ASCII control chars (including CRLF, via strings.Map removing r<0x20 or 0x7f) and then truncates with util.TruncateUTF8 so the cut never splits a multi-byte rune. eval.sanitizeHeaderValue (pkg/services/ngalert/eval/eval.go) and schedule.sanitizePluginOriginLabel (pkg/services/ngalert/schedule/metrics.go) both now delegate to it instead of each reimplementing strings.Map.\nConvention: new code needing to sanitize an untrusted string for a header, metric label, or similar exposed surface should call util.SanitizeControlChars rather than duplicating the strip/truncate logic.\nConstraints: only valid for byte-length caps on UTF-8 text where exact truncation point doesn't matter semantically (labels, headers) — not for binary data.",
+  "applies": "any Go backend code sanitizing untrusted/user-controlled strings before exposing as metric labels, headers, or similar",
+  "tags": [
+    "util",
+    "sanitization",
+    "string-handling",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/util/strings.go",
+      "symbol": "SanitizeControlChars",
+      "hash": "sha256:2e305f99f4f31e970f5f6a4a",
+      "line": 199,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/util/strings.go",
+      "symbol": "TruncateUTF8",
+      "hash": "sha256:96d872007eba50bfa7b39e0c",
+      "line": 184,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 8,
+        "refs": 10
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/eval/eval.go",
+      "hash": "sha256:56ee20d6505b312705af1cd9",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/ngalert/schedule/metrics.go",
+      "hash": "sha256:8630fc31e0dd41a82846269a",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132680"
+  },
+  "created": "2026-10-04T06:47:22.625Z",
+  "verified": "2026-10-04T06:47:22.625Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "sanitize-user-controlled-rule-labels-before-using-them-as-me",
+    "sanitizecontrolchars-must-strip-full-unicode-control-range-n"
+  ],
+  "says": [
+    "Alert headers corrupted by control characters in values",
+    "Metric labels broken when containing special characters",
+    "String truncation splits multi-byte Unicode characters incorrectly",
+    "Remove unsafe characters from exposed label values",
+    "Headers damaged by control character sequences"
+  ],
+  "saysFor": "902:util-sanitizecontrolchar",
+  "search": "util.SanitizeControlChars(s, maxBytes) in pkg/util/strings.go is the shared helper that strips ASCII control characters (CRLF via strings.Map removing r<0x20 or 0x7f) and then safely truncates with util.TruncateUTF8 to never split multi-byte runes. Use this instead of reimplementing strip/truncate logic, as eval.sanitizeHeaderValue (pkg/services/ngalert/eval/eval.go) and schedule.sanitizePluginOriginLabel (pkg/services/ngalert/schedule/metrics.go) now delegate to it. Only valid for byte-length caps on UTF-8 text where exact truncation point is immaterial (metric labels, headers), not binary data; new code sanitizing untrusted strings for exposed surfaces should call this helper by convention."
+}

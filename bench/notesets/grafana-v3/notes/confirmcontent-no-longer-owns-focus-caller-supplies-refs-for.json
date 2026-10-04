@@ -1,0 +1,66 @@
+{
+  "id": "confirmcontent-no-longer-owns-focus-caller-supplies-refs-for",
+  "title": "ConfirmContent no longer owns focus; caller supplies refs for initialFocus",
+  "kind": "rule",
+  "answers": [
+    "Where should I add focus logic for a new confirm-modal variant",
+    "Should ConfirmContent focus its own input or button",
+    "How is initial focus decided between the confirm button and the type-to-confirm input"
+  ],
+  "body": "Convention: ConfirmContent itself must not manage which element receives focus on mount — it only forwards `confirmButtonRef`/`confirmPromptRef` props to the underlying <Button>/<Input> via `ref`. The decision of which ref to focus (button vs. type-to-confirm input) is made by the parent (ConfirmModal), which picks `confirmPromptRef` when `confirmationText && !disabled`, else `confirmButtonRef`, and passes that single ref to Modal's `initialFocus` prop.\nFix pattern/invariant: any new type-to-confirm or conditional-focus logic added to ConfirmContent should extend the parent's initialFocus selection, not re-introduce a local useEffect that calls `.focus()` — doing so reintroduces the dropdown-vs-modal focus race.\nConstraints: applies to ConfirmContent/ConfirmModal specifically; other grafana-ui modal content components that render inside <Modal> should follow the same ref-up, initialFocus-down pattern when they need initial focus different from Modal's default.",
+  "applies": "packages/grafana-ui/src/components/ConfirmModal/* when adding new focus-sensitive fields or buttons.",
+  "tags": [
+    "confirmmodal",
+    "convention",
+    "focus-management",
+    "grafana-ui"
+  ],
+  "deps": [
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmModal.tsx",
+      "symbol": "ConfirmModal",
+      "hash": "sha256:38544f1482f8db36ab04a1e0",
+      "line": 50,
+      "missing": false,
+      "fanout": {
+        "files": 87,
+        "sites": 0,
+        "refs": 200
+      }
+    },
+    {
+      "path": "packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx",
+      "symbol": "ConfirmContent",
+      "hash": "sha256:1b0f886b4db1e45987b16f83",
+      "line": 53,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 8
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132764"
+  },
+  "created": "2026-10-04T06:34:56.021Z",
+  "verified": "2026-10-04T06:34:56.021Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "avoid-manual-focus-useeffect-in-components-nested-inside-oth",
+    "use-modal-buttonrow-for-modal-action-buttons-avoids-clipped"
+  ],
+  "says": [
+    "Which element should receive focus when opening the confirm modal dialog",
+    "How to decide if confirm button or type-to-confirm input gets focus first",
+    "Where should I put focus logic for a new confirm modal variant",
+    "Type-to-confirm input is not focused when the modal appears to user"
+  ],
+  "saysFor": "1049:confirmcontent-no-longer",
+  "search": "ConfirmContent must not manage focus on mount; the parent ConfirmModal selects which ref (confirmPromptRef for type-to-confirm, confirmButtonRef otherwise) to pass to Modal's initialFocus prop. ConfirmContent only forwards confirmButtonRef and confirmPromptRef to underlying <Button>/<Input> elements via ref prop, delegating focus decisions upward. Fix pattern: extend parent's initialFocus selection logic rather than re-introducing useEffect with .focus() calls, which reintroduces the dropdown-vs-modal focus race. Applies when adding focus-sensitive fields or buttons to ConfirmContent or implementing similar ref-forwarding patterns in other grafana-ui modal components. Paths: packages/grafana-ui/src/components/ConfirmModal/ConfirmModal.tsx, packages/grafana-ui/src/components/ConfirmModal/ConfirmContent.tsx."
+}

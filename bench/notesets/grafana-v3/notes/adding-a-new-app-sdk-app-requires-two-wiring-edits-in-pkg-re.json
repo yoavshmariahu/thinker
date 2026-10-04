@@ -1,0 +1,81 @@
+{
+  "id": "adding-a-new-app-sdk-app-requires-two-wiring-edits-in-pkg-re",
+  "title": "Adding a new App-SDK app requires two wiring edits in pkg/registry/apps",
+  "kind": "rule",
+  "answers": [
+    "What breaks if I forget to wire a new app installer?",
+    "How do I register a new app in pkg/registry/apps?",
+    "Why isn't my new AppInstaller being picked up by the API server?"
+  ],
+  "body": "A new app's installer provider must be added to BOTH `pkg/registry/apps/wireset.go` (`appregistry.WireSet`, so `wire` knows how to construct the installer) AND the parameter list + body of `pkg/registry/apps/apps.go:ProvideAppInstallers` (which assembles the final `[]appsdkapiserver.AppInstaller` slice, with feature-toggle gating per app). Skipping the wireset entry breaks `wire` codegen (`pkg/server/bootstrap/wire/wire_gen.go` won't have the dependency); skipping the ProvideAppInstallers entry means the installer is constructed but never reaches `pkg/services/apiserver/service.go`'s `appInstallers` list, so the app's schema/admission/OpenAPI/authorizer never get registered even though its code compiles and wire is happy. `pkg/registry/apps/apps_test.go:TestProvideAppInstallers` exercises this wiring with various featuremgmt toggle combinations — extend it when adding a gated app.",
+  "applies": "Only for apps added under pkg/registry/apps/ that implement appsdkapiserver.AppInstaller; unrelated to pkg/registry/apis API-group builders (which have their own separate wireset/sink pair).",
+  "tags": [
+    "pkg/registry/apps",
+    "wire",
+    "appinstaller"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apps/apps.go",
+      "symbol": "ProvideAppInstallers",
+      "hash": "sha256:122c30feba778009596fba5d",
+      "line": 33,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 3,
+        "refs": 6
+      }
+    },
+    {
+      "path": "pkg/registry/apps/wireset.go",
+      "symbol": "WireSet",
+      "hash": "sha256:20b170f441fc70977fa37dbb",
+      "line": 21,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 0,
+        "refs": 17
+      }
+    },
+    {
+      "path": "pkg/registry/apps/apps_test.go",
+      "hash": "sha256:6a3e9ccdc3180a5c07e18bdb",
+      "missing": false
+    },
+    {
+      "path": "pkg/server/bootstrap/wire/wire_gen.go",
+      "hash": "sha256:a7c0346cf0596cc95d35e87b",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/apiserver/service.go",
+      "hash": "sha256:c7973fa5b7f0837c2c1d12e5",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "bb22eb8a-a6e2-417a-973c-8683ee29625e"
+  },
+  "created": "2026-10-04T05:52:49.489Z",
+  "verified": "2026-10-04T05:52:49.489Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.75,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "pkg-registry-apps-control-flow-map-app-sdk-appinstaller-wiri",
+    "apps-dashvalidator-control-flow-map-dashboard-compatibility"
+  ],
+  "says": [
+    "New app doesn't get registered even after adding the installer",
+    "Where and how do I add a new App-SDK application?",
+    "App appears built but schema and admission rules never activate",
+    "What locations need updating to register a new app?",
+    "Why isn't my new app installer being used by the API server?"
+  ],
+  "saysFor": "965:adding-a-new-app-sdk-app",
+  "search": "Adding a new App-SDK app requires two wiring edits: pkg/registry/apps/wireset.go:WireSet (so wire codegen succeeds with pkg/server/bootstrap/wire/wire_gen.go) and pkg/registry/apps/apps.go:ProvideAppInstallers parameters and body (to reach pkg/services/apiserver/service.go's appInstallers list). Skipping the wireset breaks wire codegen; skipping ProvideAppInstallers leaves the installer constructed but unreachable, silently preventing schema/admission/OpenAPI registration. Feature-gated apps must be wired in ProvideAppInstallers with toggle guards; extend pkg/registry/apps/apps_test.go:TestProvideAppInstallers to cover new gated combinations. Applies only to apps under pkg/registry/apps/ implementing appsdkapiserver.AppInstaller, not API-group builders."
+}

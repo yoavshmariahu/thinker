@@ -1,0 +1,138 @@
+{
+  "id": "pkg-api-control-flow-map-construction-route-registration-req",
+  "title": "pkg/api control-flow map: construction → route registration → request dispatch",
+  "kind": "map",
+  "answers": [
+    "How does a request get from the HTTP mux to a pkg/api handler?",
+    "Where are all API routes registered?",
+    "What builds the HTTPServer and when do routes get mounted?",
+    "What's the difference between response.Response handlers and raw web.Handler handlers?"
+  ],
+  "body": "pkg/api is Grafana's core HTTP API layer: request parsing, auth/RBAC gating, response shaping live here; business logic lives in pkg/services/<domain>.\n- Construction: `api.ProvideHTTPServer` (pkg/api/http_server.go) is a Wire provider taking every service dependency; it calls `hs.registerRoutes()` then `hs.declareFixedRoles()`.\n- Route declaration: `(hs *HTTPServer) registerRoutes()` (pkg/api/api.go) is the single place all routes are declared via `hs.RouteRegister` (`routing.RouteRegister`, impl in pkg/api/routing/route_register.go), grouped by prefix with shared middleware per group.\n- Server start: `(hs *HTTPServer) Run(ctx)` (pkg/api/http_server.go) calls `hs.applyRoutes()`, which first runs `addMiddlewaresAndStaticRoutes()` (installs `hs.ContextHandler.Middleware` building `*contextmodel.ReqContext`, CSRF, recovery, tracing) then `hs.RouteRegister.Register(hs.web, ...)` to mount routes on the `web.Mux`; the route register panics at startup on an exact duplicate method+pattern (pkg/api/routing/route_register.go), so a misplaced route is a build/startup-time failure, not silent.\n- Per-request handler signature convention: `func(c *contextmodel.ReqContext) response.Response`, adapted to `web.Handler` via `routing.Wrap` (pkg/api/routing/routing.go), which calls `res.WriteTo(c)` (pkg/api/response/response.go) to write the HTTP response. A minority of legacy/streaming handlers (hs.Index, pkg/api/swagger.go) use the raw `func(c *contextmodel.ReqContext)` signature and write to `c.Resp` directly — don't mix the two without using `routing.Wrap`.\n- Newer resources route through pkg/registry/apis/... (k8s-apiserver-backed); domain files with a `_k8s.go` sibling (e.g. pkg/api/datasources_k8s.go) conditionally redirect a legacy handler to the apiserver path based on feature flags — both paths may need updating together.",
+  "tags": [
+    "pkg/api",
+    "http",
+    "routing",
+    "orientation"
+  ],
+  "deps": [
+    {
+      "path": "pkg/api/http_server.go",
+      "symbol": "ProvideHTTPServer",
+      "hash": "sha256:e37539bdb918cf203936d51b",
+      "line": 249,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 2,
+        "refs": 4
+      }
+    },
+    {
+      "path": "pkg/api/api.go",
+      "symbol": "registerRoutes",
+      "hash": "sha256:eac3cefc58fedea6d11e699b",
+      "line": 64,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 33,
+        "refs": 37
+      }
+    },
+    {
+      "path": "pkg/api/routing/route_register.go",
+      "symbol": "RouteRegister",
+      "hash": "sha256:30d5026abd2a25a3d2552d04",
+      "line": 16,
+      "missing": false,
+      "fanout": {
+        "files": 66,
+        "sites": 0,
+        "refs": 162
+      }
+    },
+    {
+      "path": "pkg/api/routing/routing.go",
+      "symbol": "Wrap",
+      "hash": "sha256:5123d767e4ca5b2b278c8221",
+      "line": 17,
+      "missing": false,
+      "fanout": {
+        "files": 59,
+        "sites": 412,
+        "refs": 429
+      }
+    },
+    {
+      "path": "pkg/api/response/response.go",
+      "symbol": "Response",
+      "hash": "sha256:6599fa58503df6509012eae3",
+      "line": 25,
+      "missing": false,
+      "fanout": {
+        "files": 358,
+        "sites": 1,
+        "refs": 1889
+      }
+    },
+    {
+      "path": "pkg/api/datasources_k8s.go",
+      "symbol": "func",
+      "hash": "sha256:c79ebcdebc72f697eb45c11d",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 209,
+        "sites": 1487,
+        "refs": 2000
+      }
+    },
+    {
+      "path": "pkg/api/swagger.go",
+      "hash": "sha256:d479983de896feb888d12f8f",
+      "missing": false
+    },
+    {
+      "path": "pkg/api/http_server.go",
+      "symbol": "addMiddlewaresAndStaticRoutes",
+      "hash": "sha256:b38fa4c04e5ef6d2ae7cebc1",
+      "line": 686,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 1,
+        "refs": 1
+      }
+    },
+    {
+      "path": "pkg/web/web.go",
+      "symbol": "Mux",
+      "hash": "sha256:45c3b3697f72759eaf291322",
+      "line": 3,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "a09f1f58-00d4-4123-ae06-2939e99785de"
+  },
+  "created": "2026-10-04T06:00:21.915Z",
+  "verified": "2026-10-04T06:00:21.915Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.85,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "new-pkg-api-endpoint-must-update-handler-registerroutes-rbac"
+  ],
+  "says": [
+    "API endpoint request not reaching the correct handler function",
+    "Newly declared route missing from registered routes on startup",
+    "HTTP response format incorrect for API query results",
+    "Authentication and RBAC check bypassed for API call",
+    "Request processing stops before business logic handler is invoked"
+  ],
+  "saysFor": "1923:pkg-api-control-flow-map",
+  "search": "pkg/api is Grafana's HTTP API layer for request parsing, auth/RBAC gating, and response shaping; business logic lives in pkg/services/<domain>. Route construction: ProvideHTTPServer (http_server.go) calls registerRoutes() (api.go) which declares routes via RouteRegister (routing/route_register.go), grouped with per-group middleware. At startup, applyRoutes() installs ContextHandler.Middleware (creating *contextmodel.ReqContext, CSRF, recovery, tracing) then mounts routes on web.Mux; RouteRegister panics on exact duplicate method+pattern (startup failure, not silent). Handler signature: func(c *contextmodel.ReqContext) response.Response adapted to web.Handler via routing.Wrap (routing/routing.go), which calls res.WriteTo(c); legacy/streaming handlers (hs.Index, swagger.go) write to c.Resp directly—don't mix signatures. Newer resources route through pkg/registry/apis/ (k8s-apiserver); _k8s.go sibling files (e.g., datasources_k8s.go) conditionally redirect based on feature flags, requiring both paths to be updated. Key symbols: ProvideHTTPServer, registerRoutes(), RouteRegister, routing.Wrap, response.Response."
+}

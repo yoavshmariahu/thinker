@@ -1,0 +1,112 @@
+{
+  "id": "apps-plugins-hook-annotations-converters-and-new-kind-storag",
+  "title": "apps/plugins: hook annotations, converters, and new-kind storage must change together",
+  "kind": "rule",
+  "answers": [
+    "What breaks if I add a Meta/Plugin field without updating converter.go?",
+    "Why would plugin child/dependency records resync forever or get orphaned?",
+    "What do I need to update when adding a new kind's storage in apps/plugins?",
+    "How do children and dependency plugins get created/deleted?"
+  ],
+  "body": "1) CUE schema changes (apps/plugins/kinds/meta.cue, plugin.cue) regenerate apps/plugins/pkg/apis/.../*_gen.go via `make generate`, but the hand-written mapping functions in apps/plugins/pkg/app/meta/converter.go (jsonDataToMetaJSONData, pluginStorePluginToMeta, pluginToMetaSpec, grafanaComPluginVersionMetaToMetaSpec) are NOT regenerated and must be updated manually to surface new fields.\n2) Child/dependency Plugin records are created/deleted entirely from the parent's own storage hooks in apps/plugins/pkg/app/plugin_storage.go (Begin/After hooks around lines 234-288), distinguished via apps/plugins/pkg/app/install/registrar.go's annotation constants (appliedChildrenAnnotation, AppliedDependenciesAnnotation, DependencyParentsAnnotation) and predicates IsChildPlugin/IsDependencyPlugin (plugin_storage.go). Both plugin_storage.go hooks and registrar.go's ShouldUpdate/applyTo read+write the same annotations — drift between them causes either infinite resync (registrar.go: ErrSyncDidNotConverge) or orphaned children/dependencies. There is no separate reconciler to fix this later.\n3) apps/plugins/pkg/app/storage_wrapper.go:customStorageWrapper's replace/wrap maps are keyed per-kind and built explicitly in app.go (InstallAPIs); a new kind added to the CUE manifest that needs custom (non-default) REST storage must be added there too, or it silently falls back to default app-sdk storage.\n4) plugin_storage.go's pluginFromRuntimeObject intentionally avoids a type-conversion fallback because a converted copy would silently drop in-place Begin-hook mutations — don't 'simplify' that function.",
+  "applies": "Applies when adding/editing fields on Plugin/Meta kinds, adding child/dependency plugin logic, or adding a new kind to apps/plugins' manifest. Does not apply to the default (non-wrapped) app-sdk storage path used by kinds without custom hooks.",
+  "tags": [
+    "apps/plugins",
+    "storage-hooks",
+    "codegen"
+  ],
+  "deps": [
+    {
+      "path": "apps/plugins/kinds/meta.cue",
+      "hash": "sha256:32edeb2934e02aca66e50fbd",
+      "missing": false
+    },
+    {
+      "path": "apps/plugins/kinds/plugin.cue",
+      "hash": "sha256:d8635f6b9a3afa86fc7c47f1",
+      "missing": false
+    },
+    {
+      "path": "apps/plugins/pkg/app/meta/converter.go",
+      "symbol": "jsonDataToMetaJSONData",
+      "hash": "sha256:924d329371eec4480fd9a22e",
+      "line": 20,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 22,
+        "refs": 24
+      }
+    },
+    {
+      "path": "apps/plugins/pkg/app/plugin_storage.go",
+      "symbol": "pluginFromRuntimeObject",
+      "hash": "sha256:1513cd8ed40089694f0a5ee0",
+      "line": 320,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 6,
+        "refs": 7
+      }
+    },
+    {
+      "path": "apps/plugins/pkg/app/install/registrar.go",
+      "symbol": "SyncNamespace",
+      "hash": "sha256:e4b42c98e64072d823c87340",
+      "line": 303,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 19,
+        "refs": 23
+      }
+    },
+    {
+      "path": "apps/plugins/pkg/app/storage_wrapper.go",
+      "symbol": "customStorageWrapper",
+      "hash": "sha256:f51f508a6b68e8509bc763ca",
+      "line": 19,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 0,
+        "refs": 4
+      }
+    },
+    {
+      "path": "apps/plugins/pkg/app/app.go",
+      "symbol": "InstallAPIs",
+      "hash": "sha256:8d96f6c82f09cbbe6076078d",
+      "line": 129,
+      "missing": false,
+      "fanout": {
+        "files": 7,
+        "sites": 6,
+        "refs": 15
+      }
+    }
+  ],
+  "source": {
+    "type": "agent",
+    "ref": "387a306e-033d-4059-ac0f-98db072f9fd3"
+  },
+  "created": "2026-10-04T06:27:39.145Z",
+  "verified": "2026-10-04T06:27:39.145Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "apps-plugins-control-flow-plugin-install-records-vs-synthesi"
+  ],
+  "says": [
+    "Adding fields to plugins breaks metadata conversion",
+    "Child plugins resync forever or get unexpectedly orphaned",
+    "How do dependency plugins get created and removed?",
+    "What must be updated when adding a new plugin kind?",
+    "Plugin child record lifecycle is tied to parent storage"
+  ],
+  "saysFor": "1690:apps-plugins-hook-annota",
+  "search": "When adding/editing Plugin/Meta fields in apps/plugins, CUE schema changes (kinds/meta.cue, plugin.cue) regenerate *_gen.go but hand-written converter functions (converter.go:jsonDataToMetaJSONData, pluginStorePluginToMeta, pluginToMetaSpec, grafanaComPluginVersionMetaToMetaSpec) are not regenerated and must be manually updated. Child/dependency Plugin records are created/deleted entirely from parent storage hooks in plugin_storage.go (Begin/After hooks ~234–288), distinguished by annotations in registrar.go (appliedChildrenAnnotation, AppliedDependenciesAnnotation, DependencyParentsAnnotation); drift between plugin_storage.go hooks and registrar.go's ShouldUpdate/applyTo causes infinite resync (ErrSyncDidNotConverge) or orphaned records, with no separate reconciler. A new kind added to manifest needing custom storage must be added to customStorageWrapper's replace/wrap maps in app.go:InstallAPIs or silently falls back to default. plugin_storage.go:pluginFromRuntimeObject intentionally avoids type-conversion fallback because a converted copy would silently drop in-place Begin-hook mutations."
+}

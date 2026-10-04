@@ -76,5 +76,6 @@
     "Quota check happens too late in request",
     "Where quota validation occurs for Slack mentions"
   ],
-  "saysFor": "767:slack-app-billing-quota-"
+  "saysFor": "767:slack-app-billing-quota-",
+  "search": "Slack app billing quota enforcement runs only as the first activity in PostHogCodeSlackMentionWorkflow.run, via enforce_posthog_code_billing_quota_activity (posthog/temporal/ai/slack_app/activities/billing.py), which calls block_if_team_over_quota (helpers.py) to gate LLM spend. The quota gate has no webhook-level short-circuit despite a workflow comment claiming one; only post_quota_exhausted_denial (products/slack_app/backend/api.py) handles denial, and only the Temporal layer may import ee.billing. Re-check quota after classify_slack_app_project_route_activity if the project switches. Applies to PostHog Code Slack mentions only; other surfaces (DMs) are not examined. Use this for understanding billing controls, debugging quota issues, or adding quota-aware logic."
 }

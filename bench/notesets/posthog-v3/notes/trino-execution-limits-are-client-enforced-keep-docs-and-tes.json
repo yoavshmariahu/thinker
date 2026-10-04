@@ -49,5 +49,6 @@
     "Updated deadline, but tests expect old timeouts",
     "Where are Trino query execution time limits enforced?"
   ],
-  "saysFor": "745:trino-execution-limits-a"
+  "saysFor": "745:trino-execution-limits-a",
+  "search": "Trino build deadlines (15 min for builds, 5 min for alias passes) are enforced on the client side via cursor cancellation, not server session properties. When changing statement sequences in trino_materialization.py or trino_model_aliases.py, update execute.call_args_list indexes and fetchall.side_effect lists in products/managed_warehouse/backend/tests/test_trino_materialization.py and test_trino_model_aliases.py (note: test_trino_model_aliases.py asserts cursor.execute is not called on happy path), plus the execution-limit section in docs/internal/hogql-trino-compiler.md. Removing or adding a statement shifts all downstream side_effect entries, requiring exact sequence matching in tests."
 }

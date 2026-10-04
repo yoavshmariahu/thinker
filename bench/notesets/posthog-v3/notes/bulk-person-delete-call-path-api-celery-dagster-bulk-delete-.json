@@ -85,5 +85,6 @@
     "Can I bulk delete people using the API or just the UI",
     "Why does deleting one person fail but others already deleted"
   ],
-  "saysFor": "1588:bulk-person-delete-call-"
+  "saysFor": "1588:bulk-person-delete-call-",
+  "search": "Bulk person delete routes through API (max 1000 ids/distinct_ids), sync or async Celery/Dagster to bulk_delete.py:_tombstone_and_delete_persons with strict ordering: delete_person per row (ClickHouse tombstone, step TOMBSTONE_CLICKHOUSE), then delete_persons_from_postgres once (DROP all on failure), then bulk_log_activity (skips already-logged to prevent duplicate retries). Celery chunks by PERSONS_PER_DELETION_TASK=100, queued path batches by QUEUED_DELETION_DISTINCT_IDS_PER_BATCH=20000; profile delete last because it removes distinct ids that retries need; failed persons skipped by later steps; MAX_DELETION_RETRIES=3 then raises PersonDeletionIncomplete. Recording deletion starts Temporal workflows chunked by _chunk_persons (100 persons/2000 distinct ids). Paths: posthog/api/person.py, posthog/tasks/delete_persons.py (queue_person_deletion, process_queued_person_deletion), posthog/dags/data_deletion_requests.py:delete_person_profiles_op, posthog/models/person/bulk_delete.py."
 }

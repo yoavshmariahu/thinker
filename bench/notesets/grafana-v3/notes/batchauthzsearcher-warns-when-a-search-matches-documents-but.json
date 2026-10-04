@@ -1,0 +1,69 @@
+{
+  "id": "batchauthzsearcher-warns-when-a-search-matches-documents-but",
+  "title": "batchAuthzSearcher warns when a search matches documents but authorizes none",
+  "kind": "rule",
+  "answers": [
+    "Why does a LIST return no items even though documents matched the search query?",
+    "How do I debug a permission check that silently filters out every search hit?",
+    "Where is 'search found candidates but 0 authorized' logged?"
+  ],
+  "body": "Symptom: a LIST/search returns an empty page even though matching documents exist in the index, with no error — e.g. the authorizing token has no delegated permissions and every candidate gets denied.\nRoot cause: before this PR the only record of 'candidates found, none authorized' was a trace span attribute (search.candidates/search.authorized), invisible in log-only environments.\nFix pattern: pkg/storage/unified/search/bleve.go:batchAuthzSearcher.Close calls logIfNothingAuthorized, which emits a Warn log with namespace, group, resources, candidates and authorized counts whenever candidates>0 and authorized==0.\nConstraints: known imprecision (accepted, not fixed): if FilterAuthorized hits a BatchCheck error mid-stream, candidates can be pulled without authorized being incremented, so this warning can also fire on an authz-backend error/cancellation, not just a true all-denied result — don't treat the log alone as proof of a permission gap, check for a concurrent BatchCheck error too.",
+  "applies": "pkg/storage/unified/search batch authorization filtering of search results",
+  "tags": [
+    "unified-storage",
+    "authz",
+    "logging",
+    "search"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "batchAuthzSearcher",
+      "hash": "sha256:fedc893b03ed937654d02504",
+      "line": 4314,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 19
+      }
+    },
+    {
+      "path": "pkg/storage/unified/search/bleve.go",
+      "symbol": "logIfNothingAuthorized",
+      "hash": "sha256:be864a83a519e777089b34f0",
+      "line": 4534,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 4,
+        "refs": 5
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132750"
+  },
+  "created": "2026-10-04T06:35:54.435Z",
+  "verified": "2026-10-04T06:35:54.435Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "distinguish-field-has-limited-capability-warn-flag-gated-fro",
+    "selectable-field-filters-must-be-checked-against-what-the-in",
+    "internal-bleve-index-fields-must-be-refused-in-every-field-n",
+    "large-int64-values-resource-version-must-be-stored-as-string"
+  ],
+  "says": [
+    "Search returns nothing even though items match the query",
+    "List shows empty results while matching documents exist",
+    "Permissions silently filter out every result from a search",
+    "Why does the search hide documents it found but can't authorize",
+    "Authorization secretly removes all matching search results"
+  ],
+  "saysFor": "1076:batchauthzsearcher-warns",
+  "search": "Warning log emitted when a search finds candidate documents but zero results are authorized, preventing silent empty-result gaps. The pkg/storage/unified/search/bleve.go:batchAuthzSearcher.Close method calls logIfNothingAuthorized to emit a Warn-level log with namespace, group, resources, and candidate/authorized counts whenever candidates > 0 and authorized == 0. Known imprecision: if FilterAuthorized encounters a BatchCheck error mid-stream, the warning can fire on authorization-backend failure rather than true all-denied, so don't treat the log alone as proof of a permission gap without checking for concurrent BatchCheck errors. Applies to pkg/storage/unified/search batch authorization filtering of search results."
+}

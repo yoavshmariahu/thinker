@@ -1,0 +1,61 @@
+{
+  "id": "feature-flags-edit-registry-go-only-regenerate-toggles-gen",
+  "title": "Feature flags: edit registry.go only, regenerate toggles_gen.*",
+  "kind": "rule",
+  "answers": [
+    "How do I add a new feature flag in Grafana?",
+    "Why do toggles_gen.go, toggles_gen.json and toggles_gen.csv all change for one flag?",
+    "Can I hand-edit toggles_gen.go to add a flag?",
+    "What files need to stay in sync when adding a feature toggle?"
+  ],
+  "body": "Feature flags are defined in a single source-of-truth list in pkg/services/featuremgmt/registry.go (the `FeatureFlag` struct literal with Name/Description/Stage/Owner/Expression/RequiresRestart/Generate). Adding or changing an entry there and running the generator produces matching updates in toggles_gen.go (FlagX constant), toggles_gen.json, and toggles_gen.csv. These three generated files must never be hand-edited directly — they must always match what registry.go would generate, or codegen checks fail. `Generate: {Go: true}` controls whether a Go constant is emitted; `RequiresRestart: true` is reflected into all three outputs.",
+  "applies": "Any change adding/modifying entries in pkg/services/featuremgmt/registry.go and the generated toggles_gen.* files",
+  "tags": [
+    "featuremgmt",
+    "feature-flags",
+    "codegen",
+    "grafana"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/featuremgmt/registry.go",
+      "hash": "sha256:852546db62485959e9d20a8f",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/featuremgmt/toggles_gen.go",
+      "hash": "sha256:5c6601852394ccb0ddb03112",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/featuremgmt/toggles_gen.json",
+      "hash": "sha256:5d896ac75bfbd34342b11ad6",
+      "missing": false
+    },
+    {
+      "path": "pkg/services/featuremgmt/toggles_gen.csv",
+      "hash": "sha256:f2f2940f1531357f0cf1a897",
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132776"
+  },
+  "created": "2026-10-04T06:32:42.704Z",
+  "verified": "2026-10-04T06:32:42.704Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "I edited the generated toggles file but my changes were overwritten",
+    "Adding a new feature flag requires updating multiple configuration files",
+    "How do I add or enable a new feature toggle",
+    "Feature toggle registry changes aren't reflected in generated output files",
+    "Hand-editing feature toggle definitions causes codegen failures"
+  ],
+  "saysFor": "700:feature-flags-edit-regis",
+  "search": "Feature flags are defined in a single source of truth: pkg/services/featuremgmt/registry.go, where FeatureFlag struct literals contain Name, Description, Stage, Owner, Expression, RequiresRestart, and Generate fields. Running the code generator produces toggles_gen.go (FlagX constants), toggles_gen.json, and toggles_gen.csv; these three generated files must never be hand-edited directly or codegen validation fails. The Generate: {Go: true} field controls whether a Go constant is emitted; RequiresRestart: true affects all three generated outputs. Applies to any addition or modification of feature flag entries in registry.go and regeneration of the three toggles_gen.* files."
+}

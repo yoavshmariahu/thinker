@@ -46,5 +46,6 @@
     "Endpoint custom actions need OpenAPI annotations",
     "Input validation lives in wrong place in endpoint"
   ],
-  "saysFor": "773:serializer-openapi-annot"
+  "saysFor": "773:serializer-openapi-annot",
+  "search": "DRF endpoint validation and OpenAPI generation: put all field/object validation in serializer validate_<field> or validate methods, never in viewset methods. Prefer @validated_request mixin over manual is_valid() + @extend_schema. Every custom @action requires @extend_schema or @validated_request (or OpenAPI finds zero parameters); plain ViewSet methods need manual annotations; ModelViewSet with serializer_class auto-discovers. All fields need help_text; SerializerMethodField needs @extend_schema_field. Errors use OpenApiResponse(response=ErrorSerializer); list endpoints must declare pagination. Applies to endpoints feeding OpenAPI/TS client generation. Source: posthog/api/mixins.py:validated_request, .agents/skills/improving-drf-endpoints/SKILL.md (check file for full checklist as only part was reviewed)."
 }

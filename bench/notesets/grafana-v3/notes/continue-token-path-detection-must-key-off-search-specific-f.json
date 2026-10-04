@@ -1,0 +1,56 @@
+{
+  "id": "continue-token-path-detection-must-key-off-search-specific-f",
+  "title": "Continue-token path detection must key off search-specific fields, not absence of store fields",
+  "kind": "rule",
+  "answers": [
+    "Why did a client get a 400 continuing a paginated LIST after the routing gate changed mid-rollout?",
+    "How do I tell whether a ListRequest continue token came from the search path or the store/SQL scan path?",
+    "Why does tokenFromOtherListPath check SearchAfter/SearchBefore instead of Name/Namespace?"
+  ],
+  "body": "Symptom: a client mid-pagination on the store scan got its next page rejected (or silently restarted) once the routing gate started picking search for the same request shape. Root cause: pkg/storage/unified/resource/list_with_selectors.go:tokenFromOtherListPath originally inferred a store-scan token from Name/Namespace being empty, but the SQL backend's token encodes only a row offset and has no Name either, so it was misclassified as a search token. Fix pattern: detect the search path positively (len(token.SearchAfter)>0 || len(token.SearchBefore)>0) since search always sorts by at least title_phrase and name and so always has sort values; treat everything else as a store token. Constraints: a client that started paging on the store scan must stay on the store scan for the rest of that page sequence (checked via req.NextPageToken before routing); the reverse (search token hitting a store-only build) still correctly 400s, since that only happens on rollback and the client retries fresh.",
+  "applies": "pkg/storage/unified/resource continue-token handling across search and store/SQL list paths",
+  "tags": [
+    "unified-storage",
+    "list",
+    "pagination",
+    "continue-token",
+    "rollout-safety"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/list_with_selectors.go",
+      "symbol": "tokenFromOtherListPath",
+      "hash": "sha256:81b4c1d4dbf6fe5b7a486116",
+      "line": 301,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 9,
+        "refs": 10
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132991"
+  },
+  "created": "2026-10-04T06:00:43.195Z",
+  "verified": "2026-10-04T06:00:43.195Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "list-falls-back-from-search-to-store-scan-only-on-the-first",
+    "search-backed-list-must-emit-continuation-token-when-auth-fi"
+  ],
+  "says": [
+    "Pagination breaks with 400 when routing gate switches mid-rollout",
+    "Next page fails after store gets replaced with search",
+    "Client's continue token rejected when gateway routes differently",
+    "Safely migrate pagination from one backend to another",
+    "Token becomes invalid changing pagination from store to search"
+  ],
+  "saysFor": "1096:continue-token-path-dete",
+  "search": "Continue-token path detection must positively identify search tokens by presence of sort fields (len(token.SearchAfter)>0 || len(token.SearchBefore)>0), not by absence of store fields like empty Name/Namespace. Original code misclassified SQL backend tokens as search tokens because both lack Name fields; search always sorts by at least title_phrase and name, so search tokens always carry sort values. Constraint: a client mid-pagination on store scan must stay on store scan for the entire sequence (enforced via req.NextPageToken before routing); the reverse case (search token hitting store-only build) correctly 400s on rollback and client retries fresh. Applies when handling pagination tokens across search and store/SQL list code paths. Path: pkg/storage/unified/resource/list_with_selectors.go:tokenFromOtherListPath."
+}

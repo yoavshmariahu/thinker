@@ -1,0 +1,128 @@
+{
+  "id": "datastore-batchdelete-is-the-exported-bulk-delete-api-use-it",
+  "title": "dataStore.BatchDelete is the exported bulk-delete API; use it instead of looping Delete",
+  "kind": "rule",
+  "answers": [
+    "how to delete many kv keys efficiently",
+    "where is the batch delete API for the unified storage kv store",
+    "should I call dataStore.Delete in a loop for pruning/rollback",
+    "BatchDelete vs batchDelete naming"
+  ],
+  "body": "Fix pattern: dataStore.batchDelete was renamed to the exported dataStore.BatchDelete (pkg/storage/unified/resource/datastore.go) and is now the single bulk-delete path used by history pruning (storage_backend.go kvStorageBackend.pruneEvents), garbage collection, bulk rollback, and TenantDeleter, replacing per-key Delete calls in a loop.\nConstraints: BatchDelete internally chunks into dataBatchSize-sized batches via slices.Chunk; callers should collect keys and call BatchDelete once rather than calling dataStore.Delete per key, to avoid issuing one kv delete per item.",
+  "applies": "pkg/storage/unified/resource/datastore.go BatchDelete and its callers across resource package",
+  "tags": [
+    "unified-storage",
+    "kv-store",
+    "convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/storage/unified/resource/datastore.go",
+      "symbol": "dataStore",
+      "hash": "sha256:04b0a87fcc49374ae6cd3cb4",
+      "line": 58,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 177
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/datastore.go",
+      "symbol": "Delete",
+      "hash": "sha256:b0b910610d3487dafd29c9a9",
+      "line": 597,
+      "missing": false,
+      "fanout": {
+        "files": 558,
+        "sites": 952,
+        "refs": 1731
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/datastore.go",
+      "symbol": "BatchDelete",
+      "hash": "sha256:db536a0200941665979e785e",
+      "line": 608,
+      "missing": false,
+      "fanout": {
+        "files": 16,
+        "sites": 26,
+        "refs": 40
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/datastore.go",
+      "symbol": "dataBatchSize",
+      "hash": "sha256:27aae520aa92269897c19ca6",
+      "line": 52,
+      "missing": false,
+      "fanout": {
+        "files": 3,
+        "sites": 0,
+        "refs": 16
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/storage_backend.go",
+      "symbol": "kvStorageBackend",
+      "hash": "sha256:2f8eafde978396cefa9b70ab",
+      "line": 81,
+      "missing": false,
+      "fanout": {
+        "files": 11,
+        "sites": 0,
+        "refs": 103
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/dataStore.go",
+      "symbol": "BatchDelete",
+      "hash": "sha256:db536a0200941665979e785e",
+      "line": 608,
+      "missing": false,
+      "fanout": {
+        "files": 16,
+        "sites": 26,
+        "refs": 40
+      }
+    },
+    {
+      "path": "pkg/storage/unified/resource/dataStore.go",
+      "symbol": "Delete",
+      "hash": "sha256:b0b910610d3487dafd29c9a9",
+      "line": 597,
+      "missing": false,
+      "fanout": {
+        "files": 558,
+        "sites": 952,
+        "refs": 1731
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132830"
+  },
+  "created": "2026-10-04T06:23:48.846Z",
+  "verified": "2026-10-04T06:23:48.846Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "kv-backend-write-serialization-relies-solely-on-leases-not-o",
+    "per-resource-history-pruning-limit-must-cover-delete-recreat",
+    "kv-backend-conflict-metric-name-is-tied-to-an-external-ops-d"
+  ],
+  "says": [
+    "What is the best way to delete many records",
+    "How can I bulk delete storage items at once",
+    "Should I delete records one at a time",
+    "Deleting hundreds of items is slow and inefficient",
+    "Is there a batch operation for deleting records"
+  ],
+  "saysFor": "661:datastore-batchdelete-is",
+  "search": "BatchDelete is the exported bulk-delete API in dataStore; use it instead of looping individual Delete calls. BatchDelete internally chunks keys into dataBatchSize-sized batches via slices.Chunk, so callers must collect all keys and call BatchDelete once rather than issue one kv delete per item. This rule applies to bulk operations across the resource package: history pruning (kvStorageBackend.pruneEvents), garbage collection, bulk rollback, and TenantDeleter. The method is exported from pkg/storage/unified/resource/datastore.go; the prior unexported dataBatchSize constant governs chunk sizing. Tasks using this include refactoring loops that call dataStore.Delete per key into single BatchDelete calls."
+}

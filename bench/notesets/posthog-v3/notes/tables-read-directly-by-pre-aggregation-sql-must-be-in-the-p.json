@@ -42,5 +42,6 @@
     "New SQL table not available in tests",
     "Pre-aggregated table needs adding to schema"
   ],
-  "saysFor": "561:tables-read-directly-by-"
+  "saysFor": "561:tables-read-directly-by-",
+  "search": "ClickHouse tables accessed by pre-aggregation SQL must be registered in the pytest schema. When a job reads a table directly, add its CREATE statement to the table list in posthog/clickhouse/schema.py and regenerate matching snapshot entries (`test_create_table_query[...]` and `test_create_table_query_replicated_and_storage[...]`) in posthog/clickhouse/test/__snapshots__/test_schema.ambr. This constraint applies whenever adding or introducing new dependencies on ClickHouse tables in test environments; any SQL that reads a table in tests requires schema.py registration. Failure to register causes snapshot mismatch failures during test runs."
 }

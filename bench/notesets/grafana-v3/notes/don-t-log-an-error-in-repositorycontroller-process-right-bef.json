@@ -1,0 +1,76 @@
+{
+  "id": "don-t-log-an-error-in-repositorycontroller-process-right-bef",
+  "title": "Don't log an error in RepositoryController.process right before returning it",
+  "kind": "rule",
+  "answers": [
+    "Why is the same provisioning error logged twice?",
+    "Where should errors be logged in the repository reconcile loop?",
+    "Double logging of patch/connection/token errors in repository controller"
+  ],
+  "body": "Symptom: the same reconcile failure (e.g. 'failed to apply patches', 'retrieving connection', 'generating token for repository') appeared twice in logs.\nRoot cause: process() logged with logger.Error(...) and then also returned the error, which the caller at pkg/registry/apis/provisioning/controller/repository.go (the reconcile loop around RepositoryController.process's caller, see lines ~356-360 in history) already logs via the returned patchErr/err.\nFix pattern: when an error is going to be returned up the stack from process(), do not add a logger.Error call at the return site; let the single caller-side log statement own it. Only log locally (at Warn) when the error is being swallowed (not returned) so it would otherwise go unrecorded.\nConstraints: applies specifically to paths inside RepositoryController.process that return err to its caller; does not apply to the swallowed/user-caused branches, which must log locally since nothing else will.",
+  "applies": "pkg/registry/apis/provisioning/controller/repository.go RepositoryController.process and similar reconcile helpers",
+  "tags": [
+    "provisioning",
+    "logging",
+    "reconcile",
+    "code-review-convention"
+  ],
+  "deps": [
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "process",
+      "hash": "sha256:ed584b332812b252f1deb956",
+      "line": 780,
+      "missing": false,
+      "fanout": {
+        "files": 280,
+        "sites": 56,
+        "refs": 642
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "RepositoryController",
+      "hash": "sha256:1b1f9b79d557d23d596ca380",
+      "line": 54,
+      "missing": false,
+      "fanout": {
+        "files": 4,
+        "sites": 0,
+        "refs": 99
+      }
+    },
+    {
+      "path": "pkg/registry/apis/provisioning/controller/repository.go",
+      "symbol": "process",
+      "hash": "sha256:ed584b332812b252f1deb956",
+      "line": 780,
+      "missing": false,
+      "fanout": {
+        "files": 280,
+        "sites": 56,
+        "refs": 642
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#133004"
+  },
+  "created": "2026-10-04T05:59:51.939Z",
+  "verified": "2026-10-04T05:59:51.939Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "user-caused-token-errors-must-be-swallowed-with-status-patch"
+  ],
+  "says": [
+    "Why is the same provisioning error logged twice?",
+    "Where should errors be logged in the repository reconcile loop?",
+    "Double logging of patch/connection/token errors in repository controller"
+  ],
+  "saysFor": "1037:don-t-log-an-error-in-re",
+  "search": "Do not call logger.Error() inside RepositoryController.process() at the point where an error is returned up the call stack. The caller's reconcile loop (lines ~356-360 in pkg/registry/apis/provisioning/controller/repository.go) already logs returned errors, causing duplicate log entries for the same failure. Only log locally within process() if the error is being swallowed and not returned, otherwise the error goes unrecorded. Use logger.Warn() for locally-swallowed errors and let the single return-site caller own the Error log. Applies to reconcile helper patterns in pkg/registry/apis/provisioning/controller/repository.go."
+}

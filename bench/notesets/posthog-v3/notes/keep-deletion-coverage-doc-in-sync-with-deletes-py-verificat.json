@@ -52,5 +52,6 @@
     "ClickHouse deletion sweeps: what gets verified and how?",
     "Where are the gates that control deletion coverage checking?"
   ],
-  "saysFor": "704:keep-deletion-coverage-d"
+  "saysFor": "704:keep-deletion-coverage-d",
+  "search": "When modifying `mark_deletions_verified` survivor count handling in posthog/dags/deletes.py, synchronize changes to docs/internal/clickhouse-deletion-coverage.md (sweeps-section bullet about `deletes_job` and \"Known gaps\" entry). The `DeleteConfig.verification_max_execution_time` field description encodes gate/report semantics and must align with code behavior. Verification/gating semantic changes are covered by tests in posthog/dags/tests/test_deletes.py (test_marking_proceeds_when_the_check_does_not_come_back_clean) and end-to-end `delete_verified_at` assertions in test_full_job_person_deletes. Applies to: changes in deletes_job verification or gating logic."
 }

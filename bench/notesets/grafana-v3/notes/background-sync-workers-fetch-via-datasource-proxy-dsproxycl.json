@@ -1,0 +1,57 @@
+{
+  "id": "background-sync-workers-fetch-via-datasource-proxy-dsproxycl",
+  "title": "Background sync workers fetch via datasource proxy (dsproxyclient)",
+  "kind": "map",
+  "answers": [
+    "How should a background job fetch config from a datasource?",
+    "Where is the shared logic for proxying a sync-worker request through Grafana's datasource proxy?",
+    "Why doesn't ExternalAMSyncer / external ruler syncer manage its own HTTP transport anymore?"
+  ],
+  "body": "Background jobs that need to call out to a datasource (external ruler sync, external Alertmanager sync) go through pkg/services/ngalert/dsproxyclient.Client instead of building their own http.RoundTripper/validator. Client.Get(ctx, ds) builds a service-identity context+user, synthesizes a ReqContext, and calls proxy.ProxyDatasourceRequestWithUID, so TLS, auth, headers and egress/allow-deny-list validation all live in the datasource proxy service, not the caller. Status-code interpretation (e.g. what a 404 means) stays with each caller via the returned Result{Status,Body} since semantics differ per API.",
+  "applies": "ngalert background sync workers (or any new one) that need to fetch data from a Grafana datasource without a live user request.",
+  "tags": [
+    "ngalert",
+    "alerting",
+    "datasource-proxy",
+    "dsproxyclient"
+  ],
+  "deps": [
+    {
+      "path": "pkg/services/ngalert/dsproxyclient/client.go",
+      "symbol": "Client",
+      "hash": "sha256:fa37583ea8afd2c2affa7d6c",
+      "line": 38,
+      "missing": false,
+      "fanout": {
+        "files": 404,
+        "sites": 110,
+        "refs": 1120
+      }
+    },
+    {
+      "path": "pkg/services/ngalert/dsproxyclient/client.go",
+      "symbol": "New",
+      "hash": "sha256:8c980e8fd7e52139aafc313f",
+      "line": 54,
+      "missing": false
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "grafana/grafana#132749"
+  },
+  "created": "2026-10-04T06:36:29.758Z",
+  "verified": "2026-10-04T06:36:29.758Z",
+  "verifiedCommit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [],
+  "says": [
+    "How should a background job fetch configuration from a datasource?",
+    "Where is the shared logic for routing requests through datasource proxy?",
+    "How do background sync workers authenticate with external datasources?"
+  ],
+  "saysFor": "676:background-sync-workers-",
+  "search": "Background sync workers (external ruler sync, external Alertmanager sync) must fetch datasource data via pkg/services/ngalert/dsproxyclient.Client rather than building custom http.RoundTripper/validators. Client.Get(ctx, ds) synthesizes service identity, builds a ReqContext, and calls proxy.ProxyDatasourceRequestWithUID, centralizing TLS, auth, headers, and validation logic in the datasource proxy service. Status-code interpretation (e.g. what 404 means) remains with each caller through the returned Result{Status,Body} since semantics differ per API. Applies to any ngalert background job that needs to call out to a Grafana datasource."
+}

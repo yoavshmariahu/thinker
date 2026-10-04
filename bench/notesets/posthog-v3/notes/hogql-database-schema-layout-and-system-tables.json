@@ -1,7 +1,7 @@
 {
   "id": "hogql-database-schema-layout-and-system-tables",
   "title": "HogQL database schema layout and system tables",
-  "kind": "overview",
+  "kind": "map",
   "answers": [
     "Where are HogQL tables and fields defined?",
     "How are system tables registered?",
@@ -24,8 +24,8 @@
     {
       "path": "posthog/hogql/database/database.py",
       "symbol": "_construct_database_root_node",
-      "hash": "sha256:6f04df8a45364554081031fe",
-      "line": 515,
+      "hash": "sha256:5a39a96367c0c4c9e0a0cd16",
+      "line": 524,
       "missing": false
     },
     {
@@ -55,9 +55,10 @@
     {
       "path": "posthog/hogql/database/database.py",
       "symbol": "SystemTables",
-      "hash": "sha256:b46acdae140b104e7dfd68af",
+      "hash": "sha256:1b0a11f2c12a7484cda75390",
       "line": 641,
-      "missing": false
+      "missing": false,
+      "symbolMissing": true
     }
   ],
   "source": {
@@ -80,5 +81,6 @@
     "Who can access what data tables?",
     "What columns and fields are available to use?"
   ],
-  "saysFor": "1397:hogql-database-schema-la"
+  "saysFor": "1397:hogql-database-schema-la",
+  "search": "HogQL database schema uses layered building blocks from database/models.py (FieldOrTable, DatabaseField subclasses, Table, LazyTable, VirtualTable, FunctionCallTable, TableNode, DANGEROUS_NoTeamIdCheckTable) to construct and catalog the database. The root table tree is frozen via ROOT_TABLES__DO_NOT_ADD_ANY_MORE in database/database.py:_construct_database_root_node; new non-system tables must go to the posthog node under the \"# Add new tables here\" marker. System tables (PostgresTable constants or ClickHouse-native like IngestionWarningsTable) are registered in SystemTables.children; per-team access is filtered via _compute_system_table_access_decision to remove unentitled or denied tables. PostgresTable configuration includes access_scope (must be static due to process caching in _scoped_system_tables), required_feature_on_cloud, access_control_id_field, retention_field, and predicates. Every table and field must have a description attribute for exposure via schema/information_schema.py and documentation in schema/AGENTS.md."
 }
