@@ -1,0 +1,22 @@
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      THINKER_TELEMETRY: 'off'
+      THINKER_NO_AUTO_UPDATE: '1'
+      THINKER_NO_LEARN: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test

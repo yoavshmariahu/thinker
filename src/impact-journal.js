@@ -15,7 +15,7 @@ export function impactFile(store) {
 export function appendImpact(store, event) {
   const file = impactFile(store);
   if (!file) throw new Error('Impact recording is disabled by THINKER_LOG=off');
-  const record = { ...event, schema: 1, eventId: event.eventId || crypto.randomUUID(), t: new Date(event.t || Date.now()).toISOString(), origin: repoId(store.repo) };
+  const record = { ...event, schema: 1, eventId: event.eventId || crypto.randomUUID(), t: new Date(event.t || Date.now()).toISOString(), origin: repoId(store.repo), checkout: store.repo };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   // Local-mode evidence can contain source excerpts and must not become shared cache content.
   try { fs.writeFileSync(path.join(path.dirname(file), '.gitignore'), '*\n', { flag: 'wx' }); } catch (e) { if (e.code !== 'EEXIST') throw e; }

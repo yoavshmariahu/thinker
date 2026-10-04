@@ -139,7 +139,15 @@ By default, the append-only schema-1 journal is at
 `THINKER_LOG=local` uses `.thinker/impact/`, and a custom log path uses its sibling
 `impact/` directory. `THINKER_LOG=off` disables recording. Read failures/corrupt
 records are reported rather than interpreted as zero work. The journal directory excludes itself from git. This data is not shared
-through the note cache or automatically sent to the telemetry endpoint.
+through the note cache or sent to the telemetry endpoint. Updated clients send only
+numeric 30-day aggregates in `delivery` telemetry: merged PR observations, token
+sums with complete-counter denominators, fixed bugs, decision counts, timing samples,
+fixed token-distribution buckets, and coverage. Repository/PR identifiers, titles,
+session IDs, paths, code, SHAs and finding evidence are never included. Existing
+telemetry opt-outs apply. Metadata still needs `thinker impact sync` to stay current.
+The Metabase **PR delivery & review** dashboard visualizes those summaries using
+the latest snapshot per known device, falling back to installation identity. Counts
+are observations, because several contributors can report the same team PR.
 
 ## Dashboard and comparison contract
 

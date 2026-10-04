@@ -12,6 +12,7 @@ import { summarize } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
 import { getDeviceId } from './device.js';
 import { detectClients } from './clients.js';
+import { deliveryMetrics } from './delivery-telemetry.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -185,6 +186,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     periodHours: (days || 1) * 24,
 
     cacheSize,
+
+    // 30-day outcome snapshots, regardless of the usage snapshot periodHours.
+    delivery: deliveryMetrics(store, { all }),
 
     // Explicit coverage keeps old logs and unsupported provider costs unknown.
     // SQL dashboards read this versioned block from reports.raw_json.

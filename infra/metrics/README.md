@@ -71,7 +71,7 @@ node scripts/metrics-dashboard.mjs login
 
 Open **http://localhost:3030** and use the printed login. The **Thinker metrics**
 collection contains **Cache & distillation performance**, **Telemetry diagnostics**,
-and **Waitlist** dashboards with saved SQL queries. Choose
+**PR delivery & review**, and **Waitlist** dashboards with saved SQL queries. Choose
 **New → SQL query → Thinker telemetry (read-only)** to write your own SQL, save
 results, chart them, or export CSV. `start` prints the direct dashboard URLs.
 All dashboards have platform, version, device ID, and report-type filters.
@@ -304,3 +304,45 @@ still requires a real PostgreSQL round trip and a live endpoint check.
 
 AWS references: [private database tunnels](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-sessions-start.html),
 [Lambda RDS TLS certificates](https://docs.aws.amazon.com/lambda/latest/dg/services-rds.html).
+
+## PR delivery and review (delivery schema 1)
+
+Updated clients include `raw_json.delivery`, a numeric 30-day snapshot independent
+of the outer daily usage `periodHours`. The existing JSONB ingestion preserves it;
+no Lambda or PostgreSQL schema migration is needed. Existing clients without the
+block remain unknown, not zero. `thinker impact sync` refreshes GitHub PR lifecycle
+metadata locally before reporting. Telemetry neither fetches GitHub nor uploads
+PR identities, source excerpts, titles, session IDs or confirmation text.
+
+**PR delivery & review** includes merged PR observations, weighted mean tokens per
+complete-counter PR, human-confirmed fixes before merge, token coverage and token
+histograms, review decision counts, observed merge duration, cache participation,
+and missing/unassigned evidence. All-time underlying work for merges in the last
+30 days is included; repository overhead covers that same 30-day period.
+
+Queries choose the latest installation snapshot per known device, falling back to
+installation identity. They do not add hourly overlapping uploads. Daily trend
+points likewise select one snapshot per source per day and represent overlapping
+30-day windows, not daily event totals. Two contributors can report the same PR,
+so counts are labeled observations rather than unique global PRs. Separate local
+journals for several worktrees of one repository use the checkout with most linked
+evidence; consolidating exports gives more complete measurements.
+
+Token averages use sum of complete PR tokens / complete PR observations, never an
+average of medians. Coverage means complete counters for the recorded linked work,
+not certainty every contributor/subagent was recorded. Fixed bugs require a local
+human decision and a fixing commit within the PR and timing window. Cache support
+is provenance, not a claim that a review without cache would miss the issue.
+
+Refresh existing dashboards without restarting Docker:
+
+```sh
+node scripts/metrics-dashboard.mjs refresh
+node scripts/metrics-dashboard.mjs verify
+```
+
+`THINKER_DASHBOARD_WORK` can select the existing private dashboard state directory
+when operating from an isolated worktree. Refresh adds the delivery dashboard and
+preserves the existing performance/diagnostics/waitlist layouts. Verification
+executes every saved query, validates filter mappings and checks read-only TLS.
+No test or demo payload is sent to production to populate the charts.
