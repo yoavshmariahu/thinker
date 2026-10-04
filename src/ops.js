@@ -250,13 +250,18 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // budget) is a deliberate question and keeps the lexical ranking
   const ceCfg = ceConfig(store);
   let lexical = ranked; // what the lexical ranking held before the cross-encoder: the dropped candidates are still listed by title (`more`)
+  // the hooks serve no stale note (freshOnly): the cross-encoder chooses among the fresh candidates, or its one
+  // pick could be a stale note and nothing would be served; the stale notes the lexical top would have served
+  // are still held and verified below
+  const heldByLexical = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
   if (ceCfg.enabled && ranked.length && maxNotes <= 2) {
+    if (freshOnly) ranked = ranked.filter(r => r.note.status !== 'stale');
     try { ranked = await ceRerank(ranked, task, ceCfg); chosen = true; ce = ranked.map(r => Number(r.ce.toFixed(2))); if (ranked.some(r => r.fallback)) ce.push('fallback'); maxNotes = Math.min(maxNotes, ceCfg.maxNotes || maxNotes); }
     catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); } // no runtime or model: the lexical ranking serves as before
   }
   if (rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
   // what would have been served had staleness not held it back: verified below, as if it had been
-  const held = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
+  const held = freshOnly ? [...new Set([...heldByLexical, ...ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note)])] : [];
   const servable = freshOnly ? ranked.filter(r => r.note.status !== 'stale') : ranked;
   let top = servable.slice(0, maxNotes).filter((r, i) => i < 2 || r.rel >= relFloor * servable[0].rel);
   // cross-note links: pull in one note linked from the best hit when it has
