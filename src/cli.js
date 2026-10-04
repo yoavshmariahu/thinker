@@ -147,7 +147,8 @@ const HELP = `thinker — knowledge cache for coding agents
   branch                         show current branch or ref
   upgrade                        alias for update
   rewire [--here] [--dry]        rewrite the hooks and MCP entries of your agent settings and of every checkout set up
-                                 on this machine for this version (update runs it; the prompt hook does it too)
+                                 on this machine for this version, and wire thinker into your settings for the agents
+                                 the checkouts wire (update runs it; the prompt hook does it for its own checkout)
   stats
   telemetry [--send] [--json] [--force] [--event name] [--schedule] [--unschedule] [--status]
                                  cache effectiveness and size metrics sent to the metrics service;

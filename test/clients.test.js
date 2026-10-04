@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { parseClients, installClient, uninstallClients, uninstallWiring, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, refreshWiring, inferWiring } from '../src/clients.js';
+import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, refreshWiring, inferWiring } from '../src/clients.js';
 import { installGitHooks, preCommitHook } from '../src/git-hooks.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
@@ -545,4 +545,31 @@ test('a hook at user scope takes the checkout from the agent\'s input: notes whe
   assert.match(userHook('prompt', { session_id: 's8', prompt: PROMPT, cwd: dir }), /<thinker-cache>/);
   const log = fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse);
   assert.ok(log.some(l => l.op === 'prune' && l.removed[0].what === 'repo-scope'));
+});
+
+test('an update wires the user\'s settings from the checkouts: the agents they wire to this copy, with their options, once', () => {
+  const home = fakeHome();
+  inHome(home, () => {
+    const a = repo(), b = repo();
+    installClient('claude', { ...opts(a), learn: true, late: false, mcp: false });
+    installClient('claude', { ...opts(b), learn: false, late: true, mcp: true });
+    installClient('codex', { ...opts(b), learn: true });
+    // a checkout wired to another copy is not this copy's to speak for
+    const c = repo(); installClient('gemini', { ...opts(c), cli: otherInstall('0.0.1') + '/src/cli.js' });
+    const entry = { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')] };
+    const dry = connectFromCheckouts([a, b, c], { cli: CLI, mcpEntry: entry, dry: true });
+    assert.deepEqual(dry.map(d => [d.client, d.from, d.options]), [['claude', 2, { hooks: true, learn: true, late: true, mcp: true }], ['codex', 1, { hooks: true, learn: true, late: true, mcp: true }]]);
+    assert.ok(!fs.existsSync(path.join(home.HOME, '.claude', 'settings.json')), 'a dry run writes nothing');
+    const done = connectFromCheckouts([a, b, c], { cli: CLI, mcpEntry: entry });
+    assert.deepEqual(done.map(d => d.client), ['claude', 'codex']);
+    const claude = JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude', 'settings.json'), 'utf8')).hooks;
+    assert.ok(claude.UserPromptSubmit[0].hooks[0].command.endsWith('--client claude --user') && claude.Stop && claude.PostToolUse);
+    assert.ok(JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude.json'), 'utf8')).mcpServers.thinker);
+    assert.ok(fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8').includes('[hooks.state.'), 'Codex\'s user hooks are marked reviewed');
+    assert.ok(!fs.existsSync(path.join(home.HOME, '.gemini', 'settings.json')));
+    // and once: what is wired stays as it is
+    assert.deepEqual(connectFromCheckouts([a, b, c], { cli: CLI, mcpEntry: entry }), []);
+    // the checkouts keep their hooks until their next prompt moves them out (see the hook test above)
+    assert.ok(fs.existsSync(path.join(a, '.claude/settings.local.json')));
+  });
 });
