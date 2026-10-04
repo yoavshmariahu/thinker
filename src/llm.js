@@ -550,7 +550,7 @@ async function viaCli(opts) {
 
 const CLI_SYSTEM = 'Answer the request directly. No tools are available.';
 
-async function viaCliOnce({ system, prompt, model, schema, timeoutMs, onUsage }) {
+async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTokens, structuredRetries, timeoutMs, onUsage }) {
   // Run in an empty temp cwd so no project CLAUDE.md / MCP servers leak in.
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-llm-'));
   const resolved = resolveModel('claude', model);
@@ -563,7 +563,7 @@ async function viaCliOnce({ system, prompt, model, schema, timeoutMs, onUsage })
   if (schema) args.push('--json-schema', JSON.stringify(schema));
   try {
     const stdout = await new Promise((resolve, reject) => {
-      const p = spawn(findBin(BINS.claude) || 'claude', args, { cwd, env: { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' } });
+      const p = spawn(findBin(BINS.claude) || 'claude', args, { cwd, env: { ...process.env, THINKER_IN_LLM: '1', CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(maxTokens), ...(thinkingTokens === undefined ? {} : { MAX_THINKING_TOKENS: String(thinkingTokens) }), ...(structuredRetries === undefined ? {} : { MAX_STRUCTURED_OUTPUT_RETRIES: String(structuredRetries) }) } });
       let o = '', e = '';
       const timer = setTimeout(() => { p.kill('SIGKILL'); reject(new Error('claude -p timed out')); }, timeoutMs);
       p.stdout.on('data', d => o += d); p.stderr.on('data', d => e += d);

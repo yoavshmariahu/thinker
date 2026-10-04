@@ -151,7 +151,7 @@ test('assessments are logged under the session id, and older ones under a file n
     store.log({ op: 'orient', session: 'sess-1', task: 't', served: ['n1'], tokens: 10, est: [[1, 1000]] });
     recordEvent(store.dir, 'sess-1', { t: 'prompt', text: 'where is a' });
     for (let i = 0; i < 3; i++) recordEvent(store.dir, 'sess-1', { t: 'tool', name: 'Read', input: { file_path: 'a.js' }, result: 'x' });
-    recordEvent(store.dir, 'sess-1', { t: 'say', text: 'it is in a.js' });
+    recordEvent(store.dir, 'sess-1', { t: 'say', text: 'Following n1, I read a.js and confirmed its explanation.' });
   });
   const model = path.join(home, 'model.js');
   fs.writeFileSync(model, `process.stdin.resume(); process.stdin.on('end', () => console.log(JSON.stringify({ notes: [], assessments: [{ id: 'n1', verdict: 'confirmed', evidence: 'read a.js', correction: '' }] })));`);

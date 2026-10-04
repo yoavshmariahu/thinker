@@ -250,3 +250,19 @@ test('learn.sessions: false keeps session distillation off while maintenance goe
   // the environment switch is stronger: nothing runs
   assert.match(execFileSync('node', [CLI, 'learn', '--maintain', '--dry', '--repo', dir], { encoding: 'utf8', env: { ...env, THINKER_NO_LEARN: '1' } }), /switched off \(THINKER_NO_LEARN\)/);
 });
+
+test('incremental checkpoints retain the first appended event and an incomplete final record', () => {
+  const file = write([{ t: 'say', text: 'first' }]);
+  try {
+    const first = parseTranscript(file, { format: 'events' });
+    assert.equal(first.lineCount, 1);
+    fs.appendFileSync(file, JSON.stringify({ t: 'tool', name: 'Edit', input: { file_path: 'a.js' }, result: 'ok' }) + '\n');
+    const next = parseTranscript(file, { format: 'events', fromLine: first.lineCount });
+    assert.equal(next.events.length, 1); assert.equal(next.events[0].name, 'Edit');
+    fs.appendFileSync(file, '{"t":"say","text":');
+    const partial = parseTranscript(file, { format: 'events', fromLine: next.lineCount });
+    assert.equal(partial.lineCount, next.lineCount);
+    fs.appendFileSync(file, '"last"}\n');
+    assert.equal(parseTranscript(file, { format: 'events', fromLine: partial.lineCount }).events[0].text, 'last');
+  } finally { fs.rmSync(path.dirname(file), { recursive: true, force: true }); }
+});

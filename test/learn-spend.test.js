@@ -72,10 +72,11 @@ test('Claude Code gets a SessionEnd hook beside Stop when learning is on', () =>
 test('claude -p runs with its system prompt replaced, no settings and no skills', async () => {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-fakeclaude-')));
   const argsFile = path.join(dir, 'args.json');
-  fs.writeFileSync(path.join(dir, 'claude'), `#!/usr/bin/env node\nrequire('fs').writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2)));\nprocess.stdin.resume(); process.stdin.on('end', () => console.log(JSON.stringify({ result: 'ok', usage: {}, total_cost_usd: 0, model: 'claude-haiku-4-5' })));\n`);
+  fs.writeFileSync(path.join(dir, 'claude'), `#!/usr/bin/env node\nrequire('fs').writeFileSync(${JSON.stringify(argsFile)}, JSON.stringify(process.argv.slice(2))); require('fs').writeFileSync(${JSON.stringify(path.join(dir, 'env.json'))}, JSON.stringify({max:process.env.CLAUDE_CODE_MAX_OUTPUT_TOKENS,thinking:process.env.MAX_THINKING_TOKENS,retries:process.env.MAX_STRUCTURED_OUTPUT_RETRIES}));\nprocess.stdin.resume(); process.stdin.on('end', () => console.log(JSON.stringify({ result: 'ok', usage: {}, total_cost_usd: 0, model: 'claude-haiku-4-5' })));\n`);
   fs.chmodSync(path.join(dir, 'claude'), 0o755);
   await withEnv({ PATH: `${dir}${path.delimiter}${process.env.PATH}`, THINKER_LLM: 'claude', THINKER_LLM_CMD: undefined, ANTHROPIC_API_KEY: undefined, THINKER_QUIET: '1' }, async () => {
-    await complete({ system: 'You check notes.', prompt: 'hi', model: 'haiku' });
+    await complete({ system: 'You check notes.', prompt: 'hi', model: 'haiku', maxTokens: 1500, thinkingTokens: 0, structuredRetries: 1 });
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'env.json'), 'utf8')), { max: '1500', thinking: '0', retries: '1' });
     const args = JSON.parse(fs.readFileSync(argsFile, 'utf8'));
     assert.equal(args[args.indexOf('--system-prompt') + 1], 'You check notes.');
     assert.ok(!args.includes('--append-system-prompt'), 'appending kept ~7k tokens of agent instructions in every call');

@@ -304,6 +304,30 @@ cached input are counted alike. Older logs omitted tokens and setup exploration,
 so historical totals cannot establish full payback. A limited date range also excludes
 setup spending outside that period.
 
+Session learning uses the working agent's `remember` and `feedback` tools first:
+save a reusable finding while its evidence is already in context. Background
+learning selects at most 12,000 characters of evidence around edits, failures,
+corrections and the final answer. Routine exploration and cache hits alone do not
+trigger discovery. Notes are assessed only when discussed explicitly or when a
+failure/correction touches their dependencies; omitted evidence stays unknown,
+not “unused.” Only returned assessments are checkpointed as assessed.
+
+`learn.auditRate` in `.thinker/config.json` selects a stable sample of sessions
+(default 0.05) for the fuller, 70,000-character trace path. Set it to 0 to disable
+sampling, or 1 to audit every eligible session. Small, uneventful sessions still
+skip learning; `learn.quietExplore: 0` retains an explicit opt-in to processing
+every eligible session. The log records `learningMode` (`evidence`, `assessment`,
+`audit`, or `full`) and trace size so quality and spending can be compared.
+
+`thinker distill <transcript> --dry --evidence` previews the compact path;
+without `--evidence` or `--incremental`, an explicit distill uses the fuller trace
+as a fallback. Both dry runs call a model but save no notes. Compact discovery
+requests at most 3,000 output tokens, assessment alone 1,500, and full distillation
+6,000. Claude CLI receives these per-request output limits, disables optional
+thinking, and limits structured-output attempts; provider retries can still add
+usage. These bounds reduce input and output, not guarantee a measured saving or
+identical note quality.
+
 To evaluate a cheaper distillation model, compare the same transcripts with
 `thinker distill <transcript> --dry --model <model>`, then inspect usage and note quality.
 `--dry` still calls a model and records its usage, but does not save notes. The existing

@@ -219,24 +219,33 @@ export function distillSpec({ kinds = KINDS } = {}) {
   const system = DISTILL_SYSTEM + `\n\nDo not produce notes of these kinds: ${left.join(', ')}. This repository does not serve them (code search and git history answer what they would say); fold anything of theirs that matters into a note of another kind, or leave it out.`;
   return { system, schema };
 }
-export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], existing = [], kinds = KINDS, accounting } = {}) {
-  const trace = condense(events);
+export async function distillEvents(events, { model = 'sonnet', repoHint = '', served = [], existing = [], kinds = KINDS, accounting, evidence, discover = true, compact = false } = {}) {
+  const trace = evidence ?? condense(events);
   let prompt = `Repository: ${repoHint}\n\nSESSION TRACE (tool calls with truncated results):\n\n${trace}`;
   let { system, schema } = distillSpec({ kinds });
+  if (compact) {
+    system += '\nThe trace is selected evidence, not the full session. Omission never proves a note was unused. Return assessments only for explicit supporting evidence; omit unknown notes. Do not infer facts from missing context. Keep the response concise.';
+  }
+  if (!discover) {
+    system = 'Assess cached notes against the supplied evidence. Do not discover or write new notes. Return notes: []. Omission is not non-use; omit assessments without explicit evidence.';
+    schema.properties.notes.maxItems = 0;
+  }
   const servedIds = new Set(served.map(n => n.id));
-  const shown = existing.filter(n => !servedIds.has(n.id));
+  const shown = (discover ? existing : []).filter(n => !servedIds.has(n.id));
   if (shown.length) {
     system += EXISTING_RULES;
     prompt += `\n\nEXISTING NOTES ON THE FILES THIS SESSION TOUCHED:\n` + shown.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${(n.body || '').split('\n').slice(0, 3).join('\n').slice(0, 400)}`).join('\n\n');
   }
   if (served.length) {
     system += ASSESS_RULES; schema = { ...ASSESS_SCHEMA, properties: { ...ASSESS_SCHEMA.properties, notes: schema.properties.notes } };
-    prompt += `\n\nINJECTED NOTES TO ASSESS:\n` + served.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body}`).join('\n\n');
-    prompt += `\n\nProduce the notes JSON (new notes for reusable understanding this session established that the injected notes do not already cover) and one assessment per injected note.`;
+    prompt += `\n\nINJECTED NOTES TO ASSESS:\n` + served.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${compact ? (n.body || '').slice(0, 1200) : n.body}`).join('\n\n');
+    prompt += compact
+      ? `\n\nReturn ${discover ? 'reusable notes, if any,' : 'notes: [],'} and only assessments supported by explicit evidence. Omit unknown notes; never infer unused from this selection.`
+      : `\n\nProduce the notes JSON and one assessment per injected note.`;
   } else prompt += `\n\nProduce the notes JSON.`;
-  const res = await complete({ system, prompt, model, schema, maxTokens: 12000, accounting });
-  const notes = (res.json?.notes || []).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).slice(0, MAX_NOTES);
-  return { notes, assessments: res.json?.assessments || [], cost: res.cost, tokens: tokensOf(res), usage: res.usage, traceChars: trace.length };
+  const res = await complete({ system, prompt, model, schema, maxTokens: compact ? (discover ? 3000 : 1500) : 6000, thinkingTokens: 0, structuredRetries: 1, accounting });
+  const notes = (discover ? (res.json?.notes || []) : []).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).slice(0, MAX_NOTES);
+  return { notes, assessments: (res.json?.assessments || []).filter(a => servedIds.has(a.id) && ['confirmed', 'contradicted', 'unused'].includes(a.verdict) && (!compact || (['confirmed', 'contradicted'].includes(a.verdict) && String(a.evidence || '').trim()))), cost: res.cost, tokens: tokensOf(res), usage: res.usage, traceChars: trace.length };
 }
 
 function jaccard(a, b) {

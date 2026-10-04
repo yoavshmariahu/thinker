@@ -270,8 +270,10 @@ export function parseTranscript(file, { fromLine = 0, format } = {}) {
   if (fmt === 'gemini') { let j = {}; try { j = JSON.parse(text); } catch {} const r = parseGemini(j, fromLine); return { events: r.events, lineCount: r.count, cwd: r.cwd, model: r.model, format: fmt }; }
   const lines = text.split('\n');
   const rows = jsonLines(text);
+  // A trailing newline is the start of the next record, not a consumed record.
+  // Retry a partially written final record too, when it becomes valid JSON.
   const r = fmt === 'agy' ? parseAgy(rows, fromLine) : fmt === 'codex' ? parseCodex(rows, fromLine) : fmt === 'events' ? parseEvents(rows, fromLine) : parseMessages(rows, fromLine);
-  return { model: null, ...r, lineCount: lines.length, format: fmt };
+  return { model: null, ...r, lineCount: lines.length - (rows.at(-1) === null ? 1 : 0), format: fmt };
 }
 
 // The model of a session whose assessment did not record one (written before that was logged):

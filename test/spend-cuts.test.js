@@ -72,9 +72,9 @@ test('the hooks skip a quiet session, with a log line, and distill one with an e
   const row = (role, content) => JSON.stringify({ type: role, message: { role, content } });
   fs.writeFileSync(transcript, [row('user', 'where is f?'), row('assistant', [{ type: 'tool_use', id: 't1', name: 'Read', input: { file_path: 'src/a.js' } }]), row('user', [{ type: 'tool_result', tool_use_id: 't1', content: 'export function f' }]), row('assistant', [{ type: 'text', text: 'in src/a.js' }])].join('\n') + '\n');
   const o = execFileSync('node', [CLI, 'distill', transcript, '--incremental', '--session', 'q1', '--repo', dir], { encoding: 'utf8', env });
-  assert.match(o, /quiet session/);
+  assert.match(o, /no learning evidence/);
   const log = fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
-  assert.ok(log.some(l => l.op === 'distill-skipped' && l.reason === 'quiet'));
+  assert.ok(log.some(l => l.op === 'distill-skipped' && l.reason === 'no-learning-evidence'));
   assert.ok(!log.some(l => l.op === 'model'), 'no model call');
   // the same by hand (not incremental) is distilled
   const o2 = execFileSync('node', [CLI, 'distill', transcript, '--session', 'q1', '--repo', dir], { encoding: 'utf8', env });

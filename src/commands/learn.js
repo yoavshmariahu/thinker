@@ -1,3 +1,4 @@
+import { learningPlan } from '../learning-evidence.js';
 // The learning loop by hand and from the hooks: distilling sessions (distill, learn, record), one
 // maintenance run, verification, the exploration sessions of setup (seed), and mining merged pull
 // requests (mine-prs). The helpers take the dispatcher's context (cli.js) as their first argument.
@@ -6,7 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { cleanErrorMessage } from '../benchmark.js';
-import { parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, quietSession, QUIET_MIN_EXPLORE } from '../distill.js';
+import { parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, sessionStakes, QUIET_MIN_EXPLORE } from '../distill.js';
 import { available, provider, findBin, resolveModel, BINS } from '../llm.js';
 import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maintain.js';
 import { logModelUsage, streamModelUsage, normalizeModelUsage, formatTokens } from '../model-usage.js';
@@ -39,7 +40,7 @@ async function distillCommand(ctx) {
   const { pos, flags, repo, out } = ctx;
   let file = pos[0];
   if (!file) { file = transcriptsFor(repo)[0]; if (!file) { out('no transcript found for ' + repo); process.exit(1); } }
-  await distillFile(ctx, file, { minExplore: Number(flags['min-explore']) || 1, dry: !!flags.dry, model: flags.model, quiet: !!flags.quiet, incremental: !!flags.incremental, batch: !!flags.batch, format: flags.format, session: typeof flags.session === 'string' ? flags.session : undefined });
+  await distillFile(ctx, file, { minExplore: Number(flags['min-explore']) || 1, dry: !!flags.dry, model: flags.model, quiet: !!flags.quiet, incremental: !!flags.incremental, evidenceOnly: !!flags.evidence, batch: !!flags.batch, format: flags.format, session: typeof flags.session === 'string' ? flags.session : undefined });
   return;
 }
 
@@ -145,7 +146,7 @@ export async function learn(ctx, { days, idleMin, max, dry, quiet }) {
   } finally { if (!dry) fs.rmSync(lock, { force: true }); }
 }
 
-export async function distillFile(ctx, file, { minExplore, dry, model, quiet, incremental, batch, format, session, phase = 'learning' }) {
+export async function distillFile(ctx, file, { minExplore, dry, model, quiet, incremental, evidenceOnly, batch, format, session, phase = 'learning' }) {
   const { repo, store, out } = ctx;
   const stateDir = path.join(store.dir, 'state');
   const stateFile = path.join(stateDir, path.basename(file).replace(/\.jsonl?$/, '') + '.json');
@@ -164,26 +165,33 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   try { return await distillEventsToNotes(); } finally { if (incremental && !dry) fs.rmSync(lock, { force: true }); }
   async function distillEventsToNotes() {
   const n = exploreCount(events);
-  if (n < minExplore) { if (!quiet) out(`only ${n} exploration calls since last distill (<${minExplore}); nothing to distill`); return; }
+  if (n < minExplore && !(incremental && sessionStakes(events).any)) { if (!quiet) out(`only ${n} exploration calls since last distill (<${minExplore}); nothing to distill`); return; }
   if (!events.some(e => e.t === 'say')) { if (!quiet) out('the session has no answer from the agent yet; nothing to distill'); return; }
   // notes served in this session: named in the transcript, or recorded on the note when a hook served it
   const ids = new Set(injectedIds(file, { fromLine }));
   if (session) for (const n of store.list()) if ((n.servedIn || []).includes(session)) ids.add(n.id);
-  const served = [...ids].filter(id => !(incremental && (state.assessed || []).includes(id))).map(id => store.get(id)).filter(Boolean);
-  // a quiet session: nothing served to assess, no edit, no failure, no correction, little exploration.
-  // Distilling it is a model call that rarely yields; the hooks skip it (learn.quietExplore: 0 keeps all)
-  const quietAt = store.config().learn?.quietExplore ?? QUIET_MIN_EXPLORE;
-  if (incremental && quietSession(events, { served: served.length, minExplore: quietAt })) {
-    store.log({ op: 'distill-skipped', reason: 'quiet', transcript: path.basename(file), explore: n, session });
-    if (!quiet) out(`quiet session (${n} exploration calls, nothing edited, failed or corrected, nothing served); nothing to distill`);
+  let served = [...ids].filter(id => !(incremental && (state.assessed || []).includes(id))).map(id => store.get(id)).filter(Boolean);
+  // Separate discovery from assessment: a serving alone warrants neither a model call
+  // nor a usefulness verdict. Unselected evidence stays unknown.
+  const config = store.config().learn || {};
+  const plan = incremental || evidenceOnly ? learningPlan(events, { served, repo, key: session || path.basename(file),
+    auditRate: evidenceOnly ? 0 : config.auditRate, minExplore: config.quietExplore ?? QUIET_MIN_EXPLORE }) : null;
+  if (plan?.mode === 'skip') {
+    store.log({ op: 'distill-skipped', reason: 'no-learning-evidence', transcript: path.basename(file), explore: n, session });
+    if (!dry) {
+      fs.mkdirSync(stateDir, { recursive: true });
+      fs.writeFileSync(stateFile, JSON.stringify({ ...state, line: lineCount, at: new Date().toISOString() }));
+    }
+    if (!quiet) out('no learning evidence; no model call');
     return;
   }
+  if (plan) served = plan.served;
   // the kinds worth a note here: what is served, and what review reads from the archive (ops.js:distillKinds)
   const kinds = distillKinds(store);
   const started = performance.now();
   let failed = true;
   try {
-  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, existing: relatedNotes(store, events), kinds, accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
+  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, existing: relatedNotes(store, events, { max: plan ? 4 : 12 }), kinds, ...(plan ? { evidence: plan.trace, discover: plan.discover, compact: plan.mode !== 'audit' } : {}), accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, learningMode: plan?.mode || 'full', evidenceChars: plan?.trace.length, dry: !!dry } });
   if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, ${r.tokens == null ? 'tokens not reported' : '~' + formatTokens(r.tokens) + ' tokens'}, trace ${r.traceChars} chars)`); return; }
   const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') }, kinds });
   // under the session's id, which is what servings are logged under: a transcript's file name is
@@ -192,8 +200,8 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   const applied = attest(store, r.assessments, { session: session || sessionKey(path.basename(file)), client: fmt === 'agy' ? 'gemini' : fmt === 'events' ? 'trace' : fmt, model: sessionModel });
   if (!quiet) for (const a of applied) out(`attest  ${a.verdict.padEnd(12)} ${a.id} → c=${Math.round(a.confidence * 100)}%`);
   fs.mkdirSync(stateDir, { recursive: true });
-  fs.writeFileSync(stateFile, JSON.stringify({ line: lineCount, assessed: [...new Set([...(state.assessed || []), ...served.map(n => n.id)])], at: new Date().toISOString() }));
-  store.log({ op: 'distill', transcript: path.basename(file), explore: n, saved: s.saved.map(x => x.id), merged: s.merged.map(x => x.id), skipped: s.skipped, cost: r.cost, metered: true, phase, traceChars: r.traceChars });
+  fs.writeFileSync(stateFile, JSON.stringify({ line: lineCount, assessed: [...new Set([...(state.assessed || []), ...applied.map(n => n.id)])], at: new Date().toISOString() }));
+  store.log({ op: 'distill', transcript: path.basename(file), explore: n, saved: s.saved.map(x => x.id), merged: s.merged.map(x => x.id), skipped: s.skipped, cost: r.cost, metered: true, phase, learningMode: plan?.mode || 'full', traceChars: r.traceChars });
   if (!quiet) {
     for (const x of s.saved) out(`saved   ${x.id}  [${x.kind}] ${x.title}`);
     for (const x of s.merged) out(`merged  ${x.id}  [${x.kind}] ${x.title}`);

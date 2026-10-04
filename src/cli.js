@@ -117,11 +117,11 @@ const HELP = `thinker — knowledge cache for coding agents
                                  distill newly merged PRs; runs by itself from the hooks, under a daily cap
   phrase [ids...] [--model m] [--force]
                                  add to each note how a user would put it, in the words of the product (for retrieval)
-  distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--incremental [--batch]] [--dry] [--model m]
+  distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--incremental [--batch]] [--evidence] [--dry] [--model m]
                                  turn a session into notes; reads any of these agents' transcripts, or a plain event trace;
                                  --batch (end of a turn) leaves a small backlog for the end of the session
   learn [--days n] [--max n] [--idle-min n] [--prs [n]] [--maintain] [--dry]
-                                 distill every session any supported agent ran in this repo that has not been distilled yet;
+                                 learn from new session evidence (edits, failures, corrections), with sampled full-trace audits;
                                  --prs also mines merged pull requests that were not mined before (default 20)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   seed [--areas n] [--prompts f.json] [--agent a] [--dry]   bootstrap coverage: one exploration session per source area

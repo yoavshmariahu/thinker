@@ -10,6 +10,6 @@ export const CACHE_USAGE_GUIDE = `Use thinker as a map to the relevant code, the
 5. Once you know the entry point, affected paths, and constraints, edit and verify the behavior. Treat notes delivered after an edit as checks on that edit, not as a new reading list.`;
 
 // Benchmark runs expose only orient and lookup, so keep the learning tools separate.
-export const CACHE_LEARNING_GUIDE = `If a note was wrong, call feedback with its id and the correction. If you learned a reusable call path, rule, or gotcha through substantial investigation, call remember with concrete file:symbol dependencies. Do not save a one-off task summary.`;
+export const CACHE_LEARNING_GUIDE = `If a note was wrong, call feedback with its id and the correction. Save a reusable call path, rule, or gotcha with remember as soon as substantial investigation establishes it, while the evidence is in context. Include the reason, constraints, and concrete file:symbol dependencies. This is the primary learning path; background learning sees only selected evidence and may miss the discovery. Do not save a one-off task summary.`;
 
 export const MORE_NOTES_INTRO = 'Other cached titles. Use lookup only if one directly answers a question still open for this task:';
