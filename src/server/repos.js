@@ -14,27 +14,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync, execFile } from 'node:child_process';
-import { Store, sharedContent, LOCAL_FIELDS } from '../store.js';
+import { Store, LOCAL_FIELDS } from '../store.js';
 
-export const REPO_ID = /^[a-z0-9][a-z0-9.-]*(\/[a-z0-9._-]+)+$/i;
-export const NOTE_ID = /^[a-z0-9][a-z0-9-]*$/;
-export const digest = content => crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex').slice(0, 16);
-
-// What is synchronized of a note: its content (store.js:sharedContent) and what sessions anywhere
-// said about it. Not a checkout's own state (uses, servedIn, staleness against its working tree).
-// `status` travels beside it: a retired note is retired everywhere, a stale one only where it is stale.
-export const SYNC_FIELDS = ['attest', 'history'];
-export function syncContent(note) {
-  const out = sharedContent(note);
-  for (const k of SYNC_FIELDS) if (note[k] !== undefined && note[k] !== null) out[k] = note[k];
-  return out;
-}
-export function wire(note) {
-  const out = syncContent(note);
-  if (note.status === 'invalid') { out.status = 'invalid'; if (note.invalidReason) out.invalidReason = note.invalidReason; }
-  else out.status = 'fresh';
-  return out;
-}
+// the ids and the wire form of a note are shared with the client: sync-wire.js
+import { REPO_ID, NOTE_ID, digest, SYNC_FIELDS, syncContent, wire } from '../sync-wire.js';
+export { REPO_ID, NOTE_ID, digest, SYNC_FIELDS, syncContent, wire };
 
 const readJson = (f, d = null) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 function writeJson(file, value) {

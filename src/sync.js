@@ -19,7 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { repoId, LOCAL_FIELDS } from './store.js';
 import { prepareContent, contentErrors } from './share.js';
-import { wire, digest, REPO_ID } from './server/repos.js';
+import { wire, digest, REPO_ID } from './sync-wire.js';
 
 export const PULL_EVERY_MS = 5 * 60_000;
 
