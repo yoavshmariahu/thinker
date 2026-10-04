@@ -9,7 +9,7 @@ import { cleanErrorMessage } from '../benchmark.js';
 import { parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, quietSession, QUIET_MIN_EXPLORE } from '../distill.js';
 import { available, provider, findBin, resolveModel, BINS } from '../llm.js';
 import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maintain.js';
-import { logModelUsage, streamModelUsage } from '../model-usage.js';
+import { logModelUsage, streamModelUsage, normalizeModelUsage, formatTokens } from '../model-usage.js';
 import { refresh, attest, outcome, distillKinds } from '../ops.js';
 import { batchProgress, oneLine } from '../progress.js';
 import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs } from '../prs.js';
@@ -127,9 +127,9 @@ export async function learn(ctx, { days, idleMin, max, dry, quiet }) {
     for (const s of sessions) {
       const cap = withinDailyCap(store);
       if (!dry && !cap.ok) {
-        store.log({ op: 'distill-skipped', reason: 'dailyCap', spent: cap.spent, cap: cap.cap, left: sessions.length - done });
+        store.log({ op: 'distill-skipped', reason: 'dailyTokens', spent: cap.spent, cap: cap.cap, left: sessions.length - done });
         reportCapped(store, cap);
-        if (!quiet) out(`stopping: $${cap.spent.toFixed(2)} of the $${cap.cap.toFixed(2)} daily cap is spent (maintain.dailyCap in .thinker/config.json)`);
+        if (!quiet) out(`stopping: ${formatTokens(cap.spent)} of the ${formatTokens(cap.cap)} tokens learning may use a day are used (maintain.dailyTokens in .thinker/config.json)`);
         break;
       }
       let state = {}; try { state = JSON.parse(fs.readFileSync(path.join(store.dir, 'state', path.basename(s.file).replace(/\.jsonl?$/, '') + '.json'), 'utf8')); } catch {}
@@ -184,7 +184,7 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   let failed = true;
   try {
   const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, existing: relatedNotes(store, events), kinds, accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, dry: !!dry } });
-  if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, cost ${r.cost == null ? 'unknown' : '$' + r.cost.toFixed(3)}, trace ${r.traceChars} chars)`); return; }
+  if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, ${r.tokens == null ? 'tokens not reported' : '~' + formatTokens(r.tokens) + ' tokens'}, trace ${r.traceChars} chars)`); return; }
   const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') }, kinds });
   // under the session's id, which is what servings are logged under: a transcript's file name is
   // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
@@ -198,10 +198,10 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
     for (const x of s.saved) out(`saved   ${x.id}  [${x.kind}] ${x.title}`);
     for (const x of s.merged) out(`merged  ${x.id}  [${x.kind}] ${x.title}`);
     for (const x of s.skipped) out(`skipped ${x.title}: ${x.reason}`);
-    out(`distilled ${events.length} events (${n} exploration calls) → ${s.saved.length} new, ${s.merged.length} merged${r.cost ? `; cost $${r.cost.toFixed(3)}` : ""}`);
+    out(`distilled ${events.length} events (${n} exploration calls) → ${s.saved.length} new, ${s.merged.length} merged${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}`);
   }
   failed = false;
-  return { notes: [...s.saved, ...s.merged].map(n => n.id), cost: r.cost || 0 };
+  return { notes: [...s.saved, ...s.merged].map(n => n.id), cost: r.cost || 0, tokens: r.tokens || 0 };
   } finally {
     // One outcome for the whole run, including retries/fallbacks and persistence.
     // Skipped sessions never reach this block. Abrupt process kills remain unknown.
@@ -231,10 +231,10 @@ export async function seed(ctx, { areas, model, dry, prompts, agent }) {
   if (!activeAgent) {
     out('\n❌ cache init failed: no agent CLI found to explore with (claude, gemini, codex, or cursor).');
     process.exitCode = 1;
-    return { ok: 0, total: list.length, cost: 0, agent: null, failures: [{ area: 'all', error: 'no agent CLI found' }] };
+    return { ok: 0, total: list.length, tokens: 0, agent: null, failures: [{ area: 'all', error: 'no agent CLI found' }] };
   }
 
-  let cost = 0, ok = 0;
+  let tokens = 0, ok = 0;
   const failures = [];
   const progress = batchProgress({ dir: store.dir, name: 'Exploration', total: list.length, out, every: 1, verbose: Boolean(flags.verbose) });
   for (const a of list) {
@@ -285,10 +285,10 @@ export async function seed(ctx, { areas, model, dry, prompts, agent }) {
       }
     }
 
-    cost += r.cost || 0;
+    tokens += r.tokens || 0;
     try {
       const result = await distillFile(ctx, r.transcript, { minExplore: 1, dry: false, model: undefined, quiet: true, incremental: false, phase: 'init' });
-      cost += result?.cost || 0;
+      tokens += result?.tokens || 0;
       ok++;
       progress.complete({ notes: result?.notes || [], agent: activeAgent });
     } catch (e) {
@@ -298,9 +298,9 @@ export async function seed(ctx, { areas, model, dry, prompts, agent }) {
       if (r.temp) fs.rmSync(r.transcript, { force: true });
     }
   }
-  const result = progress.finish({ cost, retry: 'Check your agent login, then retry with: thinker seed (or thinker seed --agent <name>).' });
+  const result = progress.finish({ tokens, retry: 'Check your agent login, then retry with: thinker seed (or thinker seed --agent <name>).' });
   if (ok === 0 && list.length > 0) process.exitCode = 1;
-  return { ok, total: list.length, saved: result.saved, cost, agent: activeAgent, failures };
+  return { ok, total: list.length, saved: result.saved, tokens, agent: activeAgent, failures };
 }
 
 // the agent that explores: THINKER_LLM if it names one, else the first installed in fallback order (claude, gemini, codex, cursor)
@@ -317,6 +317,7 @@ export async function explore(ctx, agent, prompt, model) {
   let result;
   try {
     result = await exploreOnce(ctx, agent, prompt, model, fields => { response = { ...response, ...fields }; });
+    if (result && !result.error) result.tokens = normalizeModelUsage(agent, response.usage).totalTokens || 0;
     return result;
   } finally {
     logModelUsage(store, { purpose: 'explore', phase: 'init' }, { ...response, failed: !result || !!result.error });
@@ -410,7 +411,7 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
   if (!listed.length) {
     const sourceName = useGit ? 'git history' : `merged PRs of ${slug}`;
     out(`no ${sourceName} left to mine (${rec.mined.size} mined so far)`);
-    return { cost: 0, saved: 0 };
+    return { tokens: 0, saved: 0 };
   }
   const failed = new Set();
   const filtered = listed
@@ -424,13 +425,13 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
   const deferred = new Set(candidates.filter(p => !prs.includes(p)).map(p => p.number)); // candidates beyond this run's limit wait for the next one
   out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
   const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose) });
-  let cost = 0, saved = 0;
+  let tokens = 0, saved = 0;
   for (const pr of prs) {
     const refId = pr.prNumber ? `${recSlug}#${pr.prNumber}` : `${recSlug}#${pr.hash ? pr.hash.slice(0, 8) : pr.number}`;
     progress.start(pr.hash ? `commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
     try {
       const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo, accounting: { store, purpose: 'mine-prs', phase, pr: pr.number, dry: !!dry } });
-      cost += r.cost || 0;
+      tokens += r.tokens || 0;
       if (dry) { out(`${oneLine(refId)} ${oneLine(pr.title).slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || 'no reusable notes'}`); progress.complete({ proposed: r.notes }); continue; }
       const s2 = saveNotes(store, r.notes, { source: { type: 'pr', ref: refId } });
       saved += s2.saved.length + s2.merged.length;
@@ -440,10 +441,10 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
   // PRs the filter passed over are recorded too; failed ones and candidates deferred by the limit are not, so the next run takes them again
   if (!dry) {
     recordMinedPrs(store, recSlug, listed.filter(p => !failed.has(p.number) && !deferred.has(p.number)));
-    store.log({ op: 'mine-prs', slug: recSlug, prs: prs.length - failed.size, passed: listed.length - prs.length - deferred.size, deferred: deferred.size, saved, cost, metered: true, source: useGit ? 'git' : 'github' });
+    store.log({ op: 'mine-prs', slug: recSlug, prs: prs.length - failed.size, passed: listed.length - prs.length - deferred.size, deferred: deferred.size, saved, tokens, metered: true, source: useGit ? 'git' : 'github' });
   }
-  progress.finish({ cost, retry: 'Failed changes remain unmarked. Retry with: thinker mine-prs' });
-  return { cost, saved, failed: failed.size, processed: prs.length };
+  progress.finish({ tokens, retry: 'Failed changes remain unmarked. Retry with: thinker mine-prs' });
+  return { tokens, saved, failed: failed.size, processed: prs.length };
 }
 
 export const commands = {

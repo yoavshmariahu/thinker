@@ -5,9 +5,9 @@ figure out how X flows from A to B. `thinker` caches that understanding as
 short notes keyed to the code they describe, and serves the relevant ones
 into each request. When the code under a note changes, the note is flagged
 stale and re-verified in the background; the cache maintains itself, under a
-daily spend cap, without anyone running commands.
+daily token cap, without anyone running commands.
 
-**With Claude Fable on real tasks, the cache cut wall time, lowered token usage and cost, and raised the correctness score.**
+**With Claude Fable on real tasks, the cache cut wall time, lowered token usage, and raised the correctness score.**
 
 ```
 wall time            without thinker  ████████████████████  2.7 min
@@ -15,9 +15,6 @@ wall time            without thinker  ██████████████
 
 input tokens         without thinker  ████████████████████  1.25M
                      with thinker     ████████████████░░░░  1.02M   18% less tokens
-
-cost per task        without thinker  ████████████████████  $2.72
-                     with thinker     ██████████████████░░  $2.45   10% cheaper
 
 correctness score    without thinker  ████████████████░░░░  80%
                      with thinker     ██████████████████░░  89%     +10% improved
@@ -68,8 +65,10 @@ Notes:
 - **What it does.** Installs the tool under `~/.thinker`, builds a cache of
   notes from the repository's git history, merged pull requests and source
   areas, and wires it into the agents found on the machine.
-- **Cost.** Building costs roughly $9 of agent usage with the defaults. The
-  estimate is printed before anything runs.
+- **Usage.** Building runs through about 5.5M tokens of your agent's usage with
+  the defaults, most of them cached prompt reads, and takes about twenty
+  minutes. The estimate, in tokens and minutes, is printed before anything runs;
+  nothing is given in dollars, since the agent's login is often a subscription.
 - **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
   See [ONBOARDING.md](ONBOARDING.md) for all options.
 
@@ -108,7 +107,7 @@ code changes remain valid, and rewrites or removes notes that cannot be kept
 valid. Each changed note's original bytes are saved under
 `.thinker/local/quarantine/`. The hook changes the staged note and its working
 copy only when that copy has no separate unstaged edits. Model work can add
-latency and cost to a commit. `THINKER_NO_LEARN=1` disables this hook for
+latency and model calls to a commit. `THINKER_NO_LEARN=1` disables this hook for
 fixed-cache experiments.
 
 `pre-push` reports any issues left in the commits being pushed and **always
@@ -155,7 +154,7 @@ carries a file, a line, the evidence it rests on and the note it came from,
 when one does:
 
 ```
-thinker review: working tree against HEAD, 2 files; 3 notes consulted (2 on the changed code, 1 related), 3 assessed with sonnet ($0.19)
+thinker review: working tree against HEAD, 2 files; 3 notes consulted (2 on the changed code, 1 related), 3 assessed with sonnet (~60k tokens)
 
 Findings: 1 error, 1 warning, 0 info
   error    src/core.py:5  Command.invoke no longer calls validate(ctx); main dereferences ctx  [note validate-before-main, 90%]
@@ -200,7 +199,7 @@ cache is rewritten by a review; the change under review may never be merged.
 
 Measured on planted and reverted bugs in two repositories (`bench/RESULTS.md`,
 "Review strategies"), this caught 15 of 16 bugs with no false positive on the
-controls reached, at $0.16 to $0.25 and about two minutes a review through
+controls reached, in about 70k tokens and two minutes a review through
 Claude Code's CLI. `--max n` caps the notes shown (default 12, the ones on the
 changed code first), `--model` picks the model (`reviewModel` in
 `.thinker/config.json`, default `sonnet`), `--chunks n` reviews a large change
@@ -219,7 +218,7 @@ rather than served, and review still reads them: `thinker archive --list` shows 
 back, and `archive` in `.thinker/config.json` sets the rules or turns them
 off.
 
-## Cache cost and savings
+## Cache usage and savings
 
 Run `thinker usage --here` to compare this repository's cache spending with its
 estimated savings, or `thinker usage` for every repository on the machine.
@@ -240,20 +239,19 @@ spending against.
 
 The report separates cache initialization (exploration, PR mining, seed distillation
 and phrasings), ongoing session distillation, and maintenance. It records reported
-input/output tokens, provider prompt-cache reads/writes, dollar cost when available,
-and missing usage. Model calls that produce no notes, dry-run distillations, and
+input/output tokens, provider prompt-cache reads/writes, and missing usage. Model calls that produce no notes, dry-run distillations, and
 failed attempts count too. Tokens reported before an invalid model answer are retained;
-failures without counters remain unknown. No model pricing is guessed, and CLI dollar
-figures are provider-reported usage costs, not necessarily an extra subscription charge.
+failures without counters remain unknown. Nothing is given in dollars: the agents run on
+subscriptions as often as on metered keys, so a price from an API list would mislead.
 
 The token balance subtracts both injected notes and reported build/maintenance tokens
 from estimated file-reading tokens avoided. Savings still require a session assessment
-that the note was used. This is a token comparison, not measured dollar ROI: models and
-cached inputs have different prices. Older logs omitted tokens and setup exploration,
+that the note was used. This is a token comparison: tokens of different models and of
+cached input are counted alike. Older logs omitted tokens and setup exploration,
 so historical totals cannot establish full payback. A limited date range also excludes
 setup spending outside that period.
 
-To evaluate a less expensive distillation approach, compare the same transcripts with
+To evaluate a cheaper distillation model, compare the same transcripts with
 `thinker distill <transcript> --dry --model <model>`, then inspect usage and note quality.
 `--dry` still calls a model and records its usage, but does not save notes. The existing
 `distillModel` setting in `.thinker/config.json` chooses the default distiller for session
@@ -273,14 +271,13 @@ Real tasks from merged pull requests, each run with and without the cache. Evalu
 | | **Output tokens** | **11% less output** | **22% less output** | **11% less output** |
 | 🔍 **Tool Efficiency** | **Tool calls** | **17% fewer calls** | **22% fewer calls** | **18% fewer calls** (won 71% of tasks) |
 | | **File reads / exploration** | *(tracked in tool calls)* | **27% fewer file reads** | **14% less exploration** |
-| 💰 **Cost** | **Cost per task** | **10% cheaper** | **16% cheaper** | *(flat rate / subscription)* |
 | 🎯 **Correctness** | **Criteria accuracy** | **+10% improved** | **Parity** (0% diff) | **Parity** (within noise) |
 | | **Tasks fully solved** | **+33% more solved** | **Parity** (0% diff) | **Parity** (15 vs 16 solved) |
 
 ### Key Takeaways for Users
 
 - **⏱️ Timing:** Eliminates blind repo exploration and prevents rabbit holes, cutting wall time by **7% to 14%** (saving up to **100+ seconds** on complex Grafana tasks).
-- **🪙 Token Usage & Cost:** Pre-seeded architecture notes reduce input tokens and context re-reads by **18% to 21%**, directly lowering cost per task by **10% to 16%**.
+- **🪙 Token Usage:** Pre-seeded architecture notes reduce input tokens and context re-reads by **18% to 21%**.
 - **🔍 Tool Efficiency:** Reduces tool calls across every evaluated agent harness — Claude Code (**-17%**), Codex CLI (**-18%**, lower in 15 of 21 tasks), and Antigravity CLI (**-22%**).
 - **🎯 Correctness:** On frontier models (Claude Fable), thinker boosts overall correctness by **+10%** and lifts complete task passes from **45% to 60%** (+3 tasks). Fast and frontier models (Gemini Flash, GPT-6 Astra) maintain strict correctness parity (within single-run noise).
 

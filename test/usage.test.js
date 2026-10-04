@@ -57,7 +57,7 @@ test('usage is kept in one log for the machine and summarized across repositorie
     assert.deepEqual(here.assessed, { confirmed: 1, contradicted: 0, unused: 1, pending: 2 });
     assert.deepEqual({ calls: here.saved.calls, tokens: here.saved.tokens, servings: here.saved.servings }, { calls: 2, tokens: 7000, servings: 1 });
     assert.deepEqual(here.learned, { sessions: 1, notes: 1, merged: 1, prs: 3, prNotes: 2 });
-    assert.equal(here.spent, 0.26);
+    assert.equal(Math.round(here.spending.reportedCost * 100) / 100, 0.26, 'provider-reported cost stays in the data, never shown or estimated');
     assert.equal(here.top.find(t => t.id === 'n1').served, 2);
     assert.match(renderUsage(here), /about 2 reads avoided/);
 
@@ -196,46 +196,34 @@ test('turn notice sums what the whole turn served', () => {
   assert.equal(turnNotice(one.repo, [one.get('n2')]), '🧠 thinker: 1 note this turn (pointing at 1 file, ~1k tokens of code)');
 });
 
-test('both sides of the balance are priced at the model of the session, and what has no price is said', () => {
+test('the saving is counted by the model of the session, in tokens, and sessions that named no model are said', () => {
   const home = tmp('thinker-home-');
   withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, () => {
     const store = repoWith({ n1: ['b.js'], n2: ['b.js'], n3: ['b.js'] });
-    // a Claude Code session: 6,000 tokens of reading avoided at Fable's $10/M, 500 tokens injected
+    // a Claude Code session: 6,000 tokens of reading avoided, 500 tokens injected
     store.log({ op: 'orient', session: 'fable', client: 'claude', task: 't', served: ['n1'], tokens: 500, est: [[1, 6000]] });
     store.log({ op: 'attest', session: 'fable', client: 'claude', model: 'claude-fable-5-1', applied: [{ id: 'n1', verdict: 'confirmed' }] });
-    // a Codex session on a model with no price: confirmed, counted in tokens, not in dollars
+    // a Codex session: counted the same way, on its own model
     store.log({ op: 'orient', session: 'codex', client: 'codex', task: 't', served: ['n2'], tokens: 300, est: [[1, 6000]] });
     store.log({ op: 'attest', session: 'codex', client: 'codex', model: 'gpt-6-sol', applied: [{ id: 'n2', verdict: 'confirmed' }] });
     // an assessment that named no model
     store.log({ op: 'orient', session: 'old', task: 't', served: ['n3'], tokens: 200, est: [[1, 6000]] });
     store.log({ op: 'attest', session: 'old', applied: [{ id: 'n3', verdict: 'confirmed' }] });
-    // model work: reported, priced from tokens, and unpriceable
+    // model work with and without a provider-reported cost: the tokens are summed; the cost stays data
     store.log({ op: 'model', purpose: 'verify', phase: 'maintenance', provider: 'claude', model: 'claude-haiku-4-5', cost: 0.04, tokens: { inputTokens: 10000, outputTokens: 1000, totalTokens: 11000 } });
-    store.log({ op: 'model', purpose: 'verify', phase: 'maintenance', provider: 'claude', model: 'claude-haiku-4-5', cost: null, tokens: { inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalTokens: 1_000_000 } });
     store.log({ op: 'model', purpose: 'distill', phase: 'learning', provider: 'codex', model: 'gpt-6-sol', cost: null, tokens: { inputTokens: 1000, outputTokens: 100, totalTokens: 1100 } });
 
     const u = summarize(store);
     assert.equal(u.saved.servings, 3); assert.equal(u.saved.tokens, 18000);
-    assert.equal(u.saved.pricedServings, 1); assert.equal(u.saved.usd, 0.06);
-    assert.deepEqual(u.saved.byModel, { 'claude-fable-5-1': { servings: 1, tokens: 6000, usd: 0.06 } });
-    assert.equal(u.saved.unpricedServings, 2); assert.equal(u.saved.unpricedTokens, 12000);
-    assert.equal(u.injected.usd, 0.005); assert.equal(u.injected.pricedTokens, 500); assert.equal(u.injected.unpricedTokens, 500);
-    assert.equal(u.spending.reportedCost, 0.04); assert.equal(u.spending.estimatedCost, 1); assert.equal(u.spending.unpricedCalls, 1);
-    assert.equal(u.spending.cost, 1.04);
-    assert.equal(Math.round(u.saved.netUsd * 1000) / 1000, 0.06 - 0.005 - 1.04);
-    assert.equal(u.saved.pricingComplete, false);
+    assert.deepEqual(u.saved.byModel, { 'claude-fable-5-1': { servings: 1, tokens: 6000 }, 'gpt-6-sol': { servings: 1, tokens: 6000 }, unknown: { servings: 1, tokens: 6000 } });
+    assert.equal(u.spending.totalTokens, 12100); assert.equal(u.spending.reportedCost, 0.04); assert.equal(u.spending.unknownCostCalls, 1);
+    assert.equal(u.saved.netAfterSpend, 18000 - 1000 - 12100);
     const text = renderUsage(u);
-    assert.match(text, /in dollars\s+\$0\.06 at the input price .* \$0\.06 on claude-fable-5-1 \(1 servings\)/);
-    assert.match(text, /2 servings \(12,000 tokens\) not priced/);
-    assert.match(text, /\$1\.00 for the 1 unreported records on a model with a known price/);
-    assert.match(text, /in dollars\s+−\$0\.98 = \$0\.06 reading avoided − \$0\.01 notes injected − \$1\.04 model work \(\$0\.04 reported \+ \$1\.00 priced from tokens\)/);
-    assert.match(text, /Not in this balance.*2 confirmed servings, 500 injected tokens, 1 model records/);
-
-    // with the vendor's price given, the Codex session and record are priced too
-    fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ prices: { 'gpt-6-sol': { input: 5, output: 20 } } }));
-    const v = summarize(store);
-    assert.equal(v.saved.pricedServings, 2); assert.equal(v.saved.byModel['gpt-6-sol'].usd, 0.03);
-    assert.equal(v.spending.unpricedCalls, 0); assert.equal(Math.round(v.spending.estimatedCost * 1000) / 1000, 1.007);
+    assert.match(text, /by model\s+6,000 tokens on claude-fable-5-1 \(1 servings\), 6,000 tokens on gpt-6-sol \(1 servings\); 1 servings in sessions that named no model/);
+    assert.match(text, /after cache work\s+4,900 tokens/);
+    // nothing in dollars: the agents run on subscriptions as often as on metered keys, and a
+    // figure from API list prices told most people what they would not pay (2026-10-04)
+    assert.doesNotMatch(text, /\$|price|dollar/);
   });
 });
 

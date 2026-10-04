@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { complete } from './llm.js';
+import { tokensOf } from './model-usage.js';
 import { createNote, KINDS, kindOf, looksLikeCorrection } from './ops.js';
 import { tokenize, rank } from './rank.js';
 
@@ -235,7 +236,7 @@ export async function distillEvents(events, { model = 'sonnet', repoHint = '', s
   } else prompt += `\n\nProduce the notes JSON.`;
   const res = await complete({ system, prompt, model, schema, maxTokens: 12000, accounting });
   const notes = (res.json?.notes || []).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).slice(0, MAX_NOTES);
-  return { notes, assessments: res.json?.assessments || [], cost: res.cost, usage: res.usage, traceChars: trace.length };
+  return { notes, assessments: res.json?.assessments || [], cost: res.cost, tokens: tokensOf(res), usage: res.usage, traceChars: trace.length };
 }
 
 function jaccard(a, b) {

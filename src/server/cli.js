@@ -33,7 +33,7 @@ Environment: THINKER_SERVER_DATA, THINKER_SERVER_PORT, THINKER_SERVER_HOST,
   pull requests: write; the git token when unset), THINKER_SERVER_GITHUB_API (another
   GitHub API url, e.g. a local fake for testing), ANTHROPIC_API_KEY (the model that
   reviews pull requests; without it the first installed agent CLI with its login:
-  claude, codex, gemini, agent), THINKER_SERVER_DAILY_CAP (USD a day, default 5).
+  claude, codex, gemini, agent), THINKER_SERVER_DAILY_TOKENS (tokens of model usage a day, default 2,000,000).
 The server learns nothing itself: sessions are distilled on the checkouts and arrive
 here as notes.
 Commands other than start work on the data directory directly, so they can be run

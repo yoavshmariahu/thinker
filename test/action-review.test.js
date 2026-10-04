@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildReview, publish, MARKER } from '../action/review/post.mjs';
 
 const report = {
-  scope: 'working tree since origin/main', kinds: ['behavior'], model: 'sonnet', cost: 0.07,
+  scope: 'working tree since origin/main', kinds: ['behavior'], model: 'sonnet', cost: 0.07, tokens: 70000,
   notes: { consulted: 2, assessed: 2, staleBefore: [], outdated: [], uncovered: ['src/other.js'] },
   counts: { error: 1, warning: 1, info: 0 },
   behaviors: [
@@ -35,7 +35,7 @@ test('buildReview: findings on changed lines go inline, the rest and the behavio
   assert.match(r.body, /Findings not on a changed line/);
   assert.match(r.body, /\*\*warning\*\* `src\/core.py` behavior "x" is no longer upheld/);
   assert.match(r.body, /no desired behavior rests on `src\/other.js`/);
-  assert.match(r.body, /1 error, 1 warning, 0 info · 2 desired behaviors consulted, 2 assessed with sonnet \(\$0.07\)/);
+  assert.match(r.body, /1 error, 1 warning, 0 info · 2 desired behaviors consulted, 2 assessed with sonnet \(~70k tokens\)/);
   // fail-on
   assert.equal(buildReview(report, { failOn: 'none' }).fail, false);
   assert.equal(buildReview({ ...report, counts: { error: 0, warning: 1, info: 0 } }, { failOn: 'warning' }).fail, true);

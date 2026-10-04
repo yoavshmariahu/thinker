@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
+import { formatTokens } from './model-usage.js';
 
 export const oneLine = value => stripVTControlCharacters(String(value)).replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -41,9 +42,11 @@ export function batchProgress({ dir, name, total, out, verbose = false, every = 
       detail({ event: 'complete', item: current, notes, ...(error ? { error: String(error) } : {}), ...rest });
       if (completed < total && (completed === 1 || completed % every === 0)) out(`        ${status()}`);
     },
-    finish({ retry, cost = 0 } = {}) {
+    // `tokens`: what the agent reported using, summed over the batch, for the user's own sense of
+    // their usage; no dollar figure, since the agent's login may be a subscription
+    finish({ retry, tokens = 0 } = {}) {
       clearInterval(timer);
-      out(`        ${status()} · ${elapsed()}${cost ? ` · reported cost $${cost.toFixed(2)}` : ''}`);
+      out(`        ${status()} · ${elapsed()}${tokens ? ` · ~${formatTokens(tokens)} tokens of ${name === 'Exploration' ? 'agent' : 'model'} usage` : ''}`);
       if (failed) {
         const summary = [...reasons].slice(0, 3).map(([reason, count]) => `${reason} (${count})`).join('; ');
         out(`        Warning: ${summary}${reasons.size > 3 ? '; more errors in details' : ''}.`);

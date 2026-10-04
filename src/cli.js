@@ -123,7 +123,7 @@ const HELP = `thinker — knowledge cache for coding agents
   hook <prompt|tool|stop [--nudge]> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request, tool = notes about files being edited, stop = nudge + distill
   usage [--here] [--days n] [--json]
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
-                                 did with them, build/distillation tokens and reported cost, and estimated savings
+                                 did with them, build/distillation tokens, and estimated savings
                                  (--here: this repository only; history is kept in ~/.thinker/log.jsonl)
   benchmark pr [number] [--agent a] [--model m] [--budget n]
                                  run a paired benchmark on a recent PR change with vs without the cache

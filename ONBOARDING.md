@@ -10,7 +10,7 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.
   https://api.github.com/repos/yoavshmariahu/thinker/contents/install.sh | bash -s -- --cache gh:caches/<repo>.tgz
 ```
 
-If no cache was built for their repository, `--build` in place of `--cache …` builds one on their machine in the same step (about $9 of their Claude usage with the defaults; the estimate is printed first). With neither flag, the installer still sets the repository up and `thinker setup` asks whether to build the cache, defaulting to no.
+If no cache was built for their repository, `--build` in place of `--cache …` builds one on their machine in the same step (about 5.5M tokens of their Claude usage and twenty minutes with the defaults; the estimate is printed first, in tokens and minutes). With neither flag, the installer still sets the repository up and `thinker setup` asks whether to build the cache, defaulting to no.
 
 That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in the repository, checks every note against their checkout, and adds Claude Code hooks in `.claude/settings.local.json` that inject relevant notes into each request and distill each session into new notes when it ends (`--no-learn` leaves that out). Nothing else is changed and no `sudo` is used. Requirements: git, curl, tar, Node.js 20+.
 
@@ -23,7 +23,7 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--benchmark` | run the paired PR change benchmark during setup |
 | `--no-benchmark` | skip the paired PR benchmark step |
 | `--clients <list>` | agents to wire up: `claude`, `codex`, `cursor`, `gemini`, `all` or `auto` (default `auto`, except with `--no-build`); see "Supported agents" in `AGENTS.md` |
-| `--no-learn` | do not distill the user's own sessions into new notes. Learning is on by default for every agent wired up (uses that agent's login; about $0.05 per session with Claude Sonnet); switch it off for evals |
+| `--no-learn` | do not distill the user's own sessions into new notes. Learning is on by default for every agent wired up (uses that agent's login; about 25k tokens per session distilled); switch it off for evals |
 | `--late` | also serve notes about files as the agent opens them |
 | `--shared` | write hooks to `.claude/settings.json` so the whole team gets them on pull |
 | `--mcp` | also register the MCP server for the chosen agents (needs npm); always on for Cursor |
@@ -33,31 +33,18 @@ That installs the tool under `~/.thinker`, unpacks the cache into `.thinker/` in
 | `--no-auto-update` | do not schedule daily background auto-updates (daily auto-update is on by default) |
 | `--uninstall [--purge]` | remove hooks; `--purge` also deletes the notes |
 
-## The 3-Stage Setup Flow (`thinker setup`)
+## Setup flow (`thinker setup`)
 
-When run in a new repository (either via `curl .../install.sh` or `thinker setup`), Thinker runs a guided, visually aesthetic 3-step setup flow:
+Setup has two steps:
 
-```
-[Step 1: Connect Harness CLIs] ──► [Step 2: Build Knowledge Cache] ──► [Step 3: PR Change Benchmark]
- (Claude, Codex, Cursor, Gemini)     (Estimates: time, size, path)     (With vs without cache)
-```
+1. **Connect your agents.** Detects installed coding agents and configures their hooks and MCP servers. Codex trust is requested when needed. Only detected or explicitly selected agents appear in the connection summary.
+2. **Choose how to start.** Learn from future sessions (the default), or build a cache now from code and merged pull requests. Setup shows estimated build time and available model cost estimates before asking. Outside a terminal, building requires an explicit flag such as `--build`.
 
-1. **Step 1: Connect Harness CLIs**
-   Scans your local environment for installed coding agents (`claude`, `codex`, `cursor`/`agent`, `gemini`/`agy`). Wires hooks and registers MCP servers, saves Codex trust in `~/.codex/config.toml`, and approves Cursor MCP access.
+Ongoing learning uses your agent for model calls. Use `--no-learn` to disable it.
 
-2. **Step 2: Build Knowledge Cache**
-   Computes pre-flight estimates upfront:
-   - **Target storage location:** `.thinker/` (local notes in `.thinker/local/notes/`, shared notes in `.thinker/notes/`)
-   - **Estimated size:** notes count and disk footprint (typically 50–120 notes, ~120–220 KB on disk)
-   - **Estimated build time:** broken down across PR distillation and exploration
-   Then distills merged PRs into fix and invariant notes, explores key subsystems, and generates search phrasings.
+The completion message shows the next step: start a new agent session in this repository. You can build later with `thinker setup --build`.
 
-3. **Step 3: Optional PR Change Benchmark**
-   Tests how an installed coding agent performs on a recent PR change with vs without the Thinker cache:
-   - Detects the latest merged code PR (or user-specified `--pr <number>`)
-   - Runs a paired read-only comparison through the agent (baseline vs Thinker arm)
-   - Measures wall time, agent turns, tool exploration calls, token usage, and target file precision
-   - Displays an aligned side-by-side comparison table and preserves answers in `.thinker/benchmarks/`
+A paired PR benchmark runs during setup only when requested with `--benchmark` or `--pr <number>`. Its results are saved in `.thinker/benchmarks/`.
 
 ## First-run benchmark
 
@@ -113,7 +100,7 @@ Full per-item results and errors are saved under `.thinker/state/` at the path
 printed after each stage. Use `thinker setup --verbose` to also print those
 details in the terminal (`mine-prs` and `seed` accept `--verbose` too).
 
-Cost on PostHog (54k files): about $20 for 259 notes. The cache is keyed to file and symbol hashes, not to a commit, so it stays usable as their code moves: notes whose code changed are flagged stale when served and re-verified in the background if the user has the `claude` CLI.
+Building on PostHog (54k files) gave 259 notes. The cache is keyed to file and symbol hashes, not to a commit, so it stays usable as their code moves: notes whose code changed are flagged stale when served and re-verified in the background if the user has the `claude` CLI.
 
 Alternative delivery: run `thinker share --dry`, then `thinker share` and review and commit `.thinker/notes/` into their repository and have users run the installer without `--cache`. For hosting outside GitHub, `scripts/pack.sh <base-url>` builds a self-contained tarball and installer.
 

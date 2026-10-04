@@ -112,7 +112,7 @@ test('usage compares served and held-out sessions by their own transcripts, and 
   assert.equal(h2.enough, true);
   const t2 = renderHoldout(h2).join('\n');
   assert.match(t2, /tool calls\s+median 1\d\.?\d? served vs 2\d held out \(-\d+% with notes\)/);
-  assert.match(t2, /input tokens\s+median 1000k served vs 2000k held out \(-50% with notes\)/);
+  assert.match(t2, /input tokens\s+median 1M served vs 2M held out \(-50% with notes\)/);
   assert.match(t2, /^  m\s+8 vs 5 sessions/m);
 });
 

@@ -79,7 +79,7 @@ CI: `action/README.md`.
 
 Spending: the server's model calls are logged per repository
 (`checkout/.thinker/log.jsonl`); the worker stops for the day at
-`THINKER_SERVER_DAILY_CAP` dollars (default 5; `dailyCap` in the secret overrides).
+`THINKER_SERVER_DAILY_TOKENS` tokens (default 2,000,000; `dailyTokens` in the secret overrides).
 
 ## Teardown
 

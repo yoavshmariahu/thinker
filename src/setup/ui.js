@@ -41,17 +41,11 @@ export function box(lines, { title = '', width = 76, borderColor = 'cyan' } = {}
 }
 
 export function banner() {
-  return box([
-    c.bold(c.cyan('🧠  T H I N K E R')),
-    c.dim('Universal Codebase Knowledge Cache for Coding Agents'),
-  ], { width: 74, borderColor: 'cyan' });
+  return `${c.bold(c.cyan('thinker'))}\n${c.dim('Codebase knowledge for your coding agent')}`;
 }
 
 export function stepBanner(stepNum, totalSteps, title, subtitle = '') {
-  const headerText = `STEP ${stepNum} OF ${totalSteps} · ${title}`;
-  const fillLen = Math.max(4, 72 - headerText.length - 4);
-  const border = '─'.repeat(fillLen);
-  const header = `${c.cyan(c.bold(`─── ${headerText} `))}${c.dim(border)}`;
+  const header = `${c.dim(`${stepNum}/${totalSteps}`)}  ${c.bold(title)}`;
   return subtitle ? `\n${header}\n${c.dim(subtitle)}\n` : `\n${header}\n`;
 }
 

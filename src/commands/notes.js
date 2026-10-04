@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBehaviors, writeSystemMarkdown } from '../behavior.js';
 import { annotateFanout } from '../codegraph.js';
+import { formatTokens } from '../model-usage.js';
 import { orient, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
 
 async function orientCommand(ctx) {
@@ -140,15 +141,15 @@ async function phraseCommand(ctx) {
   if (!flags.force) notes = notes.filter(n => !n.says?.length || n.saysFor !== phraseKey(n));
   const per = 8, conc = Number(flags.conc) || 4;
   const groups = []; for (let i = 0; i < notes.length; i += per) groups.push(notes.slice(i, i + per));
-  let n = 0, cost = 0;
+  let n = 0, tokens = 0;
   await Promise.all(Array.from({ length: conc }, async () => {
     while (groups.length) {
       const g = groups.shift();
-      try { const r = await phraseNotes(store, g, { model: flags.model }); n += r.done.length; cost += r.cost || 0; }
+      try { const r = await phraseNotes(store, g, { model: flags.model }); n += r.done.length; tokens += r.tokens || 0; }
       catch (e) { out(`phrase: ${g.length} notes skipped (${String(e.message).slice(0, 120)})`); }
     }
   }));
-  out(`phrasings written for ${n} of ${notes.length} notes${cost ? ` ($${cost.toFixed(2)})` : ''}`);
+  out(`phrasings written for ${n} of ${notes.length} notes${tokens ? ` (~${formatTokens(tokens)} tokens)` : ''}`);
   return;
 }
 

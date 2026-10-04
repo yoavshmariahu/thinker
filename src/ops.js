@@ -9,6 +9,7 @@ import { rank, pack, renderNote, estTokens, MIN_COVER } from './rank.js';
 import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
+import { tokensOf } from './model-usage.js';
 import { anchoringGuard } from './guard.js';
 
 export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
@@ -641,7 +642,7 @@ export async function phraseNotes(store, notes, { model, max = 5, phase = 'maint
     done.push(n.id);
   }
   store.log({ op: 'phrase', ids: done, cost: res.cost, metered: true });
-  return { done, cost: res.cost };
+  return { done, cost: res.cost, tokens: tokensOf(res) };
 }
 
 function gitDiffFor(repo, fromCommit, paths) {
@@ -705,7 +706,7 @@ export async function verifyNote(store, note, { model } = {}) {
   delete next.verifying;
   store.put(next);
   store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
-  return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost };
+  return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost, tokens: tokensOf(res) };
 }
 
 // A desired behavior (behavior.js) is verified the other way round: the note is the ground truth and
@@ -782,7 +783,7 @@ export async function verifyBehavior(store, note, { model } = {}) {
   delete next.stale; delete next.verifying;
   store.put(next);
   store.log({ op: 'verify', id: note.id, kind: 'behavior', verdict, merged, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
-  return { note: next, verdict, reason: v.reason, cost: res.cost };
+  return { note: next, verdict, reason: v.reason, cost: res.cost, tokens: tokensOf(res) };
 }
 
 // Something for the next turn's maintenance notice (maintain.js:maintenanceNotice), from whoever found it.

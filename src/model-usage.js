@@ -1,5 +1,7 @@
-// Provider-reported usage only. Missing counters are null, never an estimate of zero.
-import { costOf } from './prices.js';
+// Provider-reported usage only. Missing counters are null, never an estimate of zero. Everything is
+// counted in tokens: the agents run on subscriptions as often as on metered keys, so a dollar figure
+// derived from list prices told most people what they would not pay. Provider-reported cost is kept
+// in the log as data (`cost`), never estimated, and not shown.
 const count = (...xs) => xs.find(x => typeof x === 'number' && Number.isFinite(x) && x >= 0) ?? null;
 const sum = xs => xs.length && xs.every(x => x !== null) ? xs.reduce((a, b) => a + b, 0) : null;
 
@@ -41,14 +43,26 @@ export function logModelUsage(store, { purpose, phase = 'maintenance', store: _s
     failed: !!response.failed });
 }
 
-export function emptySpend() {
-  return { calls: 0, failed: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
-    totalTokens: 0, unknownTokenCalls: 0, reportedCost: 0, unknownCostCalls: 0, estimatedCost: 0, unpricedCalls: 0 };
+// The tokens a model answer reported (llm.js puts them on every answer as `tokens`); null when the
+// provider gave no counters, which is never read as zero.
+export const tokensOf = res => { const t = res?.tokens?.totalTokens; return typeof t === 'number' && Number.isFinite(t) ? t : null; };
+
+// A token count for people: 850, 7k, 24k, 1.3M.
+export function formatTokens(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 10000) return `${Math.round(n / 1000)}k`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  return `${Math.round(n)}`;
 }
 
-// `price` (prices.js) prices a record whose provider reported tokens but no cost; a record with
-// neither, or on a model with no price, is counted as unpriced rather than as free.
-export function addSpend(total, e, price = null) {
+export function emptySpend() {
+  return { calls: 0, failed: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+    totalTokens: 0, unknownTokenCalls: 0, reportedCost: 0, unknownCostCalls: 0 };
+}
+
+// Provider-reported cost is summed where a provider gave one (`reportedCost`, data for the
+// JSON and telemetry only) and counted as unknown otherwise; it is never estimated from tokens.
+export function addSpend(total, e) {
   total.calls++;
   if (e.failed) total.failed++;
   const tokens = e.tokens && typeof e.tokens === 'object' ? e.tokens : normalizeModelUsage(e.provider, e.usage);
@@ -56,9 +70,5 @@ export function addSpend(total, e, price = null) {
   if (count(tokens.totalTokens) === null) total.unknownTokenCalls++;
   // Legacy mining batches used 0 even when no provider reported cost.
   const cost = e.op === 'mine-prs' && e.cost === 0 ? null : count(e.cost);
-  if (cost !== null) { total.reportedCost += cost; return; }
-  total.unknownCostCalls++;
-  const est = costOf(tokens, price);
-  if (est === null) total.unpricedCalls++;
-  else total.estimatedCost += est;
+  if (cost !== null) total.reportedCost += cost; else total.unknownCostCalls++;
 }
