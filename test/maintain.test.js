@@ -182,6 +182,17 @@ test('withinDailyCap closes the day once the cap is spent, and the user is told 
     assert.match(notice, /learning paused for today/);
     assert.match(notice, /2\.5M of the 2M tokens it may use a day/);
     assert.equal(maintenanceNotice(store), '', 'said once');
+    reportCapped(store, { ...over, spent: 3_000_000 });
+    assert.equal(maintenanceNotice(store), '', 'later hooks cannot requeue the same daily warning');
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    reportCapped(store, over, { now: tomorrow });
+    assert.match(maintenanceNotice(store, { now: tomorrow }), /learning paused for today/, 'a new daily cap gets one notice');
+    reportCapped(store, over, { now: tomorrow });
+    assert.equal(maintenanceNotice(store, { now: tomorrow }), '');
+    const later = new Date(tomorrow); later.setDate(later.getDate() + 1);
+    reportCapped(store, over, { now: later });
+    const nextDay = new Date(later); nextDay.setDate(nextDay.getDate() + 1);
+    assert.equal(maintenanceNotice(store, { now: nextDay }), '', 'a queued warning expires at local midnight');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
