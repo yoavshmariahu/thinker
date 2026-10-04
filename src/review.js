@@ -14,9 +14,9 @@
 // a review of a commit never looks at the working tree.
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { hashText, locateSymbol, repoFile, validDepPath } from './deps.js';
+import { hashText, locateSymbol, repoFile, validDepPath, noteTerms } from './deps.js';
 import { outlineText, references, countable } from './codegraph.js';
-import { buildIndex, bm25, tokenize } from './rank.js';
+import { buildIndex, bm25, tokenize, stem } from './rank.js';
 import { loadCochange, partners } from './cochange.js';
 import { complete } from './llm.js';
 
@@ -199,6 +199,39 @@ function changeQuery(change, symbols) {
   return [...change.files.map(f => f.path), ...symbols.flatMap(s => s.changed), ...top].join(' ');
 }
 
+// How much of the change fell inside the definitions a note rests on, and whether those lines name
+// what the note names: the changed lines inside each touched symbol (added lines by the new text's
+// range, removed lines by the old text's), and a term of the note among them (terms that a sixth
+// of the cache's notes share are not counted). A note on a hub definition (`cli.js:main`) is
+// `touched` by nearly every commit; on the last ten commits here 30 to 60 notes were, and with a
+// dozen consulted per review the ones about the change must come first.
+function specificity(note, exposure, change, reader, common) {
+  const terms = new Set([...noteTerms(note)].filter(t => !common.has(t)));
+  let lines = 0, term = false;
+  for (const d of exposure.touched) {
+    if (!d.symbol) continue;
+    const f = change.files.find(f => f.path === d.path || f.oldPath === d.path);
+    if (!f) continue;
+    const after = reader.after(f.path), before = reader.before(f.oldPath || f.path);
+    const rA = after ? locateSymbol(after, d.symbol, f.path) : null, rB = before ? locateSymbol(before, d.symbol, f.oldPath || f.path) : null;
+    for (const h of f.hunks) {
+      let ln = h.newStart, lo = h.oldStart;
+      for (const l of h.lines) {
+        const inside = l.startsWith('+') ? rA && ln >= rA.start && ln <= rA.end : l.startsWith('-') ? rB && lo >= rB.start && lo <= rB.end : false;
+        if (inside) { lines++; if (!term) for (const w of l.toLowerCase().match(/[a-z_][a-z0-9_]{3,}/g) || []) if (terms.has(stem(w))) { term = true; break; } }
+        if (!l.startsWith('-')) ln++;
+        if (!l.startsWith('+')) lo++;
+      }
+    }
+  }
+  return { lines, term };
+}
+export function commonTerms(notes, share = 1 / 6) {
+  const df = new Map();
+  for (const n of notes) for (const t of noteTerms(n)) df.set(t, (df.get(t) || 0) + 1);
+  return new Set([...df].filter(([, c]) => c >= 3 && c / Math.max(1, notes.length) > share).map(([t]) => t)); // in a small cache no term is common
+}
+
 // Notes to consult: `direct` rest on code the change altered; `related` share enough identifiers
 // with it to have a say (a convention written against other files, say).
 export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
@@ -214,7 +247,12 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
   // a note whose symbol-level dep the change altered speaks to it; one that rests on a whole file
   // the change touched somewhere is a weaker lead, and goes after the related notes
   const strong = n => exposures.get(n.id).touched.some(d => d.symbol || d.reason === 'file removed' || d.reason === 'file added');
-  direct.sort((a, b) => Number(strong(b)) - Number(strong(a)) || weight(b) - weight(a));
+  // among the strong ones: first those whose touched definitions took lines naming what the note
+  // names, then by how many lines of the change fell inside them, then by kind and confidence
+  const common = commonTerms(live);
+  for (const n of direct) if (strong(n) && !change.state) exposures.get(n.id).specific = specificity(n, exposures.get(n.id), change, reader, common);
+  const spec = n => exposures.get(n.id).specific || { lines: 0, term: false };
+  direct.sort((a, b) => Number(strong(b)) - Number(strong(a)) || Number(spec(b).term) - Number(spec(a).term) || spec(b).lines - spec(a).lines || weight(b) - weight(a));
   let related = [];
   if (!change.state && change.files.length) {
     const idx = buildIndex(live);
@@ -517,7 +555,8 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
   report.notes.assessed = dry ? 0 : queue.length;
   const callers = strat.callers ? callersContext(repo, symbols, change) : '';
   report.notes.skipped = consulted.length - queue.length;
-  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}` : 'shares identifiers with the change' }));
+  const specNote = n => { const s = exposures.get(n.id).specific; return s ? `; ${s.lines} changed line${s.lines === 1 ? '' : 's'} in ${exposures.get(n.id).touched.filter(d => d.symbol).length === 1 ? 'it' : 'them'}${s.term ? ', naming what the note names' : ''}` : ''; };
+  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}${specNote(n)}` : 'shares identifiers with the change' }));
   if (!dry) {
     const results = [];
     // a change too large for one call is taken in chunks of files, the files the notes rest on first

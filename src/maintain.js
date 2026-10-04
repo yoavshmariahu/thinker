@@ -126,7 +126,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     // served in a month, leave serving and upkeep and stay for review (ops.js:archiveNotes)
     if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch { r.errors++; } }
     // 2. Re-hashing is free, even when the model budget is exhausted.
-    const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true });
+    const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true, persist: !dry }); // --dry writes nothing, statuses included
     if (afford()) {
       const { stale, churning } = pickStale(notes, cfg, { counts: cfg.verifyChurn > 0 ? (fns.verifyCounts || verifyCounts)(store) : new Map() });
       r.churning = churning.map(n => n.id);

@@ -714,7 +714,15 @@ tool `review` is the same for an agent before it commits.
   `codegraph.js:outlineText` on either side's text) and the most frequent
   identifiers in the added lines, needing two discriminative terms on the
   question side or three on the body side. Rules and traps weigh more than
-  maps (`KIND_WEIGHT`).
+  maps (`KIND_WEIGHT`). Among the direct notes, those resting on a definition
+  the change altered come first, ordered by whether the changed lines inside
+  that definition name what the note names and by how many of them there are
+  (`review.js:specificity`; words a sixth of the cache's notes share do not
+  count, `commonTerms`), then by kind and confidence; a note on a hub
+  definition (`cli.js:main`) is touched by nearly every commit, and on the
+  last ten commits here 30 to 60 notes were, with a dozen consulted per
+  review. `toAssess` says why each was chosen. `thinker maintain --dry`
+  persists no statuses.
 - **Without a model** (`deterministicFindings`): a co-change partner (confidence
   ≥ 0.5, support ≥ 3) of a changed file that exists and is not in the change;
   a definition the change removes that is defined nowhere else and still
