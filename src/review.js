@@ -12,6 +12,11 @@
 // base (`base`), a commit (`ref`), or no change at all (`state`: the current code of some files
 // against the notes resting on them). Everything reads code through one reader for the scope, so
 // a review of a commit never looks at the working tree.
+//
+// Desired behaviors (behavior.js, kind `behavior`) are the exception to "the cache is evidence, not
+// truth": a person wrote them, the code must conform, and a review never finds one outdated. The
+// code that stops upholding one is a violation (an error for a `fixed` behavior); a `mutable`
+// behavior may be revised, but only by a change that edits the behavior note itself (`revised`).
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { hashText, locateSymbol, repoFile, validDepPath, noteTerms } from './deps.js';
@@ -46,7 +51,7 @@ const depKey = d => `${d.path}|${d.symbol || ''}`;
 const ptr = d => `${d.path}${d.symbol ? ':' + d.symbol : ''}`;
 const SEV = { error: 0, warning: 1, info: 2 };
 // How much a note of each kind has to say about a change: rules and traps first, maps last.
-const KIND_WEIGHT = { invariant: 1.3, convention: 1.3, gotcha: 1.3, cochange: 1.2, fix: 1.2, rationale: 1.1, callpath: 1, location: 0.8, howto: 0.7, overview: 0.6 };
+const KIND_WEIGHT = { behavior: 1.4, invariant: 1.3, convention: 1.3, gotcha: 1.3, cochange: 1.2, fix: 1.2, rationale: 1.1, callpath: 1, location: 0.8, howto: 0.7, overview: 0.6 };
 
 // What is reviewed: {base: commit|null, head: 'worktree'|'index'|commit, label}. `base` is where the
 // change starts; with a branch base it is the merge base, so the review covers the branch's work.
@@ -60,6 +65,26 @@ export function resolveScope(repo, { base, staged = false, ref, state = false } 
   const headCommit = gitLine(repo, ['rev-parse', '--verify', 'HEAD']);
   const start = base && headCommit ? gitLine(repo, ['merge-base', resolve(repo, base), headCommit]) : headCommit;
   return { base: start || EMPTY_TREE, head: staged ? 'index' : 'worktree', label: `${staged ? 'staged changes' : 'working tree'}${base ? ` since ${base}` : headCommit ? ' against HEAD' : ''}` };
+}
+
+// Whether the change edits a note's own file (`.thinker/` is never part of the reviewed change): a
+// mutable behavior is revised only by a change that also rewrites its note.
+export function noteFileChanged(repo, scope, id) {
+  if (scope.state) return false;
+  const file = `.thinker/notes/${id}.json`;
+  const inBase = scope.base && scope.base !== EMPTY_TREE && tryGit(repo, ['cat-file', '-e', `${scope.base}:${file}`]) !== null;
+  if (scope.head === 'worktree') {
+    const abs = repoFile(repo, file); let onDisk = false; try { onDisk = !!abs && fs.statSync(abs).isFile(); } catch {}
+    if (!onDisk) return false;
+    if (!inBase) return true;
+    return !!gitLine(repo, ['diff', '--name-only', scope.base, '--', file]);
+  }
+  if (scope.head === 'index') {
+    if (!inBase) return tryGit(repo, ['cat-file', '-e', `:${file}`]) !== null;
+    return !!gitLine(repo, ['diff', '--name-only', '--cached', scope.base, '--', file]);
+  }
+  if (!inBase) return tryGit(repo, ['cat-file', '-e', `${scope.head}:${file}`]) !== null;
+  return !!gitLine(repo, ['diff', '--name-only', scope.base, scope.head, '--', file]);
 }
 
 // One way to read a file on either side of the change; null when it is not there.
@@ -421,6 +446,55 @@ Also report a bug you can see in the changed code shown (a wrong call order, a m
 
 const STATE_SYSTEM = SYSTEM.replace('You review a code change against one note', 'You audit the current code against one note');
 
+const BEHAVIOR_ASSESS_SCHEMA = JSON.parse(JSON.stringify(ASSESS_SCHEMA));
+BEHAVIOR_ASSESS_SCHEMA.properties.verdict.enum = ['violation', 'consistent', 'unrelated', 'revised'];
+BEHAVIOR_ASSESS_SCHEMA.properties.noteCorrection.description = 'always empty: a desired behavior is never corrected by a review';
+const BEHAVIOR_SYSTEM = `You review a code change against one desired behavior of the system, written down by a person. The behavior is the ground truth and the code must conform to it: never conclude that the behavior is wrong or out of date, and never rewrite it.
+
+Give one verdict:
+- violation: after the change the code no longer upholds the behavior (its enforcement was removed, weakened, bypassed, inverted, or a new path skips it). Report each such place as a finding with the file and line after the change and quote the evidence.
+- revised: only when the message says the change edits the behavior note itself and the behavior is mutable, and the code after the change conforms to the behavior as the change restates it.
+- consistent: the change keeps the behavior.
+- unrelated: the change does not touch what the behavior is about.
+
+A finding needs evidence in the code or diff shown. Give each a confidence between 0 and 1. Prefer no finding over a speculative one. Everything you need is in this message: do not use tools or read files.`;
+
+// One desired behavior against the change (assessNote for kind `behavior`): the same material, the
+// opposite framing. `revisable`: the change edits the behavior note itself.
+export async function assessBehavior(store, note, exposure, change, reader, { model, related = false, callers = '', revisable = false } = {}) {
+  const depPaths = new Set((note.deps || []).map(d => d.path));
+  const own = change.files.filter(f => depPaths.has(f.path) || depPaths.has(f.oldPath));
+  const diff = (related || !own.length ? change.text : own.map(renderFileDiff).join('\n')).slice(0, 14000);
+  const code = (note.deps || []).slice(0, 8).map(d => `--- ${ptr(d)} ---\n${codeOf(reader.after(d.path), d)}`).join('\n\n').slice(0, 36000);
+  const mutable = note.mutability !== 'fixed';
+  const state = [
+    note.status === 'violated' ? `The code already failed to uphold this behavior BEFORE this change${note.violated?.commit ? ` (since commit ${String(note.violated.commit).slice(0, 10)})` : ''}${note.violated?.reason ? `: ${note.violated.reason}` : ''}. Judge whether the change restores it, leaves it broken, or breaks it further.` : exposure.staleBefore.length ? `The enforcement code differed from the note's record BEFORE this change at: ${exposure.staleBefore.map(c => `${ptr(c)} (${c.reason})`).join(', ')}` : 'The enforcement code matched the note\'s record before this change.',
+    exposure.touched.length ? `Altered BY this change: ${exposure.touched.map(c => `${ptr(c)} (${c.reason})`).join(', ')}` : 'The change alters none of the definitions the behavior names; it was selected because it shares identifiers with the behavior.',
+    `The behavior is ${mutable ? 'mutable' : 'fixed'}${revisable ? ' and this change edits its note (it may be revised: judge the code against the text shown, which is the revised text)' : mutable ? '; this change does not edit its note, so it may not revise the behavior' : ': it is never revised'}.`,
+  ].join('\n');
+  const head = `DESIRED BEHAVIOR ${note.id} (${mutable ? 'mutable' : 'fixed'})\n"${note.title}"\n${note.body}${note.applies ? `\nApplies: ${note.applies}` : ''}\n\nSTATE:\n${state}`;
+  const prompt = change.state
+    ? `${head}\n\nThere is no change under review: audit the current code against the behavior. A violation is code that does not uphold it.\n\nCURRENT CODE OF EACH DEFINITION NAMED:\n${code}`
+    : `${head}\n\nTHE CHANGE (${related || !own.length ? 'whole diff' : 'diff of the files the behavior names'}):\n${diff || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR EACH DEFINITION NAMED:\n${code}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
+  const system = change.state ? BEHAVIOR_SYSTEM.replace('You review a code change against', 'You audit the current code against') : BEHAVIOR_SYSTEM;
+  const res = await complete({ system, prompt, model, maxTokens: 3000, accounting: { store, purpose: 'review', phase: 'review' }, schema: BEHAVIOR_ASSESS_SCHEMA });
+  const v = res.json || {};
+  let verdict = ['violation', 'consistent', 'unrelated', 'revised'].includes(v.verdict) ? v.verdict : 'unrelated';
+  let findings = shapeFindings(v.findings, change, reader, { note: note.id, category: 'violation' });
+  if (verdict === 'revised' && !(revisable && mutable)) verdict = 'violation'; // the model may not revise what the change does not
+  if (verdict === 'violation' && !findings.length) findings = [behaviorFinding(note, exposure, String(v.reason || '').trim())];
+  if (verdict !== 'violation') findings = findings.filter(f => f.confidence >= 0.7); // a bug seen beside a kept behavior must be sure
+  return { id: note.id, verdict, reason: String(v.reason || '').trim(), findings: findings.map(f => behaviorSeverity(f, note)), noteCorrection: '', cost: res.cost || 0, model: `${res.provider}/${res.model}` };
+}
+
+// A violation the model stated but did not place: at the first definition the change touched.
+function behaviorFinding(note, exposure, reason) {
+  const at = exposure.touched[0] || (note.deps || [])[0] || {};
+  return { severity: 'error', category: 'violation', file: at.path || '', line: 0, message: `${note.mutability === 'fixed' ? 'fixed' : 'mutable'} behavior "${note.title}" is no longer upheld${reason ? `: ${reason}` : ''}`, evidence: at.symbol ? `${ptr(at)} changed` : '', confidence: 0.6, note: note.id, inChange: false };
+}
+// A finding resting on a fixed behavior is an error; on a mutable one at least a warning.
+const behaviorSeverity = (f, note) => ({ ...f, severity: note.mutability === 'fixed' ? 'error' : f.severity === 'info' ? 'warning' : f.severity });
+
 function codeOf(text, d, maxLines = 120) {
   if (text === null) return '(missing)';
   const lines = text.split('\n');
@@ -432,7 +506,8 @@ function codeOf(text, d, maxLines = 120) {
 
 // One note against the change: the note with how the cache stands on it, the diff of the files it
 // rests on (the whole change for a related note), and the code after the change behind each dep.
-export async function assessNote(store, note, exposure, change, reader, { model, related = false, callers = '' } = {}) {
+export async function assessNote(store, note, exposure, change, reader, { model, related = false, callers = '', revisable = false } = {}) {
+  if (note.kind === 'behavior') return assessBehavior(store, note, exposure, change, reader, { model, related, callers, revisable });
   const depPaths = new Set((note.deps || []).map(d => d.path));
   const own = change.files.filter(f => depPaths.has(f.path) || depPaths.has(f.oldPath));
   const diff = (related || !own.length ? change.text : own.map(renderFileDiff).join('\n')).slice(0, 14000);
@@ -462,15 +537,20 @@ function shapeFindings(raw, change, reader, { note = '', category = 'bug', minCo
 
 // Every consulted note in one call: cheaper, and the model sees the notes together; what it loses
 // is one verdict per note. Returns one result in the shape of assessNote's, with `outdated`.
-export async function assessHolistic(store, notes, exposures, change, reader, { model, callers = '' } = {}) {
-  const shown = [];
+export async function assessHolistic(store, notes, exposures, change, reader, { model, callers = '', revisable = new Set() } = {}) {
+  const shown = [], rules = [];
   let used = 0;
   for (const n of notes) {
     const e = exposures.get(n.id);
     const state = [e.staleBefore.length ? `already differed from the note's record BEFORE this change: ${e.staleBefore.map(c => `${ptr(c)} (${c.reason})`).join(', ')}` : '', e.touched.length ? `altered by this change: ${e.touched.map(c => `${ptr(c)} (${c.reason})`).join(', ')}` : 'shares identifiers with the change'].filter(Boolean).join('; ');
-    const t = `### [${n.kind}] ${n.title} (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%; ${state})\n${String(n.body).slice(0, 2500)}${n.applies ? `\nApplies: ${n.applies}` : ''}`;
+    const behavior = n.kind === 'behavior';
+    const fixed = n.mutability === 'fixed';
+    const bstate = behavior ? [n.status === 'violated' ? `ALREADY NOT UPHELD before this change${n.violated?.reason ? `: ${n.violated.reason}` : ''}` : '', fixed ? 'fixed: never revised' : revisable.has(n.id) ? 'mutable, and this change edits its note: the text below is the revised behavior' : 'mutable, but this change does not edit its note: it may not revise the behavior'].filter(Boolean).join('; ') : '';
+    const t = behavior
+      ? `### [behavior, ${fixed ? 'fixed' : 'mutable'}] ${n.title} (id: ${n.id}; ${bstate}; ${state})\n${String(n.body).slice(0, 2500)}${n.applies ? `\nApplies: ${n.applies}` : ''}`
+      : `### [${n.kind}] ${n.title} (id: ${n.id}, confidence ${Math.round((n.confidence ?? 0.7) * 100)}%; ${state})\n${String(n.body).slice(0, 2500)}${n.applies ? `\nApplies: ${n.applies}` : ''}`;
     if (used + t.length > 30000) break;
-    shown.push(t); used += t.length;
+    (behavior ? rules : shown).push(t); used += t.length;
   }
   const seen = new Set(), code = [];
   for (const n of notes) for (const d of (n.deps || [])) {
@@ -479,12 +559,21 @@ export async function assessHolistic(store, notes, exposures, change, reader, { 
   }
   const priority = new Set(notes.flatMap(n => (n.deps || []).map(d => d.path)));
   const diff = renderChange(change, { priority, max: 16000 });
-  const prompt = `NOTES FROM THE CACHE (each may be out of date; the code is the ground truth):\n\n${shown.join('\n\n')}\n\n${changeInventory(change)}\n\nTHE CHANGE:\n${diff.text || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEPENDENCIES IT ALTERED:\n${code.join('\n\n').slice(0, 30000)}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
+  const behaviors = rules.length ? `DESIRED BEHAVIORS OF THE SYSTEM (written by people; these are the ground truth and the code must conform: code that no longer upholds one is a finding resting on that behavior's id, severity error; never list a behavior under outdated):\n\n${rules.join('\n\n')}\n\n` : '';
+  const prompt = `${behaviors}${shown.length ? `NOTES FROM THE CACHE (each may be out of date; the code is the ground truth):\n\n${shown.join('\n\n')}` : 'NOTES FROM THE CACHE: none besides the behaviors above.'}\n\n${changeInventory(change)}\n\nTHE CHANGE:\n${diff.text || '(empty)'}\n\nCODE AFTER THE CHANGE, FOR THE DEPENDENCIES IT ALTERED:\n${code.join('\n\n').slice(0, 30000)}${callers ? `\n\nCALLERS OF THE DEFINITIONS THE CHANGE TOUCHED (one hop, by text search):\n${callers.slice(0, 8000)}` : ''}`;
   const system = SYSTEM.replace('against one note from a cache', 'against the notes from a cache').replace('Give one verdict:', 'For each finding name the note it rests on (or none). Report under `outdated` every note the code shows to be wrong, whether or not the change is at fault; such a note is not a finding against the change. The list of files in the change is complete even where the diff shown is not: never report a file as missing from the change when it is in that list. The verdicts, per note, are:');
   const res = await complete({ system, prompt, model, maxTokens: 4000, accounting: { store, purpose: 'review', phase: 'review' }, schema: HOLISTIC_SCHEMA });
   const v = res.json || {};
-  const outdated = (Array.isArray(v.outdated) ? v.outdated : []).filter(o => o && notes.some(n => n.id === o.id)).map(o => ({ id: o.id, reason: String(o.reason || '').trim(), correction: '' }));
-  const findings = shapeFindings(v.findings, change, reader, { category: 'violation' }).filter(f => !outdated.some(o => o.id === f.note));
+  const byId = new Map(notes.map(n => [n.id, n]));
+  // a behavior the model called outdated is code that does not uphold it: a finding, never an outdated note
+  const raw = (Array.isArray(v.outdated) ? v.outdated : []).filter(o => o && byId.has(o.id));
+  const outdated = raw.filter(o => byId.get(o.id).kind !== 'behavior').map(o => ({ id: o.id, reason: String(o.reason || '').trim(), correction: '' }));
+  const findings = shapeFindings(v.findings, change, reader, { category: 'violation' }).filter(f => !outdated.some(o => o.id === f.note)).map(f => byId.get(f.note)?.kind === 'behavior' ? behaviorSeverity(f, byId.get(f.note)) : f);
+  for (const o of raw.filter(o => byId.get(o.id).kind === 'behavior')) {
+    const n = byId.get(o.id);
+    if (n.mutability !== 'fixed' && revisable.has(n.id)) continue; // the change revises it on purpose
+    if (!findings.some(f => f.note === n.id)) findings.push(behaviorFinding(n, exposures.get(n.id), String(o.reason || '').trim()));
+  }
   return { id: 'holistic', verdict: 'holistic', reason: String(v.summary || '').trim(), findings, noteCorrection: '', outdated, cost: res.cost || 0, model: `${res.provider}/${res.model}` };
 }
 
@@ -553,6 +642,9 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
   report.notes.uncovered = change.files.filter(f => f.status !== 'D' && CODE_EXT.test(f.path) && !covered.has(f.path)).map(f => f.path);
   const queue = consulted.slice(0, max);
   report.notes.assessed = dry ? 0 : queue.length;
+  // desired behaviors among the consulted notes: whether the change edits each one's note decides
+  // whether a mutable one may be revised by it (noteFileChanged)
+  const revisable = new Set(consulted.filter(n => n.kind === 'behavior' && n.mutability !== 'fixed' && noteFileChanged(repo, scope, n.id)).map(n => n.id));
   const callers = strat.callers ? callersContext(repo, symbols, change) : '';
   report.notes.skipped = consulted.length - queue.length;
   const specNote = n => { const s = exposures.get(n.id).specific; return s ? `; ${s.lines} changed line${s.lines === 1 ? '' : 's'} in ${exposures.get(n.id).touched.filter(d => d.symbol).length === 1 ? 'it' : 'them'}${s.term ? ', naming what the note names' : ''}` : ''; };
@@ -569,7 +661,7 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
       catch (e) { report.errors.push({ id: 'nocache', error: String(e.message || e).slice(0, 200) }); }
     }
     if (strat.mode === 'holistic' || strat.mode === 'ensemble') {
-      if (queue.length) for (const piece of pieces) try { results.push(await assessHolistic(store, queue, exposures, piece, reader, { model: report.model, callers })); }
+      if (queue.length) for (const piece of pieces) try { results.push(await assessHolistic(store, queue, exposures, piece, reader, { model: report.model, callers, revisable })); }
       catch (e) { report.errors.push({ id: 'holistic', error: String(e.message || e).slice(0, 200) }); }
     } else {
       if (strat.triage) report.triage = [];
@@ -582,7 +674,7 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
               report.triage.push({ id: n.id, bears: t.bears, reason: t.reason }); report.cost += t.cost || 0;
               if (!t.bears) { results.push({ id: n.id, verdict: 'unrelated', reason: `triage: ${t.reason}`, findings: [], cost: 0 }); continue; }
             }
-            results.push(await assess(store, n, exposures.get(n.id), change, reader, { model: report.model, related: related.includes(n), callers }));
+            results.push(await assess(store, n, exposures.get(n.id), change, reader, { model: report.model, related: related.includes(n), callers, revisable: revisable.has(n.id) }));
           } catch (e) { report.errors.push({ id: n.id, error: String(e.message || e).slice(0, 200) }); }
         }
       }));
@@ -614,10 +706,23 @@ export async function review(store, { scope, paths = [], max = 12, model, dry = 
     }
     report.findings.push(...clustered);
   }
+  report.behaviors = behaviorReport(consulted, report, revisable, dry);
   report.findings.sort((a, b) => (SEV[a.severity] ?? 1) - (SEV[b.severity] ?? 1) || (b.confidence || 1) - (a.confidence || 1));
   report.counts = { error: report.findings.filter(f => f.severity === 'error').length, warning: report.findings.filter(f => f.severity === 'warning').length, info: report.findings.filter(f => f.severity === 'info').length };
   store.log({ op: 'review', scope: scope.label, strategy: JSON.stringify(strat) === JSON.stringify(DEFAULT_STRATEGY) ? undefined : strat, files: change.files.length, consulted: consulted.length, assessed: report.notes.assessed, findings: report.counts, outdated: report.notes.outdated.map(o => o.id), cost: report.cost, metered: true, dry: dry || undefined });
   return report;
+}
+
+// One line per desired behavior the review consulted: what the review concluded about it, so an
+// agent or a person sees every rule that was in play, not only the ones that produced a finding.
+function behaviorReport(consulted, report, revisable, dry) {
+  return consulted.filter(n => n.kind === 'behavior').map(n => {
+    const verdict = report.verdicts.find(v => v.id === n.id);
+    const hit = report.findings.filter(f => f.note === n.id || f.notes?.includes(n.id));
+    let outcome = dry ? 'consulted' : hit.length ? 'violated' : verdict?.verdict === 'revised' || (revisable.has(n.id) && !verdict) ? 'revised' : verdict?.verdict === 'unrelated' ? 'unrelated' : 'upheld';
+    if (dry && revisable.has(n.id)) outcome = 'revised';
+    return { id: n.id, title: n.title, mutability: n.mutability || 'mutable', outcome, before: n.status === 'violated' ? `already not upheld before this change${n.violated?.commit ? ` (since ${String(n.violated.commit).slice(0, 10)})` : ''}` : '', reason: hit[0]?.message || verdict?.reason || '', revised: revisable.has(n.id) };
+  });
 }
 
 // Several notes often see the same problem, each at a slightly different line of the same
@@ -648,6 +753,10 @@ export function renderReview(r, { verbose = false } = {}) {
       if (f.evidence) L.push(`           evidence: ${f.evidence.split('\n').map(s => s.trim()).filter(Boolean).join(' | ').slice(0, 300)}`);
     }
   } else L.push('', n.assessed || r.toAssess?.length === 0 ? 'No findings.' : 'No findings without the model (dry run).');
+  if (r.behaviors?.length) {
+    L.push('', `Desired behaviors (${r.behaviors.length} in play; thinker system lists them all):`);
+    for (const b of r.behaviors) L.push(`  ${b.outcome.padEnd(10)} [${b.mutability}] ${b.title} (${b.id})${b.outcome === 'revised' ? '  — the change edits the behavior note' : b.reason && b.outcome === 'violated' ? `: ${b.reason.slice(0, 160)}` : ''}${b.before ? `  [${b.before}]` : ''}`);
+  }
   const cache = [];
   if (n.staleBefore.length) cache.push(`${n.staleBefore.length} consulted note${n.staleBefore.length === 1 ? ' was' : 's were'} already stale before this change (their claims were weighed accordingly): ${n.staleBefore.map(s => `${s.id} (${s.changed.map(c => `${ptr(c)}: ${c.reason}`).join('; ')})`).join('; ')}`);
   if (n.outdated.length) cache.push(`${n.outdated.length} note${n.outdated.length === 1 ? '' : 's'} the review found outdated: ${n.outdated.map(o => `${o.id} (${o.reason})`).join('; ')}`);

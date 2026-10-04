@@ -216,10 +216,12 @@ export function relatedNotes(store, events, { max = 12, topical = 4 } = {}) {
 // (ops.js:archiveConfig): a note of a kind that is never served is a model call for nothing, and
 // what location and cochange notes would say is found by code search and git history.
 export function distillSpec({ kinds = KINDS } = {}) {
-  const left = KINDS.filter(k => !kinds.includes(k));
-  if (!left.length) return { system: DISTILL_SYSTEM, schema: NOTE_SCHEMA };
+  // a desired behavior (behavior.js) is a person's rule, never distilled; the model is not even offered the kind
+  kinds = kinds.filter(k => k !== 'behavior');
+  const left = KINDS.filter(k => k !== 'behavior' && !kinds.includes(k));
   const schema = JSON.parse(JSON.stringify(NOTE_SCHEMA));
   schema.properties.notes.items.properties.kind.enum = KINDS.filter(k => kinds.includes(k));
+  if (!left.length) return { system: DISTILL_SYSTEM, schema };
   const system = DISTILL_SYSTEM + `\n\nDo not produce notes of these kinds: ${left.join(', ')}. This repository does not serve them (code search and git history answer what they would say); fold anything of theirs that matters into a note of another kind, or leave it out.`;
   return { system, schema };
 }

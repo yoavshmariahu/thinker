@@ -6,7 +6,10 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
-export const KINDS = ['location', 'callpath', 'cochange', 'howto', 'convention', 'rationale', 'gotcha', 'overview', 'invariant', 'fix'];
+export const KINDS = ['location', 'callpath', 'cochange', 'howto', 'convention', 'rationale', 'gotcha', 'overview', 'invariant', 'fix', 'behavior'];
+// A `behavior` note is a desired behavior of the system, written by a person (behavior.js): the code must
+// conform to it, never the other way round. `mutability` says whether a change may revise it.
+export const MUTABILITY = ['fixed', 'mutable'];
 
 export function findRepoRoot(start = process.cwd()) {
   let dir = path.resolve(start);
@@ -125,10 +128,10 @@ export function adoptLocalLog(store) {
 //                        and content it changed and has not shared yet (`pending`). So serving,
 //                        assessing and re-verifying a shared note never touches the committed file.
 // With THINKER_NOTES_DIR (benchmark arms) there is one directory of whole notes, as before.
-export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived'];
+export const LOCAL_FIELDS = ['status', 'stale', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived', 'violated'];
 // Shared fields a checkout holds its own value of, without that being a change worth sharing.
 const OVERRIDE_FIELDS = ['confidence', 'verified', 'related'];
-const CONTENT_ORDER = ['id', 'title', 'kind', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'saysFor', 'related'];
+const CONTENT_ORDER = ['id', 'title', 'kind', 'mutability', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'saysFor', 'related'];
 const NOTE_ID = /^[a-z0-9][a-z0-9-]*$/;
 const NOTE_FILE = /^[a-z0-9][a-z0-9-]*\.json$/;
 

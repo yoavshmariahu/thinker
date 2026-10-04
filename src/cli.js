@@ -6,6 +6,7 @@ import { spawn, spawnSync, execFile, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot, gitHead } from './store.js';
 import { maintain, maintenanceNotice, renderMaintain, reportPruned, withinDailyCap, reportCapped } from './maintain.js';
+import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBehaviors, writeSystemMarkdown } from './behavior.js';
 import { orient, HOOK_BUDGET, rememberTask, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, verifyNote, renderNote, attest, linkNotes, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, archiveNotes, archiveConfig, distillKinds } from './ops.js';
 import { initAst, astStatus, astDirs, AST_PACKAGES, GRAMMAR_NAMES } from './ast.js';
 import { annotateFanout } from './codegraph.js';
@@ -39,7 +40,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'no-related', 'callers', 'triage', 'verify'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -96,7 +97,21 @@ const HELP = `thinker — knowledge cache for coding agents
   sync status | sync logout
   serve                          run the MCP server (stdio)
   orient "<task>" [--file f] [--budget n] [--snippets]
-  lookup "<query>" [--snippets]  (--snippets: inline the code behind the pointers, as the MCP tools do)
+  lookup "<query>" [--kind k] [--snippets]
+                                 (--kind behavior with no query: every desired behavior; --snippets: inline the code
+                                 behind the pointers, as the MCP tools do)
+  system [--all] [--json]        the desired behaviors of the system (notes of kind behavior) and whether the code
+                                 upholds each: holds, violated since a commit, unverified; a review checks a change
+                                 against them (fixed: never revised, a violation is an error; mutable: revised only by
+                                 a change that edits the note)
+  system add [file.json] [--fixed | --mutable]
+                                 write one (JSON as for add: title, body with file:Symbol pointers, answers, deps)
+  system promote <id…> [--fixed | --mutable]
+                                 make a note that states a rule (invariant, convention, gotcha) a desired behavior
+  system accept <id…> [--fixed | --mutable]
+                                 accept a behavior an agent proposed (remember with kind behavior)
+  system propose                 the notes that state rules, as candidates for promote
+  system md                      write .thinker/SYSTEM.md, the behaviors as a document in the repository
   find "<words|Identifier>" [--path p] [--limit n]
                                  the definitions whose name or body carry the words, as pointers with their lines
   drilldown <pointer…> [--budget n]
@@ -163,7 +178,7 @@ const HELP = `thinker — knowledge cache for coding agents
 
 // Commands that read or maintain an existing cache. Not `setup`, `seed`, `mine-prs`, `import`,
 // `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
-const CACHE_COMMANDS = ['orient', 'lookup', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'cochange', 'relink', 'rehash', 'outcome'];
+const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'cochange', 'relink', 'rehash', 'outcome'];
 
 async function main() {
   if (process.stderr.isTTY && !['update', 'upgrade', 'switch', 'branch', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
@@ -480,8 +495,32 @@ async function main() {
       break;
     }
     case 'lookup': {
-      const r = lookup(store, { query: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3, snippets: !!flags.snippets });
+      const r = lookup(store, { query: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3, snippets: !!flags.snippets, kind: typeof flags.kind === 'string' ? flags.kind : undefined });
       out(r.included.length ? r.text : '(nothing cached about that)');
+      break;
+    }
+    case 'system': {
+      // thinker system [add|promote|accept|propose|md] …: the desired behaviors (behavior.js)
+      const sub = ['add', 'promote', 'accept', 'propose', 'md'].includes(pos[0]) ? pos.shift() : 'list';
+      const mutability = flags.fixed ? 'fixed' : flags.mutable ? 'mutable' : undefined;
+      if (sub === 'add') {
+        const input = JSON.parse(pos[0] ? fs.readFileSync(pos[0], 'utf8') : readStdin());
+        const r = addBehavior(store, input, { mutability });
+        if (r.error) { out('error: ' + r.error); process.exit(1); }
+        out(`saved ${r.note.id} (${r.note.mutability})` + (r.dropped.length ? ` (dropped: ${JSON.stringify(r.dropped)})` : '') + `; commit it with thinker share ${r.note.id}`);
+      } else if (sub === 'promote' || sub === 'accept') {
+        if (!pos.length) { out(`usage: thinker system ${sub} <id…> [--fixed | --mutable]`); process.exit(1); }
+        for (const id of pos) { const r = promoteBehavior(store, id, { mutability: mutability || 'mutable' }); out(r.error ? `${id}: ${r.error}` : r.unchanged ? `${id}: already a ${r.note.mutability} behavior` : `${id}: now a ${r.note.mutability} behavior`); }
+      } else if (sub === 'propose') {
+        const c = proposeBehaviors(store);
+        for (const x of c) out(`${x.kind.padEnd(10)} ${x.id.padEnd(45)} acted on ${x.confirmed}×, served ${x.uses}×  ${x.title}`);
+        out(c.length ? `${c.length} candidates; thinker system promote <id> [--fixed] makes one a desired behavior` : 'no notes that state rules yet');
+      } else if (sub === 'md') {
+        out(`wrote ${path.relative(repo, writeSystemMarkdown(store, { force: true }))}`);
+      } else {
+        const rows = listBehaviors(store, { all: !!flags.all });
+        out(flags.json ? JSON.stringify(rows.map(({ note, ...r }) => r), null, 2) : renderBehaviors(rows));
+      }
       break;
     }
     case 'list': {

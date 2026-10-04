@@ -8,7 +8,7 @@
     "What triggers refresh of note status?",
     "Where are dependency hashes computed and compared?"
   ],
-  "body": "No file watcher; staleness is detected lazily.\n1. Create: src/ops.js:createNote → extractDeps (parses `path:Symbol` from body) → resolveDeps → src/deps.js:hashDep (findSymbol/blockEnd, sha/norm; falls back to file hash + symbolMissing). Saves verified, verifiedCommit=gitHead(repo), status 'fresh' via src/store.js:Store.put (.thinker/notes/<id>.json).\n2. Code edit: nothing happens until something calls refresh.\n3. Detect: src/ops.js:refresh → src/deps.js:checkNote (re-hash; reasons: file removed / symbol not found / symbol body changed / file changed) → status 'stale' + stale:{since,changed}. Hashes matching again (revert) flips back to fresh; 'invalid' notes are skipped.\n4. refresh callers: ops.js:orient (MCP orient, UserPromptSubmit hook `cli.js hook prompt`; skipped if THINKER_NAIVE=1), ops.js:lookup, cli.js cases list/check/verify, optional git post-commit hook (`init --git-hook` → `cli.js check --quiet`).\n5. Serve: src/rank.js:rank multiplies stale score by 0.6; renderNote adds '⚠ STALE' line. Invalid scores -1 (never served).\n6. Re-verify: src/ops.js:verifyNote (via cli.js `verify [ids]`/verifyAll or `check --verify`): prompt from ops.js:gitDiffFor (diff from note.verifiedCommit) + deps.js:symbolText → src/llm.js:complete with VERIFY_SCHEMA, model store.config().verifyModel (default haiku). still_valid: re-hash, fresh, confidence +0.05; update: also replaces body, old body pushed to history; invalid: status invalid + invalidReason.",
+  "body": "Note staleness lifecycle: create baseline → lazy refresh → verify\n\nNo file watcher; staleness is detected lazily.\n\n1. Create: src/ops.js:createNote → extractDeps (parses `path:Symbol` from body) → resolveDeps → src/deps.js:hashDep (findSymbol/blockEnd, sha/norm; falls back to file hash + symbolMissing). Saves verified, verifiedCommit=gitHead(repo), status 'fresh' via src/store.js:Store.put (.thinker/notes/<id>.json).\n\n2. Code edit: nothing happens until something calls refresh.\n\n3. Detect: src/ops.js:refresh → src/deps.js:checkNote (re-hash; reasons: file removed / symbol not found / symbol body changed / file changed) → status 'stale' + stale:{since,changed}. Hashes matching again (revert) flips back to fresh; 'invalid' notes are skipped.\n\n4. refresh callers: ops.js:orient (MCP orient, UserPromptSubmit hook `cli.js hook prompt`; skipped if THINKER_NAIVE=1), ops.js:lookup, cli.js cases list/check/verify, optional git post-commit hook (`init --git-hook` → `cli.js check --quiet`).\n\n5. Serve: src/rank.js:rank multiplies stale score by 0.6; renderNote adds '⚠ STALE' line. Invalid scores -1 (never served).\n\n6. Re-verify: src/ops.js:verifyNote (via cli.js `verify [ids]`/verifyAll or `check --verify`): for non-behavior notes, prompt from ops.js:gitDiffFor (diff from note.verifiedCommit) + deps.js:symbolText → src/llm.js:complete with VERIFY_SCHEMA, model store.config().verifyModel (default haiku); for notes of kind 'behavior', delegates to verifyBehavior. still_valid: re-hash, fresh, confidence +0.05; update: also replaces body, old body pushed to history; invalid: status invalid + invalidReason.",
   "tags": [
     "staleness",
     "verify",
@@ -18,29 +18,50 @@
   "deps": [
     {
       "path": "src/ops.js",
+      "symbol": "createNote",
+      "hash": "sha256:778c864c78d22e9cc4c05f49",
+      "line": 113,
+      "missing": false
+    },
+    {
+      "path": "src/ops.js",
       "symbol": "refresh",
-      "hash": "sha256:1896f7e617fa4c1170fb9c6a",
-      "line": 126,
+      "hash": "sha256:1da7ddb1ddebd0d01243f195",
+      "line": 140,
       "missing": false
     },
     {
       "path": "src/ops.js",
       "symbol": "verifyNote",
-      "hash": "sha256:e05c5ade3cabd30dc7f79bfa",
-      "line": 728,
+      "hash": "sha256:f350f1c376a9b1e66ded4957",
+      "line": 772,
       "missing": false
     },
     {
       "path": "src/ops.js",
-      "symbol": "createNote",
-      "hash": "sha256:77dc06607ad03024334425ee",
-      "line": 102,
+      "symbol": "orient",
+      "hash": "sha256:145592515d9a54abd7db1809",
+      "line": 259,
+      "missing": false
+    },
+    {
+      "path": "src/ops.js",
+      "symbol": "lookup",
+      "hash": "sha256:806e47960794ed1d73a44177",
+      "line": 558,
+      "missing": false
+    },
+    {
+      "path": "src/ops.js",
+      "symbol": "gitDiffFor",
+      "hash": "sha256:2ab1811899cbd193dabef5b7",
+      "line": 742,
       "missing": false
     },
     {
       "path": "src/deps.js",
       "symbol": "checkNote",
-      "hash": "sha256:4d377d06720c6390c8dc318d",
+      "hash": "sha256:cd91b472fa0075418dd8a6a4",
       "line": 194,
       "missing": false
     },
@@ -52,22 +73,24 @@
       "missing": false
     },
     {
-      "path": "src/rank.js",
-      "symbol": "rank",
-      "hash": "sha256:819d19857607aa41a18f16db",
-      "line": 118,
+      "path": "src/deps.js",
+      "symbol": "symbolText",
+      "hash": "sha256:372f3e63a49dec606d06efd9",
+      "line": 346,
       "missing": false
     },
     {
-      "path": "src/cli.js",
-      "hash": "sha256:86ad26d75e5ae83657dbe6f4",
+      "path": "src/rank.js",
+      "symbol": "rank",
+      "hash": "sha256:9dad107f83fc25089b143c55",
+      "line": 124,
       "missing": false
     },
     {
       "path": "src/store.js",
-      "symbol": "Store",
-      "hash": "sha256:f20f4d107b067fde69798a66",
-      "line": 141,
+      "symbol": "Store.put",
+      "hash": "sha256:b50df9bd55dab26f347bd4be",
+      "line": 368,
       "missing": false
     },
     {
@@ -76,54 +99,12 @@
       "hash": "sha256:e34f87f9757b73bd32aca56c",
       "line": 121,
       "missing": false
-    },
-    {
-      "path": "src/store.js",
-      "symbol": "Store.put",
-      "hash": "sha256:b50df9bd55dab26f347bd4be",
-      "line": 350,
-      "missing": false
-    },
-    {
-      "path": "src/ops.js",
-      "symbol": "orient",
-      "hash": "sha256:9da8b87f6b6c41ab3db8675b",
-      "line": 242,
-      "missing": false
-    },
-    {
-      "path": "src/ops.js",
-      "symbol": "lookup",
-      "hash": "sha256:82859cc15af450af4f3f8649",
-      "line": 529,
-      "missing": false
-    },
-    {
-      "path": "src/ops.js",
-      "symbol": "gitDiffFor",
-      "hash": "sha256:2ab1811899cbd193dabef5b7",
-      "line": 710,
-      "missing": false
-    },
-    {
-      "path": "src/deps.js",
-      "symbol": "symbolText",
-      "hash": "sha256:372f3e63a49dec606d06efd9",
-      "line": 310,
-      "missing": false
-    },
-    {
-      "path": "src/store.js",
-      "symbol": "config",
-      "hash": "sha256:160bba38f050249d1f58eac0",
-      "line": 180,
-      "missing": false
     }
   ],
   "source": {
     "type": "agent"
   },
   "created": "2026-09-26T09:33:10.424Z",
-  "verified": "2026-10-03T08:20:19.019Z",
-  "confidence": 0.95
+  "verified": "2026-10-04T03:42:19.677Z",
+  "confidence": 1
 }

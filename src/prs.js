@@ -219,7 +219,7 @@ function reviewComments(slug, n) {
 const SCHEMA = {
   type: 'object',
   properties: { notes: { type: 'array', items: { type: 'object', properties: {
-    title: { type: 'string' }, kind: { type: 'string', enum: KINDS }, answers: { type: 'array', items: { type: 'string' } },
+    title: { type: 'string' }, kind: { type: 'string', enum: KINDS.filter(k => k !== 'behavior') }, answers: { type: 'array', items: { type: 'string' } },
     body: { type: 'string' }, applies: { type: 'string' },
     deps: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, symbol: { type: 'string' } }, required: ['path'] } },
     tags: { type: 'array', items: { type: 'string' } }, confidence: { type: 'number' },

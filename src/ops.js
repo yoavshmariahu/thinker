@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { Store, slugify, uniqueId, gitHead, KINDS } from './store.js';
+import { Store, slugify, uniqueId, gitHead, KINDS, MUTABILITY } from './store.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation } from './deps.js';
 import { rank, pack, renderNote, renderPointers, estTokens, MIN_COVER } from './rank.js';
 import { annotateFanout, fanout, callers, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
@@ -13,7 +13,7 @@ import { loadCochange, renderCochange } from './cochange.js';
 import { anchoringGuard, explicitIdents, existsInRepo } from './guard.js';
 import { partners } from './cochange.js';
 
-export { KINDS };
+export { KINDS, MUTABILITY };
 
 function normPath(repo, p) {
   if (!p) return p;
@@ -121,6 +121,9 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
   const now = new Date().toISOString();
   const note = {
     id, title: String(input.title).trim(), kind,
+    // a desired behavior says whether a change may revise it (behavior.js); default mutable, since
+    // `fixed` is the stronger claim and should be made on purpose
+    ...(kind === 'behavior' ? { mutability: MUTABILITY.includes(input.mutability) ? input.mutability : 'mutable' } : {}),
     answers: (input.answers || []).map(s => String(s).trim()).filter(Boolean),
     body: String(input.body).trim(),
     applies: input.applies ? String(input.applies).trim() : undefined,
@@ -397,8 +400,8 @@ export function attest(store, assessments, { session, client, model } = {}) {
 // request. `on: 'read'` (THINKER_LATE=read) serves any note on a file as soon as the
 // agent opens it, rules before maps of the code; an agent that gets those after every
 // read was seen to read in smaller steps and make more calls.
-const RULE_KINDS = ['invariant', 'gotcha', 'convention', 'cochange'];
-const LATE_PRIORITY = { invariant: 0, gotcha: 1, convention: 2, cochange: 3, fix: 4, rationale: 5, howto: 6, callpath: 7, location: 8, overview: 9 };
+const RULE_KINDS = ['behavior', 'invariant', 'gotcha', 'convention', 'cochange'];
+const LATE_PRIORITY = { behavior: 0, invariant: 0, gotcha: 1, convention: 2, cochange: 3, fix: 4, rationale: 5, howto: 6, callpath: 7, location: 8, overview: 9 };
 function sessionState(store, session) {
   const f = path.join(store.dir, 'state', `session-${String(session).replace(/[^\w-]/g, '')}.json`);
   let st = { late: [], turn: [], nudged: false }; try { st = { ...st, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch {}
@@ -485,7 +488,7 @@ export function completenessNudge(store, { session, changed, cochange }) {
     const miss = partners(cochange, f, { minSupport: 3, minConf: 0.5, limit: 3 }).filter(p => !changed.includes(p.file) && fs.existsSync(path.join(store.repo, p.file)));
     if (miss.length) lines.push(`${f} was edited; in past commits it changed together with ${miss.map(p => `${p.file} (${Math.round(p.conf * 100)}%, n=${p.support})`).join(', ')}, which you did not touch.`);
   }
-  const rules = store.list().filter(n => ['invariant', 'cochange', 'convention', 'gotcha'].includes(n.kind) && n.status !== 'invalid' && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => changed.includes(d.path))).slice(0, 3);
+  const rules = store.list().filter(n => RULE_KINDS.includes(n.kind) && n.status !== 'invalid' && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => changed.includes(d.path))).slice(0, 3);
   for (const n of rules) { lines.push(`Rule not yet seen this session, [${n.kind}] ${n.title}: ${n.body.split('\n').slice(0, 4).join(' ').slice(0, 400)}`); n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (!lines.length) return { text: '' };
   st.nudged = true; save();
@@ -551,16 +554,20 @@ export function scheduleVerify(store, notes) {
   } catch (e) { store.log({ op: 'bg-verify-error', error: String(e.message) }); }
 }
 
-export function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false } = {}) {
+const STATUS_ORDER = { violated: 0, stale: 1, fresh: 2 };
+export function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false, kind } = {}) {
   const start = Date.now();
-  const notes = NAIVE ? store.list().map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; }) : refresh(store, store.list());
+  let notes = NAIVE ? store.list().map(n => { const c = { ...n, status: 'fresh' }; delete c.stale; return c; }) : refresh(store, store.list());
+  if (kind) notes = notes.filter(n => n.kind === kind);
   // a note id (as listed by orient) returns that note
   const byId = notes.find(n => n.id === String(query).trim());
-  const ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : rank(notes, { query, mode: 'lookup' });
-  const candidates = byId ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
+  // a kind with no query (`lookup(kind: "behavior")`): every note of the kind, the rules first
+  const all = kind && !String(query || '').trim() ? notes.filter(n => n.status !== 'invalid').sort((a, b) => (STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).map(n => ({ note: n, score: 1, rel: 1, aff: 0 })) : null;
+  const ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : all || rank(notes, { query, mode: 'lookup' });
+  const candidates = byId || all ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
   const packed = pack(candidates, budget, { minRel: 0.15 });
   addSnippets(store, packed, budget, snippets, false);
-  store.log({ op: 'lookup', client: client || 'cli', query: String(query).slice(0, 200), served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  store.log({ op: 'lookup', client: client || 'cli', query: String(query || '').slice(0, 200), kind, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
@@ -765,6 +772,7 @@ export function cleanBody(body, title) {
 // Re-verify a stale note with a small model, using the diff of its changed
 // dependencies plus the current text of each dependency symbol.
 export async function verifyNote(store, note, { model } = {}) {
+  if (note.kind === 'behavior') return verifyBehavior(store, note, { model });
   const repo = store.repo;
   model = model || store.config().verifyModel || 'haiku';
   const changed = note.stale?.changed || [];
@@ -793,6 +801,61 @@ export async function verifyNote(store, note, { model } = {}) {
   store.put(next);
   store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
   return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost };
+}
+
+// A desired behavior (behavior.js) is verified the other way round: the note is the ground truth and
+// the question is whether the code still upholds it. `holds` re-baselines; `broken` marks the note
+// violated, with the commit and the reason, and never retires or rewrites it: a person decides whether
+// the code or the behavior gives; `moved` re-points the note at where the behavior is now upheld.
+export const BEHAVIOR_VERIFY_SCHEMA = {
+  type: 'object',
+  properties: {
+    verdict: { type: 'string', enum: ['holds', 'broken', 'moved'] },
+    reason: { type: 'string', description: 'one sentence' },
+    pointers: { type: 'array', items: { type: 'string' }, description: 'only when verdict=moved: the path:Symbol pointers where the behavior is upheld now' },
+  },
+  required: ['verdict', 'reason'],
+};
+export async function verifyBehavior(store, note, { model } = {}) {
+  const repo = store.repo;
+  model = model || store.config().verifyModel || 'haiku';
+  const changed = note.stale?.changed || [];
+  const paths = [...new Set(changed.map(c => c.path))];
+  const diff = gitDiffFor(repo, note.verifiedCommit, paths);
+  const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
+  const system = 'You check whether a codebase still upholds a desired behavior that a person wrote down. The behavior is the ground truth: never rewrite it, and never conclude that the behavior is wrong. Answer holds when the code shown still does what the behavior states, enforced where the behavior says. Answer broken when the code no longer upholds it (the enforcement was removed, weakened, bypassed or inverted), and say in one sentence what the code does instead. Answer moved only when the behavior is still upheld but at other definitions than the ones named, and give those as path:Symbol pointers. Answer with the JSON alone.';
+  const prompt = `DESIRED BEHAVIOR (${note.mutability || 'mutable'}) "${note.title}"\n${note.body}${note.applies ? `\nApplies: ${note.applies}` : ''}\n\nDEFINITIONS THAT CHANGED SINCE IT WAS LAST CHECKED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'unknown'}\n\nGIT DIFF SINCE THEN (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE WHERE THE BEHAVIOR IS UPHELD:\n${current.slice(0, 40000)}`;
+  const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: BEHAVIOR_VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
+  const v = res.json || {};
+  const now = new Date().toISOString(), head = gitHead(repo);
+  const rehash = deps => dropShadowedFileDeps((deps || []).map(d => hashDep(repo, d)).filter(d => !d.missing));
+  let next, verdict = v.verdict;
+  if (verdict === 'moved' && Array.isArray(v.pointers) && v.pointers.length) {
+    const { deps } = resolveDeps(repo, extractDeps(repo, v.pointers.join(' '), []));
+    if (deps.length) next = { ...note, deps: rehash(deps), status: 'fresh', verified: now, verifiedCommit: head, history: [...(note.history || []), { at: now, reason: v.reason, prevDeps: note.deps }].slice(-5) };
+    else verdict = 'holds'; // nowhere to point: the behavior holds by the model's own account
+  }
+  if (!next && verdict === 'broken') {
+    // the deps are re-baselined so that the note reads as violated, not stale, until the code changes again
+    next = { ...note, deps: rehash(note.deps), status: 'violated', verified: now, verifiedCommit: head, violated: { at: now, commit: head, reason: String(v.reason || '').trim(), changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) } };
+    noteUnreported(store, 'violated', { id: note.id, title: note.title, reason: String(v.reason || '').trim() });
+  }
+  if (!next) { verdict = 'holds'; next = { ...note, deps: rehash(note.deps), status: 'fresh', verified: now, verifiedCommit: head }; }
+  if (verdict !== 'broken') delete next.violated;
+  delete next.stale; delete next.verifying;
+  store.put(next);
+  store.log({ op: 'verify', id: note.id, kind: 'behavior', verdict, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
+  return { note: next, verdict, reason: v.reason, cost: res.cost };
+}
+
+// Something for the next turn's maintenance notice (maintain.js:maintenanceNotice), from whoever found it.
+export function noteUnreported(store, key, value) {
+  const file = path.join(store.dir, 'state', 'maintain.json');
+  let state = {}; try { state = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+  const u = state.unreported || {};
+  u[key] = [...(u[key] || []).filter(x => x.id !== value.id), value].slice(-10);
+  state.unreported = u;
+  try { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, JSON.stringify(state)); } catch {}
 }
 
 export function feedback(store, { id, useful, correction }) {
@@ -843,10 +906,11 @@ export const ARCHIVE_DEFAULTS = { kinds: ['location', 'fix', 'cochange', 'conven
 // The kinds `thinker review` reasons with (review.js:KIND_WEIGHT): rules, traps, past fixes and
 // why. An archived kind among them is still worth distilling, since review reads the archive;
 // an archived kind outside them (location: `find` answers it) is not worth a note at all.
-export const REVIEW_KINDS = ['gotcha', 'invariant', 'convention', 'fix', 'cochange', 'rationale'];
+export const REVIEW_KINDS = ['behavior', 'gotcha', 'invariant', 'convention', 'fix', 'cochange', 'rationale'];
 export function distillKinds(store) {
   const arch = archiveConfig(store);
-  return arch.enabled ? KINDS.filter(k => !arch.kinds.includes(k) || REVIEW_KINDS.includes(k)) : [...KINDS];
+  // a desired behavior is written or accepted by a person (behavior.js), never distilled from a session
+  return (arch.enabled ? KINDS.filter(k => !arch.kinds.includes(k) || REVIEW_KINDS.includes(k)) : [...KINDS]).filter(k => k !== 'behavior');
 }
 export function archiveConfig(store) {
   const c = store.config().archive;
@@ -854,7 +918,7 @@ export function archiveConfig(store) {
   return { ...ARCHIVE_DEFAULTS, ...(c && typeof c === 'object' ? c : {}), enabled: true };
 }
 export function archiveReason(note, { kinds, unservedDays, now = Date.now() }) {
-  if (note.archived || note.status === 'invalid') return null;
+  if (note.archived || note.status === 'invalid' || note.kind === 'behavior') return null; // a desired behavior is a rule a person wrote, not a note the sessions grade
   if (kinds.includes(note.kind)) return `kind ${note.kind}`;
   const made = Date.parse(note.created || '');
   if (unservedDays > 0 && !(note.uses > 0) && !(note.servedIn || []).length && Number.isFinite(made) && now - made > unservedDays * 86400_000) return `not served in ${unservedDays} days`;
