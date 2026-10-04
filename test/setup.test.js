@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -36,6 +36,17 @@ import {
   stepBuildCache,
 } from '../src/setup.js';
 import { isAuthError, cleanErrorMessage } from '../src/benchmark.js';
+
+// Auth and build execution are mocked below; binary discovery must also be
+// deterministic on machines without agent CLIs. Unexpected execution fails.
+const agentBinDir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-setup-bins-'));
+const originalPath = process.env.PATH;
+for (const name of ['claude', 'codex', 'agy', 'gemini', 'agent']) {
+  fs.writeFileSync(path.join(agentBinDir, name), '#!/bin/sh\n[ "$1" = --version ] && exit 0\necho "Unexpected agent execution in setup test" >&2\nexit 1\n', { mode: 0o755 });
+}
+process.env.PATH = `${agentBinDir}${path.delimiter}${originalPath || ''}`;
+after(() => { process.env.PATH = originalPath; fs.rmSync(agentBinDir, { recursive: true, force: true }); });
+
 
 function createMockGitRepo() {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-setup-test-')));

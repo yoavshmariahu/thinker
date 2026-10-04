@@ -125,7 +125,7 @@ test('provider() returns the primary candidate or promoted active fallback', () 
   resetFallback();
   const p1 = provider();
   // Provider is the top of getFallbackOrder
-  assert.equal(p1, getFallbackOrder()[0]);
+  assert.equal(p1, getFallbackOrder()[0] ?? null);
 
   // If a provider was explicitly pinned
   const prev = process.env.THINKER_LLM;

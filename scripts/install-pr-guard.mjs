@@ -6,7 +6,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-export const MARKER = '# thinker: require pull requests for main';
+export const MARKER = '# repository-policy: require pull requests for main';
+const LEGACY_MARKER = '# thinker: require pull requests for main';
 export function guardScript(previous) {
   const quote = s => `'${s.replaceAll("'", "'\\''")}'`;
   return `#!/bin/sh
@@ -25,6 +26,10 @@ export function install(repo = process.cwd()) {
   const hook = path.resolve(repo, execFileSync('git', ['rev-parse', '--git-path', 'hooks/pre-push'], { cwd: repo, encoding: 'utf8' }).trim());
   const before = fs.existsSync(hook) ? fs.readFileSync(hook, 'utf8') : '';
   if (before.includes(MARKER)) return { installed: true, existing: true, hook };
+  if (before.includes(LEGACY_MARKER)) {
+    fs.writeFileSync(hook, before.replace(LEGACY_MARKER, MARKER), { mode: 0o755 });
+    return { installed: true, existing: true, hook };
+  }
   const previous = `${hook}.before-pr-policy`;
   if (before && fs.existsSync(previous)) throw new Error('Previous hook backup exists; refusing to overwrite it');
   fs.mkdirSync(path.dirname(hook), { recursive: true });

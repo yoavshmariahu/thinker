@@ -9,7 +9,8 @@ import { appendImpact } from '../src/impact-journal.js';
 import { deliveryMetrics } from '../src/delivery-telemetry.js';
 import { buildTelemetryPayload } from '../src/telemetry.js';
 import { normalizeReport } from '../infra/metrics/report.mjs';
-import { guardScript, install } from '../scripts/install-pr-guard.mjs';
+import { installGitHooks, uninstallGitHooks } from '../src/git-hooks.js';
+import { guardScript, install, MARKER } from '../scripts/install-pr-guard.mjs';
 
 const now = Date.now(), timestamp = new Date(now - 3600000).toISOString();
 function fixture(t) {
@@ -83,5 +84,13 @@ test('the PR push guard blocks main updates and deletion but preserves branch pu
   assert.equal(fs.readFileSync(path.join(dir, 'input'), 'utf8'), input);
   assert.equal(fs.readFileSync(path.join(dir, 'remote'), 'utf8'), 'origin');
   execFileSync('git', ['init', '-q'], { cwd: dir });
-  assert.equal(install(dir).existing, false); assert.equal(install(dir).existing, true);
+  const installed = install(dir);
+  assert.equal(installed.existing, false); assert.equal(install(dir).existing, true);
+  const policy = fs.readFileSync(installed.hook, 'utf8');
+  installGitHooks(dir, '/unused/cli.js', true);
+  uninstallGitHooks(dir);
+  assert.equal(fs.readFileSync(installed.hook, 'utf8'), policy);
+  fs.writeFileSync(installed.hook, policy.replace(MARKER, '# thinker: require pull requests for main'));
+  assert.equal(install(dir).existing, true);
+  assert.equal(fs.readFileSync(installed.hook, 'utf8'), policy);
 });
