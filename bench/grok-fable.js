@@ -64,8 +64,6 @@ function armCache(wt) {
   // use counters, stay in the worktree and go with it. Nothing reaches the historical set.
   const own = path.join(wt, '.thinker');
   fs.cpSync(path.join(NOTESET, 'notes'), path.join(own, 'notes'), { recursive: true });
-  const cc = path.join(NOTESET, 'cochange.json');
-  if (fs.existsSync(cc)) fs.copyFileSync(cc, path.join(own, 'cochange.json'));
   const env = { THINKER_REPO: wt, THINKER_NO_BG_VERIFY: '1' };
   installClient('cursor', {
     repo: wt, cli: CLI, hooks: true, learn: false, late: true, shared: false, mcp: true,

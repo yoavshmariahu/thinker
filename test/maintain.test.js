@@ -33,7 +33,7 @@ function withEnv(fn) {
   return Promise.resolve().then(fn).finally(() => { for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
 }
 
-test('maintain verifies stale notes, phrases unphrased ones, refreshes co-change, and reports once', () => withEnv(async () => {
+test('maintain verifies stale notes, phrases unphrased ones, and reports once', () => withEnv(async () => {
   const { dir, store, a, b } = staleRepo();
   const verified = [], phrased = [];
   const r = await maintain(store, dir, { fns: {
@@ -45,21 +45,19 @@ test('maintain verifies stale notes, phrases unphrased ones, refreshes co-change
   assert.deepEqual(verified, [a.id], 'only the stale note is sent to the model');
   assert.equal(r.verified, 1); assert.equal(r.updated, 1); assert.equal(r.retired, 0);
   assert.deepEqual(phrased.sort(), [a.id, b.id].sort(), 'both notes lack phrasings');
-  assert.equal(r.cochange, true);
-  assert.ok(fs.existsSync(path.join(dir, '.thinker', 'cochange.json')));
   assert.equal(r.prs, 0, 'the first run only marks where PR mining starts');
   assert.ok(Math.abs(r.cost - 0.015) < 1e-9);
   const state = JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8'));
   assert.ok(state.prsAfter);
   // the user hears about it once
   const notice = maintenanceNotice(store);
-  assert.match(notice, /1 stale note re-verified \(1 updated\); 2 notes phrased; co-change index refreshed/);
+  assert.match(notice, /1 stale note re-verified \(1 updated\); 2 notes phrased/);
   assert.equal(maintenanceNotice(store), '');
-  assert.match(renderMaintain(r), /1 re-verified, 1 updated, 2 phrased, 0 from pull requests, co-change refreshed \(\$0\.015\)/);
+  assert.match(renderMaintain(r), /1 re-verified, 1 updated, 2 phrased, 0 from pull requests \(\$0\.015\)/);
   fs.rmSync(dir, { recursive: true, force: true });
 }));
 
-test('maintain mines pull requests merged since its first run, and co-change only when HEAD moved', () => withEnv(async () => {
+test('maintain mines pull requests merged since its first run', () => withEnv(async () => {
   const { dir, store } = staleRepo();
   const calls = [];
   const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', cost: 0 }), phrase: async (s, n) => ({ done: n, cost: 0 }), minePrs: async o => { calls.push(o); return { saved: 2, cost: 0.1 }; } };
@@ -71,7 +69,6 @@ test('maintain mines pull requests merged since its first run, and co-change onl
   assert.equal(calls[0].after, first);
   assert.equal(calls[0].limit, DEFAULTS.prsPerRun);
   assert.equal(r.prs, 2);
-  assert.equal(r.cochange, false, 'HEAD did not move');
   assert.match(maintenanceNotice(store), /2 notes from merged pull requests/);
   fs.rmSync(dir, { recursive: true, force: true });
 }));
@@ -82,8 +79,7 @@ test('maintain stops at the daily cap, honours the lock, and can be switched off
   const fns = { spentToday: () => DEFAULTS.dailyCap, verify: async () => { verifyCalls++; return { verdict: 'still_valid', cost: 0 }; }, phrase: async (s, n) => ({ done: n, cost: 0 }) };
   const r = await maintain(store, dir, { fns });
   assert.equal(r.capped, true); assert.equal(verifyCalls, 0); assert.equal(r.phrased, 0);
-  assert.equal(r.cochange, true, 'co-change costs nothing and still runs');
-  assert.equal(maintenanceNotice(store), '🧠 thinker: in the background, co-change index refreshed');
+  assert.equal(maintenanceNotice(store), '', 'nothing happened, nothing to say');
   // a run in progress
   fs.writeFileSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), '1');
   assert.deepEqual(await maintain(store, dir, { fns }), { skipped: 'locked' });

@@ -54,7 +54,7 @@ export const STRATEGIES = {
 };
 
 // The cache every case is reviewed with: the checkout's shared and local notes, flat, as the
-// benchmark arms take them (THINKER_NOTES_DIR); its co-change index beside them.
+// benchmark arms take them (THINKER_NOTES_DIR).
 function buildCache(repo) {
   const dir = path.join(out, 'cache'), notes = path.join(dir, 'notes');
   fs.mkdirSync(notes, { recursive: true });
@@ -63,8 +63,6 @@ function buildCache(repo) {
     if (!fs.existsSync(src)) continue;
     for (const f of fs.readdirSync(src)) if (f.endsWith('.json')) { fs.copyFileSync(path.join(src, f), path.join(notes, f)); n++; }
   }
-  const co = flags.notes ? path.join(path.resolve(flags.notes), '..', 'cochange.json') : path.join(repo, '.thinker', 'cochange.json');
-  if (fs.existsSync(co)) fs.copyFileSync(co, path.join(dir, 'cochange.json'));
   process.env.THINKER_NOTES_DIR = notes;
   return n;
 }

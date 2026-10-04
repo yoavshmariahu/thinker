@@ -292,9 +292,7 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
 }
 
 // The finding that needs no model: a definition the change removed that is still referred to
-// (working tree and index only; a commit's references cannot be grepped). The co-change hint
-// ("X usually changes with Y and is not in this change") was dropped with the co-change notes: it
-// fired on legitimate changes as often as not.
+// (working tree and index only; a commit's references cannot be grepped).
 export function deterministicFindings(repo, change, symbols, reader) {
   const findings = [];
   if (change.state) return findings;
@@ -428,7 +426,7 @@ const ASSESS_SCHEMA = {
 const SYSTEM = `You review a code change against one note from a cache of knowledge about the repository. The note was written earlier, possibly before other changes, and may itself be out of date: the code is the ground truth and the note is a claim about it that you must check.
 
 Give one verdict:
-- violation: the change breaks or contradicts something the note states (an invariant, a convention, an ordering, a co-change rule, a trap), and the code shown still supports the note's claim. Report each such problem as a finding with the file and line after the change and quote the evidence.
+- violation: the change breaks or contradicts something the note states (an invariant, a convention, an ordering, a trap), and the code shown still supports the note's claim. Report each such problem as a finding with the file and line after the change and quote the evidence.
 - note_outdated: the code, before or after the change, disagrees with the note in a way that makes the note wrong, so the change is not at fault. Give a corrected body.
 - consistent: the change respects what the note says.
 - unrelated: the note has nothing to say about this change.

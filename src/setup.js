@@ -83,7 +83,7 @@ export async function runSetup({
   // Step 2: Build Knowledge Cache
   const slug = githubSlug(repo);
 
-  out(stepBanner(2, 3, 'Build Knowledge Cache', 'Mine co-change patterns, PR invariants, and explore codebase topology'));
+  out(stepBanner(2, 3, 'Build Knowledge Cache', 'Mine PR invariants and explore codebase topology'));
 
   let activeAgent = agent || exploreAgent();
   let agentAuthed = false;

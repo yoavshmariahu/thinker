@@ -1,4 +1,4 @@
-// Serving less and invalidating less: the stemmer, the term rules, dependency narrowing, co-change
+// Serving less and invalidating less: the stemmer, the term rules, dependency narrowing
 // notes as edit-time rules, and the distiller's view of what the cache already holds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -93,20 +93,6 @@ test('a whole-file dep with no named definition stays fresh while the diff touch
   assert.ok(r.upgraded && !r.deps[0].symbol && r.deps[0].hash !== note.deps[0].hash, 'the file dep takes the new hash');
   fs.writeFileSync(path.join(repo, 'build.sh'), '#!/bin/sh\nnpm run build:prod\necho done\n');
   assert.deepEqual(checkNote(repo, note, { narrow: true }).changed.map(c => c.reason), ['file changed'], 'a changed line holds "build"');
-  fs.rmSync(repo, { recursive: true, force: true });
-});
-
-test('the edit hook names git co-change partners of an edited file, once per session; a rule note on the file is still served', async () => {
-  const repo = gitRepo();
-  fs.writeFileSync(path.join(repo, 'src/billing.js'), 'export function applyRates() {\n  return 1;\n}\n');
-  fs.mkdirSync(path.join(repo, 'scripts')); fs.writeFileSync(path.join(repo, 'scripts/regen.sh'), 'echo regen\n');
-  const store = new Store(repo).init();
-  createNote(store, { title: 'Costs and the regen script change together', kind: 'rule', answers: ['what must change with the cost figures'], body: 'the cost figures change with the rates: src/billing.js:applyRates and scripts/regen.sh regenerate them', deps: [{ path: 'src/billing.js', symbol: 'applyRates' }, { path: 'scripts/regen.sh' }] });
-  fs.writeFileSync(path.join(repo, '.thinker', 'cochange.json'), JSON.stringify({ commits: 5, totals: { 'src/billing.js': 5 }, pairs: { 'src/billing.js': { 'scripts/regen.sh': 4 } } }));
-  const late = lateNotes(store, { session: 'e1', files: ['src/billing.js'], edited: true });
-  assert.match(late.text, /src\/billing\.js usually changes with scripts\/regen\.sh \(80%, n=4\)/);
-  assert.equal(lateNotes(store, { session: 'e1', files: ['src/billing.js'], edited: true }).text, '', 'told once');
-  assert.ok(!/usually changes with/.test(lateNotes(store, { session: 'e2', files: ['scripts/regen.sh'], edited: true }).text), 'no partner above the floor; the rule note on the file is still served');
   fs.rmSync(repo, { recursive: true, force: true });
 });
 

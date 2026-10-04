@@ -95,8 +95,6 @@ function resetWorktree(wt) {
 function armCache(wt) {
   const own = path.join(wt, '.thinker');
   fs.cpSync(NOTES, path.join(own, 'notes'), { recursive: true });
-  const cc = path.join(NOTESET, 'cochange.json');
-  if (fs.existsSync(cc)) fs.copyFileSync(cc, path.join(own, 'cochange.json'));
   installClient('codex', {
     repo: wt, cli: CLI, hooks: false, learn: false, late: true, shared: false, mcp: true,
     mcpEntry: { command: 'node', args: [path.join(ROOT, 'src', 'mcp.js')], env: { THINKER_REPO: wt, THINKER_NO_LEARN: '1', THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local' } },

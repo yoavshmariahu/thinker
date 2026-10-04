@@ -100,11 +100,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  take notes out of serving and upkeep, keeping them for review: the kinds named in the
                                  config (none by default) and notes unserved for 30 days; maintenance applies the same rules
   rehash [--fanout]              re-baseline every note's hashes without verification (--fanout: count references again)
-  cochange [file]                mine co-change edges from git history / show partners of a file
   relink                         recompute cross-note links
   verify [ids...] [--model m]    re-verify stale notes with a small model
   maintain [--dry]               one background maintenance run: re-verify stale notes, phrase new ones, refresh
-                                 co-change, distill newly merged PRs; runs by itself from the hooks, under a daily cap
+                                 distill newly merged PRs; runs by itself from the hooks, under a daily cap
   phrase [ids...] [--model m] [--force]
                                  add to each note how a user would put it, in the words of the product (for retrieval)
   distill [transcript] [--format auto|claude|codex|cursor|gemini|events] [--min-explore n] [--incremental [--batch]] [--dry] [--model m]
@@ -147,7 +146,7 @@ const HELP = `thinker — knowledge cache for coding agents
 
 // Commands that read or maintain an existing cache. Not `setup`, `seed`, `mine-prs`, `import`,
 // `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
-const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'cochange', 'relink', 'rehash', 'outcome'];
+const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'relink', 'rehash', 'outcome'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
 const COMMANDS = { ...noteCommands, ...cacheCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands };

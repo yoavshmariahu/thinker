@@ -163,11 +163,11 @@ test('archiving: kinds the sessions never acted on, and notes unserved for a mon
   assert.equal(lookup(store, { query: loc.id }).included[0]?.id, loc.id);
   assert.ok(!lookup(store, { query: 'where is fetchRows defined' }).included.some(n => n.id === loc.id));
   // the edit hook does not serve an archived rule note
-  const cc = createNote(store, { title: 'rows go with their index', kind: 'cochange', answers: ['what changes with src/a.js'], body: 'src/a.js changes with its index through the generator', deps: [{ path: 'src/a.js' }] }).note;
+  const cc = createNote(store, { title: 'rows go with their index', kind: 'rule', answers: ['what changes with src/a.js'], body: 'src/a.js changes with its index through the generator', deps: [{ path: 'src/a.js' }] }).note;
   archiveNotes(store, { ids: [cc.id] });
   rememberTask(store, 'e1', 'change saveRows and what changes with src/a.js');
   const late = lateNotes(store, { session: 'e1', client: 'claude', files: ['src/a.js'], edited: true });
-  assert.ok(!late.included.some(n => n.id === cc.id), 'archived cochange note not served on edit');
+  assert.ok(!late.included.some(n => n.id === cc.id), 'archived rule note not served on edit');
   // maintenance does not re-verify or phrase it
   for (const id of [loc.id, rule.id]) { const n = store.get(id); n.status = 'stale'; n.stale = { changed: [] }; n.uses = 1; n.lastUsed = new Date().toISOString(); store.put(n); }
   const { stale } = pickStale(store.list(), DEFAULTS);
@@ -206,13 +206,13 @@ test('maintenance archives by the rules, counts it, and tells the user once', ()
   const dir = gitRepo(); const store = new Store(dir).init();
   createNote(store, { title: 'fetchRows is defined in src/a.js', kind: 'location', answers: ['where is fetchRows'], body: 'src/a.js:fetchRows', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] });
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ archive: { kinds: ['map'] } }));
-  const r = await maintain(store, dir, { fns: { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid' }), phrase: async () => ({ done: [], cost: 0 }), cochange: () => {} } });
+  const r = await maintain(store, dir, { fns: { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid' }), phrase: async () => ({ done: [], cost: 0 }), } });
   assert.equal(r.archived, 1);
   const { maintenanceNotice, renderMaintain } = await import('../src/maintain.js');
   assert.match(renderMaintain(r), /1 archived/);
   assert.match(maintenanceNotice(store), /1 note archived: kept for review/);
   assert.equal(maintenanceNotice(store), '', 'said once');
-  const r2 = await maintain(store, dir, { fns: { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid' }), phrase: async () => ({ done: [], cost: 0 }), cochange: () => {} } });
+  const r2 = await maintain(store, dir, { fns: { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid' }), phrase: async () => ({ done: [], cost: 0 }), } });
   assert.equal(r2.archived, 0);
 }));
 

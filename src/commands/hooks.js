@@ -5,7 +5,6 @@ import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { MORE_NOTES_INTRO } from '../cache-guidance.js';
 import { pruneInstalls, prunedLines, refreshWiring, hookClient, sessionOf, toolFiles, promptOutput, toolOutput, stopOutput, parkPending, takePending } from '../clients.js';
-import { loadCochange } from '../cochange.js';
 import { parseTranscript } from '../distill.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession } from '../ops.js';
@@ -83,7 +82,7 @@ async function hookCommand(ctx) {
     if (flags.nudge && !ev.stop_hook_active) {
       let changed = [];
       try { changed = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: repo }).toString().split('\n').map(l => l.slice(3).trim()).filter(f => f && !f.startsWith('.thinker') && !f.startsWith('.mcp.json') && !f.startsWith('.claude/')); } catch {}
-      const n = completenessNudge(store, { session, changed, cochange: loadCochange(repo) });
+      const n = completenessNudge(store, { session, changed });
       if (n.text) { out(JSON.stringify({ decision: 'block', reason: n.text })); return; }
     }
     if (client === 'cursor') out('{}');

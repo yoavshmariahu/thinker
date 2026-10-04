@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { Store } from '../src/store.js';
 import { createNote, attest, linkNotes } from '../src/ops.js';
-import { partners, renderCochange } from '../src/cochange.js';
 
 function repo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-loop-'));
@@ -46,11 +45,4 @@ test('linkNotes links notes sharing a symbol dep, symmetrically', () => {
   assert.deepEqual(store.get(b.id).related, [a.id]);
   assert.deepEqual(store.get(a.id).related, [b.id]);
   assert.deepEqual(store.get(c.id).related, []);
-});
-
-test('cochange partners and rendering', () => {
-  const idx = { totals: { 'a.py': 10, 'b.py': 4 }, pairs: { 'a.py': { 'test_a.py': 8, 'b.py': 2 }, 'b.py': { 'a.py': 2 } } };
-  assert.deepEqual(partners(idx, 'a.py').map(p => p.file), ['test_a.py']);
-  assert.ok(renderCochange(idx, ['a.py']).includes('80%'));
-  assert.equal(renderCochange(idx, ['zzz.py']), '');
 });

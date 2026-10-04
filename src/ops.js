@@ -9,7 +9,6 @@ import { rank, pack, renderNote, estTokens, MIN_COVER } from './rank.js';
 import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout } from './codegraph.js';
 import { servedFields } from './usage.js';
 import { complete } from './llm.js';
-import { loadCochange, partners } from './cochange.js';
 import { anchoringGuard } from './guard.js';
 
 export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
@@ -273,8 +272,6 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   if (recordUsage && session) trackTurn(store, session, packed.included.map(n => n.id));
   packed.held = held;
   if (backgroundVerify) scheduleVerify(store, [...packed.included.filter(n => n.status === 'stale'), ...held]);
-  // co-change edges are not served here: carried through every later model call they cost more than
-  // they gave; the edit hook names them when a file is edited (lateNotes) and the stop hook repeats them
   // anchoring guard: name what the request mentions that the notes do not cover
   if (packed.included.length) {
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
@@ -329,7 +326,7 @@ export function attest(store, assessments, { session, client, model } = {}) {
 }
 
 // --- late, file-keyed injection ---------------------------------------------
-// Rules about files the agent is changing (invariant, gotcha, convention, cochange),
+// Rules about files the agent is changing (behaviors and rules),
 // served when it edits them: each once per session, and only those that bear on the
 // request. Serving notes on a file as soon as the agent opens it was tried and dropped: an
 // agent that gets notes after every read was seen to read in smaller steps and make more calls.
@@ -375,20 +372,7 @@ export function lateNotes(store, { session, client, files, edited = false, perEv
 }
 function lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }) {
   const { st, save } = sessionState(store, session);
-  // what git history says changes with the files being edited: free, and told once per file, leaving
-  // out partners the session has edited already. The rule notes below need no such list to exist.
-  const cc = [];
-  {
-    const idx = loadCochange(store.repo);
-    st.edited = [...new Set([...(st.edited || []), ...rel])]; st.ccTold = st.ccTold || [];
-    if (idx) for (const f of rel) {
-      if (st.ccTold.includes(f)) continue;
-      const ps = partners(idx, f, { minSupport: 3, minConf: 0.5, limit: 3 }).filter(p => !st.edited.includes(p.file) && fs.existsSync(path.join(store.repo, p.file)));
-      if (ps.length) { cc.push(`${f} usually changes with ${ps.map(p => `${p.file} (${Math.round(p.conf * 100)}%, n=${p.support})`).join(', ')}`); st.ccTold.push(f); }
-    }
-  }
-  const ccText = cc.length ? `Co-change (from git history): ${cc.join('; ')}. Decide whether this change needs them.` : '';
-  if (st.late.length >= perSession) { if (cc.length) { save(); store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: [], cochange: cc.length }); } return { text: cc.length ? `<thinker-cache>\n${ccText}\n</thinker-cache>` : '', included: [] }; }
+  if (st.late.length >= perSession) return { text: '', included: [] };
   let notes = store.list().filter(n => n.status !== 'invalid' && !n.archived && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
   notes = notes.filter(n => RULE_KINDS.includes(n.kind));
   // relevance is measured among all notes: among these few the best one would always score 1
@@ -396,36 +380,30 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   notes = refresh(store, notes);
   notes.sort((a, b) => (LATE_PRIORITY[a.kind] ?? 9) - (LATE_PRIORITY[b.kind] ?? 9) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7));
   const pick = notes.slice(0, Math.min(perEvent, perSession - st.late.length));
-  if (!pick.length) { if (cc.length) { save(); store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: [], cochange: cc.length }); } return { text: cc.length ? `<thinker-cache>\n${ccText}\n</thinker-cache>` : '', included: [] }; }
+  if (!pick.length) return { text: '', included: [] };
   for (const n of pick) { st.late.push(n.id); n.uses = (n.uses || 0) + 1; n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   st.turn = [...new Set([...(st.turn || []), ...pick.map(n => n.id)])];
   save();
   const intro = on === 'edit'
     ? `Rules from previous sessions about code you are changing (${rel.join(', ')}). Check the change against them; they do not call for more reading.`
     : `Cached notes about ${rel.join(', ')} from previous sessions. They describe rules and context around this code; they are partial, so keep reading what the change needs.`;
-  const text = `<thinker-cache>\n${intro}\n\n${pick.map(n => renderNote(n)).join('\n\n')}${ccText ? '\n\n' + ccText : ''}\n</thinker-cache>`;
-  store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: pick.map(n => n.id), cochange: cc.length || undefined, ...servedFields(store, pick, text) });
+  const text = `<thinker-cache>\n${intro}\n\n${pick.map(n => renderNote(n)).join('\n\n')}\n</thinker-cache>`;
+  store.log({ op: 'late', on, session, client: client || 'cli', files: rel, served: pick.map(n => n.id), ...servedFields(store, pick, text) });
   return { included: pick, text };
 }
 
 // --- completeness nudge -------------------------------------------------------
-// At the end of a session that edited files: co-change partners that were not
-// touched, and rule notes on the edited files that were never served.
-export function completenessNudge(store, { session, changed, cochange }) {
+// At the end of a session that edited files: rule notes on the edited files that were never served.
+export function completenessNudge(store, { session, changed }) {
   const { st, save } = sessionState(store, session);
   if (st.nudged || !changed.length) return { text: '' };
   const lines = [];
-  const isTest = f => /(^|\/)(tests?|__tests__)\/|(^|\/)test_[^/]*$|\.(test|spec)\.\w+$|_test\.\w+$/.test(f);
-  if (cochange) for (const f of changed.filter(f => !isTest(f)).slice(0, 8)) {
-    const miss = partners(cochange, f, { minSupport: 3, minConf: 0.5, limit: 3 }).filter(p => !changed.includes(p.file) && fs.existsSync(path.join(store.repo, p.file)));
-    if (miss.length) lines.push(`${f} was edited; in past commits it changed together with ${miss.map(p => `${p.file} (${Math.round(p.conf * 100)}%, n=${p.support})`).join(', ')}, which you did not touch.`);
-  }
   const rules = store.list().filter(n => RULE_KINDS.includes(n.kind) && n.status !== 'invalid' && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => changed.includes(d.path))).slice(0, 3);
   for (const n of rules) { lines.push(`Rule not yet seen this session, [${n.kind}] ${n.title}: ${n.body.split('\n').slice(0, 4).join(' ').slice(0, 400)}`); n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (!lines.length) return { text: '' };
   st.nudged = true; save();
   store.log({ op: 'nudge', session, changed, lines: lines.length });
-  return { text: `Before finishing, check completeness against what this repository's history and notes say:\n- ${lines.slice(0, 6).join('\n- ')}\nFor each item decide whether your change needs it. Make the additional edits if so; if not, say why in one line, then finish.` };
+  return { text: `Before finishing, check completeness against the rules this repository's notes state:\n- ${lines.slice(0, 6).join('\n- ')}\nFor each item decide whether your change needs it. Make the additional edits if so; if not, say why in one line, then finish.` };
 }
 
 // --- outcome signals -----------------------------------------------------
@@ -825,8 +803,8 @@ export function holdoutSession(store, session) {
 // `drilldown`, `find` and `lookup` by id, and taken out of orientation, the edit hook and
 // maintenance (no re-verification, no phrasing). Two rules, both free: a kind that was never
 // acted on when served (in a week on this repository: location 0 of 6, fix 0 of 12, cochange 0
-// of 5, convention 0 of 3; `find` and the git co-change index cover what location and cochange
-// notes said), and a note nobody has been served in `unservedDays` since it was made. The
+// of 5, convention 0 of 3; `find` covers what location notes said, and co-change was dropped
+// altogether), and a note nobody has been served in `unservedDays` since it was made. The
 // state is this checkout's (`archived` is a LOCAL_FIELDS entry), never shared or pushed.
 // `archive` in .thinker/config.json: `{ kinds: [...], unservedDays: 30 }`, or false.
 // kinds: none by default since the kinds were collapsed to four (the location, fix, cochange and

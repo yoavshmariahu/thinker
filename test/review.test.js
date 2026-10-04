@@ -30,7 +30,7 @@ function fixture(t) {
   const dep = (p, symbol) => hashDep(repo, { path: p, symbol });
   const notes = {
     invariant: { id: 'validate-before-main', title: 'Command.invoke must validate ctx before main', kind: 'invariant', answers: ['why does invoke call validate first'], body: 'core.py:Command.invoke calls core.py:validate before core.py:Command.main; main assumes a non-None ctx. Every entry point (cli.py:entry) relies on invoke doing this.', deps: [dep('src/core.py', 'Command.invoke'), dep('src/core.py', 'validate'), dep('src/cli.py', 'entry')], source: { type: 'human' }, confidence: 0.9, status: 'fresh', verified: '2026-01-01T00:00:00.000Z' },
-    cochange: { id: 'cli-and-core-change-together', title: 'cli.py entry changes with core.py Command', kind: 'cochange', answers: ['what changes with Command'], body: 'When core.py:Command gains or loses a method, cli.py:entry must be updated to match.', deps: [dep('src/core.py', 'Command'), dep('src/cli.py', 'entry')], source: { type: 'human' }, confidence: 0.8, status: 'fresh' },
+    pair: { id: 'cli-and-core-change-together', title: 'cli.py entry changes with core.py Command', kind: 'rule', answers: ['what changes with Command'], body: 'When core.py:Command gains or loses a method, cli.py:entry must be updated to match.', deps: [dep('src/core.py', 'Command'), dep('src/cli.py', 'entry')], source: { type: 'human' }, confidence: 0.8, status: 'fresh' },
     convention: { id: 'convert-returns-str', title: 'Type conversion always returns str', kind: 'convention', answers: ['what does convert return'], body: 'types.py:convert returns str for every input; callers compare against string literals, so never return None or int from convert.', deps: [dep('src/types.py', 'convert')], source: { type: 'human' }, confidence: 0.85, status: 'fresh' },
     unrelated: { id: 'how-to-run-tests', title: 'How to run the test suite', kind: 'howto', answers: ['how do I run tests'], body: 'Run pytest from the repository root; see README.md.', deps: [{ path: 'README.md', hash: 'sha256:000000000000000000000000' }], source: { type: 'human' }, confidence: 0.7, status: 'fresh' },
   };
@@ -107,11 +107,11 @@ test('changed and removed symbols, and what each note is exposed to: touched by 
   assert.equal(d.touched.length, 0);
   assert.deepEqual(d.staleBefore, [{ path: 'src/types.py', symbol: 'convert', reason: 'symbol body changed' }]);
   const { direct, related } = selectNotes(store.list(), change, reader);
-  assert.deepEqual(direct.map(n => n.id), ['validate-before-main', 'cli-and-core-change-together']); // invariant outranks cochange
+  assert.deepEqual(direct.map(n => n.id), ['validate-before-main', 'cli-and-core-change-together']); // the invariant, with more specific pointers, first
   assert.ok(!related.some(n => n.id === 'how-to-run-tests'));
 });
 
-test('findings without a model: a removed symbol still referenced; no co-change hint', t => {
+test('findings without a model: a removed symbol still referenced', t => {
   const { repo, store, write } = fixture(t);
   write('src/core.py', CORE.replace('        validate(ctx)\n', '').replace('def validate(ctx):\n    if ctx is None:\n        raise ValueError("ctx")\n\n', ''));
   const scope = resolveScope(repo), reader = makeReader(repo, scope);
@@ -123,7 +123,7 @@ test('findings without a model: a removed symbol still referenced; no co-change 
   assert.match(broken.message, /validate was removed from src\/core.py/);
   assert.match(broken.message, /src\/cli.py:1/); // the import
   assert.match(broken.message, /src\/cli.py:4/); // the call
-  assert.equal(findings.length, 1); // the co-change hint ("cli.py usually changes with core.py") is gone with the co-change notes
+  assert.equal(findings.length, 1);
   // moved, not removed: validate defined in another file now
   write('src/checks.py', 'def validate(ctx):\n    return ctx\n');
   const again = deterministicFindings(repo, collectChange(repo, scope), changedSymbols(collectChange(repo, scope), reader), makeReader(repo, scope));
@@ -236,7 +236,7 @@ test('kinds narrows the review to the desired behaviors: one call per behavior i
   const seen = [];
   const assess = async (s, note, exposure) => { seen.push(note.id); return { id: note.id, verdict: 'violation', reason: 'invoke no longer validates', findings: [{ severity: 'error', category: 'violation', file: 'src/core.py', line: 5, message: 'invoke skips validate', evidence: '-        validate(ctx)', confidence: 0.9, note: note.id, inChange: true }], noteCorrection: '', cost: 0.01 }; };
   const r = await review(store, { kinds: ['behavior'], assess });
-  assert.deepEqual(seen, ['invoke-validates']); // the invariant and the co-change note rest on the same code and were not consulted
+  assert.deepEqual(seen, ['invoke-validates']); // the invariant and the other rule rest on the same code and were not consulted
   assert.equal(r.strategy.mode, 'per-note'); // the default for a kinds review: a verdict per behavior, no no-notes baseline
   assert.deepEqual(r.kinds, ['behavior']);
   assert.equal(r.notes.consulted, 1);

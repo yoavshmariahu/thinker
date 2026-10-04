@@ -53,14 +53,12 @@ test('late notes: the limit of a session holds', () => {
   assert.equal(served, 3);
 });
 
-test('completeness nudge: co-change partner not touched and unseen rule, once', () => {
+test('completeness nudge: an unseen rule on an edited file, once', () => {
   const { store } = setup();
-  const cc = { totals: { 'src/a.py': 10 }, pairs: { 'src/a.py': { 'src/b.py': 8 } } };
-  const n = completenessNudge(store, { session: 's9', changed: ['src/a.py'], cochange: cc });
-  assert.ok(n.text.includes('src/b.py'));
+  const n = completenessNudge(store, { session: 's9', changed: ['src/a.py'] });
   assert.ok(n.text.includes('Launch must check can_edit'));
-  assert.equal(completenessNudge(store, { session: 's9', changed: ['src/a.py'], cochange: cc }).text, '');
-  assert.equal(completenessNudge(store, { session: 's10', changed: ['src/a.py', 'src/b.py'], cochange: { totals: {}, pairs: {} } }).text.includes('src/b.py'), false);
+  assert.equal(completenessNudge(store, { session: 's9', changed: ['src/a.py'] }).text, '');
+  assert.equal(completenessNudge(store, { session: 's10', changed: ['src/zzz.py'] }).text, '', 'no rule on the file: nothing');
 });
 
 test('orient with a caller budget: more notes, links add, the rest is listed; lookup takes an id', async () => {

@@ -109,7 +109,6 @@ test('estimateCacheBuild computes time, size, and storage locations', () => {
     // Storage paths
     assert.match(est.storage.rootDir, /\.thinker/);
     assert.match(est.storage.notesDir, /notes/);
-    assert.match(est.storage.cochangeFile, /cochange\.json/);
     assert.match(est.storage.prsFile, /prs\.json/);
 
     // Size range
@@ -121,7 +120,6 @@ test('estimateCacheBuild computes time, size, and storage locations', () => {
     // Timing
     assert.ok(est.timing.totalSeconds > 0);
     assert.ok(est.timing.formatted.length > 0);
-    assert.ok(est.timing.breakdown.cochange.length > 0);
 
     // When skipped with flags
     const estNoSeed = estimateCacheBuild(repo, { areas: 10, prs: 20, noSeed: true, noPrs: true });
@@ -169,7 +167,7 @@ test('buildPrBenchmarkTask creates read-only architectural prompt', () => {
   assert.match(task, /PR #105: Fix race condition in session refresh/);
   assert.match(task, /Resolves token expiration collision/);
   assert.match(task, /Identify which specific files and symbols/);
-  assert.match(task, /invariants, conventions, or co-change patterns/);
+  assert.match(task, /invariants or conventions/);
 });
 
 test('renderPrBenchmarkReport formats side-by-side comparison table with target files metric', () => {
@@ -256,7 +254,6 @@ test('runSetup completes 3-step setup flow in clean repo', async () => {
     // Verify .thinker storage on disk
     assert.ok(fs.existsSync(path.join(repo, '.thinker')));
     assert.ok(fs.existsSync(path.join(repo, '.thinker', 'notes')));
-    assert.ok(fs.existsSync(path.join(repo, '.thinker', 'cochange.json')));
     assert.ok(fs.existsSync(path.join(repo, '.claude', 'settings.json')));
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
@@ -307,7 +304,7 @@ test('runSetup mines git history when GitHub origin is unavailable', async () =>
     });
 
     const fullOutput = outLines.join('\n');
-    assert.match(fullOutput, /\[2\/4\] Mining merged changes from git history \(GitHub CLI unavailable\)\.\.\./);
+    assert.match(fullOutput, /\[1\/3\] Mining merged changes from git history \(GitHub CLI unavailable\)\.\.\./);
     assert.match(fullOutput, /Mined git history changes → 3 notes created/);
     assert.equal(minedPrsArgs.slug, null);
     assert.equal(minedPrsArgs.opts.limit, 10);
@@ -355,7 +352,6 @@ test('runSetup wires the repository up and leaves the cache unbuilt when no agen
     assert.match(fullOut, /Cache not built here/);
     assert.match(fullOut, /thinker setup --build/);
     assert.match(fullOut, /Thinker setup complete!/);
-    assert.ok(fs.existsSync(path.join(repo, '.thinker', 'cochange.json')));
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -389,7 +385,6 @@ test('setup offers the cache build and takes no for an answer outside a terminal
     assert.match(fullOut, /Thinker setup complete!/);
     // wiring and the free part of the cache still happened
     assert.ok(fs.existsSync(path.join(repo, '.claude', 'settings.local.json')) || fs.existsSync(path.join(repo, '.claude', 'settings.json')));
-    assert.ok(fs.existsSync(path.join(repo, '.thinker', 'cochange.json')));
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
@@ -660,7 +655,7 @@ test('selectAndAuthenticateAgent pauses setup when user declines sign-in and cho
   assert.match(outLines.join('\n'), /Exit requested by user/);
 });
 
-test('selectAndAuthenticateAgent allows proceeding without exploration when user elects co-change only', async () => {
+test('selectAndAuthenticateAgent allows proceeding without exploration when the user elects to', async () => {
   const outLines = [];
   const out = line => outLines.push(stripAnsi(line));
 
@@ -933,9 +928,8 @@ test('estimateCacheBuild calculates bigger, realistic timing estimates', () => {
   try {
     const est = estimateCacheBuild(repo, { areas: 12, prs: 40, agent: 'claude' });
     // In mock repo with 1 discovered area and commitCount <= 5 (no git PR mining):
-    // 1 area * 55s + 2s cochange + 8s indexing = 65s (compared to old ~15s)
+    // 1 area * 55s + 8s indexing = 63s (compared to old ~15s)
     assert.ok(est.timing.totalSeconds >= 60, `Expected totalSeconds >= 60, got ${est.timing.totalSeconds}`);
-    assert.match(est.timing.breakdown.cochange, /s/);
     if (est.canMine) {
       assert.match(est.timing.breakdown.prs, /[ms]/);
     }
