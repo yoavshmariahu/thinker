@@ -1,0 +1,1113 @@
+{
+ "repo": "posthog",
+ "base": "a3b3c3685bc",
+ "head": "39cc02e7c94",
+ "minedAt": "2026-10-04",
+ "cases": [
+  {
+   "id": "I-110236-fixed-by-110956",
+   "kind": "inducing",
+   "sha": "0dbc9cd0720",
+   "pr": 110236,
+   "inducingDate": "2026-10-02",
+   "inducingSubject": "feat(tasks): store per-user task defaults on the user tasks config (#110236)",
+   "fix": {
+    "sha": "8f6976d4b9d",
+    "pr": 110956,
+    "date": "2026-10-04",
+    "subject": "fix(tasks): return null for task defaults nobody set (#110956)",
+    "removed": 27,
+    "share": 0.93
+   },
+   "size": {
+    "lines": 275,
+    "files": 11
+   },
+   "expect": {
+    "files": [
+     "products/tasks/backend/logic/services/task_defaults.py",
+     "products/tasks/backend/presentation/serializers.py",
+     "products/tasks/frontend/generated/api.schemas.ts",
+     "products/tasks/frontend/generated/api.zod.ts",
+     "services/mcp/src/api/generated.ts"
+    ],
+    "lines": {
+     "products/tasks/backend/logic/services/task_defaults.py": [
+      11,
+      12,
+      15,
+      16,
+      19,
+      35,
+      44,
+      45
+     ],
+     "products/tasks/backend/presentation/serializers.py": [
+      5189,
+      5192,
+      5202
+     ],
+     "products/tasks/frontend/generated/api.schemas.ts": [
+      4904,
+      4905,
+      4906,
+      4907,
+      4939,
+      4941
+     ],
+     "products/tasks/frontend/generated/api.zod.ts": [
+      3756,
+      3760
+     ],
+     "services/mcp/src/api/generated.ts": [
+      103925,
+      103926,
+      103927,
+      103928,
+      103935,
+      103937
+     ]
+    }
+   },
+   "bug": "task defaults nobody set returned a non-null value"
+  },
+  {
+   "id": "I-108099-fixed-by-111336",
+   "kind": "inducing",
+   "sha": "d9fbceacebd",
+   "pr": 108099,
+   "inducingDate": "2026-10-02",
+   "inducingSubject": "feat(experiments): scheduled recalculation selection logic (#108099)",
+   "fix": {
+    "sha": "1148900d0e0",
+    "pr": 111336,
+    "date": "2026-10-03",
+    "subject": "fix(experiments): skip paused experiments in scheduled recalculation (#111336)",
+    "removed": 2,
+    "share": 1
+   },
+   "size": {
+    "lines": 203,
+    "files": 1
+   },
+   "expect": {
+    "files": [
+     "products/experiments/backend/temporal/scheduled_recalculation_logic.py"
+    ],
+    "lines": {
+     "products/experiments/backend/temporal/scheduled_recalculation_logic.py": [
+      82,
+      97
+     ]
+    }
+   },
+   "bug": "scheduled recalculation did not skip paused experiments"
+  },
+  {
+   "id": "I-106537-fixed-by-111331",
+   "kind": "inducing",
+   "sha": "8717263862e",
+   "pr": 106537,
+   "inducingDate": "2026-09-25",
+   "inducingSubject": "feat(ai-research): add a continuous candidate pool to image fetch (#106537)",
+   "fix": {
+    "sha": "da78c1a0fb1",
+    "pr": 111331,
+    "date": "2026-10-03",
+    "subject": "fix(ai-research): serve deferred image-fetch urls before later captures (#111331)",
+    "removed": 3,
+    "share": 1
+   },
+   "size": {
+    "lines": 993,
+    "files": 9
+   },
+   "expect": {
+    "files": [
+     "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-fetch/fetch-candidate-pool.ts"
+    ],
+    "lines": {
+     "nodejs/src/ingestion/pipelines/sessionreplay/ml-mirror-image-fetch/fetch-candidate-pool.ts": [
+      88,
+      89,
+      140
+     ]
+    }
+   },
+   "bug": "deferred image-fetch urls served after later captures"
+  },
+  {
+   "id": "I-92323-fixed-by-111004",
+   "kind": "inducing",
+   "sha": "312ea63cdd4",
+   "pr": 92323,
+   "inducingDate": "2026-10-02",
+   "inducingSubject": "feat(data-warehouse): add warehouse scheduler in shadow mode (#92323)",
+   "fix": {
+    "sha": "97dcb0f04d0",
+    "pr": 111004,
+    "date": "2026-10-03",
+    "subject": "fix(data-warehouse): bound the scheduler refresh memory (#111004)",
+    "removed": 43,
+    "share": 1
+   },
+   "size": {
+    "lines": 1143,
+    "files": 10
+   },
+   "expect": {
+    "files": [
+     "products/warehouse_sources/backend/management/commands/run_warehouse_scheduler.py",
+     "products/warehouse_sources/backend/scheduling/runner.py",
+     "products/warehouse_sources/backend/scheduling/shadow.py"
+    ],
+    "lines": {
+     "products/warehouse_sources/backend/management/commands/run_warehouse_scheduler.py": [
+      11,
+      53,
+      96
+     ],
+     "products/warehouse_sources/backend/scheduling/runner.py": [
+      31,
+      34,
+      42,
+      102,
+      233,
+      234,
+      235,
+      236,
+      237,
+      238,
+      239,
+      240,
+      241,
+      242,
+      243,
+      244,
+      245,
+      246,
+      247,
+      248,
+      249,
+      250,
+      251,
+      252,
+      253,
+      254,
+      255,
+      256,
+      257,
+      258,
+      260,
+      261,
+      267,
+      271,
+      275
+     ],
+     "products/warehouse_sources/backend/scheduling/shadow.py": [
+      143,
+      144,
+      145,
+      146,
+      149
+     ]
+    }
+   },
+   "bug": "scheduler refresh memory unbounded"
+  },
+  {
+   "id": "I-108484-fixed-by-111071",
+   "kind": "inducing",
+   "sha": "718a409eb1c",
+   "pr": 108484,
+   "inducingDate": "2026-09-29",
+   "inducingSubject": "feat(flags): add dagster job to backfill flag_evaluations from events (#108484)",
+   "fix": {
+    "sha": "42240903d0c",
+    "pr": 111071,
+    "date": "2026-10-02",
+    "subject": "fix(flags): measure backfill consumer lag from the Kafka message time (#111071)",
+    "removed": 2,
+    "share": 1
+   },
+   "size": {
+    "lines": 615,
+    "files": 7
+   },
+   "expect": {
+    "files": [
+     "posthog/dags/flag_evaluations_backfill.py"
+    ],
+    "lines": {
+     "posthog/dags/flag_evaluations_backfill.py": [
+      61,
+      66
+     ]
+    }
+   },
+   "bug": "backfill consumer lag measured from the wrong time"
+  },
+  {
+   "id": "I-107092-fixed-by-111022",
+   "kind": "inducing",
+   "sha": "2eaa94229d5",
+   "pr": 107092,
+   "inducingDate": "2026-09-29",
+   "inducingSubject": "feat(replay-vision): add hourly jev watch-rank sweep (#107092)",
+   "fix": {
+    "sha": "fceccaf2155",
+    "pr": 111022,
+    "date": "2026-10-02",
+    "subject": "fix(replay-vision): read and write the jev watch cache on the shared redis (#111022)",
+    "removed": 10,
+    "share": 1
+   },
+   "size": {
+    "lines": 975,
+    "files": 12
+   },
+   "expect": {
+    "files": [
+     "products/replay_vision/backend/jev_watch_feed.py"
+    ],
+    "lines": {
+     "products/replay_vision/backend/jev_watch_feed.py": [
+      30,
+      31,
+      334,
+      336,
+      349,
+      388,
+      435,
+      446,
+      447,
+      448
+     ]
+    }
+   },
+   "bug": "jev watch cache used the wrong redis"
+  },
+  {
+   "id": "I-106217-fixed-by-110939",
+   "kind": "inducing",
+   "sha": "86474494e58",
+   "pr": 106217,
+   "inducingDate": "2026-09-25",
+   "inducingSubject": "feat(clickhouse): make the cohort-seeder client token-aware (#106217)",
+   "fix": {
+    "sha": "31df9083cbb",
+    "pr": 110939,
+    "date": "2026-10-02",
+    "subject": "fix(cohorts): stop seeder scans from holding every event in join memory (#110939)",
+    "removed": 1,
+    "share": 1
+   },
+   "size": {
+    "lines": 335,
+    "files": 7
+   },
+   "expect": {
+    "files": [
+     "rust/cohort-seeder/src/clickhouse/client.rs"
+    ],
+    "lines": {
+     "rust/cohort-seeder/src/clickhouse/client.rs": [
+      329
+     ]
+    }
+   },
+   "bug": "seeder scans held every event in join memory"
+  },
+  {
+   "id": "I-103752-fixed-by-110874",
+   "kind": "inducing",
+   "sha": "255ec0a4db3",
+   "pr": 103752,
+   "inducingDate": "2026-09-30",
+   "inducingSubject": "feat(aio): add system one compatible boolean judges (#103752)",
+   "fix": {
+    "sha": "5317cc451f2",
+    "pr": 110874,
+    "date": "2026-10-02",
+    "subject": "fix(aio): delegate system one gateway authorization to the endpoint (#110874)",
+    "removed": 8,
+    "share": 1
+   },
+   "size": {
+    "lines": 1210,
+    "files": 36
+   },
+   "expect": {
+    "files": [
+     "products/ai_observability/backend/llm/system_one.py"
+    ],
+    "lines": {
+     "products/ai_observability/backend/llm/system_one.py": [
+      7,
+      8,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52
+     ]
+    }
+   },
+   "bug": "system one gateway authorization not delegated to the endpoint"
+  },
+  {
+   "id": "I-101573-fixed-by-109553",
+   "kind": "inducing",
+   "sha": "1b0da4bb329",
+   "pr": 101573,
+   "inducingDate": "2026-09-30",
+   "inducingSubject": "feat(autoresearch): add the model create form (#101573)",
+   "fix": {
+    "sha": "bd0499724f3",
+    "pr": 109553,
+    "date": "2026-10-02",
+    "subject": "fix(autoresearch): skip validate call when a day field is invalid (#109553)",
+    "removed": 6,
+    "share": 1
+   },
+   "size": {
+    "lines": 659,
+    "files": 6
+   },
+   "expect": {
+    "files": [
+     "products/autoresearch/frontend/AutoresearchNewScene.tsx",
+     "products/autoresearch/frontend/autoresearchNewLogic.ts"
+    ],
+    "lines": {
+     "products/autoresearch/frontend/AutoresearchNewScene.tsx": [
+      42,
+      43,
+      59
+     ],
+     "products/autoresearch/frontend/autoresearchNewLogic.ts": [
+      170,
+      225,
+      231
+     ]
+    }
+   },
+   "bug": "validate called with an invalid day field"
+  },
+  {
+   "id": "I-109545-fixed-by-110552",
+   "kind": "inducing",
+   "sha": "b0ded238a05",
+   "pr": 109545,
+   "inducingDate": "2026-10-01",
+   "inducingSubject": "feat(navigation): show release stage in scene title, not sidebar (#109545)",
+   "fix": {
+    "sha": "7920c122ce9",
+    "pr": 110552,
+    "date": "2026-10-02",
+    "subject": "fix(scenes): show release stage tag only on product-named titles (#110552)",
+    "removed": 7,
+    "share": 0.86
+   },
+   "size": {
+    "lines": 404,
+    "files": 20
+   },
+   "expect": {
+    "files": [
+     "frontend/src/layout/scenes/components/SceneTitleSection.tsx",
+     "frontend/src/lib/components/ReleaseStageTag/releaseStage.ts"
+    ],
+    "lines": {
+     "frontend/src/layout/scenes/components/SceneTitleSection.tsx": [
+      286
+     ],
+     "frontend/src/lib/components/ReleaseStageTag/releaseStage.ts": [
+      1,
+      15,
+      16,
+      17,
+      24
+     ]
+    }
+   },
+   "bug": "release stage tag shown on non-product titles"
+  },
+  {
+   "id": "I-107695-fixed-by-110652",
+   "kind": "inducing",
+   "sha": "b83d29bf096",
+   "pr": 107695,
+   "inducingDate": "2026-09-28",
+   "inducingSubject": "feat(data-warehouse): add featurebase survey and category tables (#107695)",
+   "fix": {
+    "sha": "b273418bd7b",
+    "pr": 110652,
+    "date": "2026-10-02",
+    "subject": "fix(data-warehouse): stop sending unsupported limit param to featurebase tags (#110652)",
+    "removed": 4,
+    "share": 0.75
+   },
+   "size": {
+    "lines": 195,
+    "files": 4
+   },
+   "expect": {
+    "files": [
+     "products/warehouse_sources/backend/temporal/data_imports/sources/featurebase/settings.py"
+    ],
+    "lines": {
+     "products/warehouse_sources/backend/temporal/data_imports/sources/featurebase/settings.py": [
+      66,
+      67,
+      68
+     ]
+    }
+   },
+   "bug": "unsupported limit param sent to featurebase tags"
+  },
+  {
+   "id": "I-110095-fixed-by-110351",
+   "kind": "inducing",
+   "sha": "5a330d6f444",
+   "pr": 110095,
+   "inducingDate": "2026-10-01",
+   "inducingSubject": "perf(aio): load the global column renderers on first use (#110095)",
+   "fix": {
+    "sha": "986e737d47d",
+    "pr": 110351,
+    "date": "2026-10-02",
+    "subject": "fix(aio): keep the table when a renderer chunk fails after a reload (#110351)",
+    "removed": 2,
+    "share": 1
+   },
+   "size": {
+    "lines": 73,
+    "files": 4
+   },
+   "expect": {
+    "files": [
+     "products/ai_observability/frontend/AIObservabilityGlobalColumnCell.tsx"
+    ],
+    "lines": {
+     "products/ai_observability/frontend/AIObservabilityGlobalColumnCell.tsx": [
+      2,
+      23
+     ]
+    }
+   },
+   "bug": "table lost when a renderer chunk fails after a reload"
+  },
+  {
+   "id": "I-107166-fixed-by-110363",
+   "kind": "inducing",
+   "sha": "a9e47a1fec4",
+   "pr": 107166,
+   "inducingDate": "2026-09-26",
+   "inducingSubject": "fix(snowflake): stop reporting a self-recovering backend blip as an error (#107166)",
+   "fix": {
+    "sha": "b234c7c923c",
+    "pr": 110363,
+    "date": "2026-10-02",
+    "subject": "fix(warehouse-sources): classify snowflake client-timeout cancellation as retryable (#110363)",
+    "removed": 1,
+    "share": 1
+   },
+   "size": {
+    "lines": 16,
+    "files": 2
+   },
+   "expect": {
+    "files": [
+     "products/warehouse_sources/backend/temporal/data_imports/sources/snowflake/source.py"
+    ],
+    "lines": {
+     "products/warehouse_sources/backend/temporal/data_imports/sources/snowflake/source.py": [
+      414
+     ]
+    }
+   },
+   "bug": "snowflake client-timeout cancellation not classified retryable"
+  },
+  {
+   "id": "I-108373-fixed-by-110385",
+   "kind": "inducing",
+   "sha": "a9aa9bd7b84",
+   "pr": 108373,
+   "inducingDate": "2026-09-29",
+   "inducingSubject": "feat(data-warehouse): add four missing Fly.io tables (#108373)",
+   "fix": {
+    "sha": "c7b19f62f23",
+    "pr": 110385,
+    "date": "2026-10-02",
+    "subject": "fix(data-imports): read fly.io regions from the capitalized Regions key (#110385)",
+    "removed": 1,
+    "share": 1
+   },
+   "size": {
+    "lines": 303,
+    "files": 3
+   },
+   "expect": {
+    "files": [
+     "products/warehouse_sources/backend/temporal/data_imports/sources/fly_io/settings.py"
+    ],
+    "lines": {
+     "products/warehouse_sources/backend/temporal/data_imports/sources/fly_io/settings.py": [
+      87
+     ]
+    }
+   },
+   "bug": "fly.io regions read from the wrong key (Regions)"
+  },
+  {
+   "id": "I-106193-fixed-by-110523",
+   "kind": "inducing",
+   "sha": "e74ec989a93",
+   "pr": 106193,
+   "inducingDate": "2026-09-24",
+   "inducingSubject": "perf(query): walk each saved view once per cache fingerprint (#106193)",
+   "fix": {
+    "sha": "d4d92abf2ae",
+    "pr": 110523,
+    "date": "2026-10-02",
+    "subject": "fix(hogql): look up only referenced warehouse tables for the cache key (#110523)",
+    "removed": 16,
+    "share": 0.63
+   },
+   "size": {
+    "lines": 109,
+    "files": 1
+   },
+   "expect": {
+    "files": [
+     "posthog/hogql_queries/access_controlled_resources.py"
+    ],
+    "lines": {
+     "posthog/hogql_queries/access_controlled_resources.py": [
+      1,
+      83,
+      88,
+      94,
+      98,
+      100,
+      113,
+      116,
+      252,
+      255
+     ]
+    }
+   },
+   "bug": "cache key looked up every warehouse table, not only referenced ones"
+  },
+  {
+   "id": "I-108484-fixed-by-110338",
+   "kind": "inducing",
+   "sha": "718a409eb1c",
+   "pr": 108484,
+   "inducingDate": "2026-09-29",
+   "inducingSubject": "feat(flags): add dagster job to backfill flag_evaluations from events (#108484)",
+   "fix": {
+    "sha": "8f95348d522",
+    "pr": 110338,
+    "date": "2026-10-01",
+    "subject": "fix(flags): wait for the clickhouse mover instead of stopping the backfill (#110338)",
+    "removed": 14,
+    "share": 0.93
+   },
+   "size": {
+    "lines": 615,
+    "files": 7
+   },
+   "expect": {
+    "files": [
+     "posthog/dags/flag_evaluations_backfill.py"
+    ],
+    "lines": {
+     "posthog/dags/flag_evaluations_backfill.py": [
+      134,
+      287,
+      288,
+      380,
+      387,
+      393,
+      394,
+      395,
+      396,
+      397,
+      398,
+      402,
+      404
+     ]
+    }
+   },
+   "bug": "backfill stopped instead of waiting for the clickhouse mover"
+  },
+  {
+   "id": "I-109666-fixed-by-110266",
+   "kind": "inducing",
+   "sha": "5164df0e318",
+   "pr": 109666,
+   "inducingDate": "2026-10-01",
+   "inducingSubject": "feat(today): move sidebar row actions into the hover cards, like desktop (#109666)",
+   "fix": {
+    "sha": "7e6c8995aed",
+    "pr": 110266,
+    "date": "2026-10-01",
+    "subject": "fix(navigation): keep space menu items inside the popup (#110266)",
+    "removed": 1,
+    "share": 1
+   },
+   "size": {
+    "lines": 548,
+    "files": 13
+   },
+   "expect": {
+    "files": [
+     "frontend/src/layout/today/todayMenuParts.tsx"
+    ],
+    "lines": {
+     "frontend/src/layout/today/todayMenuParts.tsx": [
+      32
+     ]
+    }
+   },
+   "bug": "space menu items escaped the popup"
+  },
+  {
+   "id": "I-107828-fixed-by-110248",
+   "kind": "inducing",
+   "sha": "7df28833a8d",
+   "pr": 107828,
+   "inducingDate": "2026-09-28",
+   "inducingSubject": "fix(tasks): let scout suggestion callers finish sessions (#107828)",
+   "fix": {
+    "sha": "9b8f8357251",
+    "pr": 110248,
+    "date": "2026-10-01",
+    "subject": "fix(review-hog): keep sandbox completion with the caller (#110248)",
+    "removed": 3,
+    "share": 1
+   },
+   "size": {
+    "lines": 3,
+    "files": 1
+   },
+   "expect": {
+    "files": [
+     "products/desktop/packages/harness/src/extensions/local-tools/tools/finish.ts"
+    ],
+    "lines": {
+     "products/desktop/packages/harness/src/extensions/local-tools/tools/finish.ts": [
+      101,
+      102,
+      106
+     ]
+    }
+   },
+   "bug": "sandbox completion taken from the caller"
+  },
+  {
+   "id": "I-108874-fixed-by-109625",
+   "kind": "inducing",
+   "sha": "74ec1d3d42a",
+   "pr": 108874,
+   "inducingDate": "2026-09-29",
+   "inducingSubject": "fix(hogql): revert timestamp bound anchoring that overflows decimals (#108874)",
+   "fix": {
+    "sha": "6ddbcb2e2bf",
+    "pr": 109625,
+    "date": "2026-10-01",
+    "subject": "fix(hogql): compare date bounds in the project time zone at 6 decimals (#109625)",
+    "removed": 32,
+    "share": 0.84
+   },
+   "size": {
+    "lines": 138,
+    "files": 1
+   },
+   "expect": {
+    "files": [
+     "posthog/hogql/transforms/property_types.py"
+    ],
+    "lines": {
+     "posthog/hogql/transforms/property_types.py": [
+      136,
+      569,
+      578,
+      586,
+      597,
+      604,
+      605,
+      606,
+      607,
+      608,
+      609,
+      610,
+      615,
+      617,
+      618,
+      619,
+      623,
+      625,
+      627,
+      628,
+      631,
+      644,
+      647,
+      648,
+      650,
+      651,
+      652
+     ]
+    }
+   },
+   "bug": "date bounds compared in the wrong time zone / precision"
+  },
+  {
+   "id": "I-109427-fixed-by-109444",
+   "kind": "inducing",
+   "sha": "97baa110a1e",
+   "pr": 109427,
+   "inducingDate": "2026-10-01",
+   "inducingSubject": "fix(flags): align the rules v2 validator with the flags service parser (#109427)",
+   "fix": {
+    "sha": "15228d6950e",
+    "pr": 109444,
+    "date": "2026-10-01",
+    "subject": "fix(flags): reject uncompilable regex patterns when writing rules v2 flags (#109444)",
+    "removed": 10,
+    "share": 0.9
+   },
+   "size": {
+    "lines": 100,
+    "files": 2
+   },
+   "expect": {
+    "files": [
+     "products/feature_flags/backend/facade/config_writes.py"
+    ],
+    "lines": {
+     "products/feature_flags/backend/facade/config_writes.py": [
+      17,
+      34,
+      241,
+      260,
+      267,
+      270,
+      273,
+      278,
+      290
+     ]
+    }
+   },
+   "bug": "uncompilable regex patterns accepted in rules v2 flags"
+  },
+  {
+   "id": "I-109213-fixed-by-110164",
+   "kind": "inducing",
+   "sha": "8662d7eff35",
+   "pr": 109213,
+   "inducingDate": "2026-09-30",
+   "inducingSubject": "fix(tasks): tell the agent when the memory watchdog stops its command (#109213)",
+   "fix": {
+    "sha": "b7861303def",
+    "pr": 110164,
+    "date": "2026-10-01",
+    "subject": "fix(tasks): bound validation retries under memory pressure (#110164)",
+    "removed": 19,
+    "share": 0.79
+   },
+   "size": {
+    "lines": 213,
+    "files": 3
+   },
+   "expect": {
+    "files": [
+     "products/desktop/packages/agent/src/adapters/claude/session/memory-kill-hook.ts",
+     "products/desktop/packages/agent/src/adapters/claude/session/options.ts"
+    ],
+    "lines": {
+     "products/desktop/packages/agent/src/adapters/claude/session/memory-kill-hook.ts": [
+      2,
+      5,
+      11,
+      33,
+      34,
+      35,
+      67,
+      73,
+      74,
+      80,
+      84,
+      89,
+      99
+     ],
+     "products/desktop/packages/agent/src/adapters/claude/session/options.ts": [
+      419,
+      421
+     ]
+    }
+   },
+   "bug": "validation retries unbounded under memory pressure"
+  },
+  {
+   "id": "I-108035-fixed-by-110131",
+   "kind": "inducing",
+   "sha": "88baca584e2",
+   "pr": 108035,
+   "inducingDate": "2026-09-29",
+   "inducingSubject": "feat(data-warehouse): implement the cloudinary import source (#108035)",
+   "fix": {
+    "sha": "d5788f7847b",
+    "pr": 110131,
+    "date": "2026-10-01",
+    "subject": "fix(data-imports): return a source response from the cloudinary source (#110131)",
+    "removed": 4,
+    "share": 1
+   },
+   "size": {
+    "lines": 414,
+    "files": 5
+   },
+   "expect": {
+    "files": [
+     "products/warehouse_sources/backend/temporal/data_imports/sources/cloudinary/cloudinary.py"
+    ],
+    "lines": {
+     "products/warehouse_sources/backend/temporal/data_imports/sources/cloudinary/cloudinary.py": [
+      14,
+      59,
+      80,
+      88
+     ]
+    }
+   },
+   "bug": "cloudinary source returned no source response"
+  },
+  {
+   "id": "I-106074-fixed-by-107849",
+   "kind": "inducing",
+   "sha": "75e6f7a6778",
+   "pr": 106074,
+   "inducingDate": "2026-09-25",
+   "inducingSubject": "feat(eng-analytics): read depot ci runs and jobs (#106074)",
+   "fix": {
+    "sha": "3139c69771c",
+    "pr": 107849,
+    "date": "2026-10-01",
+    "subject": "fix(eng-analytics): drop ci hand-off shell runs (#107849)",
+    "removed": 17,
+    "share": 0.65
+   },
+   "size": {
+    "lines": 356,
+    "files": 7
+   },
+   "expect": {
+    "files": [
+     "products/engineering_analytics/backend/logic/queries/_curated.py",
+     "products/engineering_analytics/backend/logic/views/depot_ci.py"
+    ],
+    "lines": {
+     "products/engineering_analytics/backend/logic/queries/_curated.py": [
+      250,
+      254
+     ],
+     "products/engineering_analytics/backend/logic/views/depot_ci.py": [
+      13,
+      19,
+      61,
+      174,
+      177,
+      181,
+      184,
+      187,
+      196
+     ]
+    }
+   },
+   "bug": "ci hand-off shell runs not dropped"
+  },
+  {
+   "id": "I-108356-fixed-by-109585",
+   "kind": "inducing",
+   "sha": "787dba633e8",
+   "pr": 108356,
+   "inducingDate": "2026-09-29",
+   "inducingSubject": "fix(data-imports): recover account-property staging from a vacuumed delta snapshot (#108356)",
+   "fix": {
+    "sha": "81858b69f20",
+    "pr": 109585,
+    "date": "2026-10-01",
+    "subject": "fix(warehouse-sources): recognize pyarrow's generic missing-file error in account-property staging (#109585)",
+    "removed": 4,
+    "share": 1
+   },
+   "size": {
+    "lines": 31,
+    "files": 1
+   },
+   "expect": {
+    "files": [
+     "products/warehouse_sources/backend/temporal/data_imports/pipelines/core/account_property_row_sink.py"
+    ],
+    "lines": {
+     "products/warehouse_sources/backend/temporal/data_imports/pipelines/core/account_property_row_sink.py": [
+      35,
+      36,
+      38,
+      42
+     ]
+    }
+   },
+   "bug": "pyarrow's generic missing-file error not recognized"
+  },
+  {
+   "id": "C-105139",
+   "kind": "commit",
+   "sha": "12b132e7ad0",
+   "pr": 105139,
+   "date": "2026-09-24",
+   "subject": "feat(warehouse-sources): run cdc snapshots through the buffer (#105139)",
+   "size": {
+    "lines": 627,
+    "files": 14
+   }
+  },
+  {
+   "id": "C-105785",
+   "kind": "commit",
+   "sha": "fece620f5b1",
+   "pr": 105785,
+   "date": "2026-09-24",
+   "subject": "feat(workflows): list broadcast-shaped workflows on the broadcasts page (#105785)",
+   "size": {
+    "lines": 146,
+    "files": 7
+   }
+  },
+  {
+   "id": "C-105613",
+   "kind": "commit",
+   "sha": "e774f609076",
+   "pr": 105613,
+   "date": "2026-09-24",
+   "subject": "feat(marketing-analytics): add standalone metric chart (#105613)",
+   "size": {
+    "lines": 249,
+    "files": 3
+   }
+  },
+  {
+   "id": "C-104097",
+   "kind": "commit",
+   "sha": "d2c2aac22a1",
+   "pr": 104097,
+   "date": "2026-09-24",
+   "subject": "feat(insights): time how long a page waits for all its tiles (#104097)",
+   "size": {
+    "lines": 290,
+    "files": 9
+   }
+  },
+  {
+   "id": "C-101475",
+   "kind": "commit",
+   "sha": "4245a242e23",
+   "pr": 101475,
+   "date": "2026-09-24",
+   "subject": "chore(error-tracking): split the symbol set cleanup activity (#101475)",
+   "size": {
+    "lines": 241,
+    "files": 1
+   }
+  },
+  {
+   "id": "C-103847",
+   "kind": "commit",
+   "sha": "cdec4950c47",
+   "pr": 103847,
+   "date": "2026-09-24",
+   "subject": "feat(persons): find email matches past an id hit and tag results (#103847)",
+   "size": {
+    "lines": 367,
+    "files": 11
+   }
+  },
+  {
+   "id": "C-105154",
+   "kind": "commit",
+   "sha": "b41d13a77d9",
+   "pr": 105154,
+   "date": "2026-09-24",
+   "subject": "perf(activity-log): bound the notification feed history window (#105154)",
+   "size": {
+    "lines": 280,
+    "files": 1
+   }
+  },
+  {
+   "id": "C-91506",
+   "kind": "commit",
+   "sha": "f1c19abc891",
+   "pr": 91506,
+   "date": "2026-09-24",
+   "subject": "feat(hogql): flag compatibility for native events and a $false sentinel (#91506)",
+   "size": {
+    "lines": 765,
+    "files": 14
+   }
+  },
+  {
+   "id": "C-105640",
+   "kind": "commit",
+   "sha": "9deb80c6df8",
+   "pr": 105640,
+   "date": "2026-09-24",
+   "subject": "feat(persons): resolve the person tombstone queue in the deletion sweep (#105640)",
+   "size": {
+    "lines": 326,
+    "files": 2
+   }
+  },
+  {
+   "id": "C-106137",
+   "kind": "commit",
+   "sha": "402aa331562",
+   "pr": 106137,
+   "date": "2026-09-24",
+   "subject": "feat(signals): add the ranking_score report artefact (#106137)",
+   "size": {
+    "lines": 160,
+    "files": 6
+   }
+  },
+  {
+   "id": "C-103231",
+   "kind": "commit",
+   "sha": "571de38c147",
+   "pr": 103231,
+   "date": "2026-09-24",
+   "subject": "feat(replay-vision): deepen the goal-based scanner draft (#103231)",
+   "size": {
+    "lines": 364,
+    "files": 2
+   }
+  },
+  {
+   "id": "C-105531",
+   "kind": "commit",
+   "sha": "5ea017ef157",
+   "pr": 105531,
+   "date": "2026-09-25",
+   "subject": "feat(frontend): serve stable chunk names behind an opt-in (#105531)",
+   "size": {
+    "lines": 436,
+    "files": 5
+   }
+  }
+ ],
+ "note": "Bug-introducing PostHog pull requests (bench/review-eval-mine.js, hand-filtered to fixes that describe a defect rather than a UI polish), reviewed as commits against the posthog-v3 noteset built at the base. Controls: non-fix PRs of similar size merged just after the base that no later fix blamed."
+}

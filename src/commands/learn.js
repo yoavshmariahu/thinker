@@ -12,7 +12,7 @@ import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maint
 import { logModelUsage, streamModelUsage } from '../model-usage.js';
 import { refresh, attest, outcome, distillKinds } from '../ops.js';
 import { batchProgress, oneLine } from '../progress.js';
-import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, stratifyPrs } from '../prs.js';
+import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs } from '../prs.js';
 import { selectMenu, getAgentDisplayName } from '../setup.js';
 import { syncConfig, syncNotes } from '../sync.js';
 import { discoverAreas } from '../topology.js';
@@ -415,12 +415,13 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
   const failed = new Set();
   const filtered = listed
     .filter(p => !/^(chore|deps|docs|revert|ci|build|test)\b|\bbump\b|dependabot|renovate|snapshot/i.test(p.title) &&
-      (fixes || (p.body || '').length > (useGit ? 10 : 120)) && p.additions <= 800 && p.additions >= 3); // a fix commit's subject is its record; most have no body
+      (fixes || FIX_LIKE.test(p.title) || (p.body || '').length > (useGit ? 10 : 120)) && p.additions <= 800 && p.additions >= 3); // a fix's subject is its record; most have no body
   let candidates = filtered.length ? filtered : listed.filter(p => !/^(chore|deps|bump)\b/i.test(p.title) && p.additions <= 1000 && p.additions >= 1);
   // --fixes: only changes whose message says they fix something (git history has no labels; a repository
   // developed by direct commits has no pull requests to mine, and its fix commits are what review wants)
   if (fixes) candidates = candidates.filter(p => FIX_LIKE.test(`${p.title}\n${(p.body || '').slice(0, 400)}`));
-  const prs = stratifyPrs(candidates, limit);
+  const prs = pickPrs(candidates, limit);
+  const deferred = new Set(candidates.filter(p => !prs.includes(p)).map(p => p.number)); // candidates beyond this run's limit wait for the next one
   out(`        Reviewing ${prs.length} changes ${useGit ? 'from git history' : `from ${slug}`}. Changes with no reusable notes are normal.`);
   const progress = batchProgress({ dir: store.dir, name: 'PR mining', total: prs.length, out, verbose: Boolean(flags.verbose) });
   let cost = 0, saved = 0;
@@ -436,10 +437,10 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
       progress.complete({ ref: refId, title: pr.title, notes: [...s2.saved, ...s2.merged].map(n => n.id), skipped: s2.skipped.length });
     } catch (e) { failed.add(pr.number); progress.complete({ ref: refId, title: pr.title, error: e.message }); }
   }
-  // PRs passed over by the filter are recorded too; failed ones are not, so the next run takes them again
+  // PRs the filter passed over are recorded too; failed ones and candidates deferred by the limit are not, so the next run takes them again
   if (!dry) {
-    recordMinedPrs(store, recSlug, listed.filter(p => !failed.has(p.number)));
-    store.log({ op: 'mine-prs', slug: recSlug, prs: prs.length - failed.size, passed: listed.length - prs.length, saved, cost, metered: true, source: useGit ? 'git' : 'github' });
+    recordMinedPrs(store, recSlug, listed.filter(p => !failed.has(p.number) && !deferred.has(p.number)));
+    store.log({ op: 'mine-prs', slug: recSlug, prs: prs.length - failed.size, passed: listed.length - prs.length - deferred.size, deferred: deferred.size, saved, cost, metered: true, source: useGit ? 'git' : 'github' });
   }
   progress.finish({ cost, retry: 'Failed changes remain unmarked. Retry with: thinker mine-prs' });
   return { cost, saved, failed: failed.size, processed: prs.length };

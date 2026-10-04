@@ -51,6 +51,11 @@ export const STRATEGIES = {
   'holistic-verify': { mode: 'holistic', verify: true },
   'notes-verify': { verify: true },
   'nocache-opus': { mode: 'nocache', model: 'opus' },
+  // the desired-behavior lens (what the pull request action runs): only notes of kind behavior are
+  // consulted, as ground truth; per-note is the action's default, holistic puts them in one call
+  'behavior-notes': { mode: 'per-note', kinds: ['behavior'] },
+  'behavior-holistic': { mode: 'holistic', kinds: ['behavior'] },
+  'behavior-ensemble': { mode: 'ensemble', kinds: ['behavior'] },
 };
 
 // The cache every case is reviewed with: the checkout's shared and local notes, flat, as the
@@ -101,6 +106,9 @@ async function diffLines(wt, review) {
 function prepare(repo, c, review) {
   const wt = path.join(out, 'wt', c.id);
   if (c.kind === 'commit') return { scope: review.resolveScope(repo, { ref: c.sha }), repo, expect: null };
+  // a bug-introducing commit (bench/review-eval-mine.js): reviewed from git like a control, with the
+  // lines a later fix blamed on it as the expected place of the finding
+  if (c.kind === 'inducing') return { scope: review.resolveScope(repo, { ref: c.sha }), repo, expect: { files: c.expect.files, lines: c.expect.lines, anyLine: !!c.anyLine } };
   if (fs.existsSync(wt)) try { git(repo, ['worktree', 'remove', '--force', wt]); } catch {}
   try { git(repo, ['worktree', 'prune']); } catch {} // a registration left by a stopped run would refuse the path
   git(repo, ['worktree', 'add', '-f', '--detach', wt, c.base]);
@@ -117,7 +125,8 @@ function prepare(repo, c, review) {
   return { scope: review.resolveScope(wt), repo: wt, wt, expect };
 }
 
-const isHit = (f, expect) => (f.severity === 'error' || f.severity === 'warning') && expect.files.includes(f.file) && (expect.anyLine || (f.line > 0 && (expect.lines[f.file] || []).some(l => Math.abs(l - f.line) <= 6)));
+const at = (file, line, expect) => expect.files.includes(file) && (expect.anyLine || (line > 0 && (expect.lines[file] || []).some(l => Math.abs(l - line) <= 6)));
+const isHit = (f, expect) => (f.severity === 'error' || f.severity === 'warning') && (at(f.file, f.line, expect) || (f.locations || []).some(l => at(l.file, l.line, expect)));
 
 async function run() {
   const repo = path.resolve(flags.repo || '.');
@@ -143,10 +152,10 @@ async function run() {
     if (c.kind === 'revert') prep.expect = { ...(await diffLines(prep.wt, review)), anyLine: false };
     const store = new Store(prep.repo);
     for (const s of todo) {
-      const strat = { ...STRATEGIES[s] }; const model = strat.model || flags.model; delete strat.model;
+      const strat = { ...STRATEGIES[s] }; const model = strat.model || flags.model; delete strat.model; const kinds = strat.kinds; delete strat.kinds;
       const t0 = Date.now();
       let r;
-      try { r = await review.review(store, { scope: prep.scope, max: Number(flags.max) || 12, model, dry: !!flags.dry, strategy: strat, concurrency: Number(flags.conc) || 4 }); }
+      try { r = await review.review(store, { scope: prep.scope, max: Number(flags.max) || 12, model, dry: !!flags.dry, strategy: strat, kinds, concurrency: Number(flags.conc) || 4 }); }
       catch (e) { log(`${c.id} ${s}: failed: ${e.message}`); fs.appendFileSync(resultsFile, JSON.stringify({ case: c.id, kind: c.kind, strategy: s, failed: String(e.message).slice(0, 200) }) + '\n'); continue; }
       const ms = Date.now() - t0;
       if (r.empty) { log(`${c.id} ${s}: nothing to review (empty change)`); fs.appendFileSync(resultsFile, JSON.stringify({ case: c.id, kind: c.kind, strategy: s, failed: 'empty change' }) + '\n'); continue; }
@@ -157,7 +166,7 @@ async function run() {
       const hits = prep.expect ? signal.filter(f => isHit(f, prep.expect)) : [];
       const noteSource = id => { try { const n = JSON.parse(fs.readFileSync(path.join(process.env.THINKER_NOTES_DIR, id + '.json'), 'utf8')); return `${n.source?.type || '?'}${n.source?.ref ? ':' + String(n.source.ref).slice(0, 40) : ''}`; } catch { return '?'; } };
       const hitNotes = [...new Set(hits.flatMap(f => f.notes?.length ? f.notes : f.note ? [f.note] : []))].map(id => ({ id, source: noteSource(id) }));
-      const row = { case: c.id, kind: c.kind, pr: c.pr, strategy: s, hit: prep.expect ? hits.length > 0 : null, hitNotes, fromFixNote: !!(c.pr && hitNotes.some(h => /^pr:/.test(h.source) && h.source.includes(String(c.pr)))), hitBy: hits[0] ? `${hits[0].file}:${hits[0].line} ${hits[0].message.slice(0, 120)}` : null, hitSource: hits[0] ? (hits[0].notes?.length || hits[0].note ? 'note' : hits[0].basis ? 'deterministic' : 'code') : null,
+      const row = { case: c.id, kind: c.kind, pr: c.pr, strategy: s, hit: prep.expect ? hits.length > 0 : null, hitNotes, fromFixNote: !!([c.pr, c.fix?.pr].filter(Boolean).length && hitNotes.some(h => /^pr:/.test(h.source) && [c.pr, c.fix?.pr].filter(Boolean).some(n => h.source.includes(String(n))))), hitBy: hits[0] ? `${hits[0].file}:${hits[0].line} ${hits[0].message.slice(0, 120)}` : null, hitSource: hits[0] ? (hits[0].notes?.length || hits[0].note ? 'note' : hits[0].basis ? 'deterministic' : 'code') : null,
         findings: signal.length, errors: r.counts.error, warnings: r.counts.warning, infos: r.counts.info, consulted: r.notes.consulted, assessed: r.notes.assessed, outdated: r.notes.outdated.length, modelErrors: r.errors.length, models: r.models, cost: Math.round(r.cost * 1000) / 1000, ms, dry: !!flags.dry || undefined };
       fs.appendFileSync(resultsFile, JSON.stringify(row) + '\n');
       log(`${c.id.padEnd(24)} ${s.padEnd(16)} ${prep.expect ? (row.hit ? 'HIT ' : 'miss') : `fp=${signal.length}`}  findings=${signal.length} cost=$${row.cost} ${Math.round(ms / 1000)}s`);
@@ -181,13 +190,14 @@ function report() {
   const strategies = [...new Set(rows.map(r => r.strategy))];
   const bugs = rows.filter(r => r.hit !== null), controls = rows.filter(r => r.hit === null);
   const L = [`# review-eval: ${path.basename(out)}`, '', `${new Set(rows.map(r => r.case)).size} cases (${new Set(bugs.map(r => r.case)).size} bugs, ${new Set(controls.map(r => r.case)).size} controls), ${strategies.length} strategies. A hit is an error or warning within 6 lines of the bug; a false positive is an error or warning on a control.`, '',
-    '| strategy | bugs caught | planted | reverted | controls clean | false positives | findings / review | $ / review | s / review |', '|---|---|---|---|---|---|---|---|---|'];
+    '| strategy | bugs caught | planted | reverted | inducing PRs | controls clean | false positives | findings / review | $ / review | s / review |', '|---|---|---|---|---|---|---|---|---|---|'];
   const pct = (a, b) => b ? `${a}/${b} (${Math.round(100 * a / b)}%)` : '-';
   for (const s of strategies) {
     const b = bugs.filter(r => r.strategy === s), c = controls.filter(r => r.strategy === s), all = rows.filter(r => r.strategy === s);
     const by = kind => { const x = b.filter(r => r.kind === kind); return pct(x.filter(r => r.hit).length, x.length); };
+    const inducing = by('inducing');
     const avg = (xs, k) => xs.length ? xs.reduce((t, r) => t + (r[k] || 0), 0) / xs.length : 0;
-    L.push(`| ${s} | ${pct(b.filter(r => r.hit).length, b.length)} | ${by('planted')} | ${by('revert')} | ${pct(c.filter(r => r.findings === 0).length, c.length)} | ${c.reduce((t, r) => t + r.findings, 0)} | ${avg(all, 'findings').toFixed(1)} | ${avg(all, 'cost').toFixed(2)} | ${Math.round(avg(all, 'ms') / 1000)} |`);
+    L.push(`| ${s} | ${pct(b.filter(r => r.hit).length, b.length)} | ${by('planted')} | ${by('revert')} | ${inducing} | ${pct(c.filter(r => r.findings === 0).length, c.length)} | ${c.reduce((t, r) => t + r.findings, 0)} | ${avg(all, 'findings').toFixed(1)} | ${avg(all, 'cost').toFixed(2)} | ${Math.round(avg(all, 'ms') / 1000)} |`);
   }
   L.push('', '## Per case', '', `| case | kind | ${strategies.join(' | ')} |`, `|---|---|${strategies.map(() => '---').join('|')}|`);
   for (const id of [...new Set(rows.map(r => r.case))]) {

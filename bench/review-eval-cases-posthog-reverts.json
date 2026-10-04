@@ -1,0 +1,343 @@
+{
+ "repo": "posthog",
+ "base": "a3b3c3685bc",
+ "minedAt": "2026-10-04",
+ "cases": [
+  {
+   "id": "V-105799-size-audiences-during-read-only-imperson",
+   "kind": "revert",
+   "pr": 105799,
+   "sha": "4a4c1c500f5",
+   "date": "2026-09-24",
+   "subject": "fix(workflows): size audiences during read-only impersonation (#105799)",
+   "noted": [
+    "invariant",
+    "fix"
+   ],
+   "size": {
+    "lines": 3,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105721-prevent-reviewer-removal-flicker-in-inbo",
+   "kind": "revert",
+   "pr": 105721,
+   "sha": "a4b55551a1d",
+   "date": "2026-09-24",
+   "subject": "fix(signals): prevent reviewer removal flicker in inbox (#105721)",
+   "noted": [
+    "fix",
+    "howto"
+   ],
+   "size": {
+    "lines": 4,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105670-sort-unordered-insight-list-on-an-indexe",
+   "kind": "revert",
+   "pr": 105670,
+   "sha": "bfa602e8af3",
+   "date": "2026-09-24",
+   "subject": "fix(insights): sort unordered insight list on an indexed column (#105670)",
+   "noted": [
+    "cochange",
+    "fix"
+   ],
+   "size": {
+    "lines": 5,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105597-stabilize-session-cache-identity",
+   "kind": "revert",
+   "pr": 105597,
+   "sha": "a030dfc0290",
+   "date": "2026-09-23",
+   "subject": "fix(marketing-analytics): stabilize session cache identity (#105597)",
+   "noted": [
+    "gotcha",
+    "invariant"
+   ],
+   "size": {
+    "lines": 5,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105511-avoid-privileged-trino-session-settings",
+   "kind": "revert",
+   "pr": 105511,
+   "sha": "c9d04a2eb5e",
+   "date": "2026-09-23",
+   "subject": "fix(managed-warehouse): avoid privileged trino session settings (#105511)",
+   "noted": [
+    "cochange",
+    "fix"
+   ],
+   "size": {
+    "lines": 6,
+    "files": 2
+   }
+  },
+  {
+   "id": "V-105319-stop-retrying-a-doit-key-rejected-for-mi",
+   "kind": "revert",
+   "pr": 105319,
+   "sha": "5c825eec70a",
+   "date": "2026-09-23",
+   "subject": "fix(doit): stop retrying a DoIt key rejected for missing expiration (#105319)",
+   "noted": [
+    "fix",
+    "cochange"
+   ],
+   "size": {
+    "lines": 6,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105307-stop-reporting-a-clock-skew-s3-delete-as",
+   "kind": "revert",
+   "pr": 105307,
+   "sha": "c9556599d5a",
+   "date": "2026-09-23",
+   "subject": "fix(data-imports): stop reporting a clock-skew S3 delete as a bug (#105307)",
+   "noted": [
+    "fix",
+    "invariant"
+   ],
+   "size": {
+    "lines": 8,
+    "files": 2
+   }
+  },
+  {
+   "id": "V-105293-show-a-spinner-not-a-404-until-feature-f",
+   "kind": "revert",
+   "pr": 105293,
+   "sha": "c5022f438c3",
+   "date": "2026-09-23",
+   "subject": "fix(ml_inference): show a spinner, not a 404, until feature flags arrive (#105293)",
+   "noted": [
+    "fix"
+   ],
+   "size": {
+    "lines": 12,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105417-write-person-updates-under-a-per-user-ke",
+   "kind": "revert",
+   "pr": 105417,
+   "sha": "b8fa660d2f3",
+   "date": "2026-09-23",
+   "subject": "fix(capture-load-gen): write person updates under a per-user key (#105417)",
+   "noted": [
+    "invariant",
+    "cochange"
+   ],
+   "size": {
+    "lines": 17,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105737-stop-the-insight-editor-auto-saving-on-a",
+   "kind": "revert",
+   "pr": 105737,
+   "sha": "5158cf75d45",
+   "date": "2026-09-24",
+   "subject": "fix(insights): stop the insight editor auto-saving on a chart-type change (#105737)",
+   "noted": [
+    "invariant",
+    "fix"
+   ],
+   "size": {
+    "lines": 18,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105283-report-truncation-of-target-surface-libs",
+   "kind": "revert",
+   "pr": 105283,
+   "sha": "af1544dd842",
+   "date": "2026-09-23",
+   "subject": "fix(experiments): report truncation of target surface libs (#105283)",
+   "noted": [
+    "cochange",
+    "invariant",
+    "convention"
+   ],
+   "size": {
+    "lines": 19,
+    "files": 4
+   }
+  },
+  {
+   "id": "V-105637-align-session-cache-with-calendar-ranges",
+   "kind": "revert",
+   "pr": 105637,
+   "sha": "754fa69e9d8",
+   "date": "2026-09-24",
+   "subject": "fix(marketing): align session cache with calendar ranges (#105637)",
+   "noted": [
+    "convention",
+    "invariant"
+   ],
+   "size": {
+    "lines": 24,
+    "files": 3
+   }
+  },
+  {
+   "id": "V-105736-stop-key-file-field-names-blocking-sourc",
+   "kind": "revert",
+   "pr": 105736,
+   "sha": "b88941af868",
+   "date": "2026-09-24",
+   "subject": "fix(bigquery): stop key file field names blocking source setup (#105736)",
+   "noted": [],
+   "size": {
+    "lines": 50,
+    "files": 2
+   }
+  },
+  {
+   "id": "V-105852-give-a-codex-turn-one-trace-id",
+   "kind": "revert",
+   "pr": 105852,
+   "sha": "d6ae6a9ea78",
+   "date": "2026-09-24",
+   "subject": "fix(tasks): give a codex turn one trace id (#105852)",
+   "noted": [],
+   "size": {
+    "lines": 67,
+    "files": 3
+   }
+  },
+  {
+   "id": "V-104706-stop-reporting-a-quiet-schema-as-a-stall",
+   "kind": "revert",
+   "pr": 104706,
+   "sha": "d2a0c9b18a7",
+   "date": "2026-09-24",
+   "subject": "fix(warehouse-sources): stop reporting a quiet schema as a stalled schedule (#104706)",
+   "noted": [],
+   "size": {
+    "lines": 104,
+    "files": 5
+   }
+  },
+  {
+   "id": "V-91352-stop-merge-tags-inserting-double-quotes",
+   "kind": "revert",
+   "pr": 91352,
+   "sha": "e0bbcdac249",
+   "date": "2026-09-24",
+   "subject": "fix(messaging): stop merge tags inserting double quotes (#91352)",
+   "noted": [],
+   "size": {
+    "lines": 17,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105660-cap-the-label-referencing-parent-listing",
+   "kind": "revert",
+   "pr": 105660,
+   "sha": "a191c89aba3",
+   "date": "2026-09-24",
+   "subject": "fix(prompts): cap the label-referencing parent listing (#105660)",
+   "noted": [],
+   "size": {
+    "lines": 8,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105133-drop-latest-processed-timestamp-ms-serie",
+   "kind": "revert",
+   "pr": 105133,
+   "sha": "a67cc3978fa",
+   "date": "2026-09-24",
+   "subject": "fix(ingestion): drop latest_processed_timestamp_ms series on partition revoke (#105133)",
+   "noted": [],
+   "size": {
+    "lines": 47,
+    "files": 3
+   }
+  },
+  {
+   "id": "V-96235-accept-issued-invocation-ids-when-cancel",
+   "kind": "revert",
+   "pr": 96235,
+   "sha": "f18e93bf43e",
+   "date": "2026-09-24",
+   "subject": "fix(workflows): accept issued invocation ids when cancelling runs (#96235)",
+   "noted": [],
+   "size": {
+    "lines": 6,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-103110-report-a-tool-listing-that-never-produce",
+   "kind": "revert",
+   "pr": 103110,
+   "sha": "856d6a2fee8",
+   "date": "2026-09-24",
+   "subject": "fix(mcp-store): report a tool listing that never produced tools (#103110)",
+   "noted": [],
+   "size": {
+    "lines": 35,
+    "files": 2
+   }
+  },
+  {
+   "id": "V-104296-verify-period-usage-before-releasing-quo",
+   "kind": "revert",
+   "pr": 104296,
+   "sha": "f46ccb44ac2",
+   "date": "2026-09-24",
+   "subject": "fix(signals): verify period usage before releasing quota blocks (#104296)",
+   "noted": [],
+   "size": {
+    "lines": 78,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-104957-refuse-a-webhook-body-that-is-not-utf-8-",
+   "kind": "revert",
+   "pr": 104957,
+   "sha": "b99bbeb3da9",
+   "date": "2026-09-24",
+   "subject": "fix(devex): refuse a webhook body that is not utf-8 with 401 (#104957)",
+   "noted": [],
+   "size": {
+    "lines": 6,
+    "files": 1
+   }
+  },
+  {
+   "id": "V-105016-tell-schema-authors-when-the-api-ratchet",
+   "kind": "revert",
+   "pr": 105016,
+   "sha": "bf041756ae0",
+   "date": "2026-09-24",
+   "subject": "fix(devex): tell schema authors when the api ratchet flags a builder they only exposed (#105016)",
+   "noted": [],
+   "size": {
+    "lines": 98,
+    "files": 1
+   }
+  }
+ ],
+ "note": "Regressions: fix PRs merged in the four weeks before the base, reverted onto it (bench/review-eval-mine-reverts.js). `noted` lists the kinds of the notes the posthog-v3 noteset mined from that PR: for those the cache knows the fix; the unnoted ones measure the model on the diff."
+}

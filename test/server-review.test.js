@@ -76,7 +76,7 @@ test('the server reviews a pull request against its clone and posts the review; 
   await s.worker.tick();
   assert.equal(reviewed.length, 1);
   assert.equal(reviewed[0].scope.head, up.head); assert.equal(reviewed[0].scope.base, up.base); assert.match(reviewed[0].scope.label, /^commit /);
-  assert.deepEqual(reviewed[0].kinds, ['behavior']); assert.deepEqual(reviewed[0].notes, ['value-rejects-null']);
+  assert.equal(reviewed[0].kinds, undefined, 'every note by default; kinds narrows'); assert.deepEqual(reviewed[0].notes, ['value-rejects-null']);
   assert.deepEqual(github.map(g => `${g.method} ${g.url}`), ['GET /repos/acme/widgets/pulls/7/reviews?per_page=100', 'PUT /repos/acme/widgets/pulls/7/reviews/4/dismissals', 'POST /repos/acme/widgets/pulls/7/reviews']);
   const posted = github[2].body;
   assert.equal(posted.event, 'REQUEST_CHANGES'); assert.equal(posted.commit_id, up.head);

@@ -209,6 +209,20 @@ export function stratifyPrs(prs, limit = 20) {
   return selected;
 }
 
+// Which of the candidates to distill this run: fixes first, since the record of a fix is what a
+// review draws on most (on the PostHog regressions every bug the cache caught and the diff alone
+// missed rested on a note mined from the fix; bench/RESULTS.md, "Real bugs on PostHog"), up to two
+// thirds of the run when other changes wait, so a busy repository's features are not starved; the
+// rest stratified across subsystems as before. A candidate passed over is not recorded as mined
+// (learn.js:minePrs), so it is offered again next run rather than lost to the cap.
+export function pickPrs(candidates, limit = 20) {
+  const isFix = p => FIX_LIKE.test(`${p.title}\n${(p.body || '').slice(0, 400)}`);
+  const fixes = candidates.filter(isFix), rest = candidates.filter(p => !isFix(p));
+  const share = rest.length ? Math.max(1, Math.ceil(limit * 2 / 3)) : limit;
+  const first = stratifyPrs(fixes, Math.min(share, limit));
+  return [...first, ...stratifyPrs(rest, limit - first.length)];
+}
+
 function reviewComments(slug, n) {
   try {
     const cs = JSON.parse(gh('api', `repos/${slug}/pulls/${n}/comments?per_page=50`));

@@ -729,7 +729,36 @@ export function clusterFindings(findings, { span = 8 } = {}) {
     if ((SEV[f.severity] ?? 1) < (SEV[c.severity] ?? 1)) c.severity = f.severity;
     if ((f.confidence || 0) > (c.confidence || 0)) Object.assign(c, { message: f.message, evidence: f.evidence, confidence: f.confidence, note: f.note, category: f.category, inChange: f.inChange, line: f.line });
   }
-  return out;
+  // One note, several places: a regression of a fix is seen where the fix was undone, in the
+  // serializer that carried its field, in the test that covered it and in the document that
+  // described it, and each was a finding of its own (on the PostHog regressions, two findings a
+  // review against the baseline's one; bench/RESULTS.md, "Real bugs on PostHog"). Findings resting
+  // on a shared note become one, placed where the model was surest, the rest kept as `locations`.
+  const merged = [];
+  const rank = f => (2 - (SEV[f.severity] ?? 1)) * 10 + (f.confidence || 0);
+  const place = f => ({ file: f.file, line: f.line, message: f.message, evidence: f.evidence, severity: f.severity, confidence: f.confidence, inChange: f.inChange });
+  for (const c of out) {
+    const home = c.notes.length ? merged.find(m => m.notes.some(id => c.notes.includes(id))) : null;
+    if (!home) { merged.push(c); continue; }
+    const locations = [...(home.locations || []), ...(c.locations || [])];
+    if (rank(c) > rank(home)) { locations.push(place(home)); Object.assign(home, place(c), { note: c.note, category: c.category }); }
+    else locations.push(place(c));
+    for (const id of c.notes) if (!home.notes.includes(id)) home.notes.push(id);
+    home.locations = locations;
+  }
+  return merged;
+}
+
+// The changed code files no consulted note rests on, against all of them: where the review is
+// blind, said up front when it is most of the change rather than left to the cache-state footer.
+export function blindSpot(r) {
+  const n = r.notes || {};
+  const code = (r.files || []).filter(f => f.status !== 'D' && f.status !== 'state' && CODE_EXT.test(f.path)).length;
+  const blind = (n.uncovered || []).length;
+  if (!code || !blind || blind * 2 < code || r.strategy?.mode === 'nocache') return null;
+  const what = r.kinds?.length === 1 && r.kinds[0] === 'behavior' ? 'desired behavior' : r.kinds?.length ? `${r.kinds.join('/')} note` : 'note';
+  const then = r.strategy?.mode === 'per-note' || r.strategy?.mode === 'holistic' ? `nothing checks ${blind === code ? 'them' : 'those'}` : `there the review is the model reading the diff alone`;
+  return { blind, code, text: `Blind on ${blind === code ? (code === 1 ? 'the changed code file' : `all ${code} changed code files`) : `${blind} of ${code} changed code files`}: no ${what} rests on ${blind === 1 ? 'it' : 'them'}, so ${then}.` };
 }
 
 export function renderReview(r, { verbose = false } = {}) {
@@ -738,12 +767,15 @@ export function renderReview(r, { verbose = false } = {}) {
   const n = r.notes;
   const what = r.kinds?.length === 1 && r.kinds[0] === 'behavior' ? 'desired behavior' : r.kinds?.length ? `${r.kinds.join('/')} note` : 'note';
   L.push(`thinker review: ${r.scope}, ${r.files.length} file${r.files.length === 1 ? '' : 's'}; ${r.strategy?.mode === 'nocache' ? 'no notes (baseline)' : `${n.consulted} ${what}${n.consulted === 1 ? '' : 's'} consulted`} (${n.direct} on the changed code, ${n.related} related)${r.toAssess?.length && !n.assessed ? `, ${r.toAssess.length} to assess` : n.assessed ? `, ${n.assessed} assessed with ${r.model}${r.cost ? ` ($${r.cost.toFixed(2)})` : ''}` : ''}${n.skipped ? `, ${n.skipped} left out (--max)` : ''}`);
+  const blind = blindSpot(r);
+  if (blind) L.push(`⚠ ${blind.text}`);
   if (r.findings.length) {
     L.push('', `Findings: ${r.counts.error} error${r.counts.error === 1 ? '' : 's'}, ${r.counts.warning} warning${r.counts.warning === 1 ? '' : 's'}, ${r.counts.info} info`);
     for (const f of r.findings) {
       const where = f.file ? `${f.file}${f.line ? ':' + f.line : ''}` : '(no file)';
       L.push(`  ${f.severity.padEnd(8)} ${where}  ${f.message}${f.notes?.length || f.note ? `  [note${(f.notes?.length || 1) > 1 ? 's' : ''} ${(f.notes?.length ? f.notes : [f.note]).join(', ')}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}]` : f.basis ? `  [${f.basis}]` : f.confidence ? `  [from the code, ${Math.round(f.confidence * 100)}%]` : ''}`);
       if (f.evidence) L.push(`           evidence: ${f.evidence.split('\n').map(s => s.trim()).filter(Boolean).join(' | ').slice(0, 300)}`);
+      if (f.locations?.length) L.push(`           also at: ${f.locations.slice(0, 6).map(l => `${l.file}${l.line ? ':' + l.line : ''} (${l.message.slice(0, 80)}${l.message.length > 80 ? '…' : ''})`).join('; ')}${f.locations.length > 6 ? ` (+${f.locations.length - 6} more)` : ''}`);
     }
   } else L.push('', n.assessed || r.toAssess?.length === 0 ? 'No findings.' : 'No findings without the model (dry run).');
   if (r.behaviors?.length) {

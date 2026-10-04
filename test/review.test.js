@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { hashDep } from '../src/deps.js';
-import { parseDiff, resolveScope, makeReader, collectChange, changedSymbols, noteExposure, selectNotes, deterministicFindings, review, renderReview } from '../src/review.js';
+import { parseDiff, resolveScope, makeReader, collectChange, changedSymbols, noteExposure, selectNotes, deterministicFindings, review, renderReview, clusterFindings, blindSpot } from '../src/review.js';
 
 const cli = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 // reviews log a line each; from a test that line must not land in the machine's log (~/.thinker/log.jsonl)
@@ -251,4 +251,35 @@ test('kinds narrows the review to the desired behaviors: one call per behavior i
   const j = JSON.parse(dry.stdout);
   assert.deepEqual(j.toAssess.map(x => x.id), ['invoke-validates']);
   assert.deepEqual(j.behaviors.map(b => b.outcome), ['consulted']);
+});
+
+test('findings resting on one note at several files become one finding with locations; unrelated ones stay apart', () => {
+  const fs = [
+    { severity: 'warning', file: 'a/model.py', line: 10, message: 'guard removed', evidence: '', confidence: 0.8, note: 'n1', category: 'violation', inChange: true },
+    { severity: 'error', file: 'a/serializer.py', line: 40, message: 'field dropped from the response', evidence: 'x', confidence: 0.9, note: 'n1', category: 'violation', inChange: true },
+    { severity: 'warning', file: 'tests/test_model.py', line: 0, message: 'the regression test was deleted', evidence: '', confidence: 0.85, note: 'n1', category: 'violation', inChange: false },
+    { severity: 'warning', file: 'a/model.py', line: 12, message: 'same place, other note', evidence: '', confidence: 0.7, note: 'n2', category: 'violation', inChange: true },
+    { severity: 'warning', file: 'b/other.py', line: 5, message: 'unrelated, from the code', evidence: '', confidence: 0.6, inChange: true },
+  ];
+  const out = clusterFindings(fs);
+  assert.equal(out.length, 2);
+  const one = out.find(f => f.notes.includes('n1'));
+  assert.equal(one.file, 'a/serializer.py'); assert.equal(one.severity, 'error'); // placed where the model was surest
+  assert.deepEqual(one.notes.sort(), ['n1', 'n2']); // the nearby finding of n2 joined within the file first
+  assert.deepEqual(one.locations.map(l => l.file).sort(), ['a/model.py', 'tests/test_model.py']);
+  assert.equal(out.find(f => f.file === 'b/other.py').locations, undefined);
+  const text = renderReview({ scope: 'x', files: [{ path: 'a/model.py', status: 'M' }], notes: { consulted: 1, direct: 1, related: 0, assessed: 1, staleBefore: [], outdated: [], uncovered: [] }, findings: out, counts: { error: 1, warning: 1, info: 0 }, errors: [], verdicts: [], strategy: { mode: 'ensemble' } });
+  assert.match(text, /also at: a\/model.py:10 \(guard removed\); tests\/test_model.py/);
+});
+
+test('the blind spot is said up front when most changed code files carry no note, and never for the baseline', () => {
+  const base = { files: [{ path: 'a.py', status: 'M' }, { path: 'b.py', status: 'A' }, { path: 'README.md', status: 'M' }, { path: 'gone.py', status: 'D' }], notes: { consulted: 2, direct: 0, related: 2, assessed: 2, staleBefore: [], outdated: [], uncovered: ['a.py', 'b.py'] }, findings: [], counts: { error: 0, warning: 0, info: 0 }, errors: [], verdicts: [], scope: 'x' };
+  const b = blindSpot({ ...base, strategy: { mode: 'ensemble' } });
+  assert.equal(b.blind, 2); assert.equal(b.code, 2);
+  assert.match(b.text, /^Blind on all 2 changed code files: no note rests on them, so there the review is the model reading the diff alone\./);
+  assert.match(blindSpot({ ...base, kinds: ['behavior'], strategy: { mode: 'per-note' } }).text, /no desired behavior rests on them, so nothing checks them/);
+  assert.equal(blindSpot({ ...base, strategy: { mode: 'nocache' } }), null);
+  assert.equal(blindSpot({ ...base, notes: { ...base.notes, uncovered: [] }, strategy: {} }), null);
+  assert.equal(blindSpot({ ...base, files: [...base.files, { path: 'c.py', status: 'M' }, { path: 'd.py', status: 'M' }, { path: 'e.py', status: 'M' }], strategy: {} }), null, 'two of five is not most of the change');
+  assert.match(renderReview({ ...base, strategy: { mode: 'ensemble' } }), /\n⚠ Blind on all 2 changed code files/);
 });

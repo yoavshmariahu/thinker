@@ -7,6 +7,8 @@
 // push that fixes the violation clears the request; a plain comment review is left where it is.
 export const MARKER = '<!-- thinker-review -->';
 const ICON = { violated: '❌', upheld: '✅', revised: '✏️', unrelated: '➖', consulted: '👀' };
+import { blindSpot } from './review.js';
+
 const SEV = { error: 0, warning: 1, info: 2 };
 const esc = s => String(s || '').replace(/</g, '&lt;');
 const code = s => '`' + String(s || '').replace(/`/g, 'ˋ') + '`';
@@ -21,7 +23,14 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   const inline = [], rest = [];
   for (const f of findings) (f.file && f.line > 0 && f.inChange ? inline : rest).push(f);
   const one = f => `**${f.severity}** ${esc(f.message)}${f.evidence ? `\n\n> ${esc(f.evidence).split('\n').map(s => s.trim()).filter(Boolean).join('\n> ')}` : ''}\n\n<sub>${esc(label(f))}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}</sub>`;
-  const comments = inline.map(f => ({ path: f.file, line: f.line, side: 'RIGHT', body: `${MARKER}\n${one(f)}` }));
+  // one inline comment per place a finding was seen on a changed line: its own, and each location
+  // the clustering folded into it (the same regression in the serializer, the test, the docs)
+  const comments = [];
+  for (const f of findings) {
+    if (f.file && f.line > 0 && f.inChange) comments.push({ path: f.file, line: f.line, side: 'RIGHT', body: `${MARKER}\n${one(f)}` });
+    for (const l of f.locations || []) if (l.file && l.line > 0 && l.inChange) comments.push({ path: l.file, line: l.line, side: 'RIGHT', body: `${MARKER}\n${one({ ...f, message: l.message, evidence: l.evidence, severity: l.severity || f.severity, confidence: l.confidence })}` });
+  }
+  const also = f => f.locations?.length ? ` <sub>also at ${f.locations.slice(0, 6).map(l => code(`${l.file}${l.line ? ':' + l.line : ''}`)).join(', ')}${f.locations.length > 6 ? ` (+${f.locations.length - 6} more)` : ''}</sub>` : '';
   const behaviors = r.behaviors || [];
   const violated = behaviors.filter(b => b.outcome === 'violated');
   const L = [MARKER, `### thinker review${r.scope ? ` · ${esc(r.scope)}` : ''}`, ''];
@@ -48,6 +57,8 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   else if (r.empty) L.push('Nothing to review: the change holds no code the notes could speak to.', '');
   else {
     L.push(`${counts.error} error${counts.error === 1 ? '' : 's'}, ${counts.warning} warning${counts.warning === 1 ? '' : 's'}, ${counts.info} info · ${r.notes?.consulted ?? 0} ${r.kinds?.length === 1 && r.kinds[0] === 'behavior' ? 'desired behavior' : 'note'}${(r.notes?.consulted ?? 0) === 1 ? '' : 's'} consulted${r.notes?.assessed ? `, ${r.notes.assessed} assessed with ${esc(r.model)}` : ''}${r.cost ? ` ($${Number(r.cost).toFixed(2)})` : ''}`, '');
+    const blind = blindSpot(r);
+    if (blind) L.push(`⚠ ${esc(blind.text)} "No findings" there means nothing was found by a reader without the team's knowledge, not that the code is right.`, '');
     if (behaviors.length) {
       L.push('#### Desired behaviors in play', '', '| | behavior | outcome |', '|---|---|---|');
       for (const b of behaviors) L.push(`| ${ICON[b.outcome] || ''} | ${esc(b.title)} <sub>${b.mutability}, ${code(b.id)}</sub> | ${b.outcome}${b.outcome === 'violated' && b.reason ? `: ${esc(b.reason).slice(0, 200)}` : b.outcome === 'revised' ? ' (this change edits the behavior note)' : ''}${b.before ? ` <sub>${esc(b.before)}</sub>` : ''} |`);
@@ -55,7 +66,7 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
     }
     if (rest.length) {
       L.push(`#### Findings${inline.length ? ' not on a changed line' : ''}`, '');
-      for (const f of rest) L.push(`- **${f.severity}** ${f.file ? code(`${f.file}${f.line ? ':' + f.line : ''}`) + ' ' : ''}${esc(f.message)} <sub>${esc(label(f))}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}</sub>`);
+      for (const f of rest) L.push(`- **${f.severity}** ${f.file ? code(`${f.file}${f.line ? ':' + f.line : ''}`) + ' ' : ''}${esc(f.message)} <sub>${esc(label(f))}${f.confidence ? `, ${Math.round(f.confidence * 100)}%` : ''}</sub>${also(f)}`);
       L.push('');
     }
     if (inline.length) L.push(`${inline.length} finding${inline.length === 1 ? '' : 's'} on changed lines ${inline.length === 1 ? 'is' : 'are'} commented inline.`, '');
@@ -71,7 +82,7 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   const body = L.join('\n');
   const fail = failOn === 'error' ? counts.error > 0 : failOn === 'warning' ? counts.error + counts.warning > 0 : false;
   const event = counts.error > 0 ? 'REQUEST_CHANGES' : 'COMMENT';
-  const something = !!(r.error || findings.length || violated.length);
+  const something = !!(r.error || findings.length || violated.length || (!r.empty && !r.noCache && blindSpot(r)));
   const post = something || !quiet && !r.empty && !r.noCache && (behaviors.length > 0 || (r.notes?.consulted ?? 0) > 0);
   const summary = r.error ? `review failed: ${r.error}` : r.noCache ? 'no cache in this repository' : r.empty ? 'nothing to review' : `${counts.error} errors, ${counts.warning} warnings; ${violated.length} of ${behaviors.length} behaviors violated`;
   return { post, event, body, comments, fail, summary };

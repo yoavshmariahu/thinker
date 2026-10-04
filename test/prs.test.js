@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { minedPrs, recordMinedPrs, nextPrs, listMergedCommits } from '../src/prs.js';
+import { minedPrs, recordMinedPrs, nextPrs, listMergedCommits, pickPrs } from '../src/prs.js';
 
 const day = n => `2026-01-${String(n).padStart(2, '0')}T00:00:00Z`;
 const ALL = Array.from({ length: 12 }, (_, i) => ({ number: i + 1, mergedAt: day(i + 1) }));
@@ -131,4 +131,16 @@ test('nextPrs with listMergedCommits handles git history and tracks mined commit
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('pickPrs takes fixes first, leaves a share for other changes, and never more than the limit', () => {
+  const pr = (n, title, dir = 'a') => ({ number: n, title, body: '', mergedAt: `2026-09-${String(n).padStart(2, '0')}`, files: [`${dir}/x/${n}.py`] });
+  const fixes = [pr(1, 'fix(a): null guard'), pr(2, 'fix(b): race in the worker', 'b'), pr(3, 'Correct the wrong total', 'c')];
+  const feats = [pr(4, 'feat(a): new page'), pr(5, 'feat(b): export', 'b'), pr(6, 'perf: faster query', 'c')];
+  const picked = pickPrs([...feats, ...fixes], 3);
+  assert.equal(picked.length, 3);
+  assert.ok(picked.slice(0, 2).every(p => /fix|correct/i.test(p.title)) && !/fix|correct/i.test(picked[2].title), 'fixes first, one slot for the rest');
+  assert.deepEqual(pickPrs(fixes, 2).map(p => /fix|correct/i.test(p.title)), [true, true], 'only fixes: all slots are fixes');
+  assert.deepEqual(pickPrs(feats, 2).length, 2);
+  assert.equal(pickPrs([...feats, ...fixes], 10).length, 6);
 });

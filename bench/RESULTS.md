@@ -555,6 +555,60 @@ V2–V5 no longer apply to the base `a0621fe` and were skipped).
   the base cannot be reverted onto it once the surrounding code has moved.
   New revert cases need a newer base.
 
+### Real bugs on PostHog, 2026-10-04: regressions and bug-introducing pull requests
+
+Two case sets mined from PostHog's history against the posthog-v3 noteset (259
+notes, built at `a3b3c3685bc`, 2026-09-24), Sonnet through `claude -p`, the hit
+rule unchanged (an error or warning within six lines). Files:
+`bench/review-eval-cases-posthog-reverts.json`,
+`bench/review-eval-cases-posthog-inducing.json`; miners
+`bench/review-eval-mine-reverts.js` and `bench/review-eval-mine.js`; runs under
+`bench/runs/review-eval/2026-10-04-posthog-regressions-*`.
+
+- **Regressions**: 23 fix PRs merged in the four weeks before the base, reverted
+  onto it. For 12 the noteset holds a note mined from that PR (`noted`); for 11
+  it holds none. Arms: `nocache`, `ensemble`, and `behavior-holistic` (the 150
+  rule-like notes recast as mutable desired behaviors,
+  `bench/promote-behaviors.js`, one call, `--kinds behavior`). The
+  run was stopped by hand once the behavior arm had finished; the other two
+  reached the noted cases only.
+
+| arm | caught | cache knows the fix | cache does not | findings / review | $ / review | s / review |
+|---|---|---|---|---|---|---|
+| nocache | 5/7 | 5/7 | - | 0.9 | 0.05 | 51 |
+| ensemble | 6/6 | 6/6 | - | 2.0 | 0.12 | 134 |
+| behavior-holistic | 17/23 | **12/12** | 5/11 | 1.8 | 0.07 | 55 |
+
+  - Every note hit rests on a note mined from the reverted PR: the cache
+    remembering the fix. The two regressions the diff-only call missed (sizing
+    audiences during read-only impersonation, privileged Trino session
+    settings) are the ones nothing in the diff gives away.
+  - On the 11 unnoted cases every hit of the behavior arm came from the model
+    reading the diff, none from a note. A review consulting behaviors alone
+    (the pull request action's default) is blind wherever no behavior rests.
+  - Recasting the same notes as behaviors changed nothing: the same 12 hits as
+    the ensemble, through the same notes. Content and dependency exposure
+    decide detection, not the claim-versus-truth framing.
+  - The extra findings on noted cases are the same regression placed at each
+    file it touches (code, serializer, test, docs), not unrelated noise;
+    `clusterFindings` joins findings only within one file.
+- **Bug-introducing pull requests** (not run with a model; dry run only): fix
+  commits merged after the base, their removed lines blamed, the PR that
+  introduced them kept when it is itself after the base (24 real defects after
+  hand-filtering; `fix(today)` commits were mostly UI polish). On 1 of the 24 a
+  note rests on the file holding the bug; the notes direct to these changes
+  are co-change notes on manifests and generated files. The cache has nothing
+  to say about new code; this set measures the baseline model, at about $14
+  for both arms.
+- **Changed on the strength of this** (2026-10-04): maintenance mines fixes
+  first and no longer loses candidates to its per-run cap (`prs.js:pickPrs`);
+  the pull request action and the server consult every note by default
+  instead of the behaviors alone; findings resting on one note at several
+  files are one finding with locations (`review.js:clusterFindings`); a review
+  blind on most of the changed code says so first (`review.js:blindSpot`).
+  Not changed: no separate behavior detection pipeline, since the framing
+  made no difference.
+
 ## What this says about the design
 
 1. **Delivery matters more than retrieval.** Zero-turn injection (hook) is the only delivery that paid for itself; a tool call the agent must discover and invoke costs more than it saves in Claude Code today.

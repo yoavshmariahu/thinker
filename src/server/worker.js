@@ -69,7 +69,7 @@ export class Worker {
     const base = rv.baseSha && repo.hasCommit(rv.baseSha) ? rv.baseSha : `origin/${rv.baseRef}`;
     const scope = resolveScope(repo.checkout, { ref: head, base });
     const run = this.fns.review || review;
-    const report = await run(store, { scope, kinds: rv.kinds && rv.kinds.length ? rv.kinds : ['behavior'], max: rv.max || 12, model: store.config().reviewModel });
+    const report = await run(store, { scope, kinds: rv.kinds && rv.kinds.length ? rv.kinds : undefined, max: rv.max || 12, model: store.config().reviewModel });
     const built = buildReview(report, { failOn: rv.failOn || 'error', quiet: rv.quiet !== false });
     const slug = repo.id.replace(/^github\.com\//, '');
     let posted = { posted: false, dismissed: [] };

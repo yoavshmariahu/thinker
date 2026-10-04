@@ -29,9 +29,9 @@ inputs:
     required: false
     default: ${{ github.base_ref }}
   kinds:
-    description: Note kinds to consult, comma-separated. "behavior" (the default) checks the desired behaviors alone; empty consults every note
+    description: Note kinds to consult, comma-separated. Empty (the default) consults every note, the desired behaviors among them, beside a reading of the diff alone; "behavior" checks the desired behaviors alone and is blind wherever none rests
     required: false
-    default: behavior
+    default: ''
   mode:
     description: Review strategy (per-note, holistic, ensemble, nocache); empty takes thinker's default for the kinds
     required: false

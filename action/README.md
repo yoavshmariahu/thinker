@@ -12,11 +12,13 @@ them and that action is gone.
 
 On `pull_request`, asks the team's thinker server to review the pull request
 and waits for the result. The server fetches the pull request's head into its
-clone, reviews the change since the merge base against the repository's
-desired behaviors (`thinker review --kinds behavior`), and posts one pull
-request review with its own GitHub token: findings on changed lines as inline
-comments, the rest and a table of the behaviors in play (upheld, violated,
-revised, unrelated) in the body. A violated fixed behavior requests changes and
+clone, reviews the change since the merge base against the repository's notes
+and desired behaviors beside a reading of the diff alone (`thinker review`, the
+ensemble; `kinds: behavior` consults the behaviors alone and is blind wherever
+none rests), and posts one pull request review with its own GitHub token:
+findings on changed lines as inline comments, the rest and a table of the
+behaviors in play (upheld, violated, revised, unrelated) in the body, and a
+warning first when most of the changed code carries no note. A violated fixed behavior requests changes and
 fails the check; a push that fixes it dismisses that request. Nothing is posted
 when there is nothing to report. The workflow needs only the server's url and a
 token with write scope; no model key and no write permission on the workflow's
@@ -41,7 +43,7 @@ jobs:
         with:
           url: https://sync.zerotime.dev
           token: ${{ secrets.THINKER_SYNC_TOKEN }}
-          # kinds: behavior      # '' consults every note, not only the behaviors
+          # kinds: ''            # every note (the default); 'behavior' consults the desired behaviors alone
           # fail-on: error       # warning | none
           # quiet: 'true'        # 'false' posts the behaviors table even when all is upheld
           # wait: '600'          # seconds to wait for the result; '0' sends and leaves

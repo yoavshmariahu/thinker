@@ -19,17 +19,17 @@
   "deps": [
     {
       "path": "src/server/index.js",
-      "hash": "sha256:672ac4eb7415f5e38833b7b1",
+      "hash": "sha256:6a983f10e183119007757b2a",
       "missing": false
     },
     {
       "path": "src/server/repos.js",
-      "hash": "sha256:f9e8e9be75f934400f8f5181",
+      "hash": "sha256:54588d1432dacd6a0c7a7794",
       "missing": false
     },
     {
       "path": "src/server/worker.js",
-      "hash": "sha256:e0c146d924370fab22f1e694",
+      "hash": "sha256:37ecbda2770ec10ae7718d43",
       "missing": false
     },
     {
@@ -39,47 +39,47 @@
     },
     {
       "path": "src/sync.js",
-      "hash": "sha256:59b3517d605f6ed2fdfa5c31",
+      "hash": "sha256:65f80002e57bb6101c141a37",
       "missing": false
     },
     {
       "path": "src/cli.js",
-      "hash": "sha256:3c3c2b732660f67ce2c36fab",
+      "hash": "sha256:c25db8d551d00c88880e9b47",
       "missing": false
     },
     {
       "path": "src/maintain.js",
-      "hash": "sha256:542eebea2ffb6ac5696b0618",
+      "hash": "sha256:631e6b225888df7b146d634d",
       "missing": false
     },
     {
       "path": "src/prs.js",
-      "hash": "sha256:2ecb769658c3ab07a00d2260",
+      "hash": "sha256:4d352c3f5589d03c9e3be0b8",
       "missing": false
     },
     {
       "path": "src/commands/notes.js",
-      "hash": "sha256:978e0853cb0da7b0b1dfe97e",
+      "hash": "sha256:9062029161815ee95e9989dd",
       "missing": false
     },
     {
       "path": "src/commands/cache.js",
-      "hash": "sha256:5d226eac057a675038149ced",
+      "hash": "sha256:e5bddbb10ea6731b34bd4231",
       "missing": false
     },
     {
       "path": "src/commands/learn.js",
-      "hash": "sha256:430ebbece0b6b0914c98eb95",
+      "hash": "sha256:cf566b4318ee128385577c17",
       "missing": false
     },
     {
       "path": "src/commands/hooks.js",
-      "hash": "sha256:dd381f39c9ed14691776a0eb",
+      "hash": "sha256:318d83cf2f9dd9329a09f0da",
       "missing": false
     },
     {
       "path": "src/commands/setup.js",
-      "hash": "sha256:4d09d9a1cf414ecfe7cb2f5e",
+      "hash": "sha256:231b2e0a94c351f8fc19945b",
       "missing": false
     },
     {
@@ -97,7 +97,7 @@
     "type": "agent"
   },
   "created": "2026-10-03T06:37:50.164Z",
-  "verified": "2026-10-04T05:30:18.684Z",
+  "verified": "2026-10-04T19:22:37.842Z",
   "verifiedCommit": "a35ec3bfc80df76bd1bf41b5d2fa0eeaf2cceb32",
   "confidence": 1,
   "related": []

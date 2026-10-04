@@ -7,7 +7,7 @@
 //   THINKER_SYNC_URL        https://sync.example.com
 //   THINKER_SYNC_TOKEN      a token with write scope for this repository
 //   THINKER_REPO            repository id (default github.com/<GITHUB_REPOSITORY>)
-//   THINKER_REVIEW_KINDS    note kinds to consult, comma-separated (default behavior; empty: every note)
+//   THINKER_REVIEW_KINDS    note kinds to consult, comma-separated (default and empty: every note; behavior: the desired behaviors alone)
 //   THINKER_REVIEW_FAIL_ON  error (default) | warning | none
 //   THINKER_REVIEW_QUIET    false: post a review even when there is nothing to report
 //   THINKER_REVIEW_WAIT     seconds to wait for the result (default 600; 0: send and leave)
@@ -36,7 +36,7 @@ async function main() {
   let event = {}; try { event = JSON.parse(fs.readFileSync(env.GITHUB_EVENT_PATH, 'utf8')); } catch { fail('no event payload; run this on pull_request'); }
   const pr = event.pull_request;
   if (!pr) fail('the event carries no pull request; run this on pull_request');
-  const kinds = env.THINKER_REVIEW_KINDS === undefined ? ['behavior'] : env.THINKER_REVIEW_KINDS.split(',').map(s => s.trim()).filter(Boolean);
+  const kinds = (env.THINKER_REVIEW_KINDS || '').split(',').map(s => s.trim()).filter(Boolean);
   const failOn = (env.THINKER_REVIEW_FAIL_ON || 'error').toLowerCase();
   const req = { number: pr.number, title: pr.title, headSha: pr.head?.sha, headRef: pr.head?.ref, baseRef: pr.base?.ref, baseSha: pr.base?.sha, apiUrl: env.GITHUB_API_URL || undefined, kinds, failOn, quiet: env.THINKER_REVIEW_QUIET !== 'false' };
   const q = await server('POST', `/v1/repos/${encodeURIComponent(repoId)}/reviews`, req);

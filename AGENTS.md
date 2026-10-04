@@ -362,7 +362,14 @@ Each session both consumes and improves the cache:
    to 10 stale notes, writes
    phrasings for up to 8 notes that lack them, and distills up to 3 pull
    requests merged since maintenance first ran in the repository (older ones
-   are `thinker mine-prs`). Re-verification ahead of time is for notes served in
+   are `thinker mine-prs`). Fixes come first (`prs.js:pickPrs`): a pull
+   request whose title says it fixes something qualifies without a body and
+   takes up to two thirds of a run's slots when other changes wait; a
+   candidate the limit passes over is not recorded as mined and is offered
+   again next run (`learn.js:minePrs`, `deferred`). The record of a fix is
+   what a review draws on most: on 23 real PostHog regressions every bug the
+   cache caught and the diff alone missed rested on a note mined from the fix
+   (`bench/RESULTS.md`, "Real bugs on PostHog"). Re-verification ahead of time is for notes served in
    the last 14 days (`verifyServedDays`; 0: all), the most served first; a
    stale note nobody is reading waits until it is served, when serving
    verifies it in the background anyway (`ops.js:scheduleVerify`). A note
@@ -845,7 +852,20 @@ tool `review` is the same for an agent before it commits.
 - Several notes often see the same problem at nearby lines of one function:
   findings in the same file within eight lines become one
   (`review.js:clusterFindings`), with the surest wording, the highest severity
-  and every note named.
+  and every note named. Findings resting on a shared note at several files
+  (the undone fix, the serializer that carried its field, the test that
+  covered it, the document that described it) become one as well, placed
+  where the model was surest, the rest kept as `locations`, rendered as
+  "also at" and each posted inline when on a changed line
+  (`review-post.js`). On the PostHog regressions the cache arms reported two
+  findings a review against the baseline's one, and that was the same
+  regression at each file it touched.
+- When most of the changed code files carry no consulted note, the review says
+  so first (`review.js:blindSpot`, under the header in the CLI and in the
+  posted body): there the review is the model reading the diff alone, or
+  nothing at all when only behaviors were consulted. "No findings" on such a
+  change is not a clean bill. On 24 bug-introducing PostHog pull requests a
+  note rested on the file holding the bug in one.
 - Strategies (`review.js:DEFAULT_STRATEGY`, the `strategy` option of
   `review()`; no longer on the CLI, kept for `bench/review-eval.js`): `holistic` is
   one call with every consulted note, `nocache` is the same model with no
@@ -899,7 +919,11 @@ tool `review` is the same for an agent before it commits.
   again. The model is whatever the server has (`llm.js`): the API key, or an
   installed agent CLI with its login, so a local server reviews through
   `claude -p` with no key; the workflow needs no key and no write permission
-  of its own. Defaults: `kinds: behavior`; `kinds: ''` consults every note.
+  of its own. Defaults (since 2026-10-04): every note is consulted, the ensemble;
+  `kinds: behavior` consults the desired behaviors alone. Measured on 23 real
+  PostHog regressions (`bench/RESULTS.md`, "Real bugs on PostHog"): a review
+  that consults behaviors alone is blind wherever none rests, and on the 11
+  regressions the cache held no note for it found nothing through a note.
   Without a server the same action reviews on the runner with
   `anthropic-api-key` and `post.mjs` posts (`permissions: pull-requests:
   write`, `fetch-depth: 0`); telemetry and learning are off in that step. This

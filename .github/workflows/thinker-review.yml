@@ -1,5 +1,5 @@
-# Every pull request is checked against the desired behaviors of the system (.thinker/SYSTEM.md,
-# `thinker system`) by the team's thinker server, which posts the review; a violated fixed behavior
+# Every pull request is checked against the notes and the desired behaviors of the system
+# (.thinker/SYSTEM.md, `thinker system`) by the team's thinker server, which posts the review; a violated fixed behavior
 # requests changes and fails the check. Needs the repository secret THINKER_SYNC_TOKEN (write scope
 # on this repository) and the server's THINKER_SERVER_GITHUB_TOKEN; no model key in the workflow.
 name: thinker review
