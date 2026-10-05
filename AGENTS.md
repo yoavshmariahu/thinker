@@ -43,6 +43,15 @@ process inherits it. Never send these runs to the production telemetry endpoint
 or count them as real usage. Telemetry-specific tests may use mocked requests or
 an isolated loopback server only; they must never contact production.
 
+**Matched models in comparisons (MANDATORY RULE):**
+Compare arms only with the same exact model and reasoning effort for each
+corresponding phase (exploration, memory building, coding and any judging). Keep
+agent configuration fixed except for the declared intervention being compared.
+Record them before running, disable silent provider/model fallback, and report a
+model mismatch as an invalid comparison. Prefer executable tests for correctness;
+keep correctness, tokens and latency separate. Results from different models or
+reasoning settings belong in separate cohorts, not one ranking.
+
 **Agent concurrency and worktrees (MANDATORY RULE):**
 All agents working on this repository MUST perform code changes, scratch experiments, and benchmark runs in isolated git worktrees to avoid collisions with other active agents or running benchmark jobs. Never edit directly in the primary working tree.
 - **Create a worktree:** `git worktree add -b agent/<task-name> .worktrees/<task-name> HEAD` (or in `bench/worktrees/`; both are gitignored).

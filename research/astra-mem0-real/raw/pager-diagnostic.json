@@ -1,0 +1,314 @@
+{
+  "reason": "Investigate original pager-only suite failure without changing original scores. Same tests on every arm and reference, rotating order; no model reruns.",
+  "rows": [
+    {
+      "arm": "control-score",
+      "repeat": 0,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 0,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 0,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 0,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 0,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 1,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 1,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 1,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 1,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "control-score",
+      "repeat": 1,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 2,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 2,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 2,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "control-score",
+      "repeat": 2,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 2,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 3,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 3,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "control-score",
+      "repeat": 3,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 3,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 3,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 4,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "control-score",
+      "repeat": 4,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 4,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 4,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 4,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "control-score",
+      "repeat": 5,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 5,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 5,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 5,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 5,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 6,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 6,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 6,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 6,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "control-score",
+      "repeat": 6,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 7,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 7,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 7,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "control-score",
+      "repeat": 7,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 7,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 8,
+      "exit_code": 1,
+      "failures": [
+        "test_echo_via_pager[test5-cat]"
+      ]
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 8,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "control-score",
+      "repeat": 8,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 8,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 8,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-base",
+      "repeat": 9,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "control-score",
+      "repeat": 9,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "thinker-score",
+      "repeat": 9,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "mem0-score",
+      "repeat": 9,
+      "exit_code": 0,
+      "failures": []
+    },
+    {
+      "arm": "verify-gold",
+      "repeat": 9,
+      "exit_code": 0,
+      "failures": []
+    }
+  ],
+  "failed_runs": {
+    "control-score": 0,
+    "thinker-score": 0,
+    "mem0-score": 0,
+    "verify-gold": 1,
+    "verify-base": 0
+  }
+}
