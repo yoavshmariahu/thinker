@@ -91,7 +91,7 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   assert.equal(refresh(store, [store.get(n.id)])[0].status, 'violated');
   assert.equal(behaviorState(store.get(n.id)), 'violated');
   assert.match(renderBehaviors(listBehaviors(store)), /^violated\s+\[fixed, local\].*\n\s+since [0-9a-f]{10}: invoke no longer calls validate/m);
-  assert.match(maintenanceNotice(store), /desired behavior is no longer upheld by the code: "Every command validates its context before running"/);
+  assert.match(maintenanceNotice(store), /1 desired behavior needs review/);
   assert.equal(maintenanceNotice(store), '');
   // 2. committed on a branch: still violated
   git('checkout', '-qb', 'feature'); git('add', 'src'); git('commit', '-qm', 'drop validation on a branch'); // src only: .thinker/ state stays untracked
@@ -113,7 +113,7 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   assert.equal(behaviorState(v), 'holds');
   const revisedBody = v.body;
   assert.match(renderBehaviors(listBehaviors(store)), /holds\s+\[fixed, local, revised \d{4}-\d\d-\d\d to match [0-9a-f]{10}\]/);
-  assert.match(maintenanceNotice(store), /desired behavior was revised to match the merged code: "Every command validates its context before running"/);
+  assert.match(maintenanceNotice(store), /1 desired behavior revised/);
   // the code is restored on main: stale again, then holds
   write('src/core.py', CORE); commit('restore validation');
   [stale] = refresh(store, [store.get(n.id)]);

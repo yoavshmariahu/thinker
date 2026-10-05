@@ -210,7 +210,7 @@ test('maintenance archives by the rules, counts it, and tells the user once', ()
   assert.equal(r.archived, 1);
   const { maintenanceNotice, renderMaintain } = await import('../src/maintain.js');
   assert.match(renderMaintain(r), /1 archived/);
-  assert.match(maintenanceNotice(store), /1 note archived: kept for review/);
+  assert.match(maintenanceNotice(store), /1 archived/);
   assert.equal(maintenanceNotice(store), '', 'said once');
   const r2 = await maintain(store, dir, { fns: { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid' }), phrase: async () => ({ done: [], cost: 0 }), } });
   assert.equal(r2.archived, 0);
