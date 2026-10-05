@@ -133,6 +133,21 @@ test('findings without a model: a removed symbol still referenced', t => {
   void store;
 });
 
+test('findings without a model: a property of the same name is not a reference to a removed top-level definition', t => {
+  const { repo, git, write } = fixture(t);
+  write('src/queue.js', 'export function push(item) { return item; }\n');
+  write('src/use.js', 'const items = [];\nexport function add(x) { items.push(x); return items?.push(x); }\n');
+  git('add', '.'); git('commit', '-qm', 'queue');
+  fs.rmSync(path.join(repo, 'src/queue.js'));
+  const scope = resolveScope(repo), reader = makeReader(repo, scope);
+  const first = deterministicFindings(repo, collectChange(repo, scope), changedSymbols(collectChange(repo, scope), reader), reader);
+  assert.ok(!first.some(f => f.category === 'broken-reference'), JSON.stringify(first));
+  write('src/use.js', 'const items = [];\nexport function add(x) { items.push(x); return push(x); }\n');
+  const second = deterministicFindings(repo, collectChange(repo, scope), changedSymbols(collectChange(repo, scope), reader), reader);
+  const broken = second.find(f => f.category === 'broken-reference');
+  assert.match(broken.message, /push was removed from src\/queue.js .* src\/use.js:2$/);
+});
+
 test('review assembles the report: model findings carry the note and the line, outdated notes are cache state, nothing is rewritten', async t => {
   const { repo, store, write, notes } = fixture(t);
   write('src/core.py', CORE.replace('        validate(ctx)\n', ''));

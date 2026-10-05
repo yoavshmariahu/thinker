@@ -154,8 +154,12 @@ GitHub gate does not yet accept these runs as substitutes for its own checks.
 
 Ignored files are excluded; relevant new files are included. The user's index is
 not changed. Blob materialization avoids checkout filters; submodules are
-reported as unsupported rather than silently omitted. Run records remain after
-temporary execution worktrees are removed. Local evidence can be modified by a
+reported as unsupported rather than silently omitted. The checkout the container
+receives carries Git metadata of its own: a repository of one shallow commit, the
+snapshot, with no remote, hook, reflog or path of the host, so a check that asks
+Git for the revision (`scripts/pack.sh` records `git rev-parse HEAD`) gets the
+snapshot commit; the host's `.git` is never mounted. Run records remain after
+the temporary checkout is removed. Local evidence can be modified by a
 user with filesystem access, and native test output is not a cryptographic proof
 against malicious candidate code.
 Snapshot commits are retained under local `refs/thinker/reviews/<run-id>` so Git

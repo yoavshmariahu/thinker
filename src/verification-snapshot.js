@@ -40,6 +40,25 @@ export function createSnapshot(repo, options = {}) {
   return { tree, commit, base, target, targetRef: options.base || 'HEAD', head, scope: options.ref ? 'commit' : options.staged ? 'index' : 'worktree', candidate: 'branch', excludesIgnoredFiles: true };
 }
 
+// The checkout the container receives carries its own history: a repository of one
+// shallow commit, the snapshot, with no remote, hook, reflog or path of the host, so a
+// check that asks Git for the revision (scripts/pack.sh records `git rev-parse HEAD`)
+// gets the snapshot commit. The host's .git is never mounted or pointed at.
+export function standaloneGit(repo, runId, destination) {
+  const template = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-git-template-'));
+  const env = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  try {
+    git(destination, ['init', '-q', `--template=${template}`], { env });
+    git(destination, ['config', 'core.logAllRefUpdates', 'false'], { env });
+    git(destination, ['fetch', '-q', '--depth', '1', '--no-tags', repo, `refs/thinker/reviews/${runId}`], { env });
+    const commit = git(destination, ['rev-parse', '--verify', 'FETCH_HEAD^{commit}'], { env });
+    git(destination, ['update-ref', '--no-deref', 'HEAD', commit], { env });
+    git(destination, ['read-tree', 'HEAD'], { env });
+    fs.rmSync(path.join(destination, '.git', 'FETCH_HEAD'), { force: true }); // names the host path
+    return commit;
+  } finally { fs.rmSync(template, { recursive: true, force: true }); }
+}
+
 // Materialize blobs directly: checkout/smudge filters and export attributes must not
 // execute candidate code on the host or change the bytes named by the tree identity.
 export function materializeSnapshot(repo, tree, destination) {

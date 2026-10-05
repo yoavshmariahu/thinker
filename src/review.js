@@ -300,6 +300,7 @@ export function selectNotes(notes, change, reader, { relatedMax = 6 } = {}) {
 
 // The finding that needs no model: a definition the change removed that is still referred to
 // (working tree and index only; a commit's references cannot be grepped).
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 export function deterministicFindings(repo, change, symbols, reader) {
   const findings = [];
   if (change.state) return findings;
@@ -308,7 +309,9 @@ export function deterministicFindings(repo, change, symbols, reader) {
       if (!countable(r.name)) continue;
       const refs = references(repo, r.name, { file: s.path, limit: 2000 });
       if (!refs || refs.lines.some(l => l.def)) continue; // defined elsewhere now (moved or renamed with its uses)
-      const sites = refs.lines.filter(l => !l.def);
+      // a top-level definition is not referenced by a property of the same name (`items.push(x)` for a removed `push`)
+      const bare = new RegExp(`(?<![.\\w$])${esc(r.name)}(?![\\w$])`);
+      const sites = refs.lines.filter(l => !l.def && (r.parent || bare.test(l.text)));
       if (!sites.length) continue;
       const shown = sites.slice(0, 5).map(l => `${l.path}:${l.line}`).join(', ');
       findings.push({ severity: r.parent ? 'warning' : 'error', category: 'broken-reference', file: sites[0].path, line: sites[0].line, message: `${r.qualified} was removed from ${s.path} and is no longer defined anywhere, but is still referenced at ${shown}${sites.length > 5 ? ` (+${sites.length - 5} more)` : ''}`, basis: r.parent ? 'git grep by name; a method of the same name elsewhere would match too' : 'git grep' });

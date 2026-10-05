@@ -8,7 +8,7 @@ import { spawn } from 'node:child_process';
 import { Store } from './store.js';
 import { review, collectChange, makeReader } from './review.js';
 import { gateIntegrity } from './review-integrity.js';
-import { createSnapshot, snapshotTree, readAt, git, digest, materializeSnapshot } from './verification-snapshot.js';
+import { createSnapshot, snapshotTree, readAt, git, digest, materializeSnapshot, standaloneGit } from './verification-snapshot.js';
 import { normalizeFailures } from './verification-failures.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -167,7 +167,7 @@ export async function executeVerification(repo, id, { runReview = review, runner
   run.status = 'running'; run.startedAt = new Date().toISOString();
   const persist = () => { run.heartbeat = new Date().toISOString(); save(repo, run); fs.writeFileSync(path.join(dir, 'report.md'), renderVerification(run), { mode: 0o600 }); };
   persist(); const heartbeat = setInterval(persist, 15000);
-  const checkout = path.join(dir, 'checkout'); let added = false, gitPointer = null;
+  const checkout = path.join(dir, 'checkout'); let added = false;
   try {
     const scope = { base: run.snapshot.base, head: run.snapshot.commit, label: `snapshot ${run.snapshot.tree.slice(0, 12)}` };
     const change = collectChange(repo, scope), reader = makeReader(repo, scope);
@@ -182,11 +182,10 @@ export async function executeVerification(repo, id, { runReview = review, runner
     })();
     try {
       if (run.contract && !options.dry) {
-        git(repo, ['worktree', 'add', '--detach', '--no-checkout', checkout, run.snapshot.commit]); added = true;
+        fs.mkdirSync(checkout, { recursive: true, mode: 0o700 }); added = true;
         materializeSnapshot(repo, run.snapshot.tree, checkout);
-        // Do not expose the host's worktree pointer to the container.
-        gitPointer = fs.readFileSync(path.join(checkout, '.git'));
-        fs.unlinkSync(path.join(checkout, '.git'));
+        // Git metadata for the container is standalone: nothing in it points at the host.
+        if (standaloneGit(repo, run.id, checkout) !== run.snapshot.commit) throw new Error('Snapshot checkout does not carry the snapshot commit');
         for (const check of run.contract.checks) {
           const result = { id: check.id, command: check.command, status: 'running', startedAt: new Date().toISOString() };
           run.checks.push(result); persist();
@@ -210,11 +209,7 @@ export async function executeVerification(repo, id, { runReview = review, runner
   } catch (e) { run.status = 'incomplete'; run.error = e.message; }
   finally {
     clearInterval(heartbeat);
-    if (added) {
-      // Restore the pointer removed above so Git can remove its worktree registration.
-      try { if (gitPointer) fs.writeFileSync(path.join(checkout, '.git'), gitPointer); git(repo, ['worktree', 'remove', '--force', checkout]); }
-      catch (e) { run.cleanupError = e.message; }
-    }
+    if (added) { try { fs.rmSync(checkout, { recursive: true, force: true }); } catch (e) { run.cleanupError = e.message; } }
     run.completedAt = new Date().toISOString(); persist();
   }
   return run;

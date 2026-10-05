@@ -234,3 +234,44 @@ test('regression',()=>assert.equal(1,2));
   assert.equal(result.checks[0].passedTests[0].name, 'isolated');
   assert.equal(result.cleanupError, undefined);
 });
+
+test('the checkout the runner receives carries standalone Git metadata: the snapshot commit, nothing of the host', async t => {
+  const { repo, store, write } = fixture(t);
+  write('new.js', 'new file');
+  const run = prepareVerification(store);
+  let seen = null;
+  await executeVerification(repo, run.id, { runReview: assessment, runner: async (_, c, checkout) => {
+    const inner = args => git(checkout, args, { env: { GIT_CONFIG_GLOBAL: '/dev/null' } });
+    seen = { exists: fs.existsSync(checkout), head: inner(['rev-parse', 'HEAD']), status: inner(['status', '--porcelain']), remotes: inner(['remote']), shallow: inner(['rev-parse', '--is-shallow-repository']) };
+    assert.equal(fs.readFileSync(path.join(checkout, 'new.js'), 'utf8'), 'new file');
+    assert.ok(fs.statSync(path.join(checkout, '.git')).isDirectory(), 'a repository of its own, not a pointer at the host');
+    assert.ok(!fs.existsSync(path.join(checkout, '.git', 'hooks')) || !fs.readdirSync(path.join(checkout, '.git', 'hooks')).length, 'no hooks');
+    const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.name === 'objects' ? [] : e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+    for (const f of walk(path.join(checkout, '.git'))) assert.ok(!fs.readFileSync(f, 'latin1').includes(repo), `${f} names the host repository`);
+    return success();
+  } });
+  assert.deepEqual(seen, { exists: true, head: run.snapshot.commit, status: '', remotes: '', shallow: 'true' });
+  const done = readVerification(repo, run.id, { current: false });
+  assert.equal(done.status, 'passed'); assert.equal(done.cleanupError, undefined);
+  assert.ok(!fs.existsSync(path.join(done.reportPath, '..', 'checkout')), 'the checkout is removed after the run');
+  assert.equal(git(repo, ['worktree', 'list', '--porcelain']).split('worktree ').length, 2, 'the host registers no worktree for it');
+});
+
+test('a posted verification report is portable: the local artifact path stays on the host, the comment carries the marker', async t => {
+  const { postComment, MARKER } = await import('../src/review-post.js');
+  const { repo, store } = fixture(t);
+  const run = prepareVerification(store, { task: { request: 'Implement value', criteria: [{ text: 'works', source: 'user', checks: ['unit'] }] } });
+  await executeVerification(repo, run.id, { runReview: assessment, runner: async (_, c, checkout, dir) => ({ ...await success(), artifact: path.join(dir, `${c.id}.log`) }) });
+  const done = readVerification(repo, run.id);
+  assert.ok(done.checks[0].artifact.startsWith(repo));
+  assert.match(renderVerification(done), /Full output for unit\]\(/);
+  const portable = renderVerification(done, { portable: true });
+  assert.match(portable, /Full output: unit\.log \(stored locally; not uploaded\)\./);
+  assert.ok(!portable.includes(repo) && !portable.includes(os.tmpdir()), 'no host path in the posted report');
+  assert.match(portable, /works \| user-attributed-by-caller \| unit: passed/);
+  let sent = null;
+  const result = postComment({}, { repo, pr: '7', markdown: portable, run: (command, args, opts) => { sent = { command, args, input: opts.input }; return 'https://github.com/o/r/pull/7#issuecomment-1\n'; } });
+  assert.deepEqual(result, { posted: true, url: 'https://github.com/o/r/pull/7#issuecomment-1' });
+  assert.deepEqual([sent.command, sent.args], ['gh', ['pr', 'comment', '7', '--body-file', '-']]);
+  assert.equal(sent.input, `${MARKER}\n${portable}`);
+});
