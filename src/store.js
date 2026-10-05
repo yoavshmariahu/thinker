@@ -1,6 +1,6 @@
 import { isTestMode } from './test-mode.js';
 // Note store: one JSON file per note. A repository's shared notes are under <repo>/.thinker/notes/
-// (committed; a team shares them through pull requests), a checkout's own under .thinker/local/.
+// (legacy committed content), a checkout's own under .thinker/local/.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -129,7 +129,7 @@ export function adoptLocalLog(store) {
 
 // --- two caches -------------------------------------------------------------------------------------
 // .thinker/notes/        the repository's cache: committed, shared through pull requests, and written
-//                        only by `thinker share` (store.promote) or by hand. Content only.
+//                        retained for compatibility with older caches. Content only.
 // .thinker/local/notes/  this checkout's cache: what sessions here learned. Never committed.
 // .thinker/local/shared/ what this checkout holds about a shared note: how often it was served here,
 //                        whether this working tree makes it stale, what sessions here said about it,
@@ -406,7 +406,7 @@ export class Store {
   }
   // Write a note into the repository's cache, for the next commit: its content goes to
   // .thinker/notes, what this checkout knows about it stays local. `content` is what to write
-  // (share.js prepares it); the note may be local (it moves) or shared already (it is updated).
+  // Internal legacy-store helper; not exposed as a user publishing command.
   promote(note, content = sharedContent(note)) {
     if (this.readonly) throw new Error('readonly store');
     this.assertSafeNotesPath();

@@ -11,7 +11,6 @@ import path from 'node:path';
 import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
-import { reconcileLocal, readyToShareNotice } from './share.js';
 import { writeSystemMarkdown } from './behavior.js';
 
 export const DEFAULTS = {
@@ -115,14 +114,11 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   const state = readState(store);
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, sync: null, tokens: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
   try {
-    if (!dry) reconcileLocal(store);
-    // 0. the team's central cache, when this checkout syncs with one (sync.js): free, network only
-    if (fns.sync) { try { r.sync = await fns.sync(); } catch { r.errors++; } }
     // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
     // served in a month, leave serving and upkeep and stay for review (ops.js:archiveNotes)
     if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch { r.errors++; } }
@@ -166,9 +162,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     if (liveState.violated?.length) u.violated = liveState.violated;
     if (liveState.revised?.length) u.revised = liveState.revised;
     if (r.revised && !dry) { try { writeSystemMarkdown(store); } catch {} }
-    if (!dry) { const notice = readyToShareNotice(store); if (notice) u.share = notice; }
     for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
-    if (r.sync && !r.sync.skipped) { u.pulled = (u.pulled || 0) + (r.sync.pulled || 0) + (r.sync.deleted || 0); u.pushed = (u.pushed || 0) + (r.sync.pushed || 0) + (r.sync.retired || 0); }
     // churning notes are named once; a note named before is not named again until it settles
     const named = new Set(state.churnNamed || []);
     const fresh = r.churning.filter(id => !named.has(id));
@@ -203,8 +197,6 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   if (u.phrased) parts.push(`${u.phrased} ${u.phrased === 1 ? 'note' : 'notes'} phrased`);
   if (u.archived) parts.push(`${u.archived} ${u.archived === 1 ? 'note' : 'notes'} archived: kept for review, no longer served or re-verified (thinker archive --list)`);
   if (u.prs) parts.push(`${u.prs} ${u.prs === 1 ? 'note' : 'notes'} from merged pull requests`);
-  if (u.pulled || u.pushed) parts.push(`team cache: ${[u.pulled ? `${u.pulled} ${u.pulled === 1 ? 'note' : 'notes'} pulled` : '', u.pushed ? `${u.pushed} pushed` : ''].filter(Boolean).join(', ')}`);
-  if (u.share) parts.push(u.share);
   if (u.pruned?.length) parts.push(...u.pruned);
   if (u.capped) {
     const day = capDay(now);
@@ -248,6 +240,5 @@ export function renderMaintain(r) {
   if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
   if (r.archived) bits.push(`${r.archived} archived`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`);
-  if (r.sync && !r.sync.skipped) bits.push(`team cache ${r.sync.pulled + (r.sync.deleted || 0)}↓ ${r.sync.pushed + (r.sync.retired || 0)}↑`);
   return `maintained: ${bits.join(', ')}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}${r.capped ? '; daily token cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
 }

@@ -79,69 +79,15 @@ Notes:
 - **Already have a cache?** Use `--cache <file|url>` instead of `--build`.
   See [ONBOARDING.md](ONBOARDING.md) for all options.
 
-## Share a cache with your team
+## Your local cache
 
-Sessions learn into `.thinker/local/notes/`, which ignores itself in git. The
-repo cache lives in `.thinker/notes/` and is shared through ordinary commits
-and pull requests. Both caches are served together. Usage, staleness, confidence
-changes and pending corrections to shared notes stay local, so serving notes
-does not change committed files.
+Thinker learns and stores notes locally in `.thinker/local/notes/`, which is
+ignored by Git. It does not publish notes or synchronize them with a team.
+Older committed notes remain readable; updates to those notes stay local.
 
-```bash
-thinker share --dry       # review eligible notes and reasons others are skipped
-thinker share             # write eligible notes into .thinker/notes/
-git diff -- .thinker/notes/
-git add .thinker/notes/
-# Commit and open your normal pull request.
-```
-
-A note must be fresh, have matching dependencies and pass content checks. Notes
-from a person, documentation or a merged PR are eligible; agent notes need at
-least one confirming session assessment. `thinker share <id>…` or `--all` skips
-only that trust gate. Near-duplicates, machine home paths, common secret patterns,
-missing dependencies and bodies over 12,000 bytes are rejected. Review the result
-before committing. Pending corrections are shared by the same command; a shared
-note retired locally is removed from the repo cache when shared.
-
-Maintenance gives a one-time notice when new notes are ready in a repository
-with a shared cache. Set `"share": true` in `.thinker/config.json` to enable
-notices before sharing the first note. `thinker list` labels notes `local` or `repo`.
-
-Run `thinker setup` to install the git hooks in an existing checkout. Before a
-commit, `pre-commit` checks shared notes against **staged** code. It corrects
-safe metadata issues, asks the configured small model whether notes affected by
-code changes remain valid, and rewrites or removes notes that cannot be kept
-valid. Each changed note's original bytes are saved under
-`.thinker/local/quarantine/`. The hook changes the staged note and its working
-copy only when that copy has no separate unstaged edits. Model work can add
-latency and model calls to a commit. `THINKER_NO_LEARN=1` disables this hook for
-fixed-cache experiments.
-
-`pre-push` reports any issues left in the commits being pushed and **always
-allows the push**. It cannot edit a commit that Git has already selected for
-pushing. `thinker share --check` is also report-only by default, including in
-CI; `--strict` opts into a failing exit status for manual audits. Existing custom
-hooks are preserved. After a commit or merge, `post-commit` and `post-merge`
-check the cache in the background and run maintenance with learning enabled.
-Local corrections still need `thinker share` to enter the repo cache.
-
-For CI, fetch the target branch and report on the committed cache (replace
-`main` with your default branch):
-
-```bash
-git fetch origin main
-THINKER_TELEMETRY=off thinker share --check --base origin/main
-```
-
-`--ref <commit>` selects a commit other than `HEAD`. Without `--base`, validation
-uses the merge-base with the cached remote default branch. New-branch pushes do
-the same; fetch/set `origin/HEAD` if that reference is unavailable.
-
-On first use, untracked notes from the old `.thinker/notes/` layout move into the
-local cache; tracked notes stay shared. No tracked file is rewritten by migration.
-`thinker export` packs the effective notes from both caches, including local state;
-`thinker import` loads an archive locally, with updates to shared IDs kept as
-pending corrections. Review archives before distributing them.
+Use `thinker export backup.tgz` and `thinker import backup.tgz` for personal
+backup and restore. There is no `share`, `sync`, or `setup --shared` workflow.
+Old sync settings are ignored.
 
 ## Review a change against the cache
 
@@ -244,7 +190,7 @@ an updated installation:
 git config --local thinker.reviewBeforeCommit true
 ```
 
-The pre-commit hook repairs shared notes, then runs `thinker review --staged --strict`.
+The pre-commit hook runs `thinker review --staged --strict` when enabled.
 Error-level findings, fixed behavior violations, or failed assessments stop the commit;
 warnings alone do not. Review uses your configured model and can add latency and token
 usage to each commit. It checks the staged diff and refuses to proceed if the index
@@ -434,7 +380,7 @@ THINKER_TEST=1 node bench/your-benchmark.js
 ```
 
 Test mode blocks production telemetry and automatic updates, learning, verification,
-sync pulls, and automatic git-hook repairs and reviews. Usage logs default to the checkout, and machine-wide agent hooks
+and automatic git-hook reviews. Usage logs default to the checkout, and machine-wide agent hooks
 stay quiet. Explicit commands such as `distill`, `verify`, and `maintain` still work;
 MCP tools remain available. Existing per-feature controls still work when an experiment
 needs them. Set `THINKER_HOOKS=on` only when testing machine-wide hook serving;
@@ -465,4 +411,4 @@ For the PostgreSQL ingestion service, S3 migration, and SQL queries, see
 ## More
 
 - [AGENTS.md](AGENTS.md): how thinker works, per-agent support, repository layout
-- [ONBOARDING.md](ONBOARDING.md): sharing a built cache with a team
+- [ONBOARDING.md](ONBOARDING.md): setting up your local cache

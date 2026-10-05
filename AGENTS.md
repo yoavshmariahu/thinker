@@ -6,8 +6,6 @@ user-facing summary is in `README.md`; benchmark results are in
 
 ```
 agent session ──► distill ──► .thinker/local/notes/*.json ──► orient / lookup (MCP)
-                                   │ explicit share             ▲
-                                   └──► .thinker/notes/*.json ───┘
                                    │
                           deps + content hashes
                                    │
@@ -73,7 +71,7 @@ cache at twice the input price and never read again.
 | path | contents |
 |---|---|
 | `src/cli.js` | the `thinker` command: argument parsing, the help text, the prelude every command shares (update notice, background update and telemetry, the not-set-up check, the parser), and a table of handlers |
-| `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (share, review, export, import, sync, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, seed, mine-prs, and the exploration and PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up and pull they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
+| `src/commands/` | one module per group of commands, each handler taking the dispatcher's context (`store`, `repo`, `flags`, `pos`, `out`, …): `notes.js` (orient, lookup, find, drilldown, system, list, show, add, rm, archive, phrase, rehash, relink), `cache.js` (review, export, import, serve, health, stats, usage), `learn.js` (learn, maintain, distill, record, outcome, verify, check, seed, mine-prs, and the exploration and PR-mining helpers), `hooks.js` (the hook entrypoints and the background catch-up they start), `setup.js` (setup, uninstall, ast, update/upgrade/switch/branch), `telemetry.js`, `benchmark.js`, `shared.js` (helpers several of them need) |
 | `src/mcp.js` | MCP server exposing `orient`, `lookup`, `find`, `drilldown`, `remember`, `feedback` |
 | `src/setup.js`, `src/setup/` | the guided `setup` flow (`runSetup`), with its parts under `src/setup/`: `ui.js` (colors, boxes, the arrow-key menu), `agents.js` (which agent CLIs are installed and logged in, and the menu that picks one), `estimate.js` (what a cache build will cost), `steps.js` (wiring the clients, building the cache), `pr-benchmark.js` (the optional PR change benchmark); everything is re-exported from `setup.js` |
 | `src/clients.js` | adapters for Claude Code, Codex, Gemini CLI, Cursor, Pi, Windsurf Cascade, Copilot CLI and OpenCode: config files and hook formats; native extension handlers in `src/integrations/`; coverage in `docs/agent-integrations.md` |
@@ -90,7 +88,6 @@ cache at twice the input price and never read again.
 | `src/update.js` | CLI self-update and daily automatic background updates (LaunchAgent / cron / invocation) |
 | `src/usage.js` | summary of the usage log and the estimate of saved calls and tokens, in tokens (never dollars) |
 | `src/store.js`, `src/llm.js` | note storage; model access through any installed agent |
-| `src/sync.js` | a checkout's side of the central cache: pull and push notes; from the hooks and maintenance once `thinker sync login` has run |
 | `src/server/` | `thinker-server`, the team's central cache: HTTP API (`index.js`), per-repository stores with a change journal and a clone of the repository (`repos.js`), tokens (`auth.js`), the worker that reviews the pull requests CI asks about (`worker.js`); the server learns nothing itself |
 | `action/` | GitHub Actions: `action.yml` sends a merged pull request to the server; `review/` has the server check a pull request against the desired behaviors and post the review (`src/review-post.js` renders and posts) |
 | `infra/sync/` | the server on EC2: CloudFormation stack, bootstrap script, deploy script |
@@ -172,10 +169,8 @@ pull request, so roughly 5.5M tokens and twenty minutes with the defaults
 in tokens and minutes before anything runs, never in dollars: decided 2026-10-04,
 since most agents run on subscriptions and a figure from API list prices told
 people they would spend money they would not. In a terminal `setup`
-asks before spending (`--yes` skips the question). The hooks and the MCP
-entry live in the agents' own settings; `--shared` also writes them into the
-checkout's files (`.claude/settings.json`, `.mcp.json`, `.codex/`,
-`.gemini/`, `.cursor/`) for the team to commit.
+asks before spending (`--yes` skips the question). The hooks and MCP entry live in the agents' own settings. Team wiring with
+`--shared` is no longer supported.
 
 To mine more pull requests later, run `thinker mine-prs` (or `thinker learn
 --prs`, which distills new sessions first). With no arguments it takes the
@@ -455,7 +450,7 @@ the environment, which also silences hooks that are already installed.
 `learn: {"sessions": false}` in `.thinker/config.json` switches off learning
 from sessions alone (the session distill and the catch-up `learn`), while
 learning from code changes goes on: pull requests and re-verification in
-maintenance, `share --repair-staged` at commit, `thinker distill <file>` by
+maintenance, `thinker distill <file>` by
 hand. Each session distilled is a model call, about 10¢ with Sonnet, and in a
 week on this repository 30% of them produced no note; without them there are
 also no assessments, so `thinker usage` counts no servings as acted on. The
@@ -668,141 +663,19 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
   embeddings blended into the score) is the measured negative kept beside
   it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.
-- Team mode: `.thinker/local/notes/` holds learned notes and ignores itself in git.
-  `.thinker/notes/` holds committed content, written only by explicit `thinker share`
-  (or `rm` / manual edits). `.thinker/local/shared/` holds per-checkout state and pending
-  corrections for shared notes, tied to a content digest; pulled content supersedes old
-  corrections and staleness. `Store.list/get` serve their union; shared IDs win.
-  Untracked legacy notes migrate to local on first use; tracked files are left unchanged.
-  A change pending here when a pull replaces the note is not dropped: it is kept in the overlay
-  as `superseded` (`Store.superseded`), named by `thinker share [--dry]`, `thinker show` and the
-  maintenance notice, and cleared when the note is shared again from here. Note files that
-  cannot be read (a merge conflict, invalid JSON, an id that does not match the file name) are
-  skipped by the store and named by `list`, `check` and `share` (`Store.unreadable`), so a
-  conflicted note does not just vanish. Maintenance removes overlays of shared notes that no
-  longer exist unless they hold unshared content (`Store.sweepOverlays`).
-  `THINKER_NOTES_DIR` retains a flat store for benchmarks. Inventory of other checkouts
-  uses `new Store(repo, { readonly: true })` and never migrates them.
-- `thinker share [ids…] [--all] [--dry]` promotes fresh, valid notes from trusted sources
-  (pr/human/doc or a confirmed session), pending updates, and locally retired shared notes.
-  IDs / `--all` bypass only trust. Near-duplicates, invalid deps, common secret patterns,
-  home paths and bodies over 12,000 bytes are rejected. Serving and assessment never
-  rewrite shared files. Maintenance reconciles local duplicates and reports new ready
-  notes once, only with a shared cache or `share: true` in config.
-- `thinker share --check --base origin/main` reports note and dependency issues at
-  HEAD for CI; `--ref` selects another commit. The command exits 0 by default;
-  `--strict` opts into exit 2 for validation errors. `--pre-push` reads Git's
-  ref lines and always exits 0 so no push is blocked. Git's pre-push snapshot
-  cannot be rewritten safely, so the new `pre-commit` hook runs
-  `thinker share --repair-staged` first. It reads code and notes from the index,
-  fixes metadata, asks a small model about notes whose deps changed (at most 25
-  a commit, `share-repair.js:REPAIR_CAP`, `--cap n`: the staged note files
-  first, then the most served; the rest are left for maintenance, since a
-  commit to a central file otherwise meant dozens of model calls through the
-  agent's CLI before the commit went through), and updates
-  or removes bad notes in the index. Only a note file the commit itself adds
-  or changes can be removed, and only for a settled reason (malformed, a
-  duplicate, unsafe content, retired, or a model verdict of `invalid`); a
-  note reached only through the code it rests on is never removed by a
-  commit, and neither is one whose check failed, gave no usable answer, or
-  misread the request (`share-repair.js:misread`: Haiku answered "No cache
-  note was provided" for a note it was shown, four times out of four, and
-  the hook removed it). Such a note is `left` as it is, goes stale, and
-  maintenance verifies it. Original bytes go to
-  `.thinker/local/quarantine/`; unstaged working-copy edits are preserved.
-  `setup` installs pre-commit, pre-push, post-merge and post-commit through
-  `git-hooks.js`, preserving custom hooks; uninstall removes only thinker hooks.
-  `THINKER_NO_LEARN=1` disables background and pre-commit hooks for fixed-cache
-  experiments. Rebase is covered by prompt catch-up.
-- `share.js` owns promotion and commit validation; `deps.js:hashText/hashDepAt` reuse
-  symbol hashing and parser/regex compatibility on commit content. `transfer.js` exports
-  both effective caches and imports through the local store without touching shared files.
-- Benchmark arm `live` runs the whole loop: the cache grows and
-  self-corrects between tasks (`bench/RESULTS.md`, "Live loop").
+- Local storage: `.thinker/local/notes/` holds learned notes and is ignored by Git.
+  Legacy `.thinker/notes/` files remain readable with local overlays, so upgrading
+  does not discard existing notes or corrections. `transfer.js` backs up and
+  restores effective notes locally. There is no note publishing or client sync.
 
-## The central cache (`thinker-server`)
+## Internal review server
 
-**Not deployed and not offered publicly (decided 2026-10-04).** The server stays
-in the repository and runs from a checkout (`node src/server/cli.js start`), for
-local use and tests. The release archive (`scripts/pack.sh`) leaves out
-`src/server/` and the `thinker-server` bin, the public `README.md` does not
-mention the server or `thinker sync`, and the CLI help lists no `sync`
-commands (they still work for a checkout that has a server to talk to). The
-EC2 stack in `infra/sync/` is not to be deployed, and the review workflow in
-`.github/workflows/thinker-review.yml` is a no-op until the `THINKER_SYNC_TOKEN`
-secret exists.
+`src/server/`, `action/review/`, and `infra/sync/` remain internal infrastructure
+for this repository's mandatory PR reviews. The server is excluded from public
+release archives. Client sharing, sync, and staged-note repair were removed;
+old client sync settings do nothing. Do not reintroduce team collaboration as
+part of the product. Local review and personal backup/restore remain supported.
 
-Committing notes shares them at the pace of pull requests. A team that wants
-every checkout to see what every other one learned runs `thinker-server`
-(`src/server/`), one process with a data directory, and points checkouts at it
-with `thinker sync login <url> --token <t>`. The server is a store: it holds
-the notes and a journal of their changes, and reviews pull requests when CI
-asks. It learns nothing itself. Sessions are distilled on the checkout that ran
-them, through the agent's own login, and merged pull requests are mined by each
-checkout's maintenance as in an unsynced repository; what they produce reaches
-the server as notes on the next push. Decided 2026-10-04: a distill costs the
-same wherever it runs, and on a laptop it runs on the agent's subscription
-rather than metered API usage, so the server's share was moved back. The price
-of it is that a merged pull request is mined once per syncing checkout, with
-the duplicates rejected at push (`share.js:nearDuplicate`), rather than once.
-The server's own model work is the pull request review alone. The url goes in
-`.thinker/config.json` (`sync.url`, committable), the token in
-`~/.thinker/sync.json` (`THINKER_HOME`) or `THINKER_SYNC_TOKEN`. A repository is
-named by its origin (`store.js:repoId`, `github.com/owner/repo`), so clones and
-worktrees sync as one; `sync.repo` in the config overrides it.
-
-Server side, a repository is a directory (`repos.js:Repo`): a clone of the
-repository under `checkout/` with the notes in its `.thinker/` through the
-ordinary `Store` (committed notes of the repository count as shared there too),
-a numbered journal of every note change, and the pull request reviews CI asked
-for. The clone is the code a review reads, fetched before each one. Private
-repositories need `THINKER_SERVER_GIT_TOKEN` (a fine-grained read token);
-without a clone the server stores what clients push and reviews fail saying so.
-The review's model call goes through `llm.js`, which on a server means
-`ANTHROPIC_API_KEY` (the SDK is installed beside the release by
-`infra/sync/bootstrap.sh`); the worker stops for the day at
-`THINKER_SERVER_DAILY_TOKENS` tokens (default 2,000,000), summed from the repositories'
-logs (`THINKER_LOG=local` on the server).
-
-Two flows (`sync.js`), both automatic once logged in:
-
-- **Pull.** `GET /v1/repos/:repo/notes?since=<cursor>` returns the notes touched
-  since the cursor and tombstones. They land in the checkout's local tier with a
-  `sync: {digest, seq}` marker (a `LOCAL_FIELDS` entry, never shared or pushed);
-  this checkout's own state (uses, servedIn, staleness against its tree) is kept;
-  a note the repository commits in `.thinker/notes/` wins over the pulled copy.
-  The prompt hook pulls in the background at most every five minutes
-  (`cli.js:pullInBackground`), maintenance pulls on every run.
-- **Push.** Local notes that pass the trust gate of `thinker share` (fresh,
-  from a person, PR or doc, or confirmed by a session; `sync.pushAll` in config
-  or `thinker sync --all` lifts it) and content checks go up; so do synced notes
-  whose content changed here (a verification, a correction, a retirement), with
-  the digest they were pulled at as `base`. The server (`repos.js:upsert`) takes
-  an update only if `base` is its current digest; otherwise it answers
-  `conflict` and the client takes the server's version. New notes that repeat
-  one on the server (`share.js:nearDuplicate`) are rejected, and the client
-  stops offering that content. What travels (`repos.js:syncContent`) is
-  `sharedContent` plus `attest` and `history`, and `status` only as
-  fresh/invalid; `prepareContent` strips transcript paths first.
-CI asks the server to review open pull requests and post the review on them
-(`action/review`, `POST /v1/repos/:repo/reviews`; see [Reviewing a change against
-the cache](#reviewing-a-change-against-the-cache)). The model key never enters
-the workflow. `action/README.md` has the workflow. Until 2026-10-04 a second
-action sent merged pull requests to the server to be distilled there
-(`POST /v1/repos/:repo/prs`), and the stop hook streamed sessions to
-`POST /v1/repos/:repo/sessions/:session`; both intakes are gone, and a request
-to them is a 404.
-
-Tokens (`auth.js`): the admin token (`THINKER_SERVER_ADMIN_TOKEN`, or generated
-into `<data>/admin-token`) mints tokens with scopes `read`, `write`, `admin` and
-a list of repositories or `*`, stored hashed in `<data>/tokens.json`. A CI token
-is `write` on one repository. Everything but `/health` needs a token.
-
-Deployment to EC2 is `infra/sync/` (`deploy.mjs`, `stack.yaml`, `bootstrap.sh`,
-`README.md`): Amazon Linux 2023, Caddy for TLS at `sync.zerotime.dev`, secrets
-in Secrets Manager, releases in S3, updates through Systems Manager. Tests:
-`test/sync.test.js` runs the server in-process against temporary checkouts,
-with the model mocked.
 ## Desired behaviors
 
 Every other kind of note is a claim about the code, and when code and note
@@ -818,8 +691,8 @@ the old text in its history. Behaviors are never evaluated against a gold set;
 the review's callout and the person's decision to merge are the check. `thinker system` is the view of them; the MCP
 `lookup` with `kind: "behavior"` returns them to an agent (all of them with no
 query); `thinker system md` writes them as `.thinker/SYSTEM.md` for people who
-read the repository without the tool. They are committed like any shared note
-(`thinker share <id>`) and sync like one.
+read the repository without the tool. Legacy committed behaviors remain
+readable; new behaviors stay local.
 
 - **Fields.** A behavior is an ordinary note (title, body with `file:Symbol`
   pointers, answers, deps) plus `mutability`: `fixed` (a review treats a
@@ -836,8 +709,7 @@ read the repository without the tool. They are committed like any shared note
   `remember` (kind `behavior`); it is listed as *proposed* until `thinker
   system accept <id>`. Distillation and PR mining are not offered the kind
   (`distill.js:distillSpec`, `prs.js`), archiving never takes one
-  (`ops.js:archiveReason`), and the commit-time repair leaves one as it is
-  (`share-repair.js`).
+  (`ops.js:archiveReason`).
 - **Verification** (`ops.js:verifyBehavior`, through `verifyNote`): when a dep
   changes the question is whether the code still upholds the behavior.
   `holds` re-baselines; `moved` re-points the deps at where the behavior is
@@ -1042,12 +914,12 @@ review prompt.
 
 ## Supported agents
 
-| agent | notes for the request | notes about files being edited (installed by default; `--no-late` leaves it out) | MCP tools | written to (user scope; `--shared` adds the checkout's files) |
+| agent | notes for the request | notes about files being edited (installed by default; `--no-late` leaves it out) | MCP tools | written to (user scope) |
 |---|---|---|---|---|
-| Claude Code, and the Code tab of the Claude desktop app | added to each prompt | yes | yes | `~/.claude/settings.json`, `~/.claude.json` (`--shared`: `.claude/settings.json`, `.mcp.json`) |
-| Codex CLI and the Codex desktop app | added to each prompt | yes | yes | `~/.codex/hooks.json`, `~/.codex/config.toml` (`--shared`: `.codex/hooks.json`, `.codex/config.toml`) |
-| Gemini CLI | added to each prompt | yes | yes | `~/.gemini/settings.json` (`--shared`: `.gemini/settings.json`) |
-| Cursor | through the `orient` tool, and with the first tool result | yes | yes (approved by setup) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, and `.cursor/rules/thinker.mdc` in the checkout (`--shared`: `.cursor/hooks.json`, `.cursor/mcp.json`) |
+| Claude Code, and the Code tab of the Claude desktop app | added to each prompt | yes | yes | `~/.claude/settings.json`, `~/.claude.json` |
+| Codex CLI and the Codex desktop app | added to each prompt | yes | yes | `~/.codex/hooks.json`, `~/.codex/config.toml` |
+| Gemini CLI | added to each prompt | yes | yes | `~/.gemini/settings.json` |
+| Cursor | through the `orient` tool, and with the first tool result | yes | yes (approved by setup) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, and `.cursor/rules/thinker.mdc` in the checkout |
 | Pi, Windsurf, Copilot CLI, OpenCode | see `docs/agent-integrations.md` | | | the checkout alone (an extension or rule file; nothing machine-wide), by `thinker setup` there |
 
 - The desktop apps run the same engines as the CLIs and read the same user
