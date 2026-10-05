@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { Repos, REPO_ID } from './repos.js';
 import { Tokens, allows, bearer } from './auth.js';
 import { Worker } from './worker.js';
-import { nearDuplicate } from '../share.js';
+import { nearDuplicate } from './note-duplicates.js';
 import { provider } from '../llm.js';
 
 const VERSION = (() => { try { return JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json'), 'utf8')).version; } catch { return '0'; } })();

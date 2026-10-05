@@ -9,7 +9,7 @@ thinker setup --clients pi,windsurf,copilot,opencode --no-build
 
 Restart the host agent after setup so it discovers the generated hooks/extensions.
 Project trust and hook enablement remain controlled by the host. Generated files
-are locally excluded from git unless `--shared` is requested. `thinker uninstall`
+are locally excluded from git. `thinker uninstall`
 removes Thinker's entries and preserves other integrations.
 
 ## Coverage

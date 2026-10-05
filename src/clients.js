@@ -231,7 +231,7 @@ export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini'];
 // nothing. A hook at user scope names no --repo (it reads the checkout from the agent's input) and
 // the MCP entry pins no THINKER_REPO (the server takes the repository from its working directory,
 // or from the `repo` argument of a call). `repo` is the checkout's own files: what `setup` wrote
-// until 2026-10-04, and what `--shared` still writes for a team to commit.
+// until 2026-10-04, including legacy committed wiring.
 export const SCOPES = ['repo', 'user'];
 const codexHome = () => process.env.CODEX_HOME || home('.codex');
 const claudeDir = () => process.env.CLAUDE_CONFIG_DIR || home('.claude');

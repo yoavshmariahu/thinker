@@ -1,7 +1,7 @@
 import { isTestMode } from '../test-mode.js';
 import { gitContext, tryImpact } from '../impact-journal.js';
 // The hook entrypoints the agents call (clients.js installs them): prompt, tool and stop, with the
-// background catch-up and team-cache pull they start. JSON on stdin, the client's answer on stdout.
+// background catch-up they start. JSON on stdin, the client's answer on stdout.
 import fs from 'node:fs';
 import { beginPrompt, currentPrompt, promptHint, withPromptDelivery } from '../prompt-delivery.js';
 import path from 'node:path';
@@ -12,7 +12,6 @@ import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession } from '../ops.js';
-import { syncConfig, pullDue, syncState } from '../sync.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice } from '../usage.js';
 
@@ -59,7 +58,6 @@ async function hookCommand(ctx) {
     if (client === 'copilot' || client === 'cursor') takePending(store.dir, session);
     if (client === 'cursor') out(JSON.stringify({ continue: true })); // cannot add context here; see clients.js
     if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
-    if (store.exists()) pullInBackground(ctx);
     // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
     if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
     // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command):
@@ -143,8 +141,7 @@ async function hookCommand(ctx) {
     }
     if (isTestMode() || flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
     if (!source || !fs.existsSync(source)) return;
-    // Sessions are distilled here, through the agent's own login, whether or not this checkout syncs
-    // with a team cache: what they produce reaches the cache as notes, on the next push.
+    // Sessions are distilled locally through the agent's own login.
     // Distilling a session is a model call of its own (about 25k tokens); it draws on the same
     // daily token cap as maintenance, so a long day of work cannot run through the agent's usage
     const cap = withinDailyCap(store);
@@ -159,17 +156,6 @@ async function hookCommand(ctx) {
     if (!ending) learnInBackground(ctx, client, { maintain: false });
   }
   return;
-}
-
-// From the prompt hook: take what the team cache learned since, at most every five minutes, in the
-// background, so the next prompt is served from it. Nothing when this checkout does not sync.
-export function pullInBackground(ctx) {
-  if (isTestMode()) return;
-  const { repo, store, HERE } = ctx;
-  if (!syncConfig(store) || !pullDue(store)) return;
-  const state = syncState(store); state.pulledAt = new Date().toISOString(); // claim the slot before the pull returns
-  try { fs.mkdirSync(store.localDir, { recursive: true }); fs.writeFileSync(path.join(store.localDir, 'sync.json'), JSON.stringify(state)); } catch {}
-  spawn('node', [path.join(HERE, 'cli.js'), 'sync', '--pull', '--quiet', '--repo', repo], { detached: true, stdio: 'ignore', env: process.env }).unref();
 }
 
 // From a hook: start catch-up in the background, at most every ten minutes.

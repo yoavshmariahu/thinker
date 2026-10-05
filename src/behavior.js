@@ -39,7 +39,7 @@ export function renderBehaviors(rows) {
     L.push(`${r.state.padEnd(10)} [${flags}] ${r.title}  (id: ${r.id})${r.state === 'violated' ? `\n           since ${r.since || '?'}: ${r.reason}` : r.state === 'unverified' ? `\n           changed: ${r.reason}` : ''}`);
   }
   const broken = rows.filter(r => r.state === 'violated').length, unv = rows.filter(r => r.state === 'unverified').length;
-  L.push(`${rows.length} desired behavior${rows.length === 1 ? '' : 's'}${broken ? `, ${broken} not upheld by the code` : ''}${unv ? `, ${unv} unverified (thinker verify)` : ''}${rows.some(r => r.proposed) ? `, ${rows.filter(r => r.proposed).length} proposed by agents (thinker system accept <id>)` : ''}${rows.some(r => !r.shared) ? `, ${rows.filter(r => !r.shared).length} not yet committed (thinker share <id>)` : ''}`);
+  L.push(`${rows.length} desired behavior${rows.length === 1 ? '' : 's'}${broken ? `, ${broken} not upheld by the code` : ''}${unv ? `, ${unv} unverified (thinker verify)` : ''}${rows.some(r => r.proposed) ? `, ${rows.filter(r => r.proposed).length} proposed by agents (thinker system accept <id>)` : ''}`);
   return L.join('\n');
 }
 

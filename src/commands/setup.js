@@ -348,7 +348,6 @@ export async function setup(ctx) {
     hooks: !flags['no-hooks'],
     learn: !flags['no-hooks'] && learnOn(),
     late: !flags['no-late'],
-    shared: Boolean(flags.shared),
     mcp: !flags['no-mcp'],
     gitHook: !flags['no-git-hook'],
     noTrust: Boolean(flags['no-trust']),
