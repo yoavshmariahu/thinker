@@ -231,6 +231,7 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
 export function postCommitHook(cli, repo, learn) {
   const quote = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
   return `#!/bin/sh\n# thinker: re-hash note dependencies${learn ? ' and maintain the cache' : ''} in the background\n` +
+    `[ "$THINKER_TEST" = 1 ] && exit 0\n` +
     `case "$THINKER_NO_LEARN" in 1|true|yes) exit 0 ;; esac\n` +
     `repo="$(git rev-parse --show-toplevel 2>/dev/null)"\n` +
     `[ -n "$repo" ] || repo=${quote(repo)}\n` +

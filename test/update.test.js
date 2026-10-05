@@ -147,9 +147,10 @@ test('maybeCheckDailyUpdateInBackground honors 24h rate limit and flags', () => 
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-bg-'));
   // The check spawns `<cli> update --background`, which updates the install it detects: pointed at this
   // checkout it would `git pull` and `npm ci` here while the suite runs (seen 2026-10-04: the suite's MCP
-  // tests lost their SDK mid-run). A stub CLI stands in, and the suite runs with THINKER_NO_AUTO_UPDATE=1
+  // tests lost their SDK mid-run). A stub CLI stands in, and the suite runs with THINKER_TEST=1
   // (package.json), lifted here for the steps that exercise the check itself.
   const stubCli = path.join(tmp, 'cli.js'); fs.writeFileSync(stubCli, 'process.exit(0)\n');
+  const testMode = process.env.THINKER_TEST; process.env.THINKER_TEST = '0';
   const noAuto = process.env.THINKER_NO_AUTO_UPDATE; delete process.env.THINKER_NO_AUTO_UPDATE;
   try {
     const stampFile = path.join(tmp, 'state', 'update.last');
@@ -180,6 +181,7 @@ test('maybeCheckDailyUpdateInBackground honors 24h rate limit and flags', () => 
       else process.env.THINKER_NO_AUTO_UPDATE = oldEnv;
     }
   } finally {
+    if (testMode === undefined) delete process.env.THINKER_TEST; else process.env.THINKER_TEST = testMode;
     if (noAuto === undefined) delete process.env.THINKER_NO_AUTO_UPDATE; else process.env.THINKER_NO_AUTO_UPDATE = noAuto;
     fs.rmSync(tmp, { recursive: true, force: true });
   }

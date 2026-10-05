@@ -1,3 +1,4 @@
+import { isTestMode } from './test-mode.js';
 // Core operations shared by the MCP server and the CLI.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -472,7 +473,7 @@ export function linkNotes(store, note, notes = store.list()) {
 // Served a stale note: re-verify it in the background so the next caller gets
 // a fresh or corrected version. At most one attempt per note per 10 minutes.
 export function scheduleVerify(store, notes) {
-  if (process.env.THINKER_NO_BG_VERIFY === '1') return;
+  if (isTestMode() || process.env.THINKER_NO_BG_VERIFY === '1') return;
   const now = Date.now();
   const ids = notes.filter(n => !n.archived && (!n.verifying || now - Date.parse(n.verifying) > 10 * 60_000)).map(n => n.id);
   if (!ids.length) return;

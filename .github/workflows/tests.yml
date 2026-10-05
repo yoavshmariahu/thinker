@@ -9,8 +9,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      THINKER_TELEMETRY: 'off'
-      THINKER_NO_AUTO_UPDATE: '1'
+      THINKER_TEST: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -8,6 +8,7 @@ const quote = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
 export const HOOKS = ['pre-commit', 'post-commit', 'post-merge', 'pre-push'];
 export function preCommitHook(cli) {
   return `#!/bin/sh\n# thinker: repair staged shared notes before commit\n` +
+    `[ "$THINKER_TEST" = 1 ] && exit 0\n` +
     `case "$THINKER_NO_LEARN" in 1|true|yes) exit 0 ;; esac\n` +
     `repo="$(git rev-parse --show-toplevel 2>/dev/null)"\n` +
     `node ${quote(cli)} share --repair-staged --repo "$repo"\n` +

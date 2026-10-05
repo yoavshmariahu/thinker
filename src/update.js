@@ -1,3 +1,4 @@
+import { isTestMode } from './test-mode.js';
 // Self-update and daily automatic updates for thinker CLI.
 // Supports both archive installations (~/.thinker/app) and git checkouts.
 import fs from 'node:fs';
@@ -590,6 +591,7 @@ export function unscheduleDaily(opts = {}) {
 
 // Invocations check daily update in background (non-blocking)
 export function maybeCheckDailyUpdateInBackground({ home = thinkerHome(), cliPath = path.join(HERE, 'cli.js'), force = false } = {}) {
+  if (isTestMode()) return;
   if (!force) {
     if (process.env.THINKER_NO_AUTO_UPDATE === '1' || process.env.THINKER_NO_UPDATE === '1') return;
     if (process.env.THINKER_IN_LLM) return;
