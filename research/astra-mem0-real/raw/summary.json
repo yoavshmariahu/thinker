@@ -1,0 +1,293 @@
+{
+  "model": "gpt-6-astra",
+  "reasoning": "medium",
+  "token_definition": "input + output; cached_input_tokens is a subset of input, not an extra charge",
+  "rows": [
+    {
+      "task": "click-3364",
+      "arm": "control",
+      "usage": {
+        "input_tokens": 159409,
+        "cached_input_tokens": 129920,
+        "output_tokens": 3197
+      },
+      "solver_tokens": 162606,
+      "solver_wall_ms": 128830.38420928642,
+      "tool_calls": 9,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.17859829170629382,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 3.011238499544561,
+          "tests": 1465,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 25,
+          "passed": 1440
+        }
+      },
+      "build_tokens": 0,
+      "build_wall_ms": 0,
+      "retrieval_wall_ms": 0,
+      "build_solve_tokens": 162606
+    },
+    {
+      "task": "click-3364",
+      "arm": "thinker",
+      "usage": {
+        "input_tokens": 115031,
+        "cached_input_tokens": 99200,
+        "output_tokens": 2459
+      },
+      "solver_tokens": 117490,
+      "solver_wall_ms": 91946.56058307737,
+      "tool_calls": 7,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.14921312499791384,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 3.0316362092271447,
+          "tests": 1465,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 25,
+          "passed": 1440
+        }
+      },
+      "build_tokens": 16479,
+      "build_wall_ms": 28868.093166,
+      "retrieval_wall_ms": 201.08645800000158,
+      "build_model_calls": 1,
+      "memory_estimated_tokens": 631,
+      "build_solve_tokens": 133969
+    },
+    {
+      "task": "click-3364",
+      "arm": "mem0",
+      "usage": {
+        "input_tokens": 168567,
+        "cached_input_tokens": 140544,
+        "output_tokens": 4218
+      },
+      "solver_tokens": 172785,
+      "solver_wall_ms": 164756.00200006738,
+      "tool_calls": 7,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.14922558329999447,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 3.0308642080053687,
+          "tests": 1465,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 25,
+          "passed": 1440
+        }
+      },
+      "build_tokens": 23754,
+      "build_wall_ms": 48596.144875,
+      "retrieval_wall_ms": 42.41987500000687,
+      "build_model_calls": 1,
+      "memory_estimated_tokens": 740,
+      "build_solve_tokens": 196539
+    },
+    {
+      "task": "click-3391",
+      "arm": "control",
+      "usage": {
+        "input_tokens": 296294,
+        "cached_input_tokens": 258304,
+        "output_tokens": 6789
+      },
+      "solver_tokens": 303083,
+      "solver_wall_ms": 270568.60616710037,
+      "tool_calls": 12,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.19044462498277426,
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 12
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 3.0888064582832158,
+          "tests": 1623,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 26,
+          "passed": 1597
+        }
+      },
+      "build_tokens": 0,
+      "build_wall_ms": 0,
+      "retrieval_wall_ms": 0,
+      "build_solve_tokens": 303083
+    },
+    {
+      "task": "click-3391",
+      "arm": "thinker",
+      "usage": {
+        "input_tokens": 397820,
+        "cached_input_tokens": 367616,
+        "output_tokens": 6629
+      },
+      "solver_tokens": 404449,
+      "solver_wall_ms": 306554.3187921867,
+      "tool_calls": 15,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.18680900009348989,
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 12
+        },
+        "suite": {
+          "returncode": 1,
+          "wall_s": 3.8018138338811696,
+          "tests": 1623,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 26,
+          "passed": 1596
+        }
+      },
+      "build_tokens": 16595,
+      "build_wall_ms": 36667.34625,
+      "retrieval_wall_ms": 69.83837500000664,
+      "build_model_calls": 1,
+      "memory_estimated_tokens": 390,
+      "build_solve_tokens": 421044
+    },
+    {
+      "task": "click-3391",
+      "arm": "mem0",
+      "usage": {
+        "input_tokens": 460095,
+        "cached_input_tokens": 423552,
+        "output_tokens": 8905
+      },
+      "solver_tokens": 469000,
+      "solver_wall_ms": 369916.13954212517,
+      "tool_calls": 15,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.19275854108855128,
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 12
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 3.147821791935712,
+          "tests": 1623,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 26,
+          "passed": 1597
+        }
+      },
+      "build_tokens": 23507,
+      "build_wall_ms": 44022.98408299999,
+      "retrieval_wall_ms": 67.47616699998616,
+      "build_model_calls": 1,
+      "memory_estimated_tokens": 750,
+      "build_solve_tokens": 492507
+    }
+  ],
+  "learning": [
+    {
+      "task": "click-3364",
+      "tokens": 156687,
+      "wall_ms": 121396.91341575235,
+      "usage": {
+        "input_tokens": 154114,
+        "cached_input_tokens": 110848,
+        "output_tokens": 2573
+      }
+    },
+    {
+      "task": "click-3391",
+      "tokens": 152130,
+      "wall_ms": 101588.20354193449,
+      "usage": {
+        "input_tokens": 149787,
+        "cached_input_tokens": 112768,
+        "output_tokens": 2343
+      }
+    }
+  ],
+  "totals": {
+    "control": {
+      "solver_tokens": 465689,
+      "build_tokens": 0,
+      "build_solve_tokens": 465689,
+      "solver_wall_ms": 399398.9903763868,
+      "build_wall_ms": 0,
+      "retrieval_wall_ms": 0,
+      "tool_calls": 21,
+      "acceptance_tasks_passed": 2,
+      "full_suites_passed": 2
+    },
+    "thinker": {
+      "solver_tokens": 521939,
+      "build_tokens": 33074,
+      "build_solve_tokens": 555013,
+      "solver_wall_ms": 398500.87937526405,
+      "build_wall_ms": 65535.439416,
+      "retrieval_wall_ms": 270.9248330000082,
+      "tool_calls": 22,
+      "acceptance_tasks_passed": 2,
+      "full_suites_passed": 1
+    },
+    "mem0": {
+      "solver_tokens": 641785,
+      "build_tokens": 47261,
+      "build_solve_tokens": 689046,
+      "solver_wall_ms": 534672.1415421925,
+      "build_wall_ms": 92619.12895799999,
+      "retrieval_wall_ms": 109.89604199999303,
+      "tool_calls": 22,
+      "acceptance_tasks_passed": 2,
+      "full_suites_passed": 2
+    }
+  },
+  "model_audit": {
+    "calls": 12,
+    "all_model_reasoning_match": true,
+    "text_only_calls_used_no_tools": true
+  }
+}
