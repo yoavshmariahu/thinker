@@ -103,7 +103,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  model are in place; fetch gets the model (~23 MB, under ~/.thinker/models)
   ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
                                  web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
-  list [--stale] [--all]         list notes
+  list [--stale] [--all] [--json]  list notes; JSON includes unreadable-note warnings
   show <id>                      print a note
   rm <id>
   add [file.json]                add a human-written note (JSON on stdin or file)

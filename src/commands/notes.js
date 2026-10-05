@@ -70,6 +70,19 @@ async function listCommand(ctx) {
   let notes = refresh(store, store.list());
   if (flags.stale) notes = notes.filter(n => n.status === 'stale');
   if (!flags.all) notes = notes.filter(n => n.status !== 'invalid');
+  if (flags.json) {
+    out(JSON.stringify({
+      notes: notes.map(n => ({
+        id: n.id, title: n.title, kind: n.kind, status: n.status,
+        archived: !!n.archived, scope: store.isShared(n.id) ? 'repo' : 'local',
+        confidence: n.confidence ?? 0.7, uses: n.uses || 0,
+      })),
+      unreadable: store.unreadable().map(u => ({ file: path.relative(repo, u.file), reason: u.reason }))
+        .sort((a, b) => a.file.localeCompare(b.file)),
+      total: notes.length,
+    }, null, 2));
+    return;
+  }
   for (const n of notes) out(`${(store.isShared(n.id) ? 'repo' : 'local').padEnd(5)} ${(n.archived ? 'archived' : n.status).padEnd(8)} ${String(n.kind).padEnd(10)} ${n.id.padEnd(45)} c=${Math.round((n.confidence ?? 0.7) * 100)}% uses=${n.uses || 0}  ${n.title}`);
   for (const u of store.unreadable()) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
   out(`${notes.length} notes`);

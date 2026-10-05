@@ -153,9 +153,45 @@ test('a conflicted or malformed note file is named as unreadable instead of vani
   const list = spawnSync(process.execPath, [cli, 'list', '--repo', repo], { cwd: repo, encoding: 'utf8', env });
   assert.equal(list.status, 0, list.stderr);
   assert.match(list.stdout, /warning: \.thinker\/notes\/value\.json is not served: unresolved merge conflict/);
+  const json = spawnSync(process.execPath, [cli, 'list', '--json', '--repo', repo], { cwd: repo, encoding: 'utf8', env });
+  assert.equal(json.status, 0, json.stderr);
+  assert.deepEqual(JSON.parse(json.stdout), {
+    notes: [],
+    unreadable: [
+      { file: '.thinker/local/notes/broken.json', reason: 'invalid JSON' },
+      { file: '.thinker/notes/renamed.json', reason: 'id does not match the file name' },
+      { file: '.thinker/notes/value.json', reason: 'unresolved merge conflict' },
+    ],
+    total: 0,
+  });
   assert.match(spawnSync(process.execPath, [cli, 'check', '--repo', repo], { cwd: repo, encoding: 'utf8', env }).stdout, /unresolved merge conflict/);
   fs.writeFileSync(path.join(store.notesDir, 'value.json'), good);
   assert.equal(store.list().length, 1);
+  const restored = spawnSync(process.execPath, [cli, 'list', '--json', '--repo', repo], { cwd: repo, encoding: 'utf8', env });
+  assert.equal(restored.status, 0, restored.stderr);
+  const inventory = JSON.parse(restored.stdout);
+  assert.equal(inventory.total, 1);
+  assert.deepEqual(inventory.notes, [{
+    id: 'value', title: 'Value computation convention', kind: 'rule', status: 'fresh',
+    archived: false, scope: 'repo', confidence: 0.87654, uses: 0,
+  }]);
+  assert.equal(inventory.unreadable.length, 2);
+});
+
+test('list --json applies stale and all filters to the structured inventory', t => {
+  const { repo, store, note } = fixture(t);
+  store.put(note('changed'));
+  store.put(note('retired', { status: 'invalid' }));
+  fs.writeFileSync(path.join(repo, 'code.js'), 'export function value() { return 2; }\n');
+  const env = { ...process.env, THINKER_TEST: '1', THINKER_TELEMETRY: 'off', THINKER_LOG: 'local', THINKER_NO_LEARN: '1' };
+  const list = (...flags) => {
+    const result = spawnSync(process.execPath, [cli, 'list', '--json', ...flags, '--repo', repo], { cwd: repo, encoding: 'utf8', env });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout).notes.map(n => [n.id, n.status]);
+  };
+  assert.deepEqual(list(), [['changed', 'stale']]);
+  assert.deepEqual(list('--stale'), [['changed', 'stale']]);
+  assert.deepEqual(list('--all'), [['changed', 'stale'], ['retired', 'invalid']]);
 });
 
 test('opt-in staged review blocks commits on review failure and index changes, even with learning off', t => {
