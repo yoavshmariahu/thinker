@@ -818,3 +818,35 @@ of both runs, each timed-out call cost three minutes, and neither run beat its
 in the `before` run: one run each, nothing to conclude, worth watching. The
 mention of `review` is gone from the intro; a review is run when a person
 asks for one.
+
+### Rerun with review named nowhere (2026-10-05, 2 runs)
+
+Same tasks, agent, judge and notes. The intro names `find` and `drilldown` only
+(PR #31) and the `review` tool's description says it is for when the user asks
+(PR #32); for this run Antigravity's thinker MCP entry pointed at the checkout
+rather than the installed 0.1.14, which the earlier `after` runs had used, so
+those saw the old description ("During implementation, supply task context…")
+as well as the intro. Run dir `bench/runs/grafana-gemini-intro-ab-v3`.
+
+| run | find | review | tool calls | file reads | wall | judged |
+|---|---|---|---|---|---|---|
+| PR133148 before | 0 | 0 | 135 | 73 | 15.1 min | pass |
+| PR133148 intro v3 | 2 | 0 | 133 | 74 | 13.0 min | fail (c5) |
+| PR132983 before | 0 | 0 | 136 | 67 | 13.6 min | pass |
+| PR132983 intro v3 | 1 | 0 | 134 | 61 | 13.1 min | pass |
+
+No `review` call in either run, and wall time back at or under `before`
+(13.0 against 15.1, 13.1 against 13.6 minutes), with `find` used in both runs
+and reads 61 against 67 on PR132983. The review calls, not the intro, were the
+cost of the earlier `after` runs. The earlier conclusion that one sentence in
+the intro triggered them was confounded: the tool description invited them too.
+
+c5 of PR133148 (no search-field registry at all: fall back to the storage
+scan) has now failed in all three intro runs and passed in the one `before`
+run. All three failing runs looked up the same notes on selectable fields
+(`empty-selectablefields-in-build-info-means-none-mapped-not-u`,
+`selectable-field-filters-must-be-refused-if-the-index-doesn-`, served through
+`orient` and `lookup`); the `before` run made one lookup. An agent that uses the
+cache more reads those notes, and they argue for refusing or declaring fields,
+not for scanning storage. One task, three runs: a hypothesis about those notes,
+not a finding about the intro.
