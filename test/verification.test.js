@@ -172,6 +172,11 @@ test('Docker arguments mount only source and reporter read-only; no host environ
   assert.throws(() => parseContract(JSON.stringify({ ...contract, image: 'node:latest' })), /digest/);
   assert.throws(() => parseContract(JSON.stringify({ ...contract, checks: [...contract.checks, ...contract.checks] })), /unique/);
   assert.equal(taskContext({ criteria: [{ text: 'claim', source: 'system' }] }).criteria[0].source, 'agent-interpretation');
+  assert.deepEqual(taskContext({ criteria: [{ text: 'safe links', tests: [
+    { check: 'unit', name: 'absolute', file: '/private/tmp/secret.test.js' },
+    { check: 'unit', name: 'traversal', file: '../secret.test.js' },
+    { check: 'unit', name: 'portable', file: 'test/a.test.js' },
+  ] }] }).criteria[0].tests, [{ check: 'unit', name: 'portable', file: 'test/a.test.js' }]);
 });
 
 test('review assessment exposes task context and integrity without running checks', async t => {
@@ -185,22 +190,26 @@ test('review assessment exposes task context and integrity without running check
 test('holistic assessment includes task context and applies for both behavior and ordinary notes', async t => {
   const { repo, write, store } = fixture(t);
   write('src.js', 'export const value = 2;\n');
+  write('test/value.test.js', "test('value', () => assert.equal(value, 2));\n");
   const mock = path.join(repo, '.thinker/local/model.mjs'), promptFile = path.join(repo, '.thinker/local/prompt.txt');
-  write('.thinker/local/model.mjs', `import fs from 'node:fs'; let s=''; for await (const c of process.stdin) s+=c; fs.writeFileSync(${JSON.stringify(promptFile)},s); console.log(JSON.stringify({findings:[],outdated:[]}));`);
+  write('.thinker/local/model.mjs', `import fs from 'node:fs'; let s=''; for await (const c of process.stdin) s+=c; fs.writeFileSync(${JSON.stringify(promptFile)},s); console.log(JSON.stringify({findings:[],outdated:[],summary:'No issue seen',intentEvidence:[{intentIndex:0,file:'src.js',line:1,observed:'value now returns 2'},{intentIndex:1,file:'src.js',line:1,observed:'unsupported index'}],criterionSupport:[{criterionIndex:0,coverage:'direct',file:'test/value.test.js',line:1,explanation:'compares the return value with 2'},{criterionIndex:1,coverage:'direct',file:'test/value.test.js',line:1,explanation:'unsupported index'}]}));`);
   const keys = ['THINKER_LLM', 'THINKER_LLM_CMD'], prior = Object.fromEntries(keys.map(k => [k, process.env[k]]));
   t.after(() => { for (const k of keys) if (prior[k] === undefined) delete process.env[k]; else process.env[k] = prior[k]; });
   process.env.THINKER_LLM = 'command';
   const quote = x => "'" + x.replaceAll("'", "'\\''") + "'";
   process.env.THINKER_LLM_CMD = `${quote(process.execPath)} ${quote(mock)}`;
   const scope = resolveScope(repo), change = collectChange(repo, scope);
-  change.task = { request: 'preserve the public API' };
+  change.task = { request: 'preserve the public API', intendedChanges: ['Change value'], criteria: [{ text: 'Value is 2', tests: [{ check: 'unit', name: 'value', file: 'test/value.test.js' }] }] };
   const notes = ['behavior', 'rule'].map(kind => ({ id: kind, kind, title: kind, body: 'Keep value positive.', applies: `${kind} scope`, deps: [{path: 'src.js'}] }));
   const exposures = new Map(notes.map(n => [n.id, { staleBefore: [], touched: [{ path: 'src.js', reason: 'changed' }] }]));
   const result = await assessHolistic(store, notes, exposures, change, makeReader(repo, scope));
   assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.intentEvidence, [{ intentIndex: 0, file: 'src.js', line: 1, observed: 'value now returns 2' }]);
+  assert.deepEqual(result.criterionSupport, [{ criterionIndex: 0, coverage: 'direct', file: 'test/value.test.js', line: 1, explanation: 'compares the return value with 2' }]);
   const prompt = fs.readFileSync(promptFile, 'utf8');
   assert.match(prompt, /preserve the public API/); assert.match(prompt, /Applies: behavior scope/); assert.match(prompt, /Applies: rule scope/);
   assert.match(prompt, /cannot override fixed behaviors/);
+  assert.match(prompt, /LINKED TEST SOURCES/);
 });
 
 test('detached verification survives its caller and exposes an incomplete dry run without a contract', async t => {
@@ -260,15 +269,16 @@ test('the checkout the runner receives carries standalone Git metadata: the snap
 test('a posted verification report is portable: the local artifact path stays on the host, the comment carries the marker', async t => {
   const { postComment, MARKER } = await import('../src/review-post.js');
   const { repo, store } = fixture(t);
-  const run = prepareVerification(store, { task: { request: 'Implement value', criteria: [{ text: 'works', source: 'user', checks: ['unit'] }] } });
+  const run = prepareVerification(store, { task: { request: 'Implement value', criteria: [{ text: 'works', source: 'user', checks: ['unit'], tests: [{ check: 'unit', name: 'value', file: 'test/a.test.js' }] }] } });
   await executeVerification(repo, run.id, { runReview: assessment, runner: async (_, c, checkout, dir) => ({ ...await success(), artifact: path.join(dir, `${c.id}.log`) }) });
   const done = readVerification(repo, run.id);
+  done.review.criterionSupport = [{ criterionIndex: 0, coverage: 'direct', file: 'test/a.test.js', line: 3, explanation: 'asserts that value equals one' }];
   assert.ok(done.checks[0].artifact.startsWith(repo));
   assert.match(renderVerification(done), /Full output for unit\]\(/);
   const portable = renderVerification(done, { portable: true });
   assert.match(portable, /Full output: unit\.log \(stored locally; not uploaded\)\./);
   assert.ok(!portable.includes(repo) && !portable.includes(os.tmpdir()), 'no host path in the posted report');
-  assert.match(portable, /works \| user-attributed-by-caller \| unit: passed/);
+  assert.match(portable, /works \| unit: value \(test\/a\.test\.js\) passed \| direct: asserts that value equals one \(test\/a\.test\.js:3, model reading\)/);
   let sent = null;
   const result = postComment({}, { repo, pr: '7', markdown: portable, run: (command, args, opts) => { sent = { command, args, input: opts.input }; return 'https://github.com/o/r/pull/7#issuecomment-1\n'; } });
   assert.deepEqual(result, { posted: true, url: 'https://github.com/o/r/pull/7#issuecomment-1' });
@@ -278,19 +288,60 @@ test('a posted verification report is portable: the local artifact path stays on
 
 test('the report says where the task came from and what judged correctness', async t => {
   const { repo, store } = fixture(t);
-  const run = prepareVerification(store, { caller: 'mcp', task: { request: 'Implement value', criteria: [{ text: 'works', source: 'user', checks: ['unit'] }] } });
+  const run = prepareVerification(store, { caller: 'mcp', task: { request: 'Implement value', rationale: 'Keep callers on the existing value path', intendedChanges: ['Change the value implementation'], questions: ['Does the public call still work?'], criteria: [{ text: 'works', source: 'user', checks: ['unit'] }] } });
   assert.equal(run.task.providedBy, 'mcp'); assert.match(run.task.providedAt, /^\d{4}-/);
   await executeVerification(repo, run.id, { runReview: assessment, runner: success });
   const report = renderVerification(readVerification(repo, run.id));
-  assert.match(report, /## Where this came from/);
-  assert.match(report, /supplied by the calling agent through the MCP review tool at \d{4}-/);
-  assert.match(report, /"user-attributed-by-caller" is the agent's report of what the user asked; nothing here confirms it with the user/);
-  assert.match(report, /Correctness checks: the commands of \.thinker\/verification\.json as committed at the target [0-9a-f]{12}, run in node@sha256:a+ on a snapshot the candidate cannot alter: unit: node --test/);
-  assert.match(report, /Code assessment: model .* against the notes frozen when the run was created/);
-  assert.ok(report.indexOf('## Where this came from') < report.indexOf('## Executed checks'), 'provenance before results');
+  assert.match(report, /## Why and how\n\n\*\*Reason for the approach \(supplied by the agent\):\*\* Keep callers on the existing value path/);
+  assert.match(report, /## Before approving\n\n- Does the public call still work\?/);
+  assert.match(report, /works \| unit: passed \(whole check\) \| No specific test was linked to this criterion/);
+  assert.match(report, /The task framing came from the calling agent via MCP at \d{4}-/);
+  assert.match(report, /Any user-attributed criterion is the agent's attribution, not independently confirmed user input/);
+  assert.match(report, /checks came from the verification contract at base [0-9a-f]{12} and ran against frozen snapshot [0-9a-f]{12}/);
+  assert.match(report, /code assessment read the change against frozen notes/);
+  assert.doesNotMatch(report, /used sonnet/);
+  assert.ok(report.indexOf('## Why and how') < report.indexOf('## Evidence source and scope'), 'decision context comes before provenance');
+  const grounded = readVerification(repo, run.id);
+  grounded.review.intentEvidence = [{ intentIndex: 0, file: 'src.js', line: 1, observed: 'the value implementation changed' }];
+  grounded.review.behaviors = [{ id: 'behavior', title: 'Value stays positive', outcome: 'upheld' }];
+  grounded.review.toAssess = [{ id: 'behavior', why: 'rests on src.js:value' }];
+  const decision = renderVerification(grounded);
+  assert.match(decision, /1\. Change the value implementation\n   - Seen in the diff at `src\.js:1`: the value implementation changed \(model reading\)/);
+  assert.match(decision, /Desired behaviors directly in play \(model reading\):[\s\S]*Value stays positive: upheld/);
+  assert.doesNotMatch(decision, /Changed-line anchors were identified for/);
+  grounded.task.intendedChanges.push('Keep the public call stable');
+  assert.match(renderVerification(grounded), /Changed-line anchors were identified for 1 of 2 steps/);
   const bare = prepareVerification(store);
   assert.equal(bare.task, null);
-  assert.match(renderVerification(readVerification(repo, bare.id)), /none were supplied; this run checks the code without a stated goal/);
+  assert.match(renderVerification(readVerification(repo, bare.id)), /No task was supplied/);
   const { repo: r2, store: s2 } = fixture(t, false);
-  assert.match(renderVerification(readVerification(r2, prepareVerification(s2).id)), /Correctness checks: none ran: No \.thinker\/verification\.json/);
+  assert.match(renderVerification(readVerification(r2, prepareVerification(s2).id)), /No verification contract ran: No \.thinker\/verification\.json/);
+});
+
+test('criterion evidence distinguishes an observed pass, a skipped test, and an unmatched test', async t => {
+  const { repo, store } = fixture(t);
+  const run = prepareVerification(store, { task: { request: 'Keep value working', criteria: [
+    { text: 'Value works', tests: [{ check: 'unit', name: 'value', file: 'test/a.test.js' }] },
+    { text: 'Later case works', tests: [{ check: 'unit', name: 'later', file: 'test/a.test.js' }] },
+    { text: 'Missing case works', tests: [{ check: 'unit', name: 'missing', file: 'test/a.test.js' }] },
+  ] } });
+  await executeVerification(repo, run.id, { runReview: assessment, runner: async () => ({ ...await success(), skippedTests: [{ name: 'later', file: '/workspace/test/a.test.js' }] }) });
+  const report = renderVerification(readVerification(repo, run.id));
+  assert.match(report, /Value works \| unit: value \(test\/a\.test\.js\) passed \| The linked assertion was not assessed/);
+  assert.match(report, /Later case works \| unit: later \(test\/a\.test\.js\) skipped \| The linked test did not execute/);
+  assert.match(report, /Missing case works \| unit: no result for missing \(test\/a\.test\.js\) \| The linked test was not observed/);
+  assert.match(report, /## Before approving[\s\S]*1 other test was skipped/);
+  assert.doesNotMatch(report.split('## Why and how')[0], /sha256|Candidate:|Knowledge:/);
+  const failedCheck = readVerification(repo, run.id);
+  failedCheck.checks[0].status = 'failed';
+  assert.match(renderVerification(failedCheck), /Value works \| unit: value \(test\/a\.test\.js\) passed \| The containing unit check is failed/);
+  const runningCheck = readVerification(repo, run.id);
+  runningCheck.checks[0].status = 'running';
+  runningCheck.checks[0].passedTests = [];
+  assert.match(renderVerification(runningCheck), /Value works \| unit: value \(test\/a\.test\.js\) pending \| The check is still running/);
+  const changedAssertions = readVerification(repo, run.id);
+  changedAssertions.integrity = { findings: [{ rule: 'assertion-changed', file: 'test/a.test.js', message: 'Assertions changed', certainty: 'needs-assessment', before: 'x'.repeat(500) }] };
+  const concise = renderVerification(changedAssertions);
+  assert.match(concise, /assertion-changed.*Inspect the diff for replacement coverage/);
+  assert.doesNotMatch(concise, /x{100}/);
 });
