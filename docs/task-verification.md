@@ -110,11 +110,16 @@ Each run is stored under `.thinker/local/reviews/<run-id>/`:
 
 The human report starts with the proposed reasoning, intended changes, and
 questions for approval. It then shows the observed evidence for each criterion.
-An optional `tests` link names an exact test by check id, test name, and file;
+An optional `tests` link names an exact test by check id, test name, and repository-relative file;
 the report matches it against the runner's pass, skip, and failure events. A
 whole-check `checks` link says only that the command ran, and the report calls
 out the lack of a criterion-specific test. The links are supplied by the caller;
 an observed test pass does not prove its assertions cover the entire criterion.
+When source is available, the code assessment cites changed lines for supported
+implementation steps and reads linked test assertions for each criterion. Those
+readings are labeled as model interpretations. A directly affected desired
+behavior from the note cache is shown as a constraint; identifier-only matches
+are context. The report leaves the final coverage judgment to the reviewer.
 
 The report's final section explains provenance: the task and criteria were
 supplied by the calling agent (over MCP or the CLI, with the time;

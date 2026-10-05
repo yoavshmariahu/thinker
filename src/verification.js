@@ -25,7 +25,11 @@ export function taskContext(value) {
   const str = (v, max = 4000) => typeof v === 'string' ? v.slice(0, max) : '';
   const list = v => Array.isArray(v) ? v.slice(0, 30).map(x => str(x)).filter(Boolean) : [];
   const tests = v => Array.isArray(v) ? v.slice(0, 30).filter(x => x && typeof x === 'object' && !Array.isArray(x))
-    .map(x => ({ check: str(x.check, 64), name: str(x.name, 500), file: str(x.file, 500) }))
+    .flatMap(x => {
+      const file = str(x.file, 500);
+      if (file && (path.isAbsolute(file) || file.split(/[\\/]/).includes('..'))) return [];
+      return [{ check: str(x.check, 64), name: str(x.name, 500), file }];
+    })
     .filter(x => x.check && x.name) : [];
   return { request: str(value.request, 12000), source: 'caller-provided',
     criteria: (Array.isArray(value.criteria) ? value.criteria : []).slice(0, 30).filter(c => c && typeof c === 'object')
@@ -259,7 +263,15 @@ export function renderVerification(r, { portable = false } = {}) {
   lines.push('## Why and how', '');
   if (r.task?.rationale) lines.push(`**Reason for the approach (supplied by the agent):** ${clean(r.task.rationale)}`, '');
   else lines.push('No rationale was supplied for the approach. Ask the author to explain the design choice.', '');
-  if (r.task?.intendedChanges?.length) for (const change of r.task.intendedChanges) lines.push(`- ${clean(change)}`);
+  if (r.task?.intendedChanges?.length) {
+    for (const [index, change] of r.task.intendedChanges.entries()) {
+      lines.push(`${index + 1}. ${clean(change)}`);
+      const evidence = r.review?.intentEvidence?.find(e => e.intentIndex === index);
+      if (evidence) lines.push(`   - Seen in the diff at \`${clean(evidence.file)}:${evidence.line}\`: ${clean(evidence.observed)} (model reading).`);
+    }
+    const anchored = new Set((r.review?.intentEvidence || []).map(e => e.intentIndex)).size;
+    if (r.review && !r.review.incomplete && !r.review.errors?.length && anchored < r.task.intendedChanges.length) lines.push('', `Changed-line anchors were identified for ${anchored} of ${r.task.intendedChanges.length} steps; inspect the diff for the rest.`);
+  }
   else lines.push('No intended changes were described. Compare the diff with the requested behavior.');
 
   lines.push('', '## Before approving', '');
@@ -275,18 +287,31 @@ export function renderVerification(r, { portable = false } = {}) {
   }
   if (r.integrity?.findings?.length) attention.push(`${r.integrity.findings.length} possible weakening of test or CI coverage needs inspection.`);
   if (r.review?.counts?.warning || r.review?.counts?.error) attention.push(`Inspect the ${r.review.counts.error || 0} error and ${r.review.counts.warning || 0} warning finding${(r.review.counts.error || 0) + (r.review.counts.warning || 0) === 1 ? '' : 's'} below.`);
+  const behaviors = r.review?.behaviors || [];
+  const brokenBehaviors = behaviors.filter(b => b.outcome === 'violated');
+  if (brokenBehaviors.length) attention.push(`${brokenBehaviors.length} desired behavior${brokenBehaviors.length === 1 ? ' is' : 's are'} reported as violated: ${brokenBehaviors.slice(0, 4).map(b => clean(b.title)).join('; ')}.`);
   if (!attention.length) attention.push('Confirm the change and its tests cover the requested behavior and relevant edge cases.');
   for (const item of attention) lines.push(`- ${item}`);
 
   lines.push('', '## Evidence for the requested behavior', '');
   if (r.task?.criteria?.length) {
-    lines.push('| Criterion | Observed result | What remains to check |', '|---|---|---|');
-    for (const c of r.task.criteria) {
+    lines.push('| Criterion | Observed result | What the assertion supports or leaves open |', '|---|---|---|');
+    for (const [index, c] of r.task.criteria.entries()) {
       const evidence = criterionEvidence(c, r.checks);
-      lines.push(`| ${clean(c.text)} | ${clean(evidence.observed)} | ${clean(evidence.gap)} |`);
+      const reading = r.review?.criterionSupport?.find(s => s.criterionIndex === index);
+      const support = reading ? `${reading.coverage}: ${reading.explanation} (${reading.file}:${reading.line}, model reading)` : c.tests?.length && evidence.gap === '—' ? 'The linked assertion was not assessed; inspect the test.' : '';
+      const open = [support, evidence.gap === '—' ? '' : evidence.gap].filter(Boolean).join(' ');
+      lines.push(`| ${clean(c.text)} | ${clean(evidence.observed)} | ${clean(open || 'Inspect the linked test assertions.')} |`);
     }
     lines.push('', 'The agent supplied these criteria and test links. An observed pass shows that a named test ran successfully; it does not establish that its assertions cover the whole criterion.');
   } else lines.push('No acceptance criteria were supplied; the checks below cannot be tied to a requested behavior.');
+
+  const direct = behaviors.filter(b => r.review?.toAssess?.some(n => n.id === b.id && n.why?.startsWith('rests on')));
+  if (direct.length) {
+    lines.push('', '**Desired behaviors directly in play (model reading):**');
+    for (const b of direct.slice(0, 5)) lines.push(`- ${clean(b.title)}: ${clean(b.outcome)}${b.reason && b.outcome === 'violated' ? ` — ${clean(b.reason)}` : ''}.`);
+    if (direct.length > 5) lines.push(`- ${direct.length - 5} more are recorded in the structured review result.`);
+  } else if (behaviors.length) lines.push('', `${behaviors.length} desired behavior note${behaviors.length === 1 ? ' was' : 's were'} considered by identifier overlap; none directly rests on the changed definitions, so this is context rather than correctness evidence.`);
 
   lines.push('', '## Checks run', '', '| Check | Result | Observed tests |', '|---|---|---|');
   for (const c of r.checks) {
