@@ -611,6 +611,7 @@ export async function triageNote(store, note, change, symbols, { model = 'haiku'
 // consulted to those kinds (`['behavior']`: the desired behaviors alone, which is what a pull
 // request check asks; the no-notes baseline call is then left out, since only the rules are asked).
 export async function review(store, options = {}) {
+  for (const note of store.list()) store.put({ ...note, status: 'fresh' });
   options = { ...options, scope: options.scope || resolveScope(store.repo) };
   const pr = reviewPrNumber(options.pr), runId = crypto.randomUUID();
   const startedAt = new Date().toISOString();
