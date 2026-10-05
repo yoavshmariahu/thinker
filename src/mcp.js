@@ -4,6 +4,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { promptScope, withPromptDelivery } from './prompt-delivery.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot } from './store.js';
@@ -44,19 +46,26 @@ const emptyCache = () => store.list().length ? '' : `The cache is empty: no note
 // When no note answers, the definitions whose code carries the words of the request, from `find`:
 // in a week of real sessions `find` was never called (Claude Code defers MCP tools; agents grep
 // instead), so a miss hands its first results over rather than naming the tool.
-const codeFallback = q => {
+const codeFallback = (q, delivery) => {
   if (!String(q || '').trim()) return '';
   try {
-    const r = find(store, { query: q, limit: 6, client: 'mcp-fallback' });
+    const r = find(store, { query: q, limit: 6, client: 'mcp-fallback', delivery });
     if (r.error || !r.hits?.length) return '';
     return `By text search instead (not notes; find takes the words the code would use, drilldown the pointers that fit):\n${r.text}\n\n`;
   } catch { return ''; }
 };
 
+const deliveryConnection = randomUUID();
+const noNewNotes = 'No new matching notes for this prompt. Previously delivered notes are already in your context; their bodies and snippets are not repeated.';
+
 function registerTools() {
   const register = server.registerTool.bind(server);
+  const retrieval = (name, spec, handler) => register(name, {
+    ...spec,
+    inputSchema: { ...spec.inputSchema, prompt_id: z.string().min(1).max(128).describe('Unique ID for the current USER PROMPT, shared by orient, lookup, find and drilldown. Use the Thinker prompt_id supplied in this prompt; if none was supplied, choose a fresh unique ID. Reuse it for all retrieval calls in this prompt; choose a NEW ID for the next user prompt, even if its text is identical.') },
+  }, args => withPromptDelivery(store, promptScope(store, args.prompt_id, deliveryConnection), delivery => handler({ ...args, delivery })));
 
-  register('orient', {
+  retrieval('orient', {
     title: 'Orient in this repo',
     description: 'Call once at the start of a task unless a thinker-cache bundle for this request is already present. Returns notes with file:symbol pointers (each with its blast radius) and the code behind the main pointers, so the files need not be read for that. Call again only for a distinct task part the first result missed; confirm STALE claims against code.',
     inputSchema: {
@@ -64,17 +73,18 @@ function registerTools() {
       file: z.string().optional().describe('Path of the file you are currently in or about to edit, if known.'),
       budget: z.number().int().min(200).max(8000).optional().describe('Max tokens of notes to return (default 1000); the code behind the pointers may add up to about 600.'),
     },
-  }, async ({ task = '', file, budget }) => {
+  }, async ({ task = '', file, budget, delivery }) => {
     if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
-    const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
-    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}${codeFallback(task)}Explore from there, then call remember with what you learn.`);
+    const r = await orient(store, { task, file, client: 'mcp', delivery, budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
+    if (!r.included.length && delivery.suppressed.size) return text(noNewNotes);
+    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}${codeFallback(task, delivery)}Explore from there, then call remember with what you learn.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
     return text(notes);
   });
 
-  register('lookup', {
+  retrieval('lookup', {
     title: 'Look up cached knowledge',
     description: 'Use for one specific unanswered question, or a listed note id that directly covers it. Do not fetch every title returned by orient. If no note answers the question, search the code. With kind "behavior" it returns the desired behaviors of the system (rules a person wrote that the code must uphold; a review checks changes against them): all of them with an empty query, or the ones about the query.',
     inputSchema: {
@@ -83,18 +93,20 @@ function registerTools() {
       budget: z.number().int().min(200).max(8000).optional(),
       maxNotes: z.number().int().min(1).max(10).optional().describe('Maximum number of notes to return (default 3)'),
     },
-  }, async ({ query, kind, budget, maxNotes }) => {
-    const r = lookup(store, { query: query || '', kind, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
+  }, async ({ query, kind, budget, maxNotes, delivery }) => {
+    const r = lookup(store, { query: query || '', kind, client: 'mcp', delivery, budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     if (kind === 'behavior' && !String(query || '').trim()) {
-      const rows = listBehaviors(store);
+      const rows = listBehaviors(store).filter(n => !delivery.suppressed.has(n.id));
+      if (!rows.length && delivery.suppressed.size) return text(noNewNotes);
       if (!rows.length) return text('No desired behaviors are written down for this repository yet (a person adds them with `thinker system add`).');
       return text(`Desired behaviors of the system (${rows.length}; the code must uphold each; a review checks changes against them):\n${behaviorsSummary(rows)}\n\n${r.text}${r.omitted?.length ? `\n\n(${r.omitted.length} more not shown for the budget; lookup by id for one)` : ''}`);
     }
-    if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query) || 'Try fewer or different words, or an identifier from the code. '}`);
+    if (!r.included.length && delivery.suppressed.size) return text(noNewNotes);
+    if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query, delivery) || 'Try fewer or different words, or an identifier from the code. '}`);
     return text(r.text);
   });
 
-  register('find', {
+  retrieval('find', {
     title: 'Find where something is defined',
     description: 'Lists the definitions whose name or body carry the words you give (an identifier, or what the code would call the thing), as path:Symbol:L12 pointers with their size and blast radius, plus the cached notes on them. Use it instead of grepping for a word and reading around each hit; then drilldown the pointers you need. For what the notes say, use lookup.',
     inputSchema: {
@@ -102,20 +114,20 @@ function registerTools() {
       path: z.string().optional().describe('Keep only paths containing this (e.g. "src/click", "api/"), or a glob (e.g. "**/*.py").'),
       limit: z.number().int().min(1).max(40).optional().describe('How many definitions to list (default 12).'),
     },
-  }, async ({ query, path, limit }) => {
-    const r = find(store, { query, path, limit: limit || 12, client: 'mcp' });
+  }, async ({ query, path, limit, delivery }) => {
+    const r = find(store, { query, path, limit: limit || 12, client: 'mcp', delivery });
     return text(r.error ? r.error : r.text);
   });
 
-  register('drilldown', {
+  retrieval('drilldown', {
     title: 'Read one or more definitions by pointer',
     description: 'Takes pointers as orient, lookup and find print them (path:Symbol, path:Symbol:L12), a path, or a bare symbol name; several at once, separated by commas. Returns each definition whole with its exact lines (a long class as its head and the outline of its members), for a single pointer also one hop of callers and callees, and the cached notes resting on the code. Use it instead of reading the file and grepping for the name; a path alone lists what the file defines.',
     inputSchema: {
       pointer: z.string().describe('path:Symbol, path, or Symbol; several separated by commas or spaces'),
-      budget: z.number().int().min(300).max(12000).optional().describe('Max tokens to return (default 2500); the code gets most of it. Raise it for a long definition.'),
+      budget: z.number().int().min(300).optional().describe('Max tokens to return (default 2500, capped at 12000); the code gets most of it. Raise it for a long definition.'),
     },
-  }, async ({ pointer, budget }) => {
-    const r = drilldown(store, { pointer, client: 'mcp', budget: budget || 2500 });
+  }, async ({ pointer, budget, delivery }) => {
+    const r = drilldown(store, { pointer, client: 'mcp', delivery, budget: Math.min(budget || 2500, 12000) });
     return text(r.error ? r.error : r.text);
   });
 

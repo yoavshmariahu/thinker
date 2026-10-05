@@ -1,0 +1,1 @@
+{"type":"object","properties":{"results":{"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"verdict":{"type":"string","enum":["met","not_met","unclear"]},"evidence":{"type":"string"}},"required":["id","verdict","evidence"],"additionalProperties":false}}},"required":["results"],"additionalProperties":false}
