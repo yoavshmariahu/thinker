@@ -5,6 +5,19 @@ fix. `thinker impact` reports observed outcomes, with the evidence and missing
 coverage beside them. It does not convert estimated reading savings into delivery
 claims or claim that a merged PR would have failed without Thinker.
 
+## Git workflow is your choice
+
+PRs are optional for Thinker. Teams landing direct commits can use the cache,
+review changes with `thinker review --base <commit>`, and mine commit history with
+`thinker mine-prs --git`. Usage remains available through `thinker usage`.
+The current delivery report and dashboard measure PR outcomes; they do not yet
+provide tokens per landed commit or equivalent commit-level delivery attribution.
+Unlinked work stays visible rather than being presented as a PR outcome.
+
+The thinker repository uses PRs to exercise its own CI review against desired
+system behaviors. Its local push guard and contributor rules are not installed
+by Thinker setup in other repositories.
+
 ## Start with a repository
 
 ```sh

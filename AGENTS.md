@@ -16,7 +16,11 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 ## Working on this repository
 
-**Pull requests for every merge (MANDATORY RULE):**
+**Pull requests in this repository (MANDATORY RULE):**
+We use PRs here to exercise our own CI review against system behaviors. This is
+a contributor workflow for thinker itself, not a product requirement. Teams using
+Thinker may land direct commits or use any Git workflow; setup must not install
+our repository policy guard or require PRs in their repositories.
 - Push task branches and open a GitHub pull request targeting `main`. Never push
   commits directly to remote `main`, including fast-forward pushes.
 - Run the test suite with telemetry disabled, wait for the PR's tests, and merge
