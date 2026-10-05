@@ -10,7 +10,7 @@ import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHoo
 import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession } from '../ops.js';
+import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, sessionIntro, reviewNudge } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice } from '../usage.js';
 
@@ -63,17 +63,20 @@ async function hookCommand(ctx) {
     // the checkout's, and, from a hook at user scope, the user's own
     if (store.exists()) { try { const w = refreshWiring(repo, { cli, mcpEntry: mcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', repos: 1, files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
     if (store.exists() && userScope) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
-    if (!store.exists() || !store.list().length || client === 'windsurf') return;
+    // once per session, what the code tools are and how to reach them; with the notes when there are any
+    // (a held-out session gets neither the intro nor the nudges: the holdout compares sessions with thinker's help against sessions without)
+    const intro = store.exists() && client !== 'windsurf' && !holdoutSession(store, session) ? sessionIntro(store, { session, client }) : '';
+    const emit = text => { if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
+    if (!store.exists() || !store.list().length || client === 'windsurf') { if (intro) emit(intro); return; }
     // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
     if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
     if (session !== 'unknown') rememberTask(store, session, ev.prompt);
     // a held-out session is served nothing by the hooks, and what it would have been served is logged (ops.js:holdoutSession)
     const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) });
-    if (!r.included.length) return;
+    if (!r.included.length) { if (intro) emit(intro); return; }
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
     const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify. For code no note maps, thinker's find lists the definitions carrying the words the code would use; drilldown reads them.\n\n${r.text}${more}${!NO_LEARN && sessionLearning() ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
-    if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text);
-    else out(promptOutput(client, text));
+    emit(intro ? `${intro}\n\n${text}` : text);
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
@@ -107,6 +110,7 @@ async function hookCommand(ctx) {
       const edited = name === 'Edit' || name === 'Write' || (name === 'Bash' && /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/.test(command));
       const r = lateNotes(store, { session, client, files: toolFiles(ev, repo), edited });
       if (r.text) parts.push(r.text);
+      if (edited) { const n = reviewNudge(store, { session, client }); if (n) parts.push(n); }
     }
     if (parts.length) out(toolOutput(client, parts.join('\n\n')));
   } else if (pos[0] === 'stop') {

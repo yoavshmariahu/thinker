@@ -275,3 +275,22 @@ test('a posted verification report is portable: the local artifact path stays on
   assert.deepEqual([sent.command, sent.args], ['gh', ['pr', 'comment', '7', '--body-file', '-']]);
   assert.equal(sent.input, `${MARKER}\n${portable}`);
 });
+
+test('the report says where the task came from and what judged correctness', async t => {
+  const { repo, store } = fixture(t);
+  const run = prepareVerification(store, { caller: 'mcp', task: { request: 'Implement value', criteria: [{ text: 'works', source: 'user', checks: ['unit'] }] } });
+  assert.equal(run.task.providedBy, 'mcp'); assert.match(run.task.providedAt, /^\d{4}-/);
+  await executeVerification(repo, run.id, { runReview: assessment, runner: success });
+  const report = renderVerification(readVerification(repo, run.id));
+  assert.match(report, /## Where this came from/);
+  assert.match(report, /supplied by the calling agent through the MCP review tool at \d{4}-/);
+  assert.match(report, /"user-attributed-by-caller" is the agent's report of what the user asked; nothing here confirms it with the user/);
+  assert.match(report, /Correctness checks: the commands of \.thinker\/verification\.json as committed at the target [0-9a-f]{12}, run in node@sha256:a+ on a snapshot the candidate cannot alter: unit: node --test/);
+  assert.match(report, /Code assessment: model .* against the notes frozen when the run was created/);
+  assert.ok(report.indexOf('## Where this came from') < report.indexOf('## Executed checks'), 'provenance before results');
+  const bare = prepareVerification(store);
+  assert.equal(bare.task, null);
+  assert.match(renderVerification(readVerification(repo, bare.id)), /none were supplied; this run checks the code without a stated goal/);
+  const { repo: r2, store: s2 } = fixture(t, false);
+  assert.match(renderVerification(readVerification(r2, prepareVerification(s2).id)), /Correctness checks: none ran: No \.thinker\/verification\.json/);
+});

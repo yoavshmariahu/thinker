@@ -205,3 +205,19 @@ test('find renders pointers drilldown takes, with the notes on them; drilldown r
     assert.match(whole.text, /x11 = 11/); assert.doesNotMatch(whole.text, /Members/);
   } finally { delete process.env.THINKER_LOG; }
 });
+
+test('find and references leave a checkout nested under the repository alone', () => {
+  const repo = gitRepo();
+  // a benchmark's clone left in a run directory, untracked: `git grep --untracked` would read it
+  const nested = path.join(repo, 'bench/runs/x/wt/clone');
+  fs.mkdirSync(path.join(nested, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(nested, '.git'), 'gitdir: /elsewhere\n');
+  fs.writeFileSync(path.join(nested, 'src/core.py'), CORE);
+  fs.writeFileSync(path.join(repo, 'bench/runs/x/plain.py'), 'def run_callback_copy():\n    return run_callback\n');
+  const hits = findSymbols(repo, 'run callback').hits;
+  assert.ok(hits.length > 0);
+  assert.ok(hits.every(h => !h.path.includes('wt/clone')), hits.map(h => h.path).join(', '));
+  assert.ok(hits.some(h => h.path === 'bench/runs/x/plain.py'), 'an untracked file outside a nested checkout still counts');
+  const refs = references(repo, 'run_callback');
+  assert.ok(refs.lines.every(l => !l.path.includes('wt/clone')));
+});

@@ -137,7 +137,8 @@ test('Cursor MCP opt-out does not write or approve an MCP server', () => {
 test('prompt hook output matches what each client accepts', () => {
   const dir = repo();
   const codex = hook(dir, 'prompt', 'codex', { session_id: 's1', prompt: PROMPT, cwd: dir });
-  assert.ok(codex.startsWith('<thinker-cache>') && codex.includes('RateLimiter.allow'));
+  // the first prompt of a session opens with the tool intro (ops.js:sessionIntro), then the bundle
+  assert.ok(codex.startsWith('<thinker-tools>') && codex.includes('\n<thinker-cache>') && codex.includes('RateLimiter.allow'));
   assert.ok(!codex.includes('🧠'), 'the prompt hook says nothing to the user; the stop hook sums the turn');
 
   const gem = JSON.parse(hook(dir, 'prompt', 'gemini', { session_id: 's2', prompt: PROMPT, cwd: dir }));
@@ -146,10 +147,10 @@ test('prompt hook output matches what each client accepts', () => {
 
   // Claude Code takes the bundle as plain stdout; no JSON, no systemMessage
   const claude = hook(dir, 'prompt', 'claude', { session_id: 's4', prompt: PROMPT, cwd: dir });
-  assert.ok(claude.startsWith('<thinker-cache>') && claude.includes('RateLimiter.allow') && !claude.includes('🧠'));
+  assert.ok(claude.startsWith('<thinker-tools>') && claude.includes('\n<thinker-cache>') && claude.includes('RateLimiter.allow') && !claude.includes('🧠'));
 
   // nothing relevant: Gemini must get no stray text on stdout
-  assert.equal(hook(dir, 'prompt', 'gemini', { session_id: 's3', prompt: 'hello' }), '');
+  assert.equal(hook(dir, 'prompt', 'gemini', { session_id: 's2', prompt: 'hello' }), '');
 });
 
 test('stop hook tells the user what the turn saved, once, where the client can show it', () => {

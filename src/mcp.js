@@ -139,7 +139,7 @@ function registerTools() {
     try {
       if (action !== 'assess') {
         if (paths?.length || state) throw new Error('Verification runs cover a full snapshot, not selected paths or state audits');
-        const r = action === 'status' ? readVerification(store.repo, runId) : await startVerification(store, { task, previous, staged, base });
+        const r = action === 'status' ? readVerification(store.repo, runId) : await startVerification(store, { task, previous, staged, base, caller: 'mcp' });
         return { content: [{ type: 'text', text: renderVerification(r) }], structuredContent: r };
       }
       const scope = resolveScope(store.repo, { base, staged, state });

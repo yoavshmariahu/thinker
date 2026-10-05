@@ -54,6 +54,7 @@ export function parseContract(text) {
 
 export function prepareVerification(store, options = {}) {
   const task = taskContext(options.task);
+  if (task) Object.assign(task, { providedBy: options.caller === 'mcp' ? 'mcp' : 'cli', providedAt: new Date().toISOString() });
   let previous = null;
   if (options.previous) previous = readVerification(store.repo, options.previous, { current: false });
   const snapshot = createSnapshot(store.repo, options);
@@ -220,6 +221,14 @@ export function renderVerification(r, { portable = false } = {}) {
   const lines = [`# Verification: ${r.freshness?.status === 'superseded' ? 'superseded' : r.status}`, '',
     `Run: ${r.id}`, `Created: ${r.createdAt}${r.completedAt ? '; completed: ' + r.completedAt : ''}`, `Candidate: ${r.snapshot.tree} · target: ${r.snapshot.target}`, `Evidence: ${r.trust}; CI acceptance: ${r.ciAccepted ? 'yes' : 'not established'}`, ''];
   if (r.freshness?.reasons?.length) lines.push(`Evidence outdated: ${r.freshness.reasons.join('; ')}`, '');
+  // Where each input came from and what judged correctness, before any result: a reader must not
+  // take the agent's statement of the task for the user's, or a model's reading for a test run.
+  lines.push('## Where this came from', '');
+  if (r.task) lines.push(`- Task and acceptance criteria: supplied by the calling agent ${r.task.providedBy === 'mcp' ? 'through the MCP review tool' : 'through the thinker CLI'}${r.task.providedAt ? ' at ' + r.task.providedAt : ''}. A criterion marked "user-attributed-by-caller" is the agent's report of what the user asked; nothing here confirms it with the user. "agent-interpretation" is the agent's own reading of the task.`);
+  else lines.push('- Task and acceptance criteria: none were supplied; this run checks the code without a stated goal.');
+  if (r.contract) lines.push(`- Correctness checks: the commands of .thinker/verification.json as committed at the target ${r.snapshot.target.slice(0, 12)}, run in ${r.identity.environment || r.contract.image} on a snapshot the candidate cannot alter: ${r.contract.checks.map(c => `${clean(c.id)}: ${clean(c.command)}`).join('; ')}.`);
+  else lines.push(`- Correctness checks: none ran${r.contractError ? ': ' + clean(r.contractError) : ''}.`);
+  lines.push(`- Code assessment: model ${r.identity.model || 'as configured'} reading the change against the notes frozen when the run was created (knowledge ${r.identity.knowledge}); its findings are a reading of the code, not test results.`, '');
   if (r.task) {
     lines.push(`**Requested outcome:** ${clean(r.task.request)}`, '', '| Acceptance criterion | Source | Linked execution evidence |', '|---|---|---|');
     for (const c of r.task.criteria) lines.push(`| ${clean(c.text)} | ${clean(c.source)} | ${c.checks.map(id => `${clean(id)}: ${r.checks.find(x => x.id === id)?.status || 'not run'}`).join('; ') || 'No linked check'} |`);
