@@ -501,8 +501,9 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   orients, and sessions reported changes done without a review. Since
   2026-10-05 the first prompt of a session carries a `<thinker-tools>` intro
   (`ops.js:sessionIntro`): what `find` and `drilldown` do, for Claude Code
-  the exact `ToolSearch select:…` that loads them, and that `review` exists
-  for when a review is asked for; logged as `intro`. A held-out session gets
+  the exact `ToolSearch select:…` that loads them; logged as `intro`. It does
+  not name `review`: with one sentence saying it existed, the agent called it at
+  the end of both reruns and lost three minutes to each timed-out call. A held-out session gets
   none of it. On two Grafana tasks under Gemini (`bench/RESULTS.md`, "Tool
   intro") the intro got `find` called where it never was. It first also told
   the agent to run `review` before reporting done, with a first-edit nudge

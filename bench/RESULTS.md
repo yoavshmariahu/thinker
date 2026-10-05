@@ -796,3 +796,25 @@ cost of a task, spent on a review); a `status` answer should tell the agent to
 keep working and check once more at the end, not poll; and the tool should take
 a string for `task` as the request. The review's model work went to Gemini
 (`THINKER_LLM=gemini` on the hook and the agent), never to Claude.
+
+### Rerun with the intro naming find and drilldown only (2026-10-05, 2 runs)
+
+Same tasks, agent, judge and notes; the intro no longer tells the agent to run
+`review` before reporting done (PR #29) and names it once as available. Run dir
+`bench/runs/grafana-gemini-intro-ab-v2`. The `before` rows are the runs above.
+
+| run | find | review | tool calls | file reads | wall | judged |
+|---|---|---|---|---|---|---|
+| PR133148 before | 0 | 0 | 135 | 73 | 15.1 min | pass |
+| PR133148 intro v2 | 4, all answered | 3, two timed out | 133 | 74 | 19.0 min | fail (c5) |
+| PR132983 before | 0 | 0 | 136 | 67 | 13.6 min | pass |
+| PR132983 intro v2 | 0 | 1, timed out | 155 | 77 | 16.8 min | pass |
+
+Not better. `find` was used as intended in one run (`SelectableFields`,
+`SearchFieldsRegistry`, `NewSearchFieldsRegistry`, each answered in seconds),
+and not at all in the other. The agent still reached for `review` at the end
+of both runs, each timed-out call cost three minutes, and neither run beat its
+`before` on time or reads. c5 failed in both intro runs of PR133148 and passed
+in the `before` run: one run each, nothing to conclude, worth watching. The
+mention of `review` is gone from the intro; a review is run when a person
+asks for one.

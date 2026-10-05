@@ -31,7 +31,7 @@ test('the first prompt of a session introduces find and drilldown, with the Tool
   assert.match(first, /<thinker-tools>/);
   assert.match(first, /find \(the definitions carrying the words the code would use/);
   assert.match(first, /ToolSearch `select:mcp__thinker__find,mcp__thinker__drilldown`/);
-  assert.ok(!/Before reporting a code change done/.test(first), 'no instruction to run a review by default');
+  assert.ok(!/review/i.test(first), 'review is not named: it is run when asked for');
   const second = hook(dir, 'prompt', { session_id: 's1', prompt: 'now change saveRows as well' });
   assert.equal(second.trim(), '', 'said once per session');
   const other = hook(dir, 'prompt', { session_id: 's2', prompt: 'where does fetchRows read the rows from' });

@@ -363,7 +363,9 @@ function sessionState(store, session) {
 // Gemini (bench/RESULTS.md, "Tool intro") the intro got `find` called where it never was. The intro
 // also told the agent to run `review` before reporting done, and a first-edit nudge repeated it:
 // taken out on 2026-10-05 at the user's decision (a review is run when asked for, not by default),
-// after those runs showed the agent polling a slow review for minutes instead of working.
+// after those runs showed the agent polling a slow review for minutes instead of working. A bare
+// mention that review exists went the same day: with it, the agent still called review at the end
+// of both reruns and lost three minutes to each timed-out call (bench/RESULTS.md).
 export function sessionIntro(store, { session, client }) {
   if (!session || session === 'unknown') return '';
   const { st, save } = sessionState(store, session);
@@ -371,7 +373,7 @@ export function sessionIntro(store, { session, client }) {
   st.introduced = true; save();
   store.log({ op: 'intro', session, client });
   const load = client === 'claude' ? ' In Claude Code they are deferred until searched for: load them once with ToolSearch `select:mcp__thinker__find,mcp__thinker__drilldown`, before the first grep or file read.' : '';
-  return `<thinker-tools>\nthinker's tools for this checkout, over MCP: find (the definitions carrying the words the code would use, as path:Symbol:L12 pointers with their blast radius; use it instead of grepping for a word and reading around each hit) and drilldown (a definition whole, with its callers and callees).${load} A review tool checks a change against the notes about this code when you are asked to review or verify.\n</thinker-tools>`;
+  return `<thinker-tools>\nthinker's tools for this checkout, over MCP: find (the definitions carrying the words the code would use, as path:Symbol:L12 pointers with their blast radius; use it instead of grepping for a word and reading around each hit) and drilldown (a definition whole, with its callers and callees).${load}\n</thinker-tools>`;
 }
 // The notes served since the turn's stop hook last ran, for the summary it shows the user.
 export function trackTurn(store, session, ids) {
