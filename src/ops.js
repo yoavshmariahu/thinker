@@ -1,8 +1,7 @@
-import { isTestMode } from './test-mode.js';
 // Core operations shared by the MCP server and the CLI.
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store, slugify, uniqueId, gitHead, KINDS, KIND_ALIAS, kindOf, MUTABILITY } from './store.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation } from './deps.js';
@@ -223,8 +222,8 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // once: a note already served in this session is not served again. The prompt hooks pass it: what
 // they served on an earlier turn is in the agent's context, and serving it again on "status?" or
 // a follow-up only adds tokens. An agent calling `orient` itself asks anew and gets everything.
-// freshOnly: a stale note is not served; it is held back, verified in the background as if it had
-// been served, and comes back fresh on a later turn. The prompt hooks pass it: a stale note takes
+// freshOnly: a stale note is held back until a four-hour maintenance batch verifies it.
+// The prompt hooks pass it: a stale note takes
 // the slot and the tokens of a fresh one, and its ⚠ banner is a claim the agent has to check or
 // ignore. Over three days on this repository 43 of 154 hook servings were stale. The agent's own
 // `orient` and `lookup` still return stale notes, with the banner.
@@ -232,7 +231,7 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // what would have been served is logged as `withheld`, and nothing is served or marked served.
 // rerankModel (`rerank` in .thinker/config.json): a small model keeps, of the eight best candidates,
 // those that bear on the request; its choice is final. links: pull in one note linked from the best hit.
-export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false }) {
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false }) {
   const start = Date.now();
   let notes = store.list();
   if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
@@ -253,7 +252,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   let lexical = ranked; // what the lexical ranking held before the cross-encoder: the dropped candidates are still listed by title (`more`)
   // the hooks serve no stale note (freshOnly): the cross-encoder chooses among the fresh candidates, or its one
   // pick could be a stale note and nothing would be served; the stale notes the lexical top would have served
-  // are still held and verified below
+  // are still held below until scheduled maintenance
   const heldByLexical = freshOnly ? ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note) : [];
   if (ceCfg.enabled && ranked.length && maxNotes <= 2) {
     if (freshOnly) ranked = ranked.filter(r => r.note.status !== 'stale');
@@ -261,7 +260,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     catch (e) { store.log({ op: 'ce-error', error: String(e.message).slice(0, 200) }); } // no runtime or model: the lexical ranking serves as before
   }
   if (rerankModel && ranked.length) { try { ranked = await rerank(store, ranked, task, file, rerankModel); chosen = true; } catch (e) { store.log({ op: 'rerank-error', error: String(e.message) }); } }
-  // what would have been served had staleness not held it back: verified below, as if it had been
+  // what would have been served had staleness not held it back
   const held = freshOnly ? [...new Set([...heldByLexical, ...ranked.slice(0, maxNotes).filter(r => r.note.status === 'stale').map(r => r.note)])] : [];
   const servable = freshOnly ? ranked.filter(r => r.note.status !== 'stale') : ranked;
   let top = servable.slice(0, maxNotes).filter((r, i) => i < 2 || r.rel >= relFloor * servable[0].rel);
@@ -293,7 +292,6 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (recordUsage && session) trackTurn(store, session, packed.included.map(n => n.id));
   packed.held = held;
-  if (backgroundVerify) scheduleVerify(store, [...packed.included.filter(n => n.status === 'stale'), ...held]);
   // anchoring guard: name what the request mentions that the notes do not cover
   if (packed.included.length) {
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
@@ -469,22 +467,6 @@ export function linkNotes(store, note, notes = store.list()) {
   return related;
 }
 
-
-// Served a stale note: re-verify it in the background so the next caller gets
-// a fresh or corrected version. At most one attempt per note per 10 minutes.
-export function scheduleVerify(store, notes) {
-  if (isTestMode() || process.env.THINKER_NO_BG_VERIFY === '1') return;
-  const now = Date.now();
-  const ids = notes.filter(n => !n.archived && (!n.verifying || now - Date.parse(n.verifying) > 10 * 60_000)).map(n => n.id);
-  if (!ids.length) return;
-  for (const id of ids) { const n = store.get(id); if (n) { n.verifying = new Date(now).toISOString(); store.put(n); } }
-  try {
-    const cli = new URL('./cli.js', import.meta.url).pathname;
-    const child = spawn('node', [cli, 'verify', ...ids, '--repo', store.repo], { detached: true, stdio: 'ignore', env: process.env });
-    child.unref();
-    store.log({ op: 'bg-verify', ids });
-  } catch (e) { store.log({ op: 'bg-verify-error', error: String(e.message) }); }
-}
 
 const STATUS_ORDER = { violated: 0, stale: 1, fresh: 2 };
 export function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false, kind } = {}) {

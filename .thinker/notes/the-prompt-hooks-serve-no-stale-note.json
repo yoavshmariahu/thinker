@@ -8,32 +8,22 @@
     "do hooks serve stale notes",
     "what happens to a stale note at prompt time"
   ],
-  "body": "At prompt time a note whose deps no longer match the working tree is held back, not served: src/ops.js:orient with `freshOnly` takes stale notes out of the servable set, logs them as `held`, and hands them to src/ops.js:scheduleVerify so they are verified in the background as if they had been served; once fresh again they are served on a later turn. In the meantime the stale note is only listed by title, marked STALE, among the notes the agent can `lookup`. `orient` and `lookup` called by the agent itself still return stale notes, with the ⚠ banner, since the agent asked.",
+  "body": "At prompt time a note whose deps no longer match the working tree is held back, not served: src/ops.js:orient with `freshOnly` takes stale notes out of the servable set and logs them as `held`. Reading or withholding a note never launches verification. src/maintain.js:maintain runs a batch at most once every four hours on the next repository activity, using changed dependencies and diffs since each note was verified, subject to recent-use, churn and token limits. Once fresh again the note can be served on a later turn. Meanwhile the agent can explicitly request stale notes through `orient` or `lookup`, with the STALE banner. Manual `thinker verify` remains immediate.",
   "tags": [],
   "deps": [
     {
       "path": "src/ops.js",
       "symbol": "orient",
-      "hash": "sha256:2e6e7121545eb5c77deb5627",
-      "line": 216,
-      "missing": false,
-      "fanout": {
-        "files": 27,
-        "sites": 48,
-        "refs": 154
-      }
+      "hash": "sha256:8b74a174d956e366a3abbfb6",
+      "line": 218,
+      "missing": false
     },
     {
-      "path": "src/ops.js",
-      "symbol": "scheduleVerify",
-      "hash": "sha256:a8f4d37aff987a7a6a949dd4",
-      "line": 451,
-      "missing": false,
-      "fanout": {
-        "files": 2,
-        "sites": 1,
-        "refs": 2
-      }
+      "path": "src/maintain.js",
+      "symbol": "maintain",
+      "hash": "sha256:182c1ed1e33e422c2a078ad4",
+      "line": 109,
+      "missing": false
     }
   ],
   "source": {
@@ -47,5 +37,12 @@
     "note-staleness-lifecycle-create-baseline-lazy-refresh-verify",
     "nothing-auto-runs-verifynote-feedback-correction-bypasses-ve",
     "verification-never-rewrites-or-retires-a-desired-behavior"
+  ],
+  "history": [
+    {
+      "at": "2026-10-05T08:10:40.544Z",
+      "reason": "User requested four-hour diff-based batches instead of retrieval-triggered background verification.",
+      "prevBody": "At prompt time a note whose deps no longer match the working tree is held back, not served: src/ops.js:orient with `freshOnly` takes stale notes out of the servable set, logs them as `held`, and hands them to src/ops.js:scheduleVerify so they are verified in the background as if they had been served; once fresh again they are served on a later turn. In the meantime the stale note is only listed by title, marked STALE, among the notes the agent can `lookup`. `orient` and `lookup` called by the agent itself still return stale notes, with the ⚠ banner, since the agent asked."
+    }
   ]
 }

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store, repoId } from '../src/store.js';
 import { createNote } from '../src/ops.js';
-import { maintain, maintenanceNotice, renderMaintain, spentToday, withinDailyCap, reportCapped, postCommitHook, pickStale, DEFAULTS } from '../src/maintain.js';
+import { maintain, maintenanceNotice, renderMaintain, spentToday, withinDailyCap, reportCapped, postCommitHook, pickStale, DEFAULTS, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 
 // a git repo with one note whose dependency is then changed, so the note is stale
 function staleRepo() {
@@ -64,7 +64,7 @@ test('maintain mines pull requests merged since its first run', () => withEnv(as
   await maintain(store, dir, { fns });
   const first = JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8')).prsAfter;
   fs.rmSync(path.join(dir, '.thinker', 'state', 'maintain.lock'), { force: true });
-  const r = await maintain(store, dir, { fns });
+  const r = await maintain(store, dir, { fns, now: Date.now() + MAINTENANCE_INTERVAL_MS });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].after, first);
   assert.equal(calls[0].limit, DEFAULTS.prsPerRun);
@@ -152,7 +152,7 @@ test('maintenance re-verifies only notes served lately, and leaves a churning no
   assert.deepEqual(verified, []); assert.deepEqual(run.churning, [a.id]);
   assert.match(renderMaintain(run), /1 churning left stale/);
   assert.match(maintenanceNotice(store), /1 note repeatedly stale; narrow pointers or retire them/);
-  run = await maintain(store, dir, { fns });
+  run = await maintain(store, dir, { fns, now: Date.now() + MAINTENANCE_INTERVAL_MS });
   assert.deepEqual(run.churning, [a.id]);
   assert.doesNotMatch(maintenanceNotice(store), /left stale/, 'named once, not on every run');
   fs.rmSync(dir, { recursive: true, force: true });
@@ -197,3 +197,44 @@ test('withinDailyCap closes the day once the cap is spent, and the user is told 
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+
+test('four-hour batches persist across callers; dry previews do not move the deadline', () => withEnv(async () => {
+  const { dir, store, a } = staleRepo();
+  const now = Date.now();
+  let calls = 0;
+  const fns = {
+    spentToday: () => 0,
+    verify: async () => { calls++; return { verdict: 'still_valid', tokens: 1 }; },
+    phrase: async (s, notes) => ({ done: notes, tokens: 0 }),
+  };
+  try {
+    assert.equal((await maintain(store, dir, { fns, now })).verified, 1);
+    const stateFile = path.join(store.dir, 'state/maintain.json');
+    const before = fs.readFileSync(stateFile, 'utf8');
+    const reopened = new Store(dir);
+    for (const elapsed of [1, 10 * 60_000, MAINTENANCE_INTERVAL_MS - 1]) {
+      assert.deepEqual(await maintain(reopened, dir, { fns, now: now + elapsed }), { skipped: 'not-due' });
+    }
+    assert.equal(calls, 1);
+    assert.equal((await maintain(reopened, dir, { fns, dry: true, now: now + 1 })).verified, 1);
+    assert.equal(fs.readFileSync(stateFile, 'utf8'), before);
+    assert.equal(calls, 1, 'dry never calls the verifier');
+    assert.equal((await maintain(reopened, dir, { fns, now: now + MAINTENANCE_INTERVAL_MS })).verified, 1);
+    assert.equal(calls, 2);
+    // A code change reverted before the next batch needs no model call.
+    fs.writeFileSync(path.join(dir, 'src/a.py'), 'def foo():\n    return 1\n');
+    assert.equal((await maintain(reopened, dir, { fns, now: now + 2 * MAINTENANCE_INTERVAL_MS })).verified, 0);
+    assert.equal(calls, 2);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}));
+
+test('existing maintenance timestamps delay the first batch after upgrade', () => withEnv(async () => {
+  const { dir, store } = staleRepo();
+  const now = Date.now();
+  try {
+    fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(store.dir, 'state/maintain.json'), JSON.stringify({ at: new Date(now - 60_000).toISOString() }));
+    assert.deepEqual(await maintain(store, dir, { now, fns: { spentToday() { throw Error('must not start work'); } } }), { skipped: 'not-due' });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}));

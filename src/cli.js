@@ -110,7 +110,7 @@ const HELP = `thinker — knowledge cache for coding agents
   rehash [--fanout]              re-baseline every note's hashes without verification (--fanout: count references again)
   relink                         recompute cross-note links
   verify [ids...] [--model m]    re-verify stale notes with a small model
-  maintain [--dry]               one background maintenance run: re-verify stale notes, phrase new ones, refresh
+  maintain [--dry]               run maintenance if four hours have elapsed (--dry previews)
                                  distill newly merged PRs; runs by itself from the hooks, under a daily cap
   phrase [ids...] [--model m] [--force]
                                  add to each note how a user would put it, in the words of the product (for retrieval)

@@ -1,7 +1,8 @@
 // Background maintenance of the cache: what a user would otherwise have to remember to
 // run. It re-verifies stale notes, writes phrasings for notes that lack them, and distills
 // pull requests merged since it first ran. It starts from the catch-up learning run (at most every ten minutes, from the
-// prompt hooks) and from the git post-commit hook, and is bounded by a daily cap on the
+// prompt hooks) and from the git post-commit hook. Batches run at most once every four hours,
+// on the next activity after they are due, and are bounded by a daily cap on the
 // tokens learning and maintenance may use, so it can run unattended. The cap counts the
 // tokens the model calls of learning and maintenance reported in the machine's log; a call
 // that reported none counts as zero. Tokens, not dollars: the agents run on subscriptions as
@@ -24,6 +25,7 @@ export const DEFAULTS = {
   prsPerRun: 3,
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
 };
+export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
 const LOCK_MS = 15 * 60_000;
 
 export function maintainConfig(store) {
@@ -83,9 +85,9 @@ export function verifyCounts(store, now = Date.now()) {
   return counts;
 }
 
-// Which stale notes a run re-verifies. Serving verifies a stale note in the background anyway
-// (ops.js:scheduleVerify), so maintenance only gets ahead of serving: notes served lately, in
-// the order of how much they are served. A note that has had to be re-verified `verifyChurn`
+// Which changed notes the four-hour batch re-verifies: notes served lately, in
+// the order of how much they are served. Retrieval never starts verification.
+// A note that has had to be re-verified `verifyChurn`
 // times this week rests on code under active change; rewriting it again each day costs a call
 // per day and settles nothing, so it is left stale, with the ⚠ banner, and named once to the
 // user, who can narrow its pointers or retire it.
@@ -105,15 +107,32 @@ function stateFile(store) { return path.join(store.dir, 'state', 'maintain.json'
 function readState(store) { try { return JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch { return {}; } }
 
 // One run. `fns` lets the CLI pass PR mining in and tests pass everything in.
-export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
+export async function maintain(store, repo, { dry = false, fns = {}, now = Date.now() } = {}) {
   const cfg = maintainConfig(store);
   if (!cfg.enabled || /^(1|true|yes)$/i.test(process.env.THINKER_NO_LEARN || '')) return { skipped: 'disabled' };
   const stateDir = path.join(store.init().dir, 'state');
   fs.mkdirSync(stateDir, { recursive: true });
   const lock = path.join(stateDir, 'maintain.lock');
-  try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
-  if (!dry) fs.writeFileSync(lock, String(process.pid));
+  try {
+    if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' };
+    if (!dry) fs.rmSync(lock, { force: true });
+  } catch {}
+  if (!dry) {
+    // Exclusive creation keeps simultaneous prompt/commit hooks from starting two batches.
+    try { fs.writeFileSync(lock, String(process.pid), { flag: 'wx' }); }
+    catch (e) { if (e.code === 'EEXIST') return { skipped: 'locked' }; throw e; }
+  }
   const state = readState(store);
+  const lastRun = Date.parse(state.startedAt || state.at);
+  if (!dry && Number.isFinite(lastRun) && now - lastRun < MAINTENANCE_INTERVAL_MS) {
+    fs.rmSync(lock, { force: true });
+    return { skipped: 'not-due' };
+  }
+  // Persist before any model calls: failed/interrupted batches must not retry every prompt.
+  if (!dry) {
+    state.startedAt = new Date(now).toISOString();
+    fs.writeFileSync(stateFile(store), JSON.stringify(state));
+  }
   const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
@@ -125,7 +144,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     // 2. Re-hashing is free, even when the model budget is exhausted.
     const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true, persist: !dry }); // --dry writes nothing, statuses included
     if (afford()) {
-      const { stale, churning } = pickStale(notes, cfg, { counts: cfg.verifyChurn > 0 ? (fns.verifyCounts || verifyCounts)(store) : new Map() });
+      const { stale, churning } = pickStale(notes, cfg, { counts: cfg.verifyChurn > 0 ? (fns.verifyCounts || verifyCounts)(store, now) : new Map(), now });
       r.churning = churning.map(n => n.id);
       for (const n of stale) {
         if (!afford()) { r.capped = true; break; }

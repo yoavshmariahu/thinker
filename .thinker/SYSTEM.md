@@ -43,7 +43,7 @@ Upheld at: `src/ops.js:verifyNote`, `src/ops.js:verifyBehavior`
 
 *mutable; id `the-prompt-hooks-serve-no-stale-note`*
 
-At prompt time a note whose deps no longer match the working tree is held back, not served: src/ops.js:orient with `freshOnly` takes stale notes out of the servable set, logs them as `held`, and hands them to src/ops.js:scheduleVerify so they are verified in the background as if they had been served; once fresh again they are served on a later turn. In the meantime the stale note is only listed by title, marked STALE, among the notes the agent can `lookup`. `orient` and `lookup` called by the agent itself still return stale notes, with the ⚠ banner, since the agent asked.
+At prompt time a note whose deps no longer match the working tree is held back, not served: src/ops.js:orient with `freshOnly` takes stale notes out of the servable set and logs them as `held`. Reading or withholding a note never launches verification. src/maintain.js:maintain runs a batch at most once every four hours on the next repository activity, using changed dependencies and diffs since each note was verified, subject to recent-use, churn and token limits. Once fresh again the note can be served on a later turn. Meanwhile the agent can explicitly request stale notes through `orient` or `lookup`, with the STALE banner. Manual `thinker verify` remains immediate.
 
-Upheld at: `src/ops.js:orient`, `src/ops.js:scheduleVerify`
+Upheld at: `src/ops.js:orient`, `src/maintain.js:maintain`
 

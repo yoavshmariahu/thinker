@@ -205,7 +205,7 @@ test('a request of one content word is a turn of conversation, not a task: nothi
   assert.ok(rank([st], { query: 'status', mode: 'lookup' }).length, 'lookup by one word is answered');
 });
 
-test('the prompt hook serves no stale note: it is held, verified, and listed for lookup', async () => {
+test('the prompt hook holds stale notes for the next batch and lists them for lookup', async () => {
   const { dir, store, cp } = setup();
   const file = path.join(dir, 'src/a.py');
   const original = fs.readFileSync(file, 'utf8');
@@ -213,7 +213,7 @@ test('the prompt hook serves no stale note: it is held, verified, and listed for
   const hook = await orient(store, { task: 'how does launch work', session: 'f1', once: true, freshOnly: true, backgroundVerify: false });
   assert.equal(store.get(cp.id).status, 'stale', 'the edit made the note stale');
   assert.ok(!hook.included.some(n => n.id === cp.id), 'the stale note is not served');
-  assert.deepEqual(hook.held.map(n => n.id), [cp.id], 'held back, for background verification');
+  assert.deepEqual(hook.held.map(n => n.id), [cp.id], 'held back until scheduled maintenance');
   assert.ok(hook.more.some(n => n.id === cp.id), 'listed for lookup');
   assert.ok(!(store.get(cp.id).servedIn || []).includes('f1'), 'not counted as served');
   fs.writeFileSync(file, original);

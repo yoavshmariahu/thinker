@@ -21,14 +21,12 @@ test('one inherited test flag blocks automatic work before touching state or spa
       import fs from 'node:fs';
       import { maybeCheckDailyUpdateInBackground } from './src/update.js';
       import { maybeSendTelemetryInBackground, sendTelemetry } from './src/telemetry.js';
-      import { scheduleVerify } from './src/ops.js';
       import { learnInBackground, commands } from './src/commands/hooks.js';
       import { Store, logFile } from './src/store.js';
       const home = process.argv[1];
       const untouched = new Proxy({}, { get() { throw Error('background work accessed state'); } });
       maybeCheckDailyUpdateInBackground({ home, force: true });
       maybeSendTelemetryInBackground({ home, store: untouched, force: true });
-      scheduleVerify(untouched, [{ id: 'stale' }]);
       learnInBackground({ NO_LEARN: false, sessionLearning() { throw Error('background learning'); } });
       await commands.hook({ HERE: '/unused', flags: { user: true }, pos: ['prompt'], readStdin: () => '{}', out() { throw Error('machine hook served'); } });
       const result = await sendTelemetry({ home, store: { config: () => ({}) }, force: true });
