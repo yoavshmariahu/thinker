@@ -4,6 +4,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { refresh } from '../ops.js';
 import { review, renderReview, resolveScope } from '../review.js';
+import { postComment } from '../review-post.js';
 import { subsystemForFile } from '../topology.js';
 import { exportCache, importCache } from '../transfer.js';
 import { summarize, renderUsage } from '../usage.js';
@@ -11,12 +12,16 @@ import { stats, renderStats } from '../stats.js';
 
 async function reviewCommand(ctx) {
   const { pos, flags, repo, store, out } = ctx;
+  if (flags.post && !/^[1-9]\d*$/.test(String(flags.pr || ''))) throw new Error('--post requires --pr <number>');
+  if (flags.post && flags.dry) throw new Error('--post cannot be combined with --dry');
   const scope = resolveScope(repo, { base: typeof flags.base === 'string' ? flags.base : undefined, staged: !!flags.staged, ref: typeof flags.ref === 'string' ? flags.ref : undefined, state: !!flags.state });
   const kinds = typeof flags.kinds === 'string' ? flags.kinds.split(',').map(k => k.trim()).filter(Boolean) : undefined;
   // the strategy flags of bench/review-eval.js (review.js:DEFAULT_STRATEGY); the default is the ensemble
   const strategy = { ...(typeof flags.mode === 'string' ? { mode: flags.mode } : {}), ...(flags['no-related'] ? { related: false } : {}), ...(flags.callers ? { callers: true } : {}), ...(flags.triage ? { triage: true } : {}), ...(flags.verify ? { verify: true } : {}), ...(flags.chunks ? { chunks: Number(flags.chunks) } : {}) };
   const r = await review(store, { scope, pr: flags.pr, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry, strategy, kinds });
+  if (flags.post) r.comment = postComment(r, { repo, pr: flags.pr });
   out(flags.json ? JSON.stringify(r, null, 2) : renderReview(r, { verbose: !!flags.verbose }));
+  if (r.comment && !flags.json) out(`Posted PR comment: ${r.comment.url}`);
   if (flags.strict) {
     if (r.errors?.length) process.exitCode = 1;
     else if (r.counts?.error || r.behaviors?.some(b => b.mutability === 'fixed' && b.outcome === 'violated')) process.exitCode = 2;
