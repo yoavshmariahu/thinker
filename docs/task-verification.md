@@ -107,6 +107,14 @@ Each run is stored under `.thinker/local/reviews/<run-id>/`:
 - `<check-id>.log`: bounded full output, referenced by each failure.
 - `inputs.json`: frozen notes and configuration used by the assessment.
 
+The report opens with where its inputs came from, before any result: the task and
+criteria were supplied by the calling agent (over MCP or the CLI, with the time;
+`task.providedBy`), a criterion marked `user-attributed-by-caller` is the
+agent's report of what the user asked and is not confirmed with the user, the
+correctness checks are the contract's commands as committed at the target, run
+on a snapshot the candidate cannot alter, and the code assessment is a model's
+reading against the frozen notes, not a test result.
+
 Status is `queued`, `running`, `passed`, `failed`, `incomplete`, or `needs-review`.
 `--status` separately compares the current worktree/index to the captured tree;
 changed code is `superseded`. A commit-scoped run stays attached to its commit.

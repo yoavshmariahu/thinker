@@ -496,7 +496,22 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   six definitions `find` returns for the request (`mcp.js:codeFallback`, logged
   as `client: "mcp-fallback"`), and the prompt hook's bundle names `find`: in
   the week before, real sessions never called `find` (Claude Code defers MCP
-  tools until searched for), only the benchmark arms did.
+  tools until searched for), only the benchmark arms did. Two weeks later the
+  log held 3 `find` and 2 `review` calls over MCP against hundreds of hook
+  orients, and sessions reported changes done without a review. Since
+  2026-10-05 the first prompt of a session carries a `<thinker-tools>` intro
+  (`ops.js:sessionIntro`): what `find`, `drilldown` and `review` do, for
+  Claude Code the exact `ToolSearch select:…` that loads them, and the
+  instruction to call `review` with the task before reporting a change done;
+  the first edit of a session repeats that last point once
+  (`ops.js:reviewNudge`, with the late notes). Both are logged (`intro`,
+  `review-nudge`) so the next log can say whether they changed anything. A
+  held-out session gets neither. `git grep --untracked` behind `find`,
+  `drilldown` and the reference counts reads into a checkout nested under the
+  repository (a benchmark's clone under `bench/runs/`): on this repository
+  `find` answered with PostHog's definitions. Lines under a directory holding a
+  `.git` entry are dropped (`codegraph.js:gitGrep`), as are `coverage/`,
+  `__pycache__/` and `.next/`.
 - `find(query, path?, limit?)` answers "where is this defined / handled" when
   no note does: the definitions whose name or body carry the words of the
   query (`codegraph.js:findSymbols`), as `path:Symbol:L12` pointers with their

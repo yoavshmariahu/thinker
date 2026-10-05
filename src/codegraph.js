@@ -5,6 +5,7 @@
 // greps. A graph engine (codebase-memory-mcp) was measured against this on click and kept only as
 // the benchmarks' baseline (bench/eval-support/cbm.js, research/cbm-comparison).
 import fs from 'node:fs';
+import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { repoFile, symbolBlock, locateSymbol } from './deps.js';
 import { definitions, astReady } from './ast.js';
@@ -30,7 +31,21 @@ function esc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 function gitGrep(repo, args, { maxBuffer = 16 * 1024 * 1024 } = {}) {
   try {
-    return execFileSync('git', ['grep', '-n', '-I', '--untracked', '--no-color', ...args], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer, timeout: 10_000 }).toString().split('\n').filter(Boolean);
+    const lines = execFileSync('git', ['grep', '-n', '-I', '--untracked', '--no-color', ...args], { cwd: repo, stdio: ['ignore', 'pipe', 'ignore'], maxBuffer, timeout: 10_000 }).toString().split('\n').filter(Boolean);
+    // `--untracked` reaches into a checkout nested under this one (a benchmark's clone, a worktree
+    // left in a run directory): not this repository's code. Judged once per directory per call.
+    const nested = new Map();
+    const inNested = file => {
+      const seen = []; let dir = path.posix.dirname(file), hit = false;
+      for (; dir && dir !== '.' && dir !== '/'; dir = path.posix.dirname(dir)) {
+        if (nested.has(dir)) { hit = nested.get(dir); break; }
+        seen.push(dir);
+        if (fs.existsSync(path.join(repo, dir, '.git'))) { hit = true; break; }
+      }
+      for (const d of seen) nested.set(d, hit);
+      return hit;
+    };
+    return lines.filter(l => !inNested(l.slice(0, l.indexOf(':'))));
   } catch (e) {
     if (e.status === 1) return []; // no match
     return null; // not a git repository, timeout, or git missing: unknown
@@ -143,7 +158,7 @@ export function findDefinitions(repo, name, { limit = 10 } = {}) {
 // Returns {hits: [{path, name, parent, symbol, kind, line, end, score, mentions}], toks,
 // more} or null when the checkout cannot be searched.
 const CODE_EXT = new Set([...Object.keys(FAMILY), 'vue', 'svelte', 'dart', 'lua', 'zig', 'm', 'mm', 'erb', 'rake']);
-const EXCLUDES = [':(exclude).thinker', ':(exclude)*.min.js', ':(exclude)*.d.ts', ':(exclude)**/node_modules/**', ':(exclude)**/vendor/**', ':(exclude)**/dist/**', ':(exclude)**/build/**'];
+const EXCLUDES = [':(exclude).thinker', ':(exclude)*.min.js', ':(exclude)*.d.ts', ':(exclude)**/node_modules/**', ':(exclude)**/vendor/**', ':(exclude)**/dist/**', ':(exclude)**/build/**', ':(exclude)**/coverage/**', ':(exclude)**/__pycache__/**', ':(exclude)**/.next/**'];
 const extOf = p => String(p).split('.').pop().toLowerCase();
 const globRe = g => new RegExp('(^|/)' + g.split('**').map(p => p.split('*').map(esc).join('[^/]*')).join('.*') + (/\*$|\/$/.test(g) ? '' : '(/|$)'));
 export function findSymbols(repo, query, { scope, limit = 12, files: maxFiles = 50 } = {}) {

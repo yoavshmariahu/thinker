@@ -357,6 +357,29 @@ function sessionState(store, session) {
   let st = { late: [], turn: [], nudged: false }; try { st = { ...st, ...JSON.parse(fs.readFileSync(f, 'utf8')) }; } catch {}
   return { st, save: () => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(st)); } };
 }
+// Once per session, at the first prompt: what thinker's code tools are and how to reach them. In two
+// weeks of real sessions `find` was called 3 times and `review` twice over MCP while agents grepped
+// and reported changes done unreviewed: Claude Code defers MCP tools until they are searched for,
+// and nothing named the search.
+export function sessionIntro(store, { session, client }) {
+  if (!session || session === 'unknown') return '';
+  const { st, save } = sessionState(store, session);
+  if (st.introduced) return '';
+  st.introduced = true; save();
+  store.log({ op: 'intro', session, client });
+  const load = client === 'claude' ? ' In Claude Code they are deferred until searched for: load them once with ToolSearch `select:mcp__thinker__find,mcp__thinker__drilldown,mcp__thinker__review`, before the first grep or file read.' : '';
+  return `<thinker-tools>\nthinker's tools for this checkout, over MCP: find (the definitions carrying the words the code would use, as path:Symbol:L12 pointers with their blast radius; use it instead of grepping for a word and reading around each hit), drilldown (a definition whole, with its callers and callees), review (your change against the notes about this code; with action "start" it also runs the repository's tests in Docker on a snapshot of the change, when the repository has a verification contract, with the task and acceptance criteria you give it).${load} Before reporting a code change done, call review with the task and the criteria you worked to, and read its result.\n</thinker-tools>`;
+}
+// Once per session, with the first edit: review before reporting done. The intro said so at the
+// first prompt; the edit is when it applies.
+export function reviewNudge(store, { session, client }) {
+  if (!session || session === 'unknown') return '';
+  const { st, save } = sessionState(store, session);
+  if (st.reviewNudged) return '';
+  st.reviewNudged = true; save();
+  store.log({ op: 'review-nudge', session, client });
+  return '<thinker-review>\nWhen this change is complete and before reporting it done: call thinker\'s review tool with the task and the acceptance criteria you worked to (over MCP, or `thinker review --task <file>` from the shell); with action "start" it runs the repository\'s tests in Docker on a snapshot of your change and reviews it against the notes. Act on the result, then report, saying what was checked.\n</thinker-review>';
+}
 // The notes served since the turn's stop hook last ran, for the summary it shows the user.
 export function trackTurn(store, session, ids) {
   if (!session || !ids?.length || !store.exists()) return;
