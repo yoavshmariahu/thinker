@@ -35,8 +35,14 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   }
   const also = f => f.locations?.length ? ` <sub>also at ${f.locations.slice(0, 6).map(l => code(`${l.file}${l.line ? ':' + l.line : ''}`)).join(', ')}${f.locations.length > 6 ? ` (+${f.locations.length - 6} more)` : ''}</sub>` : '';
   const behaviors = r.behaviors || [];
+  const integrity = r.integrity?.findings || [];
   const violated = behaviors.filter(b => b.outcome === 'violated');
   const L = [MARKER, `### thinker review${r.scope ? ` · ${esc(r.scope)}` : ''}`, ''];
+  if (integrity.length) {
+    L.push('#### Gate integrity — needs human review', '');
+    for (const f of integrity) L.push(`- ${code(f.file + (f.line ? ':' + f.line : ''))}: ${esc(f.message)} (${esc(f.certainty)}). Before: ${code(f.before || '(none)')}; after: ${code(f.after || '(none)')}`);
+    L.push('', 'These signals do not establish whether replacement coverage is equivalent.', '');
+  }
   // a behavior this change stops upholding, said first and in full: what it required, what the change
   // does instead, and what merging means. A fixed behavior is the loud case.
   const fixedBroken = violated.filter(b => b.mutability === 'fixed'), mutableBroken = violated.filter(b => b.mutability !== 'fixed');
@@ -87,7 +93,7 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   const event = counts.error > 0 ? 'REQUEST_CHANGES' : 'COMMENT';
   // a blind spot is said whenever a review is posted, and never the reason to post one: on a young
   // cache most pull requests would get a comment saying the cache knows nothing yet
-  const something = !!(r.error || findings.length || violated.length);
+  const something = !!(r.error || findings.length || violated.length || integrity.length);
   const post = something || !quiet && !r.empty && !r.noCache && (behaviors.length > 0 || (r.notes?.consulted ?? 0) > 0);
   const summary = r.error ? `review failed: ${r.error}` : r.noCache ? 'no cache in this repository' : r.empty ? 'nothing to review' : `${counts.error} errors, ${counts.warning} warnings; ${violated.length} of ${behaviors.length} behaviors violated`;
   return { post, event, body, comments, fail, summary };
@@ -126,4 +132,3 @@ export async function publish({ review, slug, number, sha, token, api = 'https:/
   }
   return { posted: true, dismissed, id: res.json.id, status: res.status };
 }
-

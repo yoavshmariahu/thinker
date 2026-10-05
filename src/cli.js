@@ -21,7 +21,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'run', 'start', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -66,7 +66,11 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --strict makes manual/CI checks fail on issues
                                  --ref commit (default HEAD); --pre-push reads git stdin
   review [paths…] [--staged | --base ref | --ref commit | --state] [--model m] [--max n] [--kinds k,…] [--dry] [--json]
-        [--strict] [--verbose]
+        [--strict] [--verbose] [--task task.json]
+  review --run | --start [--base ref] [--task task.json] [--previous run-id] [--json]
+  review --status run-id [--json] [--strict]
+                                 --run executes the trusted-base verification contract in Docker and reviews a frozen snapshot;
+                                 --start returns immediately; --status shows evidence, failures, gate integrity and freshness
                                  review a change against the cache: two model calls, one with the diff and the code it touched
                                  and one with the notes resting on or bearing on the change, report bugs and violations with
                                  file, line and evidence; the cache's own staleness is reported, not trusted; plus removed

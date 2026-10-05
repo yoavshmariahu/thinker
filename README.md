@@ -145,6 +145,13 @@ pending corrections. Review archives before distributing them.
 
 ## Review a change against the cache
 
+For verification while an agent is implementing a task, use `thinker review
+--start --base origin/main --task task.json`, then `thinker review --status
+<run-id>`. It captures a snapshot, runs a trusted-base Docker contract, and
+returns structured failures plus a human report showing task context, executed
+checks, and changes that may weaken verification. See [task verification](docs/task-verification.md)
+for setup, MCP usage, and the limits of local evidence.
+
 ```bash
 thinker review                      # the working tree against HEAD
 thinker review --staged             # what is about to be committed
