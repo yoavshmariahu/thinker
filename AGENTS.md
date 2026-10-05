@@ -34,8 +34,11 @@ our repository policy guard or require PRs in their repositories.
 Requires Node 20+. Tests: `npm test` (`node --test test/*.test.js`).
 
 **No telemetry from tests or benchmarks (MANDATORY RULE):**
-Always set `THINKER_TELEMETRY=off` when running tests, benchmarks, evaluation
-harnesses, scratch experiments, or their setup/install steps. Ensure every child
+Always set `THINKER_TEST=1` when running tests, benchmarks, evaluation
+harnesses, scratch experiments, or their setup/install steps (`npm test` sets it).
+This single mode blocks production telemetry and automatic background work, keeps
+default usage logs local, and silences machine-wide hooks. `THINKER_TELEMETRY=off`
+remains a valid additional telemetry-only control. Ensure every child
 process inherits it. Never send these runs to the production telemetry endpoint
 or count them as real usage. Telemetry-specific tests may use mocked requests or
 an isolated loopback server only; they must never contact production.

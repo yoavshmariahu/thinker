@@ -1,3 +1,4 @@
+import { isTestMode } from '../test-mode.js';
 import { gitContext, tryImpact } from '../impact-journal.js';
 // The hook entrypoints the agents call (clients.js installs them): prompt, tool and stop, with the
 // background catch-up and team-cache pull they start. JSON on stdin, the client's answer on stdout.
@@ -35,7 +36,7 @@ async function hookCommand(ctx) {
   // THINKER_HOOKS=off silences the hooks outright, as THINKER_MCP=off does the server: for an
   // arm of a benchmark that must see no notes while the wiring is machine-wide.
   const userScope = Boolean(flags.user);
-  if (userScope && process.env.THINKER_HOOKS === 'off') return;
+  if (userScope && (process.env.THINKER_HOOKS === 'off' || (isTestMode() && process.env.THINKER_HOOKS !== 'on'))) return;
   if (userScope) {
     const cwd = ev.cwd || ev.workspace_roots?.[0] || ev.workspaceRoots?.[0];
     if (cwd) { const r = findRepoRoot(cwd); if (r !== ctx.repo) { const base = ctx; ctx = { ...ctx, repo: r, store: new Store(r), mcpEntry: () => base.mcpEntry(r) }; } }
@@ -138,7 +139,7 @@ async function hookCommand(ctx) {
       recordEvent(store.dir, session, { t: 'say', text: last });
       source = traceFile(store.dir, session);
     }
-    if (flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
+    if (isTestMode() || flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
     if (!source || !fs.existsSync(source)) return;
     // Sessions are distilled here, through the agent's own login, whether or not this checkout syncs
     // with a team cache: what they produce reaches the cache as notes, on the next push.
@@ -161,6 +162,7 @@ async function hookCommand(ctx) {
 // From the prompt hook: take what the team cache learned since, at most every five minutes, in the
 // background, so the next prompt is served from it. Nothing when this checkout does not sync.
 export function pullInBackground(ctx) {
+  if (isTestMode()) return;
   const { repo, store, HERE } = ctx;
   if (!syncConfig(store) || !pullDue(store)) return;
   const state = syncState(store); state.pulledAt = new Date().toISOString(); // claim the slot before the pull returns
@@ -174,7 +176,7 @@ const LEARN_IDLE_MIN = 20;
 
 export function learnInBackground(ctx, client, { maintain = true } = {}) {
   const { repo, store, sessionLearning, HERE, NO_LEARN } = ctx;
-  if (NO_LEARN || !sessionLearning()) return;
+  if (isTestMode() || NO_LEARN || !sessionLearning()) return;
   const mark = path.join(store.dir, 'state', 'learn.last');
   try { if (Date.now() - fs.statSync(mark).mtimeMs < 10 * 60_000) return; } catch {}
   fs.mkdirSync(path.dirname(mark), { recursive: true }); fs.writeFileSync(mark, '');

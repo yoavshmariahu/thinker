@@ -1,3 +1,4 @@
+import { isTestMode } from './test-mode.js';
 // Hourly telemetry for Thinker: collects high-level cache effectiveness and cache size metrics.
 // Pseudonymous: no prompt text, note bodies, file paths, code symbols,
 // or repository URLs are ever collected or transmitted.
@@ -20,7 +21,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_TELEMETRY_ENDPOINT = 'https://khsky10r4l.execute-api.us-east-1.amazonaws.com/metrics';
 
 export function isTestTelemetryBlocked(endpoint, env = process.env) {
-  if (env.THINKER_TEST !== '1' && !env.NODE_TEST_CONTEXT) return false;
+  if (!isTestMode(env) && !env.NODE_TEST_CONTEXT) return false;
   try {
     const url = new URL(endpoint);
     return !['http:', 'https:'].includes(url.protocol) || !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
@@ -346,7 +347,7 @@ export function maybeSendTelemetryInBackground({
   event = 'hourly',
   intervalMs = HOUR_MS,
 } = {}) {
-  if (!isTelemetryEnabled({ home, store })) return;
+  if (isTestMode() || !isTelemetryEnabled({ home, store })) return;
   if (isTestTelemetryBlocked(getTelemetryEndpoint({ home }))) return;
   if (process.env.THINKER_IN_LLM) return;
   if (process.env.THINKER_BACKGROUND_UPDATE || process.env.THINKER_BACKGROUND_TELEMETRY) return;

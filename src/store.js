@@ -1,3 +1,4 @@
+import { isTestMode } from './test-mode.js';
 // Note store: one JSON file per note. A repository's shared notes are under <repo>/.thinker/notes/
 // (committed; a team shares them through pull requests), a checkout's own under .thinker/local/.
 import fs from 'node:fs';
@@ -94,7 +95,7 @@ export function repoId(repo) {
 export function logFile(store) {
   const v = process.env.THINKER_LOG;
   if (v === 'off') return null;
-  const scratch = !process.env.THINKER_HOME && isScratchCheckout(store.repo);
+  const scratch = !process.env.THINKER_HOME && (isTestMode() || isScratchCheckout(store.repo));
   if (v === 'local' || (!v && (process.env.THINKER_NOTES_DIR || scratch))) return path.join(store.dir, 'log.jsonl');
   if (v) return path.resolve(v);
   return path.join(process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), 'log.jsonl');

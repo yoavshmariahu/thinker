@@ -512,7 +512,7 @@ test('connect wires the agents into their own settings, once per machine: no --r
 
 test('a hook at user scope takes the checkout from the agent\'s input: notes where it is set up, nothing elsewhere, and the checkout\'s own hooks of this copy are moved out of its way', () => {
   const home = fakeHome();
-  const env = { ...process.env, ...home, THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local', THINKER_TELEMETRY: 'off' };
+  const env = { ...process.env, ...home, THINKER_HOOKS: 'on', THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local', THINKER_TELEMETRY: 'off' };
   const userHook = (what, ev) => execFileSync('node', [CLI, 'hook', what, '--client', 'claude', '--user'], { input: JSON.stringify(ev), encoding: 'utf8', env, cwd: os.tmpdir() }).trim();
   const dir = repo();
   inHome(home, () => installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: ['/x/mcp.js'] }, hooks: true, learn: false, late: true, mcp: true }));
@@ -608,7 +608,7 @@ test('the home directory is not a checkout: .thinker/ there is thinker\'s own ho
   fs.appendFileSync(path.join(dir, '.thinker', 'log.jsonl'), JSON.stringify({ t: new Date().toISOString(), repo: home.HOME, op: 'rewire' }) + '\n');
   const known = inHome({ ...home, THINKER_LOG: 'local' }, () => knownRepos(store, dir));
   assert.ok(!known.includes(fs.realpathSync(home.HOME)), known.join(', '));
-  const env = { ...process.env, ...home, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off' };
+  const env = { ...process.env, ...home, THINKER_HOOKS: 'on', THINKER_TELEMETRY: 'off', THINKER_LOG: 'off' };
   const outp = execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--user'], { input: JSON.stringify({ session_id: 'h1', prompt: PROMPT, cwd: home.HOME }), encoding: 'utf8', env, cwd: home.HOME }).trim();
   assert.equal(outp, '');
 });

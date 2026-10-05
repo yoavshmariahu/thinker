@@ -424,6 +424,27 @@ thinker switch main
 
 See `thinker update --status` for current install and schedule details, or `thinker update --schedule` / `thinker update --unschedule` to manage OS-level background updates.
 
+## Running tests and benchmarks
+
+`npm test` enables test mode automatically. For a benchmark or scratch experiment,
+set one inherited environment flag:
+
+```bash
+THINKER_TEST=1 node bench/your-benchmark.js
+```
+
+Test mode blocks production telemetry and automatic updates, learning, verification,
+sync pulls, and automatic git-hook repairs and reviews. Usage logs default to the checkout, and machine-wide agent hooks
+stay quiet. Explicit commands such as `distill`, `verify`, and `maintain` still work;
+MCP tools remain available. Existing per-feature controls still work when an experiment
+needs them. Set `THINKER_HOOKS=on` only when testing machine-wide hook serving;
+automatic background work stays disabled. Explicit `THINKER_HOME` or `THINKER_LOG`
+settings override the default log location.
+
+This flag affects processes that inherit it; it does not stop an already-running
+worker or an independently scheduled OS job. Use isolated homes and worktrees for
+integration tests that intentionally exercise installation or scheduling.
+
 ## Metrics and telemetry
 
 Thinker records pseudonymous installation and daily effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. Full PR evidence stays local; refresh PR metadata with `thinker impact sync`. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. No prompt text, note bodies, code snippets, file paths, or repository URLs are collected or transmitted.

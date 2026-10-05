@@ -39,7 +39,7 @@ test('note ids cannot escape the notes directory and symlinked note roots are re
 test('a scratch checkout logs locally unless THINKER_HOME says where the machine log is', () => {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-scratch-')));
   const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-home-')));
-  const prevHome = process.env.THINKER_HOME, prevLog = process.env.THINKER_LOG;
+  const prevHome = process.env.THINKER_HOME, prevLog = process.env.THINKER_LOG, prevTest = process.env.THINKER_TEST;
   delete process.env.THINKER_LOG;
   try {
     const store = new Store(repo);
@@ -47,10 +47,14 @@ test('a scratch checkout logs locally unless THINKER_HOME says where the machine
     assert.equal(logFile(store), path.join(repo, '.thinker', 'log.jsonl'));
     process.env.THINKER_HOME = home;
     assert.equal(logFile(store), path.join(home, 'log.jsonl'));
-    // a checkout outside the temp directory still goes to the machine's log
+    // Test mode keeps even non-temporary benchmark worktrees out of the machine log.
     delete process.env.THINKER_HOME;
-    assert.equal(logFile(new Store(process.cwd())), path.join(os.homedir(), '.thinker', 'log.jsonl'));
+    process.env.THINKER_TEST = '1';
+    assert.equal(logFile(new Store('/non-temporary/benchmark')), path.join('/non-temporary/benchmark', '.thinker', 'log.jsonl'));
+    process.env.THINKER_TEST = '0';
+    assert.equal(logFile(new Store('/non-temporary/benchmark')), path.join(os.homedir(), '.thinker', 'log.jsonl'));
   } finally {
+    if (prevTest === undefined) delete process.env.THINKER_TEST; else process.env.THINKER_TEST = prevTest;
     if (prevHome === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = prevHome;
     if (prevLog === undefined) delete process.env.THINKER_LOG; else process.env.THINKER_LOG = prevLog;
     fs.rmSync(repo, { recursive: true, force: true });

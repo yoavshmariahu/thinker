@@ -199,7 +199,7 @@ test('hooks preserve custom hooks and never block commits or pushes', t => {
   fs.writeFileSync(fake, "throw new Error('broken');"); assert.equal(run(), 0);
   fs.writeFileSync(fake, 'process.exit(2);'); assert.equal(run(), 0);
   fs.writeFileSync(path.join(hooks, 'pre-commit'), preCommitHook(fake));
-  const commitHook = () => spawnSync('sh', [path.join(hooks, 'pre-commit')], { cwd: repo, encoding: 'utf8' }).status;
+  const commitHook = () => spawnSync('sh', [path.join(hooks, 'pre-commit')], { cwd: repo, encoding: 'utf8', env: { ...process.env, THINKER_TEST: '0' } }).status;
   assert.equal(commitHook(), 0);
   fs.writeFileSync(fake, 'process.exit(0);'); assert.equal(run(), 0);
   uninstallGitHooks(repo);
@@ -427,7 +427,7 @@ test('pre-commit hook repairs invalid staged notes without blocking a real commi
   git('add', '.thinker/notes/value.json');
   const hook = path.join(repo, '.git', 'hooks', 'pre-commit');
   fs.writeFileSync(hook, preCommitHook(cli), { mode: 0o755 });
-  const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_TEST: '1', THINKER_LOG: 'local', THINKER_NO_AUTO_UPDATE: '1', THINKER_AST: 'off', THINKER_HOME: path.join(repo, 'home') };
+  const env = { ...process.env, THINKER_TELEMETRY: 'off', THINKER_TEST: '0', THINKER_LOG: 'local', THINKER_NO_AUTO_UPDATE: '1', THINKER_AST: 'off', THINKER_HOME: path.join(repo, 'home') };
   const commit = spawnSync('git', ['commit', '-qm', 'with auto repair'], { cwd: repo, encoding: 'utf8', env });
   assert.equal(commit.status, 0, commit.stderr);
   assert.equal(git('ls-files', '.thinker/notes/value.json'), '');
@@ -571,7 +571,7 @@ test('opt-in staged review blocks commits on review failure and index changes, e
     process.exit(1); // note repair remains non-blocking
   `);
   const run = (extra = {}) => spawnSync('git', ['commit', '--allow-empty', '-qm', 'review gate test'], {
-    cwd: repo, encoding: 'utf8', env: { ...process.env, THINKER_TELEMETRY: 'off', THINKER_TEST: '1', ...extra },
+    cwd: repo, encoding: 'utf8', env: { ...process.env, THINKER_TELEMETRY: 'off', THINKER_TEST: '0', ...extra },
   });
   assert.equal(run({ TEST_REVIEW_STATUS: '2' }).status, 0, 'review is off by default');
   git('config', '--local', 'thinker.reviewBeforeCommit', 'true');

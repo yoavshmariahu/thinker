@@ -9,6 +9,7 @@ export const HOOKS = ['pre-commit', 'post-commit', 'post-merge', 'pre-push'];
 export function preCommitHook(cli) {
   return `#!/bin/sh
 # thinker: repair shared notes and optionally review staged code
+[ "$THINKER_TEST" = 1 ] && exit 0
 repo="$(git rev-parse --show-toplevel 2>/dev/null)"
 case "$THINKER_NO_LEARN" in 1|true|yes) ;; *) node ${quote(cli)} share --repair-staged --repo "$repo" ;; esac
 if [ "$(git config --bool thinker.reviewBeforeCommit 2>/dev/null)" = true ]; then
