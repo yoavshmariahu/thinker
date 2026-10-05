@@ -235,6 +235,23 @@ rather than served, and review still reads them: `thinker archive --list` shows 
 back, and `archive` in `.thinker/config.json` sets the rules or turns them
 off.
 
+## Optional review before committing
+
+Enable staged code review for this checkout after running `thinker setup` with
+an updated installation:
+
+```sh
+git config --local thinker.reviewBeforeCommit true
+```
+
+The pre-commit hook repairs shared notes, then runs `thinker review --staged --strict`.
+Error-level findings, fixed behavior violations, or failed assessments stop the commit;
+warnings alone do not. Review uses your configured model and can add latency and token
+usage to each commit. It checks the staged diff and refuses to proceed if the index
+changes during review. `THINKER_NO_LEARN=1` skips note repair but does not skip an
+enabled review. Disable the review with `git config --local thinker.reviewBeforeCommit false`.
+This is opt-in and does not require pull requests or a GitHub App.
+
 ## Delivery outcomes
 
 Thinker works with direct commits as well as pull requests; it does not prescribe
