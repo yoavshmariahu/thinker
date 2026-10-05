@@ -1,5 +1,5 @@
 // What travels between a checkout and the central cache, and the ids both sides check. Shared by
-// the client (sync.js) and the server (server/repos.js); it lives outside src/server because the
+// the internal server (server/repos.js); it lives outside src/server because the
 // public release archive leaves the server out (scripts/pack.sh) and the client must still load.
 import crypto from 'node:crypto';
 import { sharedContent } from './store.js';

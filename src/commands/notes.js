@@ -48,7 +48,7 @@ async function systemCommand(ctx) {
     const input = JSON.parse(pos[0] ? fs.readFileSync(pos[0], 'utf8') : readStdin());
     const r = addBehavior(store, input, { mutability });
     if (r.error) { out('error: ' + r.error); process.exit(1); }
-    out(`saved ${r.note.id} (${r.note.mutability})` + (r.dropped.length ? ` (dropped: ${JSON.stringify(r.dropped)})` : '') + `; commit it with thinker share ${r.note.id}`);
+    out(`saved ${r.note.id} (${r.note.mutability})` + (r.dropped.length ? ` (dropped: ${JSON.stringify(r.dropped)})` : ''));
   } else if (sub === 'promote' || sub === 'accept') {
     if (!pos.length) { out(`usage: thinker system ${sub} <id…> [--fixed | --mutable]`); process.exit(1); }
     for (const id of pos) { const r = promoteBehavior(store, id, { mutability: mutability || 'mutable' }); out(r.error ? `${id}: ${r.error}` : r.unchanged ? `${id}: already a ${r.note.mutability} behavior` : `${id}: now a ${r.note.mutability} behavior`); }

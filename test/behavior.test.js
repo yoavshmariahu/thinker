@@ -14,8 +14,6 @@ import { createNote, verifyNote, refresh, lookup, archiveReason, distillKinds, n
 import { distillSpec } from '../src/distill.js';
 import { listBehaviors, renderBehaviors, renderSystemMarkdown, promoteBehavior, proposeBehaviors, addBehavior, behaviorState } from '../src/behavior.js';
 import { review, resolveScope, renderReview, noteFileChanged, assessHolistic, selectNotes, collectChange, makeReader } from '../src/review.js';
-import { repairStaged } from '../src/share-repair.js';
-import { share } from '../src/share.js';
 import { maintenanceNotice } from '../src/maintain.js';
 
 const cli = fileURLToPath(new URL('../src/cli.js', import.meta.url));
@@ -93,7 +91,7 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   assert.equal(refresh(store, [store.get(n.id)])[0].status, 'violated');
   assert.equal(behaviorState(store.get(n.id)), 'violated');
   assert.match(renderBehaviors(listBehaviors(store)), /^violated\s+\[fixed, local\].*\n\s+since [0-9a-f]{10}: invoke no longer calls validate/m);
-  assert.match(maintenanceNotice(store), /desired behavior is no longer upheld by the code: "Every command validates its context before running"/);
+  assert.match(maintenanceNotice(store), /1 desired behavior needs review/);
   assert.equal(maintenanceNotice(store), '');
   // 2. committed on a branch: still violated
   git('checkout', '-qb', 'feature'); git('add', 'src'); git('commit', '-qm', 'drop validation on a branch'); // src only: .thinker/ state stays untracked
@@ -115,7 +113,7 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   assert.equal(behaviorState(v), 'holds');
   const revisedBody = v.body;
   assert.match(renderBehaviors(listBehaviors(store)), /holds\s+\[fixed, local, revised \d{4}-\d\d-\d\d to match [0-9a-f]{10}\]/);
-  assert.match(maintenanceNotice(store), /desired behavior was revised to match the merged code: "Every command validates its context before running"/);
+  assert.match(maintenanceNotice(store), /1 desired behavior revised/);
   // the code is restored on main: stale again, then holds
   write('src/core.py', CORE); commit('restore validation');
   [stale] = refresh(store, [store.get(n.id)]);
@@ -140,7 +138,7 @@ test('a review reports code that stops upholding a behavior as a violation; a mu
   const { repo, store, write, commit, behavior, git } = fixture(t);
   const fixed = behavior({ mutability: 'fixed' });
   const mutable = behavior({ id: 'entry-validates-too', title: 'The CLI entry validates before invoking', body: 'cli.py:entry calls core.py:validate before core.py:Command.invoke.', answers: ['does entry validate'], deps: [{ path: 'src/cli.py', symbol: 'entry' }] });
-  share(store, { ids: [fixed.id, mutable.id] }); commit('notes');
+  store.promote(fixed); store.promote(mutable); commit('notes');
   write('src/core.py', CORE.replace('        validate(ctx)\n', ''));
   write('src/cli.py', CLI.replace('    validate(ctx)\n', ''));
   const seen = [];
@@ -189,19 +187,6 @@ test('the holistic call turns a behavior it calls outdated into a finding, and n
   assert.equal(r.outdated.length, 0);
   assert.equal(r.findings.length, 1); assert.equal(r.findings[0].severity, 'error'); assert.equal(r.findings[0].note, n.id);
   assert.match(r.findings[0].message, /no longer upheld: invoke does not validate any more/);
-});
-
-test('the commit-time repair leaves a behavior alone, and sharing commits it', async t => {
-  const { repo, store, write, commit, behavior, git } = fixture(t);
-  const n = behavior();
-  const s = share(store, { ids: [n.id] });
-  assert.deepEqual(s.ready.map(x => x.id), [n.id]);
-  commit('note');
-  write('src/core.py', CORE.replace('        validate(ctx)\n', ''));
-  git('add', '-A');
-  const actions = await repairStaged(store, { decide: async () => ({ verdict: 'invalid', reason: 'no longer accurate', body: '', deps: [] }) });
-  assert.deepEqual(actions.map(a => [a.id, a.action]), [[n.id, 'left']]);
-  assert.ok(fs.existsSync(path.join(store.notesDir, `${n.id}.json`)));
 });
 
 test('promote makes a rule note a behavior, propose lists the candidates, and the markdown is written', t => {

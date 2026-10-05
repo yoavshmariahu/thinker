@@ -221,7 +221,7 @@ export async function executeVerification(repo, id, { runReview = review, runner
 }
 
 const clean = v => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/[<>|`]/g, c => ({ '<': '&lt;', '>': '&gt;', '|': '\\|', '`': '\\`' })[c]);
-export function renderVerification(r) {
+export function renderVerification(r, { portable = false } = {}) {
   const lines = [`# Verification: ${r.freshness?.status === 'superseded' ? 'superseded' : r.status}`, '',
     `Run: ${r.id}`, `Created: ${r.createdAt}${r.completedAt ? '; completed: ' + r.completedAt : ''}`, `Candidate: ${r.snapshot.tree} · target: ${r.snapshot.target}`, `Evidence: ${r.trust}; CI acceptance: ${r.ciAccepted ? 'yes' : 'not established'}`, ''];
   if (r.freshness?.reasons?.length) lines.push(`Evidence outdated: ${r.freshness.reasons.join('; ')}`, '');
@@ -238,7 +238,7 @@ export function renderVerification(r) {
     lines.push(`| ${c.id} | ${c.status} | ${c.passedTests?.length || 0} test passes; ${c.skippedTests?.length || 0} skipped/todo |`);
     if (c.error || c.reportError) lines.push('', clean(c.error || c.reportError));
     for (const f of c.failures || []) lines.push('', `**${clean(f.test || c.id)}:** ${clean(f.message)}`, `- Location: ${clean(f.location?.file || '')}${f.location?.line ? ':' + f.location.line : ''}`, `- Expected: ${clean(JSON.stringify(f.expected))}; actual: ${clean(JSON.stringify(f.actual))}`, `- Reproduce: \`${clean(f.reproduction?.command)}\` (not reduced; reproduction not confirmed)`, '- Flake classification: unknown. Cause: not established.');
-    if (c.artifact) lines.push('', `[Full output for ${c.id}](${encodeURI(c.artifact)})`);
+    if (c.artifact) lines.push('', portable ? `Full output: ${c.id}.log (stored locally; not uploaded).` : `[Full output for ${c.id}](${encodeURI(c.artifact)})`);
   }
   if (!r.checks.length) lines.push('| Required checks | Not run | No execution evidence |');
   lines.push('', '## Gate integrity', '', r.integrity?.findings.length ? 'Needs human review:' : r.integrity ? 'No pattern-based weakening signals found.' : 'Not assessed.');

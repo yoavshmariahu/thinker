@@ -15,7 +15,6 @@ import { refresh, attest, outcome, distillKinds } from '../ops.js';
 import { batchProgress, oneLine } from '../progress.js';
 import { FIX_LIKE, listMergedPrs, listMergedCommits, distillPr, minedPrs, recordMinedPrs, nextPrs, pickPrs } from '../prs.js';
 import { selectMenu, getAgentDisplayName } from '../setup.js';
-import { syncConfig, syncNotes } from '../sync.js';
 import { discoverAreas } from '../topology.js';
 import { recordEvent, traceFile, toolName, toolInput, hydrate, findSessions } from '../transcripts.js';
 import { sessionKey } from '../usage.js';
@@ -104,10 +103,8 @@ export async function runMaintain(ctx, { quiet, dry }) {
   if (!store.exists()) return;
   const slug = githubSlug(repo);
   const canMine = provider() && (slug ? hasBin('gh') : true);
-  const sc = syncConfig(store);
   const r = await maintain(store, repo, { dry, fns: {
     minePrs: canMine ? ({ after, limit }) => minePrs(ctx, slug, { after, before: new Date().toISOString(), limit, repo, phase: 'maintenance' }) : undefined,
-    sync: sc && !dry ? () => syncNotes(store, sc) : undefined,
   } });
   if (!quiet) out(renderMaintain(r));
 }

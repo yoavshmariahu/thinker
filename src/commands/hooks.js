@@ -1,9 +1,8 @@
 import { isTestMode } from '../test-mode.js';
 import { gitContext, tryImpact } from '../impact-journal.js';
 // The hook entrypoints the agents call (clients.js installs them): prompt, tool and stop, with the
-// background catch-up and team-cache pull they start. JSON on stdin, the client's answer on stdout.
+// background catch-up they start. JSON on stdin, the client's answer on stdout.
 import fs from 'node:fs';
-import { beginPrompt, currentPrompt, promptHint, withPromptDelivery } from '../prompt-delivery.js';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { MORE_NOTES_INTRO, CACHE_LEARNING_GUIDE } from '../cache-guidance.js';
@@ -12,7 +11,6 @@ import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession } from '../ops.js';
-import { syncConfig, pullDue, syncState } from '../sync.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice } from '../usage.js';
 
@@ -59,7 +57,6 @@ async function hookCommand(ctx) {
     if (client === 'copilot' || client === 'cursor') takePending(store.dir, session);
     if (client === 'cursor') out(JSON.stringify({ continue: true })); // cannot add context here; see clients.js
     if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
-    if (store.exists()) pullInBackground(ctx);
     // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
     if (store.exists()) { try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {} }
     // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command):
@@ -71,11 +68,10 @@ async function hookCommand(ctx) {
     if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
     if (session !== 'unknown') rememberTask(store, session, ev.prompt);
     // a held-out session is served nothing by the hooks, and what it would have been served is logged (ops.js:holdoutSession)
-    const promptId = beginPrompt(store, session);
-    const r = await withPromptDelivery(store, promptId, delivery => orient(store, { delivery, task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) }));
-    if (r.holdout) return;
+    const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) });
+    if (!r.included.length) return;
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}${n.status === 'stale' ? ' ⚠ STALE' : ''}  (id: ${n.id})`).join('\n')}` : '';
-    const text = r.included.length ? `<thinker-cache>\n${promptHint(promptId)}\n\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify. For code no note maps, thinker's find lists the definitions carrying the words the code would use; drilldown reads them.\n\n${r.text}${more}${!NO_LEARN && sessionLearning() ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>` : `<thinker-prompt>\n${promptHint(promptId)}\n</thinker-prompt>`;
+    const text = `<thinker-cache>\nNotes about this repo from earlier sessions. Their tracked code dependencies were re-hashed just now${r.included.some(n => n.status === 'stale') ? '; check notes marked STALE against code' : ' and match the working tree'}. Use matching pointers to reach the code; ignore neighboring topics. A fresh note is a map, not a complete plan for this change. Look up only a specific missing answer, then edit and verify. For code no note maps, thinker's find lists the definitions carrying the words the code would use; drilldown reads them.\n\n${r.text}${more}${!NO_LEARN && sessionLearning() ? '\n\n' + CACHE_LEARNING_GUIDE : ''}\n</thinker-cache>`;
     if (client === 'cursor' || client === 'copilot') parkPending(store.dir, session, text);
     else out(promptOutput(client, text));
   } else if (pos[0] === 'tool') {
@@ -100,7 +96,7 @@ async function hookCommand(ctx) {
       const turn = path.join(store.dir, 'state', `oriented-${String(ev.generation_id || session).replace(/[^\w.-]/g, '_')}`);
       if (!p && !mcpCall && !fs.existsSync(turn) && ev.transcript_path && fs.existsSync(ev.transcript_path) && store.list().length) {
         const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-        if (task) { const promptId = currentPrompt(store, session) || beginPrompt(store, session); const r = await withPromptDelivery(store, promptId, delivery => orient(store, { delivery, task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) })); if (r.included.length) p = `<thinker-cache>\n${promptHint(promptId)}\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
+        if (task) { const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout: holdoutSession(store, session) }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}\n</thinker-cache>`; }
       }
       fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '');
       if (p && !mcpCall) parts.push(p);
@@ -109,7 +105,7 @@ async function hookCommand(ctx) {
       const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
       // an edit tool, or a shell command that writes a file in place
       const edited = name === 'Edit' || name === 'Write' || (name === 'Bash' && /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/.test(command));
-      const r = await withPromptDelivery(store, currentPrompt(store, session), delivery => lateNotes(store, { session, client, files: toolFiles(ev, repo), edited, delivery }));
+      const r = lateNotes(store, { session, client, files: toolFiles(ev, repo), edited });
       if (r.text) parts.push(r.text);
     }
     if (parts.length) out(toolOutput(client, parts.join('\n\n')));
@@ -143,8 +139,7 @@ async function hookCommand(ctx) {
     }
     if (isTestMode() || flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
     if (!source || !fs.existsSync(source)) return;
-    // Sessions are distilled here, through the agent's own login, whether or not this checkout syncs
-    // with a team cache: what they produce reaches the cache as notes, on the next push.
+    // Sessions are distilled locally through the agent's own login.
     // Distilling a session is a model call of its own (about 25k tokens); it draws on the same
     // daily token cap as maintenance, so a long day of work cannot run through the agent's usage
     const cap = withinDailyCap(store);
@@ -159,17 +154,6 @@ async function hookCommand(ctx) {
     if (!ending) learnInBackground(ctx, client, { maintain: false });
   }
   return;
-}
-
-// From the prompt hook: take what the team cache learned since, at most every five minutes, in the
-// background, so the next prompt is served from it. Nothing when this checkout does not sync.
-export function pullInBackground(ctx) {
-  if (isTestMode()) return;
-  const { repo, store, HERE } = ctx;
-  if (!syncConfig(store) || !pullDue(store)) return;
-  const state = syncState(store); state.pulledAt = new Date().toISOString(); // claim the slot before the pull returns
-  try { fs.mkdirSync(store.localDir, { recursive: true }); fs.writeFileSync(path.join(store.localDir, 'sync.json'), JSON.stringify(state)); } catch {}
-  spawn('node', [path.join(HERE, 'cli.js'), 'sync', '--pull', '--quiet', '--repo', repo], { detached: true, stdio: 'ignore', env: process.env }).unref();
 }
 
 // From a hook: start catch-up in the background, at most every ten minutes.

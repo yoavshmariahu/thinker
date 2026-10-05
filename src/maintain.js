@@ -11,7 +11,6 @@ import path from 'node:path';
 import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
-import { reconcileLocal, readyToShareNotice } from './share.js';
 import { writeSystemMarkdown } from './behavior.js';
 
 export const DEFAULTS = {
@@ -115,14 +114,11 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
   try { if (Date.now() - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; } catch {}
   if (!dry) fs.writeFileSync(lock, String(process.pid));
   const state = readState(store);
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, sync: null, tokens: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, phrased: 0, prs: 0, tokens: 0, capped: false, errors: 0 };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
   try {
-    if (!dry) reconcileLocal(store);
-    // 0. the team's central cache, when this checkout syncs with one (sync.js): free, network only
-    if (fns.sync) { try { r.sync = await fns.sync(); } catch { r.errors++; } }
     // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
     // served in a month, leave serving and upkeep and stay for review (ops.js:archiveNotes)
     if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch { r.errors++; } }
@@ -166,9 +162,7 @@ export async function maintain(store, repo, { dry = false, fns = {} } = {}) {
     if (liveState.violated?.length) u.violated = liveState.violated;
     if (liveState.revised?.length) u.revised = liveState.revised;
     if (r.revised && !dry) { try { writeSystemMarkdown(store); } catch {} }
-    if (!dry) { const notice = readyToShareNotice(store); if (notice) u.share = notice; }
     for (const k of ['verified', 'updated', 'retired', 'archived', 'phrased', 'prs']) u[k] = (u[k] || 0) + r[k];
-    if (r.sync && !r.sync.skipped) { u.pulled = (u.pulled || 0) + (r.sync.pulled || 0) + (r.sync.deleted || 0); u.pushed = (u.pushed || 0) + (r.sync.pushed || 0) + (r.sync.retired || 0); }
     // churning notes are named once; a note named before is not named again until it settles
     const named = new Set(state.churnNamed || []);
     const fresh = r.churning.filter(id => !named.has(id));
@@ -196,33 +190,29 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   const u = state.unreported;
   if (!u) return '';
   const parts = [];
-  if (u.verified) {
-    const detail = [u.updated ? `${u.updated} updated` : '', u.retired ? `${u.retired} retired` : ''].filter(Boolean).join(', ');
-    parts.push(`${u.verified} stale ${u.verified === 1 ? 'note' : 'notes'} re-verified${detail ? ` (${detail})` : ''}`);
-  }
-  if (u.phrased) parts.push(`${u.phrased} ${u.phrased === 1 ? 'note' : 'notes'} phrased`);
-  if (u.archived) parts.push(`${u.archived} ${u.archived === 1 ? 'note' : 'notes'} archived: kept for review, no longer served or re-verified (thinker archive --list)`);
-  if (u.prs) parts.push(`${u.prs} ${u.prs === 1 ? 'note' : 'notes'} from merged pull requests`);
-  if (u.pulled || u.pushed) parts.push(`team cache: ${[u.pulled ? `${u.pulled} ${u.pulled === 1 ? 'note' : 'notes'} pulled` : '', u.pushed ? `${u.pushed} pushed` : ''].filter(Boolean).join(', ')}`);
-  if (u.share) parts.push(u.share);
-  if (u.pruned?.length) parts.push(...u.pruned);
+  const updated = u.updated || 0;
+  const retired = u.retired || 0;
+  if (u.verified) parts.push(`${u.verified} checked${updated ? `, ${updated} updated` : ''}${retired ? `, ${retired} retired` : ''}`);
+  if (u.phrased) parts.push(`${u.phrased} phrased`);
+  if (u.archived) parts.push(`${u.archived} archived`);
+  if (u.prs) parts.push(`${u.prs} PR notes`);
+  if (u.pruned?.length) parts.push('Thinker setup updated');
   if (u.capped) {
     const day = capDay(now);
     if ((!u.capped.day || u.capped.day === day) && !capWasReported(store, day)) {
-      parts.push(`learning paused for today: ${formatTokens(u.capped.spent)} of the ${formatTokens(u.capped.cap)} tokens it may use a day are used (maintain.dailyTokens in .thinker/config.json raises it)`);
-      // Separate from maintain.json: a background run can rewrite that state after this notice.
+      parts.push('learning paused at the daily token limit');
       try { fs.writeFileSync(capNoticeFile(store), JSON.stringify({ day })); } catch {}
     }
     delete u.capped;
     try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
   }
-  if (u.revised?.length) parts.push(`✎ ${u.revised.length === 1 ? 'a desired behavior was' : `${u.revised.length} desired behaviors were`} revised to match the merged code: ${u.revised.slice(0, 3).map(v => `"${v.title}" (${v.id}${v.commit ? ` at ${String(v.commit).slice(0, 10)}` : ''}${v.reason ? `: ${v.reason.slice(0, 120)}` : ''})`).join('; ')}${u.revised.length > 3 ? ', …' : ''}; thinker system shows the new text`);
-  if (u.violated?.length) parts.push(`⚠ ${u.violated.length === 1 ? 'a desired behavior is' : `${u.violated.length} desired behaviors are`} no longer upheld by the code: ${u.violated.slice(0, 3).map(v => `"${v.title}" (${v.id}${v.reason ? `: ${v.reason.slice(0, 120)}` : ''})`).join('; ')}${u.violated.length > 3 ? '; …' : ''}; restore the code or revise the behavior (thinker system)`);
-  if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} left stale after being re-verified ${maintainConfig(store).verifyChurn}+ times this week (${u.churning.slice(0, 3).join(', ')}${u.churning.length > 3 ? ', …' : ''}): their code is changing; narrow their pointers or retire them`);
+  if (u.revised?.length) parts.push(`${u.revised.length} desired ${u.revised.length === 1 ? 'behavior revised' : 'behaviors revised'}; see thinker system`);
+  if (u.violated?.length) parts.push(`${u.violated.length} desired ${u.violated.length === 1 ? 'behavior needs review' : 'behaviors need review'}; run thinker review`);
+  if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} repeatedly stale; narrow pointers or retire them`);
   if (!parts.length) return '';
   delete state.unreported;
   try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
-  return `🧠 thinker: in the background, ${parts.join('; ')}`;
+  return `🧠 thinker: ${parts.join('; ')}`;
 }
 
 // After a commit: re-hash in the background; with learning on, one maintenance run instead.
@@ -248,6 +238,5 @@ export function renderMaintain(r) {
   if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
   if (r.archived) bits.push(`${r.archived} archived`);
   bits.push(`${r.phrased} phrased`, `${r.prs} from pull requests`);
-  if (r.sync && !r.sync.skipped) bits.push(`team cache ${r.sync.pulled + (r.sync.deleted || 0)}↓ ${r.sync.pushed + (r.sync.retired || 0)}↑`);
   return `maintained: ${bits.join(', ')}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}${r.capped ? '; daily token cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
 }

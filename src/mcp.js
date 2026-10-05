@@ -4,8 +4,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import fs from 'node:fs';
-import { randomUUID } from 'node:crypto';
-import { promptScope, withPromptDelivery } from './prompt-delivery.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot } from './store.js';
@@ -47,24 +45,17 @@ const emptyCache = () => store.list().length ? '' : `The cache is empty: no note
 // When no note answers, the definitions whose code carries the words of the request, from `find`:
 // in a week of real sessions `find` was never called (Claude Code defers MCP tools; agents grep
 // instead), so a miss hands its first results over rather than naming the tool.
-const codeFallback = (q, delivery) => {
+const codeFallback = q => {
   if (!String(q || '').trim()) return '';
   try {
-    const r = find(store, { query: q, limit: 6, client: 'mcp-fallback', delivery });
+    const r = find(store, { query: q, limit: 6, client: 'mcp-fallback' });
     if (r.error || !r.hits?.length) return '';
     return `By text search instead (not notes; find takes the words the code would use, drilldown the pointers that fit):\n${r.text}\n\n`;
   } catch { return ''; }
 };
 
-const deliveryConnection = randomUUID();
-const noNewNotes = 'No new matching notes for this prompt. Previously delivered notes are already in your context; their bodies and snippets are not repeated.';
-
 function registerTools() {
-  const register = server.registerTool.bind(server);
-  const retrieval = (name, spec, handler) => register(name, {
-    ...spec,
-    inputSchema: { ...spec.inputSchema, prompt_id: z.string().min(1).max(128).describe('Unique ID for the current USER PROMPT, shared by orient, lookup, find and drilldown. Use the Thinker prompt_id supplied in this prompt; if none was supplied, choose a fresh unique ID. Reuse it for all retrieval calls in this prompt; choose a NEW ID for the next user prompt, even if its text is identical.') },
-  }, args => withPromptDelivery(store, promptScope(store, args.prompt_id, deliveryConnection), delivery => handler({ ...args, delivery })));
+  const retrieval = server.registerTool.bind(server);
 
   retrieval('orient', {
     title: 'Orient in this repo',
@@ -74,12 +65,11 @@ function registerTools() {
       file: z.string().optional().describe('Path of the file you are currently in or about to edit, if known.'),
       budget: z.number().int().min(200).max(8000).optional().describe('Max tokens of notes to return (default 1000); the code behind the pointers may add up to about 600.'),
     },
-  }, async ({ task = '', file, budget, delivery }) => {
+  }, async ({ task = '', file, budget }) => {
     if (!task.trim() && !file) return text('orient needs the task. Call it again with {"task": "<the user request, in one or two sentences>"}.');
     // the agent named a budget: let it decide how many notes are served, not the two-note default of the hooks
-    const r = await orient(store, { task, file, client: 'mcp', delivery, budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
-    if (!r.included.length && delivery.suppressed.size) return text(noNewNotes);
-    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}${codeFallback(task, delivery)}Explore from there, then call remember with what you learn.`);
+    const r = await orient(store, { task, file, client: 'mcp', budget: budget || 1000, snippets: snippetsOn(store), ...(budget ? { maxNotes: 5, relFloor: 0.7 } : {}) });
+    if (!r.included.length) return text(`${emptyCache() || `No cached notes match this task (${store.list().length} notes in cache). `}${codeFallback(task)}Explore from there, then call remember with what you learn.`);
     const more = r.more?.length ? `\n\n${MORE_NOTES_INTRO}\n${r.more.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : '';
     const notes = `Cached knowledge for this task (${r.included.length} notes, ~${r.tokens} tokens):\n\n${r.text}${more}`;
     return text(notes);
@@ -94,16 +84,14 @@ function registerTools() {
       budget: z.number().int().min(200).max(8000).optional(),
       maxNotes: z.number().int().min(1).max(10).optional().describe('Maximum number of notes to return (default 3)'),
     },
-  }, async ({ query, kind, budget, maxNotes, delivery }) => {
-    const r = lookup(store, { query: query || '', kind, client: 'mcp', delivery, budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
+  }, async ({ query, kind, budget, maxNotes }) => {
+    const r = lookup(store, { query: query || '', kind, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     if (kind === 'behavior' && !String(query || '').trim()) {
-      const rows = listBehaviors(store).filter(n => !delivery.suppressed.has(n.id));
-      if (!rows.length && delivery.suppressed.size) return text(noNewNotes);
+      const rows = listBehaviors(store);
       if (!rows.length) return text('No desired behaviors are written down for this repository yet (a person adds them with `thinker system add`).');
       return text(`Desired behaviors of the system (${rows.length}; the code must uphold each; a review checks changes against them):\n${behaviorsSummary(rows)}\n\n${r.text}${r.omitted?.length ? `\n\n(${r.omitted.length} more not shown for the budget; lookup by id for one)` : ''}`);
     }
-    if (!r.included.length && delivery.suppressed.size) return text(noNewNotes);
-    if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query, delivery) || 'Try fewer or different words, or an identifier from the code. '}`);
+    if (!r.included.length) return text(emptyCache() || `Nothing cached about that. ${codeFallback(query) || 'Try fewer or different words, or an identifier from the code. '}`);
     return text(r.text);
   });
 
@@ -115,8 +103,8 @@ function registerTools() {
       path: z.string().optional().describe('Keep only paths containing this (e.g. "src/click", "api/"), or a glob (e.g. "**/*.py").'),
       limit: z.number().int().min(1).max(40).optional().describe('How many definitions to list (default 12).'),
     },
-  }, async ({ query, path, limit, delivery }) => {
-    const r = find(store, { query, path, limit: limit || 12, client: 'mcp', delivery });
+  }, async ({ query, path, limit }) => {
+    const r = find(store, { query, path, limit: limit || 12, client: 'mcp' });
     return text(r.error ? r.error : r.text);
   });
 
@@ -125,14 +113,14 @@ function registerTools() {
     description: 'Takes pointers as orient, lookup and find print them (path:Symbol, path:Symbol:L12), a path, or a bare symbol name; several at once, separated by commas. Returns each definition whole with its exact lines (a long class as its head and the outline of its members), for a single pointer also one hop of callers and callees, and the cached notes resting on the code. Use it instead of reading the file and grepping for the name; a path alone lists what the file defines.',
     inputSchema: {
       pointer: z.string().describe('path:Symbol, path, or Symbol; several separated by commas or spaces'),
-      budget: z.number().int().min(300).optional().describe('Max tokens to return (default 2500, capped at 12000); the code gets most of it. Raise it for a long definition.'),
+      budget: z.number().int().min(300).max(12000).optional().describe('Max tokens to return (default 2500); the code gets most of it. Raise it for a long definition.'),
     },
-  }, async ({ pointer, budget, delivery }) => {
-    const r = drilldown(store, { pointer, client: 'mcp', delivery, budget: Math.min(budget || 2500, 12000) });
+  }, async ({ pointer, budget }) => {
+    const r = drilldown(store, { pointer, client: 'mcp', budget: budget || 2500 });
     return text(r.error ? r.error : r.text);
   });
 
-  register('review', {
+  retrieval('review', {
     title: 'Review a change against the cache',
     description: 'During implementation, supply task context to assess intent and unresolved questions. Use action start for asynchronous snapshot verification in Docker, then status with runId for structured failures and human evidence. Default assess checks the change against the desired behaviors of the system (rules a person wrote; the code must uphold them: a violation of a fixed one is an error, a mutable one may be revised only by a change that edits its note) and against the cached notes that rest on the changed code or bear on it (invariants, conventions, traps). Reports violations and bugs with file:line and evidence, every behavior in play with its outcome (upheld, violated, revised), and removed symbols still referenced. With kinds ["behavior"] only the desired behaviors are consulted, one call per behavior in play. Notes that were already stale are reported as cache drift, not as faults of the change. Default scope: the working tree against HEAD. Two model calls, so it takes up to a minute.',
     inputSchema: {
@@ -160,7 +148,7 @@ function registerTools() {
     } catch (e) { return text(`review failed: ${String(e.message || e).slice(0, 300)}`); }
   });
 
-  register('remember', {
+  retrieval('remember', {
     title: 'Save a reusable note',
     description: `Save something you had to work out that a future agent would otherwise re-derive with several greps/reads. Good notes answer a recurring question: WHERE something happens, a CALL PATH across files, what must CHANGE TOGETHER, HOW TO build/test/run, a local CONVENTION, a GOTCHA, or WHY something is the way it is (rejected approaches, incident-driven constraints). Do NOT save plain summaries of what a file does. Be concrete: name files and symbols. Every note must list the files/symbols it depends on; the cache hashes them and flags the note stale when they change. Kinds: rule (what a change must respect: an invariant, a convention, a trap, a fix not to undo, a reason, what changes together and why), map (where something is handled, a call path, a module map), howto, behavior. A note of kind behavior is a desired behavior of the system the code must keep upholding (say where it is enforced); from an agent it is a proposal until a person accepts it with thinker system accept.`,
     inputSchema: {
@@ -181,7 +169,7 @@ function registerTools() {
     return text(`Saved note ${r.note.id} with ${r.note.deps.length} tracked dependencies${warn}.`);
   });
 
-  register('feedback', {
+  retrieval('feedback', {
     title: 'Report whether a note was right',
     description: 'After using a cached note, report whether it was accurate. If it was wrong or outdated, give the corrected body so the cache improves. Wrong notes lose confidence and are eventually retired.',
     inputSchema: {

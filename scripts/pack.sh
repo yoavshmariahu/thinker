@@ -49,4 +49,4 @@ else
 fi
 chmod +x "$dist/install.sh"
 echo "built $dist/thinker.tgz, $dist/version.json ($(du -h "$dist/thinker.tgz" | cut -f1)) and $dist/install.sh"
-if [ -n "$base" ]; then echo "upload all three files to ${base%/}/ ; users run: curl -fsSL ${base%/}/install.sh | bash -s -- --cache <cache-url>"; fi
+if [ -n "$base" ]; then echo "upload all three files to ${base%/}/ ; users run: curl -fsSL ${base%/}/install.sh | bash -s -- --no-build"; fi

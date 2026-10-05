@@ -1,4 +1,4 @@
-// The cache as a whole: sharing and reviewing (share, review), moving it (export, import, sync), the
+// Local cache review, backup and restore (export, import), the
 // MCP server (serve), and what it holds and did (health, stats, usage).
 import path from 'node:path';
 import fs from 'node:fs';
@@ -6,43 +6,16 @@ import { startVerification, prepareVerification, executeVerification, readVerifi
 import { spawn } from 'node:child_process';
 import { refresh } from '../ops.js';
 import { review, renderReview, resolveScope } from '../review.js';
-import { repairStaged } from '../share-repair.js';
-import { share, validateShare, validatePush } from '../share.js';
-import { syncConfig, syncNotes, pull as syncPull, push as syncPush, login as syncLogin, logout as syncLogout, status as syncStatus, renderStatus as renderSyncStatus } from '../sync.js';
+import { postComment } from '../review-post.js';
 import { subsystemForFile } from '../topology.js';
 import { exportCache, importCache } from '../transfer.js';
 import { summarize, renderUsage } from '../usage.js';
 import { stats, renderStats } from '../stats.js';
 
-async function shareCommand(ctx) {
-  const { pos, flags, repo, store, out, readStdin } = ctx;
-  if (flags['repair-staged']) {
-    const actions = await repairStaged(store, { dry: !!flags.dry, model: flags.model, ...(flags.cap !== undefined ? { cap: Number(flags.cap) } : {}) });
-    for (const a of actions) out(`${flags.dry ? 'would ' : ''}${a.action} ${a.id}: ${a.reason}`);
-    const n = k => actions.filter(a => a.action === k).length;
-    if (actions.length) out(`thinker: ${n('update')} corrected, ${n('remove')} removed from this commit${n('left') ? `, ${n('left')} left as they are for maintenance to verify` : ''}${n('deferred') ? `, ${n('deferred')} left for maintenance (--cap n changes the limit)` : ''}${n('update') + n('remove') ? '; originals saved locally' : ''}`);
-  } else if (flags.check || flags['pre-push']) {
-    const opts = { base: typeof flags.base === 'string' ? flags.base : undefined, ref: flags.ref || 'HEAD', strict: !!flags.strict, remote: flags.remote || 'origin' };
-    const results = flags['pre-push'] ? validatePush(repo, readStdin(), opts) : [validateShare(repo, opts)];
-    for (const r of results) {
-      for (const w of r.warnings) out(`warning ${w.id}: ${w.message}`);
-      for (const e of r.errors) out(`${flags.strict && !flags['pre-push'] ? 'error' : 'warning'} ${e.id}: ${e.message}`);
-      out(`checked ${r.checked} shared notes at ${r.ref.slice(0, 10)}: ${r.errors.length} issues, ${r.warnings.length} other warnings${flags['pre-push'] ? '; push allowed' : ''}`);
-    }
-    if (flags.strict && !flags['pre-push'] && results.some(r => r.errors.length)) process.exitCode = 2;
-  } else {
-    const result = share(store, { ids: pos, all: !!flags.all, dry: !!flags.dry });
-    for (const r of result.ready) out(`${flags.dry ? 'would ' : ''}${r.action} ${r.id}`);
-    for (const r of result.skipped) out(`skip ${r.id}: ${r.reasons.join('; ')}`);
-    for (const r of result.superseded) out(`superseded ${r.id}: a pull replaced this note while a change to it (${r.fields.join(', ')}) was unshared here; thinker show ${r.id} prints it`);
-    for (const u of result.unreadable) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
-    out(`${result.ready.length} notes ${flags.dry ? 'ready to share' : 'shared; review and commit .thinker/notes/'}`);
-  }
-  return;
-}
-
 async function reviewCommand(ctx) {
   const { pos, flags, repo, store, out } = ctx;
+  if (flags.post && !/^[1-9]\d*$/.test(String(flags.pr || ''))) throw new Error('--post requires --pr <number>');
+  if (flags.post && flags.dry) throw new Error('--post cannot be combined with --dry');
   const task = typeof flags.task === 'string' ? JSON.parse(fs.readFileSync(path.resolve(flags.task), 'utf8')) : undefined;
   if (flags.run || flags.start || flags.status) {
     if (pos.length || flags.state || flags.staged && flags.ref) throw new Error('Verification checks the full snapshot; paths/state and staged+ref are not supported');
@@ -51,7 +24,9 @@ async function reviewCommand(ctx) {
     if (flags.status) result = readVerification(repo, flags.status);
     else if (flags.start) result = await startVerification(store, opts);
     else { const run = prepareVerification(store, opts); await executeVerification(repo, run.id); result = readVerification(repo, run.id); }
+    if (flags.post) result.comment = postComment({}, { repo, pr: flags.pr, markdown: renderVerification(result, { portable: true }) });
     out(flags.json ? JSON.stringify(result, null, 2) : renderVerification(result));
+    if (result.comment && !flags.json) out(`Posted PR comment: ${result.comment.url}`);
     if (flags.strict && (result.status !== 'passed' || result.freshness?.status !== 'current')) process.exitCode = result.status === 'failed' || result.status === 'needs-review' ? 2 : 1;
     return;
   }
@@ -60,7 +35,9 @@ async function reviewCommand(ctx) {
   // the strategy flags of bench/review-eval.js (review.js:DEFAULT_STRATEGY); the default is the ensemble
   const strategy = { ...(typeof flags.mode === 'string' ? { mode: flags.mode } : {}), ...(flags['no-related'] ? { related: false } : {}), ...(flags.callers ? { callers: true } : {}), ...(flags.triage ? { triage: true } : {}), ...(flags.verify ? { verify: true } : {}), ...(flags.chunks ? { chunks: Number(flags.chunks) } : {}) };
   const r = await review(store, { scope, task: taskContext(task), pr: flags.pr, paths: pos, max: flags.max ? Number(flags.max) : 12, model: flags.model, dry: !!flags.dry, strategy, kinds });
+  if (flags.post) r.comment = postComment(r, { repo, pr: flags.pr });
   out(flags.json ? JSON.stringify(r, null, 2) : renderReview(r, { verbose: !!flags.verbose }));
+  if (r.comment && !flags.json) out(`Posted PR comment: ${r.comment.url}`);
   if (flags.strict) {
     if (r.errors?.length) process.exitCode = 1;
     else if (r.counts?.error || r.behaviors?.some(b => b.mutability === 'fixed' && b.outcome === 'violated')) process.exitCode = 2;
@@ -82,21 +59,6 @@ async function importCommand(ctx) {
   const result = importCache(store, pos[0]);
   const notes = refresh(store, store.list());
   out(`imported ${result.notes} notes into the local cache; ${notes.filter(n => n.status === 'stale').length} are stale against this checkout`);
-  return;
-}
-
-async function syncCommand(ctx) {
-  const { pos, flags, repo, store, out } = ctx;
-  if (pos[0] === 'login') { const c = syncLogin(store, { url: pos[1] || flags.url, token: typeof flags.token === 'string' ? flags.token : undefined, repo: typeof flags.as === 'string' ? flags.as : undefined }); out(c ? `syncing ${c.repo} with ${c.url}` : 'url saved; a token is still needed: thinker sync login <url> --token <t>'); if (c) { const r = await syncNotes(store, c); out(`pulled ${r.pulled}, pushed ${r.pushed}`); } return; }
-  if (pos[0] === 'logout') { syncLogout(store); out('sync switched off for this checkout'); return; }
-  if (pos[0] === 'status') { out(renderSyncStatus(await syncStatus(store))); return; }
-  const cfg = syncConfig(store);
-  if (!cfg) { out(renderSyncStatus(await syncStatus(store))); process.exitCode = 1; return; }
-  if (flags.all) cfg.pushAll = true;
-  const only = flags.pull || flags.push;
-  const dry = !!flags.dry, quiet = !!flags.quiet;
-  if (!only || flags.pull) { const r = await syncPull(store, cfg, { save: !dry }); if (!quiet) out(`pulled ${r.applied} ${r.applied === 1 ? 'note' : 'notes'}${r.deleted ? `, ${r.deleted} removed` : ''} (cursor ${r.seq})`); }
-  if (!only || flags.push) { const r = await syncPush(store, cfg, { dry }); if (!quiet) { out(`${dry ? 'would push' : 'pushed'} ${dry ? r.planned : r.pushed}${r.retired ? `, retired ${r.retired}` : ''}${r.conflicts ? `, ${r.conflicts} taken from the server instead` : ''}${r.rejected ? `, ${r.rejected} rejected` : ''}`); if (flags.verbose) for (const s of r.skipped) out(`  held back ${s.id}: ${s.reasons.join('; ')}`); } }
   return;
 }
 
@@ -183,11 +145,9 @@ async function usageCommand(ctx) {
 }
 
 export const commands = {
-  'share': shareCommand,
   'review': reviewCommand,
   'export': exportCommand,
   'import': importCommand,
-  'sync': syncCommand,
   'serve': serveCommand,
   'health': healthCommand,
   'stats': statsCommand,

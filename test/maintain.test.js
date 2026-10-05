@@ -51,7 +51,7 @@ test('maintain verifies stale notes, phrases unphrased ones, and reports once', 
   assert.ok(state.prsAfter);
   // the user hears about it once
   const notice = maintenanceNotice(store);
-  assert.match(notice, /1 stale note re-verified \(1 updated\); 2 notes phrased/);
+  assert.match(notice, /1 checked, 1 updated; 2 phrased/);
   assert.equal(maintenanceNotice(store), '');
   assert.match(renderMaintain(r), /1 re-verified, 1 updated, 2 phrased, 0 from pull requests \(~15k tokens\)/);
   fs.rmSync(dir, { recursive: true, force: true });
@@ -69,7 +69,7 @@ test('maintain mines pull requests merged since its first run', () => withEnv(as
   assert.equal(calls[0].after, first);
   assert.equal(calls[0].limit, DEFAULTS.prsPerRun);
   assert.equal(r.prs, 2);
-  assert.match(maintenanceNotice(store), /2 notes from merged pull requests/);
+  assert.match(maintenanceNotice(store), /2 PR notes/);
   fs.rmSync(dir, { recursive: true, force: true });
 }));
 
@@ -151,7 +151,7 @@ test('maintenance re-verifies only notes served lately, and leaves a churning no
   let run = await maintain(store, dir, { fns });
   assert.deepEqual(verified, []); assert.deepEqual(run.churning, [a.id]);
   assert.match(renderMaintain(run), /1 churning left stale/);
-  assert.match(maintenanceNotice(store), new RegExp(`1 note left stale after being re-verified 3\\+ times this week \\(${a.id}\\): their code is changing; narrow their pointers or retire them`));
+  assert.match(maintenanceNotice(store), /1 note repeatedly stale; narrow pointers or retire them/);
   run = await maintain(store, dir, { fns });
   assert.deepEqual(run.churning, [a.id]);
   assert.doesNotMatch(maintenanceNotice(store), /left stale/, 'named once, not on every run');
@@ -179,14 +179,14 @@ test('withinDailyCap closes the day once the cap is spent, and the user is told 
     assert.equal(withinDailyCap(store, { spentFn: () => 2_500_000 }).cap, DEFAULTS.dailyTokens);
     reportCapped(store, over);
     const notice = maintenanceNotice(store);
-    assert.match(notice, /learning paused for today/);
-    assert.match(notice, /2\.5M of the 2M tokens it may use a day/);
+    assert.match(notice, /learning paused at the daily token limit/);
+    assert.doesNotMatch(notice, /2\.5M of the 2M tokens it may use a day/);
     assert.equal(maintenanceNotice(store), '', 'said once');
     reportCapped(store, { ...over, spent: 3_000_000 });
     assert.equal(maintenanceNotice(store), '', 'later hooks cannot requeue the same daily warning');
     const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
     reportCapped(store, over, { now: tomorrow });
-    assert.match(maintenanceNotice(store, { now: tomorrow }), /learning paused for today/, 'a new daily cap gets one notice');
+    assert.match(maintenanceNotice(store, { now: tomorrow }), /learning paused at the daily token limit/, 'a new daily cap gets one notice');
     reportCapped(store, over, { now: tomorrow });
     assert.equal(maintenanceNotice(store, { now: tomorrow }), '');
     const later = new Date(tomorrow); later.setDate(later.getDate() + 1);

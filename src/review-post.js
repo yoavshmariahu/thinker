@@ -5,6 +5,7 @@
 //
 // A review requesting changes that an earlier run posted is dismissed when a newer run posts, so a
 // push that fixes the violation clears the request; a plain comment review is left where it is.
+import { execFileSync } from 'node:child_process';
 import { formatTokens } from './model-usage.js';
 
 export const MARKER = '<!-- thinker-review -->';
@@ -131,4 +132,28 @@ export async function publish({ review, slug, number, sha, token, api = 'https:/
     return { posted: false, dismissed, status: res.status };
   }
   return { posted: true, dismissed, id: res.json.id, status: res.status };
+}
+
+
+// A conversation comment works on the user's own PR too. gh owns authentication;
+// send the Markdown over stdin so neither shell quoting nor argument limits affect it.
+export function postComment(report, { repo, pr, run = execFileSync, markdown } = {}) {
+  if (!/^[1-9]\d*$/.test(String(pr || ''))) throw new Error('--post requires --pr <number>');
+  const review = buildReview(report, { quiet: false });
+  let body = markdown === undefined ? review.body : `${MARKER}\n${markdown}`;
+  if (markdown === undefined && review.comments.length) {
+    const findings = review.comments.map(c => `#### ${code(`${c.path}:${c.line}`)}\n\n${c.body.replace(MARKER + '\n', '')}`).join('\n\n');
+    body = body.replace(/^\d+ comments? on changed lines .*\n/m, '')
+      .replace('\n<sub>Posted by thinker', `\n### Findings on changed lines\n\n${findings}\n\n<sub>Posted by thinker`);
+  }
+  try {
+    const url = run('gh', ['pr', 'comment', String(pr), '--body-file', '-'], {
+      cwd: repo, input: body, encoding: 'utf8', timeout: 60_000,
+      maxBuffer: 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    return { posted: true, url };
+  } catch (e) {
+    const detail = e.code === 'ENOENT' ? 'install GitHub CLI and run gh auth login' : String(e.stderr || e.message).trim();
+    throw new Error(`Could not post PR comment through gh: ${detail}`);
+  }
 }
