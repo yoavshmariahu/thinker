@@ -27,6 +27,19 @@ const read = (dir, f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
 const hook = (dir, what, client, ev, extra = [], env = {}) => execFileSync('node', [CLI, 'hook', what, '--client', client, '--repo', dir, ...extra], { input: JSON.stringify(ev), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', ...env } }).trim();
 const PROMPT = 'add stricter rate limiting to the upload endpoint in upload.py';
 
+test('hook ownership recognizes the package when the checkout path has no product name', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'adapter-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  const install = path.join(dir, 'app');
+  fs.mkdirSync(path.join(install, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(install, 'package.json'), JSON.stringify({ name: 'thinker', version: '0.1.0' }));
+  const cli = path.join(install, 'src/cli.js'); fs.writeFileSync(cli, '');
+  installClient('claude', { ...opts(dir), cli, mcp: false });
+  assert.equal(inferWiring(dir, 'claude').hooks, true);
+  assert.deepEqual(inferWiring(dir, 'claude').hookScripts, [cli]);
+});
+
 test('parseClients validates names and expands all', () => {
   assert.deepEqual(parseClients('codex, cursor'), ['codex', 'cursor']);
   assert.deepEqual(parseClients('all'), ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode']);

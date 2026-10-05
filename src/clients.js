@@ -187,7 +187,15 @@ function excludeLocally(repo, entries) {
   } catch {}
 }
 
-const isOurs = h => JSON.stringify(h).includes('thinker');
+const isOurs = h => {
+  if (JSON.stringify(h).includes('thinker')) return true;
+  // A checkout/container may be named /workspace or anything else. Identify the
+  // installed package as well as legacy hooks whose old path no longer exists.
+  const script = hookScript(h);
+  if (!script || !/[/\\]src[/\\]cli\.js$/.test(script)) return false;
+  try { return JSON.parse(fs.readFileSync(path.join(installRoot(script), 'package.json'), 'utf8')).name === 'thinker'; }
+  catch { return false; }
+};
 
 // --- other installs of thinker wired into the same checkout ---------------------------------
 // A hook runs `node "<install>/src/cli.js" hook …` and an MCP entry `node <install>/src/mcp.js`:

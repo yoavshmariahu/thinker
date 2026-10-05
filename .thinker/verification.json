@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "image": "node@sha256:17b7fd60fd812617654c64b95f9b2dde94f103313073b672bc40fdad6dccbaa2",
+  "platform": "linux/amd64",
+  "network": "bridge",
+  "setup": "npm ci",
+  "resources": { "memoryMiB": 4096, "workspaceMiB": 2048, "tempMiB": 2048, "homeMiB": 1024 },
+  "checks": [
+    {
+      "id": "unit",
+      "command": "node --test --test-reporter=/thinker/reporter.mjs test/*.test.js",
+      "reporter": "node",
+      "timeoutSeconds": 900
+    }
+  ]
+}
