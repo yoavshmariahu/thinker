@@ -38,3 +38,7 @@ The next focused experiment should stop weak replacement notes from filling the 
 `bench/astra-patched/run.mjs`, `grading-context.mjs`, and `manifest.json` preserve the harness and pinned conditions. The runner expects the primary PostHog clone and benchmark authentication already configured; it creates and removes a detached target worktree. Runtime homes and credentials are excluded.
 
 Raw coding and grading events, patch, criterion evidence, hook output, logs, runner and manifest are preserved locally at `/private/tmp/thinker-astra-dedup-check-20261005/`. These generated traces are excluded from the source PR because the current staged-review implementation stalls on large trace files. `summary.json` alongside this report retains compact metrics and all criterion evidence. Earlier controls are documented in `research/astra-cache-control/README.md`.
+
+## Rollback decision
+
+After reviewing this result, the user chose to prioritize correctness and restore the serving behavior from before PR #18. The prompt delivery ledger, required MCP prompt IDs, suppression filters, metadata-only hook output, and bundled drilldown budget clamp were reverted together. The benchmark harnesses and observations remain as historical evidence. This is a precautionary rollback based on one sample, not proof that deduplication caused the missed criterion.

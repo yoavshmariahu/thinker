@@ -126,31 +126,3 @@ and subprocess failure behavior. These are contract and subprocess tests, not
 live authenticated sessions in all four hosts. A release should smoke-test each
 supported host version with a known note, a prompt, a file read/edit, and session
 end; inspect the trace and confirm the model actually received the context.
-
-
-## Prompt-scoped note delivery
-
-MCP `orient`, `lookup`, `find`, and `drilldown` require `prompt_id`. The prompt
-hook supplies a fresh opaque ID with its context, even when it serves no notes.
-The agent passes that ID on all retrieval calls for that user prompt. Without
-hooks, the agent chooses a fresh unique ID per user prompt and reuses it across
-that prompt's calls. The tool schemas describe this contract; direct API callers
-must supply the ID too. Prompt text is not used as identity: two identical user
-messages are still separate prompts. CLI retrieval outside MCP keeps its existing
-behavior.
-
-The prompt hook, edit hook, and MCP tools share a local delivery ledger. A full,
-unchanged note body is returned once per prompt, along with its automatic code
-snippets. Repeat requests return an already-in-context explanation instead of the
-body. `drilldown` can still return explicitly requested source code; `find` still
-returns definition pointers. A title or budget-shortened preview does not consume
-the full note, so a later request can expand it. Changed content or staleness can
-be delivered again. Existing session-wide suppression of automatic hook notes
-remains in place.
-
-Concurrent calls for the same prompt serialize delivery; separate hook prompt IDs
-are independent. IDs chosen without hooks are additionally scoped to the MCP
-connection, preventing two clients choosing `turn-1` from suppressing each other.
-The ledger is local state under `.thinker/state/prompt-delivery/`, retained for
-seven days, and never edits shared note files. This suppression relies on the
-caller preserving `prompt_id` within a prompt and changing it on the next prompt.
