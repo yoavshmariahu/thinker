@@ -10,7 +10,7 @@ import { pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHoo
 import { parseTranscript } from '../distill.js';
 import { Store, findRepoRoot } from '../store.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, sessionIntro, reviewNudge } from '../ops.js';
+import { orient, HOOK_BUDGET, rememberTask, outcome, looksLikeCorrection, lateNotes, completenessNudge, takeTurn, holdoutSession, sessionIntro } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput } from '../transcripts.js';
 import { turnNotice } from '../usage.js';
 
@@ -110,7 +110,6 @@ async function hookCommand(ctx) {
       const edited = name === 'Edit' || name === 'Write' || (name === 'Bash' && /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/.test(command));
       const r = lateNotes(store, { session, client, files: toolFiles(ev, repo), edited });
       if (r.text) parts.push(r.text);
-      if (edited) { const n = reviewNudge(store, { session, client }); if (n) parts.push(n); }
     }
     if (parts.length) out(toolOutput(client, parts.join('\n\n')));
   } else if (pos[0] === 'stop') {

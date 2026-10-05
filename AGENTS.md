@@ -500,13 +500,15 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   log held 3 `find` and 2 `review` calls over MCP against hundreds of hook
   orients, and sessions reported changes done without a review. Since
   2026-10-05 the first prompt of a session carries a `<thinker-tools>` intro
-  (`ops.js:sessionIntro`): what `find`, `drilldown` and `review` do, for
-  Claude Code the exact `ToolSearch select:…` that loads them, and the
-  instruction to call `review` with the task before reporting a change done;
-  the first edit of a session repeats that last point once
-  (`ops.js:reviewNudge`, with the late notes). Both are logged (`intro`,
-  `review-nudge`) so the next log can say whether they changed anything. A
-  held-out session gets neither. `git grep --untracked` behind `find`,
+  (`ops.js:sessionIntro`): what `find` and `drilldown` do, for Claude Code
+  the exact `ToolSearch select:…` that loads them, and that `review` exists
+  for when a review is asked for; logged as `intro`. A held-out session gets
+  none of it. On two Grafana tasks under Gemini (`bench/RESULTS.md`, "Tool
+  intro") the intro got `find` called where it never was. It first also told
+  the agent to run `review` before reporting done, with a first-edit nudge
+  repeating it; both went the same day at the user's decision, a review runs
+  when asked for, and those runs had shown the agent polling a slow review for
+  minutes instead of working. `git grep --untracked` behind `find`,
   `drilldown` and the reference counts reads into a checkout nested under the
   repository (a benchmark's clone under `bench/runs/`): on this repository
   `find` answered with PostHog's definitions. Lines under a directory holding a
