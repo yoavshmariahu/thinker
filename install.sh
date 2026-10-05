@@ -33,8 +33,6 @@
 #   --no-learn          do not distill your own sessions into new notes (learning is on by default, for any of the
 #                       agents, and uses that agent's login; switch it off for evals)
 #   --late              also serve notes about files as the agent opens them
-#   --shared            also write the hooks and MCP entries into the repository's own files (.claude/settings.json,
-#                       .mcp.json, …) for the team to commit; by default they live in your agents' own settings
 #   --mcp               accepted for compatibility: the MCP server is always registered (needs npm)
 #   --no-git-hook       do not install the git post-commit hook (it re-checks and maintains notes after each commit)
 #   --branch <name>     branch or tag to install (default main; --ref also accepted)
@@ -86,7 +84,7 @@ path_hint() {
 }
 
 main() {
-  local cache="" build="" areas="" prs="" clients="" learn=1 late=0 shared=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
+  local cache="" build="" areas="" prs="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-main}" benchmark="" pr_target="" yes=0 no_seed=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; build=0; shift 2 ;;
@@ -104,7 +102,7 @@ main() {
       --learn) learn=1; shift ;;
       --no-learn) learn=0; shift ;;
       --late) late=1; shift ;;
-      --shared) shared=1; shift ;;
+      --shared) echo "Team sharing is no longer supported." >&2; return 1 ;;
       --mcp) mcp=1; shift ;;
       --git-hook) githook=1; shift ;;
       --no-git-hook) githook=0; shift ;;
@@ -327,7 +325,6 @@ EOF
   [ "$yes" = 1 ] && args="$args --yes"
   [ "$learn" = 1 ] || args="$args --no-learn"
   [ "$late" = 1 ] && args="$args --late"
-  [ "$shared" = 1 ] && args="$args --shared"
   [ "$githook" = 0 ] && args="$args --no-git-hook"
   [ "$mcp" = 1 ] || args="$args --no-mcp"
   if [ "$build" = 0 ]; then

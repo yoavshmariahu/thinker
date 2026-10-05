@@ -1,0 +1,5 @@
+raw/*
+!raw/protocol.json
+!raw/summary.json
+!raw/*-validation.json
+!raw/pager-diagnostic.json

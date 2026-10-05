@@ -232,14 +232,14 @@ export function renderNote(n, { full = true } = {}) {
 
 // Greedy pack ranked notes into a token budget; returns {text, included, omitted}
 export function pack(ranked, budget, { minRel = 0.05 } = {}) {
-  const parts = [], included = [], omitted = [], complete = [];
+  const parts = [], included = [], omitted = [];
   let used = 0;
   for (const r of ranked) {
     const n = r.note;
     if (r.rel < minRel && r.aff === 0) { omitted.push(n); continue; }
     const text = renderNote(n);
     const t = estTokens(text);
-    if (used + t <= budget) { parts.push(text); used += t; included.push(n); complete.push(n); }
+    if (used + t <= budget) { parts.push(text); used += t; included.push(n); }
     else {
       const short = renderNote(n, { full: false });
       const ts = estTokens(short);
@@ -247,5 +247,5 @@ export function pack(ranked, budget, { minRel = 0.05 } = {}) {
       else omitted.push(n);
     }
   }
-  return { text: parts.join('\n\n'), included, omitted, complete, tokens: used };
+  return { text: parts.join('\n\n'), included, omitted, tokens: used };
 }

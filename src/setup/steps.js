@@ -17,10 +17,9 @@ import { githubSlug } from './agents.js';
 
 // Wire the agents into their own settings (user scope: read in every checkout, and by the desktop
 // apps that read no project files), and, when `repo` is given, the checkout's own pieces: git
-// hooks, Cursor's rule, Codex's trust in the project, and with `shared` the committed wiring
-// files for the team. Setup wrote per-checkout files until 2026-10-04; this copy's machine-local
+// hooks, Cursor's rule and Codex's trust in the project. Setup wrote per-checkout files until 2026-10-04; this copy's machine-local
 // ones are taken out of the checkout, since the user's now run there.
-export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpEntry, clients, hooks = true, learn = true, late = false, shared = false, mcp = true, gitHook = true, noTrust = false, yes = false, out = console.log }) {
+export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpEntry, clients, hooks = true, learn = true, late = false, mcp = true, gitHook = true, noTrust = false, yes = false, out = console.log }) {
   const detected = detectClients();
   const targetClients = clients || detected;
   const userEntry = userMcpEntry || { command: mcpEntry.command, args: mcpEntry.args };
@@ -56,11 +55,10 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
     try {
       const logs = USER_SCOPE_CLIENTS.includes(client)
         ? installClient(client, { scope: 'user', cli: cliPath, mcpEntry: userEntry, hooks, learn, late, mcp })
-        : installClient(client, { scope: 'repo', repo, cli: cliPath, mcpEntry, hooks, learn, late, shared, mcp });
+        : installClient(client, { scope: 'repo', repo, cli: cliPath, mcpEntry, hooks, learn, late, shared: false, mcp });
       if (repo && USER_SCOPE_CLIENTS.includes(client)) {
         const moved = stripRepoWiring(repo, { cli: cliPath, clients: [client] });
         if (moved.length) logs.push(`${(clientMeta[client]?.name || client)}: moved thinker's entries out of ${moved.join(', ')}: they run from your own settings now`);
-        if (shared) logs.push(...installClient(client, { scope: 'repo', repo, cli: cliPath, mcpEntry, hooks, learn, late, shared: true, mcp }));
         if (client === 'cursor' && mcp) installCursorRule(repo);
       }
 

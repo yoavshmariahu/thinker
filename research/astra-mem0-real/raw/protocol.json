@@ -1,0 +1,85 @@
+{
+  "created": "2026-10-05T07:12:19.173810+00:00",
+  "model": "gpt-6-astra",
+  "reasoning": "medium",
+  "codex": "0.160.0",
+  "thinker_commit": "f1cf3aea24e68c8325bb09e63bfeff9b91b2a169",
+  "harness_base": "9b70631440d6bde5411f3953d88b0c05d794c680",
+  "mem0_commit": "abb81c88e1f738a8117d8293530fbc31a5ef8fd9",
+  "tasks": [
+    {
+      "id": "click-3364",
+      "upstream": "https://github.com/pallets/click/pull/3364",
+      "base": "8a2b48901a08b3d2ec3a9bbd151948a9765368c6",
+      "fixed": "c8da1fcc2cb4523c1fb5bef7f0ca82394dde1efd",
+      "test_file": "tests/test_defaults.py",
+      "acceptance": "test_default_map_nargs",
+      "learning": "Trace how a raw command-line string becomes a typed option value passed to a Click callback. Read the current code and describe source precedence, defaults, environment variables, nargs/multiple conversion, and the relevant file:symbol pointers. Explain existing behavior only; do not change code, propose fixes, inspect git history, or browse the web.",
+      "prompt": "Fix string values in default_map for multi-value parameters. For example, an integer option with nargs=2 and default_map={'point': '3 4'} should receive (3, 4), rather than treating the string as characters or raising a conversion error. Explicit tuple types should work too. Use the parameter type's environment-value splitting semantics, preserve already-structured tuple/list defaults, and preserve command-line precedence over default_map. Add appropriate tests and document the behavior."
+    },
+    {
+      "id": "click-3391",
+      "upstream": "https://github.com/pallets/click/pull/3391",
+      "base": "ba745ac64037b7d4cdd0abce10446c0a2861935f",
+      "fixed": "d959898db264aaf07e70ad4eafa254286f9a5185",
+      "test_file": "tests/test_testing.py",
+      "acceptance": "test_capture",
+      "learning": "Explain how Click's current CliRunner.invoke and isolation manage stdin/stdout/stderr, their buffers and stream wrappers, exceptions and exit codes, and restoration after a command finishes. Inspect the implementation and representative existing tests, cite file:symbol pointers, and describe current behavior. Do not modify code, propose fixes, inspect git history, or browse the web.",
+      "prompt": "Add an explicit capture mode to CliRunner and fix its default exposure of real file descriptors. CliRunner(capture='sys') must be the default: capture Python-level writes while leaving sys.stdout.fileno() and sys.stderr.fileno() raising io.UnsupportedOperation so code cannot accidentally redirect the host runner. Add capture='fd' on non-Windows platforms to capture direct os.write(1/2), writes through stale stream references or logging handlers, and allow faulthandler.enable(). Keep stdout/stderr separate and include both in Result.output. Restore original streams and descriptors even on exceptions; nested invocations and interaction with pytest's capsys/capfd must work. Reject invalid capture values and reject fd mode on Windows with clear ValueErrors. Preserve existing invocation/exit behavior. Add tests and update the testing documentation."
+    }
+  ],
+  "tasks_sha256": "1c4a280a69ab3ddf11d78092b843bad3ca169e2bef9d63604c35c1dd5d6856cf",
+  "order": [
+    [
+      "click-3364",
+      "control"
+    ],
+    [
+      "click-3364",
+      "thinker"
+    ],
+    [
+      "click-3364",
+      "mem0"
+    ],
+    [
+      "click-3391",
+      "mem0"
+    ],
+    [
+      "click-3391",
+      "thinker"
+    ],
+    [
+      "click-3391",
+      "control"
+    ]
+  ],
+  "repetitions": 1,
+  "memory_budget_estimated_tokens": 750,
+  "token_estimator": "ceil(chars/3.6)",
+  "timeout_seconds": 1200,
+  "platform": "macOS-14.6.1-arm64-arm-64bit",
+  "controls": [
+    "Same pinned model and medium reasoning in every model phase; no fallback",
+    "Fresh exploration evidence shared identically between separate builders; no thinker notes to Mem0",
+    "Same tasks, pinned thinker implementation, memory budgets and arm order as Sonnet cohort",
+    "Isolated history-free snapshot worktrees and Codex homes; no MCP/global hooks",
+    "Tools disabled during memory building; recorded calls must contain no tool use",
+    "Prefetched memory only; no live retrieval or post-edit memory updates",
+    "Acceptance uses untouched upstream post-fix test module; full suite also run",
+    "No outcome-driven retries; fail/timeout retained",
+    "Coding runs sequential; model cache state not reset"
+  ],
+  "limitations": [
+    "Two public historical tasks, one run per arm; possible training-data familiarity",
+    "Sandbox allows reads outside checkout; prompt rules plus trace audit enforce study boundaries",
+    "Different Codex/Claude harnesses and newly generated evidence make cross-model results separate cohorts, not causal model comparisons",
+    "Windows-only acceptance case skipped on macOS",
+    "Source-session costs reported separately; no dollar estimates"
+  ],
+  "evidence_sha256": {
+    "click-3364": "aa1824d57226c131b80e193e4b09020089e8baabe5ca16eb34a8d14e2404fe98",
+    "click-3391": "e1817671cdf24d2e1100b5268a10994d6d533f7784e8f701233f9cfffa92f617"
+  }
+}

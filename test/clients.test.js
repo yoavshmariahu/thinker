@@ -135,10 +135,8 @@ test('prompt hook output matches what each client accepts', () => {
   const claude = hook(dir, 'prompt', 'claude', { session_id: 's4', prompt: PROMPT, cwd: dir });
   assert.ok(claude.startsWith('<thinker-cache>') && claude.includes('RateLimiter.allow') && !claude.includes('🧠'));
 
-  // A miss carries only a new prompt boundary, in the host's context envelope.
-  const miss = JSON.parse(hook(dir, 'prompt', 'gemini', { session_id: 's3', prompt: 'hello' }));
-  assert.match(miss.hookSpecificOutput.additionalContext, /Thinker prompt_id:/);
-  assert.ok(!miss.hookSpecificOutput.additionalContext.includes('RateLimiter.allow'));
+  // nothing relevant: Gemini must get no stray text on stdout
+  assert.equal(hook(dir, 'prompt', 'gemini', { session_id: 's3', prompt: 'hello' }), '');
 });
 
 test('stop hook tells the user what the turn saved, once, where the client can show it', () => {

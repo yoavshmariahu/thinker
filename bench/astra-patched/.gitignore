@@ -1,0 +1,7 @@
+home-*/
+*.events.jsonl
+*.stderr
+run.log
+patched.json
+*.hook.txt
+schema.json

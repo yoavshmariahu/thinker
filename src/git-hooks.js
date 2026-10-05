@@ -8,10 +8,9 @@ const quote = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
 export const HOOKS = ['pre-commit', 'post-commit', 'post-merge', 'pre-push'];
 export function preCommitHook(cli) {
   return `#!/bin/sh
-# thinker: repair shared notes and optionally review staged code
+# thinker: optionally review staged code
 [ "$THINKER_TEST" = 1 ] && exit 0
 repo="$(git rev-parse --show-toplevel 2>/dev/null)"
-case "$THINKER_NO_LEARN" in 1|true|yes) ;; *) node ${quote(cli)} share --repair-staged --repo "$repo" ;; esac
 if [ "$(git config --bool thinker.reviewBeforeCommit 2>/dev/null)" = true ]; then
   tree=$(git write-tree) || exit 1
   node ${quote(cli)} review --staged --strict --repo "$repo" || exit $?
@@ -22,12 +21,6 @@ if [ "$(git config --bool thinker.reviewBeforeCommit 2>/dev/null)" = true ]; the
 fi
 exit 0
 `;
-}
-export function prePushHook(cli) {
-  // A pushed commit is already fixed in Git's ref list; this hook only reports.
-  return `#!/bin/sh\n# thinker: report shared-note issues without blocking a push\n` +
-    `node ${quote(cli)} share --check --pre-push --remote "$1"\n` +
-    `exit 0\n`;
 }
 // Worktrees share the main repository's hooks, and the post-commit hook names a checkout as its
 // fallback (git names the real one at run time): the main repository's, so that every worktree
@@ -46,7 +39,11 @@ export function installGitHooks(repo, cli, learn, out = () => {}) {
     if (fs.existsSync(file) && !fs.readFileSync(file, 'utf8').includes('# thinker:')) {
       out(`skipped git ${name} hook: existing hook is not ours`); continue;
     }
-    const text = name === 'pre-push' ? prePushHook(cli) : name === 'pre-commit' ? preCommitHook(cli) : postCommitHook(cli, main, learn);
+    if (name === 'pre-push') {
+      if (fs.existsSync(file)) { fs.unlinkSync(file); out('removed obsolete git pre-push note check'); }
+      continue;
+    }
+    const text = name === 'pre-commit' ? preCommitHook(cli) : postCommitHook(cli, main, learn);
     let cur = null; try { cur = fs.readFileSync(file, 'utf8'); } catch {}
     if (cur === text) { out(`git ${name} hook already in place`); continue; }
     fs.mkdirSync(path.dirname(file), { recursive: true });

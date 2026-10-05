@@ -21,7 +21,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'share' && ['all', 'dry', 'check', 'strict', 'pre-push', 'repair-staged'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'post', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = (cmd === 'impact' && ['json'].includes(k)) || (cmd === 'review' && ['staged', 'state', 'dry', 'json', 'strict', 'verbose', 'post', 'no-related', 'callers', 'triage', 'verify'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 const repo = findRepoRoot(flags.repo || process.env.THINKER_REPO || process.cwd());
@@ -35,7 +35,7 @@ const learnOn = () => !NO_LEARN && !flags['no-learn'] && !flags['serve-only'];
 // Learning from sessions (the end-of-turn distill and the catch-up `learn`) is a model call per
 // session, about 10¢ with Sonnet, and in a week on this repository 30% of them produced no note.
 // `learn: {sessions: false}` in .thinker/config.json keeps it off while learning from code changes
-// goes on: pull requests and verification in maintenance, `share --repair-staged` at commit.
+// goes on: pull requests and verification in maintenance.
 // `thinker distill <file>` by hand is still answered. THINKER_NO_LEARN=1 switches off everything.
 const sessionLearning = () => store.config().learn?.sessions !== false;
 
@@ -47,7 +47,7 @@ const userMcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')]
 const HELP = `thinker — knowledge cache for coding agents
 
   setup [--build | --no-build] [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>]
-        [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--shared] [--no-mcp] [--no-git-hook]
+        [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook]
         [--no-trust] [--yes] [--verbose]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
@@ -60,11 +60,6 @@ const HELP = `thinker — knowledge cache for coding agents
                                  setup runs it first, and so does the installer
   uninstall [--purge] [--user]   remove this repository's hooks and MCP registration (notes are kept unless --purge);
                                  --user also removes the machine-wide wiring from your agent settings
-  share [ids…] [--all] [--dry]    promote eligible local notes for review and commit
-  share --check [--base ref]      report issues in committed notes (exit 0)
-  share --repair-staged [--cap n] repair or remove invalid staged notes before commit (at most n model checks, default 25)
-                                 --strict makes manual/CI checks fail on issues
-                                 --ref commit (default HEAD); --pre-push reads git stdin
   review [paths…] [--staged | --base ref | --ref commit | --state] [--model m] [--max n] [--kinds k,…] [--dry] [--json]
         [--strict] [--verbose] [--pr n] [--post]
                                  review a change against the cache: two model calls, one with the diff and the code it touched
@@ -76,8 +71,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  current code of the paths, with no change; --dry: no model calls; --strict: exit 2 on an
                                  error-severity finding (for CI); --post --pr n: post the report as a PR comment using gh
                                  authentication; --pr alone only links usage history; --post cannot be used with --dry
-  export [file.tgz]              pack this repo's cache for delivery
-  import <file.tgz|url>          unpack a delivered cache and check it against this checkout
+  export [file.tgz]              back up this repo's local cache
+  import <file.tgz|url>          restore a cache backup and check it against this checkout
   serve                          run the MCP server (stdio)
   orient "<task>" [--file f] [--budget n] [--snippets] [--session id]
   lookup "<query>" [--kind k] [--snippets] [--session id]
@@ -168,17 +163,22 @@ const HELP = `thinker — knowledge cache for coding agents
 
 // Commands that read or maintain an existing cache. Not `setup`, `seed`, `mine-prs`, `import`,
 // `add`, `record`, `distill`: those build one. Not `hook`: the hooks are quiet where there is no cache.
-const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'share', 'sync', 'export', 'health', 'relink', 'rehash', 'outcome'];
+const CACHE_COMMANDS = ['orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'review', 'export', 'health', 'relink', 'rehash', 'outcome'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
 const COMMANDS = { ...noteCommands, ...cacheCommands, ...impactCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands };
 
 async function main() {
+  if (cmd === 'share' || cmd === 'sync' || flags.shared) {
+    console.error('thinker: team sharing is no longer supported; notes and learning stay local.');
+    process.exitCode = cmd === 'share' && (flags['pre-push'] || flags['repair-staged']) ? 0 : 1;
+    return;
+  }
   if (!isTestMode() && process.stderr.isTTY && !['update', 'upgrade', 'switch', 'branch', 'hook', 'serve'].includes(cmd) && !process.env.THINKER_LOG) {
     const notice = checkPendingNotice(thinkerHome());
     if (notice) process.stderr.write(`[thinker] ${notice}\n`);
   }
-  if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup', 'share'].includes(cmd) && !flags.background) {
+  if (!['update', 'upgrade', 'switch', 'branch', 'telemetry', 'setup'].includes(cmd) && !flags.background) {
     maybeCheckDailyUpdateInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js') });
     maybeSendTelemetryInBackground({ home: thinkerHome(), cliPath: path.join(HERE, 'cli.js'), store });
   }
@@ -197,8 +197,6 @@ async function main() {
 }
 
 main().catch(e => {
-  const hook = cmd === 'share' && (flags['pre-push'] || flags['repair-staged']);
-  console.error(hook ? `thinker: note check unavailable; Git can continue (${e.message || e})` : e);
-  process.exit(hook ? 0 : 1);
+  console.error(e);
+  process.exit(1);
 });
-
