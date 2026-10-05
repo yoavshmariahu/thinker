@@ -1,0 +1,23 @@
+{
+  "task": "PR106936-hard",
+  "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "model": "gpt-6-astra",
+  "reasoning": "medium",
+  "versions": {
+    "patched": "9b70631440d6bde5411f3953d88b0c05d794c680"
+  },
+  "order": [
+    "patched"
+  ],
+  "timeoutMinutes": 20,
+  "telemetry": "off",
+  "learning": false,
+  "notes": "posthog-v2",
+  "created": "2026-10-05T07:08:58.615Z",
+  "codex_version": "codex-cli 0.160.0",
+  "node_version": "v24.15.0",
+  "notes_hash_algorithm": "SHA256 of sorted filename + NUL + file bytes",
+  "notes_count": 259,
+  "notes_sha256": "2be8aa65fa304ab3d6d6dcacb9d99c491d660464c81bc5b118a68bf18a0a453c",
+  "task_sha256": "26f4086c5de12d7468dbdacd82ec82e0d3c67a7982d5d84b8ca0d512de3bc9de"
+}

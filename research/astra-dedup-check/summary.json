@@ -1,0 +1,88 @@
+{
+  "task": "PR106936-hard",
+  "commit": "9b70631440d6bde5411f3953d88b0c05d794c680",
+  "wall_ms": 328530,
+  "hook_ms": 3971,
+  "tools": 29,
+  "mcpCalls": 7,
+  "usage": {
+    "input_tokens": 1027152,
+    "cached_input_tokens": 949248,
+    "output_tokens": 6486
+  },
+  "grade": {
+    "essential": 0.8333333333333334,
+    "all": 0.7777777777777778,
+    "pass": false,
+    "results": [
+      {
+        "id": "c1",
+        "verdict": "met",
+        "evidence": "The selector returns an error when `memberEmails.has(email)`. InviteRow immediately renders `{inviteEmailErrors[index]}` in a `role=\"alert\"` element and sets `status={inviteEmailErrors[index] ? 'danger' : undefined}` on the email input."
+      },
+      {
+        "id": "c2",
+        "verdict": "met",
+        "evidence": "`if (email === user?.email.trim().toLowerCase())` returns `'You already belong to this organization. Use a different email or remove this row.'`, which uses the same inline error rendering."
+      },
+      {
+        "id": "c3",
+        "verdict": "not_met",
+        "evidence": "Submission is gated by `!inviteEmailErrors.some(Boolean)`, and per-row controls use `disabled={!canSubmit || !isEmail(invitesToSend[index].target_email)}`. Onboarding also supplies `emailError` as `continueDisabledReason`. However, the settings dialog's batch control is not connected to this member-specific disabled reason; the settings changes expose it only on individual rows."
+      },
+      {
+        "id": "c4",
+        "verdict": "met",
+        "evidence": "Existing emails are normalized with `user.email.trim().toLowerCase()`, and the entered address with `const email = target_email.trim().toLowerCase()`. The own-email comparison uses the same normalization."
+      },
+      {
+        "id": "c5",
+        "verdict": "met",
+        "evidence": "Both `showInviteModal` and `afterMount` call `membersLogic.actions.ensureAllMembersLoaded()`. The own-email check, `email === user?.email.trim().toLowerCase()`, is independent of the nullable members list."
+      },
+      {
+        "id": "c6",
+        "verdict": "met",
+        "evidence": "The membership rejection now occurs in `validate_target_email` through `raise exceptions.ValidationError(..., code=\"already_member\")`, before serializer creation. Standard bulk serializer validation completes before creation; the side effects remain in `create`: `OrganizationInvite.objects.create(...)` and `send_invite(invite_id=invite.id)`."
+      },
+      {
+        "id": "c7",
+        "verdict": "met",
+        "evidence": "Raising `exceptions.ValidationError(..., code=\"already_member\")` inside `validate_target_email` attributes the error to `target_email`. The existing bulk helper preserves the field error with `return exceptions.ValidationError(row_errors)`."
+      },
+      {
+        "id": "c8",
+        "verdict": "met",
+        "evidence": "`if (status === 400 && failure.code === 'already_member') { return false }` excludes this validation outcome from reporting. Other unexpected failures retain the existing reporting path, including `return true` for status-less failures and `return !isApprovalRequiredError(failure)` for ordinary server errors."
+      },
+      {
+        "id": "c9",
+        "verdict": "not_met",
+        "evidence": "The submission directly executes `return await api.create<OrganizationInviteType[]>(...)` without a recovery catch. Member loading occurs only in `showInviteModal` and `afterMount`; there is no `inviteTeamMembersFailure` listener that refreshes members after an `already_member` rejection."
+      }
+    ],
+    "usage": {
+      "input_tokens": 29524,
+      "cached_input_tokens": 0,
+      "output_tokens": 751
+    }
+  },
+  "uncached_input_tokens": 77904,
+  "tool_types": {
+    "command_execution": 17,
+    "mcp_tool_call": 7,
+    "file_change": 5
+  },
+  "shell_output_chars": 344527,
+  "mcp_response_json_chars": 31165,
+  "mcp_tools": [
+    "orient",
+    "drilldown",
+    "lookup",
+    "find",
+    "feedback",
+    "feedback",
+    "remember"
+  ],
+  "raw_artifacts": "/private/tmp/thinker-astra-dedup-check-20261005"
+}
