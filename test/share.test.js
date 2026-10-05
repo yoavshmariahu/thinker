@@ -553,3 +553,37 @@ test('pre-commit asks the model about at most `cap` notes a commit and leaves th
   assert.match(actions.find(a => a.action === 'deferred').reason, /cap of 2/);
   assert.equal(git('show', ':.thinker/notes/note-0.json'), fs.readFileSync(path.join(store.notesDir, 'note-0.json'), 'utf8').trimEnd(), 'a deferred note is left as it is');
 });
+
+test('opt-in staged review blocks commits on review failure and index changes, even with learning off', t => {
+  const { repo, git } = fixture(t);
+  const fake = path.join(repo, 'review-cli.cjs'), calls = path.join(repo, 'calls.jsonl');
+  const hook = path.join(repo, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, preCommitHook(fake), { mode: 0o755 });
+  fs.writeFileSync(fake, `const fs = require('node:fs');
+    const args = process.argv.slice(2); fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(args)+'\\n');
+    if (args[0] === 'review') {
+      if (process.env.TEST_CHANGE_INDEX) {
+        fs.writeFileSync('during-review.txt', 'new staged change');
+        require('node:child_process').execFileSync('git', ['add', 'during-review.txt']);
+      }
+      process.exit(Number(process.env.TEST_REVIEW_STATUS || 0));
+    }
+    process.exit(1); // note repair remains non-blocking
+  `);
+  const run = (extra = {}) => spawnSync('git', ['commit', '--allow-empty', '-qm', 'review gate test'], {
+    cwd: repo, encoding: 'utf8', env: { ...process.env, THINKER_TELEMETRY: 'off', THINKER_TEST: '0', ...extra },
+  });
+  assert.equal(run({ TEST_REVIEW_STATUS: '2' }).status, 0, 'review is off by default');
+  git('config', '--local', 'thinker.reviewBeforeCommit', 'true');
+  for (const status of ['1', '2']) {
+    const head = git('rev-parse', 'HEAD');
+    assert.notEqual(run({ TEST_REVIEW_STATUS: status, THINKER_NO_LEARN: '1' }).status, 0);
+    assert.equal(git('rev-parse', 'HEAD'), head, 'failed review must not create a commit');
+  }
+  assert.equal(run().status, 0, 'successful review allows commit despite repair failure');
+  const args = fs.readFileSync(calls, 'utf8').trim().split('\n').map(JSON.parse).filter(a => a[0] === 'review');
+  assert.ok(args.length >= 3);
+  assert.ok(args.every(a => a.includes('--staged') && a.includes('--strict')));
+  const changed = run({ TEST_CHANGE_INDEX: '1' });
+  assert.notEqual(changed.status, 0); assert.match(changed.stderr, /changed during review/);
+});
