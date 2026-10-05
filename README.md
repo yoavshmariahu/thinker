@@ -237,6 +237,10 @@ off.
 
 ## Delivery outcomes
 
+Thinker works with direct commits as well as pull requests; it does not prescribe
+your Git workflow. The delivery metrics below currently use PRs as their unit of
+measurement. Commit-only work still appears in usage, but is not counted as merged PRs.
+
 `thinker impact` connects recorded agent work and reviews to merged pull requests:
 observed tokens per PR, merge timing, and confirmed defects fixed before merge.
 
