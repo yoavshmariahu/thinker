@@ -4,8 +4,14 @@ Coding agents re-orient in a repo every session: grep, read, trace imports,
 figure out how X flows from A to B. `thinker` caches that understanding as
 short notes keyed to the code they describe, and serves the relevant ones
 into each request. When the code under a note changes, the note is flagged
-stale and re-verified in the background; the cache maintains itself, under a
-daily token cap, without anyone running commands.
+stale and re-verified in a batch at most once every four hours. The cache
+maintains itself under a daily token cap, without anyone running commands.
+
+Note refreshes run on the first repository activity after the four-hour interval,
+using changed dependencies and git diffs since each note was verified. Reading a
+note never starts verification. Between batches, stale notes retain their warning
+and prompt hooks withhold them. `thinker verify` requests an immediate check;
+`thinker maintain` respects the four-hour interval (`--dry` previews the work).
 
 **With Claude Fable on real tasks, the cache cut wall time, lowered token usage, and raised the correctness score.**
 

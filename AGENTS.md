@@ -414,7 +414,10 @@ Each session both consumes and improves the cache:
 6. Maintenance runs by itself (`maintain.js:maintain`): the catch-up run that
    the prompt hooks start at most every ten minutes ends with one maintenance
    run, and so do the git `post-commit` and `post-merge` hooks that `setup` and the
-   installer put in place (`--no-git-hook` leaves it out). A run re-verifies up
+   installer put in place (`--no-git-hook` leaves it out). A batch runs at most
+   once every four hours, on the next repository activity after
+   it is due (including explicit `maintain`; `--dry` previews without waiting).
+   Retrieval never spawns verification. A run re-verifies up
    to 10 stale notes, writes
    phrasings for up to 8 notes that lack them, and distills up to 3 pull
    requests merged since maintenance first ran in the repository (older ones
@@ -427,8 +430,9 @@ Each session both consumes and improves the cache:
    cache caught and the diff alone missed rested on a note mined from the fix
    (`bench/RESULTS.md`, "Real bugs on PostHog"). Re-verification ahead of time is for notes served in
    the last 14 days (`verifyServedDays`; 0: all), the most served first; a
-   stale note nobody is reading waits until it is served, when serving
-   verifies it in the background anyway (`ops.js:scheduleVerify`). A note
+   stale note nobody is reading waits until a later batch after it is served.
+   Dependency hashes and git diffs since each note was verified identify the
+   affected notes; unchanged dependencies cause no verification call. A note
    re-verified 3 times in a week (`verifyChurn`; 0: never) rests on code under
    active change: it is left stale, with its ⚠ banner, and named to the user
    once (`maintain.js:pickStale`), to narrow its pointers or retire it. In the
@@ -465,8 +469,7 @@ rule, behavior; behavior is never distilled). A note of a left-out kind that
 comes back anyway is skipped by `saveNotes`.
 
 Controls for experiments: `THINKER_NOTES_DIR` (a flat note store for a
-benchmark arm), `THINKER_NO_BG_VERIFY=1` (no background verification, so a
-pinned noteset stays as it is), `THINKER_HOOKS=off` (the user's machine-wide
+benchmark arm), `THINKER_HOOKS=off` (the user's machine-wide
 hooks do nothing; a checkout's own hooks are unaffected) and `THINKER_MCP=off` (the MCP server offers no
 tools; the control arm of `thinker benchmark`), `THINKER_HOLDOUT`. The
 switches of settled experiments were removed in October 2026 (early modes,
@@ -608,8 +611,8 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   every session, for tests). Benchmarks pin their arms and should set it off.
 - The prompt hooks serve no stale note (`orient`'s `freshOnly`). A stale
   note that would have been served is held back, logged as `held` on the
-  `orient` line, verified in the background as if it had been served
-  (`ops.js:scheduleVerify`), and served on a later turn once it is fresh
+  `orient` line, and left for the next four-hour maintenance batch
+  (`maintain.js:maintain`), and served on a later turn once it is fresh
   again; in the meantime it is listed by title, marked STALE, among the
   notes the agent can `lookup`. Over three days on this repository 43 of
   154 hook servings were stale: each took a slot and the tokens of a fresh

@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { rank } from '../src/rank.js';
 import { createNote, orient, lookup, lateNotes, rememberTask, holdoutSession, holdoutRate, archiveNotes, archiveReason, ARCHIVE_DEFAULTS } from '../src/ops.js';
-import { maintain, pickStale, DEFAULTS } from '../src/maintain.js';
+import { maintain, pickStale, DEFAULTS, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 import { holdoutSummary, renderHoldout, summarize, renderUsage } from '../src/usage.js';
 import { parseTranscript } from '../src/transcripts.js';
 
@@ -212,7 +212,7 @@ test('maintenance archives by the rules, counts it, and tells the user once', ()
   assert.match(renderMaintain(r), /1 archived/);
   assert.match(maintenanceNotice(store), /1 archived/);
   assert.equal(maintenanceNotice(store), '', 'said once');
-  const r2 = await maintain(store, dir, { fns: { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid' }), phrase: async () => ({ done: [], cost: 0 }), } });
+  const r2 = await maintain(store, dir, { now: Date.now() + MAINTENANCE_INTERVAL_MS, fns: { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid' }), phrase: async () => ({ done: [], cost: 0 }), } });
   assert.equal(r2.archived, 0);
 }));
 
