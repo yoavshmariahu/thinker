@@ -1,0 +1,20 @@
+{
+  "task": "PR106936-hard",
+  "base": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+  "model": "gpt-6-astra",
+  "reasoning": "medium",
+  "versions": {
+    "nocache": "f1cf3aea24e68c8325bb09e63bfeff9b91b2a169"
+  },
+  "order": [
+    "nocache"
+  ],
+  "timeoutMinutes": 20,
+  "telemetry": "off",
+  "learning": false,
+  "notes": null,
+  "created": "2026-10-05T06:25:44.080Z",
+  "codex_version": "codex-cli 0.160.0",
+  "task_sha256": "26f4086c5de12d7468dbdacd82ec82e0d3c67a7982d5d84b8ca0d512de3bc9de",
+  "cache": "No notes copied, no prompt hook, no Thinker guidance, no MCP server; THINKER_HOOKS and THINKER_MCP off."
+}

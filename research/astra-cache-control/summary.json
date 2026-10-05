@@ -1,0 +1,38 @@
+{
+  "v016": {
+    "wall_ms": 224612,
+    "tools": 18,
+    "mcp_calls": 0,
+    "usage": {
+      "input_tokens": 825849,
+      "cached_input_tokens": 762752,
+      "output_tokens": 6035
+    },
+    "essential": 0.8333333333333334,
+    "pass": false
+  },
+  "latest": {
+    "wall_ms": 276872,
+    "tools": 28,
+    "mcp_calls": 9,
+    "usage": {
+      "input_tokens": 1243234,
+      "cached_input_tokens": 1146496,
+      "output_tokens": 7053
+    },
+    "essential": 1,
+    "pass": true
+  },
+  "nocache": {
+    "wall_ms": 237757,
+    "tools": 22,
+    "mcp_calls": 0,
+    "usage": {
+      "input_tokens": 1236546,
+      "cached_input_tokens": 1156096,
+      "output_tokens": 6505
+    },
+    "essential": 0.8333333333333334,
+    "pass": false
+  }
+}

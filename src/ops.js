@@ -221,7 +221,7 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // plus `snippets.budget` tokens (SNIPPET_BUDGET); the MCP tools pass it, the hooks do not.
 // once: a note already served in this session is not served again. The prompt hooks pass it: what
 // they served on an earlier turn is in the agent's context, and serving it again on "status?" or
-// a follow-up only adds tokens. An agent calling `orient` itself asks anew and gets everything.
+// a follow-up only adds tokens. MCP retrieval additionally shares a prompt delivery ledger across tools.
 // freshOnly: a stale note is not served; it is held back, verified in the background as if it had
 // been served, and comes back fresh on a later turn. The prompt hooks pass it: a stale note takes
 // the slot and the tokens of a fresh one, and its ⚠ banner is a claim the agent has to check or
@@ -231,11 +231,12 @@ export function codeSnippets(repo, notes, budget, { perNote = 2, max = 4, maxLin
 // what would have been served is logged as `withheld`, and nothing is served or marked served.
 // rerankModel (`rerank` in .thinker/config.json): a small model keeps, of the eight best candidates,
 // those that bear on the request; its choice is final. links: pull in one note linked from the best hit.
-export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false }) {
+export async function orient(store, { task, file, session, client, budget = HOOK_BUDGET, maxNotes = 2, relFloor = 0, refreshFirst = true, recordUsage = true, backgroundVerify = true, rerankModel = store.config().rerank, links = true, snippets = false, once = false, freshOnly = false, holdout = false, delivery }) {
   const start = Date.now();
   let notes = store.list();
   if (once && session) notes = notes.filter(n => !(n.servedIn || []).includes(session));
   if (refreshFirst) notes = refresh(store, notes);
+  if (delivery) notes = delivery.filter(notes);
   // the agent's own call (more than the hook's two notes) asks with a sentence; a higher body floor keeps
   // the notes that merely share its words out (rank.js:MIN_COVER.agentBody)
   // THINKER_DENSE=minilm (dense.js, experiment): cosine scores of the request against every note, blended in
@@ -291,6 +292,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   if (recordUsage && session) trackTurn(store, session, packed.included.map(n => n.id));
+  delivery?.mark(packed.complete);
   packed.held = held;
   if (backgroundVerify) scheduleVerify(store, [...packed.included.filter(n => n.status === 'stale'), ...held]);
   // anchoring guard: name what the request mentions that the notes do not cover
@@ -384,14 +386,14 @@ export function rememberTask(store, session, task) {
   if (!session || !String(task || '').trim() || !store.exists()) return;
   locked(store, session, () => { const { st, save } = sessionState(store, session); st.task = String(task).slice(0, 2000); save(); });
 }
-export function lateNotes(store, { session, client, files, edited = false, perEvent = 2, perSession = 3, minRel = 0.35 }) {
+export function lateNotes(store, { session, client, files, edited = false, perEvent = 2, perSession = 3, minRel = 0.35, delivery }) {
   if (!edited) return { text: '', included: [] };
   const on = 'edit';
   const rel = [...new Set((files || []).map(f => normPath(store.repo, f)).filter(Boolean))];
   if (!rel.length) return { text: '', included: [] };
-  return locked(store, session, () => lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }));
+  return locked(store, session, () => lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel, delivery }));
 }
-function lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel }) {
+function lateLocked(store, { session, client, rel, on, perEvent, perSession, minRel, delivery }) {
   const { st, save } = sessionState(store, session);
   if (st.late.length >= perSession) return { text: '', included: [] };
   let notes = store.list().filter(n => n.status !== 'invalid' && !n.archived && !st.late.includes(n.id) && !(n.servedIn || []).includes(session) && (n.deps || []).some(d => rel.includes(d.path)));
@@ -399,9 +401,11 @@ function lateLocked(store, { session, client, rel, on, perEvent, perSession, min
   // relevance is measured among all notes: among these few the best one would always score 1
   if (st.task && notes.length) { const score = new Map(rank(store.list(), { query: st.task, mode: 'lookup' }).map(r => [r.note.id, r.rel])); notes = notes.filter(n => (score.get(n.id) || 0) >= minRel); }
   notes = refresh(store, notes);
+  if (delivery) notes = delivery.filter(notes);
   notes.sort((a, b) => (LATE_PRIORITY[a.kind] ?? 9) - (LATE_PRIORITY[b.kind] ?? 9) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7));
   const pick = notes.slice(0, Math.min(perEvent, perSession - st.late.length));
   if (!pick.length) return { text: '', included: [] };
+  delivery?.mark(pick);
   for (const n of pick) { st.late.push(n.id); n.uses = (n.uses || 0) + 1; n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
   st.turn = [...new Set([...(st.turn || []), ...pick.map(n => n.id)])];
   save();
@@ -486,18 +490,24 @@ export function scheduleVerify(store, notes) {
 }
 
 const STATUS_ORDER = { violated: 0, stale: 1, fresh: 2 };
-export function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false, kind } = {}) {
+export function lookup(store, { query, client, budget = 2500, maxNotes = 3, snippets = false, kind, delivery } = {}) {
   const start = Date.now();
   let notes = refresh(store, store.list());
   if (kind) notes = notes.filter(n => n.kind === kind);
-  // a note id (as listed by orient) returns that note
+  // An explicit ID must never turn into a fuzzy search after deduplication removes its note.
   const byId = notes.find(n => n.id === String(query).trim());
+  if (delivery && byId && !delivery.filter([byId]).length) {
+    store.log({ op: 'lookup', client: client || 'cli', query: String(query), served: [], suppressed: [byId.id], durationMs: Date.now() - start });
+    return { text: '', included: [], complete: [], omitted: [], tokens: 0 };
+  }
+  if (delivery) notes = delivery.filter(notes);
   // a kind with no query (`lookup(kind: "behavior")`): every note of the kind, the rules first
   const all = kind && !String(query || '').trim() ? notes.filter(n => n.status !== 'invalid').sort((a, b) => (STATUS_ORDER[a.status] ?? 1) - (STATUS_ORDER[b.status] ?? 1) || (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).map(n => ({ note: n, score: 1, rel: 1, aff: 0 })) : null;
   const ranked = byId ? [{ note: byId, score: 1, rel: 1, aff: 0 }] : all || rank(notes, { query, mode: 'lookup' });
   const candidates = byId || all ? ranked : (maxNotes ? ranked.slice(0, maxNotes) : ranked);
   const packed = pack(candidates, budget, { minRel: 0.15 });
   addSnippets(store, packed, budget, snippets, false);
+  delivery?.mark(packed.complete);
   store.log({ op: 'lookup', client: client || 'cli', query: String(query || '').slice(0, 200), kind, served: packed.included.map(n => n.id), snippets: packed.snippets?.length || undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
@@ -555,11 +565,12 @@ function definitionText(repo, file, symbol, block, room, fo) {
   return `${head}\n\`\`\`\n${code.slice(0, room).join('\n')}\n… (${block.total - room} more lines; drilldown with a larger budget for all of it)\n\`\`\``;
 }
 
-export function drilldown(store, { pointer, pointers, client, budget = 2500 } = {}) {
+export function drilldown(store, { pointer, pointers, client, budget = 2500, delivery } = {}) {
   const start = Date.now(); const repo = store.repo;
   const raws = [...(Array.isArray(pointers) ? pointers.flatMap(p => parsePointers(p)) : []), ...parsePointers(pointer)].slice(0, 6);
   if (!raws.length) { const one = String(pointer || '').trim().replace(/^[`'"]|[`'"]$/g, ''); if (!one) return { error: 'drilldown needs a pointer: path:Symbol, a path, or a symbol name' }; raws.push(one); }
-  const notes = store.list().filter(n => n.status !== 'invalid');
+  const allNotes = store.list().filter(n => n.status !== 'invalid');
+  const notes = delivery ? delivery.filter(allNotes) : allNotes;
   const parts = [], errors = [], seenKeys = new Set(), rel = [];
   let used = 0; const add = s => { parts.push(s); used += estTokens(s); };
   const several = raws.length > 1;
@@ -610,8 +621,8 @@ export function drilldown(store, { pointer, pointers, client, budget = 2500 } = 
     const list = shown.slice(1).map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n');
     const full = !several && used + estTokens(firstNote) + estTokens(list) <= budget;
     add(`Cached notes about this code (lookup takes an id):\n${full ? firstNote : `- [${shown[0].kind}] ${shown[0].title}  (id: ${shown[0].id})`}${list ? '\n' + list : ''}`);
-    if (full) { shown[0].uses = (shown[0].uses || 0) + 1; shown[0].lastUsed = new Date().toISOString(); store.put(shown[0]); }
-  } else add('No cached notes rest on this code.');
+    if (full) { delivery?.mark([shown[0]]); shown[0].uses = (shown[0].uses || 0) + 1; shown[0].lastUsed = new Date().toISOString(); store.put(shown[0]); }
+  } else add(delivery ? 'No new cached notes to show for this code.' : 'No cached notes rest on this code.');
   if (errors.length) add(`Not shown: ${errors.join('; ')}.`);
   const text = parts.join('\n\n');
   store.log({ op: 'drilldown', client: client || 'cli', pointer: raws.join(' ').slice(0, 200), file: first?.file, symbol: first?.symbol, notes: shown.map(n => n.id), durationMs: Date.now() - start, tokens: estTokens(text) });
@@ -622,7 +633,7 @@ export function drilldown(store, { pointer, pointers, client, budget = 2500 } = 
 // The definitions whose name or body carry the words (codegraph.js:findSymbols), as pointers
 // drilldown takes, with the blast radius of the first few and the notes resting on them. What the
 // agent would otherwise collect with a grep for each word and a read around every hit.
-export function find(store, { query, path: scope, limit = 12, client } = {}) {
+export function find(store, { query, path: scope, limit = 12, client, delivery } = {}) {
   const start = Date.now(); const repo = store.repo;
   const r = findSymbols(repo, query, { scope, limit });
   if (r === null) return { error: 'cannot search this checkout (not a git repository?)' };
@@ -633,7 +644,8 @@ export function find(store, { query, path: scope, limit = 12, client } = {}) {
   }
   const fo = annotateFanout(repo, r.hits.slice(0, 3).map(h => ({ path: h.path, symbol: h.symbol })), { max: 3 });
   const lines = r.hits.map((h, i) => `- ${h.path}:${h.symbol}:L${h.line}  (${h.kind}${h.end ? `, ${h.end - h.line + 1} lines` : ''}${fo[i]?.fanout ? `; ${renderFanout(fo[i].fanout)}` : ''})`);
-  const notes = store.list().filter(n => n.status !== 'invalid');
+  const allNotes = store.list().filter(n => n.status !== 'invalid');
+  const notes = delivery ? delivery.filter(allNotes) : allNotes;
   const rel = notes.filter(n => (n.deps || []).some(d => d.symbol && r.hits.some(h => d.path === h.path && d.symbol.split('.').pop() === h.name))).sort((a, b) => (b.confidence ?? 0.7) - (a.confidence ?? 0.7)).slice(0, 4);
   const text = `Definitions carrying "${String(query).trim()}"${scope ? ` under ${scope}` : ''} (${r.hits.length}${r.more ? '+' : ''}, by git grep; words: ${r.toks.join(', ')}):\n${lines.join('\n')}${rel.length ? `\n\nCached notes on this code (lookup takes an id):\n${rel.map(n => `- [${n.kind}] ${n.title}  (id: ${n.id})`).join('\n')}` : ''}\n\nNext: drilldown with the pointers you need (several at once), for their code, callers and callees.`;
   store.log({ op: 'find', client: client || 'cli', query: String(query).slice(0, 200), scope, hits: r.hits.length, durationMs: Date.now() - start, tokens: estTokens(text) });
