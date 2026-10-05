@@ -1,0 +1,284 @@
+{
+  "token_definition": "Sum of input, cache creation, cache read and output counters; not a billed-money estimate.",
+  "rows": [
+    {
+      "task": "click-3364",
+      "arm": "control",
+      "solver_tokens": {
+        "input_tokens": 16,
+        "cache_creation_input_tokens": 11380,
+        "cache_read_input_tokens": 86066,
+        "output_tokens": 3591,
+        "total": 101053
+      },
+      "solver_wall_ms": 30039.289291999998,
+      "tool_calls": 10,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.17732179211452603,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 2.882608124986291,
+          "tests": 1465,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 25,
+          "passed": 1440
+        }
+      },
+      "build_tokens": 0,
+      "build_wall_ms": 0,
+      "retrieval_wall_ms": 0,
+      "build_solve_tokens": 101053
+    },
+    {
+      "task": "click-3364",
+      "arm": "thinker",
+      "solver_tokens": {
+        "input_tokens": 12,
+        "cache_creation_input_tokens": 9298,
+        "cache_read_input_tokens": 60760,
+        "output_tokens": 2899,
+        "total": 72969
+      },
+      "solver_wall_ms": 24581.045041999998,
+      "tool_calls": 9,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.14580649975687265,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 2.9125857087783515,
+          "tests": 1465,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 25,
+          "passed": 1440
+        }
+      },
+      "build_tokens": 11348,
+      "build_wall_ms": 7498.770958,
+      "retrieval_wall_ms": 288.3025000000007,
+      "memory_tokens": 597,
+      "build_solve_tokens": 84317
+    },
+    {
+      "task": "click-3364",
+      "arm": "mem0",
+      "solver_tokens": {
+        "input_tokens": 14,
+        "cache_creation_input_tokens": 11224,
+        "cache_read_input_tokens": 82354,
+        "output_tokens": 3739,
+        "total": 97331
+      },
+      "solver_wall_ms": 32534.550250000008,
+      "tool_calls": 9,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.14586712513118982,
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 5
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 2.8845172501169145,
+          "tests": 1465,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 25,
+          "passed": 1440
+        }
+      },
+      "build_tokens": 26327,
+      "build_wall_ms": 22472.956125,
+      "retrieval_wall_ms": 33.813750000001164,
+      "memory_tokens": 747,
+      "build_solve_tokens": 123658
+    },
+    {
+      "task": "click-3391",
+      "arm": "control",
+      "solver_tokens": {
+        "input_tokens": 20,
+        "cache_creation_input_tokens": 23842,
+        "cache_read_input_tokens": 201885,
+        "output_tokens": 10930,
+        "total": 236677
+      },
+      "solver_wall_ms": 85403.38362500002,
+      "tool_calls": 10,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.21634691720828414,
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 12
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 2.953260833863169,
+          "tests": 1623,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 26,
+          "passed": 1597
+        }
+      },
+      "build_tokens": 0,
+      "build_wall_ms": 0,
+      "retrieval_wall_ms": 0,
+      "build_solve_tokens": 236677
+    },
+    {
+      "task": "click-3391",
+      "arm": "thinker",
+      "solver_tokens": {
+        "input_tokens": 28,
+        "cache_creation_input_tokens": 30985,
+        "cache_read_input_tokens": 357864,
+        "output_tokens": 14186,
+        "total": 403063
+      },
+      "solver_wall_ms": 107835.56391599998,
+      "tool_calls": 15,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.1839722921140492,
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 12
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 3.0508000841364264,
+          "tests": 1623,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 26,
+          "passed": 1597
+        }
+      },
+      "build_tokens": 8524,
+      "build_wall_ms": 7991.962584000001,
+      "retrieval_wall_ms": 59.19025000000693,
+      "memory_tokens": 648,
+      "build_solve_tokens": 411587
+    },
+    {
+      "task": "click-3391",
+      "arm": "mem0",
+      "solver_tokens": {
+        "input_tokens": 20,
+        "cache_creation_input_tokens": 25391,
+        "cache_read_input_tokens": 194048,
+        "output_tokens": 10313,
+        "total": 229772
+      },
+      "solver_wall_ms": 81164.837208,
+      "tool_calls": 13,
+      "validation": {
+        "acceptance": {
+          "returncode": 0,
+          "wall_s": 0.21551412483677268,
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1,
+          "passed": 12
+        },
+        "suite": {
+          "returncode": 0,
+          "wall_s": 3.25937741715461,
+          "tests": 1623,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 26,
+          "passed": 1597
+        }
+      },
+      "build_tokens": 22576,
+      "build_wall_ms": 14239.974500000004,
+      "retrieval_wall_ms": 47.802167000001646,
+      "memory_tokens": 741,
+      "build_solve_tokens": 252348
+    }
+  ],
+  "learning": [
+    {
+      "task": "click-3364",
+      "tokens": {
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 29853,
+        "cache_read_input_tokens": 76711,
+        "output_tokens": 5574,
+        "total": 112148
+      },
+      "wall_ms": 37711.294
+    },
+    {
+      "task": "click-3391",
+      "tokens": {
+        "input_tokens": 8,
+        "cache_creation_input_tokens": 19289,
+        "cache_read_input_tokens": 37176,
+        "output_tokens": 3523,
+        "total": 59996
+      },
+      "wall_ms": 24673.318874999997
+    }
+  ],
+  "totals": {
+    "control": {
+      "build_tokens": 0,
+      "build_solve_tokens": 337730,
+      "solver_wall_ms": 115442.67291700002,
+      "build_wall_ms": 0,
+      "retrieval_wall_ms": 0,
+      "tool_calls": 20,
+      "solver_tokens": 337730
+    },
+    "thinker": {
+      "build_tokens": 19872,
+      "build_solve_tokens": 495904,
+      "solver_wall_ms": 132416.60895799997,
+      "build_wall_ms": 15490.733542000002,
+      "retrieval_wall_ms": 347.4927500000076,
+      "tool_calls": 24,
+      "solver_tokens": 476032
+    },
+    "mem0": {
+      "build_tokens": 48903,
+      "build_solve_tokens": 376006,
+      "solver_wall_ms": 113699.38745800001,
+      "build_wall_ms": 36712.93062500001,
+      "retrieval_wall_ms": 81.61591700000281,
+      "tool_calls": 22,
+      "solver_tokens": 327103
+    }
+  }
+}

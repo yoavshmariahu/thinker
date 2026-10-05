@@ -1,0 +1,20 @@
+{
+  "acceptance": {
+    "returncode": 1,
+    "wall_s": 0.17017120821401477,
+    "tests": 5,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 3
+  },
+  "suite": {
+    "returncode": 1,
+    "wall_s": 3.1109121670015156,
+    "tests": 1465,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 25,
+    "passed": 1438
+  }
+}
