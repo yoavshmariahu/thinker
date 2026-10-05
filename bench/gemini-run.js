@@ -20,9 +20,14 @@ for (let i = 0; i < args.length; i++) {
 }
 
 const repoName = flags.repo || 'posthog';
-const repo = path.join(HERE, 'repos', repoName);
+const repo = flags['repo-dir'] ? path.resolve(flags['repo-dir']) : path.join(HERE, 'repos', repoName); // --repo-dir: a clone outside this checkout (a worktree of thinker has none)
 const tasksFile = flags.tasks || path.join(HERE, 'tasks', `${repoName}-hard.json`);
+// Arms: nocache (no notes, MCP off), cache (notes and the hook bundle), and two cache arms that differ in
+// one thing: `before` hands the hook no session, so the once-per-session <thinker-tools> intro
+// (ops.js:sessionIntro, 2026-10-05) never fires; `after` hands it the run's id, so the bundle opens
+// with the intro. Antigravity runs no tool hooks, so the first-edit review nudge is not exercised.
 const arms = (flags.arm || 'nocache,cache').split(',');
+const CACHE_ARMS = new Set(['cache', 'before', 'after']);
 const model = flags.model || 'gemini-3.8-flash-high';
 const reps = Number(flags.reps) || 1;
 const tag = flags.tag || 'posthog-gemini-3.8';
@@ -49,7 +54,7 @@ function makeWorktree(i) {
 function setNotes(wt, arm) {
   const dotThinker = path.join(wt, '.thinker');
   fs.rmSync(dotThinker, { recursive: true, force: true });
-  if (arm !== 'cache') return;
+  if (!CACHE_ARMS.has(arm)) return;
   fs.mkdirSync(dotThinker, { recursive: true });
   fs.cpSync(notesDir, path.join(dotThinker, 'notes'), { recursive: true });
   fs.writeFileSync(path.join(dotThinker, 'config.json'), JSON.stringify({ version: 1 }, null, 2) + '\n');
@@ -93,7 +98,11 @@ function toolStats(transcriptFile) {
           stats.calls++;
           stats.byTool[tc.name] = (stats.byTool[tc.name] || 0) + 1;
           const isThinkerMcp = tc.name === 'call_mcp_tool' && (tc.args?.ServerName === 'thinker' || tc.args?.ServerName === '"thinker"');
-          if (tc.name.startsWith('mcp__thinker') || tc.name === 'orient' || tc.name === 'lookup' || isThinkerMcp) stats.thinkerCalls++;
+          if (tc.name.startsWith('mcp__thinker') || tc.name === 'orient' || tc.name === 'lookup' || isThinkerMcp) {
+            stats.thinkerCalls++;
+            const tool = isThinkerMcp ? String(tc.args?.ToolName || '').replace(/"/g, '') : tc.name.replace(/^mcp__thinker__/, '');
+            (stats.thinkerByTool ||= {})[tool || 'unknown'] = (stats.thinkerByTool?.[tool || 'unknown'] || 0) + 1;
+          }
           if (tc.name === 'view_file' || tc.name === 'read_file') stats.filesRead++;
           if (tc.name === 'replace_file_content' || tc.name === 'write_to_file') stats.edits++;
         }
@@ -158,18 +167,19 @@ function lastConversation(t0, cwd) {
   return null;
 }
 
-async function runAgy(prompt, { arm, cwd }) {
+async function runAgy(prompt, { arm, cwd, id }) {
   let fullPrompt = prompt;
-  if (arm === 'cache') {
+  if (CACHE_ARMS.has(arm)) {
     // Generate orientation bundle from thinker
     const budget = flags.budget || '750';
     let hookBundle = '';
     try {
-      const input = JSON.stringify({ prompt });
-      hookBundle = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', cwd, '--budget', budget], {
+      const input = JSON.stringify(arm === 'after' ? { prompt, session_id: `bench-${id}` } : { prompt });
+      // --client antigravity: plain text, and the intro names no Claude Code ToolSearch
+      hookBundle = execFileSync('node', [CLI, 'hook', 'prompt', '--repo', cwd, '--budget', budget, '--client', 'antigravity'], {
         encoding: 'utf8',
         input,
-        env: { ...process.env, THINKER_NOTES_DIR: notesDir }
+        env: { ...process.env, THINKER_NOTES_DIR: notesDir, THINKER_HOLDOUT: 'off', THINKER_LLM: 'gemini' }
       }).trim();
     } catch (e) {
       console.error('hook prompt error:', e.message);
@@ -192,7 +202,8 @@ Rely directly on the verified file:symbol pointers above and do not re-explore f
       '--output-format', 'json',
       '--dangerously-skip-permissions'
     ];
-    const p = spawn('agy', args, { cwd, env: { ...process.env, THINKER_LOG: 'local', THINKER_NO_LEARN: '1', ...(arm === 'cache' ? {} : { THINKER_MCP: 'off' }) } });
+    // THINKER_LLM=gemini: a review the agent asks thinker's MCP server for goes to the same provider, never to Claude
+    const p = spawn('agy', args, { cwd, env: { ...process.env, THINKER_LOG: 'local', THINKER_NO_LEARN: '1', THINKER_HOLDOUT: 'off', THINKER_LLM: 'gemini', ...(CACHE_ARMS.has(arm) ? {} : { THINKER_MCP: 'off' }) } });
     let o = '', e = '', timedOut = false;
     // a run that passes the limit is stopped and kept, with its edits so far, as timed_out
     const limit = setTimeout(() => { timedOut = true; p.kill('SIGKILL'); }, (Number(flags['max-min']) || 20) * 60000);
@@ -256,7 +267,7 @@ async function main() {
       let r = null;
       try {
         setNotes(cwd, arm);
-        r = await runAgy(task.prompt, { arm, cwd });
+        r = await runAgy(task.prompt, { arm, cwd, id });
       } catch (e) {
         console.log(`[error] ${id}: ${e.message}`);
         resetWorktree(cwd);
