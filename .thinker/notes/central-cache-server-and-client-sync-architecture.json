@@ -29,7 +29,7 @@
     },
     {
       "path": "src/server/worker.js",
-      "hash": "sha256:d0831a0abb968668e1a52ca5",
+      "hash": "sha256:24ff62c6b19247f81a08f3fc",
       "missing": false
     },
     {
@@ -44,22 +44,22 @@
     },
     {
       "path": "src/cli.js",
-      "hash": "sha256:dfe8738db9475f424e1b6178",
+      "hash": "sha256:00f3fa4d64c759af6fcc5a5a",
       "missing": false
     },
     {
       "path": "src/maintain.js",
-      "hash": "sha256:939eae65a4dda0b5def40cc9",
+      "hash": "sha256:4bfdbc3a9dc07831ace56e5a",
       "missing": false
     },
     {
       "path": "src/commands/learn.js",
-      "hash": "sha256:9fe715b349c93995be58aa8e",
+      "hash": "sha256:901b7f7632930559f4e73cad",
       "missing": false
     },
     {
       "path": "src/commands/hooks.js",
-      "hash": "sha256:22084f048ef3c737f3a669ae",
+      "hash": "sha256:458c0b254356623a2323f30f",
       "missing": false
     },
     {
@@ -72,7 +72,7 @@
     "type": "agent"
   },
   "created": "2026-10-03T06:37:50.164Z",
-  "verified": "2026-10-04T19:50:21.195Z",
+  "verified": "2026-10-05T07:28:39.616Z",
   "verifiedCommit": "a35ec3bfc80df76bd1bf41b5d2fa0eeaf2cceb32",
   "confidence": 1,
   "related": []

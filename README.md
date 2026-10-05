@@ -149,9 +149,18 @@ pending corrections. Review archives before distributing them.
 thinker review                      # the working tree against HEAD
 thinker review --staged             # what is about to be committed
 thinker review --base origin/main   # the branch since its merge base
+thinker review --base origin/main --pr 123 --post  # comment using your gh login
 thinker review --ref <commit>       # one commit, read from git alone
 thinker review --state src/auth/    # no change: the current code against the notes on it
 ```
+
+`--post --pr <number>` adds a new PR conversation comment using your authenticated
+GitHub CLI (`gh auth login`), including findings, file locations, and desired
+behaviors. It works on your own PRs and needs no bot or server. Each invocation
+adds a comment, including when there are no findings. `--pr` alone only links the
+review to usage history; it does not select or check out the PR, so run this from
+the correct checkout and choose the review scope with `--base` or the other flags.
+`--post --dry` is rejected. With `--json`, the result includes `comment.url`.
 
 A review is for two things: a change that undoes a fix the team already made,
 and a change that breaks a convention or a desired behavior the cache holds.
