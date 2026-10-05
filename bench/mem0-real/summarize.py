@@ -21,7 +21,7 @@ for t in ['click-3364','click-3391']:
   row.update(build_tokens=0,build_wall_ms=0,retrieval_wall_ms=0)
   if arm!='control':
    b=read(name+'-build.json');r=read(name+'-retrieval.json')
-   u=counters(b['distilled']['usage']) if arm=='thinker' else next(x['usage'] for x in llms if x['task']==t)
+   u=counters(b['distilled']['usage']) if arm=='thinker' else {k:sum(x['usage'][k] for x in llms if x['task']==t) for k in [*KEYS,'total']}
    row.update(build_tokens=u['total'],build_wall_ms=b['wall_ms'],retrieval_wall_ms=r['wall_ms'],memory_tokens=r['estimated_tokens'])
   row['build_solve_tokens']=row['solver_tokens']['total']+row['build_tokens'];rows.append(row)
 summary={'token_definition':'Sum of input, cache creation, cache read and output counters; not a billed-money estimate.','rows':rows,'learning':learning,'totals':{}}
