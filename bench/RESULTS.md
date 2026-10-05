@@ -753,3 +753,46 @@ the framing paragraph for every arm.
 ## Cost of the whole study
 
 ~1,400 `claude -p` runs (agents, judges, graders, distillation, mining, verification); roughly $300 of usage through the user's Claude Code login.
+
+## Tool intro: does naming find and review get them used? (2026-10-05, Gemini, 4 runs)
+
+A smoke test of the `<thinker-tools>` intro the prompt hook adds once per session
+(`ops.js:sessionIntro`, PR #27), not a measurement: two Grafana tasks, one run per
+arm, Antigravity `agy` with `gemini-3.8-flash-high`, the same model as judge
+against the tasks' calibrated criteria (Codex was out of quota); the merged PRs'
+Go tests do not build here and were skipped. Both arms had the grafana-v2 notes;
+the hook served no note for either task, so the arms differ in the intro alone.
+`before` hands the hook no session (no intro); `after` hands it the run's id.
+Run dir `bench/runs/grafana-gemini-intro-ab`; harness `bench/gemini-run.js --arm before,after`.
+
+| run | thinker calls | find | review | tool calls | file reads | wall | judged |
+|---|---|---|---|---|---|---|---|
+| PR133148 before | orient 1, lookup 1, remember 1 | 0 | 0 | 135 | 73 | 15.1 min | pass |
+| PR133148 after | orient 1, lookup 3, remember 1 | 1 | 2 | 114 | 63 | 18.3 min | fail (c5) |
+| PR132983 before | lookup 1, remember 1 | 0 | 0 | 136 | 67 | 13.6 min | pass |
+| PR132983 after | orient 1, lookup 3 | 1 | 9 | 143 | 66 | 20 min, cut off | pass |
+
+The intro does what it is for: both `after` runs called `find` and `review`,
+neither `before` run did. What it exposed is in the review tool, not the intro:
+
+- Antigravity gives an MCP call three minutes. `review` with `action: "assess"`
+  ran 8 model calls through the Gemini CLI, each answering with 45–80k output
+  tokens, and both assess calls in PR133148 timed out; the agent waited six
+  minutes for nothing. The same happened once in PR132983.
+- `action: "start"` queues a run, and the agent then polled `status` five times
+  in two minutes while the review ran, then asked for an assess and was cut off
+  by the harness's 20-minute limit. The patch it had by then was judged passing.
+- The agent's first `start` call passed `criteria` as a string and was refused
+  by the schema (`expected object, received string at task`).
+- The c5 failure in PR133148 after (the fallback when no search-field registry
+  is set) is one run of one task; nothing ties it to the tools.
+
+Fewer file reads in both `after` runs (73→63, 67→66) and fewer tool calls in one
+(135→114) are what an agent that reaches definitions through `find` would show,
+and at n=1 they are not evidence. What to change before the next run: `review`
+over MCP must answer inside an agent's tool timeout (assess detached like start,
+or far fewer and shorter model calls: 8 calls at 60k output tokens each is the
+cost of a task, spent on a review); a `status` answer should tell the agent to
+keep working and check once more at the end, not poll; and the tool should take
+a string for `task` as the request. The review's model work went to Gemini
+(`THINKER_LLM=gemini` on the hook and the agent), never to Claude.
