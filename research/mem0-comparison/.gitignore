@@ -1,0 +1,13 @@
+raw/llm-*.json
+raw/*input.json
+raw/*transcript.jsonl
+raw/preflight*/
+raw/preflight*.json
+raw/locomo-session1-smoke.json
+raw/locomo/
+raw/server*.log
+raw/locomo.log
+raw/thinker-tests.log
+raw/build-*.log
+raw/learning.log
+raw/comparison.log

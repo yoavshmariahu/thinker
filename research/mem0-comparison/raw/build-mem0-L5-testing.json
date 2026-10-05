@@ -1,0 +1,51 @@
+{
+  "wall_ms": 12971.742917000001,
+  "results": [
+    {
+      "id": "e9980b0b-c7ca-4032-92c5-8a02068b184d",
+      "memory": "In click (src/click/testing.py), CliRunner.invoke has three steps: optionally start fd capture (_FDCapture), enter CliRunner.isolation (swaps in fake streams, os.environ values and prompt hooks), then call cli.main(args=..., prog_name=..., **extra) and convert the outcome into exit_code/exception and a Result. The class modifies global interpreter state, so it is not safe for concurrent or multithreaded use.",
+      "event": "ADD"
+    },
+    {
+      "id": "a536847c-301a-40fe-8777-653ed756beea",
+      "memory": "In click testing.py, CliRunner.isolation stdin handling: make_input_stream converts input (str encoded with runner.charset, None becomes b\"\", file-like goes through _find_binary_reader, raising TypeError if no binary reader is found), and the stream is wrapped in _NamedTextIOWrapper (name '<stdin>', mode 'r') assigned to sys.stdin. With echo_stdin=True it is first wrapped in EchoingStdin, which copies reads into the stdout buffer, and text_input._CHUNK_SIZE = 1 forces unbuffered reads so the echo is not emitted early. _pause_echo disables the echo during prompts and getchar because prompts echo the input themselves.",
+      "event": "ADD"
+    },
+    {
+      "id": "0588f725-ab1c-4086-89d7-8581407841b6",
+      "memory": "In click testing.py, stdout/stderr capture uses StreamMixer, which holds three BytesIO objects: stdout and stderr (both BytesIOCopy) and a combined output. BytesIOCopy.write and flush forward to copy_to (output), giving separate stdout/stderr buffers plus a third buffer with both in write order. sys.stdout and sys.stderr are replaced with _NamedTextIOWrapper objects over these buffers; stderr uses errors='backslashreplace'. _NamedTextIOWrapper.close is a no-op so garbage collection cannot close the shared buffer.",
+      "event": "ADD"
+    },
+    {
+      "id": "309e3b0a-e420-43ea-93d8-fc93a37d81f5",
+      "memory": "In click testing.py, CliRunner.isolation patches Click internals and restores them in its finally block: termui.visible_prompt_func, termui.hidden_prompt_func and termui._getchar are replaced with visible_input, hidden_input and _getchar that read from the fake stdin and raise EOFError when input runs out. utils.should_strip_ansi and _compat.should_strip_ansi are replaced so color is stripped unless color=True (an explicit color argument on a call still overrides). formatting.FORCED_WIDTH is set to 80. pdb.Pdb.__init__ is patched via _patched_pdb_init to default to sys.__stdin__/sys.__stdout__ so debuggers (pdb, ipdb, pdbpp) can still reach the terminal; pudb and debugpy are not covered.",
+      "event": "ADD"
+    },
+    {
+      "id": "b4e02722-7979-47e9-93ef-5a148a5ee28c",
+      "memory": "In click testing.py, environment isolation: CliRunner.make_env merges the runner's env with per-call env overrides (per-call wins). isolation saves each key's old os.environ value in old_env, applies the override (a value of None deletes the key), and restores or deletes each key in the finally block along with sys.stdin/stdout/stderr, so changes are undone even if the command raises. isolation yields (stdout, stderr, output) BytesIO objects.",
+      "event": "ADD"
+    },
+    {
+      "id": "6b96dbf1-ca7b-4e0e-a106-399bc2c5783a",
+      "memory": "In click testing.py, CliRunner(capture='fd') (added in 8.4.0; default is 'sys') uses _FDCapture(1) and _FDCapture(2) created in invoke before isolation replaces sys streams. _FDCapture.start saves the fd with os.dup and redirects it to a temp file with os.dup2; stop restores the fd and returns the captured bytes. It also catches output from C extensions, subprocesses and stale stream references. _NamedTextIOWrapper._original_fd is set to the saved fd so fileno() works for faulthandler/subprocess; in sys mode it stays -1 and fileno() raises io.UnsupportedOperation. After the command runs, captured bytes are written into the stdout/stderr buffers and BytesIOCopy mirrors them into output. invoke falls back to sys behavior if fd capture start raises OSError, and the constructor raises ValueError for an invalid capture value or for 'fd' on Windows.",
+      "event": "ADD"
+    },
+    {
+      "id": "335d77a7-129b-4ec4-af88-c4447f80d064",
+      "memory": "In click testing.py, CliRunner.invoke exception and exit-code handling: a string args is split via shlex.split; prog_name comes from extra or get_default_prog_name (cli.name or 'root'); it calls cli.main(args=args or (), prog_name=prog_name, **extra). Normal return sets return_value and exit_code 0. On SystemExit, exc_info is always recorded, a None code becomes 0, exception is set only when the code is nonzero, and a non-int code is written to stdout plus newline with exit_code 1. On other Exception, if catch_exceptions is false (per-call value overrides the runner's when not None) it is re-raised; otherwise exception and exc_info are set and exit_code is 1. KeyboardInterrupt and other BaseException subclasses are not caught.",
+      "event": "ADD"
+    },
+    {
+      "id": "8aa4f208-f51f-487d-bca6-7525673b6d95",
+      "memory": "In click testing.py, CliRunner.invoke's finally block flushes sys.stdout and sys.stderr, stops fd capture and merges those bytes into the stdout/stderr buffers, then reads stdout, stderr and output via getvalue() to build the Result.",
+      "event": "ADD"
+    },
+    {
+      "id": "ab07ae82-90ce-4920-abb1-2f984aebf989",
+      "memory": "In click testing.py, Result exposes stdout_bytes, stderr_bytes, output_bytes, return_value, exit_code, exception, exc_info (type, instance, traceback tuple) and runner, plus decoded text properties stdout, stderr and output. Each decodes with runner.charset using errors='replace' and normalizes '\\r\\n' to '\\n'. output is stdout and stderr interleaved in write order as seen in a terminal and, since 8.2, is not an alias for stdout; stderr no longer raises. Result.__repr__ prints '<Result okay>' or '<Result {exception!r}>'.",
+      "event": "ADD"
+    }
+  ],
+  "benchmark_wall_ms": 12959.880374837667
+}

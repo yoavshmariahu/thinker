@@ -1,0 +1,51 @@
+{
+  "wall_ms": 14840.858708,
+  "results": [
+    {
+      "id": "23f9937b-d2e6-4e47-80cd-ce8dc6f65a6c",
+      "memory": "In click (src/click/core.py), the option-value flow for `--count 3` is: Command.main (1436) -> Command.make_context (1280) -> Command.parse_args (1317) -> make_parser (1178) / _OptionParser.parse_args (parser.py:298) -> Parameter.handle_parse_result (2677) -> consume_value -> process_value -> type_cast_value (2476) -> ParamType.__call__ (types.py:101) -> convert. Command.invoke (1353) then calls ctx.invoke(self.callback, **ctx.params).",
+      "event": "ADD"
+    },
+    {
+      "id": "fca420c4-affd-4f53-9965-141ab2ccb163",
+      "memory": "In click, Command.parse_args (core.py:1317) builds the parser via make_parser (1178), which calls param.add_to_parser for each param, then calls parser.parse_args, then loops over iter_params_for_processing(param_order, self.get_params(ctx)) (core.py:138) calling param.handle_parse_result. Afterwards (1336-1338) any leftover UNSET values in ctx.params are converted to None, and unexpected extra args fail unless allow_extra_args or resilient_parsing.",
+      "event": "ADD"
+    },
+    {
+      "id": "69da6614-1691-48eb-b875-001126fe3682",
+      "memory": "In click, the parser (parser.py) does no type conversion or defaults. Option.add_to_parser (core.py:3181) registers options with action store, append (multiple), count, or *_const variants for flags. _OptionParser._process_opts (470) splits on '=' and calls _match_long_opt (363), falling back to _match_short_opt (390) on NoSuchOption. _get_value_from_state (430) pops the raw string from state.rargs for nargs==1, or returns a tuple of strings for nargs>1. _Option.process (169) writes it into state.opts[dest].",
+      "event": "ADD"
+    },
+    {
+      "id": "21afc7a6-e66a-4aa4-8234-9910303499f2",
+      "memory": "In click, source precedence is implemented in Parameter.consume_value (core.py:2428): command line (ParameterSource.COMMANDLINE) first, then envvar via value_from_envvar (ENVIRONMENT), then ctx.lookup_default / default_map (DEFAULT_MAP), then get_default (DEFAULT). A string from default_map is split via type.split_envvar_value when nargs != 1. Option.consume_value (3465) wraps it, handling FLAG_NEEDS_VALUE, flag_value substitution, and interactive prompts (ParameterSource.PROMPT).",
+      "event": "ADD"
+    },
+    {
+      "id": "16c2f7cf-2dc0-4cfe-ab0a-b9c3fde0ce96",
+      "memory": "In click, type conversion happens in Parameter.type_cast_value (core.py:2476), called from Parameter.process_value (2550) and always applied regardless of value source (command line, envvar, default). It builds a convert closure by nargs: nargs==1 or composite types call self.type(value, param=self, ctx=ctx); nargs==-1 or >1 converts each item into a tuple (nargs>1 length-checked, raising BadParameter); multiple applies convert per item into a tuple. None returns () for multiple or nargs==-1. ParamType.__call__ (types.py:101) skips None and calls convert; _NumberParamTypeBase.convert (types.py:540) calls self._number_class(value) and on ValueError calls self.fail, raising BadParameter.",
+      "event": "ADD"
+    },
+    {
+      "id": "f111c369-9258-4e8b-a468-719c34897bdd",
+      "memory": "In click, Parameter.process_value (core.py:2550) runs in order: type_cast_value (skipped for UNSET, where multiple/nargs==-1 become ()), then MissingParameter if required and value_is_missing (2532), then the param's callback(ctx, param, value). Legacy behavior: UNSET is shown to the callback as None, and when other ctx.params are UNSET the callback runs inside a temporary `with ctx:` layer with those params patched to None and restored afterwards. Option.process_value (3527) overrides to set unset non-required bool flags to False before the base logic.",
+      "event": "ADD"
+    },
+    {
+      "id": "d04dbeed-8df6-48d6-9c98-9d07480b1132",
+      "memory": "In click, defaults are resolved by Parameter.get_default (core.py:2392), which checks ctx.lookup_default first (default_map), then self.default, and calls the default if callable and call=True. Option.get_default (3081) resolves default=True to flag_value for non-bool flags only. Context.invoke (853) with a Command argument fills missing params via param.get_default and type_cast_value (lines 885-897), mapping UNSET to None.",
+      "event": "ADD"
+    },
+    {
+      "id": "6af19a96-1d68-406e-913f-9cb76995f587",
+      "memory": "In click, envvar lookup: Parameter.resolve_envvar_value (core.py:2616) reads os.environ for envvar (str or list, first non-empty wins, empty string counts as unset) and returns a raw string. Option.resolve_envvar_value (3399) falls back to `{ctx.auto_envvar_prefix}_{name.upper()}` when allow_from_autoenv is set. value_from_envvar (2661; Option override at 3423) splits via type.split_envvar_value when nargs != 1 or multiple, batches for multiple with nargs != 1, and interprets non-bool flags via BoolParamType.str_to_bool. Conversion to the final type still happens later in type_cast_value.",
+      "event": "ADD"
+    },
+    {
+      "id": "3ee620f2-f2fe-48fb-8f0d-09df39bba9ba",
+      "memory": "In click, Parameter.handle_parse_result (core.py:2677) writes the final value to ctx.params[self.name] (line 2753) only if the parameter wins slot arbitration among params sharing a name (feature-switch groups, issue #3403), based on ParameterSource precedence and _default_explicit; it records ParameterSource before process_value. In resilient_parsing mode, exceptions from process_value reset the value to UNSET instead of raising.",
+      "event": "ADD"
+    }
+  ],
+  "benchmark_wall_ms": 14789.352749940008
+}

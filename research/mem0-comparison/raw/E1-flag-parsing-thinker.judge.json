@@ -1,0 +1,41 @@
+{
+  "grade": {
+    "score": 0.5,
+    "missing": [
+      "Parser-side file:symbol: parser.py:_Option.takes_value, _Option.process, add_option, _match_long_opt (why flags take no value)",
+      "Non-boolean flags with no default end up None via Command.parse_args converting UNSET to None (core.py:1336-1338)",
+      "Parameter.consume_value as the default/envvar/default_map chain, and Parameter.__init__ _default_explicit",
+      "Flag-ness conditions: decorators.py prebuilt options set is_flag=True; secondary-opt implicit flag detail",
+      "Note that flags don't get nargs=0 / count+is_flag is rejected; count=True is not a flag"
+    ],
+    "wrong": [
+      "Claims explicit is_flag=False is simply used; the reference notes is_flag=False with _flag_needs_value logic modifies _flag_needs_value, a minor nuance",
+      "States _flag_needs_value exception only loosely; the reference says that check precedes the secondary_opts branch, roughly consistent but imprecise",
+      "Says consume_value swaps a command-line True for flag_value; reference says from any source more explicit than DEFAULT_MAP (minor)"
+    ],
+    "reason": "The main points are right: the flag decision is in Option.__init__, add_to_parser uses _const actions and two registrations for bool flags with secondary opts, and the default chain covers __init__ defaults, get_default, and the process_value backstop. It omits several key symbols and facts from the reference: the parser-side functions, the Parameter.consume_value chain, and the residual UNSET to None conversion in Command.parse_args. The details are therefore incomplete."
+  },
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 8095,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 630,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 8095,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model": "claude-sonnet-5-5"
+}

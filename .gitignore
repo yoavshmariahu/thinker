@@ -11,3 +11,7 @@ bench/runs/empty-notes/
 
 # private gateway deployment snapshots and credentials
 .access-work/
+
+# Mem0 comparison dependencies and local vector/model state
+bench/mem0-upstream/
+bench/mem0-state/

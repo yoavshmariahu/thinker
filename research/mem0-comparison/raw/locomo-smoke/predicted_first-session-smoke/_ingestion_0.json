@@ -1,0 +1,9 @@
+{
+  "conversation_idx": 0,
+  "user_id": "locomo_0_5e636e26",
+  "run_id": "5e636e26",
+  "chunk_size": 1,
+  "total_chunks_processed": 18,
+  "total_chunks_failed": 0,
+  "completed_at": "2026-10-04T22:35:13.436918"
+}

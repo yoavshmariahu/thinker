@@ -1,0 +1,101 @@
+{
+  "id": "E1-flag-parsing-thinker",
+  "wall_ms": 14521.173375,
+  "duration_api_ms": 14279,
+  "stop_reason": "end_turn",
+  "session_id": "5eadd317-3f8c-41cd-ae9d-8604966a87b5",
+  "total_cost_usd": 0.050675399999999995,
+  "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 7389,
+    "cache_read_input_tokens": 22087,
+    "output_tokens": 1669,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 7389,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "modelUsage": {
+    "claude-sonnet-5-5": {
+      "inputTokens": 6,
+      "outputTokens": 1669,
+      "cacheReadInputTokens": 22087,
+      "cacheCreationInputTokens": 7389,
+      "webSearchRequests": 0,
+      "costUSD": 0.050675399999999995,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 0,
+      "canonicalModel": "claude-sonnet-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "fast_mode_disabled_reason": "sdk_opt_in_required",
+  "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+      "background": 0,
+      "foreground": 0,
+      "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+      "parent": 0,
+      "user": 0,
+      "system": 0
+    },
+    "refused": {
+      "depth_limit": 0,
+      "concurrency_limit": 0,
+      "budget": 0
+    },
+    "by_type": {}
+  },
+  "is_error": false,
+  "num_turns": 5,
+  "subtype": "success",
+  "api_error_status": null,
+  "result": "Click decides this in `Option.__init__`, in `src/click/core.py` (about lines 2953–3024).\n\n## Where the flag decision is made\n\n`core.py:Option.__init__` sets `is_flag` like this:\n\n- **Explicit value:** if you pass `is_flag=True` or `is_flag=False`, that value is used.\n- **Implicit flag:** if `is_flag` is `None`, the option becomes a flag in two cases:\n  - `flag_value` was given.\n  - A secondary option name was given, as in `--on/--off`.\n  - The exception is an option that has a prompt and doesn't require one (`_flag_needs_value`). That option is not made a flag.\n- **Stored attributes:** the result is stored as `self.is_flag`. `self.is_bool_flag` is true when it's a flag and its type is `BoolParamType`.\n\nThe same block also handles type and `flag_value` defaults:\n\n- **Type:** if no `type` is given, it is inferred from `flag_value`. No `flag_value` or a `bool` gives `BoolParamType`. Anything else is guessed, falling back to `UNPROCESSED`.\n- **`flag_value`:** if still unset, it becomes `True` for a flag and `None` otherwise.\n\nSecondary names come from `core.py:Option._parse_decls`, which splits `--on/--off` declarations into `opts` and `secondary_opts`.\n\n## (a) What gets registered with the parser\n\n`core.py:Option.add_to_parser` branches on `is_flag`:\n\n- **Action:** the base action is `append` for `multiple`, `count` for `count`, and `store` otherwise. For flags it becomes `<action>_const`, for example `store_const`.\n- **Boolean flag with secondary names:** two `parser.add_option` calls are made for the same `dest`. `opts` get `const=True` and `secondary_opts` get `const=False`.\n- **Any other flag:** one `parser.add_option` call with `const=self.flag_value`. It takes no `nargs`.\n- **Non-flag:** one `parser.add_option` call with `nargs=self.nargs`.\n\nWhen a flag is used without a value, `core.py:Option.consume_value` finishes the job. It replaces the parser's `FLAG_NEEDS_VALUE` sentinel with `flag_value`. It also swaps a `True` that came from the command line for `flag_value` on non-boolean flags.\n\n## (b) Default when the flag is absent\n\nSeveral places contribute:\n\n- **`core.py:Option.__init__`:**\n  - If the flag is a boolean and has no default and isn't required, `default` becomes `False`.\n  - A non-boolean `multiple` flag with no default gets `()`.\n- **`core.py:Option.get_default`:** for a non-boolean flag, `default=True` is resolved lazily to `self.flag_value`. For example, `flag_value=\"upper\", default=True` gives `\"upper\"`. Boolean flags keep `True` as-is.\n- **`core.py:Option.process_value`:** this is a safety net. If a boolean flag isn't required and its value is still `UNSET`, the value becomes `False`. The callback still runs on it.",
+  "ttft_ms": 2413,
+  "type": "result",
+  "duration_ms": 14349,
+  "uuid": "6fb125fe-dc0e-4d41-b659-12bdd3a8ef09",
+  "ttft_stream_ms": 1498,
+  "time_to_request_ms": 34,
+  "first_content_frame_ms": 1498,
+  "queued_turn_count": 0,
+  "result_index": 0,
+  "tools": {
+    "calls": 4,
+    "byTool": {
+      "Grep": 1,
+      "Read": 3
+    },
+    "thinkerCalls": 0,
+    "cbmCalls": 0,
+    "filesRead": 1,
+    "edits": 0,
+    "greps": 1,
+    "bash": 0
+  }
+}

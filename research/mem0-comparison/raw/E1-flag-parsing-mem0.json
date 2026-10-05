@@ -1,0 +1,101 @@
+{
+  "id": "E1-flag-parsing-mem0",
+  "wall_ms": 12056.283083999999,
+  "duration_api_ms": 11816,
+  "stop_reason": "end_turn",
+  "session_id": "a6894c83-eb47-4ab1-88dd-a89bdaa431af",
+  "total_cost_usd": 0.0483826,
+  "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 6938,
+    "cache_read_input_tokens": 22743,
+    "output_tokens": 1607,
+    "output_tokens_details": {
+      "thinking_tokens": 15
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 6938,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "modelUsage": {
+    "claude-sonnet-5-5": {
+      "inputTokens": 6,
+      "outputTokens": 1607,
+      "cacheReadInputTokens": 22743,
+      "cacheCreationInputTokens": 6938,
+      "webSearchRequests": 0,
+      "costUSD": 0.0483826,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 15,
+      "canonicalModel": "claude-sonnet-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "permission_denials": [],
+  "terminal_reason": "completed",
+  "fast_mode_state": "off",
+  "fast_mode_disabled_reason": "sdk_opt_in_required",
+  "subagent_stats": {
+    "spawned": 0,
+    "requested": {
+      "background": 0,
+      "foreground": 0,
+      "unset": 0
+    },
+    "started_in_background": 0,
+    "max_depth": 0,
+    "spawned_by_subagents": 0,
+    "completed": 0,
+    "failed": 0,
+    "killed": {
+      "parent": 0,
+      "user": 0,
+      "system": 0
+    },
+    "refused": {
+      "depth_limit": 0,
+      "concurrency_limit": 0,
+      "budget": 0
+    },
+    "by_type": {}
+  },
+  "is_error": false,
+  "num_turns": 6,
+  "subtype": "success",
+  "api_error_status": null,
+  "result": "Click decides that an option is a flag in `Option.__init__`, in `src/click/core.py` (about lines 2954–3024). The checks below are line-numbered from this checkout.\n\n## Where the decision is made\n\n`core.py:Option.__init__` resolves `is_flag` in three steps:\n\n- **Auto-detection (2954–2963).** If `is_flag` is `None`, the option becomes a flag in two cases:\n  - A `flag_value` was given.\n  - Secondary option names were given, as in `--on/--off`.\n  \n  An option that only prompts when used bare is explicitly not a flag.\n- **Explicit `is_flag=False` (2969–2970).** This only decides whether the option sets `_flag_needs_value`.\n- **Type and defaults (2972–3024).** For flags, `type` is guessed from `flag_value`. A flag with no `flag_value` is a boolean flag. After that it sets:\n  - `self.is_flag`\n  - `self.is_bool_flag`, which is true when the type is `BoolParamType`\n  - `self.flag_value`, which defaults to `True` for flags and `None` otherwise\n\n## (a) What gets registered with the parser\n\n`core.py:Option.add_to_parser` (3181) picks the base action (`append`, `count` or `store`). If `self.is_flag`, it appends `_const` to that action, so the action becomes `store_const`, `append_const` or `count_const`.\n\n- **Boolean flag with secondary names (3192–3202).** It registers two parser options. `self.opts` get `const=True` and `self.secondary_opts` get `const=False`.\n- **Any other flag (3203–3210).** It registers one option with `const=self.flag_value`. It passes no `nargs`, so the flag takes no argument.\n- **Non-flag (3211–3218).** It registers the option with `nargs=self.nargs`.\n\n## (b) Default when the flag is absent\n\nThree places are involved:\n\n- **`core.py:Option.__init__` (2974–2976).** If a flag has no default (`UNSET`), is not required and has no prompt, a `multiple` flag gets `default=()`.\n- **`core.py:Option.get_default` (3081).** For a non-boolean flag, `default=True` is replaced with `self.flag_value` (3107–3108). Boolean flags keep `True` as-is.\n- **`core.py:Option.process_value` (3527).** For a boolean flag that is not required and whose value is still `UNSET`, the value becomes `False` (3533–3534). This happens before type casting, and the option's callback is still called.",
+  "ttft_ms": 1266,
+  "type": "result",
+  "duration_ms": 11860,
+  "uuid": "6060f67b-b4a4-472a-a802-354be183a1f5",
+  "ttft_stream_ms": 1109,
+  "time_to_request_ms": 35,
+  "first_content_frame_ms": 1109,
+  "queued_turn_count": 0,
+  "result_index": 0,
+  "tools": {
+    "calls": 5,
+    "byTool": {
+      "Grep": 1,
+      "Read": 4
+    },
+    "thinkerCalls": 0,
+    "cbmCalls": 0,
+    "filesRead": 1,
+    "edits": 0,
+    "greps": 1,
+    "bash": 0
+  }
+}
