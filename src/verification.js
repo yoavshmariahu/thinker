@@ -24,8 +24,12 @@ export function taskContext(value) {
   if (typeof value !== 'object' || Array.isArray(value)) throw new Error('task must be an object');
   const str = (v, max = 4000) => typeof v === 'string' ? v.slice(0, max) : '';
   const list = v => Array.isArray(v) ? v.slice(0, 30).map(x => str(x)).filter(Boolean) : [];
+  const tests = v => Array.isArray(v) ? v.slice(0, 30).filter(x => x && typeof x === 'object' && !Array.isArray(x))
+    .map(x => ({ check: str(x.check, 64), name: str(x.name, 500), file: str(x.file, 500) }))
+    .filter(x => x.check && x.name) : [];
   return { request: str(value.request, 12000), source: 'caller-provided',
-    criteria: (Array.isArray(value.criteria) ? value.criteria : []).slice(0, 30).map(c => ({ text: str(c.text), source: c.source === 'user' ? 'user-attributed-by-caller' : 'agent-interpretation', checks: list(c.checks) })).filter(c => c.text),
+    criteria: (Array.isArray(value.criteria) ? value.criteria : []).slice(0, 30).filter(c => c && typeof c === 'object')
+      .map(c => ({ text: str(c.text), source: c.source === 'user' ? 'user-attributed-by-caller' : 'agent-interpretation', checks: list(c.checks), tests: tests(c.tests) })).filter(c => c.text),
     intendedChanges: list(value.intendedChanges), rationale: str(value.rationale), questions: list(value.questions) };
 }
 
@@ -217,48 +221,103 @@ export async function executeVerification(repo, id, { runReview = review, runner
 }
 
 const clean = v => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/[<>|`]/g, c => ({ '<': '&lt;', '>': '&gt;', '|': '\\|', '`': '\\`' })[c]);
-export function renderVerification(r, { portable = false } = {}) {
-  const lines = [`# Verification: ${r.freshness?.status === 'superseded' ? 'superseded' : r.status}`, '',
-    `Run: ${r.id}`, `Created: ${r.createdAt}${r.completedAt ? '; completed: ' + r.completedAt : ''}`, `Candidate: ${r.snapshot.tree} · target: ${r.snapshot.target}`, `Evidence: ${r.trust}; CI acceptance: ${r.ciAccepted ? 'yes' : 'not established'}`, ''];
-  if (r.freshness?.reasons?.length) lines.push(`Evidence outdated: ${r.freshness.reasons.join('; ')}`, '');
-  // Where each input came from and what judged correctness, before any result: a reader must not
-  // take the agent's statement of the task for the user's, or a model's reading for a test run.
-  lines.push('## Where this came from', '');
-  if (r.task) lines.push(`- Task and acceptance criteria: supplied by the calling agent ${r.task.providedBy === 'mcp' ? 'through the MCP review tool' : 'through the thinker CLI'}${r.task.providedAt ? ' at ' + r.task.providedAt : ''}. A criterion marked "user-attributed-by-caller" is the agent's report of what the user asked; nothing here confirms it with the user. "agent-interpretation" is the agent's own reading of the task.`);
-  else lines.push('- Task and acceptance criteria: none were supplied; this run checks the code without a stated goal.');
-  if (r.contract) lines.push(`- Correctness checks: the commands of .thinker/verification.json as committed at the target ${r.snapshot.target.slice(0, 12)}, run in ${r.identity.environment || r.contract.image} on a snapshot the candidate cannot alter: ${r.contract.checks.map(c => `${clean(c.id)}: ${clean(c.command)}`).join('; ')}.`);
-  else lines.push(`- Correctness checks: none ran${r.contractError ? ': ' + clean(r.contractError) : ''}.`);
-  lines.push(`- Code assessment: model ${r.identity.model || 'as configured'} reading the change against the notes frozen when the run was created (knowledge ${r.identity.knowledge}); its findings are a reading of the code, not test results.`, '');
-  if (r.task) {
-    lines.push(`**Requested outcome:** ${clean(r.task.request)}`, '', '| Acceptance criterion | Source | Linked execution evidence |', '|---|---|---|');
-    for (const c of r.task.criteria) lines.push(`| ${clean(c.text)} | ${clean(c.source)} | ${c.checks.map(id => `${clean(id)}: ${r.checks.find(x => x.id === id)?.status || 'not run'}`).join('; ') || 'No linked check'} |`);
-    if (r.task.intendedChanges.length) lines.push('', `Intended changes: ${r.task.intendedChanges.map(clean).join('; ')}`);
-    if (r.task.rationale) lines.push('', `Agent rationale: ${clean(r.task.rationale)}`);
-    if (r.task.questions.length) lines.push('', `Open questions: ${r.task.questions.map(clean).join('; ')}`);
-    lines.push('', 'Criteria and links are caller-provided. Test results support assessment; they do not prove task completion.');
+const brief = v => clean(String(v || '').slice(0, 180)) + (String(v || '').length > 180 ? '…' : '');
+const testFile = file => String(file || '').replace(/^\/workspace\//, '');
+const testLabel = test => `${clean(test.name)}${test.file ? ` (${clean(testFile(test.file))})` : ''}`;
+
+function criterionEvidence(criterion, checks) {
+  const observed = [], gaps = [];
+  for (const test of criterion.tests || []) {
+    const check = checks.find(c => c.id === test.check);
+    if (!check) { gaps.push(`Check ${test.check} did not run for ${test.name}.`); continue; }
+    const matches = x => x.name === test.name && (!test.file || testFile(x.file || x.location?.file) === testFile(test.file));
+    const passed = check.passedTests?.find(matches), skipped = check.skippedTests?.find(matches), failed = check.failures?.find(f => matches({ name: f.test, location: f.location }));
+    if (failed) { observed.push(`${check.id}: ${testLabel(test)} failed`); gaps.push('Fix the failing test.'); }
+    else if (skipped) { observed.push(`${check.id}: ${testLabel(test)} skipped`); gaps.push('The linked test did not execute.'); }
+    else if (passed) {
+      observed.push(`${check.id}: ${testLabel(test)} passed`);
+      if (check.status !== 'passed') gaps.push(`The containing ${check.id} check is ${check.status}.`);
+    }
+    else if (check.status === 'running') { observed.push(`${check.id}: ${testLabel(test)} pending`); gaps.push('The check is still running.'); }
+    else { observed.push(`${check.id}: no result for ${testLabel(test)}`); gaps.push('The linked test was not observed.'); }
   }
-  lines.push('', '## Executed checks', '', '| Check | Result | Evidence |', '|---|---|---|');
+  if (!criterion.tests?.length) {
+    for (const id of criterion.checks || []) {
+      const check = checks.find(c => c.id === id);
+      observed.push(`${id}: ${check?.status || 'not run'} (whole check)`);
+    }
+    gaps.push('No specific test was linked to this criterion.');
+  }
+  if (!observed.length) observed.push('No execution evidence linked.');
+  return { observed: observed.join('; '), gap: [...new Set(gaps)].join(' ') || '—' };
+}
+
+export function renderVerification(r, { portable = false } = {}) {
+  const status = r.freshness?.status === 'superseded' ? 'superseded' : r.status;
+  const lines = [`# Change review: ${clean(status)}`, '', `**Requested change:** ${r.task?.request ? clean(r.task.request) : 'No task was supplied.'}`, ''];
+  if (r.freshness?.reasons?.length) lines.push(`**This evidence is outdated:** ${r.freshness.reasons.map(clean).join('; ')}.`, '');
+  lines.push('## Why and how', '');
+  if (r.task?.rationale) lines.push(`**Reason for the approach (supplied by the agent):** ${clean(r.task.rationale)}`, '');
+  else lines.push('No rationale was supplied for the approach. Ask the author to explain the design choice.', '');
+  if (r.task?.intendedChanges?.length) for (const change of r.task.intendedChanges) lines.push(`- ${clean(change)}`);
+  else lines.push('No intended changes were described. Compare the diff with the requested behavior.');
+
+  lines.push('', '## Before approving', '');
+  const attention = [];
+  for (const question of r.task?.questions || []) attention.push(clean(question));
+  const skipped = r.checks.flatMap(c => (c.skippedTests || []).map(t => ({ ...t, check: c.id })));
+  if (skipped.length) {
+    const changed = new Set((r.review?.files || []).map(f => f.path));
+    const relevant = skipped.filter(t => changed.has(testFile(t.file)));
+    if (relevant.length) attention.push(`${relevant.length} skipped test${relevant.length === 1 ? ' is' : 's are'} in changed files: ${relevant.slice(0, 5).map(t => `${clean(t.check)}: ${testLabel(t)}`).join('; ')}${relevant.length > 5 ? `; and ${relevant.length - 5} more` : ''}. Check whether ${relevant.length === 1 ? 'it exercises' : 'they exercise'} the changed behavior.`);
+    const other = skipped.length - relevant.length;
+    if (other) attention.push(`${other} other test${other === 1 ? ' was' : 's were'} skipped${r.review ? ' outside changed files' : ''}; see the check log for names.`);
+  }
+  if (r.integrity?.findings?.length) attention.push(`${r.integrity.findings.length} possible weakening of test or CI coverage needs inspection.`);
+  if (r.review?.counts?.warning || r.review?.counts?.error) attention.push(`Inspect the ${r.review.counts.error || 0} error and ${r.review.counts.warning || 0} warning finding${(r.review.counts.error || 0) + (r.review.counts.warning || 0) === 1 ? '' : 's'} below.`);
+  if (!attention.length) attention.push('Confirm the change and its tests cover the requested behavior and relevant edge cases.');
+  for (const item of attention) lines.push(`- ${item}`);
+
+  lines.push('', '## Evidence for the requested behavior', '');
+  if (r.task?.criteria?.length) {
+    lines.push('| Criterion | Observed result | What remains to check |', '|---|---|---|');
+    for (const c of r.task.criteria) {
+      const evidence = criterionEvidence(c, r.checks);
+      lines.push(`| ${clean(c.text)} | ${clean(evidence.observed)} | ${clean(evidence.gap)} |`);
+    }
+    lines.push('', 'The agent supplied these criteria and test links. An observed pass shows that a named test ran successfully; it does not establish that its assertions cover the whole criterion.');
+  } else lines.push('No acceptance criteria were supplied; the checks below cannot be tied to a requested behavior.');
+
+  lines.push('', '## Checks run', '', '| Check | Result | Observed tests |', '|---|---|---|');
   for (const c of r.checks) {
-    lines.push(`| ${c.id} | ${c.status} | ${c.passedTests?.length || 0} test passes; ${c.skippedTests?.length || 0} skipped/todo |`);
+    lines.push(`| ${clean(c.id)} | ${clean(c.status)} | ${c.passedTests?.length || 0} passed; ${c.skippedTests?.length || 0} skipped |`);
     if (c.error || c.reportError) lines.push('', clean(c.error || c.reportError));
     for (const f of c.failures || []) lines.push('', `**${clean(f.test || c.id)}:** ${clean(f.message)}`, `- Location: ${clean(f.location?.file || '')}${f.location?.line ? ':' + f.location.line : ''}`, `- Expected: ${clean(JSON.stringify(f.expected))}; actual: ${clean(JSON.stringify(f.actual))}`, `- Reproduce: \`${clean(f.reproduction?.command)}\` (not reduced; reproduction not confirmed)`, '- Flake classification: unknown. Cause: not established.');
     if (c.artifact) lines.push('', portable ? `Full output: ${c.id}.log (stored locally; not uploaded).` : `[Full output for ${c.id}](${encodeURI(c.artifact)})`);
   }
   if (!r.checks.length) lines.push('| Required checks | Not run | No execution evidence |');
-  lines.push('', '## Gate integrity', '', r.integrity?.findings.length ? 'Needs human review:' : r.integrity ? 'No pattern-based weakening signals found.' : 'Not assessed.');
-  for (const f of r.integrity?.findings || []) lines.push('', `- **${clean(f.rule)}** — ${clean(f.file)}${f.line ? ':' + f.line : ''}: ${clean(f.message)} (${f.certainty})`, `  Before: ${clean(f.before) || '(none)'}; after: ${clean(f.after) || '(none)'}`);
+  lines.push('', `**Gate integrity:** ${r.integrity?.findings.length ? 'Possible weakening found; inspect below.' : r.integrity ? 'No pattern-based weakening signals found.' : 'Not assessed.'}`);
+  for (const f of r.integrity?.findings || []) {
+    lines.push('', `- **${clean(f.rule)}** — ${clean(f.file)}${f.line ? ':' + f.line : ''}: ${clean(f.message)} (${f.certainty}). Inspect the diff for replacement coverage.`);
+    if (f.rule !== 'assertion-changed' && (f.before || f.after)) lines.push(`  Before: ${brief(f.before) || '(none)'}; after: ${brief(f.after) || '(none)'}`);
+  }
   lines.push('', '## Code assessment', '');
   if (!r.review) lines.push('Not completed.');
   else {
-    lines.push(`${r.review.counts?.error || 0} errors; ${r.review.counts?.warning || 0} warnings. ${r.review.incomplete || r.review.errors?.length ? 'Assessment incomplete.' : 'No finding is not proof of correctness.'}`);
+    lines.push(`${r.review.counts?.error || 0} errors; ${r.review.counts?.warning || 0} warnings. ${r.review.incomplete || r.review.errors?.length ? 'Assessment incomplete.' : 'This is a model reading of the change, not an executed check.'}`);
     for (const f of r.review.findings || []) lines.push(`- ${clean(f.file)}:${f.line || 0} — ${clean(f.message)} Evidence: ${clean(f.evidence)}`);
     for (const e of r.review.errors || []) lines.push(`- ${clean(e.error)}`);
-    if (r.review.notes?.skipped) lines.push(`- ${r.review.notes.skipped} consulted notes were outside the assessment limit.`);
-    if (r.review.notes?.uncovered?.length) lines.push(`- No cached knowledge rests on: ${r.review.notes.uncovered.map(clean).join(', ')}.`);
-    if (r.review.notes?.staleBefore?.length) lines.push(`- ${r.review.notes.staleBefore.length} consulted notes were already stale before the change.`);
+    if (r.review.notes?.staleBefore?.length) lines.push(`- ${r.review.notes.staleBefore.length} consulted cache notes were already stale; weigh this assessment accordingly.`);
   }
   if (r.failureChanges?.length) lines.push('', '## Earlier failures', '', ...r.failureChanges.map(f => `- ${clean(f.test || f.id)}: ${f.status}`));
-  lines.push('', '## Remaining limitations', '', ...[r.error, r.contractError, r.integrity?.limitation, ...r.limitations].filter(Boolean).map(s => `- ${clean(s)}`));
-  lines.push('', `Environment: ${r.identity.environment || 'not configured'} (${r.identity.platform || 'unknown platform'})`, `Knowledge: ${r.identity.knowledge}`, `Contract: ${r.identity.contract}`, '');
+  lines.push('', '## Evidence source and scope', '');
+  if (r.task) lines.push(`- The task framing came from the calling agent via ${r.task.providedBy === 'mcp' ? 'MCP' : 'CLI'}${r.task.providedAt ? ` at ${r.task.providedAt}` : ''}.${r.task.criteria?.some(c => c.source === 'user-attributed-by-caller') ? ' Any user-attributed criterion is the agent\'s attribution, not independently confirmed user input.' : ' The criteria and test links are the agent\'s interpretation.'}`);
+  else lines.push('- No task was supplied; this run checks code without a stated goal.');
+  if (r.contract) lines.push(`- The checks came from the verification contract at base ${r.snapshot.target.slice(0, 12)} and ran against frozen snapshot ${r.snapshot.tree.slice(0, 12)}. CI acceptance: ${r.ciAccepted ? 'yes' : 'not established'}.`);
+  else lines.push(`- No verification contract ran${r.contractError ? `: ${clean(r.contractError)}` : '.'}`);
+  if (r.contract) for (const c of r.contract.checks) lines.push(`- ${clean(c.id)} command: ${clean(c.command)}.`);
+  lines.push('- The code assessment read the change against frozen notes. A clean model assessment does not replace a human reading of the diff.');
+  for (const error of [r.error, r.cleanupError].filter(Boolean)) lines.push(`- ${clean(error)}`);
+  lines.push(`- Run ${r.id}; ${r.createdAt}${r.completedAt ? ` to ${r.completedAt}` : ' (in progress)'}.`, '');
   return lines.join('\n');
 }

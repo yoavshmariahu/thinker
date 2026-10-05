@@ -29,7 +29,8 @@ MCP clients use the existing `review` tool:
   "task": {
     "request": "Change retry limits while preserving timeout handling",
     "criteria": [
-      {"text": "Timeouts are still rejected", "source": "user", "checks": ["unit"]}
+      {"text": "Timeouts are still rejected", "source": "user", "checks": ["unit"],
+       "tests": [{"check": "unit", "name": "rejects timed-out requests", "file": "test/retry.test.js"}]}
     ],
     "intendedChanges": ["Increase the retry limit"],
     "rationale": "Keep timeout handling on the existing path",
@@ -107,13 +108,20 @@ Each run is stored under `.thinker/local/reviews/<run-id>/`:
 - `<check-id>.log`: bounded full output, referenced by each failure.
 - `inputs.json`: frozen notes and configuration used by the assessment.
 
-The report opens with where its inputs came from, before any result: the task and
-criteria were supplied by the calling agent (over MCP or the CLI, with the time;
+The human report starts with the proposed reasoning, intended changes, and
+questions for approval. It then shows the observed evidence for each criterion.
+An optional `tests` link names an exact test by check id, test name, and file;
+the report matches it against the runner's pass, skip, and failure events. A
+whole-check `checks` link says only that the command ran, and the report calls
+out the lack of a criterion-specific test. The links are supplied by the caller;
+an observed test pass does not prove its assertions cover the entire criterion.
+
+The report's final section explains provenance: the task and criteria were
+supplied by the calling agent (over MCP or the CLI, with the time;
 `task.providedBy`), a criterion marked `user-attributed-by-caller` is the
 agent's report of what the user asked and is not confirmed with the user, the
-correctness checks are the contract's commands as committed at the target, run
-on a snapshot the candidate cannot alter, and the code assessment is a model's
-reading against the frozen notes, not a test result.
+checks are the contract's commands as committed at the target, run on a frozen
+snapshot, and the code assessment is a model's reading against frozen notes.
 
 Status is `queued`, `running`, `passed`, `failed`, `incomplete`, or `needs-review`.
 `--status` separately compares the current worktree/index to the captured tree;
@@ -124,10 +132,8 @@ verification engine also supersedes current evidence.
 failed/needs-review exits 2, other unfinished or outdated evidence exits 1.
 `--dry` skips model and check execution and therefore cannot yield a complete pass.
 
-The report shows task criteria with their attributed source and linked checks,
-actual execution, gate changes, code findings, open questions, and limitations.
-Linked checks are supplied by the caller. A pass is evidence for an assessment,
-not proof that an acceptance criterion is satisfied. There is no automatic task
+The report shows observed test results, skipped and unobserved tests, gate
+changes, code findings, and approval questions. There is no automatic task
 completion verdict.
 
 Node failures include the test name, location, expected/actual values when
