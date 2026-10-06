@@ -7,7 +7,7 @@ const report = {
   notes: { consulted: 2, assessed: 2, staleBefore: [], outdated: [], uncovered: ['src/other.js'] },
   counts: { error: 1, warning: 1, info: 0 },
   behaviors: [
-    { id: 'invoke-validates', title: 'invoke validates ctx before main', mutability: 'fixed', body: 'Command.invoke calls validate before main.\nmain assumes ctx is set.', outcome: 'violated', reason: 'invoke skips validate', before: '' },
+    { id: 'invoke-validates', title: 'invoke validates ctx before main', source: { type: 'pr', ref: 'owner/repo#42' }, mutability: 'fixed', body: 'Command.invoke calls validate before main.\nmain assumes ctx is set.', outcome: 'violated', reason: 'invoke skips validate', before: '' },
     { id: 'convert-str', title: 'convert returns str', mutability: 'mutable', outcome: 'upheld', reason: '', before: '' },
   ],
   findings: [
@@ -23,11 +23,11 @@ test('buildReview: findings on changed lines go inline, the rest and the behavio
   assert.equal(r.comments.length, 1);
   assert.deepEqual([r.comments[0].path, r.comments[0].line, r.comments[0].side], ['src/core.py', 5, 'RIGHT']);
   assert.match(r.comments[0].body, /\*\*error\*\* Command.invoke skips validate\(ctx\)/);
-  assert.match(r.comments[0].body, /invoke validates ctx before main \(invoke-validates\), 90%/);
+  assert.match(r.comments[0].body, /invoke validates ctx before main \(invoke-validates\) · source PR owner\/repo#42, 90%/);
   assert.ok(r.body.startsWith(MARKER));
   // a fixed behavior broken: said first, with what it requires, what the change does and what merging means
   assert.match(r.body, /^<!-- thinker-review -->\n### thinker review[^\n]*\n\n## ⛔ This change breaks a fixed behavior of the system/);
-  assert.match(r.body, /\*\*invoke validates ctx before main\*\* <sub>fixed, `invoke-validates`<\/sub>\n\nWhat it requires:\n\n> Command.invoke calls validate before main\./);
+  assert.match(r.body, /\*\*invoke validates ctx before main\*\* <sub>fixed, `invoke-validates` · source PR owner\/repo#42<\/sub>\n\nWhat it requires:\n\n> Command.invoke calls validate before main\./);
   assert.match(r.body, /What this change does instead: invoke skips validate/);
   assert.match(r.body, /once it is merged on the default branch the code is the truth and this behavior is revised to match it/);
   assert.match(r.body, /\| ❌ \| invoke validates ctx before main <sub>fixed, `invoke-validates`<\/sub> \| violated: invoke skips validate \|/);

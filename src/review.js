@@ -748,7 +748,7 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
   const callers = strat.callers ? callersContext(repo, symbols, change) : '';
   report.notes.skipped = consulted.length - queue.length;
   const specNote = n => { const s = exposures.get(n.id).specific; return s ? `; ${s.lines} changed line${s.lines === 1 ? '' : 's'} in ${exposures.get(n.id).touched.filter(d => d.symbol).length === 1 ? 'it' : 'them'}${s.term ? ', naming what the note names' : ''}` : ''; };
-  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}${specNote(n)}` : 'shares identifiers with the change' }));
+  report.toAssess = queue.map(n => ({ id: n.id, title: n.title, kind: n.kind, source: noteProvenance(n), why: direct.includes(n) ? `${exposures.get(n.id).touched.some(d => d.symbol) ? 'rests on' : 'rests on the whole file'} ${exposures.get(n.id).touched.map(ptr).join(', ')}${specNote(n)}` : 'shares identifiers with the change' }));
   if (!dry) {
     const results = [];
     // a change too large for one call is taken in chunks of files, the files the notes rest on first
@@ -817,13 +817,19 @@ async function reviewImpl(store, { scope, paths = [], max = 12, model, dry = fal
 
 // One line per desired behavior the review consulted: what the review concluded about it, so an
 // agent or a person sees every rule that was in play, not only the ones that produced a finding.
+function noteProvenance(n) {
+  const type = n.source?.type;
+  if (!type) return undefined;
+  return { type, ...(type === 'pr' && n.source.ref ? { ref: String(n.source.ref).slice(0, 200) } : {}) };
+}
+
 function behaviorReport(consulted, report, revisable, dry) {
   return consulted.filter(n => n.kind === 'behavior').map(n => {
     const verdict = report.verdicts.find(v => v.id === n.id);
     const hit = report.findings.filter(f => f.note === n.id || f.notes?.includes(n.id));
     let outcome = dry ? 'consulted' : hit.length ? 'violated' : verdict?.verdict === 'revised' || (revisable.has(n.id) && !verdict) ? 'revised' : verdict?.verdict === 'unrelated' ? 'unrelated' : 'upheld';
     if (dry && revisable.has(n.id)) outcome = 'revised';
-    return { id: n.id, title: n.title, mutability: n.mutability || 'mutable', body: n.body, applies: n.applies, outcome, before: n.status === 'violated' ? `already not upheld before this change${n.violated?.commit ? ` (since ${String(n.violated.commit).slice(0, 10)})` : ''}` : '', reason: hit[0]?.message || verdict?.reason || '', revised: revisable.has(n.id) };
+    return { id: n.id, title: n.title, source: noteProvenance(n), mutability: n.mutability || 'mutable', body: n.body, applies: n.applies, outcome, before: n.status === 'violated' ? `already not upheld before this change${n.violated?.commit ? ` (since ${String(n.violated.commit).slice(0, 10)})` : ''}` : '', reason: hit[0]?.message || verdict?.reason || '', revised: revisable.has(n.id) };
   });
 }
 

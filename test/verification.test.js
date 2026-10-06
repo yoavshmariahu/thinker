@@ -303,11 +303,13 @@ test('the report says where the task came from and what judged correctness', asy
   assert.ok(report.indexOf('## Why and how') < report.indexOf('## Evidence source and scope'), 'decision context comes before provenance');
   const grounded = readVerification(repo, run.id);
   grounded.review.intentEvidence = [{ intentIndex: 0, file: 'src.js', line: 1, observed: 'the value implementation changed' }];
-  grounded.review.behaviors = [{ id: 'behavior', title: 'Value stays positive', outcome: 'upheld' }];
+  grounded.review.behaviors = [{ id: 'behavior', title: 'Value stays positive', outcome: 'upheld', source: { type: 'pr', ref: 'owner/repo#42' } }];
   grounded.review.toAssess = [{ id: 'behavior', why: 'rests on src.js:value' }];
   const decision = renderVerification(grounded);
   assert.match(decision, /1\. Change the value implementation\n   - Seen in the diff at `src\.js:1`: the value implementation changed \(model reading\)/);
-  assert.match(decision, /Desired behaviors directly in play \(model reading\):[\s\S]*Value stays positive: upheld/);
+  assert.match(decision, /Desired behaviors directly in play \(model reading\):[\s\S]*Value stays positive: upheld \(source PR owner\/repo#42\)/);
+  grounded.review.findings = [{ file: 'src.js', line: 1, message: 'Value can turn negative', evidence: 'return -1', note: 'behavior' }];
+  assert.match(renderVerification(grounded), /Basis: Value stays positive, source PR owner\/repo#42\. Evidence: return -1/);
   assert.doesNotMatch(decision, /Changed-line anchors were identified for/);
   grounded.task.intendedChanges.push('Keep the public call stable');
   assert.match(renderVerification(grounded), /Changed-line anchors were identified for 1 of 2 steps/);
