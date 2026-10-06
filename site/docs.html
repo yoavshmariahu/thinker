@@ -814,9 +814,6 @@ thinker setup --build --yes</code></pre>
         <p>
           Thinker uses hosted note selection with <a href="https://docs.typesafe.ai/concepts/system-one">Jev, TypeSafe's System One model</a>. <strong>Thinker provides access through its proxy. You do not need a TypeSafe account or personal API key.</strong>
         </p>
-        <div class="callout tip">
-          <strong>Hosted service live.</strong> This source version uses hosted Jev by default. Earlier release archives may still show the personal-key prompt until updated.
-        </div>
         <h3>How it works</h3>
         <ol>
           <li>Run <code>thinker setup</code>. Thinker provisions hosted access automatically, including with <code>--yes</code>, and keeps the upstream TypeSafe credential on its server. A revocable client token is stored in <code>~/.thinker/jev-proxy.json</code> with owner-only permissions.</li>
