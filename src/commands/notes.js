@@ -18,7 +18,7 @@ async function orientCommand(ctx) {
 
 async function lookupCommand(ctx) {
   const { pos, flags, store, out } = ctx;
-  const r = lookup(store, { query: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3, snippets: !!flags.snippets, kind: typeof flags.kind === 'string' ? flags.kind : undefined });
+  const r = await lookup(store, { query: pos.join(' '), client: flags.client || 'cli', budget: Number(flags.budget) || 2500, maxNotes: flags.n ? Number(flags.n) : 3, snippets: !!flags.snippets, kind: typeof flags.kind === 'string' ? flags.kind : undefined });
   trackTurn(store, flags.session || process.env.THINKER_SESSION, r.included.map(note => note.id));
   out(r.included.length ? r.text : '(nothing cached about that)');
   return;
@@ -160,7 +160,7 @@ async function phraseCommand(ctx) {
   const { pos, flags, store, out } = ctx;
   // how a user would put what each note is about; notes that have it for their present text are left (--force)
   let notes = store.list().filter(n => n.status !== 'invalid' && (!pos.length || pos.includes(n.id)));
-  if (!flags.force) notes = notes.filter(n => !n.says?.length || n.saysFor !== phraseKey(n));
+  if (!flags.force) notes = notes.filter(n => !n.says?.length || !n.search || n.saysFor !== phraseKey(n));
   const per = 8, conc = Number(flags.conc) || 4;
   const groups = []; for (let i = 0; i < notes.length; i += per) groups.push(notes.slice(i, i + per));
   let n = 0, tokens = 0;

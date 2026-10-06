@@ -37,16 +37,18 @@ A paired PR benchmark runs during setup only when requested with `--benchmark` o
 3. Start a new agent session and work as usual. `thinker ranker` reports the
    selected ranking mode and local fallback availability.
 
-Thinker shortlists notes locally and sends one batch through its proxy to Jev.
-The selection defaults are eight candidates, a 0.5 relevance threshold, and up
-to two selected notes within the serving budget. No qualifying notes means
-none are served. Hosted Jev uses a 1,500 ms client timeout;
-errors, rate limits, invalid responses, or timeouts fall back to the local
-cross-encoder, then lexical ranking if that model is unavailable. Broader MCP
-`orient` requests keep lexical ranking.
+Thinker sends descriptions of all eligible notes in bounded batches through its
+proxy to Jev for `orient` and query-based `lookup`, without a keyword shortlist.
+Current `search` descriptions are used where available; missing or outdated
+descriptions fall back to the note body. A 0.5 relevance threshold selects up to
+two notes for hooks or the explicit caller's limit. No qualifying notes means
+none are served. The whole search has a five-second deadline. Errors, rate
+limits, invalid responses, or timeouts fall back to local ranking: the
+cross-encoder for hooks, then lexical ranking. Exact-ID lookups stay direct.
 
-Your request and candidate-note titles, question phrasings, body excerpts,
-file/symbol pointers, and freshness pass through Thinker's proxy to TypeSafe.
+Your request and all eligible note titles, question phrasings, descriptions or
+body excerpts, applicability, file/symbol pointers, and freshness pass through
+Thinker's proxy to TypeSafe.
 The proxy does not log request or note content. Hosted access has usage limits;
 reaching one falls back locally. The cache stays local. Hosted enrollment and ranking are separate from
 telemetry and from the coding agent used for learning, verification, and review.

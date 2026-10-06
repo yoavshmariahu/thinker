@@ -12,6 +12,7 @@ Needs `JEVKEY` in the environment. Run with `THINKER_TEST=1`.
 | `type-notes.mjs` / `type-notes-v2.mjs` | facet schema v1 vs v2 (catch-all lesson) |
 | `typed-verify.mjs` | drift-surface-derived verify verdicts (hot/cold trap) |
 | `catalog-eval.mjs` | read-only full-corpus body/description search and full-body relationship checks; pinned Jev, two repeats, explicit `--live` |
+| `search-smoke.mjs` | production Jev search on 81 fictional notes only; semantic match plus unrelated query, two repeats, explicit `--live` |
 
 `bench/jev-eval/typed-noteset/` (347 typed notes) is regenerable via `type-store.mjs` and not committed.
 

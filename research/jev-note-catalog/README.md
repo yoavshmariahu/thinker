@@ -5,9 +5,47 @@ Author: Codex, 2026-10-06.
 The question is whether a compact description of every note can support broad
 search and help session/PR distillation decide what is already covered, what
 extends a note, and what belongs in a new note. The prototype is read-only. It
-does not change serving, distillation, or the stored notes.
+does not write notes. The subsequent implementation below enables Jev catalog
+search in `orient` and query-based `lookup`; distillation is unchanged.
 
-## Current structure and baseline
+## Implemented search and live synthetic validation
+
+At the user's request, Jev is now the primary note search path for `orient`
+(hooks and explicit agent calls) and query-based `lookup`. It examines all
+eligible notes rather than the first eight lexical candidates. Current `search`
+descriptions are preferred; obsolete or missing descriptions fall back to body
+text. A SHA-256 content key replaces the old length-based phrasing key, so even
+equal-length edits invalidate derived descriptions. Maintenance and `phrase`
+refresh them. Legacy descriptions without a matching content key use the body
+until regenerated.
+
+Batching limits each complete UTF-8 request to 30,000 bytes and 32 questions,
+with two requests in flight and one five-second deadline for the whole search.
+Invalid and archived notes are excluded; hooks additionally honor staleness and
+once-per-session filtering. Exact-ID and kind-only lookup bypass Jev. A failed
+batch discards all partial scores and falls back locally; a successful empty
+answer remains empty. Full notes are packed under existing caller budgets.
+
+`bench/jev-eval/search-smoke.mjs` exercised the production search with 81
+fictional, hard-coded notes, a pinned `jev-1.13.0`, and two repetitions. No private
+notes or session data were sent. A semantically phrased duplicate-billing request
+retrieved the expected idempotency rule at 0.96 in both runs; BM25 found nothing.
+An unrelated audio-resampling query returned nothing in both runs. Each search
+used three requests; observed times were 439/260 ms for the matching query and
+263/293 ms for the unrelated one, with 18,519/18,516 input tokens respectively.
+This is an integration smoke, not evidence of precision across real tasks.
+
+Regression tests exercise lookup and both orientation paths, notes beyond the
+lexical gate and eighth candidate, Unicode request limits, stale summaries,
+partial failures, deadlines, exact IDs, kind filters, holdouts, session
+deduplication, and output budgets. The full suite passed 441 tests, with five
+skipped and none failing.
+
+Run the synthetic smoke with `THINKER_TEST=1 node
+bench/jev-eval/search-smoke.mjs --live`. It reads only the configured personal
+key and its hard-coded fixtures. Raw results go under `bench/runs/jev-catalog/`.
+
+## Structure before this change and baseline
 
 Notes contain `id`, `kind`, `title`, `answers`, `body`, optional `applies`, `tags`,
 symbol/file `deps` with hashes, `source`, creation/verification metadata and local
@@ -60,7 +98,7 @@ can contain additional legitimate matches, so known-target recall is measurable
 but precision is not. The relationship test uses fixed labelled pairs separately
 from retrieval; it is not an end-to-end distillation quality measurement.
 
-## Results so far
+## Private-corpus experiment status
 
 The deterministic baseline finds all seven labelled positive targets and returns
 no notes on the two no-target observations. This small set establishes plumbing

@@ -81,7 +81,7 @@ test('orient with a caller budget: more notes, links add, the rest is listed; lo
   assert.deepEqual(ranked.slice(0, plain.length), plain);
   // what was not served is listed, and lookup returns a listed note by id
   assert.ok(two.more.length >= 1 && two.more.every(n => !two.included.some(i => i.id === n.id)));
-  assert.deepEqual(lookup(store, { query: two.more[0].id }).included.map(n => n.id), [two.more[0].id]);
+  assert.deepEqual((await lookup(store, { query: two.more[0].id })).included.map(n => n.id), [two.more[0].id]);
 });
 
 test('orient with 2 slots preserves a strong second hit and only lets a link take a weak second slot', async () => {
@@ -144,7 +144,7 @@ test('orient with 2 slots preserves a strong second hit and only lets a link tak
   assert.equal(rWeak.included[1].id, link2.id);
 });
 
-test('lookup caps query results to 3 notes by default and respects explicit maxNotes', () => {
+test('lookup caps query results to 3 notes by default and respects explicit maxNotes', async () => {
   const { dir, store } = setup();
   fs.writeFileSync(path.join(dir, 'src/c.py'), 'def a(): pass\n');
   for (let i = 0; i < 15; i++) {
@@ -168,15 +168,15 @@ test('lookup caps query results to 3 notes by default and respects explicit maxN
   }
 
   // Query search caps at 3 notes by default
-  const defaultRes = lookup(store, { query: 'view mode' });
+  const defaultRes = await lookup(store, { query: 'view mode' });
   assert.equal(defaultRes.included.length, 3);
 
   // Query search with explicit maxNotes = 2
-  const cappedRes = lookup(store, { query: 'view mode', maxNotes: 2 });
+  const cappedRes = await lookup(store, { query: 'view mode', maxNotes: 2 });
   assert.equal(cappedRes.included.length, 2);
 
   // Lookup by specific note ID returns exactly that 1 note
-  const byIdRes = lookup(store, { query: created[0].id });
+  const byIdRes = await lookup(store, { query: created[0].id });
   assert.equal(byIdRes.included.length, 1);
   assert.equal(byIdRes.included[0].id, created[0].id);
 });
@@ -221,7 +221,7 @@ test('the prompt hook holds stale notes for the next batch and lists them for lo
   assert.ok(later.included.some(n => n.id === cp.id), 'served once fresh again, in the same session');
   fs.writeFileSync(file, original.replace('def launch():\n    pass', 'def launch():\n    return 2'));
   assert.ok((await orient(store, { task: 'how does launch work', session: 'f1', backgroundVerify: false })).included.some(n => n.id === cp.id && n.status === 'stale'), 'the agent\'s own orient still gets it, with the banner');
-  assert.ok(lookup(store, { query: 'how launch works' }).included.some(n => n.id === cp.id), 'and so does lookup');
+  assert.ok((await lookup(store, { query: 'how launch works' })).included.some(n => n.id === cp.id), 'and so does lookup');
 });
 
 test('the prompt hook serves a note once per session; an explicit orient gets it again', async () => {

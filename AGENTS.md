@@ -712,10 +712,19 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
   embeddings blended into the score) is the measured negative kept beside
   it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.
-- Jev (`jev.js`), hosted by default, ahead of the local cross-encoder:
-  one batched call scores the gated candidates against the request, a Noul per
-  candidate, and `selectByJev` keeps those at or above `floor`, at most
-  `maxNotes`. The note goes over as named fields (`noteRecord`), which beat one
+- Jev (`jev.js:jevSearch`), hosted by default, searches all eligible notes for
+  `orient` and query-based `lookup`, without BM25 candidate gating. `searchRecord`
+  uses a current `search` description or falls back to the body, including scope
+  and pointers. `note-search.js:phraseKey` hashes title, body, questions, scope
+  and dependency paths/symbols; old length-based keys and equal-length edits
+  cannot validate a description. Maintenance and `phrase` regenerate missing or
+  obsolete descriptions. Up to two batches run concurrently, each at most 32
+  questions and 30,000 UTF-8 bytes including the whole request. A five-second
+  deadline covers the search; any failed batch discards the partial result.
+  Invalid/archived notes are excluded; hooks additionally exclude stale or
+  already-served notes. Exact IDs and kind-only lookup remain direct.
+  `selectByJev` keeps those at or above `floor`, up to the caller's limit.
+  The earlier reranker sent named fields (`noteRecord`), which beat one
   prose blob of the same note (false positives 8 to 5). There is no fallback
   below the floor: a Noul near 0 is the model saying the note does not bear on
   the request, and serving nothing was right on every labelled task that had
@@ -739,11 +748,12 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   or `~/.thinker/jev-key`) selects direct TypeSafe access. `thinker ranker --jev-key`
   stores one; `--no-jev-key` returns to hosted access. Secrets never belong in the
   repository config. `jev` in the config sets `{ enabled, floor, maxNotes, k,
-  model, timeoutMs }` or is `false`; `enabled: "auto"` now means hosted or direct
+  model, timeoutMs, searchTimeoutMs }` or is `false`; `enabled: "auto"` means hosted or direct
   Jev is enabled. `THINKER_JEV=off` selects local ranking. Other `THINKER_JEV_*`
-  controls still apply, including `THINKER_JEV_TIMEOUT` (default 1500 ms).
+  controls still apply, including `THINKER_JEV_TIMEOUT` (overrides both deadlines;
+  default search deadline 5000 ms, individual legacy scoring calls 1500 ms).
   Any transport, quota, timeout or response-validation failure falls back to the
-  installed cross-encoder. A low relevance score is a valid decision to omit a
+  local ranking (installed cross-encoder for hooks, lexical otherwise). A low relevance score is a valid decision to omit a
   note, not a service failure. Tests cannot call either production model path
   unless they explicitly inject a transport. `thinker ranker` reports the path,
   and the `orient` log line carries `jev` beside `ce`.

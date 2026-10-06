@@ -85,7 +85,7 @@ function registerTools() {
       maxNotes: z.number().int().min(1).max(10).optional().describe('Maximum number of notes to return (default 3)'),
     },
   }, async ({ query, kind, budget, maxNotes }) => {
-    const r = lookup(store, { query: query || '', kind, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
+    const r = await lookup(store, { query: query || '', kind, client: 'mcp', budget: budget || 2500, maxNotes: maxNotes || 3, snippets: snippetsOn(store) });
     if (kind === 'behavior' && !String(query || '').trim()) {
       const rows = listBehaviors(store);
       if (!rows.length) return text('No desired behaviors are written down for this repository yet (a person adds them with `thinker system add`).');

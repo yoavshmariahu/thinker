@@ -62,16 +62,16 @@ test('a behavior is a note with a shared mutability and a checkout-local violate
   assert.equal(behaviorState(n), 'holds');
 });
 
-test('lookup finds behaviors by kind: all of them with no query, the matching ones with one', t => {
+test('lookup finds behaviors by kind: all of them with no query, the matching ones with one', async t => {
   const { store, behavior } = fixture(t);
   behavior(); behavior({ id: 'second', title: 'Callbacks never see a None context', answers: ['can run_callback get None'], body: 'core.py:run_callback is only reached through core.py:Command.main.', deps: [{ path: 'src/core.py', symbol: 'run_callback' }] });
   createNote(store, { title: 'How to run the tests', kind: 'howto', answers: ['how do I run tests'], body: 'pytest from the root; see src/cli.py:entry.', deps: [{ path: 'src/cli.py' }] }, { source: { type: 'human' } });
-  const all = lookup(store, { query: '', kind: 'behavior', budget: 4000 });
+  const all = await lookup(store, { query: '', kind: 'behavior', budget: 4000 });
   assert.deepEqual(all.included.map(n => n.id).sort(), ['ctx-validated-before-main', 'second']);
-  const one = lookup(store, { query: 'validated before main', kind: 'behavior' });
+  const one = await lookup(store, { query: 'validated before main', kind: 'behavior' });
   assert.deepEqual(one.included.map(n => n.id), ['ctx-validated-before-main']);
   assert.match(one.text, /\[behavior, mutable\]/);
-  const none = lookup(store, { query: 'run the tests', kind: 'behavior' });
+  const none = await lookup(store, { query: 'run the tests', kind: 'behavior' });
   assert.equal(none.included.length, 0);
 });
 
