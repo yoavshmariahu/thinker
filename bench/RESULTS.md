@@ -725,6 +725,26 @@ audio query returned nothing twice. Three requests per search took 260–439 ms,
 with 18,516–18,519 input tokens. This validates the integration only, not real-task
 precision or the earlier 54-task serving numbers. Full local tests: 441 passed,
 five skipped, none failed. No private notes were sent for this smoke.
+### Review-shaped requests: posture is not worth a mode (2026-10-06, offline, all 54)
+
+Every labelled task is an "implement this change" prompt, and the serving question asks whether a note would
+help *carry out* the request. An agent reviewing its own work asks something else, so the worry was that a
+trap note scores low on "carry out" and high on "check", losing notes silently exactly when review matters.
+Measured by wrapping each task as `I have just made this change: … Review it for problems before I commit.`
+and varying only the question. jev, floor 0.5, two notes; same gpt-6-sol labels:
+
+| request | question | served | useful | important share | important notes | tasks hit |
+|---|---|---|---|---|---|---|
+| implement | carry out (shipped) | 55 | 0.96 | 0.73 | **40/70** | 33/54 |
+| review | carry out | 58 | 0.97 | 0.64 | 37/70 | 34/54 |
+| review | check this change | 68 | 0.93 | 0.56 | 38/70 | 38/54 |
+
+The wording is not the lever. Reshaping the request costs about three important notes whichever question is
+asked, and the review-shaped question does not win them back: it loosens the gate, serving 13 more notes and
+touching 5 more tasks at 0.96 → 0.93 useful and 0.73 → 0.56 important. So serving needs no review posture and
+no mode, and the question that ships is the better of the two. The limit: these are implement prompts wrapped
+as reviews, which tests whether the wrapping hurts rather than how differently a real review request reads.
+Harness: `bench/jev-eval/review-shape-arm.mjs`, `JEV_SHAPE` and `JEV_QUESTION`.
 
 ## Ranking: labels instead of the gold-file proxy (2026-10-04, offline)
 
