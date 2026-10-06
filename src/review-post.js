@@ -15,13 +15,14 @@ import { blindSpot } from './review.js';
 const SEV = { error: 0, warning: 1, info: 2 };
 const esc = s => String(s || '').replace(/</g, '&lt;');
 const code = s => '`' + String(s || '').replace(/`/g, 'ˋ') + '`';
+const sourceText = n => n?.source?.type === 'pr' && n.source.ref ? `source PR ${n.source.ref}` : n?.source?.type === 'human' ? 'human-authored' : n?.source?.type === 'doc' ? 'from documentation' : n?.source?.type === 'agent' ? 'captured from an agent session' : '';
 
 // The review as GitHub takes it: {post, event, body, comments: [{path, line, side, body}], fail, summary}.
 export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
   const r = report || {};
   const counts = r.counts || { error: 0, warning: 0, info: 0 };
-  const titles = new Map([...(r.behaviors || []), ...(r.toAssess || [])].map(n => [n.id, n.title]));
-  const label = f => { const ids = f.notes?.length ? f.notes : f.note ? [f.note] : []; return ids.length ? ids.map(id => titles.has(id) ? `${titles.get(id)} (${id})` : id).join(', ') : f.basis || 'from the code'; };
+  const noteRefs = new Map([...(r.toAssess || []), ...(r.behaviors || [])].map(n => [n.id, n]));
+  const label = f => { const ids = f.notes?.length ? f.notes : f.note ? [f.note] : []; return ids.length ? ids.map(id => { const n = noteRefs.get(id); return n ? `${n.title} (${id})${sourceText(n) ? ` · ${sourceText(n)}` : ''}` : id; }).join(', ') : f.basis || 'from the code'; };
   const findings = [...(r.findings || [])].sort((a, b) => (SEV[a.severity] ?? 1) - (SEV[b.severity] ?? 1) || (b.confidence || 0) - (a.confidence || 0));
   const onLine = x => !!(x && x.file && x.line > 0 && x.inChange);
   const inline = [], rest = [];
@@ -52,14 +53,14 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
     L.push(`## ⛔ This change breaks ${fixedBroken.length === 1 ? 'a fixed behavior' : `${fixedBroken.length} fixed behaviors`} of the system`, '');
     L.push(`A fixed behavior is a rule the system is held to. Changing it is a decision for the people who own the system, not a side effect of this change.`, '');
     for (const b of fixedBroken) {
-      L.push(`**${esc(b.title)}** <sub>fixed, ${code(b.id)}</sub>`, '', 'What it requires:', '', quote(b.body), '');
+      L.push(`**${esc(b.title)}** <sub>fixed, ${code(b.id)}${sourceText(b) ? ` · ${esc(sourceText(b))}` : ''}</sub>`, '', 'What it requires:', '', quote(b.body), '');
       if (b.reason) L.push(`What this change does instead: ${esc(b.reason)}`, '');
       if (b.before) L.push(`<sub>${esc(b.before)}</sub>`, '');
     }
     L.push(`**If this is intended**, say so in the pull request: once it is merged on the default branch the code is the truth and ${fixedBroken.length === 1 ? 'this behavior is' : 'these behaviors are'} revised to match it. **If not**, restore the enforcement before merging.`, '', '---', '');
   } else if (mutableBroken.length) {
     L.push(`#### ⚠ This change alters ${mutableBroken.length === 1 ? 'a behavior' : `${mutableBroken.length} behaviors`} of the system`, '');
-    for (const b of mutableBroken) { L.push(`**${esc(b.title)}** <sub>mutable, ${code(b.id)}</sub>`, '', quote(b.body), ''); if (b.reason) L.push(`What this change does instead: ${esc(b.reason)}`, ''); }
+    for (const b of mutableBroken) { L.push(`**${esc(b.title)}** <sub>mutable, ${code(b.id)}${sourceText(b) ? ` · ${esc(sourceText(b))}` : ''}</sub>`, '', quote(b.body), ''); if (b.reason) L.push(`What this change does instead: ${esc(b.reason)}`, ''); }
     L.push(`A mutable behavior changes with the code: once this change is merged on the default branch ${mutableBroken.length === 1 ? 'it is' : 'they are'} revised to match it. Say in the pull request that the change is meant.`, '', '---', '');
   }
   if (r.error) L.push(`The review could not run: ${esc(r.error)}`, '');

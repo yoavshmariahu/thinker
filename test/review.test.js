@@ -259,6 +259,8 @@ test('kinds narrows the review to the desired behaviors: one call per behavior i
   assert.deepEqual(r.kinds, ['behavior']);
   assert.equal(r.notes.consulted, 1);
   assert.deepEqual(r.behaviors.map(b => [b.id, b.outcome]), [['invoke-validates', 'violated']]);
+  assert.deepEqual(r.behaviors[0].source, { type: 'human' });
+  assert.deepEqual(r.toAssess[0].source, { type: 'human' });
   assert.equal(r.findings[0].severity, 'error');
   const text = renderReview(r);
   assert.match(text, /1 desired behavior consulted/);

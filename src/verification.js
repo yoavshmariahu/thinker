@@ -226,6 +226,7 @@ export async function executeVerification(repo, id, { runReview = review, runner
 
 const clean = v => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/[<>|`]/g, c => ({ '<': '&lt;', '>': '&gt;', '|': '\\|', '`': '\\`' })[c]);
 const brief = v => clean(String(v || '').slice(0, 180)) + (String(v || '').length > 180 ? '…' : '');
+const noteSource = n => n?.source?.type === 'pr' && n.source.ref ? `source PR ${clean(n.source.ref)}` : n?.source?.type === 'human' ? 'human-authored' : n?.source?.type === 'doc' ? 'from documentation' : n?.source?.type === 'agent' ? 'captured from an agent session' : '';
 const testFile = file => String(file || '').replace(/^\/workspace\//, '');
 const testLabel = test => `${clean(test.name)}${test.file ? ` (${clean(testFile(test.file))})` : ''}`;
 
@@ -309,7 +310,7 @@ export function renderVerification(r, { portable = false } = {}) {
   const direct = behaviors.filter(b => r.review?.toAssess?.some(n => n.id === b.id && n.why?.startsWith('rests on')));
   if (direct.length) {
     lines.push('', '**Desired behaviors directly in play (model reading):**');
-    for (const b of direct.slice(0, 5)) lines.push(`- ${clean(b.title)}: ${clean(b.outcome)}${b.reason && b.outcome === 'violated' ? ` — ${clean(b.reason)}` : ''}.`);
+    for (const b of direct.slice(0, 5)) lines.push(`- ${clean(b.title)}: ${clean(b.outcome)}${b.reason && b.outcome === 'violated' ? ` — ${clean(b.reason)}` : ''}${noteSource(b) ? ` (${noteSource(b)})` : ''}.`);
     if (direct.length > 5) lines.push(`- ${direct.length - 5} more are recorded in the structured review result.`);
   } else if (behaviors.length) lines.push('', `${behaviors.length} desired behavior note${behaviors.length === 1 ? ' was' : 's were'} considered by identifier overlap; none directly rests on the changed definitions, so this is context rather than correctness evidence.`);
 
@@ -330,7 +331,12 @@ export function renderVerification(r, { portable = false } = {}) {
   if (!r.review) lines.push('Not completed.');
   else {
     lines.push(`${r.review.counts?.error || 0} errors; ${r.review.counts?.warning || 0} warnings. ${r.review.incomplete || r.review.errors?.length ? 'Assessment incomplete.' : 'This is a model reading of the change, not an executed check.'}`);
-    for (const f of r.review.findings || []) lines.push(`- ${clean(f.file)}:${f.line || 0} — ${clean(f.message)} Evidence: ${clean(f.evidence)}`);
+    const refs = new Map([...(r.review.toAssess || []), ...(r.review.behaviors || [])].map(n => [n.id, n]));
+    for (const f of r.review.findings || []) {
+      const ids = f.notes?.length ? f.notes : f.note ? [f.note] : [];
+      const basis = ids.length ? ids.map(id => { const n = refs.get(id); return `${clean(n?.title || id)}${noteSource(n) ? `, ${noteSource(n)}` : ''}`; }).join('; ') : 'code-only model reading';
+      lines.push(`- ${clean(f.file)}:${f.line || 0} — ${clean(f.message)} Basis: ${basis}. Evidence: ${clean(f.evidence)}`);
+    }
     for (const e of r.review.errors || []) lines.push(`- ${clean(e.error)}`);
     if (r.review.notes?.staleBefore?.length) lines.push(`- ${r.review.notes.staleBefore.length} consulted cache notes were already stale; weigh this assessment accordingly.`);
   }

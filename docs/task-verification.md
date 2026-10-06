@@ -119,7 +119,9 @@ When source is available, the code assessment cites changed lines for supported
 implementation steps and reads linked test assertions for each criterion. Those
 readings are labeled as model interpretations. A directly affected desired
 behavior from the note cache is shown as a constraint; identifier-only matches
-are context. The report leaves the final coverage judgment to the reviewer.
+are context. Findings that rest on cached notes name the note's source PR or
+authorship; findings without a note are labeled as code-only model readings.
+The report leaves the final coverage judgment to the reviewer.
 
 The report's final section explains provenance: the task and criteria were
 supplied by the calling agent (over MCP or the CLI, with the time;
