@@ -14,6 +14,7 @@ import { anchoringGuard } from './guard.js';
 import { denseEnabled, denseScores, ceConfig, ceRerank } from './dense.js';
 import { jevConfig, jevSearch } from './jev.js';
 import { phraseKey } from './note-search.js';
+import { derivedVerdict, externalSurface } from './drift.js';
 import { checkSearchSummaries } from './summary-fidelity.js';
 
 export { KINDS, KIND_ALIAS, kindOf, MUTABILITY };
@@ -743,12 +744,20 @@ export async function verifyNote(store, note, { model } = {}) {
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
   const system = 'You verify cached notes about a codebase after the code changed. Be strict: a note that is subtly wrong is worse than no note. Only answer still_valid when every concrete claim in the note (file paths, symbol names, call order, what must change together, commands) is still true given the current code shown. Answer update if the note is mostly right but some claim needs correction, and give the full corrected body (keep it as short as the original, keep file:symbol pointers). Answer invalid if the thing the note describes no longer exists or the approach changed fundamentally. Answer with the JSON alone: the verdict, one sentence of reason, and a body only for update.';
   const prompt = `NOTE (kind=${note.kind}) "${note.title}"\n${note.body}\n\nDEPENDENCIES THAT CHANGED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'unknown'}\n\nGIT DIFF SINCE THE NOTE WAS VERIFIED (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE OF EACH DEPENDENCY:\n${current.slice(0, 40000)}`;
-  const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
+  // When the one surface the note could break on is checkable in code and the check passes, the note is
+  // still valid and the model has nothing to add: 64% of verdicts here were `still_valid`, each paid for
+  // with a call that read a diff to confirm nothing. Only `still_valid` is ever derived — `update` needs
+  // a rewritten body and a wrong `still_valid` leaves a false note serving, so anything the check cannot
+  // settle falls through to the model (drift.js:derivedVerdict).
+  const derived = derivedVerdict(repo, note);
+  const res = derived ? { json: derived, cost: 0 } : await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
   const v = res.json || {};
   const now = new Date().toISOString();
   let next;
   if (v.verdict === 'still_valid') {
-    next = { ...note, deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.min(1, (note.confidence ?? 0.7) + 0.05) };
+    // a verdict the code derived did not confirm the note, it only failed to refute it: no confidence bump
+    const bump = v.noBump ? 0 : 0.05;
+    next = { ...note, deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.min(1, (note.confidence ?? 0.7) + bump) };
     delete next.stale;
   } else if (v.verdict === 'update' && cleanBody(v.body, note.title)) {
     next = { ...note, body: cleanBody(v.body, note.title), deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.max(0.3, Math.min(1, Number(v.confidence) || note.confidence || 0.6)), history: [...(note.history || []), { at: now, reason: v.reason, prevBody: note.body }].slice(-5) };
@@ -761,8 +770,8 @@ export async function verifyNote(store, note, { model } = {}) {
   if (v.verdict !== 'invalid') { const ch = new Set(changed.map(c => `${c.path}|${c.symbol || ''}`)); next.deps = next.deps.map(d => ch.has(`${d.path}|${d.symbol || ''}`) ? annotateFanout(repo, [d], { max: 1 })[0] : d); }
   delete next.verifying;
   store.put(next);
-  store.log({ op: 'verify', id: note.id, verdict: v.verdict, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
-  return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost, tokens: tokensOf(res) };
+  store.log({ op: 'verify', id: note.id, verdict: v.verdict, derived: derived ? note.drift.surface : undefined, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
+  return { note: next, verdict: v.verdict, reason: v.reason, derived: !!derived, cost: res.cost, tokens: tokensOf(res) };
 }
 
 // A desired behavior (behavior.js) is verified the other way round: the note is the ground truth and

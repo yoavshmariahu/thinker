@@ -368,6 +368,27 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
   exactly which deps changed and how (symbol body changed / file removed /
   symbol not found).
 - The `verify` log record names the deps that triggered it (`changed`).
+- The surface a note could break on (`drift.js`), typed by Jev and stored as
+  `drift: {surface, confidence, key}`: one of `a_symbol_moving`,
+  `a_number_changing`, `a_path_changing`, `a_flag_or_env_var_changing`,
+  `an_external_tool_changing`. Background maintenance types up to `driftPerRun`
+  (40) notes that have none for their present text, one Choice per note batched
+  twelve to a call (`typeDrift`); `driftKey` follows the note's own text, so an
+  edited note is retyped, and a behavior is never typed. It licenses exactly one
+  decision: a note typed `an_external_tool_changing` is re-baselined in code when
+  its deps change (`derivedVerdict`), with no model call and no confidence bump,
+  because no change in this repository can falsify a claim about a tool outside
+  it and no model reading this repository's diff can settle one. A vanished
+  symbol or file, a type under 0.6 confidence, or a note edited since it was
+  typed all still go to the model, and `update` is never derived: it needs a
+  rewritten body. The `verify` log line carries `derived` with the surface.
+  Deriving a verdict from the numbers a note states was measured and rejected
+  (`bench/RESULTS.md`, "Derived verify verdicts"): of 147 stale notes only 12 had
+  every stated number still bound to the same name, and those matches were
+  incidental numbers in prose — one would have passed with five of its symbols
+  changed. Routing such notes out of verification altogether was also tried and
+  is worse than the waste: the prompt hooks serve no stale note, so a note never
+  re-baselined is never served again.
 - `thinker check` persists statuses; `thinker verify` sends each stale note, the git diff of
   its changed deps since `verifiedCommit`, and the current text of every dep
   to a small model (Haiku by default) which answers `still_valid` (re-hash,
