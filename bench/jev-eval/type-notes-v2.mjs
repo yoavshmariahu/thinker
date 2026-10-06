@@ -72,7 +72,7 @@ const rows=picked.map((n,i)=>{const F=k=>fwd.j.answers[`${k}${i}`], B=k=>bwd.j.a
     act:F('first_act').choice,ac:F('first_act').confidence,actR:B('first_act').choice,
     drift:F('drift').choice,dc:F('drift').confidence,driftR:B('drift').choice,
     inert:F('inert').noul, whole:F('whole_mechanism').noul, machine:F('machine').noul, blast:F('blast').score};});
-writeFileSync('exp/typed-notes-v2.json',JSON.stringify(rows,null,2));
+writeFileSync('bench/jev-eval/typed-notes-v2.json',JSON.stringify(rows,null,2));
 
 console.log('note                                     trigger            act              drift                 inert whole mach blast');
 for(const r of rows) console.log(

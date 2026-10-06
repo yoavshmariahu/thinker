@@ -1,7 +1,7 @@
 // Serving that reads facets FROM DISK. Per-prompt cost is now only: type the request + score candidates.
 import { readFileSync, readdirSync } from 'node:fs';
 import { rank } from '/Users/yoavshmariahu/src/thinker/src/rank.js';
-const DIR='exp/typed-noteset', KEY=process.env.JEVKEY;
+const DIR='bench/jev-eval/typed-noteset', KEY=process.env.JEVKEY;
 const NOTES=readdirSync(DIR).filter(f=>f.endsWith('.json')).map(f=>JSON.parse(readFileSync(`${DIR}/${f}`,'utf8')));
 const byId=new Map(NOTES.map(n=>[n.id,n]));
 const TRIGGER={locating_code:'Finding where something is implemented or handled.',
@@ -19,7 +19,7 @@ const rec = n => ({kind:n.kind,title:n.title,answers_the_questions:(n.answers||[
 const post=b=>fetch('https://api.typesafe.ai/v1/systemone',{method:'POST',headers:{authorization:`Bearer ${KEY}`,'content-type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
 const GATE=0.6;
 const res=[]; let tok=0;
-for (const q of JSON.parse(readFileSync('exp/queries-gold.json','utf8'))){
+for (const q of JSON.parse(readFileSync('bench/jev-eval/queries-gold.json','utf8'))){
   const cands=rank(NOTES,{query:q.query,mode:'orient'}).slice(0,8).map(r=>r.note);
   if(!cands.length) continue;
   const gold=new Set(q.gold||[]);

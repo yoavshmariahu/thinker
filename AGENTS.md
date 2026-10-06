@@ -95,6 +95,7 @@ cache at twice the input price and never read again.
 | `test/` | unit tests (`node --test`) |
 | `bench/` | benchmark harness, task sets, PR data, and `RESULTS.md` |
 | `bench/retrieval.js` | what is served for each task's request and how much of it rests on a changed file; no agent runs, seconds per task set |
+| `bench/jev-eval/` | the Jev serving measurement: `hook-jev-arm.mjs` scores the labelled ranking tasks, the rest are the facet experiments that were rejected (`bench/RESULTS.md`, "Serving: Jev") |
 | `.thinker/` | thinker's own notes about this repo |
 
 `bench/repos/` (clones of click, mitmproxy, PostHog) and `bench/runs/` (raw

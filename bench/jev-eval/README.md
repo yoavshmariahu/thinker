@@ -12,4 +12,4 @@ Needs `JEVKEY` in the environment. Run with `THINKER_TEST=1`.
 | `type-notes.mjs` / `type-notes-v2.mjs` | facet schema v1 vs v2 (catch-all lesson) |
 | `typed-verify.mjs` | drift-surface-derived verify verdicts (hot/cold trap) |
 
-`typed-noteset/` (347 typed notes) is regenerable via `type-store.mjs` and not committed.
+`bench/jev-eval/typed-noteset/` (347 typed notes) is regenerable via `type-store.mjs` and not committed.

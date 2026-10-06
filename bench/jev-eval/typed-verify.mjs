@@ -80,7 +80,7 @@ for (const [i,n] of stale.entries()){
   if (r.verdict==='update' && mech>0.7 && /gone|absent/.test(r.why)) r={verdict:'invalid', why:r.why+' and the note exists only to describe it'};
   out.push({title:n.title, drift:drift.choice, dc:drift.confidence, mech, ...r});
 }
-writeFileSync('exp/typed-verify-results.json',JSON.stringify(out,null,2));
+writeFileSync('bench/jev-eval/typed-verify-results.json',JSON.stringify(out,null,2));
 console.log('verdict       drift surface               conf mech  why');
 for(const r of out) console.log(`${r.verdict.padEnd(13)} ${r.drift.padEnd(27)} ${r.dc.toFixed(2)} ${r.mech.toFixed(2)}  ${r.why.slice(0,76)}`);
 const d={}; for(const r of out) d[r.verdict]=(d[r.verdict]||0)+1;

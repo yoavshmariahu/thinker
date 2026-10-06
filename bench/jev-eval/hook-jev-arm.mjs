@@ -79,6 +79,6 @@ const arms=[
 console.log('arm                  served  useful-share  important-share  important notes  tasks hit  served-when-none-useful');
 for (const a of arms) console.log(
   `${a.name.padEnd(20)} ${String(a.served).padStart(5)}      ${a.us.toFixed(2)}          ${a.is.toFixed(2)}        ${String(a.impSeen).padStart(2)}/${impTotal}          ${String(a.hitTasks).padStart(2)}/${work.length}        ${a.blank}`);
-writeFileSync('exp/hook-jev-arm-results.json',JSON.stringify({tasks:work.length,impTotal,usefulTasks,arms},null,2));
+writeFileSync('bench/jev-eval/hook-jev-arm-results.json',JSON.stringify({tasks:work.length,impTotal,usefulTasks,arms},null,2));
 console.log('\n* l6 = ms-marco cross-encoder scores as stored in the lab run; which text variant they were computed on is unverified, so indicative only, NOT the production ce1 default.');
 console.log('judge: gpt-6-sol (existing labels, no new judge pass). 20 of 54 tasks, stratified by largest remainder, file order.');
