@@ -89,6 +89,22 @@ test('cache build reports partial failures without a success summary', async () 
   }
 });
 
+test('behavior proposal stage runs only when requested', async () => {
+  const repo = createMockGitRepo();
+  try {
+    const store = new Store(repo).init();
+    const estimates = estimateCacheBuild(repo, { prs: 0, areas: 0, agent: 'codex' });
+    let calls = 0;
+    const options = { repo, store, estimates, noPhrase: true, agent: 'codex',
+      proposeFn: async () => { calls++; return { proposals: [{ id: 'proposal-example' }], sources: 1 }; },
+      out: () => {} };
+    await stepBuildCache(options);
+    assert.equal(calls, 0);
+    await stepBuildCache({ ...options, proposeBehaviors: true });
+    assert.equal(calls, 1);
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
 test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
   const colored = c.bold(c.cyan('hello world'));
   assert.equal(stripAnsi(colored), 'hello world');

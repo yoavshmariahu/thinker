@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { listBehaviors, renderBehaviors, addBehavior, promoteBehavior, proposeBehaviors, writeSystemMarkdown } from '../behavior.js';
+import { listBehaviorProposals, acceptBehaviorProposal } from '../behavior-proposals.js';
 import { annotateFanout } from '../codegraph.js';
 import { formatTokens } from '../model-usage.js';
 import { orient, trackTurn, phraseNotes, phraseKey, lookup, drilldown, find, createNote, refresh, renderNote, linkNotes, archiveNotes, archiveConfig } from '../ops.js';
@@ -51,11 +52,18 @@ async function systemCommand(ctx) {
     out(`saved ${r.note.id} (${r.note.mutability})` + (r.dropped.length ? ` (dropped: ${JSON.stringify(r.dropped)})` : ''));
   } else if (sub === 'promote' || sub === 'accept') {
     if (!pos.length) { out(`usage: thinker system ${sub} <id…> [--fixed | --mutable]`); process.exit(1); }
-    for (const id of pos) { const r = promoteBehavior(store, id, { mutability: mutability || 'mutable' }); out(r.error ? `${id}: ${r.error}` : r.unchanged ? `${id}: already a ${r.note.mutability} behavior` : `${id}: now a ${r.note.mutability} behavior`); }
+    for (const id of pos) {
+      const r = sub === 'accept' && id.startsWith('proposal-')
+        ? acceptBehaviorProposal(store, id, { fixed: mutability === 'fixed' })
+        : promoteBehavior(store, id, { mutability: mutability || 'mutable' });
+      out(r.error ? `${id}: ${r.error}` : r.unchanged ? `${id}: already a ${r.note.mutability} behavior` : `${id}: now a ${r.note.mutability} behavior`);
+    }
   } else if (sub === 'propose') {
+    const drafts = listBehaviorProposals(store);
+    for (const p of drafts) out(`${p.id}\n  ${p.title}\n  ${p.body}\n  Evidence: ${p.source?.ref || p.source?.type || p.sourceId}; ${p.reason}\n  Accept: thinker system accept ${p.id}`);
     const c = proposeBehaviors(store);
     for (const x of c) out(`${x.kind.padEnd(10)} ${x.id.padEnd(45)} acted on ${x.confirmed}×, served ${x.uses}×  ${x.title}`);
-    out(c.length ? `${c.length} candidates; thinker system promote <id> [--fixed] makes one a desired behavior` : 'no notes that state rules yet');
+    out(c.length ? `${c.length} rule notes; thinker system promote <id> [--fixed] makes one a desired behavior` : drafts.length ? `${drafts.length} behavior drafts awaiting acceptance` : 'no behavior candidates yet');
   } else if (sub === 'md') {
     out(`wrote ${path.relative(repo, writeSystemMarkdown(store, { force: true }))}`);
   } else {

@@ -197,7 +197,20 @@ The notes a review draws on most are records of past fixes: what the symptom
 was, where the root cause sat, what kind of change resolved it. `thinker
 mine-prs` writes them from merged pull requests; a repository whose work lands
 by direct commits has few of those, and `thinker mine-prs --git --fixes` mines
-the commits whose message says they fix something instead. Notes nobody was served
+the commits whose message says they fix something instead.
+
+To draft desired behaviors while building a cache, run `thinker setup --build
+--propose-behaviors`. After PR mining and exploration, one bounded model call
+turns up to twelve fresh PR or document rule notes into candidate requirements.
+`thinker system propose` shows each draft's wording, source, code anchors and
+reason; `thinker system accept <proposal-id>` makes a selected draft a mutable
+behavior (`--fixed` is available for a deliberately permanent rule). Drafts
+live in `.thinker/local/behavior-proposals.json` and do not affect serving or
+review until accepted. This stage does not claim that a test establishes the
+behavior; inspect the source and tests before acceptance. Without the flag,
+setup does not generate behavior drafts.
+
+Notes nobody was served
 in 30 days (and any kind named under `archive` in the config) are archived
 rather than served, and review still reads them: `thinker archive --list` shows them, `--restore` brings one
 back, and `archive` in `.thinker/config.json` sets the rules or turns them

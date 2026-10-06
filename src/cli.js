@@ -46,14 +46,15 @@ const userMcpEntry = () => ({ command: 'node', args: [path.join(HERE, 'mcp.js')]
 
 const HELP = `thinker — knowledge cache for coding agents
 
-  setup [--build | --no-build] [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>]
+  setup [--build | --no-build] [--propose-behaviors] [--clients list|all|auto] [--agent a] [--areas n] [--prs n] [--pr <num>]
         [--benchmark | --no-benchmark] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook]
         [--no-trust] [--yes] [--verbose]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
                                  server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto), then offer to build the
                                  knowledge cache from the code and merged pull requests with pre-flight estimates, and
                                  an optional PR change benchmark. --build builds without asking, --no-build only wires
-                                 things up and lets the cache grow from your sessions; --verbose adds per-item details
+                                 things up and lets the cache grow from your sessions; --propose-behaviors drafts
+                                 human-reviewed system behaviors from mined rules; --verbose adds per-item details
   connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--yes]
                                  wire the agents on this machine into their own settings, once: hooks and the MCP
                                  server, for every repository that is set up (elsewhere thinker does nothing);
@@ -92,7 +93,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  make a note that states a rule (invariant, convention, gotcha) a desired behavior
   system accept <id…> [--fixed | --mutable]
                                  accept a behavior an agent proposed (remember with kind behavior)
-  system propose                 the notes that state rules, as candidates for promote
+  system propose                 review behavior drafts and rule notes that could be promoted
   system md                      write .thinker/SYSTEM.md, the behaviors as a document in the repository
   find "<words|Identifier>" [--path p] [--limit n]
                                  the definitions whose name or body carry the words, as pointers with their lines
