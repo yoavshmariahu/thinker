@@ -20,27 +20,33 @@ assessment without test execution; it also reports gate-integrity signals.
 Native Node test failures are persisted while the suite is still running, so an
 agent can inspect and start addressing them before the complete check finishes.
 
-MCP clients use the existing `review` tool:
+Start a run from the command line:
+
+```
+thinker review --start --base origin/main --task task.json
+```
+
+where `task.json` carries the context the reviewer should hold you to:
 
 ```json
 {
-  "action": "start",
-  "base": "origin/main",
-  "task": {
-    "request": "Change retry limits while preserving timeout handling",
-    "criteria": [
-      {"text": "Timeouts are still rejected", "source": "user", "checks": ["unit"],
-       "tests": [{"check": "unit", "name": "rejects timed-out requests", "file": "test/retry.test.js"}]}
-    ],
-    "intendedChanges": ["Increase the retry limit"],
-    "rationale": "Keep timeout handling on the existing path",
-    "questions": ["Does the replacement test cover timeout exhaustion?"]
-  }
+  "request": "Change retry limits while preserving timeout handling",
+  "criteria": [
+    {"text": "Timeouts are still rejected", "source": "user", "checks": ["unit"],
+     "tests": [{"check": "unit", "name": "rejects timed-out requests", "file": "test/retry.test.js"}]}
+  ],
+  "intendedChanges": ["Increase the retry limit"],
+  "rationale": "Keep timeout handling on the existing path",
+  "questions": ["Does the replacement test cover timeout exhaustion?"]
 }
 ```
 
-Then call `review` with `{"action":"status","runId":"<id>"}`. The response
-contains both human text and `structuredContent`. An ordinary assessment accepts
+The file holds the task object itself; `commands/cache.js` reads it straight
+into `task` with no wrapper.
+
+Then `thinker review --status <run-id>` (add `--json` for the structured form,
+`--strict` to exit 2 on an error). `--run` does both in one go, waiting for the
+contract to finish. An ordinary assessment accepts
 the same `task` object. The reviewer sees the task context and is instructed to
 challenge unsupported assumptions; task claims cannot override fixed behaviors
 or establish that a check executed. Source labels are caller attribution, not
