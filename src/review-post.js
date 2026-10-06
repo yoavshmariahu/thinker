@@ -11,6 +11,7 @@ import { formatTokens } from './model-usage.js';
 export const MARKER = '<!-- thinker-review -->';
 const ICON = { violated: '❌', upheld: '✅', revised: '✏️', unrelated: '➖', consulted: '👀' };
 import { blindSpot } from './review.js';
+import { renderThoroughness } from './review-thoroughness.js';
 
 const SEV = { error: 0, warning: 1, info: 2 };
 const esc = s => String(s || '').replace(/</g, '&lt;');
@@ -89,6 +90,7 @@ export function buildReview(report, { failOn = 'error', quiet = true } = {}) {
     if (r.errors?.length) cache.push(`${r.errors.length} note${r.errors.length === 1 ? '' : 's'} could not be assessed: ${r.errors.map(e => `${code(e.id)} (${esc(e.error)})`).join('; ')}`);
     if (cache.length) { L.push('<details><summary>Cache state</summary>', ''); for (const c of cache) L.push(`- ${c}`); L.push('', '</details>', ''); }
   }
+  if (r.thoroughness) L.push(renderThoroughness(r.thoroughness), '');
   L.push('<sub>Posted by thinker: the change checked against the desired behaviors of the system and the notes resting on the changed code.</sub>');
   const body = L.join('\n');
   const fail = failOn === 'error' ? counts.error > 0 : failOn === 'warning' ? counts.error + counts.warning > 0 : false;

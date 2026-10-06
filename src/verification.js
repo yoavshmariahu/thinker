@@ -8,12 +8,13 @@ import { spawn } from 'node:child_process';
 import { Store } from './store.js';
 import { review, collectChange, makeReader } from './review.js';
 import { gateIntegrity } from './review-integrity.js';
+import { renderThoroughness } from './review-thoroughness.js';
 import { createSnapshot, snapshotTree, readAt, git, digest, materializeSnapshot, standaloneGit } from './verification-snapshot.js';
 import { normalizeFailures } from './verification-failures.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CONTRACT = '.thinker/verification.json';
-const engineDigest = () => digest(['verification-v1', ...['review.js', 'review-integrity.js', 'verification.js', 'verification-snapshot.js', 'verification-worker.js', 'verification-reporter.js', 'verification-failures.js'].map(f => fs.readFileSync(path.join(HERE, f), 'utf8'))]);
+const engineDigest = () => digest(['verification-v1', ...['review.js', 'review-integrity.js', 'review-thoroughness.js', 'gates.js', 'verification.js', 'verification-snapshot.js', 'verification-worker.js', 'verification-reporter.js', 'verification-failures.js'].map(f => fs.readFileSync(path.join(HERE, f), 'utf8'))]);
 const uuid = v => typeof v === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(v);
 const directory = (repo, id) => { if (!uuid(id)) throw new Error('Invalid verification run id'); return path.join(repo, '.thinker/local/reviews', id); };
 const writeJson = (file, value) => { const tmp = file + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 }); fs.renameSync(tmp, file); };
@@ -340,6 +341,7 @@ export function renderVerification(r, { portable = false } = {}) {
     for (const e of r.review.errors || []) lines.push(`- ${clean(e.error)}`);
     if (r.review.notes?.staleBefore?.length) lines.push(`- ${r.review.notes.staleBefore.length} consulted cache notes were already stale; weigh this assessment accordingly.`);
   }
+  if (r.review?.thoroughness) lines.push('', renderThoroughness(r.review.thoroughness));
   if (r.failureChanges?.length) lines.push('', '## Earlier failures', '', ...r.failureChanges.map(f => `- ${clean(f.test || f.id)}: ${f.status}`));
   lines.push('', '## Evidence source and scope', '');
   if (r.task) lines.push(`- The task framing came from the calling agent via ${r.task.providedBy === 'mcp' ? 'MCP' : 'CLI'}${r.task.providedAt ? ` at ${r.task.providedAt}` : ''}.${r.task.criteria?.some(c => c.source === 'user-attributed-by-caller') ? ' Any user-attributed criterion is the agent\'s attribution, not independently confirmed user input.' : ' The criteria and test links are the agent\'s interpretation.'}`);

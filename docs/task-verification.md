@@ -257,3 +257,52 @@ native reporters, historical flake classification, equivalent-coverage analysis,
 validated minimal repros, and dependency-supported selective reruns. Until those
 are implemented, no claim is made that passing here guarantees the existing CI
 workflow will pass.
+
+## Checking whether extra review work was worthwhile
+
+Review reports include a **Review thoroughness** section. It records which steps
+were selected by Jev, explicitly requested by the caller, or left at defaults
+(including fallback after a Jev error). The gate's question, exact score and
+threshold are recorded alongside the effective choice and what actually
+happened. A recommendation to run tests is not a test execution. A selected
+verification step with no eligible findings is not a model call. Explicit flags
+override Jev recommendations and are identified as such.
+
+For each finding checked a second time, `report.thoroughness.verifications`
+keeps the original claim, evidence and severity; the bounded diff and code
+context sent to the verifier; its explanation and resulting severity or
+withdrawal; the resolved model, tokens and duration. Errors retain the original
+finding and remain errors, not confirmations. The summary counts verification attempts,
+withdrawals, severity changes and failures. Summed call duration is not elapsed
+review time, since calls can overlap. Missing usage stays unknown.
+
+This record is preserved in the `impact-review` event in the local impact
+journal (`impact/*.jsonl` beside the configured usage log, unless logging is disabled), and in the verification run's `run.json`.
+The CLI, posted PR review and proof-of-correctness report show the decisions and
+verifier explanations, including qualifications such as “downstream impact is
+not shown.” Full code context stays in the structured record. Normal quiet CI
+reviews retain their existing posting rules; the audit is present when a report
+is posted, and remains available in the journal even when no comment is posted.
+
+Jev supplies scores, not case-specific explanations. The report names the gate
+policy without presenting it as a demonstrated reason for this particular
+change. It also does not label a repeated conclusion as added evidence:
+`assessment: "unassessed"` remains explicit until someone audits the record.
+
+For future benchmark reviews, save the audit alongside the task result. Record
+these judgments separately, with a reason and reviewer/date:
+
+1. **Justification:** which concrete uncertainty made checking worthwhile?
+   Distinguish a plausible risk from an established need; leave it unknown when
+   the record does not support a conclusion.
+2. **Contribution:** did the check resolve a counterargument, correct severity,
+   withdraw a false alarm, narrow an unsupported claim, repeat known evidence,
+   or fail to resolve the uncertainty? Cite the before/after evidence. A model
+   explanation is a claim to inspect, not an independent observed fact.
+3. **Missed work:** a skipped step is unassessed until a separate sampled audit
+   runs it. Report harmful withdrawals and missed findings as well as savings.
+4. **Effort:** report calls, tokens and latency separately from those judgments.
+   No fixed token budget decides whether a high-impact uncertainty deserved work.
+
+The [first five-call audit](../research/jev-sol-opus-ten/thoroughness.md) uses
+this rubric. No recurring jobs or extra model calls are enabled by tracking.

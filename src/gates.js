@@ -115,7 +115,7 @@ export async function reviewGates(store, change, symbols, { gates = GATES, fetch
       gates: Object.fromEntries(names.map((n, i) => {
         const p = scores[i];
         const run = Number.isFinite(p) ? p >= gates[n].act : gates[n].fallback;
-        return [n, { p: Number.isFinite(p) ? Number(p.toFixed(2)) : null, run }];
+        return [n, { p: Number.isFinite(p) ? p : null, run }];
       })),
       source: 'jev',
     };
