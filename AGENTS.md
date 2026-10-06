@@ -892,7 +892,17 @@ review prompt.
   count, `commonTerms`), then by kind and confidence; a note on a hub
   definition (`cli.js:main`) is touched by nearly every commit, and on the
   last ten commits here 30 to 60 notes were, with a dozen consulted per
-  review. `toAssess` says why each was chosen. `thinker maintain --dry`
+  review. `toAssess` says why each was chosen. With a Jev key (`jev.js`) the
+  BM25 pool is widened to twelve and `review.js:narrowRelated` keeps the notes
+  that bear on the change, a Noul each, scored against named fields
+  (`changeRecord`: the files touched, the definitions altered, the identifiers
+  added) rather than the bag of words BM25 ranks on; the kept scores are
+  `notes.relatedJev` in the report. BM25 fills all six slots whether or not
+  anything fits: on 16 grafana regression cases every review consulted exactly
+  six related notes and none carried the signal, since the note that catches a
+  regression arrives `direct`, by dep hash, in 16 of 16. So this buys a smaller,
+  truer prompt, not reach. A dry run and a failed call both keep BM25's choice.
+  `thinker maintain --dry`
   persists no statuses.
 - **Without a model** (`deterministicFindings`): a definition the change
   removes that is defined nowhere else and still referenced
