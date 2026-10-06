@@ -2,6 +2,7 @@
 import { searchText } from './note-search.js';
 import { KINDS, kindOf } from './store.js';
 import { checkNote } from './deps.js';
+import { jevConfig } from './jev.js';
 
 const defaultJudge = async (...args) => (await import('./jev-decisions.js')).judgeWithJev(...args);
 const REQUEST_BYTES = 28000; // leave room for the configured model and transport envelope
@@ -19,6 +20,7 @@ export const NOTE_RELATIONS = {
 };
 
 async function ask(store, request, { judge = defaultJudge, accounting = {} } = {}) {
+  if (judge === defaultJudge && !jevConfig(store).enabled) return { status: 'disabled', reason: 'jev disabled' };
   if (size(request) > REQUEST_BYTES) return unavailable('evidence exceeds the judgment request limit');
   try { return await judge(store, { ...accounting, ...request }); }
   catch (e) { return unavailable(e.message); }

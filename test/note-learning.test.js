@@ -40,6 +40,14 @@ test('catalog failure discards partial results and oversized Unicode is never si
   assert.equal(huge.status, 'unavailable');
 });
 
+test('oversized catalog evidence cannot block explicitly local-only learning', async () => {
+  const s = { ...store([note('huge', { body: '語'.repeat(10000) })]), config: () => ({ jev: false }) };
+  assert.equal((await selectLearningNotes(s, 'leases')).status, 'disabled');
+  const result = await prepareNotes(s, [note('new')], { evidence });
+  assert.equal(result.reconciled, false);
+  assert.equal(result.notes.length, 1);
+});
+
 test('grounded novel notes are accepted and every source chunk is checked', async () => {
   const seen = [];
   const r = await prepareNotes(store([]), [note()], { evidence: evidence + '\n'.repeat(21000), judge: judge({ capture: q => seen.push(q) }) });
