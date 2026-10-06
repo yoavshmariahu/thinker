@@ -4,18 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation — thinker</title>
-  <meta name="description" content="Documentation for thinker: a knowledge cache for your coding agents that serves, learns and keeps itself correct.">
+  <meta name="description" content="Documentation for thinker: a knowledge cache that helps coding agents catch bugs in review and spend fewer tokens on every task, built once and kept current from every session.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    html {
-      scroll-behavior: smooth;
-    }
+    html { scroll-behavior: smooth; scroll-padding-top: 80px; }
 
     body {
       background-color: #ffffff;
@@ -26,7 +20,7 @@
       line-height: 1.6;
     }
 
-    /* Top Navigation */
+    /* Top navigation */
     header {
       position: sticky;
       top: 0;
@@ -52,19 +46,11 @@
       letter-spacing: -0.03em;
     }
 
-    .brand-docs {
-      font-weight: 400;
-      color: #666666;
-      font-size: 0.95rem;
-    }
+    .brand-docs { font-weight: 400; color: #666666; font-size: 0.95rem; }
 
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
+    .nav-links { display: flex; align-items: center; gap: 0.6rem; }
 
-    .btn-back-nav {
+    .btn-back-nav, .btn-benchmark {
       color: #111111;
       text-decoration: none;
       font-size: 0.85rem;
@@ -77,32 +63,310 @@
       display: inline-flex;
       align-items: center;
       background: #ffffff;
-    }
-
-    .btn-back-nav:hover {
-      background: #fafafa;
-      border-color: #111111;
-    }
-
-    .btn-benchmark {
-      background: transparent;
-      border: 1px solid #e5e5e5;
-      color: #111111;
-      padding: 0.45rem 0.85rem;
-      font-size: 0.85rem;
-      font-weight: 500;
-      border-radius: 6px;
       cursor: pointer;
-      transition: all 0.15s ease;
+    }
+
+    .btn-back-nav:hover, .btn-benchmark:hover { background: #fafafa; border-color: #111111; }
+
+    /* Layout */
+    .docs-container {
+      display: flex;
+      max-width: 1240px;
+      margin: 0 auto;
+      min-height: calc(100vh - 60px);
+    }
+
+    aside {
+      width: 250px;
+      flex-shrink: 0;
+      border-right: 1px solid #e5e7eb;
+      padding: 2rem 1.25rem 3rem 0;
+      position: sticky;
+      top: 60px;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+    }
+
+    .sidebar-group { margin-bottom: 1.5rem; }
+
+    .sidebar-heading {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 600;
+      color: #888888;
+      margin-bottom: 0.45rem;
+      padding-left: 0.75rem;
+    }
+
+    .sidebar-nav { list-style: none; }
+
+    .sidebar-item a {
+      display: block;
+      padding: 0.34rem 0.75rem;
+      color: #4b5563;
+      text-decoration: none;
+      font-size: 0.86rem;
+      border-radius: 6px;
+      transition: all 0.12s ease;
+    }
+
+    .sidebar-item a:hover { color: #000000; background: #f4f4f5; }
+
+    .sidebar-item.active a { color: #000000; font-weight: 600; background: #f4f4f5; }
+
+    main {
+      flex: 1;
+      padding: 2.5rem 3.5rem 6rem;
+      max-width: 860px;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    /* Type */
+    h1 {
+      font-size: 2.35rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1.15;
+      margin-bottom: 0.75rem;
+      color: #000000;
+    }
+
+    p.lead {
+      font-size: 1.15rem;
+      color: #4b5563;
       letter-spacing: -0.01em;
+      margin-bottom: 1.5rem;
+      line-height: 1.55;
     }
 
-    .btn-benchmark:hover {
-      border-color: #111111;
+    .part-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #6b7280;
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .part-label + section h2 { margin-top: 0.5rem; border-top: none; padding-top: 0; }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin-top: 3rem;
+      margin-bottom: 0.85rem;
+      color: #111111;
+      padding-top: 1.25rem;
+      border-top: 1px solid #f0f0f0;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin-top: 1.75rem;
+      margin-bottom: 0.6rem;
+      color: #111111;
+    }
+
+    p { color: #374151; margin-bottom: 1.1rem; font-size: 0.95rem; line-height: 1.65; }
+
+    strong { color: #111111; font-weight: 600; }
+
+    a { color: #111111; }
+
+    /* Outcome cards at the top */
+    .outcomes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.85rem;
+      margin: 1.5rem 0 0.5rem;
+    }
+
+    .outcome {
+      border: 1px solid #e5e7eb;
       background: #fafafa;
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem 1rem;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
     }
 
-    /* Modal Overlay */
+    .outcome:hover { border-color: #111111; background: #ffffff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06); }
+
+    .outcome-kicker {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      margin-bottom: 0.4rem;
+    }
+
+    .outcome-num { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.035em; line-height: 1; color: #15803d; }
+
+    .outcome-label { font-size: 0.84rem; color: #111111; font-weight: 500; margin-top: 0.4rem; line-height: 1.35; margin-bottom: 0.7rem; }
+
+    .outcome-body { font-size: 0.84rem; color: #6b7280; line-height: 1.5; margin-bottom: 0; }
+
+    .outcome-cta { margin-top: auto; padding-top: 0.8rem; font-size: 0.76rem; font-weight: 600; color: #111111; }
+
+    .outcome:hover .outcome-cta { text-decoration: underline; }
+
+    .outcomes-caption { font-size: 0.78rem; color: #9ca3af; margin-bottom: 0.5rem; }
+
+    .outcomes-caption button {
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      color: #111111;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    /* The loop */
+    .loop {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin: 1.25rem 0 1.5rem;
+    }
+
+    .loop-step {
+      border: 1px solid #e5e7eb;
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+      min-width: 0;
+    }
+
+    .loop-step .step-badge {
+      display: inline-block;
+      background: #000000;
+      color: #ffffff;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.1rem 0.45rem;
+      border-radius: 4px;
+      margin-bottom: 0.5rem;
+    }
+
+    .loop-step h4 { font-size: 0.95rem; font-weight: 600; margin-bottom: 0.35rem; letter-spacing: -0.01em; }
+
+    .loop-step p { font-size: 0.84rem; color: #4b5563; margin-bottom: 0; line-height: 1.5; }
+
+    /* Callouts */
+    .callout {
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin: 1.25rem 0 1.5rem;
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
+    .callout.tip { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+
+    .callout.note { background: #f8fafc; border: 1px solid #e2e8f0; color: #334155; }
+
+    .callout strong { display: inline; }
+
+    .callout code { background: rgba(0, 0, 0, 0.05); }
+
+    /* Code */
+    pre {
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.86rem;
+      line-height: 1.55;
+      overflow-x: auto;
+      margin: 1rem 0 1.4rem;
+    }
+
+    code {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.86rem;
+      background: #f3f4f6;
+      padding: 0.12rem 0.35rem;
+      border-radius: 4px;
+      color: #111827;
+    }
+
+    pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+    .code-comment { color: #94a3b8; }
+
+    /* Tables */
+    .table-scroll { overflow-x: auto; margin: 1.25rem 0 1.5rem; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.87rem; text-align: left; }
+
+    th, td { padding: 0.65rem 0.85rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+
+    th { font-weight: 600; color: #111111; background: #f9fafb; font-size: 0.8rem; white-space: nowrap; }
+
+    tr:last-child td { border-bottom: none; }
+
+    td code { white-space: nowrap; }
+
+    /* Lists */
+    ul, ol { margin: 0.5rem 0 1.25rem 1.4rem; color: #374151; font-size: 0.95rem; }
+
+    li { margin-bottom: 0.5rem; line-height: 1.6; }
+
+    /* Folds */
+    details.fold {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 0.75rem 1.1rem;
+      margin: 1rem 0 1.5rem;
+      font-size: 0.9rem;
+    }
+
+    details.fold summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #111111;
+      font-size: 0.88rem;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    details.fold summary::-webkit-details-marker { display: none; }
+
+    details.fold summary::before {
+      content: "";
+      width: 0; height: 0;
+      border-left: 5px solid #111111;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      transition: transform 0.15s ease;
+    }
+
+    details.fold[open] summary::before { transform: rotate(90deg); }
+
+    details.fold[open] summary { margin-bottom: 0.75rem; }
+
+    details.fold p, details.fold li { font-size: 0.88rem; }
+
+    details.fold p:last-child { margin-bottom: 0.25rem; }
+
+    /* Modal (same as the landing page) */
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -117,23 +381,21 @@
       transition: opacity 0.2s ease;
     }
 
-    .modal-overlay.active {
-      display: flex;
-      opacity: 1;
-    }
+    .modal-overlay.active { display: flex; opacity: 1; }
 
     .modal-card {
       background: #ffffff;
       border: 1px solid #e5e7eb;
       border-radius: 12px;
       width: 100%;
-      max-width: 760px;
-      max-height: 85vh;
+      max-width: 720px;
+      max-height: 88vh;
       display: flex;
       flex-direction: column;
       box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15);
       overflow: hidden;
       animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      text-align: left;
     }
 
     @keyframes modalIn {
@@ -142,19 +404,17 @@
     }
 
     .modal-header {
-      padding: 1.25rem 1.5rem;
+      padding: 1.1rem 1.5rem;
       border-bottom: 1px solid #f0f0f0;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 1rem;
     }
 
-    .modal-title {
-      font-size: 1.15rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      color: #111111;
-    }
+    .modal-title { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; color: #111111; }
+
+    .modal-subtitle { font-size: 0.8rem; color: #6b7280; margin-top: 0.15rem; }
 
     .btn-close {
       background: transparent;
@@ -167,327 +427,156 @@
       border-radius: 4px;
     }
 
-    .btn-close:hover {
-      color: #000000;
-      background: #f5f5f5;
-    }
+    .btn-close:hover { color: #000000; background: #f5f5f5; }
 
-    .modal-body {
-      padding: 1.5rem;
-      overflow-y: auto;
-    }
+    .modal-body { padding: 0 1.5rem 1.5rem; overflow-y: auto; }
 
-    .modal-note {
-      font-size: 0.85rem;
-      color: #666666;
-      margin-bottom: 1.25rem;
-      line-height: 1.5;
-    }
+    .bench-section { padding: 1.5rem 0 1.35rem; }
 
-    .gain {
-      color: #15803d;
+    .bench-section + .bench-section { border-top: 1px solid #f0f0f0; }
+
+    .bench-kicker {
+      font-size: 0.72rem;
       font-weight: 600;
-    }
-
-    .nodiff {
-      color: #9ca3af;
-    }
-
-    .btn-primary-action {
-      background: #000000;
-      color: #ffffff;
-      text-decoration: none;
-      font-size: 0.85rem;
-      font-weight: 500;
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
-      transition: background 0.15s ease;
-      display: inline-block;
-    }
-
-    .btn-primary-action:hover {
-      background: #262626;
-    }
-
-    /* Layout */
-    .docs-container {
-      display: flex;
-      max-width: 1240px;
-      margin: 0 auto;
-      min-height: calc(100vh - 60px);
-    }
-
-    /* Sidebar */
-    aside {
-      width: 260px;
-      flex-shrink: 0;
-      border-right: 1px solid #e5e7eb;
-      padding: 2rem 1.5rem 3rem 0;
-      position: sticky;
-      top: 60px;
-      height: calc(100vh - 60px);
-      overflow-y: auto;
-    }
-
-    .sidebar-group {
-      margin-bottom: 1.75rem;
-    }
-
-    .sidebar-heading {
-      font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      font-weight: 600;
-      color: #888888;
-      margin-bottom: 0.6rem;
-      padding-left: 0.75rem;
+      color: #6b7280;
+      margin-bottom: 0.3rem;
     }
 
-    .sidebar-nav {
-      list-style: none;
-    }
-
-    .sidebar-item a {
-      display: block;
-      padding: 0.38rem 0.75rem;
-      color: #4b5563;
-      text-decoration: none;
-      font-size: 0.88rem;
-      border-radius: 6px;
-      transition: all 0.12s ease;
-    }
-
-    .sidebar-item a:hover {
-      color: #000000;
-      background: #f4f4f5;
-    }
-
-    .sidebar-item.active a {
-      color: #000000;
-      font-weight: 600;
-      background: #f4f4f5;
-    }
-
-    /* Main Content */
-    main {
-      flex: 1;
-      padding: 2.5rem 3.5rem 6rem;
-      max-width: 860px;
-      overflow-x: hidden;
-    }
-
-    h1 {
-      font-size: 2.35rem;
-      font-weight: 700;
-      letter-spacing: -0.04em;
-      line-height: 1.15;
-      margin-bottom: 0.75rem;
-      color: #000000;
-    }
-
-    p.lead {
-      font-size: 1.15rem;
-      color: #4b5563;
-      letter-spacing: -0.01em;
-      margin-bottom: 2rem;
-      line-height: 1.55;
-    }
-
-    h2 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      letter-spacing: -0.03em;
-      margin-top: 3rem;
-      margin-bottom: 1rem;
-      color: #111111;
-      padding-top: 1rem;
-      border-top: 1px solid #f0f0f0;
-    }
-
-    h2:first-of-type {
-      border-top: none;
-      padding-top: 0;
-      margin-top: 1.5rem;
-    }
-
-    h3 {
-      font-size: 1.15rem;
+    .bench-headline {
+      font-size: 1.05rem;
       font-weight: 600;
       letter-spacing: -0.02em;
-      margin-top: 1.75rem;
-      margin-bottom: 0.65rem;
       color: #111111;
-    }
-
-    p {
-      color: #374151;
-      margin-bottom: 1.15rem;
-      font-size: 0.95rem;
-      line-height: 1.65;
-    }
-
-    strong {
-      color: #111111;
-      font-weight: 600;
-    }
-
-    /* Callouts */
-    .callout {
-      border-radius: 8px;
-      padding: 1rem 1.25rem;
-      margin: 1.5rem 0;
-      font-size: 0.9rem;
-      line-height: 1.55;
-    }
-
-    .callout.tip {
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
-      color: #166534;
-    }
-
-    .callout.note {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      color: #334155;
-    }
-
-    .callout strong {
-      display: inline-block;
-      margin-bottom: 0.2rem;
-    }
-
-    /* Code blocks */
-    pre {
-      background: #0f172a;
-      color: #f8fafc;
-      padding: 1rem 1.25rem;
-      border-radius: 8px;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.88rem;
-      line-height: 1.5;
-      overflow-x: auto;
-      margin: 1.25rem 0 1.5rem;
-      position: relative;
-    }
-
-    code {
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      font-size: 0.86rem;
-      background: #f3f4f6;
-      padding: 0.15rem 0.35rem;
-      border-radius: 4px;
-      color: #111827;
-    }
-
-    pre code {
-      background: transparent;
+      line-height: 1.35;
+      margin: 0 0 0.3rem;
       padding: 0;
-      color: inherit;
-      font-size: 0.88rem;
+      border: none;
     }
 
-    .code-comment {
-      color: #64748b;
+    .bench-headline .gain { font-weight: 700; }
+
+    .bench-lede { font-size: 0.85rem; color: #6b7280; line-height: 1.5; margin-bottom: 1.1rem; }
+
+    .bench-legend { display: flex; gap: 1.1rem; font-size: 0.74rem; color: #6b7280; margin-bottom: 0.75rem; }
+
+    .bench-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+    .swatch { display: inline-block; width: 14px; height: 8px; border-radius: 2px; background: #111111; }
+
+    .swatch.before { background: #b4b4bb; }
+
+    .bench-rows { display: flex; flex-direction: column; gap: 0.9rem; }
+
+    .bench-row {
+      display: grid;
+      grid-template-columns: 150px minmax(0, 1fr) 86px;
+      gap: 0 1rem;
+      align-items: center;
     }
 
-    /* Tables */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 1.5rem 0;
-      font-size: 0.88rem;
-      text-align: left;
-    }
+    .bench-model { min-width: 0; }
 
-    th, td {
-      padding: 0.75rem 0.9rem;
-      border-bottom: 1px solid #e5e7eb;
-    }
+    .bench-model-name { font-size: 0.86rem; font-weight: 600; color: #111111; letter-spacing: -0.01em; }
 
-    th {
-      font-weight: 600;
-      color: #111111;
-      background: #f9fafb;
-      font-size: 0.82rem;
-    }
+    .bench-model-sub { font-size: 0.72rem; color: #9ca3af; margin-top: 0.1rem; }
 
-    tr:last-child td {
-      border-bottom: none;
-    }
+    .bench-bars { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 
-    /* Lists */
-    ul, ol {
-      margin: 0.75rem 0 1.25rem 1.5rem;
-      color: #374151;
-      font-size: 0.95rem;
-    }
-
-    li {
-      margin-bottom: 0.45rem;
-    }
-
-    /* Step flow */
-    .flow-steps {
-      display: flex;
-      flex-direction: column;
-      gap: 1.25rem;
-      margin: 1.5rem 0;
-    }
-
-    .step-box {
-      border: 1px solid #e5e7eb;
-      background: #fafafa;
-      border-radius: 8px;
-      padding: 1.25rem;
-    }
-
-    .step-header {
+    .bar {
       display: flex;
       align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.5rem;
+      gap: 0.5rem;
+      height: 16px;
+      font-size: 0.74rem;
+      color: #444444;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
 
-    .step-badge {
-      background: #000000;
-      color: #ffffff;
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 0.15rem 0.5rem;
-      border-radius: 4px;
+    .bar i {
+      display: block;
+      height: 10px;
+      width: var(--w);
+      max-width: calc(100% - 3.5rem);
+      border-radius: 0 4px 4px 0;
+      background: #111111;
+      flex: none;
     }
 
-    .step-title {
+    .bar.before i { background: #b4b4bb; }
+
+    .bar.after { color: #111111; font-weight: 600; }
+
+    .bench-delta {
+      text-align: right;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #15803d;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .bench-delta small { display: block; font-size: 0.68rem; font-weight: 500; color: #6b7280; letter-spacing: 0; margin-top: 0.1rem; }
+
+    .bench-method { margin-top: 1.1rem; font-size: 0.8rem; color: #6b7280; line-height: 1.5; }
+
+    .bench-method summary {
+      cursor: pointer;
       font-weight: 600;
       color: #111111;
-      font-size: 1rem;
+      font-size: 0.78rem;
+      list-style: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
     }
 
-    /* Mobile Responsive */
+    .bench-method summary::-webkit-details-marker { display: none; }
+
+    .bench-method summary::before {
+      content: "";
+      width: 0; height: 0;
+      border-left: 5px solid #111111;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      transition: transform 0.15s ease;
+    }
+
+    .bench-method[open] summary::before { transform: rotate(90deg); }
+
+    .bench-method p { margin-top: 0.6rem; margin-bottom: 0; font-size: 0.8rem; color: #6b7280; }
+
+    .bench-method p + p { margin-top: 0.4rem; }
+
+    .gain { color: #15803d; font-weight: 600; }
+
+    /* Responsive */
     @media (max-width: 860px) {
-      aside {
-        display: none;
-      }
+      aside { display: none; }
+      main { padding: 2rem 1.25rem 4rem; }
+      header { padding: 0 1.25rem; }
+      .outcomes, .loop { grid-template-columns: 1fr; }
+      h1 { font-size: 1.9rem; }
+    }
 
-      main {
-        padding: 2rem 1.25rem 4rem;
-      }
-
-      header {
-        padding: 0 1.25rem;
-      }
+    @media (max-width: 600px) {
+      .modal-overlay { padding: 0.75rem; }
+      .modal-header, .modal-body { padding-left: 1.1rem; padding-right: 1.1rem; }
+      .bench-row { grid-template-columns: minmax(0, 1fr) 72px; row-gap: 0.35rem; }
+      .bench-model { grid-column: 1 / -1; }
+      .bench-delta { font-size: 0.85rem; }
     }
   </style>
 </head>
 <body>
 
   <header>
-    <a href="/" class="brand">
-      thinker <span class="brand-docs">/ docs</span>
-    </a>
+    <a href="/" class="brand">thinker <span class="brand-docs">/ docs</span></a>
     <div class="nav-links">
-      <a href="/" class="btn-back-nav">&larr; Back</a>
+      <a href="/" class="btn-back-nav">&larr; Home</a>
       <button class="btn-benchmark" onclick="openModal()">Benchmarks</button>
     </div>
   </header>
@@ -495,281 +584,239 @@
   <div class="docs-container">
     <aside>
       <div class="sidebar-group">
-        <div class="sidebar-heading">Overview</div>
+        <div class="sidebar-heading">Start</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item active"><a href="#what-is-thinker">What is Thinker?</a></li>
-          <li class="sidebar-item"><a href="#the-mental-model">The Mental Model</a></li>
-          <li class="sidebar-item"><a href="#install">Install and Set Up</a></li>
+          <li class="sidebar-item"><a href="#overview">Overview</a></li>
+          <li class="sidebar-item"><a href="#install">Install and set up</a></li>
+          <li class="sidebar-item"><a href="#supported-agents">Supported agents</a></li>
         </ul>
       </div>
-
       <div class="sidebar-group">
-        <div class="sidebar-heading">Supported Agents</div>
+        <div class="sidebar-heading">The knowledge cache</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#supported-agents">Coverage</a></li>
-          <li class="sidebar-item"><a href="#claude-code">Claude Code</a></li>
-          <li class="sidebar-item"><a href="#codex-cli">Codex CLI</a></li>
-          <li class="sidebar-item"><a href="#gemini-cli">Gemini CLI</a></li>
-          <li class="sidebar-item"><a href="#cursor">Cursor</a></li>
-          <li class="sidebar-item"><a href="#other-agents">Pi, Windsurf, Copilot, OpenCode</a></li>
+          <li class="sidebar-item"><a href="#notes">What a note is</a></li>
+          <li class="sidebar-item"><a href="#build">Building the cache</a></li>
+          <li class="sidebar-item"><a href="#keeping-current">Keeping it current</a></li>
         </ul>
       </div>
-
       <div class="sidebar-group">
-        <div class="sidebar-heading">How It Works</div>
+        <div class="sidebar-heading">Bug detection</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#what-a-note-is">What a Note Is</a></li>
-          <li class="sidebar-item"><a href="#in-a-session">In a Session</a></li>
-          <li class="sidebar-item"><a href="#learning">Learning</a></li>
-          <li class="sidebar-item"><a href="#symbol-invalidation">Staying Correct</a></li>
+          <li class="sidebar-item"><a href="#review">Reviewing a change</a></li>
+          <li class="sidebar-item"><a href="#ci">In CI and before commits</a></li>
+          <li class="sidebar-item"><a href="#behaviors">Desired behaviors</a></li>
         </ul>
       </div>
-
       <div class="sidebar-group">
-        <div class="sidebar-heading">Beyond Serving</div>
+        <div class="sidebar-heading">Efficient coding</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#review">Reviewing a Change</a></li>
-          <li class="sidebar-item"><a href="#behaviors">Desired Behaviors</a></li>
-          <li class="sidebar-item"><a href="#team">Sharing with Your Team</a></li>
+          <li class="sidebar-item"><a href="#in-a-session">In a session</a></li>
+          <li class="sidebar-item"><a href="#tools">Tools the agent can call</a></li>
         </ul>
       </div>
-
       <div class="sidebar-group">
-        <div class="sidebar-heading">Proving Outcomes</div>
+        <div class="sidebar-heading">Measure it yourself</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#local-benchmark">Verifying in Your Repo</a></li>
-          <li class="sidebar-item"><a href="#usage">Usage and the Holdout</a></li>
-          <li class="sidebar-item"><a href="#what-to-expect">Expected Outcomes</a></li>
+          <li class="sidebar-item"><a href="#benchmark">Benchmark in your repo</a></li>
+          <li class="sidebar-item"><a href="#usage">Usage and the holdout</a></li>
         </ul>
       </div>
-
       <div class="sidebar-group">
         <div class="sidebar-heading">Reference</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#cli-reference">CLI Reference</a></li>
+          <li class="sidebar-item"><a href="#cli-reference">CLI</a></li>
           <li class="sidebar-item"><a href="#configuration">Configuration</a></li>
-          <li class="sidebar-item"><a href="#telemetry">Privacy &amp; Telemetry</a></li>
+          <li class="sidebar-item"><a href="#telemetry">Privacy and telemetry</a></li>
         </ul>
       </div>
     </aside>
 
     <main>
-      <section id="what-is-thinker">
-        <h1>thinker documentation</h1>
+      <section id="overview">
+        <h1>thinker</h1>
         <p class="lead">
-          Thinker is a persistent knowledge cache for coding agents. It keeps short, verified notes about your repository, serves the one that fits each request, learns from every session, and keeps itself correct as the code moves.
+          A knowledge cache for your coding agents. Short, verified notes about your repository, built once from its code and history, then kept current by every session, commit and merge. The agents read them to catch bugs in review and to spend fewer tokens on every task.
         </p>
 
-        <div class="callout note">
-          <strong>The Problem:</strong> When you start a prompt in a complex repository, coding agents spend 50–70% of their early turns running <code>grep</code>, reading <code>package.json</code>, tracing import trees, and hitting dead ends. This wastes minutes of wall time and burns tens of thousands of context tokens before any code is generated.
+        <div class="outcomes">
+          <a class="outcome" href="#review">
+            <div class="outcome-kicker">Bug detection</div>
+            <div class="outcome-num">+30 pts</div>
+            <div class="outcome-label">More regressions caught in code review, on every model tested</div>
+            <p class="outcome-body">A review checks a change against what the repository already learned: fixes it must not undo, conventions and behaviors it must keep.</p>
+            <div class="outcome-cta">How review works &rarr;</div>
+          </a>
+          <a class="outcome" href="#in-a-session">
+            <div class="outcome-kicker">Efficient coding</div>
+            <div class="outcome-num">&minus;18 to 19%</div>
+            <div class="outcome-label">Input tokens per coding task, on every model tested</div>
+            <p class="outcome-body">Each request gets the one note that fits it, with pointers into the code, so the agent starts where it should instead of grepping its way there.</p>
+            <div class="outcome-cta">What a session looks like &rarr;</div>
+          </a>
         </div>
-      </section>
+        <p class="outcomes-caption">Same model, same task, with and without thinker, on real changes from open-source repositories. <button type="button" onclick="openModal()">See the benchmarks</button></p>
 
-      <section id="the-mental-model">
-        <h2>The Mental Model</h2>
-        <p>
-          Thinker is not a vector database or an ungrounded RAG system. It is a <strong>dependency-keyed knowledge cache</strong> stored locally under <code>.thinker/</code> in your repository.
-        </p>
-        <p>
-          Each note is 3–12 lines answering a recurring question, with <code>file:Symbol</code> pointers into the code. Every pointer is tied to the exact definition it names by a content hash, so a note knows when the code under it changed.
-        </p>
-        <div class="flow-steps">
-          <div class="step-box">
-            <div class="step-header">
-              <span class="step-badge">1</span>
-              <span class="step-title">Learn</span>
-            </div>
-            <p>Setup can build a cache from merged pull requests and one exploration session per source area. From then on every agent session is distilled into notes when it ends, and the pull requests your team merges are mined in the background.</p>
+        <h3>How it fits together</h3>
+        <div class="loop">
+          <div class="loop-step">
+            <span class="step-badge">1</span>
+            <h4>Build</h4>
+            <p><code>thinker setup</code> builds the cache from merged pull requests, fixes first, and one exploration session per source area.</p>
           </div>
-          <div class="step-box">
-            <div class="step-header">
-              <span class="step-badge">2</span>
-              <span class="step-title">Serve</span>
-            </div>
-            <p>Each request gets the note that fits it best, chosen by a small local model from the candidates that match it by words, through the agent's native hooks. The agent can ask for more through MCP tools, and the files it edits bring the notes resting on them.</p>
+          <div class="loop-step">
+            <span class="step-badge">2</span>
+            <h4>Use</h4>
+            <p>Hooks hand the agent the note that fits each request. <code>thinker review</code> checks a change against the notes before it merges.</p>
           </div>
-          <div class="step-box">
-            <div class="step-header">
-              <span class="step-badge">3</span>
-              <span class="step-title">Keep Correct</span>
-            </div>
-            <p>Every serving re-hashes every note's dependencies against your working tree. A note whose code changed is held back and re-verified with a fast model in the background; what the sessions acted on raises a note's confidence, what they contradicted corrects it. Nothing needs to be run by hand.</p>
+          <div class="loop-step">
+            <span class="step-badge">3</span>
+            <h4>Keep current</h4>
+            <p>Sessions and merged pull requests become notes. A note whose code changed is held back and re-verified. Nothing is run by hand.</p>
           </div>
         </div>
+        <p>
+          Everything lives under <code>.thinker/</code> in the repository. Notes are keyed to the exact definitions they describe by content hash, so the cache knows when the code under a note has moved and never serves a claim it cannot stand behind.
+        </p>
       </section>
 
       <section id="install">
-        <h2>Install and Set Up</h2>
+        <h2>Install and set up</h2>
         <p>
           The install command from the landing page installs the tool under <code>~/.thinker</code> and wires it into the agents on this machine, once, in their own settings. Run from inside a repository, it also sets that repository up. Anywhere else, run <code>thinker setup</code> inside a repository later.
         </p>
-        <pre><code><span class="code-comment"># Set a repository up: connect the agents, then ask whether to build the cache</span>
+        <pre><code><span class="code-comment"># Connect the agents, then ask whether to build the cache</span>
 thinker setup
 
-<span class="code-comment"># Build without asking: merged pull requests (--prs n, default 60) and one exploration session per source area (--areas n, default 12)</span>
+<span class="code-comment"># Build without asking: merged pull requests (--prs n, default 60)
+# and one exploration per source area (--areas n, default 12)</span>
 thinker setup --build
 
 <span class="code-comment"># Wire things up only; the cache grows from your sessions</span>
 thinker setup --no-build</code></pre>
         <p>
-          Building runs through your agent's own login: about 5.5M tokens and twenty minutes with the defaults, most of them cached prompt reads. The estimate is printed in tokens and minutes before anything runs, and nothing is given in dollars, since most agents run on subscriptions.
+          Building runs through your agent's own login: about 5.5M tokens and twenty minutes with the defaults, most of them cached prompt reads. The estimate is printed in tokens and minutes before anything runs, never in dollars, since most agents run on subscriptions.
         </p>
         <div class="callout tip">
-          <strong>Wiring is machine-wide, the cache is per repository.</strong> The hooks and the MCP server are present in every checkout and act only in one that <code>thinker setup</code> has set up. Elsewhere your agents are served nothing and learn nothing.
+          <strong>The wiring is machine-wide, the cache is per repository.</strong> Hooks and the MCP server are present in every checkout and act only in one that <code>thinker setup</code> has set up. Elsewhere your agents are served nothing and learn nothing.
         </div>
         <p>
-          Which note is served is decided by a small local cross-encoder (23 MB) that reads your request together with each candidate note. The installer fetches it and <code>thinker update</code> keeps it; <code>thinker ranker</code> says whether it is in place. Without it, notes are ranked by words alone. Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in.
+          Requirements: git, curl, tar, Node 20+, and at least one supported agent, logged in. Which note is served is decided by a small local ranking model (23 MB) that the installer fetches and <code>thinker update</code> keeps; <code>thinker ranker</code> says whether it is in place. Without it, notes are ranked by words alone.
         </p>
       </section>
 
       <section id="supported-agents">
-        <h2>Supported Agents</h2>
+        <h2>Supported agents</h2>
         <p>
-          Thinker hooks into your existing coding tools without changing your daily command workflow. Four agents are wired once per machine in their own settings; four more get an extension or hook file in the checkout.
+          Thinker works inside the tools you already use. Four agents are wired once per machine in their own settings; four more get an extension or hook file in the checkout.
         </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Agent</th>
-              <th>Notes for the request</th>
-              <th>Notes about edited files</th>
-              <th>MCP tools</th>
-              <th>Wiring</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>Claude Code, and the Code tab of the Claude desktop app</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-            <tr><td>Codex CLI and the Codex desktop app</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-            <tr><td>Gemini CLI</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-            <tr><td>Cursor</td><td>Through <code>orient</code>, and with the first tool result</td><td>Yes</td><td>Yes</td><td>Machine-wide, plus a rule in the checkout</td></tr>
-            <tr><td>Pi</td><td>Extension</td><td>Yes</td><td>CLI guidance</td><td>The checkout</td></tr>
-            <tr><td>Windsurf Cascade</td><td>Always-on rule asks the agent to orient</td><td>Agent-directed</td><td>CLI guidance</td><td>The checkout</td></tr>
-            <tr><td>GitHub Copilot CLI</td><td>With the first successful tool result</td><td>Yes</td><td>Manual</td><td>The checkout</td></tr>
-            <tr><td>OpenCode</td><td>Plugin</td><td>Yes</td><td>Yes</td><td>The checkout</td></tr>
-          </tbody>
-        </table>
-        <p>
-          <code>thinker setup --clients auto</code> (the default) wires the agents it finds; <code>all</code> or a comma-separated list picks them by hand. <code>--shared</code> also writes the entries into the repository's own files for the team to commit. <code>thinker uninstall</code> takes a repository's pieces out, <code>thinker uninstall --user</code> the machine-wide wiring.
-        </p>
-
-        <div id="claude-code">
-          <h3>Claude Code</h3>
-          <p>
-            Hooks in <code>~/.claude/settings.json</code>, the MCP server in <code>~/.claude.json</code>:
-          </p>
-          <ul>
-            <li><strong>Prompt hook:</strong> <code>UserPromptSubmit</code> adds the orientation notes to the prompt.</li>
-            <li><strong>Edit hook:</strong> <code>PostToolUse</code> brings the notes resting on a file the agent edits.</li>
-            <li><strong>Learning:</strong> <code>Stop</code> and <code>SessionEnd</code> distill the session once, in the background, and show a one-line summary of what was served.</li>
-          </ul>
-        </div>
-
-        <div id="codex-cli">
-          <h3>Codex CLI</h3>
-          <p>
-            Hooks in <code>~/.codex/hooks.json</code> and the MCP server in <code>~/.codex/config.toml</code>, where the project and the hooks are also marked as trusted, so Codex asks nothing before running them or calling <code>orient</code>. The Codex desktop app reads the same file.
-          </p>
-        </div>
-
-        <div id="gemini-cli">
-          <h3>Gemini CLI</h3>
-          <p>
-            Prompt-time context, edit notes and the MCP server in <code>~/.gemini/settings.json</code>. Gemini Code Assist's agent mode reads the same configuration.
-          </p>
-        </div>
-
-        <div id="cursor">
-          <h3>Cursor</h3>
-          <p>
-            Hooks in <code>~/.cursor/hooks.json</code>, the MCP server in <code>~/.cursor/mcp.json</code> (approved by setup), and an always-applied rule in the checkout. Cursor's prompt hook cannot add context, so the notes are computed at prompt time and handed over with the first tool result; the rule also tells the agent to call <code>orient</code>.
-          </p>
-        </div>
-
-        <div id="other-agents">
-          <h3>Pi, Windsurf Cascade, Copilot CLI, OpenCode</h3>
-          <p>
-            Nothing machine-wide: <code>thinker setup --clients pi,windsurf,copilot,opencode</code> writes an extension (<code>.pi/extensions/</code>, <code>.opencode/plugins/</code>), hooks (<code>.windsurf/hooks.json</code>, <code>.github/hooks/</code>) or a rule into the checkout. Restart the host agent after setup. Each host's own trust and hook settings still apply, and where a host offers no channel for notes at prompt time, a rule asks the agent to call thinker itself.
-          </p>
-        </div>
-      </section>
-
-      <section id="the-lifecycle">
-        <h2>How It Works</h2>
-
-        <div id="what-a-note-is">
-          <h3>What a Note Is</h3>
-          <p>
-            A note answers a recurring question, not "what this file does". There are four kinds:
-          </p>
+        <div class="table-scroll">
           <table>
             <thead>
-              <tr>
-                <th>Kind</th>
-                <th>What It Answers</th>
-              </tr>
+              <tr><th>Agent</th><th>Notes for the request</th><th>Notes on edited files</th><th>MCP tools</th><th>Wiring</th></tr>
             </thead>
             <tbody>
-              <tr>
-                <td><code>map</code></td>
-                <td>Where a recurring concern is handled, how control or data flows across files, the shape of a module area</td>
-              </tr>
-              <tr>
-                <td><code>howto</code></td>
-                <td>How to build, test, run or lint, with the non-obvious flags</td>
-              </tr>
-              <tr>
-                <td><code>rule</code></td>
-                <td>What a change must respect: an invariant, a convention, a trap, a fix not to undo, a reason</td>
-              </tr>
-              <tr>
-                <td><code>behavior</code></td>
-                <td>A desired behavior of the system a person wrote down; the code must uphold it (see <a href="#behaviors">Desired Behaviors</a>)</td>
-              </tr>
+              <tr><td>Claude Code, and the Claude desktop app's Code tab</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
+              <tr><td>Codex CLI and the Codex desktop app</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
+              <tr><td>Gemini CLI</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
+              <tr><td>Cursor</td><td>Through <code>orient</code>, and with the first tool result</td><td>Yes</td><td>Yes</td><td>Machine-wide, plus a rule in the checkout</td></tr>
+              <tr><td>Pi</td><td>Extension</td><td>Yes</td><td>CLI guidance</td><td>The checkout</td></tr>
+              <tr><td>Windsurf Cascade</td><td>A rule asks the agent to orient</td><td>Agent-directed</td><td>CLI guidance</td><td>The checkout</td></tr>
+              <tr><td>GitHub Copilot CLI</td><td>With the first tool result</td><td>Yes</td><td>Manual</td><td>The checkout</td></tr>
+              <tr><td>OpenCode</td><td>Plugin</td><td>Yes</td><td>Yes</td><td>The checkout</td></tr>
             </tbody>
           </table>
-          <p>
-            Each note stores its title, the questions it answers, a body with pointers, the files and symbols it rests on with their content hashes, its source (a session, a person, a pull request), its confidence and its status.
-          </p>
         </div>
-
-        <div id="in-a-session">
-          <h3>In a Session</h3>
+        <p>
+          <code>thinker setup --clients auto</code> (the default) wires the agents it finds; <code>all</code> or a comma-separated list picks them by hand. <code>thinker uninstall</code> takes a repository's pieces out, <code>thinker uninstall --user</code> the machine-wide wiring.
+        </p>
+        <details class="fold">
+          <summary>Where each agent is wired</summary>
           <ul>
-            <li><strong>Each request</strong> gets the note that fits it best, with the code behind its pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. A note is served once per session, never while stale, and not at all for a one-word turn of conversation (<code>status?</code>). When nothing fits, nothing is served.</li>
-            <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
-            <li><strong>MCP tools</strong>, for the agent's own questions: <code>orient</code> (up to five notes for a task, with the ones it did not serve listed by title), <code>lookup</code> (a question, or a note by id), <code>find</code> (the definitions whose name or body carry the words of a query, when no note answers it), <code>drilldown</code> (a definition whole, with one hop of callers and callees and the notes on it), <code>review</code> (a change against the notes, before a commit), <code>remember</code> (save a note) and <code>feedback</code> (correct one).</li>
-            <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
+            <li><strong>Claude Code:</strong> hooks in <code>~/.claude/settings.json</code>, the MCP server in <code>~/.claude.json</code>. <code>UserPromptSubmit</code> adds the notes to the prompt, <code>PostToolUse</code> brings the notes on a file being edited, <code>Stop</code> and <code>SessionEnd</code> distill the session once in the background.</li>
+            <li><strong>Codex CLI:</strong> hooks in <code>~/.codex/hooks.json</code>, the MCP server in <code>~/.codex/config.toml</code>, where the project and the hooks are also marked trusted so Codex asks nothing before running them. The desktop app reads the same file.</li>
+            <li><strong>Gemini CLI:</strong> prompt-time context, edit notes and the MCP server in <code>~/.gemini/settings.json</code>. Gemini Code Assist's agent mode reads the same configuration.</li>
+            <li><strong>Cursor:</strong> hooks in <code>~/.cursor/hooks.json</code>, the MCP server in <code>~/.cursor/mcp.json</code> (approved by setup), and an always-applied rule in the checkout. Cursor's prompt hook cannot add context, so the notes are computed at prompt time and handed over with the first tool result.</li>
+            <li><strong>Pi, Windsurf Cascade, Copilot CLI, OpenCode:</strong> nothing machine-wide. <code>thinker setup --clients pi,windsurf,copilot,opencode</code> writes an extension, a hook file or a rule into the checkout. Restart the host agent after setup.</li>
           </ul>
+        </details>
+      </section>
+
+      <div class="part-label">The knowledge cache</div>
+
+      <section id="notes">
+        <h2>What a note is</h2>
+        <p>
+          A note answers a recurring question about the repository, not "what this file does". It is 3 to 12 lines with <code>file:Symbol</code> pointers into the code, and it comes in four kinds:
+        </p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Kind</th><th>What it answers</th></tr></thead>
+            <tbody>
+              <tr><td><code>rule</code></td><td>What a change must respect: an invariant, a convention, a trap, a fix not to undo and why. The kind a review draws on most.</td></tr>
+              <tr><td><code>map</code></td><td>Where a recurring concern is handled, how control or data flows across files, the shape of a module area</td></tr>
+              <tr><td><code>howto</code></td><td>How to build, test, run or lint, with the non-obvious flags</td></tr>
+              <tr><td><code>behavior</code></td><td>A desired behavior of the system a person wrote down; the code must uphold it (see <a href="#behaviors">Desired behaviors</a>)</td></tr>
+            </tbody>
+          </table>
         </div>
+        <p>
+          Each note stores its title, the questions it answers, its body, the files and symbols it rests on with their content hashes, its source (a session, a pull request, a person), its confidence and its status. A note's pointers are its dependencies: a note about <code>AuthManager.verifyToken</code> hashes that definition alone, so it does not go stale because another method in the same file changed.
+        </p>
+      </section>
 
-        <div id="learning">
-          <h3>Learning</h3>
-          <ul>
-            <li><strong>Each session is distilled once, when it ends</strong>, through the agent's own login: up to three new notes, and a verdict on every note it was served. <code>confirmed</code> (the agent acted on it) raises confidence; <code>contradicted</code> (the trace shows a claim was wrong) corrects the body, keeps the history, and retires the note when its confidence falls below 0.3; <code>unused</code> lets it decay. A quiet session (nothing served, no edit, no failed command, little exploration) is skipped. Near-duplicates are merged.</li>
-            <li><strong>Merged pull requests</strong> are mined into notes, fixes first, since the record of a fix is what a review draws on most. <code>thinker mine-prs</code> works through history; background maintenance keeps up with new ones. A repository whose work lands by direct commits can mine them instead (<code>--git --fixes</code>).</li>
-            <li><strong>Agents and people</strong> write notes too: the <code>remember</code> tool, <code>thinker add note.json</code>, and <code>thinker system add</code> for a desired behavior.</li>
-          </ul>
-        </div>
+      <section id="build">
+        <h2>Building the cache</h2>
+        <p>
+          <code>thinker setup --build</code> fills the cache from two sources, and prints what it will cost in tokens and minutes before spending anything:
+        </p>
+        <ul>
+          <li><strong>Merged pull requests, fixes first.</strong> Up to 60 of them are distilled into rules: what the symptom was, what the fix changed, and what a later change must not undo. The record of a fix is what a review draws on most. Every pull request looked at is recorded in <code>.thinker/prs.json</code>, so none is distilled twice.</li>
+          <li><strong>One exploration session per source area.</strong> An agent is sent through each area (12 by default) and what it worked out is distilled into maps and howtos.</li>
+        </ul>
+        <pre><code>thinker setup --build --prs 100 --areas 20   <span class="code-comment"># more history, more areas</span>
+thinker mine-prs                             <span class="code-comment"># later: go further back through merged pull requests, 20 at a time</span>
+thinker mine-prs --git --fixes               <span class="code-comment"># no GitHub: fix commits from git history</span></code></pre>
+        <p>
+          A build also drafts desired-behavior candidates from the strongest rule notes for a person to accept or discard (<code>thinker system propose</code>). Without a build, the cache starts empty and grows from your sessions.
+        </p>
+      </section>
 
-        <div id="symbol-invalidation">
-          <h3>Staying Correct</h3>
-          <p>
-            Traditional documentation goes stale the moment code changes. Thinker avoids this with fine-grained hashing and background upkeep:
-          </p>
-          <ul>
-            <li>A dependency is <code>{path, symbol?}</code>. With a symbol, Thinker hashes just that definition's block, so a note about <code>AuthManager.verifyToken</code> does not go stale because another method in the same file changed. <code>thinker ast install</code> adds tree-sitter grammars (Python, JavaScript, TypeScript, Go, Rust) for exact boundaries; otherwise a regex heuristic finds the block.</li>
-            <li>Every serving re-hashes the dependencies of every note against your working tree, uncommitted edits included.</li>
-            <li>A stale note is held back by the hooks, verified in the background and served once it is fresh again. <code>orient</code> and <code>lookup</code> called by the agent still return it, under a <code>⚠ STALE</code> banner naming exactly what changed.</li>
-            <li>Verification sends the note, the diff of its changed dependencies and their current text to a small model (Haiku by default), which answers <code>still_valid</code>, <code>update</code> (body rewritten, history kept) or <code>invalid</code> (retired).</li>
-            <li>Maintenance runs by itself, from the prompt hooks at most every ten minutes and after a commit or merge: it re-verifies up to 10 stale notes (the recently served first), writes phrasings for new notes, distills up to 3 newly merged pull requests and archives what the sessions showed is not worth serving, under a cap of 2M tokens a day. What a run did is shown once at the end of the next turn.</li>
-          </ul>
+      <section id="keeping-current">
+        <h2>Keeping it current</h2>
+        <p>
+          A cache that drifts from the code is worse than none. Thinker keeps itself correct in three ways, all in the background, under a cap of 2M tokens a day:
+        </p>
+        <h3>It learns from every session</h3>
+        <ul>
+          <li><strong>Each session is distilled once, when it ends</strong>, through the agent's own login: up to three new notes, and a verdict on every note it was served. <code>confirmed</code> (the agent acted on it) raises confidence; <code>contradicted</code> (the trace shows a claim was wrong) corrects the body and keeps the history; <code>unused</code> lets it decay. Near-duplicates are merged. A quiet session with nothing to learn from is skipped.</li>
+          <li><strong>Newly merged pull requests</strong> are mined as they land, fixes first, so the next review already knows about the last fix.</li>
+          <li><strong>Agents and people</strong> add notes too: the <code>remember</code> tool, <code>thinker add</code>, and <code>thinker system add</code> for a desired behavior.</li>
+        </ul>
+        <h3>It knows when a note is stale</h3>
+        <ul>
+          <li>Every serving re-hashes the dependencies of every note against your working tree, uncommitted edits included. A note whose code changed is marked stale and names exactly what changed.</li>
+          <li>A stale note is <strong>never served by the hooks</strong>. It is held back, re-verified in the background, and served again once it is fresh. <code>orient</code> and <code>lookup</code> called by the agent still return it, under a <code>⚠ STALE</code> banner.</li>
+          <li>Verification sends the note, the diff of its changed dependencies and their current text to a small model, which answers <code>still_valid</code>, <code>update</code> (body rewritten, history kept) or <code>invalid</code> (retired).</li>
+          <li><code>thinker ast install</code> adds tree-sitter grammars (Python, JavaScript, TypeScript, Go, Rust) for exact symbol boundaries; otherwise a regex heuristic finds the block.</li>
+        </ul>
+        <h3>It maintains itself</h3>
+        <p>
+          Maintenance runs from the prompt hooks and after every commit or merge, at most once every four hours: it re-verifies up to 10 stale notes (the recently served first), mines up to 3 newly merged pull requests, writes retrieval phrasings for new notes, and archives notes the sessions showed are not worth serving. What a run did is shown once at the end of the next turn. <code>thinker maintain --dry</code> previews the next run; <code>thinker verify</code> re-checks stale notes now.
+        </p>
+        <div class="callout note">
+          <strong>Local by default.</strong> Learned notes live in <code>.thinker/local/</code>, which git ignores. <code>thinker export</code> and <code>thinker import</code> back a cache up and restore it, checked against the checkout it lands in.
         </div>
       </section>
 
+      <div class="part-label">Bug detection</div>
+
       <section id="review">
-        <h2>Reviewing a Change</h2>
+        <h2>Reviewing a change</h2>
         <p>
-          <code>thinker review</code> turns the cache around: instead of serving notes to an agent about to make a change, it checks a change against them. The MCP tool <code>review</code> is the same for an agent before it commits.
+          <code>thinker review</code> turns the cache around: instead of serving notes to an agent about to make a change, it checks a change against them. The MCP tool <code>review</code> is the same thing for an agent before it commits.
+        </p>
+        <p>
+          A review is for two things a diff alone cannot show: <strong>a change that undoes a fix the repository already made</strong>, and <strong>a change that breaks a convention or a desired behavior</strong> the cache holds. Measured on reversed fixes from an open-source repository, every model tested caught three more of ten regressions with the notes than without them; the ones it added were the regressions a plain reading of the diff missed.
         </p>
         <pre><code>thinker review                      <span class="code-comment"># the working tree against HEAD</span>
 thinker review --staged             <span class="code-comment"># what is about to be committed</span>
@@ -777,171 +824,181 @@ thinker review --base origin/main   <span class="code-comment"># the branch sinc
 thinker review --ref &lt;commit&gt;       <span class="code-comment"># one commit, read from git alone</span>
 thinker review --state src/auth/    <span class="code-comment"># no change: the current code against the notes on it</span></code></pre>
         <p>
-          A review is for two things: a change that undoes a fix the team already made, and a change that breaks a convention or a desired behavior the cache holds. Measured on real PostHog history, it caught every regression of a fix the cache held a note about, including the ones a plain reading of the diff missed. It is not for bugs in brand-new code, and it says so up front when most of the changed code carries no note.
+          It makes two model calls and merges what they find: one sees the diff and the code it touched, as any reviewer would; the other sees the notes resting on the changed code and the notes that bear on it. Every finding carries a file, a line, the evidence it rests on and the note it came from. Findings that are the same problem seen from several notes are reported once.
         </p>
+        <ul>
+          <li><strong>The cache is evidence, not truth.</strong> A note that already disagreed with the code before the change is reported as drift of the cache, never charged to the change. Nothing in the cache is rewritten by a review.</li>
+          <li><strong>It says where it is blind.</strong> When most of the changed files carry no note, the review says so first: there it is the model reading the diff alone, and "no findings" is not a clean bill.</li>
+          <li><strong>Removed definitions still referenced</strong> are reported without a model call.</li>
+        </ul>
         <p>
-          It makes two model calls and merges what they find: one sees the diff and the code it touched, the other sees the notes resting on the changed code and the notes that bear on it. Every finding carries a file, a line, the evidence it rests on and the note it came from. The cache is treated as evidence, not truth: a note that already disagreed with the code before the change is reported as drift of the cache, never charged to the change, and nothing in the cache is rewritten by a review. <code>--kinds behavior</code> consults the desired behaviors alone, <code>--dry</code> makes no model call, <code>--json</code> gives the report as data and <code>--strict</code> exits 2 on an error, for CI.
+          <code>--kinds behavior</code> consults the desired behaviors alone, <code>--dry</code> makes no model call, <code>--json</code> gives the report as data, <code>--model</code> picks the model (<code>reviewModel</code> in the config, default <code>sonnet</code>).
+        </p>
+      </section>
+
+      <section id="ci">
+        <h2>In CI and before commits</h2>
+        <p>
+          <code>--strict</code> exits 2 on an error-severity finding, so a review can gate a pull request. <code>--pr n --post</code> posts the report as a comment on the pull request through your <code>gh</code> login.
+        </p>
+        <pre><code><span class="code-comment"># In a CI job on a pull request branch, after thinker setup has run on the checkout:</span>
+thinker review --base origin/main --strict
+thinker review --base origin/main --pr 142 --post   <span class="code-comment"># and comment on the pull request</span></code></pre>
+        <p>
+          For a check before every commit, turn it on per checkout; the pre-commit hook then runs <code>thinker review --staged --strict</code> and blocks the commit on an error-severity finding, warnings alone do not:
+        </p>
+        <pre><code>git config --local thinker.reviewBeforeCommit true</code></pre>
+        <p>
+          A review uses your configured model and adds latency and tokens to each commit, so it is off unless you turn it on. <code>thinker impact</code> connects reviews and recorded agent work to the pull requests they went into: tokens per pull request, and findings confirmed as bugs fixed before merge.
         </p>
       </section>
 
       <section id="behaviors">
-        <h2>Desired Behaviors</h2>
+        <h2>Desired behaviors</h2>
         <p>
           Every other kind of note is a claim about the code, and when they disagree the note yields. A <code>behavior</code> note is the other way round: a person writes down what the system must do and where that is upheld, and from then on a change must conform, or be called out for not conforming.
         </p>
         <pre><code>thinker system                      <span class="code-comment"># every behavior, and whether the code upholds it</span>
 thinker system add file.json --fixed
 thinker system promote &lt;id&gt;         <span class="code-comment"># a rule the cache already holds becomes a behavior</span>
+thinker system propose              <span class="code-comment"># drafts from the build, and rules worth promoting</span>
 thinker system md                   <span class="code-comment"># write them as .thinker/SYSTEM.md</span></code></pre>
         <p>
-          A <code>fixed</code> behavior makes a change that stops upholding it an error, with the behavior quoted in full at the top of the review. A <code>mutable</code> one is a warning, and may be revised by a change that edits the note itself. Before a merge the behavior is the truth; once the change is merged, the behavior is revised to match the code, with the old text in its history. Agents can save one with <code>remember</code> (listed as proposed until <code>thinker system accept</code>) and read them all with <code>lookup</code> and <code>kind: "behavior"</code>.
+          A <code>fixed</code> behavior makes a change that stops upholding it an error, with the behavior quoted in full at the top of the review. A <code>mutable</code> one is a warning, and may be revised by a change that edits the note itself. Before a merge the behavior is the truth; once the change is merged, the behavior is revised to match the code, with the old text in its history. Agents can propose one with <code>remember</code> (listed as proposed until <code>thinker system accept</code>) and read them all with <code>lookup</code> and <code>kind: "behavior"</code>.
         </p>
       </section>
 
-      <section id="team">
-        <h2>Sharing with Your Team</h2>
+      <div class="part-label">Efficient coding</div>
+
+      <section id="in-a-session">
+        <h2>In a session</h2>
         <p>
-          Sessions learn into <code>.thinker/local/notes/</code>, which ignores itself in git. The repository cache lives in <code>.thinker/notes/</code> and travels through ordinary commits and pull requests. Both are served together; usage, staleness and corrections to shared notes stay local, so serving never changes a committed file.
+          Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
         </p>
-        <pre><code>thinker share --dry       <span class="code-comment"># the eligible notes, and why others are skipped</span>
-thinker share             <span class="code-comment"># write them into .thinker/notes/</span>
-git add .thinker/notes/   <span class="code-comment"># commit and open your normal pull request</span></code></pre>
+        <ul>
+          <li><strong>Each request</strong> gets the one note that fits it best, with the code behind its pointers inlined and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. The candidates that match by words are read together with the request by a small local ranking model, which keeps the one that bears on it, or none. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
+          <li><strong>Each file the agent edits</strong> brings the notes resting on it, rules first, so a trap on that code is in front of the agent as it changes it.</li>
+          <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
+        </ul>
         <p>
-          A note must be fresh, rest on existing code and pass content checks; notes from a person, a document or a merged pull request are eligible, and a session's note needs one confirming assessment. Near-duplicates, home paths and secret-like strings are rejected. <code>thinker list</code> labels notes <code>local</code> or <code>repo</code>.
-        </p>
-        <p>
-          <code>thinker setup</code> installs git hooks: <code>pre-commit</code> checks the shared notes a commit touches against the staged code and repairs or removes what cannot be kept valid (originals go to <code>.thinker/local/quarantine/</code>), <code>pre-push</code> reports issues and always allows the push, and <code>post-commit</code> and <code>post-merge</code> run maintenance in the background. For CI, <code>thinker share --check --base origin/main</code> reports on the committed cache; <code>--strict</code> makes it fail.
+          Measured on real tasks with and without thinker, every model tested used 18 to 19% fewer input tokens per task, made fewer tool calls and finished faster, with correctness held. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
         </p>
       </section>
 
-      <section id="local-benchmark">
-        <h2>Verifying in Your Repo</h2>
+      <section id="tools">
+        <h2>Tools the agent can call</h2>
         <p>
-          You don't need to take benchmark claims on faith. Thinker includes built-in commands to measure the impact directly on your repository:
+          Beyond what the hooks serve, the MCP server gives the agent the cache and the code graph on demand:
         </p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>orient</code></td><td>Up to five notes for a task, with the code behind the main pointers, and the notes it did not serve listed by title</td></tr>
+              <tr><td><code>lookup</code></td><td>One specific question, or a note by id; <code>kind: "behavior"</code> for the desired behaviors</td></tr>
+              <tr><td><code>find</code></td><td>The definitions whose name or body carry the words of a query, as pointers with their lines, when no note answers it</td></tr>
+              <tr><td><code>drilldown</code></td><td>A definition whole, with one hop of callers and callees and the notes resting on it</td></tr>
+              <tr><td><code>review</code></td><td>The current change against the cache, before a commit</td></tr>
+              <tr><td><code>remember</code>, <code>feedback</code></td><td>Save a note the agent worked out; confirm or correct one it was served</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The same tools exist on the command line (<code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>, <code>find</code>, <code>drilldown</code>). The first prompt of a session tells the agent that <code>find</code> and <code>drilldown</code> exist and how to load them.
+        </p>
+      </section>
 
-        <pre><code><span class="code-comment"># 1. Benchmark agent efficiency on a recent merged PR:</span>
+      <div class="part-label">Measure it yourself</div>
+
+      <section id="benchmark">
+        <h2>Benchmark in your repo</h2>
+        <p>
+          You do not need to take the benchmarks on faith. Thinker can run the same paired comparison on your own repository:
+        </p>
+        <pre><code><span class="code-comment"># A recent merged pull request, with and without the cache</span>
 thinker benchmark pr [number]
 
-<span class="code-comment"># 2. Or test a specific question with vs. without Thinker context:</span>
-thinker benchmark run "explain how permissions are validated on project exports"
+<span class="code-comment"># A question the cache covers (Enter takes the first), or your own</span>
+thinker benchmark run "how are permissions checked on project exports"
 
-<span class="code-comment"># 3. View the latest side-by-side comparison report:</span>
+<span class="code-comment"># The latest comparison again</span>
 thinker benchmark report</code></pre>
-
         <p>
-          How it works: Thinker makes two read-only agent calls, one without Thinker context and one with the relevant notes, and compares wall time, agent turns, tool calls, and token usage side by side. Both answers are saved under <code>.thinker/benchmarks/</code> for human inspection. If the cache does not cover the question, no agent call is made and questions it does cover are offered instead.
+          It makes two read-only agent calls, one without thinker and one with the relevant notes, and compares wall time, turns, tool calls and tokens side by side. Both answers are saved under <code>.thinker/benchmarks/</code> so you can judge their quality yourself; speed alone is not a correctness score. If the cache does not cover a question, no agent call is made and questions it does cover are offered instead.
         </p>
-
-        <div id="usage">
-          <h3>Usage and the Holdout</h3>
-          <p>
-            <code>thinker usage</code> summarizes how the cache has been used on this machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. <code>--here</code> limits it to this repository, <code>--days 7</code> to a period, <code>--json</code> gives the data.
-          </p>
-          <p>
-            One number in it is measured rather than estimated. The hooks serve nothing in 15% of sessions, chosen by a hash of the session id so a session is held out for its whole length, and every session's cost is recorded from its own transcript: tool calls, model turns, input tokens. The Holdout section compares the sessions that got notes with the ones that had notes withheld, as medians per model, once five sessions stand on each side. This is what the notes do for your own work, on your own repository, by your own agent. <code>holdout</code> in the config changes the share or turns it off.
-          </p>
-        </div>
-
-        <div id="what-to-expect">
-          <h3>What Outcomes to Expect</h3>
-          <p>
-            Evaluated on real tasks from merged pull requests across frontier and fast coding models (Claude Fable via Claude Code, Gemini 3.8 Flash via Antigravity CLI, and GPT-6 Astra via Codex CLI), independently graded against calibrated acceptance criteria:
-          </p>
-          <ul>
-            <li>
-              <strong>Tool &amp; Exploration Efficiency (Consistent across all models):</strong>
-              Reduces total tool calls by <strong>17% to 22%</strong> and cuts file reads by <strong>14% to 27%</strong>. Pre-seeded architecture notes prevent agents from burning early turns on repetitive <code>grep</code> and <code>find</code> loops.
-            </li>
-            <li>
-              <strong>Context &amp; Token Savings (Consistent across all models):</strong>
-              Cuts input context re-reads by <strong>18% to 21%</strong> and output tokens by <strong>11% to 22%</strong>.
-            </li>
-            <li>
-              <strong>Wall Clock Time (Consistent across all models):</strong>
-              Completes tasks <strong>7% to 14% faster</strong> (saving between 30 and 100+ seconds on complex tasks).
-            </li>
-            <li>
-              <strong>Correctness &amp; Accuracy (Model-dependent):</strong>
-              On frontier models (Claude Fable), pre-seeding conventions and invariants raised acceptance criteria accuracy by <strong>+10%</strong> and lifted complete task passes from 45% to 60% (<strong>+33% more tasks fully solved</strong>). Fast and reasoning models (Gemini Flash, GPT-6 Astra) maintained strict correctness parity (within single-run noise) while achieving significant token and tool reductions.
-            </li>
-          </ul>
-          <p style="font-size: 0.88rem; color: #6b7280; margin-top: 0.85rem;">
-            <em>Note: The cache accelerates code navigation and eliminates redundant file exploration; it does not turn a weak model into a strong one. Run <code>thinker benchmark report</code> in your repository to measure your own baseline.</em>
-          </p>
-        </div>
       </section>
 
+      <section id="usage">
+        <h2>Usage and the holdout</h2>
+        <p>
+          <code>thinker usage</code> summarizes how the cache has been used on this machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. <code>--here</code> limits it to this repository, <code>--days 7</code> to a period, <code>--json</code> gives the data.
+        </p>
+        <p>
+          One number in it is measured rather than estimated. The hooks serve nothing in 15% of sessions, chosen by a hash of the session id so a session is held out for its whole length, and every session's cost is recorded from its own transcript. The holdout section compares the sessions that got notes with the ones that had notes withheld, as medians per model, once five sessions stand on each side. This is what the notes do for your own work, on your own repository, by your own agent. <code>holdout</code> in the config changes the share or turns it off.
+        </p>
+      </section>
+
+      <div class="part-label">Reference</div>
+
       <section id="cli-reference">
-        <h2>CLI Reference</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>Command</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set a repository up: connect the agents, then offer to build the cache from merged pull requests and source areas</td></tr>
-            <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
-            <tr><td><code>thinker review [--staged | --base ref | --ref commit | --state]</code></td><td>Check a change against the cache: regressions of known fixes, broken conventions and behaviors</td></tr>
-            <tr><td><code>thinker system [add | promote | accept | propose | md]</code></td><td>The desired behaviors of the system and whether the code upholds each</td></tr>
-            <tr><td><code>thinker share [ids…] [--dry] [--check]</code></td><td>Promote eligible local notes into the repository cache; <code>--check</code> reports on the committed cache for CI</td></tr>
-            <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>, <code>find</code>, <code>drilldown</code></td><td>The MCP tools from the command line</td></tr>
-            <tr><td><code>thinker usage [--here] [--days n]</code></td><td>How the cache has been used, what it cost, and the holdout comparison</td></tr>
-            <tr><td><code>thinker benchmark [pr | run | report]</code></td><td>Paired agent runs with and without the cache</td></tr>
-            <tr><td><code>thinker mine-prs [--git --fixes]</code></td><td>Distill merged pull requests (or fix commits) into notes; nothing is mined twice</td></tr>
-            <tr><td><code>thinker learn</code></td><td>Distill every session a supported agent ran here that has not been distilled yet</td></tr>
-            <tr><td><code>thinker maintain [--dry]</code></td><td>One maintenance run by hand: re-verify, phrase, mine, archive</td></tr>
-            <tr><td><code>thinker check</code>, <code>thinker verify</code></td><td>Mark stale notes against the working tree; re-verify them with a small model</td></tr>
-            <tr><td><code>thinker archive [--list | --restore]</code></td><td>Notes taken out of serving but kept for review</td></tr>
-            <tr><td><code>thinker list</code>, <code>show</code>, <code>add</code>, <code>rm</code></td><td>Notes by hand</td></tr>
-            <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>The local ranking model, and tree-sitter grammars for exact symbol boundaries</td></tr>
-            <tr><td><code>thinker update</code>, <code>thinker rewire</code></td><td>Update the CLI (daily in the background); rewrite every checkout's hooks for the installed version</td></tr>
-            <tr><td><code>thinker uninstall [--purge] [--user]</code></td><td>Remove a repository's hooks and MCP registration (<code>--purge</code> removes notes; <code>--user</code> the machine-wide wiring)</td></tr>
-          </tbody>
-        </table>
+        <h2>CLI</h2>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+            <tbody>
+              <tr><td><code>thinker setup [--build | --no-build]</code></td><td>Set a repository up: connect the agents, then offer to build the cache from merged pull requests and source areas</td></tr>
+              <tr><td><code>thinker connect</code></td><td>Wire the agents on this machine into their own settings, once; setup and the installer run it first</td></tr>
+              <tr><td><code>thinker review [--staged | --base ref | --ref commit | --state]</code></td><td>Check a change against the cache: undone fixes, broken conventions and behaviors; <code>--strict</code> for CI, <code>--pr n --post</code> to comment</td></tr>
+              <tr><td><code>thinker system [add | promote | accept | propose | md]</code></td><td>The desired behaviors of the system and whether the code upholds each</td></tr>
+              <tr><td><code>thinker orient "&lt;task&gt;"</code>, <code>lookup</code>, <code>find</code>, <code>drilldown</code></td><td>The MCP tools from the command line</td></tr>
+              <tr><td><code>thinker benchmark [pr | run | report]</code></td><td>Paired agent runs with and without the cache, on your repository</td></tr>
+              <tr><td><code>thinker usage [--here] [--days n]</code></td><td>How the cache has been used, what it cost, and the holdout comparison</td></tr>
+              <tr><td><code>thinker impact [--pr n]</code></td><td>Reviews and agent work connected to the pull requests they went into</td></tr>
+              <tr><td><code>thinker mine-prs [--git --fixes]</code></td><td>Distill merged pull requests (or fix commits) into notes; nothing is mined twice</td></tr>
+              <tr><td><code>thinker learn</code></td><td>Distill every session a supported agent ran here that has not been distilled yet</td></tr>
+              <tr><td><code>thinker maintain [--dry]</code></td><td>One maintenance run by hand: re-verify, mine, phrase, archive</td></tr>
+              <tr><td><code>thinker check</code>, <code>thinker verify</code></td><td>Mark stale notes against the working tree; re-verify them with a small model</td></tr>
+              <tr><td><code>thinker archive [--list | --restore]</code></td><td>Notes taken out of serving but kept for review</td></tr>
+              <tr><td><code>thinker list</code>, <code>show</code>, <code>add</code>, <code>rm</code></td><td>Notes by hand</td></tr>
+              <tr><td><code>thinker export</code>, <code>thinker import</code></td><td>Back the local cache up; restore one, checked against this checkout</td></tr>
+              <tr><td><code>thinker ranker</code>, <code>thinker ast</code></td><td>The local ranking model, and tree-sitter grammars for exact symbol boundaries</td></tr>
+              <tr><td><code>thinker update</code>, <code>thinker rewire</code></td><td>Update the CLI (daily in the background); rewrite every checkout's hooks for the installed version</td></tr>
+              <tr><td><code>thinker uninstall [--purge] [--user]</code></td><td>Remove a repository's hooks and MCP registration (<code>--purge</code> removes notes; <code>--user</code> the machine-wide wiring)</td></tr>
+            </tbody>
+          </table>
+        </div>
         <p><code>thinker --help</code> lists every command and flag.</p>
       </section>
 
       <section id="configuration">
         <h2>Configuration</h2>
         <p>Everything in <code>.thinker/config.json</code> is optional.</p>
-        <table>
-          <thead>
-            <tr>
-              <th>Key</th>
-              <th>Effect</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td><code>learn</code></td><td><code>{"sessions": false}</code> stops distilling sessions; pull requests and re-verification go on</td></tr>
-            <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (2,000,000), <code>verifyPerRun</code> (10), <code>phrasePerRun</code> (8), <code>prsPerRun</code> (3)</td></tr>
-            <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
-            <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
-            <tr><td><code>ce</code></td><td>The cross-encoder: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to rank by words alone</td></tr>
-            <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
-            <tr><td><code>distillModel</code>, <code>verifyModel</code>, <code>reviewModel</code></td><td>The model for each kind of call</td></tr>
-            <tr><td><code>telemetry</code></td><td><code>false</code>: no metrics sent</td></tr>
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Key</th><th>Effect</th></tr></thead>
+            <tbody>
+              <tr><td><code>learn</code></td><td><code>{"sessions": false}</code> stops distilling sessions; pull requests and re-verification go on</td></tr>
+              <tr><td><code>maintain</code></td><td><code>enabled</code>, <code>dailyTokens</code> (2,000,000), <code>verifyPerRun</code> (10), <code>phrasePerRun</code> (8), <code>prsPerRun</code> (3)</td></tr>
+              <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
+              <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
+              <tr><td><code>ce</code></td><td>The ranking model: <code>floor</code> (0), <code>maxNotes</code> (1), or <code>false</code> to rank by words alone</td></tr>
+              <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
+              <tr><td><code>distillModel</code>, <code>verifyModel</code>, <code>reviewModel</code></td><td>The model for each kind of call</td></tr>
+              <tr><td><code>telemetry</code></td><td><code>false</code>: no metrics sent</td></tr>
+            </tbody>
+          </table>
+        </div>
         <p>
           In the environment, <code>THINKER_NO_LEARN=1</code> turns learning and maintenance off, <code>THINKER_HOOKS=off</code> silences the hooks, <code>THINKER_MCP=off</code> makes the MCP server offer no tools, and <code>THINKER_LLM</code> picks the agent that answers model calls (<code>claude</code>, <code>codex</code>, <code>cursor</code>, <code>gemini</code>, or <code>anthropic</code> with <code>ANTHROPIC_API_KEY</code>).
         </p>
       </section>
 
       <section id="telemetry">
-        <h2>Privacy & Telemetry</h2>
+        <h2>Privacy and telemetry</h2>
         <p>
-          Thinker collects pseudonymous daily effectiveness metrics (cache hit rate, total note count, estimated token savings) to monitor cache quality.
+          Thinker sends pseudonymous daily effectiveness metrics (cache hit rate, note count, estimated token savings) to monitor cache quality. <strong>No code, note bodies, prompt text, file paths or repository URLs are ever collected or transmitted.</strong>
         </p>
-        <p>
-          <strong>No code snippets, note bodies, prompt text, file paths, or repository URLs are ever collected or transmitted.</strong>
-        </p>
-        <p>
-          To opt out completely at any time:
-        </p>
-        <pre><code><span class="code-comment"># In your shell environment:</span>
+        <pre><code><span class="code-comment"># Opt out in your shell environment:</span>
 export THINKER_TELEMETRY=off
 
 <span class="code-comment"># Or in .thinker/config.json:</span>
@@ -951,107 +1008,150 @@ export THINKER_TELEMETRY=off
   </div>
 
   <div class="modal-overlay" id="modal-overlay" onclick="handleBackdrop(event)">
-    <div class="modal-card" id="modal-card">
+    <div class="modal-card" id="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       <div class="modal-header">
-        <div class="modal-title">Benchmark Results</div>
-        <button class="btn-close" onclick="closeModal()">&times;</button>
+        <div>
+          <div class="modal-title" id="modal-title">Benchmarks</div>
+          <div class="modal-subtitle">Every number is a paired run: the same model on the same task, with and without thinker.</div>
+        </div>
+        <button class="btn-close" onclick="closeModal()" aria-label="Close">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="modal-note">
-          Measured on real tasks from merged pull requests, evaluated with and without thinker cache across frontier and fast coding models.
-        </p>
-        <table>
-          <thead>
-            <tr>
-              <th>Dimension</th>
-              <th>Metric</th>
-              <th>Claude Fable<br><small>(Claude Code)</small></th>
-              <th>Gemini 3.8 Flash<br><small>(Antigravity CLI)</small></th>
-              <th>GPT-6 Astra<br><small>(Codex CLI)</small></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Timing</strong></td>
-              <td>Wall clock time</td>
-              <td class="gain">14% faster</td>
-              <td class="gain">8.5% faster</td>
-              <td class="gain">7.0% faster</td>
-            </tr>
-            <tr>
-              <td rowspan="2"><strong>Token Usage</strong></td>
-              <td>Input context</td>
-              <td class="gain">18% less</td>
-              <td class="gain">21% less</td>
-              <td class="gain">19% less</td>
-            </tr>
-            <tr>
-              <td>Output tokens</td>
-              <td class="gain">11% less</td>
-              <td class="gain">22% less</td>
-              <td class="gain">11% less</td>
-            </tr>
-            <tr>
-              <td rowspan="2"><strong>Tool Efficiency</strong></td>
-              <td>Tool calls</td>
-              <td class="gain">17% fewer</td>
-              <td class="gain">22% fewer</td>
-              <td class="gain">18% fewer</td>
-            </tr>
-            <tr>
-              <td>File reads</td>
-              <td class="nodiff">no diff</td>
-              <td class="gain">27% fewer</td>
-              <td class="gain">14% fewer</td>
-            </tr>
-            <tr>
-              <td><strong>Cost</strong></td>
-              <td>Cost per task</td>
-              <td class="gain">10% cheaper</td>
-              <td class="gain">16% cheaper</td>
-              <td class="nodiff">no diff</td>
-            </tr>
-            <tr>
-              <td rowspan="2"><strong>Correctness</strong></td>
-              <td>Criteria accuracy</td>
-              <td class="gain">10% improved</td>
-              <td class="nodiff">no diff</td>
-              <td class="nodiff">no diff</td>
-            </tr>
-            <tr>
-              <td>Fully solved</td>
-              <td class="gain">33% more solved</td>
-              <td class="nodiff">no diff</td>
-              <td class="nodiff">no diff</td>
-            </tr>
-          </tbody>
-        </table>
+
+        <section class="bench-section" aria-labelledby="bench-bugs">
+          <div class="bench-kicker">Bug detection</div>
+          <h3 class="bench-headline" id="bench-bugs">Every model caught <span class="gain">3 more of 10</span> regressions with thinker.</h3>
+          <p class="bench-lede">Ten reversed fixes from an open-source repository, reviewed by each model with and without thinker's notes. Share of regressions caught:</p>
+          <div class="bench-legend" aria-hidden="true">
+            <span><i class="swatch before"></i> without thinker</span>
+            <span><i class="swatch"></i> with thinker</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Claude Opus 5</div><div class="bench-model-sub">10 reviews each</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 70%"></i>70%</div>
+                <div class="bar after"><i style="--w: 100%"></i>100%</div>
+              </div>
+              <div class="bench-delta">+30 pts<small>7 &rarr; 10 of 10</small></div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">high reasoning</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 60%"></i>60%</div>
+                <div class="bar after"><i style="--w: 90%"></i>90%</div>
+              </div>
+              <div class="bench-delta">+30 pts<small>6 &rarr; 9 of 10</small></div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.1 Pro</div><div class="bench-model-sub">high reasoning</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 60%"></i>60%</div>
+                <div class="bar after"><i style="--w: 90%"></i>90%</div>
+              </div>
+              <div class="bench-delta">+30 pts<small>6 &rarr; 9 of 10</small></div>
+            </div>
+          </div>
+          <details class="bench-method">
+            <summary>How we measured</summary>
+            <p>We took ten merged bug fixes from an open-source repository and reversed each one, putting a known bug back into the code. Each model reviewed every change twice under identical settings: once on its own, once with the notes thinker had learned from the original fixes. A catch is an error or warning on the changed production code that explains the actual failure, not a comment on a missing test.</p>
+            <p>Because thinker had seen the original fixes, this measures how well a model recovers knowledge the repository already holds: the regressions a team has fixed before. It does not measure detection of never-seen bugs. One review per case and model; one model gained four catches and lost one. In a control run with the notes' text blanked out, the same model caught 4 of 10 instead of 9.</p>
+          </details>
+        </section>
+
+        <section class="bench-section" aria-labelledby="bench-tokens">
+          <div class="bench-kicker">Efficiency</div>
+          <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18 to 19% fewer input tokens</span> per coding task.</h3>
+          <p class="bench-lede">Real coding tasks from merged pull requests in open-source repositories, run with and without thinker. Input tokens per task, including cached context:</p>
+          <div class="bench-legend" aria-hidden="true">
+            <span><i class="swatch before"></i> without thinker</span>
+            <span><i class="swatch"></i> with thinker</span>
+          </div>
+          <div class="bench-rows">
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Claude Fable</div><div class="bench-model-sub">20 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>1.25M</div>
+                <div class="bar after"><i style="--w: 82%"></i>1.02M</div>
+              </div>
+              <div class="bench-delta">&minus;18%<small>17% fewer tool calls</small></div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">14 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>16.6M</div>
+                <div class="bar after"><i style="--w: 81%"></i>13.4M</div>
+              </div>
+              <div class="bench-delta">&minus;19%<small>22% fewer tool calls</small></div>
+            </div>
+            <div class="bench-row">
+              <div class="bench-model"><div class="bench-model-name">GPT-6 Astra</div><div class="bench-model-sub">21 tasks</div></div>
+              <div class="bench-bars">
+                <div class="bar before"><i style="--w: 100%"></i>473k</div>
+                <div class="bar after"><i style="--w: 81%"></i>384k</div>
+              </div>
+              <div class="bench-delta">&minus;19%<small>18% fewer tool calls</small></div>
+            </div>
+          </div>
+          <details class="bench-method">
+            <summary>How we measured</summary>
+            <p>Each task is a real change from a merged pull request, described to the agent by its symptom only. Every model ran each task twice in identical setups, with and without thinker, and we compare the average per task. Input tokens count everything the model read, cached context included, since that is what the agent spent. Task sets and tooling differ by model, so compare within a row, not across rows.</p>
+            <p>Correctness was graded on fixed acceptance criteria and was not traded away: up for one model (80% to 89% of criteria met), unchanged for one, and within one task for the third. Each model also made fewer tool calls and finished faster.</p>
+          </details>
+        </section>
+
       </div>
     </div>
   </div>
 
   <script>
-    function openModal() {
+    function openModal(sectionId) {
       const modal = document.getElementById('modal-overlay');
       modal.classList.add('active');
+      const body = modal.querySelector('.modal-body');
+      body.scrollTop = 0;
+      if (sectionId === 'bench-tokens') {
+        const section = document.getElementById(sectionId).closest('.bench-section');
+        if (section) body.scrollTop = section.offsetTop - body.offsetTop;
+      }
     }
 
     function closeModal() {
-      const modal = document.getElementById('modal-overlay');
-      modal.classList.remove('active');
+      document.getElementById('modal-overlay').classList.remove('active');
     }
 
     function handleBackdrop(e) {
-      if (e.target.id === 'modal-overlay') {
-        closeModal();
-      }
+      if (e.target.id === 'modal-overlay') closeModal();
     }
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        closeModal();
-      }
+      if (e.key === 'Escape') closeModal();
     });
+
+    // Sidebar follows the section in view.
+    (function () {
+      const links = Array.from(document.querySelectorAll('.sidebar-item a'));
+      const byId = new Map(links.map(a => [a.getAttribute('href').slice(1), a.parentElement]));
+      const sections = Array.from(byId.keys()).map(id => document.getElementById(id)).filter(Boolean);
+      let current = null;
+      function activate(id) {
+        if (id === current) return;
+        current = id;
+        links.forEach(a => a.parentElement.classList.remove('active'));
+        const item = byId.get(id);
+        if (item) item.classList.add('active');
+      }
+      function update() {
+        const line = 100;
+        let best = sections[0];
+        for (const s of sections) {
+          if (s.getBoundingClientRect().top <= line) best = s; else break;
+        }
+        if (best) activate(best.id);
+      }
+      window.addEventListener('scroll', update, { passive: true });
+      update();
+    })();
   </script>
 </body>
 </html>
