@@ -8,5 +8,6 @@
   "secretId": "thinker/site/access",
   "webAclName": "thinker-site-access",
   "responsePolicyName": "thinker-site-private-responses",
-  "legacyDownloadsUntil": "2026-10-02T06:30:25Z"
+  "legacyDownloadsUntil": "2026-10-02T06:30:25Z",
+  "publicSite": true
 }

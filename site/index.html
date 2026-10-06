@@ -781,8 +781,12 @@
         min-width: 62px;
       }
       nav { padding: 1rem 1.25rem; }
+      .nav-right { gap: 0.2rem; }
+      .nav-link { padding-left: 0.5rem; padding-right: 0.5rem; }
     }
   </style>
+  <link rel="stylesheet" href="/message.css">
+  <script src="/message.js" defer></script>
 </head>
 <body>
 
@@ -791,6 +795,7 @@
     <div class="nav-right">
       <a href="docs.html" class="nav-link">Docs</a>
       <button class="btn-benchmark" onclick="openModal()">Benchmarks</button>
+      <a href="https://github.com/yoavshmariahu/thinker" class="nav-link">GitHub</a>
     </div>
   </nav>
 
@@ -800,39 +805,11 @@
     <p class="install-instruction">Jev through Thinker, with no personal API key required. <a href="docs.html#jev">How it works &rarr;</a></p>
 
     <div class="install-container">
-      <!-- State 1: Action Buttons -->
-      <div class="btn-group" id="btn-group">
-        <button class="btn-main btn-primary" onclick="showAccessForm()">Enter access code</button>
-        <button class="btn-main btn-secondary" onclick="showWaitlistForm()">Join waitlist</button>
-        <a href="docs.html" class="btn-main btn-secondary">Docs &rarr;</a>
-      </div>
 
-      <!-- State 2: Access Code Form -->
-      <form class="inline-form" id="access-form" style="display: none;" onsubmit="handleAccessSubmit(event)">
-        <div class="input-row">
-          <input type="password" id="access-code" class="form-input" placeholder="Enter access code" autocomplete="off" spellcheck="false" required>
-          <button type="submit" class="btn-submit">Enter</button>
-          <button type="button" class="btn-back" onclick="resetGate()" title="Back">✕</button>
-        </div>
-        <div class="form-error" id="access-error" style="display: none;"></div>
-      </form>
-
-      <!-- State 3: Join Waitlist Form -->
-      <form class="inline-form" id="waitlist-form" style="display: none;" onsubmit="handleWaitlistSubmit(event)">
-        <div class="input-row">
-          <input type="email" id="waitlist-email" class="form-input" placeholder="Enter your email" autocomplete="email" required>
-          <button type="submit" class="btn-submit" id="waitlist-btn">Join</button>
-          <button type="button" class="btn-back" id="waitlist-back-btn" onclick="resetGate()" title="Back">✕</button>
-        </div>
-        <div class="form-error" id="waitlist-error" style="display: none;"></div>
-        <div class="form-success" id="waitlist-success" style="display: none;"></div>
-      </form>
-
-      <!-- State 4: Unlocked Install Command -->
-      <div class="command-wrapper" id="command-view" style="display: none;">
+      <div class="command-wrapper" id="command-view">
         <div class="install-instruction">Run anywhere to install, then <code>thinker setup</code> inside your repository · <a href="/docs.html">Read the docs</a></div>
         <div class="cmd-box">
-          <code id="cmd"></code>
+          <code id="cmd">curl -fsSL https://zerotime.dev/dist/install.sh | bash</code>
           <button class="btn-copy" id="copy-btn" onclick="copyInstall()">Copy</button>
         </div>
       </div>
@@ -961,139 +938,6 @@
   </div>
 
   <script>
-    const S3_INGEST_ENDPOINT = 'https://khsky10r4l.execute-api.us-east-1.amazonaws.com/metrics';
-
-    function showAccessForm() {
-      document.getElementById('btn-group').style.display = 'none';
-      document.getElementById('waitlist-form').style.display = 'none';
-      const form = document.getElementById('access-form');
-      form.style.display = 'flex';
-      document.getElementById('access-error').style.display = 'none';
-      const input = document.getElementById('access-code');
-      input.value = '';
-      input.focus();
-    }
-
-    function showWaitlistForm() {
-      document.getElementById('btn-group').style.display = 'none';
-      document.getElementById('access-form').style.display = 'none';
-      const form = document.getElementById('waitlist-form');
-      form.style.display = 'flex';
-      document.getElementById('waitlist-error').style.display = 'none';
-      document.getElementById('waitlist-success').style.display = 'none';
-      const input = document.getElementById('waitlist-email');
-      input.value = '';
-      document.getElementById('waitlist-btn').style.display = '';
-      document.getElementById('waitlist-back-btn').textContent = '✕';
-      input.focus();
-    }
-
-    function resetGate() {
-      document.getElementById('access-form').style.display = 'none';
-      document.getElementById('waitlist-form').style.display = 'none';
-      document.getElementById('command-view').style.display = 'none';
-      document.getElementById('btn-group').style.display = 'flex';
-      document.getElementById('access-error').style.display = 'none';
-      document.getElementById('waitlist-error').style.display = 'none';
-      document.getElementById('waitlist-success').style.display = 'none';
-    }
-
-    const nextPath = new URLSearchParams(location.search).get('next');
-    const docsDestination = nextPath && /^\/docs(?:\.html|\/|$)/.test(nextPath) &&
-      !/[\\%]/.test(nextPath) && !nextPath.includes('..') ? nextPath : null;
-
-    async function handleAccessSubmit(e) {
-      e.preventDefault();
-      const input = document.getElementById('access-code');
-      const err = document.getElementById('access-error');
-      const button = e.target.querySelector('button[type="submit"]');
-      button.disabled = true;
-      err.style.display = 'none';
-      try {
-        const res = await fetch('/access/session', {
-          headers: { 'X-Thinker-Access-Code': input.value.trim() },
-          credentials: 'same-origin', cache: 'no-store'
-        });
-        if (!res.ok) throw new Error(res.status === 401 ? 'Invalid access code' :
-          res.status === 429 ? 'Too many attempts. Please try again shortly.' : 'Unable to verify access. Please try again.');
-        const session = await res.json();
-        input.value = '';
-        if (docsDestination) location.assign(docsDestination + location.hash);
-        else unlockInstall(session.installCommand);
-      } catch (error) {
-        err.textContent = error.message || 'Unable to verify access. Please try again.';
-        err.style.display = 'block';
-        input.focus();
-      } finally {
-        button.disabled = false;
-      }
-    }
-
-    function unlockInstall(command) {
-      document.getElementById('access-form').style.display = 'none';
-      document.getElementById('waitlist-form').style.display = 'none';
-      document.getElementById('btn-group').style.display = 'none';
-      document.getElementById('cmd').textContent = command;
-      document.getElementById('command-view').style.display = 'flex';
-    }
-
-    async function handleWaitlistSubmit(e) {
-      e.preventDefault();
-      const input = document.getElementById('waitlist-email');
-      const btn = document.getElementById('waitlist-btn');
-      const err = document.getElementById('waitlist-error');
-      const success = document.getElementById('waitlist-success');
-      const backBtn = document.getElementById('waitlist-back-btn');
-      const email = (input.value || '').trim();
-
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        err.textContent = 'Please enter a valid email address';
-        err.style.display = 'block';
-        success.style.display = 'none';
-        return;
-      }
-
-      err.style.display = 'none';
-      btn.disabled = true;
-      btn.textContent = 'Joining...';
-
-      const installId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : '00000000-0000-4000-8000-' + Math.floor(Math.random() * 0xffffffffffff).toString(16).padStart(12, '0');
-
-      try {
-        const res = await fetch(S3_INGEST_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            installId,
-            event: 'waitlist',
-            email: email,
-            timestamp: new Date().toISOString()
-          })
-        });
-
-        if (res.ok) {
-          success.textContent = "You're on the waitlist! We'll be in touch.";
-          success.style.display = 'block';
-          input.value = '';
-          btn.style.display = 'none';
-          backBtn.textContent = 'Done';
-        } else {
-          throw new Error('Submission failed');
-        }
-      } catch (err) {
-        success.textContent = "You're on the waitlist! We'll be in touch.";
-        success.style.display = 'block';
-        input.value = '';
-        btn.style.display = 'none';
-        backBtn.textContent = 'Done';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Join';
-      }
-    }
-
     function copyInstall() {
       const code = document.getElementById('cmd').innerText;
       if (!code) return;
@@ -1133,24 +977,10 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         closeModal();
-        if (document.getElementById('access-form').style.display !== 'none' ||
-            document.getElementById('waitlist-form').style.display !== 'none') {
-          resetGate();
-        }
+
       }
     });
 
-    window.addEventListener('DOMContentLoaded', async () => {
-      try { sessionStorage.removeItem('thinker_access_code'); } catch (_) {}
-      if (docsDestination) showAccessForm();
-      try {
-        const res = await fetch('/access/session', { credentials: 'same-origin', cache: 'no-store' });
-        if (!res.ok) return;
-        const session = await res.json();
-        if (docsDestination) location.assign(docsDestination + location.hash);
-        else unlockInstall(session.installCommand);
-      } catch (_) { /* The access form remains available for retry. */ }
-    });
   </script>
 </body>
 </html>

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { InvalidReport } from './report.mjs';
+import { normalizeMessage } from './messages.mjs';
 
 const HEADERS = {
   'Content-Type': 'application/json',
@@ -8,7 +9,7 @@ const HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, X-Thinker-Version',
 };
 
-export function createHandler(write) {
+export function createHandler(write, writeMessage) {
   return async function handler(event, context = {}) {
     context.callbackWaitsForEmptyEventLoop = false;
     const reply = (statusCode, body) => ({ statusCode, headers: HEADERS, body: body ? JSON.stringify(body) : '' });
@@ -20,6 +21,17 @@ export function createHandler(write) {
     let data;
     try { data = JSON.parse(raw); }
     catch { return reply(400, { error: 'Invalid JSON' }); }
+    if (event.rawPath === '/messages' || event.path === '/messages') {
+      try {
+        const message = normalizeMessage(data);
+        await writeMessage(message);
+        return reply(202, { status: 'accepted' });
+      } catch (err) {
+        if (err instanceof InvalidReport) return reply(422, { error: err.message });
+        console.error('Failed to save message:', err.code || err.name);
+        return reply(err.code === 'MESSAGE_CONFLICT' ? 409 : 500, { error: 'Unable to save message. Please try again.' });
+      }
+    }
     const key = `metrics/live/${event.requestContext?.requestId || context.awsRequestId || randomUUID()}.json`;
     const receivedAt = new Date().toISOString();
     try {

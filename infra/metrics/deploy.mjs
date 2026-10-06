@@ -20,7 +20,7 @@ const directory = path.dirname(fileURLToPath(import.meta.url));
 const scratch = path.resolve(directory, '../../.metrics-work');
 fs.mkdirSync(scratch, { recursive: true });
 const zip = path.join(scratch, `writer-${Date.now()}.zip`);
-execFileSync('zip', ['-qr', zip, 'index.mjs', 'handler.mjs', 'report.mjs', 'package.json', 'node_modules'], { cwd: directory });
+execFileSync('zip', ['-qr', zip, 'index.mjs', 'handler.mjs', 'report.mjs', 'messages.mjs', 'package.json', 'node_modules'], { cwd: directory });
 const hash = createHash('sha256').update(fs.readFileSync(zip)).digest('hex');
 const key = `deployments/metrics-postgres/${hash}.zip`;
 aws(['s3', 'cp', zip, `s3://${config.artifactBucket}/${key}`, '--only-show-errors', '--sse', 'AES256'], config);

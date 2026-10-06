@@ -346,3 +346,21 @@ when operating from an isolated worktree. Refresh adds the delivery dashboard an
 preserves the existing performance/diagnostics/waitlist layouts. Verification
 executes every saved query, validates filter mappings and checks read-only TLS.
 No test or demo payload is sent to production to populate the charts.
+
+## Website messages
+
+The bottom-right **Send us a message** button on the homepage and docs opens a
+modal with a required message (up to 5,000 characters) and optional reply email.
+`POST /messages` on the existing API writes to `website_messages`, separately
+from telemetry `reports`. It records a server timestamp and page path, never
+query strings. The writer has INSERT/SELECT and the reader has SELECT only.
+A client-generated UUID makes unchanged retries idempotent. Invalid input is
+rejected; a failed database write never reports success. The form retains text
+on errors and timeouts. Message contents and email addresses are not logged.
+
+Run the existing bootstrap once to create the table and grant its permissions,
+then deploy the metrics Lambda before publishing the site. Run dashboard
+`refresh` with the existing `THINKER_DASHBOARD_WORK` directory to add the
+**Messages** dashboard; existing layouts are preserved. The full-width table
+shows every message newest first, with optional email, page and receipt time.
+Dashboard `verify` executes its query along with existing queries.

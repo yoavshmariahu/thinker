@@ -112,68 +112,6 @@ test('private install bootstrap carries download credentials through installer a
   assert.equal(call(base + '/install.sh', { method: 'HEAD' }).body, '');
 });
 
-test('the public homepage contains no password or client-side authorization shortcut', () => {
-  const html = readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
-  assert.ok(!html.includes('thinker101'));
-  assert.ok(!html.includes('ACCESS_KEY'));
-  assert.ok(!html.includes('sessionStorage.setItem'));
-  assert.ok(html.includes("fetch('/access/session'"));
-  assert.ok(!html.includes('https://zerotime.dev/dist/'));
-});
-
-function page(fetch, search = '', hash = '') {
-  const html = readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
-  const elements = new Map();
-  const listeners = {};
-  const location = { search, hash, assign(url) { this.destination = url; } };
-  const element = id => {
-    if (!elements.has(id)) elements.set(id, { style: {}, value: '', focus() {} });
-    return elements.get(id);
-  };
-  const browser = vm.createContext({ fetch, location, URLSearchParams,
-    document: { getElementById: element, addEventListener() {} },
-    window: { addEventListener(name, fn) { listeners[name] = fn; } },
-    sessionStorage: { removeItem() {} }
-  });
-  vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], browser);
-  return { browser, element, location, ready: listeners.DOMContentLoaded };
-}
-
-test('homepage only unlocks after successful server verification', async () => {
-  const requests = [];
-  const p = page(async (url, options) => {
-    requests.push({ url, options });
-    return { ok: true, json: async () => ({ installCommand: 'private install command' }) };
-  });
-  p.element('access-code').value = code;
-  const button = {};
-  await p.browser.handleAccessSubmit({ preventDefault() {}, target: { querySelector: () => button } });
-  assert.equal(requests[0].url, '/access/session');
-  assert.equal(requests[0].options.headers['X-Thinker-Access-Code'], code);
-  assert.equal(p.element('cmd').textContent, 'private install command');
-  assert.equal(p.element('command-view').style.display, 'flex');
-  assert.equal(p.element('access-code').value, '');
-  assert.equal(button.disabled, false);
-});
-
-test('homepage preserves docs destination and anchor after verification', async () => {
-  const p = page(async () => ({ ok: true, json: async () => ({ installCommand: 'private' }) }), '?next=%2Fdocs%2F', '#cli-reference');
-  await p.ready();
-  assert.equal(p.location.destination, '/docs/#cli-reference');
-});
-
-test('failed verification cannot reveal downloads; submission can be retried', async () => {
-  const p = page(async () => ({ ok: false, status: 401 }));
-  const button = {};
-  await p.browser.handleAccessSubmit({ preventDefault() {}, target: { querySelector: () => button } });
-  assert.equal(p.element('access-error').textContent, 'Invalid access code');
-  assert.equal(p.element('cmd').textContent, undefined);
-  assert.equal(button.disabled, false);
-  await p.ready();
-  assert.equal(p.element('cmd').textContent, undefined);
-});
-
-
 test('legacy download grace period expires at the fixed deadline and exposes only three exact paths', () => {
   const deadline = '2026-10-02T06:30:25Z';
   let now = Date.parse(deadline) - 1;
