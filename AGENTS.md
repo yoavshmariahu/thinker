@@ -746,7 +746,17 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   sent to the proxy and TypeSafe for inference, separately from telemetry.
   An optional personal key (`THINKER_JEV_KEY`, `JEV_API_KEY`, `TYPESAFE_API_KEY`,
   or `~/.thinker/jev-key`) selects direct TypeSafe access. `thinker ranker --jev-key`
-  stores one; `--no-jev-key` returns to hosted access. Secrets never belong in the
+  stores one; `--no-jev-key` returns to hosted access. Which of the three a
+  machine uses is asked once, in a terminal, and recorded in
+  `~/.thinker/jev-access.json` (`jev.js:recordAccess`, modes `proxy`, `key`,
+  `off`): `setup/steps.js:configureJev` puts the question on a new install and
+  `thinker update` puts it to anyone who installed before hosted access existed,
+  once, since an update run by hand is a deliberate act. A recorded `off` keeps
+  Jev off, though `jev` in the config and `THINKER_JEV` still win, both being
+  more specific than a machine-wide preference. Saving a key records the choice
+  by itself. Nothing is recorded without a terminal, so a scheduled or `--quiet`
+  update asks nothing and the next interactive one still can; `THINKER_TEST`
+  never prompts. Secrets never belong in the
   repository config. `jev` in the config sets `{ enabled, floor, maxNotes, k,
   model, timeoutMs, searchTimeoutMs }` or is `false`; `enabled: "auto"` means hosted or direct
   Jev is enabled. `THINKER_JEV=off` selects local ranking. Other `THINKER_JEV_*`

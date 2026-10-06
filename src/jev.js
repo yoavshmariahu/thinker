@@ -29,15 +29,36 @@ export function jevKey() {
   try { const k = fs.readFileSync(keyFile(), 'utf8').trim(); return k || null; } catch { return null; }
 }
 
+// Saving a key answers the access question too: nothing should ask again afterwards.
 export function saveKey(key) {
   const dir = thinkerHome();
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(keyFile(), String(key).trim() + '\n', { mode: 0o600 });
   try { fs.chmodSync(keyFile(), 0o600); } catch {}
+  try { recordAccess('key'); } catch {}
   return keyFile();
 }
 
 export function forgetKey() { try { fs.unlinkSync(keyFile()); return true; } catch { return false; } }
+
+// Which way this machine reaches Jev, chosen once by the person and remembered, so neither setup nor
+// update asks again. Absent means never asked: the hosted proxy serves, which is the default.
+//   proxy  requests go to Thinker's hosted endpoint; no key of your own
+//   key    requests go straight to TypeSafe with your key
+//   off    no Jev at all; the local cross-encoder ranks
+export const ACCESS_MODES = ['proxy', 'key', 'off'];
+export const accessFile = () => path.join(thinkerHome(), 'jev-access.json');
+export function jevAccess() {
+  try { const a = JSON.parse(fs.readFileSync(accessFile(), 'utf8')); return ACCESS_MODES.includes(a.mode) ? a : null; } catch { return null; }
+}
+export function recordAccess(mode) {
+  if (!ACCESS_MODES.includes(mode)) throw new Error(`unknown jev access mode: ${mode}`);
+  fs.mkdirSync(thinkerHome(), { recursive: true });
+  const a = { mode, at: new Date().toISOString() };
+  fs.writeFileSync(accessFile(), JSON.stringify(a) + '\n', { mode: 0o600 });
+  return a;
+}
+export const jevAsked = () => !!jevAccess();
 
 export const proxyFile = () => path.join(thinkerHome(), 'jev-proxy.json');
 const proxyEndpoint = () => process.env.THINKER_JEV_PROXY_ENDPOINT || JEV_PROXY_ENDPOINT;
@@ -89,8 +110,13 @@ export function jevConfig(store) {
   if (e.THINKER_JEV_MODEL) cfg.model = e.THINKER_JEV_MODEL;
   if (e.THINKER_JEV_TIMEOUT) cfg.timeoutMs = cfg.searchTimeoutMs = Number(e.THINKER_JEV_TIMEOUT);
   cfg.key = cfg.key || jevKey();
+  // A person who chose "off" keeps it until they say otherwise; `jev` in the config and THINKER_JEV
+  // still win, since both are more specific than a machine-wide preference.
+  const chosen = jevAccess();
+  if (cfg.enabled === 'auto' && chosen?.mode === 'off' && c === undefined && !e.THINKER_JEV) cfg.enabled = false;
   // Automatic model calls stay off in tests; explicit mocked integrations may enable them.
   if (cfg.enabled === 'auto') cfg.enabled = !process.env.THINKER_TEST;
+  cfg.access = chosen?.mode || null;
   return cfg;
 }
 export const jevEnabled = store => !!jevConfig(store).enabled;
@@ -236,7 +262,7 @@ export async function jevRerank(ranked, query, cfg = {}) {
 // What `thinker ranker` and setup report.
 export function jevStatus(store) {
   const cfg = jevConfig(store);
-  return { enabled: !!cfg.enabled, key: !!cfg.key, mode: cfg.key ? 'direct' : 'hosted',
+  return { enabled: !!cfg.enabled, key: !!cfg.key, mode: cfg.key ? 'direct' : 'hosted', access: cfg.access, asked: jevAsked(),
     source: process.env.THINKER_JEV_KEY || process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY ? 'environment' : cfg.key ? keyFile() : 'Thinker hosted access',
     model: cfg.model, floor: cfg.floor, maxNotes: cfg.maxNotes, timeoutMs: cfg.timeoutMs, searchTimeoutMs: cfg.searchTimeoutMs };
 }

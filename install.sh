@@ -279,6 +279,9 @@ EOF
     (cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent) || die "npm ci failed in $home/app"
     say "  Fetching the ranking model…"
     "$thinker" ranker fetch --quiet || say "  The ranking model could not be fetched (offline?); notes are ranked by words until 'thinker ranker fetch' succeeds."
+    say "  Jev picks which notes you are shown, through Thinker's hosted access by default: your request and"
+    say "  candidate note excerpts leave this machine (your code and note files do not). 'thinker ranker --jev-key <key>'"
+    say "  uses your own TypeSafe key instead; THINKER_JEV=off ranks locally. 'thinker setup' asks you once."
   else
     say "npm was not found: the dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev --ignore-scripts, then thinker ranker fetch and thinker connect). Notes are ranked by words alone until then."
     mcp=0

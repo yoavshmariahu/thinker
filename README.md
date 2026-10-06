@@ -119,6 +119,28 @@ telemetry: `THINKER_TELEMETRY=off` does not disable model calls. Set
 environment, to use local note ranking. See [onboarding](ONBOARDING.md#jev-through-thinker)
 for setup guidance and optional personal-key access.
 
+**Choosing how it reaches the model.** Setup asks once, in a terminal, and
+remembers the answer in `~/.thinker/jev-access.json`, so neither setup nor a
+later update asks again:
+
+| | |
+|---|---|
+| Thinker hosted access | the default; no key, nothing to sign up for |
+| your own TypeSafe key | requests go straight to TypeSafe, not through Thinker |
+| neither | rank locally; nothing leaves the machine |
+
+If you installed before hosted access existed, the next `thinker update` you run
+in a terminal puts the question once. An update with no terminal — the scheduled
+daily one, or `--quiet` — asks nothing and changes nothing. You can switch at any
+time without waiting to be asked:
+
+```
+thinker ranker --jev-key <key>   # your own key, stored 0600 outside the repository
+thinker ranker --no-jev-key      # back to hosted access
+THINKER_JEV=off                  # local ranking only, for one agent or shell
+thinker ranker                   # which of the three is in use
+```
+
 In two offline runs on 54 labelled tasks, Jev reached 40 of 70 important notes;
 96% of the notes it served were useful. The runs reported about 160 ms per
 task. These measured the earlier reranker on a supplied candidate pool, not the

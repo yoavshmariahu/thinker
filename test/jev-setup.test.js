@@ -37,3 +37,40 @@ test('local-only configuration performs no registration', async () => {
     hostedCredentialFn: async () => { assert.fail('must not enroll'); } });
   assert.equal(result, 'ce');
 });
+test('once the choice is recorded, nothing asks again', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jevask-'));
+  const prevHome = process.env.THINKER_HOME, prevTest = process.env.THINKER_TEST;
+  process.env.THINKER_HOME = home; delete process.env.THINKER_TEST;
+  try {
+    const { recordAccess, jevAsked } = await import('../src/jev.js');
+    recordAccess('proxy');
+    assert.equal(jevAsked(), true);
+    const lines = [];
+    // a real terminal, but the question was already answered: it must not be put again
+    const mode = await configureJev({ store: { config: () => ({}) }, out: l => lines.push(String(l)),
+      hostedCredentialFn: async () => ({}), stdin: { isTTY: true } });
+    assert.equal(mode, 'hosted');
+    assert.doesNotMatch(lines.join('\n'), /How should Jev reach the model/, 'never asked twice');
+  } finally {
+    prevHome === undefined ? delete process.env.THINKER_HOME : (process.env.THINKER_HOME = prevHome);
+    prevTest === undefined ? delete process.env.THINKER_TEST : (process.env.THINKER_TEST = prevTest);
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('a recorded "off" is honoured by setup without enrolling', async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jevoff-'));
+  const prevHome = process.env.THINKER_HOME, prevTest = process.env.THINKER_TEST;
+  process.env.THINKER_HOME = home; delete process.env.THINKER_TEST;
+  try {
+    const { recordAccess } = await import('../src/jev.js');
+    recordAccess('off');
+    const mode = await configureJev({ store: { config: () => ({}) }, out: () => {},
+      hostedCredentialFn: async () => { assert.fail('must not enroll after choosing off'); }, stdin: { isTTY: true } });
+    assert.equal(mode, 'ce');
+  } finally {
+    prevHome === undefined ? delete process.env.THINKER_HOME : (process.env.THINKER_HOME = prevHome);
+    prevTest === undefined ? delete process.env.THINKER_TEST : (process.env.THINKER_TEST = prevTest);
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
