@@ -1,5 +1,7 @@
 import { projectFromFlags, includesPath, projectRecordKey } from '../project.js';
-import { learningPlan } from '../learning-evidence.js';
+import { learningPlan, refineLearningPlan } from '../learning-evidence.js';
+import { selectLearningNotes, prepareNotes } from '../note-learning.js';
+import { deferLearning, safeLearningAssessments } from '../learning-pending.js';
 // The learning loop by hand and from the hooks: distilling sessions (distill, learn, record), one
 // maintenance run, verification, the exploration sessions of setup (seed), and mining merged pull
 // requests (mine-prs). The helpers take the dispatcher's context (cli.js) as their first argument.
@@ -8,7 +10,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { cleanErrorMessage } from '../benchmark.js';
-import { parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, sessionStakes, QUIET_MIN_EXPLORE } from '../distill.js';
+import { condense, parseTranscript, exploreCount, batchDue, distillEvents, saveNotes, transcriptsFor, injectedIds, relatedNotes, sessionStakes, QUIET_MIN_EXPLORE } from '../distill.js';
 import { available, provider, findBin, resolveModel, BINS } from '../llm.js';
 import { maintain, renderMaintain, withinDailyCap, reportCapped } from '../maintain.js';
 import { logModelUsage, streamModelUsage, normalizeModelUsage, formatTokens } from '../model-usage.js';
@@ -174,7 +176,7 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   // Separate discovery from assessment: a serving alone warrants neither a model call
   // nor a usefulness verdict. Unselected evidence stays unknown.
   const config = store.config().learn || {};
-  const plan = incremental || evidenceOnly ? learningPlan(events, { served, repo, key: session || path.basename(file),
+  let plan = incremental || evidenceOnly ? learningPlan(events, { served, repo, key: session || path.basename(file),
     auditRate: evidenceOnly ? 0 : config.auditRate, minExplore: config.quietExplore ?? QUIET_MIN_EXPLORE }) : null;
   if (plan?.mode === 'skip') {
     store.log({ op: 'distill-skipped', reason: 'no-learning-evidence', transcript: path.basename(file), explore: n, session });
@@ -185,23 +187,35 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
     if (!quiet) out('no learning evidence; no model call');
     return;
   }
-  if (plan) served = plan.served;
-  // the kinds worth a note here: what is served, and what review reads from the archive (ops.js:distillKinds)
-  const kinds = distillKinds(store);
   const started = performance.now();
   let failed = true;
   try {
-  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, existing: relatedNotes(store, events, { max: plan ? 4 : 12 }), kinds, ...(plan ? { evidence: plan.trace, discover: plan.discover, compact: plan.mode !== 'audit' } : {}), accounting: { store, purpose: 'distill', phase, transcript: path.basename(file), session, traceEvents: events.length, learningMode: plan?.mode || 'full', evidenceChars: plan?.trace.length, dry: !!dry } });
+  const accounting = { store, phase, transcript: path.basename(file), session, dry: !!dry };
+  plan = await refineLearningPlan(store, events, plan || { mode: 'full', served, discover: true, trace: condense(events) }, { accounting });
+  served = plan.served;
+  // the kinds worth a note here: what is served, and what review reads from the archive (ops.js:distillKinds)
+  const kinds = distillKinds(store);
+  const catalog = plan.discover ? await selectLearningNotes(store, { requests: events.filter(e => e.t === 'prompt').map(e => e.text || '').join('\n').slice(0, 3000), evidence: plan.trace.slice(0, 12000) }, { max: 12, accounting }) : { status: 'ok', notes: [] };
+  if (catalog.status === 'unavailable') throw new Error(`note catalog unavailable; session will retry: ${catalog.reason}`);
+  const existing = catalog.status === 'ok' ? catalog.notes : relatedNotes(store, events, { max: 12 });
+  if (phase !== 'init' && !withinDailyCap(store).ok) throw new Error('daily learning token cap reached; session will retry');
+  const r = await distillEvents(events, { model: model || store.config().distillModel || 'sonnet', repoHint: repo, served, existing, kinds, evidence: plan.trace, discover: plan.discover, compact: plan.compact ?? !['audit', 'full'].includes(plan.mode), accounting: { ...accounting, purpose: 'distill', traceEvents: events.length, learningMode: plan.mode, evidenceChars: plan.trace.length } });
   if (dry) { failed = false; out(JSON.stringify({ notes: r.notes, assessments: r.assessments }, null, 2)); out(`(${r.notes.length} notes, ${r.tokens == null ? 'tokens not reported' : '~' + formatTokens(r.tokens) + ' tokens'}, trace ${r.traceChars} chars)`); return; }
-  const s = saveNotes(store, r.notes, { source: { type: 'agent', ref: path.basename(file, '.jsonl') }, kinds });
+  const source = { type: 'agent', ref: path.basename(file, '.jsonl') };
+  const prepared = await prepareNotes(store, r.notes, { evidence: r.evidence, source, kinds, accounting });
+  const s = saveNotes(store, prepared.notes, { source, kinds, reconciled: prepared.reconciled });
+  s.skipped.push(...prepared.skipped);
+  const assessments = safeLearningAssessments(store, r.assessments, served);
+  const pending = deferLearning(store, [...prepared.deferred, ...(s.deferred || []), ...assessments.deferred], { source, evidenceRef: path.resolve(file) });
+  if (pending.length && !quiet) out(`deferred ${pending.length} findings for investigation: ${path.join(stateDir, 'learning-pending')}`);
   // under the session's id, which is what servings are logged under: a transcript's file name is
   // that id only for Claude Code (Codex adds a date, a recorded trace a prefix, Gemini another suffix)
   // with the session's model, so the reading its confirmed notes saved can be priced (usage.js)
-  const applied = attest(store, r.assessments, { session: session || sessionKey(path.basename(file)), client: fmt === 'agy' ? 'gemini' : fmt === 'events' ? 'trace' : fmt, model: sessionModel });
+  const applied = attest(store, assessments.accepted, { session: session || sessionKey(path.basename(file)), client: fmt === 'agy' ? 'gemini' : fmt === 'events' ? 'trace' : fmt, model: sessionModel });
   if (!quiet) for (const a of applied) out(`attest  ${a.verdict.padEnd(12)} ${a.id} → c=${Math.round(a.confidence * 100)}%`);
   fs.mkdirSync(stateDir, { recursive: true });
-  fs.writeFileSync(stateFile, JSON.stringify({ line: lineCount, assessed: [...new Set([...(state.assessed || []), ...applied.map(n => n.id)])], at: new Date().toISOString() }));
-  store.log({ op: 'distill', transcript: path.basename(file), explore: n, saved: s.saved.map(x => x.id), merged: s.merged.map(x => x.id), skipped: s.skipped, cost: r.cost, metered: true, phase, learningMode: plan?.mode || 'full', traceChars: r.traceChars });
+  fs.writeFileSync(stateFile, JSON.stringify({ line: prepared.retryable || s.retryable ? fromLine : lineCount, assessed: [...new Set([...(state.assessed || []), ...applied.map(n => n.id)])], at: new Date().toISOString() }));
+  store.log({ op: 'distill', transcript: path.basename(file), explore: n, saved: s.saved.map(x => x.id), merged: s.merged.map(x => x.id), skipped: s.skipped, deferred: pending.length, retryable: prepared.retryable || !!s.retryable, evidenceSelection: plan.evidenceSelection, cost: r.cost, metered: true, phase, learningMode: plan?.mode || 'full', traceChars: r.traceChars });
   if (!quiet) {
     for (const x of s.saved) out(`saved   ${x.id}  [${x.kind}] ${x.title}`);
     for (const x of s.merged) out(`merged  ${x.id}  [${x.kind}] ${x.title}`);
@@ -448,10 +462,20 @@ export async function minePrs(ctx, slug, { before, after, again, limit = 20, mod
     const refId = pr.prNumber ? `${recSlug}#${pr.prNumber}` : `${recSlug}#${pr.hash ? pr.hash.slice(0, 8) : pr.number}`;
     progress.start(pr.hash ? `commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
     try {
-      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo, accounting: { store, purpose: 'mine-prs', phase, pr: pr.number, dry: !!dry } });
+      const accounting = { store, phase, pr: pr.number, dry: !!dry };
+      const catalog = await selectLearningNotes(store, { title: pr.title, description: (pr.body || '').slice(0, 5000), files: (pr.files || []).slice(0, 100) }, { max: 12, accounting });
+      if (catalog.status === 'unavailable') throw new Error(`note catalog unavailable: ${catalog.reason}`);
+      if (phase !== 'init' && !withinDailyCap(store).ok) throw new Error('daily learning token cap reached; PR will retry');
+      const r = await distillPr(slug, pr, { model: model || store.config().distillModel || 'sonnet', repo, existing: catalog.notes || [], accounting: { ...accounting, purpose: 'mine-prs' } });
       tokens += r.tokens || 0;
       if (dry) { out(`${oneLine(refId)} ${oneLine(pr.title).slice(0, 60)} → ${r.notes.map(n => n.kind).join(',') || 'no reusable notes'}`); progress.complete({ proposed: r.notes }); continue; }
-      const s2 = saveNotes(store, r.notes, { source: { type: 'pr', ref: refId } });
+      const source = { type: 'pr', ref: refId };
+      const prepared = await prepareNotes(store, r.notes, { evidence: r.evidence, source, kinds: distillKinds(store), accounting });
+      const s2 = saveNotes(store, prepared.notes, { source, kinds: distillKinds(store), reconciled: prepared.reconciled });
+      s2.skipped.push(...prepared.skipped);
+      const pending = deferLearning(store, [...prepared.deferred, ...(s2.deferred || [])], { source, evidenceRef: pr.url || refId });
+      if (pending.length) out(`        Deferred ${pending.length} findings: ${path.join(store.dir, 'state', 'learning-pending')}`);
+      if (prepared.retryable || s2.retryable) failed.add(pr.number);
       saved += s2.saved.length + s2.merged.length;
       progress.complete({ ref: refId, title: pr.title, notes: [...s2.saved, ...s2.merged].map(n => n.id), skipped: s2.skipped.length });
     } catch (e) { failed.add(pr.number); progress.complete({ ref: refId, title: pr.title, error: e.message }); }

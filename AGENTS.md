@@ -1234,3 +1234,27 @@ constructed input only. Seen in the live runs:
   and `setup` approves the MCP server (`agent mcp enable thinker`) so the
   agent can call `orient` at the start and `remember` at the end. In the
   test session it did both unprompted.
+
+
+## Jev learning decisions
+
+`src/jev-decisions.js` shares bounded typed requests, credentials, test transport
+guards, and learning-token accounting. `src/note-learning.js` scans catalog
+descriptions before writing and checks complete bodies for covered / extends /
+contradicts / unrelated relations, then checks proposed claims against source
+evidence. Session and PR commands call this before `saveNotes`; reconciled writes
+never fall back to lexical merging. Contradictions are deferred, not overwritten.
+Human behavior notes cannot be authored or replaced by these learning paths.
+
+`src/summary-fidelity.js` checks support and preservation of scope/exceptions
+before `phraseNotes` marks a description current. `refineLearningPlan` in
+`src/learning-evidence.js` selects numbered source passages across eligible
+sessions; audit samples retain the full trace, failures retain local selection,
+and omitted evidence cannot become an unused assessment.
+
+Deferred findings live in `.thinker/state/learning-pending/`, with source
+references. Transient failures leave checkpoints/PRs eligible for retry.
+`THINKER_JEV=off` or `jev:false` disables these judgments alongside Jev search.
+`THINKER_TEST=1 node bench/jev-eval/learning-smoke.mjs --live` is an explicit
+synthetic integration check using only fictional constants and a personal key;
+never substitute private notes or transcripts without authorization.

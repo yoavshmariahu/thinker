@@ -133,31 +133,55 @@ export function buildRequest(query, notes, { model = JEV_DEFAULTS.model, subject
 
 // One probability per candidate, in the order given. Throws on any transport or API failure so the
 // caller falls back to the cross-encoder; a hook must never fail because a network call did.
-export async function jevScores(query, notes, cfg = {}) {
-  const { key = jevKey(), model = JEV_DEFAULTS.model, timeoutMs = JEV_DEFAULTS.timeoutMs, fetchImpl = fetch, subject, criteria, question, record, signal } = cfg;
-  if (!notes.length) return [];
+export async function jevEvaluate(state, questions, cfg = {}) {
+  const { key = jevKey(), model = JEV_DEFAULTS.model, timeoutMs = JEV_DEFAULTS.timeoutMs,
+    fetchImpl = fetch, signal, onResponse } = cfg;
+  const entries = Object.entries(questions || {});
+  if (!entries.length) return { answers: {}, model, usage: null };
+  if (entries.length > 32) throw new Error('jev: too many questions');
+  if (entries.some(([, q]) => !['noul', 'choice'].includes(q.type))) throw new Error('jev: unsupported question type');
+  const body = JSON.stringify({ model, state, questions });
+  if (Buffer.byteLength(body) > 30000) throw new Error('jev: request exceeds limit');
   if (process.env.THINKER_TEST === '1' && fetchImpl === globalThis.fetch) throw new Error('jev network disabled in tests');
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   const requestSignal = signal ? AbortSignal.any([signal, ctl.signal]) : ctl.signal;
   try {
+    requestSignal.throwIfAborted();
     const hosted = key ? null : await hostedCredential({ fetchImpl, signal: requestSignal });
     const res = await fetchImpl(hosted?.endpoint || JEV_ENDPOINT, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${key || hosted.token}`, 'content-type': 'application/json' },
-      body: JSON.stringify(buildRequest(query, notes, { model, subject, criteria, question, record })),
-      signal: requestSignal,
-      redirect: 'error',
+      method: 'POST', headers: { authorization: `Bearer ${key || hosted.token}`, 'content-type': 'application/json' },
+      body, signal: requestSignal, redirect: 'error',
     });
     if (!res.ok) throw new Error(`jev ${res.status}`);
     const j = await res.json();
-    if (!j || !j.answers) throw new Error('jev: no answers');
-    return notes.map((_, i) => {
-      const a = j.answers[`rel${i}`];
-      if (!a || !Number.isFinite(a.noul) || a.noul < 0 || a.noul > 1) throw new Error(`jev: missing or invalid rel${i}`);
-      return a.noul;
-    });
+    if (onResponse) onResponse(j);
+    requestSignal.throwIfAborted();
+    if (!j?.answers) throw new Error('jev: no answers');
+    const probability = v => Number.isFinite(v) && v >= 0 && v <= 1;
+    for (const [id, q] of entries) {
+      const a = j.answers[id];
+      if (!a || (a.type !== undefined && a.type !== q.type)) throw new Error(`jev: missing or invalid ${id}`);
+      if (q.type === 'noul') {
+        if (!probability(a.noul)) throw new Error(`jev: missing or invalid ${id}`);
+      } else {
+        const options = Object.keys(q.criteria || {}), ps = a.probabilities;
+        if (!options.length || !options.includes(a.choice) || !ps ||
+            Object.keys(ps).length !== options.length || options.some(k => !probability(ps[k])) ||
+            Math.abs(options.reduce((sum, k) => sum + ps[k], 0) - 1) > 0.02 ||
+            options.some(k => ps[k] > ps[a.choice] + 1e-6) ||
+            (a.confidence !== undefined && !probability(a.confidence))) throw new Error(`jev: missing or invalid ${id}`);
+      }
+    }
+    return j;
   } finally { clearTimeout(timer); }
+}
+
+export async function jevScores(query, notes, cfg = {}) {
+  if (!notes.length) return [];
+  const { state, questions } = buildRequest(query, notes, cfg);
+  const result = await jevEvaluate(state, questions, cfg);
+  return notes.map((_, i) => result.answers[`rel${i}`].noul);
 }
 
 // Unlike serving's old top-k reranker, search visits every eligible note. A current

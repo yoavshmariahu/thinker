@@ -234,7 +234,7 @@ export async function distillEvents(events, { model = 'sonnet', repoHint = '', s
   const shown = (discover ? existing : []).filter(n => !servedIds.has(n.id));
   if (shown.length) {
     system += EXISTING_RULES;
-    prompt += `\n\nEXISTING NOTES ON THE FILES THIS SESSION TOUCHED:\n` + shown.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${(n.body || '').split('\n').slice(0, 3).join('\n').slice(0, 400)}`).join('\n\n');
+    prompt += `\n\nEXISTING NOTES RELEVANT TO THIS SESSION:\n` + shown.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body || ''}\nApplies: ${n.applies || '(unspecified)'}`).join('\n\n');
   }
   if (served.length) {
     system += ASSESS_RULES; schema = { ...ASSESS_SCHEMA, properties: { ...ASSESS_SCHEMA.properties, notes: schema.properties.notes } };
@@ -245,7 +245,7 @@ export async function distillEvents(events, { model = 'sonnet', repoHint = '', s
   } else prompt += `\n\nProduce the notes JSON.`;
   const res = await complete({ system, prompt, model, schema, maxTokens: compact ? (discover ? 3000 : 1500) : 6000, thinkingTokens: 0, structuredRetries: 1, accounting });
   const notes = (discover ? (res.json?.notes || []) : []).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).slice(0, MAX_NOTES);
-  return { notes, assessments: (res.json?.assessments || []).filter(a => servedIds.has(a.id) && ['confirmed', 'contradicted', 'unused'].includes(a.verdict) && (!compact || (['confirmed', 'contradicted'].includes(a.verdict) && String(a.evidence || '').trim()))), cost: res.cost, tokens: tokensOf(res), usage: res.usage, traceChars: trace.length };
+  return { notes, assessments: (res.json?.assessments || []).filter(a => servedIds.has(a.id) && ['confirmed', 'contradicted', 'unused'].includes(a.verdict) && (!compact || (['confirmed', 'contradicted'].includes(a.verdict) && String(a.evidence || '').trim()))), cost: res.cost, tokens: tokensOf(res), usage: res.usage, traceChars: trace.length, evidence: trace };
 }
 
 function jaccard(a, b) {
@@ -256,14 +256,18 @@ function jaccard(a, b) {
 
 
 // Save distilled notes, merging near-duplicates (same topic → keep higher confidence, refresh deps).
-export function saveNotes(store, notes, { source, kinds = KINDS }) {
+export function saveNotes(store, notes, { source, kinds = KINDS, reconciled = false }) {
   const existing = store.list();
-  const saved = [], merged = [], skipped = [];
-  for (const n of notes) {
+  const saved = [], merged = [], skipped = [], deferred = [];
+  for (const candidate of notes) {
+    const { learningTarget, ...n } = candidate;
+    if (kindOf(n.kind) === 'behavior') { skipped.push({ title: n.title, reason: 'human behaviors cannot be created by automatic learning' }); continue; }
     if (KINDS.includes(kindOf(n.kind)) && !kinds.includes(kindOf(n.kind))) { skipped.push({ title: n.title, reason: `kind ${kindOf(n.kind)} is not served in this repository (archived by thinker archive)` }); continue; }
     const key = tokenize(n.title + ' ' + (n.answers || []).join(' '));
     const named = n.extends && existing.find(e => e.id === n.extends);
-    const dup = named || existing.find(e => jaccard(key, tokenize(e.title + ' ' + (e.answers || []).join(' '))) >= 0.5 && kindOf(e.kind) === kindOf(n.kind));
+    if (named && kindOf(named.kind) === 'behavior') { skipped.push({ title: n.title, reason: 'human behaviors cannot be overwritten by automatic learning' }); continue; }
+    if (reconciled && n.extends && (!named || learningTarget !== JSON.stringify({ id: named.id, kind: kindOf(named.kind), title: named.title, body: named.body, applies: named.applies || '' }))) { deferred.push({ title: n.title, note: n, reason: 'extension target changed after reconciliation', status: 'unavailable' }); continue; }
+    const dup = named || (!reconciled && existing.find(e => jaccard(key, tokenize(e.title + ' ' + (e.answers || []).join(' '))) >= 0.5 && kindOf(e.kind) === kindOf(n.kind)));
     if (dup) {
       if (named || (n.confidence ?? 0.7) >= (dup.confidence ?? 0.7) - 0.1 || dup.status !== 'fresh') {
         const r = createNote(store, { ...n, id: dup.id }, { source, reuseId: true });
@@ -277,7 +281,7 @@ export function saveNotes(store, notes, { source, kinds = KINDS }) {
     if (r.error) skipped.push({ title: n.title, reason: r.error });
     else { saved.push(r.note); existing.push(r.note); }
   }
-  return { saved, merged, skipped };
+  return { saved, merged, skipped, deferred, retryable: deferred.length > 0 };
 }
 
 export function transcriptsFor(cwd) {

@@ -240,6 +240,7 @@ const SCHEMA = {
     body: { type: 'string' }, applies: { type: 'string' },
     deps: { type: 'array', items: { type: 'object', properties: { path: { type: 'string' }, symbol: { type: 'string' } }, required: ['path'] } },
     tags: { type: 'array', items: { type: 'string' } }, confidence: { type: 'number' },
+    extends: { type: 'string', description: 'Existing note id when adding to its rule; body must preserve every existing claim, scope limit and exception. Empty for a new note.' },
   }, required: ['title', 'kind', 'answers', 'body', 'applies', 'deps', 'tags', 'confidence'] } } },
   required: ['notes'],
 };
@@ -259,7 +260,7 @@ Rules:
 - applies: one line on scope. confidence 0.8 when the diff shows it directly, 0.6 when inferred from description or comments.
 - Return an empty list for dependency bumps, pure refactors, generated-file churn, or PRs with nothing reusable.`;
 
-export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting } = {}) {
+export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting, existing = [] } = {}) {
   let diff = pr.diff || '';
   if (!diff && repo && pr.hash) {
     try {
@@ -280,7 +281,8 @@ export async function distillPr(slug, pr, { model = 'sonnet', repo, accounting }
   // review comments: as given (CI sends them with the diff), else from GitHub
   const comments = Array.isArray(pr.comments) ? pr.comments : slug && !pr.isGitCommit ? reviewComments(slug, pr.number) : [];
   const label = pr.prNumber ? `PR #${pr.prNumber}` : (pr.hash ? `Commit ${pr.hash.slice(0, 8)}` : `PR #${pr.number}`);
-  const prompt = `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
+  const evidence = `${label}: ${pr.title}\n\nDESCRIPTION:\n${(pr.body || '').replace(/<!--[\s\S]*?-->/g, '').slice(0, 5000)}\n\nREVIEW COMMENTS:\n${comments.join('\n') || '(none)'}\n\nDIFF:\n${diff}`;
+  const prompt = evidence + (existing.length ? '\n\nEXISTING NOTES (context, not source evidence):\n' + existing.map(n => `id=${n.id} [${n.kind}] ${n.title}\n${n.body || ''}\nApplies: ${n.applies || '(unspecified)'}`).join('\n\n') + '\nDo not repeat covered understanding. For an extension, return extends: id and a complete merged body preserving existing constraints. Do not rewrite human behavior notes or resolve contradictions automatically.' : '');
   const r = await complete({ system: SYSTEM, prompt, model, schema: SCHEMA, maxTokens: 6000, accounting });
-  return { notes: r.json?.notes || [], cost: r.cost, tokens: tokensOf(r) };
+  return { notes: r.json?.notes || [], cost: r.cost, tokens: tokensOf(r), evidence };
 }
