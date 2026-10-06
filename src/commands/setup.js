@@ -64,7 +64,7 @@ async function rankerCommand(ctx) {
   // `thinker ranker --jev-key <key>` configures Jev; `--no-jev-key` forgets it. The key is written to the
   // machine's thinker home, never into the repository.
   if (flags['jev-key']) { const where = jev.saveKey(flags['jev-key']); out(`jev key saved to ${where} (owner-readable only)`); return; }
-  if (flags['no-jev-key'] || pos[0] === 'forget-jev-key') { out(jev.forgetKey() ? `removed ${jev.keyFile()}; hosted Jev is now used (THINKER_JEV=off for local only)` : `no key at ${jev.keyFile()}; hosted Jev needs no personal key`); return; }
+  if (flags['no-jev-key'] || pos[0] === 'forget-jev-key') { const had = jev.forgetKey(); jev.recordAccess('proxy'); out(had ? `removed ${jev.keyFile()}; hosted Jev is now used (THINKER_JEV=off for local only)` : `no key at ${jev.keyFile()}; hosted Jev needs no personal key`); return; }
   if (pos[0] === 'fetch') {
     const before = await rankerStatus();
     if (!before.runtime) { out(`the ranking runtime (@huggingface/transformers) is not installed: ${before.error || ''}\nrun \`npm ci --omit=dev --ignore-scripts\` in thinker's app directory, or \`thinker update\``); process.exitCode = 1; return; }
@@ -80,6 +80,7 @@ async function rankerCommand(ctx) {
   const j = jev.jevStatus(store);
   out(`jev: ${j.enabled ? 'on' : 'off'} (${j.mode === 'hosted' ? 'Thinker hosted access; no API key needed' : `personal key from ${j.source}`}); ${j.model}, floor ${j.floor}, ${j.maxNotes} note${j.maxNotes === 1 ? '' : 's'}`);
   if (j.enabled) out(`  the local ranker takes over on errors, invalid responses or after ${j.timeoutMs} ms; THINKER_JEV=off uses local only`);
+  out(`  access: ${j.asked ? `${j.access} (chosen)` : 'not chosen yet; hosted access is the default until you pick'} — --jev-key <key> for your own, --no-jev-key to go back to hosted`);
 }
 
 async function astCommand(ctx) {
@@ -306,6 +307,19 @@ async function updateCommand(ctx) {
       out(`Updated thinker${branchInfo} to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
     }
     rewireAfterUpdate(newCliOf(install, home), { quiet: !!flags.quiet });
+    // Someone who installed before hosted Jev existed never chose how it reaches the model. Ask here,
+    // once, because an update in a terminal is a deliberate act; the answer is remembered
+    // (jev.js:recordAccess) so no later setup or update asks again. A quiet or scheduled update, which
+    // has no terminal, asks nothing and leaves the question for the next interactive one.
+    if (!flags.quiet && process.stdin.isTTY) {
+      const { jevAsked } = await import('../jev.js');
+      if (!jevAsked()) {
+        const { configureJev } = await import('../setup/steps.js');
+        out('');
+        await configureJev({ store, out });
+        out('');
+      }
+    }
     if (!flags.quiet) {
       if (!isScheduled(home)) {
         out('Tip: Run `thinker update --schedule` to enable daily automatic background updates.');

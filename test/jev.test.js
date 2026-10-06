@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { JEV_DEFAULTS, buildRequest, forgetKey, jevConfig, jevKey, jevRerank, jevScores, jevStatus, keyFile, hostedCredential, proxyFile, noteRecord, saveKey, selectByJev } from '../src/jev.js';
+import { ACCESS_MODES, accessFile, jevAccess, jevAsked, recordAccess, JEV_DEFAULTS, buildRequest, forgetKey, jevConfig, jevKey, jevRerank, jevScores, jevStatus, keyFile, hostedCredential, proxyFile, noteRecord, saveKey, selectByJev } from '../src/jev.js';
 
 const note = (id, over = {}) => ({ id, kind: 'rule', title: `t ${id}`, answers: [`q ${id}`], body: `line one about ${id}\nline two`, deps: [{ path: 'src/a.js', symbol: 'f' }], status: 'fresh', ...over });
 const withHome = async fn => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jev-')); const prev = process.env.THINKER_HOME; process.env.THINKER_HOME = dir;
@@ -222,3 +222,65 @@ test('review narrows its related notes with Jev and falls back to BM25 when the 
     fs.rmSync(home, { recursive: true, force: true });
   }
 });
+
+test('the access choice round-trips and rejects an unknown mode', () => withHome(() => {
+  assert.equal(jevAccess(), null);
+  assert.equal(jevAsked(), false);
+  for (const m of ACCESS_MODES) { recordAccess(m); assert.equal(jevAccess().mode, m); assert.equal(jevAsked(), true); }
+  assert.ok(jevAccess().at, 'records when it was chosen');
+  if (process.platform !== 'win32') assert.equal(fs.statSync(accessFile()).mode & 0o777, 0o600);
+  assert.throws(() => recordAccess('whatever'), /unknown jev access mode/);
+}));
+
+test('saving a key is itself the answer, so nothing asks again', () => withHome(() => {
+  assert.equal(jevAsked(), false);
+  saveKey('k');
+  assert.equal(jevAccess().mode, 'key', 'a saved key records the choice');
+  assert.equal(jevAsked(), true);
+}));
+
+test('choosing off keeps Jev off, and the config or environment still overrides it', () => withHome(() => {
+  const t = process.env.THINKER_TEST; delete process.env.THINKER_TEST;   // resolve as a real machine would
+  try {
+  recordAccess('off');
+  assert.equal(jevConfig({ config: () => ({}) }).enabled, false, 'the choice is honoured');
+  assert.equal(jevConfig({ config: () => ({ jev: { enabled: true } }) }).enabled, true, 'the repository config is more specific');
+  process.env.THINKER_JEV = 'on';
+  assert.equal(jevConfig({ config: () => ({}) }).enabled, true, 'the environment is more specific');
+  delete process.env.THINKER_JEV;
+  recordAccess('proxy');
+  assert.equal(jevConfig({ config: () => ({}) }).enabled, true, 'choosing the proxy leaves it on');
+  } finally { t === undefined ? delete process.env.THINKER_TEST : (process.env.THINKER_TEST = t); }
+}));
+
+test('a machine that was never asked is reported as such, and keeps the hosted default', () => withHome(() => {
+  const t = process.env.THINKER_TEST; delete process.env.THINKER_TEST;   // resolve as a real machine would
+  try {
+  const st = jevStatus({ config: () => ({}) });
+  assert.equal(st.asked, false);
+  assert.equal(st.access, null);
+  assert.equal(st.mode, 'hosted', 'hosted access is the default until someone picks');
+  assert.equal(st.enabled, true);
+  } finally { t === undefined ? delete process.env.THINKER_TEST : (process.env.THINKER_TEST = t); }
+}));
+
+test('configureJev discloses without recording when there is no terminal, so the next one still asks', async () => await (async () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'jevcfg-'));
+  const prevHome = process.env.THINKER_HOME, prevTest = process.env.THINKER_TEST;
+  process.env.THINKER_HOME = home; delete process.env.THINKER_TEST;
+  try {
+    const { configureJev } = await import('../src/setup/steps.js');
+    const lines = [];
+    const mode = await configureJev({ store: { config: () => ({}) }, out: l => lines.push(String(l)),
+      hostedCredentialFn: async () => ({ token: 'tp_' + 'a'.repeat(64) }), stdin: { isTTY: false } });
+    assert.equal(mode, 'hosted');
+    assert.equal(jevAsked(), false, 'nothing is recorded without a terminal');
+    const said = lines.join('\n');
+    assert.match(said, /leave this machine|go to Thinker/i, 'it says what leaves the machine');
+    assert.match(said, /--jev-key/, 'and how to use your own key');
+  } finally {
+    prevHome === undefined ? delete process.env.THINKER_HOME : (process.env.THINKER_HOME = prevHome);
+    prevTest === undefined ? delete process.env.THINKER_TEST : (process.env.THINKER_TEST = prevTest);
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+})());
