@@ -50,7 +50,11 @@ export function jevConfig(store) {
   if (e.THINKER_JEV_MODEL) cfg.model = e.THINKER_JEV_MODEL;
   if (e.THINKER_JEV_TIMEOUT) cfg.timeoutMs = Number(e.THINKER_JEV_TIMEOUT);
   cfg.key = cfg.key || jevKey();
-  if (cfg.enabled === 'auto') cfg.enabled = !!cfg.key;
+  // A developer's key must never switch Jev on inside the test suite: a test run contacts no service
+  // (AGENTS.md, "No telemetry from tests or benchmarks"), and before this guard `npm test` made live
+  // calls and changed what orient served on any machine that had a key. An explicit `enabled: true`
+  // or THINKER_JEV=on still wins, for a deliberate integration test.
+  if (cfg.enabled === 'auto') cfg.enabled = !!cfg.key && !process.env.THINKER_TEST;
   return cfg;
 }
 export const jevEnabled = store => !!jevConfig(store).enabled;
@@ -123,12 +127,17 @@ export function selectByJev(scored, { floor = JEV_DEFAULTS.floor, maxNotes = JEV
   return scored.filter(r => r.jev >= floor).sort((a, b) => b.jev - a.jev).slice(0, maxNotes > 0 ? maxNotes : undefined);
 }
 
+// `onScores` sees every candidate's score, selected or not. Serving logs the best few through it: with the
+// selection alone a turn that served nothing is indistinguishable from one where the best note just missed
+// the floor, and the floor cannot be tuned from that.
 export async function jevRerank(ranked, query, cfg = {}) {
-  const { k = JEV_DEFAULTS.k, floor = JEV_DEFAULTS.floor, maxNotes = JEV_DEFAULTS.maxNotes } = cfg;
+  const { k = JEV_DEFAULTS.k, floor = JEV_DEFAULTS.floor, maxNotes = JEV_DEFAULTS.maxNotes, onScores } = cfg;
   const cands = ranked.slice(0, k);
   if (!cands.length) return cands;
   const sc = await jevScores(query, cands.map(r => r.note), cfg);
-  return selectByJev(cands.map((r, i) => ({ ...r, jev: sc[i] })), { floor, maxNotes });
+  const scored = cands.map((r, i) => ({ ...r, jev: sc[i] }));
+  if (onScores) onScores(scored);
+  return selectByJev(scored, { floor, maxNotes });
 }
 
 // What `thinker ranker` and setup report.

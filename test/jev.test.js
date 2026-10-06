@@ -8,10 +8,10 @@ import { JEV_DEFAULTS, buildRequest, forgetKey, jevConfig, jevKey, jevRerank, je
 
 const note = (id, over = {}) => ({ id, kind: 'rule', title: `t ${id}`, answers: [`q ${id}`], body: `line one about ${id}\nline two`, deps: [{ path: 'src/a.js', symbol: 'f' }], status: 'fresh', ...over });
 const withHome = fn => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jev-')); const prev = process.env.THINKER_HOME; process.env.THINKER_HOME = dir;
-  const keep = { k: process.env.THINKER_JEV_KEY, j: process.env.JEV_API_KEY, t: process.env.TYPESAFE_API_KEY };
-  delete process.env.THINKER_JEV_KEY; delete process.env.JEV_API_KEY; delete process.env.TYPESAFE_API_KEY;
+  const keep = { k: process.env.THINKER_JEV_KEY, j: process.env.JEV_API_KEY, t: process.env.TYPESAFE_API_KEY, test: process.env.THINKER_TEST };
+  delete process.env.THINKER_JEV_KEY; delete process.env.JEV_API_KEY; delete process.env.TYPESAFE_API_KEY; delete process.env.THINKER_TEST;
   try { return fn(dir); } finally { prev === undefined ? delete process.env.THINKER_HOME : (process.env.THINKER_HOME = prev);
-    for (const [k, v] of [['THINKER_JEV_KEY', keep.k], ['JEV_API_KEY', keep.j], ['TYPESAFE_API_KEY', keep.t]]) v === undefined ? delete process.env[k] : (process.env[k] = v);
+    for (const [k, v] of [['THINKER_JEV_KEY', keep.k], ['JEV_API_KEY', keep.j], ['TYPESAFE_API_KEY', keep.t], ['THINKER_TEST', keep.test]]) v === undefined ? delete process.env[k] : (process.env[k] = v);
     fs.rmSync(dir, { recursive: true, force: true }); } };
 const okFetch = scores => async () => ({ ok: true, status: 200, json: async () => ({ model: 'jev-1.13.0', answers: Object.fromEntries(scores.map((s, i) => [`rel${i}`, { type: 'noul', noul: s }])), usage: { input_tokens: 10, output_tokens: 0 } }) });
 
@@ -109,4 +109,23 @@ test('an environment key is preferred over the file and reported as such', () =>
   assert.equal(jevKey(), 'from-env');
   assert.equal(jevStatus({ config: () => ({}) }).source, 'environment');
   delete process.env.THINKER_JEV_KEY;
+}));
+
+test('jevRerank reports every candidate score through onScores, not just the selected ones', async () => {
+  const seen = [];
+  const ranked = [note('a'), note('b'), note('c')].map(n => ({ note: n }));
+  const out = await jevRerank(ranked, 'q', { key: 'k', floor: 0.5, maxNotes: 2, fetchImpl: okFetch([0.9, 0.1, 0.6]), onScores: rows => seen.push(...rows.map(r => r.jev)) });
+  assert.deepEqual(seen, [0.9, 0.1, 0.6], 'every candidate is reported');
+  assert.deepEqual(out.map(r => r.note.id), ['a', 'c'], 'only those above the floor are served');
+});
+
+test('a key on the machine never switches Jev on inside the test suite', () => withHome(() => {
+  saveKey('k');
+  const store = { config: () => ({}) };
+  process.env.THINKER_TEST = '1';
+  assert.equal(jevConfig(store).enabled, false, 'auto must stay off under THINKER_TEST');
+  assert.equal(jevConfig({ config: () => ({ jev: { enabled: true } }) }).enabled, true, 'an explicit opt-in still wins');
+  process.env.THINKER_JEV = 'on';
+  assert.equal(jevConfig(store).enabled, true, 'THINKER_JEV=on still wins');
+  delete process.env.THINKER_JEV; delete process.env.THINKER_TEST;
 }));

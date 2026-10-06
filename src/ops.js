@@ -260,11 +260,11 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // (bench/RESULTS.md, "Serving: Jev"). Any failure -- no key, offline, slow, bad response -- falls through
   // to the cross-encoder below, so a prompt hook never fails because a network call did.
   const jevCfg = jevConfig(store);
-  let jev = null;
+  let jev = null, jevTop = null; // jev: what was served; jevTop: the best three scores seen, so a turn that served nothing is still legible
   if (jevCfg.enabled && ranked.length && maxNotes <= 2) {
     const before = ranked;
     if (freshOnly) ranked = ranked.filter(r => r.note.status !== 'stale');
-    try { ranked = await jevRerank(ranked, task, jevCfg); chosen = true; jev = ranked.map(r => Number(r.jev.toFixed(2))); maxNotes = Math.min(maxNotes, jevCfg.maxNotes || maxNotes); }
+    try { ranked = await jevRerank(ranked, task, { ...jevCfg, onScores: rows => { jevTop = rows.map(r => Number(r.jev.toFixed(2))).sort((a, b) => b - a).slice(0, 3); } }); chosen = true; jev = ranked.map(r => Number(r.jev.toFixed(2))); maxNotes = Math.min(maxNotes, jevCfg.maxNotes || maxNotes); }
     catch (e) { ranked = before; store.log({ op: 'jev-error', error: String(e.message).slice(0, 200) }); }
   }
   if (!chosen && ceCfg.enabled && ranked.length && maxNotes <= 2) {
@@ -299,7 +299,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
   // marked served, so a later turn in the same session is held out the same way
   if (holdout) {
     const withheld = packed.included.map(n => n.id);
-    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, jev: jev || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
+    if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, jev: jev || undefined, jevTop: jevTop || undefined, task: String(task).slice(0, 200), file, served: [], holdout: true, withheld, durationMs: Date.now() - start });
     return { text: '', included: [], omitted: [], tokens: 0, holdout: true, withheld: packed.included };
   }
   if (recordUsage) for (const n of packed.included) { n.uses = (n.uses || 0) + 1; n.lastUsed = new Date().toISOString(); if (session) n.servedIn = [...(n.servedIn || []), session].slice(-30); store.put(n); }
@@ -310,7 +310,7 @@ export async function orient(store, { task, file, session, client, budget = HOOK
     try { const g = anchoringGuard(store.repo, String(task), packed.included, { explicitOnly: true, max: 3 }); if (g.text) { packed.text += '\n\n' + g.text; packed.tokens += estTokens(g.text); packed.uncovered = g.uncovered.map(u => u.ident); } } catch {}
   }
   addSnippets(store, packed, budget, snippets);
-  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, jev: jev || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
+  if (recordUsage) store.log({ op: 'orient', session, client: client || 'cli', dense: dense ? 'minilm' : undefined, ce: ce || undefined, jev: jev || undefined, jevTop: jevTop || undefined, task: String(task).slice(0, 200), file, served: packed.included.map(n => n.id), uncovered: packed.uncovered, snippets: packed.snippets?.length || undefined, stale: packed.included.filter(n => n.status === 'stale').map(n => n.id), held: held.length ? held.map(n => n.id) : undefined, durationMs: Date.now() - start, ...servedFields(store, packed.included, packed.text) });
   return packed;
 }
 
