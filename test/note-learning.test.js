@@ -69,7 +69,7 @@ test('extension preserves full old text and refuses lossy merging or human behav
   assert.equal(good.notes[0].extends, old.id);
   assert.match(good.notes[0].learningTarget, /Never release/);
   assert.equal(seen.find(r => r.purpose === 'jev-reconcile').state.existing_note.body, old.body);
-  const lossy = await prepareNotes(store([old]), [next], { evidence, judge: judge({ relation: 'extends', preserve: .5 }) });
+  const lossy = await prepareNotes(store([old]), [{ ...next, body: 'The release token must match the commit token.' }], { evidence, judge: judge({ relation: 'extends', preserve: .5 }) });
   assert.equal(lossy.notes.length, 0); assert.match(lossy.deferred[0].reason, /complete merged body/);
   const behavior = await prepareNotes(store([note('lease', { kind: 'behavior' })]), [next], { evidence, judge: judge({ relation: 'extends' }) });
   assert.equal(behavior.notes.length, 0); assert.match(behavior.deferred[0].reason, /human behavior/);
@@ -93,11 +93,39 @@ test('save cannot bypass reconciliation through lexical merging, a changed targe
   const independent = saveNotes(s, [note('different')], { source: { type: 'agent' }, reconciled: true });
   assert.equal(independent.saved.length, 1); assert.equal(independent.merged.length, 0);
   const changed = saveNotes(s, [{ ...note('new'), extends: old.id, learningTarget: 'old snapshot' }], { source: { type: 'agent' }, reconciled: true });
-  assert.equal(changed.merged.length, 0); assert.match(changed.skipped[0].reason, /changed after/);
+  assert.equal(changed.merged.length, 0); assert.equal(changed.retryable, true); assert.match(changed.deferred[0].reason, /changed after/); assert.equal(changed.deferred[0].note.extends, old.id);
   s.put({ ...old, kind: 'behavior' });
   for (const reconciled of [false, true]) {
     const r = saveNotes(s, [{ ...note('new'), extends: old.id }], { source: { type: 'agent' }, reconciled });
     assert.equal(r.merged.length, 0); assert.match(r.skipped[0].reason, /human behaviors/);
   }
   assert.equal(s.get(old.id).kind, 'behavior');
+});
+
+
+test('literal body preservation needs no extra model judgment but applicability changes still do', async () => {
+  const old = note('lease', { status: 'fresh' });
+  const next = note('new', { body: old.body + '\nThe release token must match the commit token.', extends: old.id });
+  const seen = [];
+  const good = await prepareNotes(store([old]), [next], { evidence, judge: judge({ relation: 'extends', preserve: .1, capture: r => seen.push(r) }) });
+  assert.equal(good.notes.length, 1);
+  assert.equal(seen.find(r => r.purpose === 'jev-reconcile').questions.preserves, undefined);
+  const changedScope = await prepareNotes(store([old]), [{ ...next, applies: 'All leases.' }], { evidence, judge: judge({ relation: 'extends', preserve: .1 }) });
+  assert.equal(changedScope.notes.length, 0);
+  assert.match(changedScope.deferred[0].reason, /complete merged body/);
+  const conflict = await prepareNotes(store([old]), [next], { evidence, judge: judge({ relation: 'contradicts' }) });
+  assert.equal(conflict.notes.length, 0);
+  assert.equal(conflict.deferred[0].status, 'contradiction');
+});
+
+test('a stale extension cannot use its own old claims as grounding evidence', async () => {
+  for (const status of ['fresh', 'stale', undefined]) {
+    const old = note('lease', { status });
+    const next = note('new', { body: old.body + '\nThe release token must match the commit token.', extends: old.id });
+    const seen = [];
+    await prepareNotes(store([old]), [next], { evidence, judge: judge({ relation: 'extends', capture: r => seen.push(r) }) });
+    const grounding = seen.find(r => r.purpose === 'jev-grounding');
+    assert.ok(grounding);
+    assert.equal(Boolean(grounding.state.prior_note), status === 'fresh');
+  }
 });
