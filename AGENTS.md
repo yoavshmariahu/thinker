@@ -704,6 +704,35 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   The hook goes from 0.7 s to about 1.0 s. `THINKER_DENSE=minilm` (bi-encoder
   embeddings blended into the score) is the measured negative kept beside
   it. Harness arms `hook-bm25` (CE off), `hook-ce1`, `hook-ce2`, `hook-minilm`.
+- Jev (`jev.js`), opt-in, ahead of the cross-encoder when a key is configured:
+  one batched call scores the gated candidates against the request, a Noul per
+  candidate, and `selectByJev` keeps those at or above `floor`, at most
+  `maxNotes`. The note goes over as named fields (`noteRecord`), which beat one
+  prose blob of the same note (false positives 8 to 5). There is no fallback
+  below the floor: a Noul near 0 is the model saying the note does not bear on
+  the request, and serving nothing was right on every labelled task that had
+  nothing useful. Measured on 20 of the 54 labelled tasks against the same
+  `gpt-6-sol` labels (`bench/RESULTS.md`, "Serving: Jev"): 0.94 of served notes
+  useful and 11 of 27 important notes reached, against the cross-encoder's 0.96
+  and 16 of 70 — about twice the reach at the same precision, ~170 ms and ~6k
+  tokens a prompt. Caveat: n=20, one run, one judge.
+  Jev is the only thing in thinker that needs a credential of its own. The key
+  is read from `THINKER_JEV_KEY`, `JEV_API_KEY` or `TYPESAFE_API_KEY`, else from
+  `~/.thinker/jev-key` (mode 0600, written by `thinker setup` or `thinker ranker
+  --jev-key <key>`, removed by `--no-jev-key`). It is never written into
+  `.thinker/config.json`, which is part of the repository. `jev` in the config
+  sets `{ enabled, floor, maxNotes, k, model, timeoutMs }` or is `false`;
+  `enabled: "auto"` (the default) is on with a key and off without, and
+  `THINKER_JEV=on|off`, `THINKER_JEV_FLOOR`, `THINKER_JEV_MAX`, `THINKER_JEV_K`,
+  `THINKER_JEV_MODEL`, `THINKER_JEV_TIMEOUT` override it. Any failure — no key,
+  offline, slower than `timeoutMs` (4 s), a bad response — is logged as
+  `jev-error` and the cross-encoder serves as before, so a prompt hook never
+  fails because a network call did. `thinker ranker` reports both rankers, and
+  the `orient` log line carries `jev` beside `ce`.
+  A facet vector typed onto the notes was measured and rejected as a serving
+  signal the same day (`bench/RESULTS.md`): every facet scored AUC ~0.50 against
+  the notes' own attestation labels, and the `inert` flag would have suppressed
+  notes sessions were confirmed to act on.
 - Local storage: `.thinker/local/notes/` holds learned notes and is ignored by Git.
   Legacy `.thinker/notes/` files remain readable with local overlays, so upgrading
   does not discard existing notes or corrections. `transfer.js` backs up and

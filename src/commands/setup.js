@@ -58,8 +58,13 @@ async function uninstallCommand(ctx) {
 // thinker ranker [status|fetch]: the cross-encoder the hooks rank with (dense.js). The installer, `thinker update`
 // and `thinker setup` fetch it; this is the by-hand path and the check.
 async function rankerCommand(ctx) {
-  const { pos, flags, out } = ctx;
+  const { pos, flags, out, store } = ctx;
   const { rankerStatus, fetchRanker, CE_DEFAULTS } = await import('../dense.js');
+  const jev = await import('../jev.js');
+  // `thinker ranker --jev-key <key>` configures Jev; `--no-jev-key` forgets it. The key is written to the
+  // machine's thinker home, never into the repository.
+  if (flags['jev-key']) { const where = jev.saveKey(flags['jev-key']); out(`jev key saved to ${where} (owner-readable only)`); return; }
+  if (flags['no-jev-key'] || pos[0] === 'forget-jev-key') { out(jev.forgetKey() ? `removed ${jev.keyFile()}` : `no key at ${jev.keyFile()}`); return; }
   if (pos[0] === 'fetch') {
     const before = await rankerStatus();
     if (!before.runtime) { out(`the ranking runtime (@huggingface/transformers) is not installed: ${before.error || ''}\nrun \`npm ci --omit=dev --ignore-scripts\` in thinker's app directory, or \`thinker update\``); process.exitCode = 1; return; }
@@ -72,6 +77,10 @@ async function rankerCommand(ctx) {
   out(`ranker: ${st.runtime && st.model ? 'on' : 'off'} (${st.modelName}; floor ${CE_DEFAULTS.floor}, ${CE_DEFAULTS.maxNotes} note${CE_DEFAULTS.maxNotes === 1 ? '' : 's'}, request cut to ${CE_DEFAULTS.queryTokens} tokens, fallback ${CE_DEFAULTS.fallbackFloor == null ? 'off' : 'best note at ≥ ' + CE_DEFAULTS.fallbackFloor}; \`ce\` in .thinker/config.json adjusts)`);
   out(`runtime: ${st.runtime ? 'installed' : 'missing' + (st.error ? ` (${st.error})` : '')}\nmodel: ${st.model ? 'present' : 'not fetched (thinker ranker fetch)'} in ${st.dir}`);
   if (!(st.runtime && st.model)) out('until both are there the hooks rank by words alone');
+  const j = jev.jevStatus(store);
+  out(`jev: ${j.enabled ? 'on' : 'off'}${j.key ? ` (key from ${j.source})` : ' (no key)'}; ${j.model}, floor ${j.floor}, ${j.maxNotes} note${j.maxNotes === 1 ? '' : 's'}`);
+  if (!j.key) out('  a key turns it on and it reaches about twice the share of important notes at the same precision:\n  thinker ranker --jev-key <key>   (https://console.typesafe.ai/keys)');
+  else if (j.enabled) out('  jev chooses what is served; the cross-encoder above serves whenever a call fails');
 }
 
 async function astCommand(ctx) {
