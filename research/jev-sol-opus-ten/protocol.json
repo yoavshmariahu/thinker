@@ -1,0 +1,101 @@
+{
+  "date": "2026-10-06",
+  "status": "Completed: ten valid runs and matched-model grading",
+  "thinker_commit": "75f22b4c9f1351f3695769ccd5e4030e58b41c6b",
+  "opus": {
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "cli_version": "2.1.289",
+    "max_turns": 60,
+    "concurrency": 1,
+    "historical": "research/opus55-five-pairs",
+    "baseline_arm": "hook",
+    "new_arm": "hook with THINKER_JEV=on",
+    "tasks": [
+      {
+        "repo": "posthog",
+        "noteset": "posthog-v3",
+        "task": "PR107042-hard",
+        "repo_commit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+        "task_sha256": "d045e37a5e18511f877de5585c2170afec9e964f901e8d4d7a2d7edd1275ce91",
+        "notes_sha256": "e1a86e474475fc72e44c80da2aaa45779214eb599ea450bfaaa05db16f78c92e",
+        "notes_count": 259
+      },
+      {
+        "repo": "posthog",
+        "noteset": "posthog-v3",
+        "task": "PR105793-hard",
+        "repo_commit": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+        "task_sha256": "dce7ada74c19ee9a4b990b6096f75553958e40198dc7e168f3b1fbc180972733",
+        "notes_sha256": "e1a86e474475fc72e44c80da2aaa45779214eb599ea450bfaaa05db16f78c92e",
+        "notes_count": 259
+      },
+      {
+        "repo": "grafana",
+        "noteset": "grafana-v3",
+        "task": "PR133148-hard",
+        "repo_commit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+        "task_sha256": "603b5bdb372ec3c0c6aec33c5925f49f415ee9bc85ac7c162bcedfe70a40fd89",
+        "notes_sha256": "fabd0bd544bee6e24e9d068159ded5927112794c7453003f67225fa1e392b6a7",
+        "notes_count": 307
+      },
+      {
+        "repo": "grafana",
+        "noteset": "grafana-v3",
+        "task": "PR133090-hard",
+        "repo_commit": "1fd1d63980538b9e658a64ce1989851a20adf2f5",
+        "task_sha256": "8775110e4ff5e9ce6825de3e002d3a1001e0018ad336c3625e2564be870146ca",
+        "notes_sha256": "fabd0bd544bee6e24e9d068159ded5927112794c7453003f67225fa1e392b6a7",
+        "notes_count": 307
+      },
+      {
+        "repo": "mitmproxy",
+        "noteset": "mitmproxy-systematic",
+        "task": "PR8295-hard",
+        "repo_commit": "d482bbaa20af168f8307a504f1de8927144f7f99",
+        "task_sha256": "e644503b8eaf8d8af7a53cf1487a1db35235f1050d82c26ffb3a24052055cd90",
+        "notes_sha256": "b294b795e5c141004933752c5e25354110837145507b3c8c274eaf1c640a1f83",
+        "notes_count": 29
+      }
+    ],
+    "configuration": "Identical bench/run.js agent prompt, hook instructions, isolated settings, no subagents, no MCP tools, tool-search on. Instrumented copy retains original execution configuration."
+  },
+  "environment": {
+    "THINKER_TEST": "1",
+    "THINKER_TELEMETRY": "off",
+    "THINKER_NO_LEARN": "1",
+    "THINKER_HOLDOUT": "0",
+    "THINKER_JEV": "on",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "THINKER_BENCH_JEV_NETWORK": "1"
+  },
+  "comparability": "Historical before/after comparison, not concurrent randomized causal estimate. Coding inputs/configuration pinned; current Thinker serving is the declared intervention.",
+  "benchmark_network_override": "Experiment-only patch allows Jev API calls when explicitly enabled with THINKER_BENCH_JEV_NETWORK=1 while THINKER_TEST remains 1. Telemetry/background-work controls remain active. The patch changes no ranking or request semantics and is not a production change.",
+  "excluded_attempt": "First Opus PR107042 attempt stopped after hook logged jev network disabled in tests; retained separately and excluded.",
+  "sol": {
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "cli_version": "0.160.0",
+    "concurrency": 1,
+    "repo_path": "/private/tmp/autoscaler-review",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "cases": [
+      "A-10325",
+      "A-10178",
+      "A-10141",
+      "A-10349",
+      "A-10258"
+    ],
+    "selection": "First five cases in the original predeclared historical manifest. No outcome-based replacement.",
+    "historical": "research/autoscaler-reviews/cohorts/sol/results/results.json",
+    "historical_arm": "cached (holistic, related=true, max=12)",
+    "new_arm": "same review mode with current Jev related-note selection and step gates",
+    "notes_count": 11,
+    "notes_sha256": "f2efa47b6c3074276cae21550d2c1ae93b1ff5f3c9ef2e85a954ad07b04f2d05",
+    "notes_source": "/private/tmp/thinker-benchmark-rollout.vGuiTM/sol-research/results/cache/notes",
+    "configuration": "Exact saved 11-note cache, fresh copy per case; same reversed fix, base snapshot, Sol model and high effort. No note creation or distillation.",
+    "effort_pin": "Same experiment-only src/llm.js hook as historical cohort: THINKER_CODEX_REASONING_EFFORT=high adds --strict-config --config model_reasoning_effort=\"high\" to every Codex model invocation."
+  },
+  "new_task_runs": 10,
+  "experimental_patch": "benchmark-settings.patch: explicit test-only Jev network access and historical Codex effort pin; neither changes ranking or review prompts."
+}

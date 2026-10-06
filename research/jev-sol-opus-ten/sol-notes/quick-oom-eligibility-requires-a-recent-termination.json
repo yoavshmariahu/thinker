@@ -1,0 +1,43 @@
+{
+  "id": "quick-oom-eligibility-requires-a-recent-termination",
+  "title": "Quick-OOM eligibility requires a recent termination",
+  "kind": "rule",
+  "answers": [
+    "Why does VPA InPlace keep forcing updates after an old OOM?",
+    "When should an OOM bypass normal pod update eligibility checks?",
+    "How should the VPA updater distinguish stale and recent quick OOMs?"
+  ],
+  "body": "Symptom: VPA InPlace repeatedly treats a days-old, short-lived container OOM as a fresh quick OOM on updater cycles.\nRoot cause: vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go:UpdatePriorityCalculator.AddPod inspected LastTerminationState for OOMKilled and short runtime without checking termination age; InPlace preserves that state.\nFix pattern: Require both FinishedAt minus StartedAt and the supplied now minus FinishedAt to be strictly less than EvictAfterOOMThreshold before granting quick-OOM eligibility; reuse the existing threshold.\nConstraints: Applies to the quick-OOM eligibility path in all update modes. A stale OOM must fall through ordinary update eligibility checks, which may still permit an update; Recreate eviction already clears the retained termination state.",
+  "applies": "VPA updater priority calculation, especially quick-OOM handling for pods using updateMode: InPlace.",
+  "tags": [
+    "vertical-pod-autoscaler",
+    "updater",
+    "quick-oom",
+    "in-place"
+  ],
+  "deps": [
+    {
+      "path": "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go",
+      "symbol": "UpdatePriorityCalculator",
+      "hash": "sha256:6e8501cde95169841efe4467",
+      "line": 37,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 11
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#10325"
+  },
+  "created": "2026-10-06T01:58:35.114Z",
+  "verified": "2026-10-06T01:58:35.114Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

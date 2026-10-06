@@ -1,0 +1,34 @@
+diff --git a/src/jev.js b/src/jev.js
+index cef4e1f..3e3004f 100644
+--- a/src/jev.js
++++ b/src/jev.js
+@@ -50,7 +50,7 @@ function savedProxy(endpoint) {
+ // Registration is automatic, separate from telemetry, and contains no repository content.
+ // Tests must inject a transport; they cannot register or call a production model accidentally.
+ export async function hostedCredential({ endpoint = proxyEndpoint(), fetchImpl = fetch, signal } = {}) {
+-  if (process.env.THINKER_TEST === '1' && fetchImpl === globalThis.fetch) throw new Error('jev network disabled in tests');
++  if (process.env.THINKER_TEST === '1' && fetchImpl === globalThis.fetch && process.env.THINKER_BENCH_JEV_NETWORK !== '1') throw new Error('jev network disabled in tests');
+   const url = new URL(endpoint);
+   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.pathname !== '/v1/systemone') {
+     throw new Error('invalid jev proxy endpoint');
+@@ -135,7 +135,7 @@ export function buildRequest(query, notes, { model = JEV_DEFAULTS.model, subject
+ export async function jevScores(query, notes, cfg = {}) {
+   const { key = jevKey(), model = JEV_DEFAULTS.model, timeoutMs = JEV_DEFAULTS.timeoutMs, fetchImpl = fetch, subject, criteria, question } = cfg;
+   if (!notes.length) return [];
+-  if (process.env.THINKER_TEST === '1' && fetchImpl === globalThis.fetch) throw new Error('jev network disabled in tests');
++  if (process.env.THINKER_TEST === '1' && fetchImpl === globalThis.fetch && process.env.THINKER_BENCH_JEV_NETWORK !== '1') throw new Error('jev network disabled in tests');
+   const ctl = new AbortController();
+   const timer = setTimeout(() => ctl.abort(), timeoutMs);
+   try {
+diff --git a/src/llm.js b/src/llm.js
+index 9b7ccfa..b4cd388 100644
+--- a/src/llm.js
++++ b/src/llm.js
+@@ -477,6 +477,7 @@ async function viaOther(p, { system, prompt, schema, timeoutMs, model, onUsage }
+     else if (p === 'codex') {
+       const args = ['exec', '--json', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--skip-git-repo-check', '--sandbox', 'read-only'];
+       if (resolvedModel) args.push('--model', resolvedModel);
++      if (process.env.THINKER_CODEX_REASONING_EFFORT) args.push('--strict-config', '--config', `model_reasoning_effort="${process.env.THINKER_CODEX_REASONING_EFFORT}"`);
+       const out = await run(findBin(BINS.codex), [...args, '-'], { input: full, cwd, timeoutMs });
+       const evs = out.split('\n').map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+       usage = evs.filter(e => e.type === 'turn.completed').map(e => e.usage || null);

@@ -1,0 +1,92 @@
+{
+  "id": "PR107042-hard-hook-0",
+  "task": "PR107042-hard",
+  "area": "frontend",
+  "arm": "hook",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": "medium",
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "toolSearch": "on",
+  "session": "023847bb-e970-4ab6-8786-96ca791fc01d",
+  "turns": 35,
+  "wall_ms": 214689,
+  "api_ms": 204508,
+  "cost": 0.8132086000000001,
+  "in_tokens": 1251410,
+  "out_tokens": 10186,
+  "tools": {
+    "calls": 34,
+    "byTool": {
+      "ToolSearch": 1,
+      "Bash": 33
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 32,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "criteria": {
+      "judge": "claude-opus-5-5",
+      "resolvedModel": "claude-opus-5-5",
+      "essential": 0.8,
+      "all": 0.875,
+      "extra": 1,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "met",
+          "evidence": "In the duplicateInsight listener: `if (redirectToInsight) { router.actions.push(...); const layoutLogic = sceneLayoutLogic.findMounted(); if (layoutLogic?.values.scenePanelOpenManual && scenePanelOverlaysScene()) { layoutLogic.actions.setScenePanelOpen(false) } }`. The helper `scenePanelOverlaysScene()` returns true when `container.clientWidth < SCENE_PANEL_INLINE_MIN_WIDTH` (1200), so the panel closes when it covers the scene. Limitation: it only checks `scenePanelOpenManual`. If the panel is shown through `sidePanelOpen && selectedTab === SidePanelTab.Info`, it stays open."
+        },
+        {
+          "id": "c2",
+          "verdict": "met",
+          "evidence": "`lemonToast.success('Insight duplicated')` is unchanged. Inside `if (redirectToInsight)`, `router.actions.push(urls.insightEdit(newInsight.short_id))` runs first, and the panel close happens after it as an extra step."
+        },
+        {
+          "id": "c3",
+          "verdict": "met",
+          "evidence": "The close is guarded by `scenePanelOverlaysScene()`, which is false when `.main-content-container` is at least 1200px wide. On a wide screen `setScenePanelOpen(false)` is never called."
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "The patch does not change how anything navigates to the transfer page. The route params are still only `({ params: { resourceKind, resourceId } }) => ({ resourceKind, resourceId })`, so the short ID is not passed along. Instead the transfer page fetches it with `insightsApi.getByNumericId(numericId)` in a loader that runs after the page mounts."
+        },
+        {
+          "id": "c5",
+          "verdict": "met",
+          "evidence": "In `sourceResourceUrl`: `case 'Insight': return sourceInsightShortId ? urls.insightView(sourceInsightShortId) : urls.savedInsights()`. `sourceInsightShortId` comes from the loader (`insight?.short_id ?? null`), so once loaded, Back uses the short-ID view URL rather than the numeric ID."
+        },
+        {
+          "id": "c6",
+          "verdict": "met",
+          "evidence": "When there is no short ID (a non-integer ID, a lookup that is still running or has failed, or a missing `short_id`), `sourceInsightShortId` is null, so Back falls back to `urls.savedInsights()`."
+        },
+        {
+          "id": "c7",
+          "verdict": "met",
+          "evidence": "`case 'Dashboard': return urls.dashboard(resourceId)` and `case 'Survey': return urls.survey(resourceId)` are unchanged. The lookup is gated by `if (logicProps.resourceKind === 'Insight')`, and no URL parameters were added."
+        },
+        {
+          "id": "c8",
+          "verdict": "met",
+          "evidence": "`<LemonCard hoverEffect={false} className=\"p-6 @container\">` with `<div className=\"flex flex-col gap-3 items-start @md:flex-row\">`. The card stacks vertically by default and only puts the illustration beside the text once the card itself is wide enough (the `@md` breakpoint)."
+        }
+      ]
+    }
+  },
+  "result": "I've fixed all three. As you asked, I didn't run tests, type-checks or linters, and I didn't try the changes in a browser.\n\n**1. Duplicating an insight on a narrow screen** (`frontend/src/scenes/insights/insightLogic.tsx`, `frontend/src/layout/scenes/sceneLayoutLogic.tsx`)\n- Below 1200px of main content width, the actions sidebar is drawn on top of the insight rather than beside it.\n- After a duplicate succeeds and the app opens the copy, it now closes the sidebar if it's open and in that overlay mode.\n- Wide screens are unchanged, and the sidebar stays put if duplicating fails.\n- I added `scenePanelOverlaysScene()`, which checks the width of the main content area. The 1200px value has to match the `@[1200px]/main-content-container` classes in `Navigation.tsx`, so if one changes the other must too (there's a comment saying so).\n- I added a test in `insightLogic.test.ts` that the sidebar is closed after duplicating.\n\n**2. Back link on the \"copy to another project\" page** (`frontend/src/scenes/resource-transfer/`)\n- The page receives the insight's numeric ID, and the copy request needs that ID, so I left the URL alone.\n- Insight pages are opened by their short ID, though. When the page is for an insight, it now looks the insight up by numeric ID to get its short ID.\n- Back then uses `urls.insightView(short_id)`, the same link used elsewhere to open insights.\n- Until that lookup finishes, or if it fails, Back goes to the saved insights list rather than to a broken page.\n- I hand-edited the generated logic types in `resourceTransferLogic.ts` to match; running typegen should give the same result.\n\n**3. Subscriptions modal empty state** (`products/subscriptions/.../views/SubscriptionOverviewComponents.tsx`)\n- The empty-state card now adapts to its own width rather than the screen's. In a narrow modal the illustration sits above the text, and it moves back beside the text once the card is wide enough.\n- This uses the same container-query styling already used elsewhere in the app (`@container` with `@md:flex-row`).",
+  "is_error": false,
+  "diff": "diff --git a/frontend/src/layout/scenes/sceneLayoutLogic.tsx b/frontend/src/layout/scenes/sceneLayoutLogic.tsx\nindex c48964d4d61..b8a611e4b76 100644\n--- a/frontend/src/layout/scenes/sceneLayoutLogic.tsx\n+++ b/frontend/src/layout/scenes/sceneLayoutLogic.tsx\n@@ -12,6 +12,15 @@ import { panelLayoutLogic } from '../panel-layout/panelLayoutLogic'\n \n export type SceneLayoutContainerRef = React.RefObject<HTMLElement> | null\n \n+// Below this main content width the scene panel is absolutely positioned over the scene instead of\n+// sitting beside it. Keep in sync with the `@[1200px]/main-content-container` classes in Navigation.\n+export const SCENE_PANEL_INLINE_MIN_WIDTH = 1200\n+\n+export function scenePanelOverlaysScene(): boolean {\n+    const container = document.querySelector<HTMLElement>('.main-content-container')\n+    return !container || container.clientWidth < SCENE_PANEL_INLINE_MIN_WIDTH\n+}\n+\n // Generated by kea-typegen. Update if you're an agent, ignore if you're human.\n export interface sceneLayoutLogicValues {\n     featureFlags: FeatureFlagsSet // featureFlagLogic\ndiff --git a/frontend/src/scenes/insights/insightLogic.test.ts b/frontend/src/scenes/insights/insightLogic.test.ts\nindex 1fb22104495..990bfe43cfe 100644\n--- a/frontend/src/scenes/insights/insightLogic.test.ts\n+++ b/frontend/src/scenes/insights/insightLogic.test.ts\n@@ -14,6 +14,7 @@ import { sceneLogic } from 'scenes/sceneLogic'\n import { teamLogic } from 'scenes/teamLogic'\n import { urls } from 'scenes/urls'\n \n+import { sceneLayoutLogic } from '~/layout/scenes/sceneLayoutLogic'\n import { useMocks } from '~/mocks/jest'\n import { dashboardsModel } from '~/models/dashboardsModel'\n import { insightsModel } from '~/models/insightsModel'\n@@ -1132,6 +1133,17 @@ describe('insightLogic', () => {\n             }).toDispatchActions([router.actionCreators.push(urls.insightEdit(Insight12))])\n         })\n \n+        it('closes the scene panel after duplicating when it overlays the scene', async () => {\n+            sceneLayoutLogic.mount()\n+            sceneLayoutLogic.actions.setScenePanelOpen(true)\n+\n+            logic.actions.duplicateInsight(logic.values.insight as InsightModel, true)\n+            await expectLogic(logic).toFinishAllListeners()\n+\n+            // No main content container is rendered in tests, so the panel is treated as overlaying\n+            expect(sceneLayoutLogic.values.scenePanelOpenManual).toBe(false)\n+        })\n+\n         it('with redirectToInsight=false does not navigate', async () => {\n             await expectLogic(logic, () => {\n                 logic.actions.duplicateInsight(logic.values.insight as InsightModel, false)\ndiff --git a/frontend/src/scenes/insights/insightLogic.tsx b/frontend/src/scenes/insights/insightLogic.tsx\nindex 68f54a67749..e50487bb65c 100644\n--- a/frontend/src/scenes/insights/insightLogic.tsx\n+++ b/frontend/src/scenes/insights/insightLogic.tsx\n@@ -42,6 +42,7 @@ import { urls } from 'scenes/urls'\n import { userLogic } from 'scenes/userLogic'\n \n import { getLastNewFolder, refreshTreeItem } from '~/layout/panel-layout/ProjectTree/projectTreeLogic'\n+import { sceneLayoutLogic, scenePanelOverlaysScene } from '~/layout/scenes/sceneLayoutLogic'\n import { cohortsModel } from '~/models/cohortsModel'\n import { dashboardsModel } from '~/models/dashboardsModel'\n import { groupsModel } from '~/models/groupsModel'\n@@ -1332,7 +1333,14 @@ export const insightLogic: LogicWrapper<insightLogicType> = kea<insightLogicType\n                     logic.actions.addInsight(newInsight)\n                 }\n                 lemonToast.success('Insight duplicated')\n-                redirectToInsight && router.actions.push(urls.insightEdit(newInsight.short_id))\n+                if (redirectToInsight) {\n+                    router.actions.push(urls.insightEdit(newInsight.short_id))\n+                    // On narrow screens the actions panel overlays the scene and would hide the new copy\n+                    const layoutLogic = sceneLayoutLogic.findMounted()\n+                    if (layoutLogic?.values.scenePanelOpenManual && scenePanelOverlaysScene()) {\n+                        layoutLogic.actions.setScenePanelOpen(false)\n+                    }\n+                }\n             } catch (e: any) {\n                 // Nothing downstream reports this: the copy is created by a plain listener rather than\n                 // a loader, so without a toast here a failure is indistinguishable from a dead button.\ndiff --git a/frontend/src/scenes/resource-transfer/ResourceTransfer.tsx b/frontend/src/scenes/resource-transfer/ResourceTransfer.tsx\nindex 34c720e1757..a874f9e2d4f 100644\n--- a/frontend/src/scenes/resource-transfer/ResourceTransfer.tsx\n+++ b/frontend/src/scenes/resource-transfer/ResourceTransfer.tsx\n@@ -35,6 +35,7 @@ export function ResourceTransfer(props: ResourceTransferLogicProps): JSX.Element\n         substitutionChoices,\n         userFacingResources,\n         rootResourceName,\n+        sourceInsightShortId,\n     } = useValues(logic)\n     const { setDestinationTeamId, submitTransfer, setSubstitutionChoice } = useActions(logic)\n \n@@ -49,7 +50,7 @@ export function ResourceTransfer(props: ResourceTransferLogicProps): JSX.Element\n                 resourceType={{ type: 'Resource Transfer' }}\n                 forceBackTo={{\n                     name: rootResourceName ?? props.resourceKind,\n-                    path: sourceResourceUrl(props.resourceKind, props.resourceId),\n+                    path: sourceResourceUrl(props.resourceKind, props.resourceId, sourceInsightShortId),\n                     key: 'resource-transfer-back',\n                 }}\n             />\n@@ -127,12 +128,17 @@ export function ResourceTransfer(props: ResourceTransferLogicProps): JSX.Element\n     )\n }\n \n-function sourceResourceUrl(resourceKind: string, resourceId: string): string {\n+function sourceResourceUrl(\n+    resourceKind: string,\n+    resourceId: string,\n+    sourceInsightShortId: InsightShortId | null\n+): string {\n     switch (resourceKind) {\n         case 'Dashboard':\n             return urls.dashboard(resourceId)\n         case 'Insight':\n-            return urls.insightView(resourceId as InsightShortId)\n+            // resourceId is the numeric id, which insight routes don't resolve\n+            return sourceInsightShortId ? urls.insightView(sourceInsightShortId) : urls.savedInsights()\n         case 'Survey':\n             return urls.survey(resourceId)\n         default:\ndiff --git a/frontend/src/scenes/resource-transfer/resourceTransferLogic.ts b/frontend/src/scenes/resource-transfer/resourceTransferLogic.ts\nindex 9da28ff53ac..7da8d6048e3 100644\n--- a/frontend/src/scenes/resource-transfer/resourceTransferLogic.ts\n+++ b/frontend/src/scenes/resource-transfer/resourceTransferLogic.ts\n@@ -1,12 +1,25 @@\n-import { MakeLogicType, actions, connect, kea, key, listeners, path, props, reducers, selectors } from 'kea'\n+import {\n+    MakeLogicType,\n+    actions,\n+    afterMount,\n+    connect,\n+    kea,\n+    key,\n+    listeners,\n+    path,\n+    props,\n+    reducers,\n+    selectors,\n+} from 'kea'\n import { loaders } from 'kea-loaders'\n \n import api from 'lib/api'\n import { lemonToast } from 'lib/lemon-ui/LemonToast/LemonToast'\n import { organizationLogic } from 'scenes/organizationLogic'\n+import { insightsApi } from 'scenes/insights/utils/api'\n import { teamLogic } from 'scenes/teamLogic'\n \n-import { TeamBasicType } from '~/types'\n+import { InsightShortId, TeamBasicType } from '~/types'\n \n import type { OrganizationType } from '../../types'\n \n@@ -65,6 +78,8 @@ export interface resourceTransferLogicValues {\n     preview: PreviewResponse | null\n     previewLoading: boolean\n     rootResourceName: string | null\n+    sourceInsightShortId: InsightShortId | null\n+    sourceInsightShortIdLoading: boolean\n     substitutionChoices: Record<string, SubstitutionChoice>\n     substitutionPayload: {\n         destination_resource_id: string\n@@ -84,6 +99,21 @@ export interface resourceTransferLogicActions {\n         choices: Record<string, SubstitutionChoice>\n     }\n     loadPreview: () => any\n+    loadSourceInsightShortId: () => any\n+    loadSourceInsightShortIdFailure: (\n+        error: string,\n+        errorObject?: any\n+    ) => {\n+        error: string\n+        errorObject?: any\n+    }\n+    loadSourceInsightShortIdSuccess: (\n+        sourceInsightShortId: InsightShortId | null,\n+        payload?: any\n+    ) => {\n+        sourceInsightShortId: InsightShortId | null\n+        payload?: any\n+    }\n     loadPreviewFailure: (\n         error: string,\n         errorObject?: any\n@@ -204,6 +234,21 @@ export const resourceTransferLogic = kea<resourceTransferLogicType>([\n                 },\n             },\n         ],\n+        // Transfers address insights by numeric id, but insight pages are routed by short id,\n+        // so resolve the short id to link back to the source insight.\n+        sourceInsightShortId: [\n+            null as InsightShortId | null,\n+            {\n+                loadSourceInsightShortId: async () => {\n+                    const numericId = Number(logicProps.resourceId)\n+                    if (!Number.isInteger(numericId)) {\n+                        return null\n+                    }\n+                    const insight = await insightsApi.getByNumericId(numericId)\n+                    return insight?.short_id ?? null\n+                },\n+            },\n+        ],\n         transferResult: [\n             null as TransferResponse | null,\n             {\n@@ -317,4 +362,9 @@ export const resourceTransferLogic = kea<resourceTransferLogicType>([\n             lemonToast.error(`Failed to copy resource: ${error}`)\n         },\n     })),\n+    afterMount(({ actions, props: logicProps }) => {\n+        if (logicProps.resourceKind === 'Insight') {\n+            actions.loadSourceInsightShortId()\n+        }\n+    }),\n ])\ndiff --git a/products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx b/products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx\nindex 2654435d884..3844f54e6b4 100644\n--- a/products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx\n+++ b/products/subscriptions/frontend/components/Subscriptions/views/SubscriptionOverviewComponents.tsx\n@@ -83,8 +83,10 @@ export function SubscriptionEmptyState({\n     }\n \n     return (\n-        <LemonCard hoverEffect={false} className=\"p-6\">\n-            <div className=\"flex gap-3 items-start\">\n+        // Container query rather than viewport breakpoints: the card lives in a modal that can be narrow\n+        // on any screen, where a side-by-side illustration squeezes the text.\n+        <LemonCard hoverEffect={false} className=\"p-6 @container\">\n+            <div className=\"flex flex-col gap-3 items-start @md:flex-row\">\n                 {illustration ? (\n                     illustration\n                 ) : (\n",
+  "distill": null
+}
