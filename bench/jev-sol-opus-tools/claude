@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /Users/yoavshmariahu/.local/share/claude/versions/2.1.289 --effort medium "$@"

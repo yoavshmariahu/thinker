@@ -1,0 +1,43 @@
+{
+  "id": "PR8295-hard-hook-0",
+  "task": "PR8295-hard",
+  "area": "next-layer",
+  "arm": "hook",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": "medium",
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "toolSearch": "on",
+  "session": "a44e4ac3-cf4e-4926-bd19-ef95482f02c2",
+  "turns": 10,
+  "wall_ms": 37527,
+  "api_ms": 35876,
+  "cost": 0.29202839999999997,
+  "in_tokens": 246944,
+  "out_tokens": 3797,
+  "tools": {
+    "calls": 9,
+    "byTool": {
+      "Bash": 7,
+      "Edit": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 6,
+    "injected": [
+      "quic-flows-hang-when-allow-hosts-or-ignore-hosts-is-enabled"
+    ],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": null,
+  "result": "I fixed the stall in `NextLayer._get_client_hello` (`mitmproxy/addons/next_layer.py`) and added two test cases. I didn't run the tests, as you asked. I also couldn't run a syntax check, because there's no `python` on the PATH here.\n\n**Cause.** When `--ignore-hosts` or `--allow-hosts` is set, `_ignore_connection` looks for an SNI (the hostname in the client's opening handshake message) to match against the ignore list. For UDP it first tried to read that message as QUIC. Whenever that failed, it fell back to the DTLS reader without checking whether the data was DTLS at all. Given non-DTLS bytes, the DTLS reader returns `None`, which the code took to mean \"incomplete message\" and answered with `NeedsMoreData`. So any QUIC packet other than a single complete first handshake packet made the connection wait for more data forever. That covers ordinary data packets on an existing connection and handshakes we can't parse. The connection never got a layer assigned, so it neither showed up as a flow nor got passed through.\n\n**Fix.** The UDP branch now checks the data before choosing a reader:\n- **Looks like DTLS** (`starts_like_dtls_record`): parse it as DTLS, as before. An incomplete DTLS message still waits for more data.\n- **Anything else:** try QUIC. If that fails, return `None` (\"no SNI found\") instead of waiting. The connection is then judged on its destination address and handled normally, so it's either passed through or intercepted and doesn't hang.\n\n**Tests.** I added two cases to `test_ignore_connection` in `test/mitmproxy/addons/test_next_layer.py`, both with `ignore_hosts=[\"example.com\"]` over UDP:\n- `quic_short_header_packet` (an existing QUIC session's data packet) now returns `False` instead of `NeedsMoreData`.\n- An arbitrary non-DTLS, non-QUIC UDP payload also returns `False` instead of `NeedsMoreData`.\n\nThe existing cases for a complete DTLS message, an incomplete one (still `NeedsMoreData`), an invalid one, and a QUIC message with an SNI should behave as before.",
+  "is_error": false,
+  "diff": "diff --git a/mitmproxy/addons/next_layer.py b/mitmproxy/addons/next_layer.py\nindex 9f612d998..c46b812cf 100644\n--- a/mitmproxy/addons/next_layer.py\n+++ b/mitmproxy/addons/next_layer.py\n@@ -320,20 +320,23 @@ class NextLayer:\n                         return ch\n                 return None\n             case \"udp\":\n-                try:\n-                    return quic_parse_client_hello_from_datagrams([data_client])\n-                except ValueError:\n-                    pass\n+                if starts_like_dtls_record(data_client):\n+                    try:\n+                        ch = dtls_parse_client_hello(data_client)\n+                    except ValueError:\n+                        pass\n+                    else:\n+                        if ch is None:\n+                            raise NeedsMoreData\n+                        return ch\n+                    return None\n \n+                # Anything else may be QUIC. We must not raise NeedsMoreData here:\n+                # non-Initial packets (or data we can't parse) would otherwise stall the connection.\n                 try:\n-                    ch = dtls_parse_client_hello(data_client)\n+                    return quic_parse_client_hello_from_datagrams([data_client])\n                 except ValueError:\n-                    pass\n-                else:\n-                    if ch is None:\n-                        raise NeedsMoreData\n-                    return ch\n-                return None\n+                    return None\n             case _:  # pragma: no cover\n                 assert_never(context.client.transport_protocol)\n \ndiff --git a/test/mitmproxy/addons/test_next_layer.py b/test/mitmproxy/addons/test_next_layer.py\nindex 4694e3529..7f86a180c 100644\n--- a/test/mitmproxy/addons/test_next_layer.py\n+++ b/test/mitmproxy/addons/test_next_layer.py\n@@ -278,6 +278,24 @@ class TestNextLayer:\n                 True,\n                 id=\"quic sni\",\n             ),\n+            pytest.param(\n+                [\"example.com\"],\n+                [],\n+                \"udp\",\n+                \"192.0.2.1\",\n+                quic_short_header_packet,\n+                False,\n+                id=\"quic short header packet does not stall\",\n+            ),\n+            pytest.param(\n+                [\"example.com\"],\n+                [],\n+                \"udp\",\n+                \"192.0.2.1\",\n+                b\"\\x00\" * 50,\n+                False,\n+                id=\"unknown udp payload does not stall\",\n+            ),\n             # allow\n             pytest.param(\n                 [],\n",
+  "distill": null
+}

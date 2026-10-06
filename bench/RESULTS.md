@@ -3,6 +3,10 @@
 Additional comparisons: [Thinker versus CodeGraph on PostHog](../research/codegraph-posthog/README.md); [Thinker versus codebase-memory-mcp on click, and the `find` tool it led to](../research/cbm-comparison/README.md)
 — two completed task pairs, with raw traces, grades, and excluded attempts.
 
+## Current Jev versus historical cached runs (2026-10-06)
+
+[Five Opus coding tasks and five Sol reviews](../research/jev-sol-opus-ten/README.md), with exact matched models and reasoning effort. Opus: tool calls −6.2%, input tokens −3.1%, elapsed time +0.3%, unchanged essential-criteria scores. Sol: the same 4/5 target bugs caught with 26 → 6 notes, but verification doubled model calls, increasing total tokens 86.2% and time 53.5%. Separate cohorts, one historical/new run per task; these results do not establish a general causal benefit.
+
 ## Headline results and how to read them
 
 The numbers shown in the README, with their explanation. PostHog,

@@ -1,0 +1,225 @@
+{
+  "archiveSha256": "9ebcf0f625e7976bf232996f6e6aef1dadc1a6abad75a3a09747be1ead149115",
+  "files": [
+    {
+      "path": "bench/runs/excluded-jev-opus-test-guard-20261006/exclusion.json",
+      "bytes": 253,
+      "sha256": "b42f0dc4ee874a615c87c47e9d1811bb1119661044bdaf4b7824fb5defebaee6"
+    },
+    {
+      "path": "bench/runs/excluded-jev-opus-test-guard-20261006/partial.patch",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "bench/runs/excluded-jev-opus-test-guard-20261006/transcript.jsonl",
+      "bytes": 167639,
+      "sha256": "1adb7beb3c560bef6867882ff12e68a538c6f70ea9e70a72cd2da8b35c2fe410"
+    },
+    {
+      "path": "bench/runs/jev-opus-grafana-20261006/PR133090-hard-hook-0.json",
+      "bytes": 23289,
+      "sha256": "61b1d9a938436aca2d7da7a49a94d9a35263465ddbe5427828cc7ad6d597c742"
+    },
+    {
+      "path": "bench/runs/jev-opus-grafana-20261006/PR133090-hard-hook-0.raw.json",
+      "bytes": 4897,
+      "sha256": "736b8555bc0d8c350ba1be41a20fe10a17514ad7fc445a804fa20f67322c7ebf"
+    },
+    {
+      "path": "bench/runs/jev-opus-grafana-20261006/PR133090-hard-hook-0.thinker.jsonl",
+      "bytes": 1025,
+      "sha256": "eac3b057e37826c07e61536a3d95265325a351881410d608137fe320e55c8b7a"
+    },
+    {
+      "path": "bench/runs/jev-opus-grafana-20261006/PR133090-hard-hook-0.transcript.jsonl",
+      "bytes": 357267,
+      "sha256": "83bacd79bbab4df97fe49950d5a4d59cd3f0feded0461db5d6eaed4e59b95f54"
+    },
+    {
+      "path": "bench/runs/jev-opus-grafana-20261006/PR133148-hard-hook-0.json",
+      "bytes": 22455,
+      "sha256": "e53fa815623f1b4a769e416b26914e8a559501253eec5c57f7621b51373368e2"
+    },
+    {
+      "path": "bench/runs/jev-opus-grafana-20261006/PR133148-hard-hook-0.raw.json",
+      "bytes": 5486,
+      "sha256": "8074905b8759cc7759a18a0dbdbba5209ba6092ddbbca3e4dfa323e0b6286b40"
+    },
+    {
+      "path": "bench/runs/jev-opus-grafana-20261006/PR133148-hard-hook-0.thinker.jsonl",
+      "bytes": 1057,
+      "sha256": "b89d047f0241da6ececfd7a3eec5856df3a7928dd52a41b234fa5c84423ed71d"
+    },
+    {
+      "path": "bench/runs/jev-opus-grafana-20261006/PR133148-hard-hook-0.transcript.jsonl",
+      "bytes": 508831,
+      "sha256": "2e2ab255d1bf9351ca7562f4b721b23c95b717c98c19f4660fa21463865e1f7e"
+    },
+    {
+      "path": "bench/runs/jev-opus-mitmproxy-20261006/PR8295-hard-hook-0.json",
+      "bytes": 6064,
+      "sha256": "b9242433af78f4545c02e4e0dafc49f930ac9b40c4c557eff8984db9f1b8975e"
+    },
+    {
+      "path": "bench/runs/jev-opus-mitmproxy-20261006/PR8295-hard-hook-0.raw.json",
+      "bytes": 4194,
+      "sha256": "daee0f33e07e1634fd462bd2fcaee7889e724053e77bc3b9b97ffa73781fcb8b"
+    },
+    {
+      "path": "bench/runs/jev-opus-mitmproxy-20261006/PR8295-hard-hook-0.thinker.jsonl",
+      "bytes": 1120,
+      "sha256": "d72dde14177e30b3013c3f74659c980de390810db0dc8390a0ef6ee13339e6ae"
+    },
+    {
+      "path": "bench/runs/jev-opus-mitmproxy-20261006/PR8295-hard-hook-0.transcript.jsonl",
+      "bytes": 172746,
+      "sha256": "34ba1eb50493b901a8b84887fed03cdacb99c5afacf4b4c5f78e3e593e9f41a3"
+    },
+    {
+      "path": "bench/runs/jev-opus-posthog-20261006/PR105793-hard-hook-0.json",
+      "bytes": 35613,
+      "sha256": "9573d339dc757f55d50e33afa1a1294aa06a3eb40b3468515e685e993a60d175"
+    },
+    {
+      "path": "bench/runs/jev-opus-posthog-20261006/PR105793-hard-hook-0.raw.json",
+      "bytes": 5404,
+      "sha256": "243577b5da2b77704baa7f183e74ef43526e5befd1dab318ef8c271c2203ae58"
+    },
+    {
+      "path": "bench/runs/jev-opus-posthog-20261006/PR105793-hard-hook-0.thinker.jsonl",
+      "bytes": 1031,
+      "sha256": "aa26bef555284ff3ebf0253e00e0023e51ee6f2477bcdb6d62201931d262c978"
+    },
+    {
+      "path": "bench/runs/jev-opus-posthog-20261006/PR105793-hard-hook-0.transcript.jsonl",
+      "bytes": 446658,
+      "sha256": "79f98311d3766e3b33472ef95bddbc117d3e2ebbb89935568b24eacb555e2ace"
+    },
+    {
+      "path": "bench/runs/jev-opus-posthog-20261006/PR107042-hard-hook-0.json",
+      "bytes": 16181,
+      "sha256": "21093b62e5d07ab0336f74352227768706ebf7cbfb59ec5dd0a6a8b38bd9779e"
+    },
+    {
+      "path": "bench/runs/jev-opus-posthog-20261006/PR107042-hard-hook-0.raw.json",
+      "bytes": 4454,
+      "sha256": "d2cce0ab09758ba29a14147d52ee6064fcafdc0f80af8cdd69c2da4ae88f8b20"
+    },
+    {
+      "path": "bench/runs/jev-opus-posthog-20261006/PR107042-hard-hook-0.thinker.jsonl",
+      "bytes": 881,
+      "sha256": "a5a5cb8030b002ee3a799dcb33a560d6133b0ae2d2a8df4945f1359adac6e4b4"
+    },
+    {
+      "path": "bench/runs/jev-opus-posthog-20261006/PR107042-hard-hook-0.transcript.jsonl",
+      "bytes": 418929,
+      "sha256": "a8b6bef77264a479d0ea3671a583afa6661f4382acb916c89c9aa6f99ab4d901"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10141.json",
+      "bytes": 17369,
+      "sha256": "cf48e6311482ed56f48cda7042d3a5bfc58c7987b621ae4b066bc240d7b16d3c"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10141.patch",
+      "bytes": 4820,
+      "sha256": "e4c9e89a7b8041d44658be5517edba11a3c9f0b5a053e31f57b95e2dbeb5b346"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10141.thinker.jsonl",
+      "bytes": 1939,
+      "sha256": "c4b578709b7b99ddbcdd2abda424b828c31c1c3e34066cfd754945440a0cbdb4"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10141.txt",
+      "bytes": 1365,
+      "sha256": "6bf1edfd080a648d3732512e912448dbfce0d3e51a3216b1dbb365ff390ec8dc"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10178.json",
+      "bytes": 28312,
+      "sha256": "37ce9b3c28c67598af2c684f25340a00a71b2be52ce224c1088b33ba916a59db"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10178.patch",
+      "bytes": 7341,
+      "sha256": "240976461936b909ce362ac8690e3ad440349f9e84a7eb5b2ba2817d89f3b182"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10178.thinker.jsonl",
+      "bytes": 2650,
+      "sha256": "0f9a648e29f17d665c4f31a6a07cffff7f560c9e38411896f0ebf3796a6441b3"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10178.txt",
+      "bytes": 2652,
+      "sha256": "c774e528315b8c606b888193a4a1f072cca2d50695e1c1928c51dda2eeca2a33"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10258.json",
+      "bytes": 13023,
+      "sha256": "c4b7da06f7798ab97e45b5d177b15a6d9052cb654cf6b6f6cbc3bbfe204e49e0"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10258.patch",
+      "bytes": 1083,
+      "sha256": "783903eb0f9e144e209a75193df890bd47c4cbd63e3b04995d69ce530ccc1047"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10258.thinker.jsonl",
+      "bytes": 1229,
+      "sha256": "705ab469d0a009a1a14acfdb001bcde30faff0d1f19e4874b3c59412a58604e3"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10258.txt",
+      "bytes": 1152,
+      "sha256": "f2501412cfcc71d9cdfc1c5866410b0bc39ca7f55e018b31aa9c6e698d64f019"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10325.json",
+      "bytes": 17110,
+      "sha256": "2e924e78a5efe4211539b5432f523a4d6103512da72f968afdb634795fded834"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10325.patch",
+      "bytes": 3160,
+      "sha256": "dd3a6baeb8e571353562ddf1d9d53283d7b9f3d4052d56ce7aed8693c21d7285"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10325.thinker.jsonl",
+      "bytes": 1940,
+      "sha256": "b3f94832d070fefe30dff61f4348c1e009428f00d9bce84898f1a0c5624b3824"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10325.txt",
+      "bytes": 1620,
+      "sha256": "3ce1313243ae10979fd8b9728510f85971fbc084f64f3f77094692b0fdf4a234"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10349.json",
+      "bytes": 17926,
+      "sha256": "ea58f98402a0b56853d43d061477b5abc2bd226138f9b2faad9ace03ce5b53a4"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10349.patch",
+      "bytes": 2459,
+      "sha256": "e7597f0c8766646209e4ef4b9d62a38478f32f0c470cf5b9d82313fc76a98ee0"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10349.thinker.jsonl",
+      "bytes": 1941,
+      "sha256": "8a2850d8e83f96a2509ff3076e2d89bd61ccb2e6d67fd5fc49d24d68eb1839c5"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/A-10349.txt",
+      "bytes": 1266,
+      "sha256": "06242cfa46b12e9e2a042cec61624db2007cbd80577c23f2a5e6c456fb0e1f87"
+    },
+    {
+      "path": "bench/runs/jev-sol-review-20261006/results.json",
+      "bytes": 98724,
+      "sha256": "9bd264292e720770e0835e9bc4037d769b9d07903295618bf1e51e5a648c2a18"
+    }
+  ]
+}

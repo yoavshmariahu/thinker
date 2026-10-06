@@ -1,0 +1,68 @@
+{
+  "id": "preserve-complete-aws-placeholder-names-when-parsing-provide",
+  "title": "Preserve complete AWS placeholder names when parsing provider IDs",
+  "kind": "rule",
+  "answers": [
+    "Why does cluster-autoscaler stop scaling when an ASG name contains '/'?",
+    "Why can't cluster-autoscaler delete an AWS placeholder node?",
+    "How should AWS provider IDs with slash-containing placeholder names be parsed?",
+    "Does an instance name containing 'i-placeholder-' always identify a placeholder?"
+  ],
+  "body": "Symptom: Cluster-autoscaler cannot associate or delete placeholder nodes whose ASG names contain '/', eventually halting scaling after MaxNodeStartupTime.\nRoot cause: cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go:AwsRefFromProviderId split the provider ID on '/', truncating the placeholder name needed for ASG association.\nFix pattern: Capture the complete placeholder name in cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go:validAwsRefIdRegex and use that capture directly in AwsRefFromProviderId; preserve the original ProviderID.\nConstraints: The placeholder branch applies only when the instance name starts with the placeholder prefix and must retain subsequent slashes. An ordinary name containing that prefix internally must use the ordinary branch; invalid formats must still be rejected. These boundaries are covered by cluster-autoscaler/cloudprovider/aws/aws_cloud_provider_test.go:TestAwsRefFromProviderId.",
+  "applies": "AWS provider ID validation and instance-name extraction, especially placeholder names derived from ASG names.",
+  "tags": [
+    "cluster-autoscaler",
+    "aws",
+    "placeholder-nodes",
+    "provider-id"
+  ],
+  "deps": [
+    {
+      "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+      "symbol": "AwsRefFromProviderId",
+      "hash": "sha256:92a391f795827c87cf4e551d",
+      "line": 225,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 5,
+        "refs": 6
+      }
+    },
+    {
+      "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider.go",
+      "symbol": "validAwsRefIdRegex",
+      "hash": "sha256:a6c867a4becba3fcaf5a65e9",
+      "line": 223,
+      "missing": false,
+      "fanout": {
+        "files": 1,
+        "sites": 0,
+        "refs": 1
+      }
+    },
+    {
+      "path": "cluster-autoscaler/cloudprovider/aws/aws_cloud_provider_test.go",
+      "symbol": "TestAwsRefFromProviderId",
+      "hash": "sha256:e5b8ec3d30a38647b5b3b3c7",
+      "line": 272,
+      "missing": false,
+      "fanout": {
+        "files": 0,
+        "sites": 0,
+        "refs": 0
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#10349"
+  },
+  "created": "2026-10-06T01:59:40.961Z",
+  "verified": "2026-10-06T01:59:40.961Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": []
+}

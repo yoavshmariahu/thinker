@@ -1,0 +1,57 @@
+{
+  "id": "record-checkpoint-cleanup-completion-only-after-successful-c",
+  "title": "Record checkpoint cleanup completion only after successful collection",
+  "kind": "rule",
+  "answers": [
+    "Why does failed VPA checkpoint cleanup wait another garbage collection interval?",
+    "How should checkpoint garbage collection failures be retried?",
+    "Should one checkpoint deletion failure stop the remaining cleanup?"
+  ],
+  "body": "Symptom: Failed orphaned-checkpoint cleanup is treated as completed and is not retried on the next recommender run.\nRoot cause: vertical-pod-autoscaler/pkg/recommender/routines/recommender.go:recommender.MaintainCheckpoints previously advanced lastCheckpointGC before cleanup, while vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go:clusterStateFeeder.GarbageCollectCheckpoints did not return failures.\nFix pattern: Return listing failures immediately; continue deleting eligible checkpoints after individual deletion failures and aggregate those errors. Advance lastCheckpointGC only when garbage collection returns nil.\nConstraints: Once cleanup is due, any returned error must leave the completion timestamp unchanged so the next run retries. Successful collection advances the timestamp and restores interval-based scheduling.",
+  "applies": "VPA checkpoint garbage collection error propagation and retry scheduling.",
+  "tags": [
+    "vpa",
+    "checkpoints",
+    "garbage-collection",
+    "retries"
+  ],
+  "deps": [
+    {
+      "path": "vertical-pod-autoscaler/pkg/recommender/input/cluster_feeder.go",
+      "symbol": "clusterStateFeeder",
+      "hash": "sha256:b06613d5df95011bb2c7e168",
+      "line": 214,
+      "missing": false,
+      "fanout": {
+        "files": 5,
+        "sites": 0,
+        "refs": 41
+      }
+    },
+    {
+      "path": "vertical-pod-autoscaler/pkg/recommender/routines/recommender.go",
+      "symbol": "MaintainCheckpoints",
+      "hash": "sha256:55656def498daad0550ea2a9",
+      "line": 155,
+      "missing": false,
+      "fanout": {
+        "files": 2,
+        "sites": 3,
+        "refs": 6
+      }
+    }
+  ],
+  "source": {
+    "type": "pr",
+    "ref": "kubernetes/autoscaler#10178"
+  },
+  "created": "2026-10-06T01:59:05.582Z",
+  "verified": "2026-10-06T01:59:05.582Z",
+  "verifiedCommit": "40889a675092c0939c59160fc5270273db4e0555",
+  "confidence": 0.8,
+  "status": "fresh",
+  "uses": 0,
+  "related": [
+    "give-checkpoint-writing-and-garbage-collection-independent-t"
+  ]
+}

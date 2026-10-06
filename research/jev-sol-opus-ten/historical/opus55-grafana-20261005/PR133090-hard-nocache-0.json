@@ -1,0 +1,92 @@
+{
+  "id": "PR133090-hard-nocache-0",
+  "task": "PR133090-hard",
+  "area": "frontend",
+  "arm": "nocache",
+  "rep": 0,
+  "model": "claude-opus-5-5",
+  "effort": "medium",
+  "actualModels": [
+    "claude-opus-5-5"
+  ],
+  "transcriptModelIds": [
+    "claude-opus-5-5"
+  ],
+  "toolSearch": "on",
+  "session": "6d93bc7b-1c4d-43f6-a6fc-7106277fdf33",
+  "turns": 15,
+  "wall_ms": 66206,
+  "api_ms": 63599,
+  "cost": 0.42460739999999997,
+  "in_tokens": 350115,
+  "out_tokens": 6979,
+  "tools": {
+    "calls": 14,
+    "byTool": {
+      "Bash": 12,
+      "Write": 2
+    },
+    "thinkerCalls": 0,
+    "filesRead": 0,
+    "greps": 12,
+    "injected": [],
+    "lateEvents": 0,
+    "nudged": false
+  },
+  "grade": {
+    "criteria": {
+      "judge": "claude-opus-5-5",
+      "resolvedModel": "claude-opus-5-5",
+      "essential": 0,
+      "all": 0,
+      "extra": 0,
+      "pass": false,
+      "results": [
+        {
+          "id": "c1",
+          "verdict": "not_met",
+          "evidence": "The new utility is synchronous and returns the item directly, not a promise: `export function getDefaultDataSourceFromList<T ...>(items: readonly T[] | null | undefined): T | undefined { ... return items.find(...) ?? ... }`. Nothing in it resolves asynchronously."
+        },
+        {
+          "id": "c2",
+          "verdict": "not_met",
+          "evidence": "When no entry is marked default, the function falls back to another entry: `return items.find((item) => item.isDefault) ?? items.find((item) => !item.meta.builtIn) ?? items[0];`. Its doc comment states this too: \"Otherwise ... the first non built-in instance ... is returned.\""
+        },
+        {
+          "id": "c3",
+          "verdict": "not_met",
+          "evidence": "The `?? items[0]` fallback returns a built-in pseudo data source when only built-ins are supplied. The doc comment confirms it: \"If the list only contains built-in data sources, the first one is returned.\""
+        },
+        {
+          "id": "c4",
+          "verdict": "not_met",
+          "evidence": "The hook returns the item directly, with no loading or error fields: `export function useDefaultDataSourceFromList<T>(items): T | undefined { return useMemo(() => getDefaultDataSourceFromList(items), [items]); }`."
+        },
+        {
+          "id": "c5",
+          "verdict": "not_met",
+          "evidence": "The hook was removed and the new functions are exported from index.ts, but `unstable.ts` still exports `getDefaultDataSourceInstanceListItem`, which looks up the default by type and loads the list itself. The author confirms: \"The async `getDefaultDataSourceInstanceListItem(type)` is still in `/unstable`.\""
+        },
+        {
+          "id": "c6",
+          "verdict": "not_met",
+          "evidence": "The result is memoized on the array reference: `useMemo(..., [items])`. A new array with the same contents therefore triggers recomputation. Nothing compares by content."
+        },
+        {
+          "id": "c7",
+          "verdict": "not_met",
+          "evidence": "The hook is synchronous and has no handling for rejection or errors. It exposes no error value and no loading state."
+        },
+        {
+          "id": "c8",
+          "verdict": "not_met",
+          "evidence": "The patch makes no change to any plugin-compatibility surface. Nothing delegates to the host implementation with a local fallback, and nothing skips nullish entries. `item.isDefault` would throw on a null entry."
+        }
+      ]
+    }
+  },
+  "result": "I added a stable function, `getDefaultDataSourceFromList`, and a matching hook, `useDefaultDataSourceFromList`. Both are exported from the main `@grafana/runtime` entry point, and the experimental hook is removed. I didn't run the tests or the type checker, as you asked.\n\n**New file: `packages/grafana-runtime/src/utils/defaultDataSource.ts`**\n- **`getDefaultDataSourceFromList(items)`** is a plain function, so it can be called outside React. Given any list of data sources (all of them, or a filtered set like only Prometheus), it returns:\n  1. the organization default (`isDefault: true`) if it's in the list, so the full list gives the org default;\n  2. otherwise, the first data source that isn't a built-in like `-- Grafana --` or `-- Mixed --`;\n  3. otherwise, the first item;\n  4. `undefined` if the list is empty or missing.\n- **`useDefaultDataSourceFromList(items)`** is the same logic in a hook, for components that already have a list loaded. It doesn't fetch anything itself, and it only recomputes when the array reference changes.\n- Both accept any objects with `isDefault` and `meta.builtIn`, so they work with the new list items (`DataSourceInstanceListItem`) and with the older `DataSourceInstanceSettings` returned by `getDataSourceSrv().getList()`. Both have doc comments, including a usage example.\n\n**Exports and removals**\n- `packages/grafana-runtime/src/index.ts` now exports both functions and the `DefaultDataSourceCandidate` type, so they're part of the stable API rather than `/unstable`.\n- I removed `useDefaultDataSourceInstanceListItem` and its result type from `services/dataSource/hooks.ts` and `unstable.ts`, along with its tests in `hooks.test.tsx`. Nothing else in the repo used it, so no callers needed migrating.\n- The async `getDefaultDataSourceInstanceListItem(type)` is still in `/unstable`. Only the hook was removed.\n\n**Tests:** the new `utils/defaultDataSource.test.ts` covers empty or missing input, picking the org default, a filtered list without the org default, a list of only built-ins, and the hook updating when the list changes.\n\n**Decision for you:** removing the hook is a breaking change for anyone importing it from `@grafana/runtime/unstable`. That entry point is documented as subject to breaking changes, but if you'd rather keep the hook for a release as a deprecated alias of the new one, that's a small addition.",
+  "is_error": false,
+  "diff": "diff --git a/packages/grafana-runtime/src/index.ts b/packages/grafana-runtime/src/index.ts\nindex 87adbc411..7cc4e6d8d 100644\n--- a/packages/grafana-runtime/src/index.ts\n+++ b/packages/grafana-runtime/src/index.ts\n@@ -72,6 +72,11 @@ export { QueryEditorWithMigration } from './components/QueryEditorWithMigration'\n export { type MigrationHandler, isMigrationHandler, migrateQuery, migrateRequest } from './utils/migrationHandler';\n export { usePluginUserStorage } from './utils/userStorage';\n export { useFavoriteDatasources, type FavoriteDatasources } from './utils/useFavoriteDatasources';\n+export {\n+  getDefaultDataSourceFromList,\n+  useDefaultDataSourceFromList,\n+  type DefaultDataSourceCandidate,\n+} from './utils/defaultDataSource';\n export { FolderPicker, setFolderPicker } from './components/FolderPicker';\n export {\n   type CorrelationsService,\ndiff --git a/packages/grafana-runtime/src/services/dataSource/hooks.test.tsx b/packages/grafana-runtime/src/services/dataSource/hooks.test.tsx\nindex 3a506d776..215573e7b 100644\n--- a/packages/grafana-runtime/src/services/dataSource/hooks.test.tsx\n+++ b/packages/grafana-runtime/src/services/dataSource/hooks.test.tsx\n@@ -12,7 +12,6 @@ import {\n   useDataSourceInstanceList,\n   useDataSourceInstanceListItem,\n   useDataSourceInstanceSettings,\n-  useDefaultDataSourceInstanceListItem,\n   useHasDataSourceInstance,\n } from './hooks';\n import { setDataSourceInstanceSettings } from './settings';\n@@ -193,24 +192,6 @@ describe('useDataSourceInstance', () => {\n   });\n });\n \n-describe('useDefaultDataSourceInstanceListItem', () => {\n-  it('starts loading then resolves to the default instance of the type', async () => {\n-    const { result } = renderHook(() => useDefaultDataSourceInstanceListItem('test-db'));\n-\n-    expect(result.current.isLoading).toBe(true);\n-    await waitFor(() => expect(result.current.isLoading).toBe(false));\n-    expect(result.current.item?.name).toBe('Bravo');\n-    expect(result.current.error).toBeUndefined();\n-  });\n-\n-  it('resolves to undefined for an unknown type', async () => {\n-    const { result } = renderHook(() => useDefaultDataSourceInstanceListItem('nonexistent'));\n-\n-    await waitFor(() => expect(result.current.isLoading).toBe(false));\n-    expect(result.current.item).toBeUndefined();\n-  });\n-});\n-\n describe('useHasDataSourceInstance', () => {\n   it('starts loading then resolves to true for an existing type', async () => {\n     const { result } = renderHook(() => useHasDataSourceInstance('test-db'));\ndiff --git a/packages/grafana-runtime/src/services/dataSource/hooks.ts b/packages/grafana-runtime/src/services/dataSource/hooks.ts\nindex 7fe2ba166..777770042 100644\n--- a/packages/grafana-runtime/src/services/dataSource/hooks.ts\n+++ b/packages/grafana-runtime/src/services/dataSource/hooks.ts\n@@ -15,7 +15,6 @@ import {\n   type GetDataSourceInstanceListFilters,\n   getDataSourceInstanceSettings,\n   getDataSourceInstanceList,\n-  getDefaultDataSourceInstanceListItem,\n   hasDataSourceInstance,\n } from './settings';\n \n@@ -55,15 +54,6 @@ export interface UseDataSourceInstanceResult {\n   dataSource?: DataSourceApi;\n }\n \n-/**\n- * @public\n- */\n-export interface UseDefaultDataSourceInstanceListItemResult {\n-  isLoading: boolean;\n-  error?: Error;\n-  item?: DataSourceInstanceListItem;\n-}\n-\n /**\n  * @public\n  */\n@@ -165,17 +155,6 @@ export function useDataSourceInstance(ref?: DataSourceRef | string | null): UseD\n   return { isLoading: loading, error, dataSource: value };\n }\n \n-/**\n- * React hook wrapping {@link getDefaultDataSourceInstanceListItem}. Re-fetches when\n- * `type` changes.\n- *\n- * @public\n- */\n-export function useDefaultDataSourceInstanceListItem(type: string): UseDefaultDataSourceInstanceListItemResult {\n-  const { loading, error, value } = useAsync(() => getDefaultDataSourceInstanceListItem(type), [type]);\n-  return { isLoading: loading, error, item: value };\n-}\n-\n /**\n  * React hook wrapping {@link hasDataSourceInstance}. Re-fetches when `type` changes.\n  *\ndiff --git a/packages/grafana-runtime/src/unstable.ts b/packages/grafana-runtime/src/unstable.ts\nindex 1da5f6aba..a4e3a50e1 100644\n--- a/packages/grafana-runtime/src/unstable.ts\n+++ b/packages/grafana-runtime/src/unstable.ts\n@@ -31,12 +31,10 @@ export {\n   useDataSourceInstance,\n   useDataSourceInstanceList,\n   useDataSourceInstanceListItem,\n-  useDefaultDataSourceInstanceListItem,\n   useHasDataSourceInstance,\n   type UseDataSourceInstanceSettingsResult,\n   type UseDataSourceInstanceResult,\n   type UseDataSourceInstanceListResult,\n   type UseDataSourceInstanceListItemResult,\n-  type UseDefaultDataSourceInstanceListItemResult,\n   type UseHasDataSourceInstanceResult,\n } from './services/dataSource/hooks';\ndiff --git a/packages/grafana-runtime/src/utils/defaultDataSource.test.ts b/packages/grafana-runtime/src/utils/defaultDataSource.test.ts\nnew file mode 100644\nindex 000000000..231f6afb4\n--- /dev/null\n+++ b/packages/grafana-runtime/src/utils/defaultDataSource.test.ts\n@@ -0,0 +1,55 @@\n+import { renderHook } from '@testing-library/react';\n+\n+import { type DataSourceInstanceListItem, type DataSourcePluginMeta } from '@grafana/data';\n+\n+import { getDefaultDataSourceFromList, useDefaultDataSourceFromList } from './defaultDataSource';\n+\n+function item(overrides: Partial<DataSourceInstanceListItem> & { builtIn?: boolean }): DataSourceInstanceListItem {\n+  const { builtIn, ...rest } = overrides;\n+  return {\n+    uid: 'uid',\n+    name: 'name',\n+    type: 'prometheus',\n+    isDefault: false,\n+    meta: { id: rest.type ?? 'prometheus', builtIn } as DataSourcePluginMeta,\n+    ...rest,\n+  };\n+}\n+\n+const grafana = item({ uid: 'grafana', name: '-- Grafana --', type: 'grafana', builtIn: true });\n+const promA = item({ uid: 'prom-a', name: 'Prom A' });\n+const promB = item({ uid: 'prom-b', name: 'Prom B' });\n+const loki = item({ uid: 'loki', name: 'Loki', type: 'loki', isDefault: true });\n+\n+describe('getDefaultDataSourceFromList', () => {\n+  it('returns undefined for an empty or missing list', () => {\n+    expect(getDefaultDataSourceFromList([])).toBeUndefined();\n+    expect(getDefaultDataSourceFromList(undefined)).toBeUndefined();\n+    expect(getDefaultDataSourceFromList(null)).toBeUndefined();\n+  });\n+\n+  it('returns the organization default when it is in the list', () => {\n+    expect(getDefaultDataSourceFromList([grafana, promA, loki, promB])).toBe(loki);\n+  });\n+\n+  it('returns the first non built-in instance of a subset without the organization default', () => {\n+    expect(getDefaultDataSourceFromList([grafana, promA, promB])).toBe(promA);\n+  });\n+\n+  it('returns the first instance when the list only contains built-ins', () => {\n+    const mixed = item({ uid: 'mixed', name: '-- Mixed --', type: 'mixed', builtIn: true });\n+    expect(getDefaultDataSourceFromList([grafana, mixed])).toBe(grafana);\n+  });\n+});\n+\n+describe('useDefaultDataSourceFromList', () => {\n+  it('returns the default of the given list and updates when the list changes', () => {\n+    const { result, rerender } = renderHook(({ items }) => useDefaultDataSourceFromList(items), {\n+      initialProps: { items: [promA, loki] },\n+    });\n+    expect(result.current).toBe(loki);\n+\n+    rerender({ items: [promB, promA] });\n+    expect(result.current).toBe(promB);\n+  });\n+});\ndiff --git a/packages/grafana-runtime/src/utils/defaultDataSource.ts b/packages/grafana-runtime/src/utils/defaultDataSource.ts\nnew file mode 100644\nindex 000000000..93893e374\n--- /dev/null\n+++ b/packages/grafana-runtime/src/utils/defaultDataSource.ts\n@@ -0,0 +1,56 @@\n+import { useMemo } from 'react';\n+\n+/**\n+ * The minimal shape needed to pick a default. Satisfied by both `DataSourceInstanceListItem`\n+ * and `DataSourceInstanceSettings`.\n+ *\n+ * @public\n+ */\n+export interface DefaultDataSourceCandidate {\n+  isDefault?: boolean;\n+  meta: { builtIn?: boolean };\n+}\n+\n+/**\n+ * Pick the default data source from a list of data source instances.\n+ *\n+ * - When the list contains the organization default (`isDefault: true`), it is returned. So\n+ *   passing the full list of data sources yields the organization default.\n+ * - Otherwise (e.g. a list filtered to a single type that does not include the organization\n+ *   default), the first non built-in instance (not `-- Grafana --`, `-- Mixed --`, ...) is returned.\n+ * - If the list only contains built-in data sources, the first one is returned.\n+ * - Returns `undefined` for an empty list.\n+ *\n+ * This is a plain function, so it can be used outside of React rendering. Inside components use\n+ * {@link useDefaultDataSourceFromList}.\n+ *\n+ * @example\n+ * ```ts\n+ * const prometheusList = await getDataSourceSrv().getList({ type: 'prometheus' });\n+ * const defaultPrometheus = getDefaultDataSourceFromList(prometheusList);\n+ * ```\n+ *\n+ * @public\n+ */\n+export function getDefaultDataSourceFromList<T extends DefaultDataSourceCandidate>(\n+  items: readonly T[] | null | undefined\n+): T | undefined {\n+  if (!items || items.length === 0) {\n+    return undefined;\n+  }\n+\n+  return items.find((item) => item.isDefault) ?? items.find((item) => !item.meta.builtIn) ?? items[0];\n+}\n+\n+/**\n+ * React hook wrapping {@link getDefaultDataSourceFromList}. The result is memoized on the\n+ * `items` array reference, so pass a stable array (e.g. the `items` returned by a data source\n+ * list hook) to avoid recomputing on every render.\n+ *\n+ * @public\n+ */\n+export function useDefaultDataSourceFromList<T extends DefaultDataSourceCandidate>(\n+  items: readonly T[] | null | undefined\n+): T | undefined {\n+  return useMemo(() => getDefaultDataSourceFromList(items), [items]);\n+}\n",
+  "distill": null
+}
