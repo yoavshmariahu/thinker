@@ -1,0 +1,9 @@
+[
+  {"query": "run the test suite without sending any telemetry",
+   "gold": ["thinker-telemetry-off-and-test-runs-send-no-telemetry","suppress-telemetry-during-tests-and-benchmarks-with-thinker-","running-tests-requires-thinker-telemetry-off","test-merge-commands-disable-telemetry-and-learning-side-effe"]},
+  {"query": "why did the prompt hook serve no notes for my request?",
+   "gold": ["the-prompt-hooks-serve-no-stale-note","prompt-hooks-now-hold-back-stale-notes-via-orient-s-freshonl","stale-notes-are-held-not-served-by-the-prompt-hooks-freshonl"]},
+  {"query": "add a new top-level thinker command and wire it into the MCP server", "gold": []},
+  {"query": "a behavior note got violated by my branch, what happens on merge?",
+   "gold": ["verification-never-rewrites-or-retires-a-desired-behavior","behavior-notes-use-holds-broken-moved-verdicts-and-are-never"]}
+]
