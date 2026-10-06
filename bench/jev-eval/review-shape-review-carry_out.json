@@ -1,0 +1,73 @@
+{
+  "tasks": 54,
+  "impTotal": 70,
+  "usefulTasks": 46,
+  "arms": [
+    {
+      "name": "bm25-top2",
+      "served": 105,
+      "useful": 43,
+      "imp": 24,
+      "impSeen": 24,
+      "blank": 8,
+      "hitTasks": 31,
+      "us": 0.4095238095238095,
+      "is": 0.22857142857142856
+    },
+    {
+      "name": "bm25-top1",
+      "served": 54,
+      "useful": 25,
+      "imp": 14,
+      "impSeen": 14,
+      "blank": 8,
+      "hitTasks": 25,
+      "us": 0.46296296296296297,
+      "is": 0.25925925925925924
+    },
+    {
+      "name": "jev-1  (floor .5)",
+      "served": 34,
+      "useful": 34,
+      "imp": 25,
+      "impSeen": 25,
+      "blank": 0,
+      "hitTasks": 34,
+      "us": 1,
+      "is": 0.7352941176470589
+    },
+    {
+      "name": "jev-2  (floor .5)",
+      "served": 58,
+      "useful": 56,
+      "imp": 37,
+      "impSeen": 37,
+      "blank": 0,
+      "hitTasks": 34,
+      "us": 0.9655172413793104,
+      "is": 0.6379310344827587
+    },
+    {
+      "name": "jev-1  (floor .7)",
+      "served": 27,
+      "useful": 27,
+      "imp": 22,
+      "impSeen": 22,
+      "blank": 0,
+      "hitTasks": 27,
+      "us": 1,
+      "is": 0.8148148148148148
+    },
+    {
+      "name": "l6-1   (floor 0)*",
+      "served": 19,
+      "useful": 13,
+      "imp": 9,
+      "impSeen": 9,
+      "blank": 0,
+      "hitTasks": 13,
+      "us": 0.6842105263157895,
+      "is": 0.47368421052631576
+    }
+  ]
+}
