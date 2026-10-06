@@ -388,8 +388,8 @@
       border: 1px solid #e5e7eb;
       border-radius: 12px;
       width: 100%;
-      max-width: 720px;
-      max-height: 88vh;
+      max-width: 1080px;
+      max-height: 92vh;
       display: flex;
       flex-direction: column;
       box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15);
@@ -434,6 +434,24 @@
     .bench-section { padding: 1.5rem 0 1.35rem; }
 
     .bench-section + .bench-section { border-top: 1px solid #f0f0f0; }
+
+    @media (min-width: 960px) {
+      .modal-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 2rem;
+        padding-bottom: 1.25rem;
+      }
+      .bench-section { padding: 1.35rem 0 0.5rem; }
+      .bench-section + .bench-section {
+        border-top: none;
+        border-left: 1px solid #f0f0f0;
+        padding-left: 2rem;
+      }
+      .bench-row { grid-template-columns: 118px minmax(0, 1fr) 104px; gap: 0 0.75rem; }
+      .bench-headline { font-size: 1rem; }
+    }
+
 
     .bench-kicker {
       font-size: 0.72rem;
@@ -641,7 +659,7 @@
         <div class="outcomes">
           <a class="outcome" href="#review">
             <div class="outcome-kicker">Bug detection</div>
-            <div class="outcome-num">+30 pts</div>
+            <div class="outcome-num">+30%</div>
             <div class="outcome-label">More regressions caught in code review, on every model tested</div>
             <p class="outcome-body">A review checks a change against what the repository already learned: fixes it must not undo, conventions and behaviors it must keep.</p>
             <div class="outcome-cta">How review works &rarr;</div>
@@ -1020,36 +1038,36 @@ export THINKER_TELEMETRY=off
 
         <section class="bench-section" aria-labelledby="bench-bugs">
           <div class="bench-kicker">Bug detection</div>
-          <h3 class="bench-headline" id="bench-bugs">Every model caught <span class="gain">3 more of 10</span> regressions with thinker.</h3>
-          <p class="bench-lede">Ten reversed fixes from an open-source repository, reviewed by each model with and without thinker's notes. Share of regressions caught:</p>
+          <h3 class="bench-headline" id="bench-bugs">Every model caught <span class="gain">3 more of 10</span> regressions.</h3>
+          <p class="bench-lede">Ten reversed fixes from an open-source repository, each reviewed with and without thinker's notes. Regressions caught:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
           </div>
           <div class="bench-rows">
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Opus 5</div><div class="bench-model-sub">10 reviews each</div></div>
+              <div class="bench-model"><div class="bench-model-name">Claude Opus 5</div><div class="bench-model-sub">10 cases</div></div>
               <div class="bench-bars">
                 <div class="bar before"><i style="--w: 70%"></i>70%</div>
                 <div class="bar after"><i style="--w: 100%"></i>100%</div>
               </div>
-              <div class="bench-delta">+30 pts<small>7 &rarr; 10 of 10</small></div>
+              <div class="bench-delta">+30%</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">high reasoning</div></div>
+              <div class="bench-model"><div class="bench-model-name">GPT-6.1 Sol</div><div class="bench-model-sub">10 cases</div></div>
               <div class="bench-bars">
                 <div class="bar before"><i style="--w: 60%"></i>60%</div>
                 <div class="bar after"><i style="--w: 90%"></i>90%</div>
               </div>
-              <div class="bench-delta">+30 pts<small>6 &rarr; 9 of 10</small></div>
+              <div class="bench-delta">+30%</div>
             </div>
             <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.1 Pro</div><div class="bench-model-sub">high reasoning</div></div>
+              <div class="bench-model"><div class="bench-model-name">Gemini 3.1 Pro</div><div class="bench-model-sub">10 cases</div></div>
               <div class="bench-bars">
                 <div class="bar before"><i style="--w: 60%"></i>60%</div>
                 <div class="bar after"><i style="--w: 90%"></i>90%</div>
               </div>
-              <div class="bench-delta">+30 pts<small>6 &rarr; 9 of 10</small></div>
+              <div class="bench-delta">+30%</div>
             </div>
           </div>
           <details class="bench-method">
@@ -1061,8 +1079,8 @@ export THINKER_TELEMETRY=off
 
         <section class="bench-section" aria-labelledby="bench-tokens">
           <div class="bench-kicker">Efficiency</div>
-          <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18 to 19% fewer input tokens</span> per coding task.</h3>
-          <p class="bench-lede">Real coding tasks from merged pull requests in open-source repositories, run with and without thinker. Input tokens per task, including cached context:</p>
+          <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18 to 19% fewer tokens</span> per task.</h3>
+          <p class="bench-lede">Real coding tasks from merged pull requests, run with and without thinker. Input tokens per task, cached context included:</p>
           <div class="bench-legend" aria-hidden="true">
             <span><i class="swatch before"></i> without thinker</span>
             <span><i class="swatch"></i> with thinker</span>
