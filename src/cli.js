@@ -107,8 +107,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  each definition whole with its lines (path:Symbol, path, or Symbol; several at once),
                                  one hop of callers and callees for a single pointer, and the notes on the code
   ranker [status|fetch]          the rankers the hooks choose notes with: status says whether the cross-encoder's runtime and
-                                 model are in place and whether Jev is configured (--jev-key <key> configures it,
-                                 --no-jev-key forgets it); fetch downloads the cross-encoder
+                                 model are in place; hosted Jev is the default (no key needed). --jev-key <key> uses
+                                 your own key, --no-jev-key returns to hosted; fetch prepares the local fallback
   ast [status|install]           symbol boundaries by tree-sitter instead of regex heuristics: install puts
                                  web-tree-sitter and its grammars (Python, JS/TS, Go, Rust; ~55 MB) under ~/.thinker/ast
   list [--stale] [--all] [--json]  list notes; JSON includes unreadable-note warnings
